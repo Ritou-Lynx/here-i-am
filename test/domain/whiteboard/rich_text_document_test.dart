@@ -320,6 +320,31 @@ void main() {
       expect(migrated.blocks[1].marks.first.start, equals(6));
       expect(migrated.blocks[1].marks.first.end, equals(8));
     });
+
+    test('fixture: v2 current document parses with depth, children, asset refs',
+        () {
+      final raw = loadRichTextFixture('rich_text_v2_current.json');
+      expect(raw['schema_version'], equals(2));
+      final doc = migrateRichTextDocument(raw);
+      expect(doc.schemaVersion, equals(richTextSchemaVersion));
+      expect(doc.blocks.length, equals(4));
+      expect(doc.blocks[1].type, equals(BlockType.list));
+      expect(doc.blocks[1].listDepth, equals(1));
+      expect(doc.blocks[2].type, equals(BlockType.quote));
+      expect(doc.blocks[2].children.length, equals(1));
+      expect(doc.blocks[2].children.first.text, equals('引用里的子段'));
+      expect(doc.blocks[3].assetRefId, equals('ref_v2_1'));
+      expect(doc.assetRefs.length, equals(1));
+      expect(doc.assetRefs.first.objectRef, equals('objects/abc123.png'));
+
+      // Idempotent: re-migrating the migrated document changes nothing.
+      final again = migrateRichTextDocument(doc.toJson());
+      expect(again.toJson(), equals(doc.toJson()));
+      // And the projection is searchable text.
+      expect(doc.toPlainText(), contains('嵌套列表项'));
+      expect(doc.toPlainText(), contains('> 引言'));
+      expect(doc.toPlainText(), contains('示意图'));
+    });
   });
 
   group('Asset references', () {

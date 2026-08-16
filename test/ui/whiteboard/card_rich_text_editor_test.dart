@@ -1,10 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/domain/whiteboard/rich_text_asset_ref.dart';
 import 'package:memex/domain/whiteboard/rich_text_controller.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
@@ -312,6 +316,385 @@ void main() {
 
       expect(saved, isNotNull);
       expect(saved!.blocks.first.text, equals('快捷键保存'));
+    });
+  });
+
+  group('list nesting (Tab / Shift-Tab / Enter)', () {
+    Future<RichTextEditingController> pumpList(tester) async {
+      final controller = RichTextEditingController(const RichTextDocument(
+        blocks: [
+          RichTextBlock(
+            type: BlockType.list,
+            text: '第一项',
+            attrs: {'ordered': false},
+          ),
+        ],
+      ));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CardRichTextEditor(
+            controller: controller,
+            cardId: 'card_list',
+          ),
+        ),
+      ));
+      // Focus the list field.
+      await tester.tap(find.byType(TextField).first);
+      await tester.pump();
+      return controller;
+    }
+
+    testWidgets(
+        'desktop: toolbar tap keeps field focus, Tab/Enter still structure '
+        'the list', (tester) async {
+      // Windows target platform: InkWell toolbar buttons steal focus on
+      // tap; the editor must hand it back so keyboard structure ops work.
+      // The override must be reset inside the test body (foundation
+      // invariant check runs before tearDowns).
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+      final c = RichTextEditingController(const RichTextDocument(
+        blocks: [
+          RichTextBlock(type: BlockType.paragraph, text: '第一项'),
+        ],
+      ));
+      try {
+        await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+            body: CardRichTextEditor(
+              controller: c,
+              cardId: 'card_desktop_focus',
+            ),
+          ),
+        ));
+        await tester.tap(find.byType(TextField).first);
+        await tester.pump();
+
+        // Convert to a list via the toolbar (focus is stolen on desktop).
+        await tester.tap(find.text('•'));
+        await tester.pumpAndSettle();
+        // The editor restores field focus after the toolbar action.
+        expect(c.focusNodeFor(0).hasFocus, isTrue,
+            reason: 'field focus restored after desktop toolbar tap');
+        expect(c.blockAt(0).type, equals(BlockType.list));
+
+        // Tab still indents and Enter still creates a sibling.
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(c.blockAt(0).listDepth, equals(1));
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(c.blockCount, equals(2));
+        expect(c.blockAt(1).type, equals(BlockType.list));
+        expect(c.blockAt(1).listDepth, equals(1));
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('Tab indents the focused list item', (tester) async {
+      final c = await pumpList(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(c.blockAt(0).listDepth, equals(1));
+
+      // Shift-Tab outdents back.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(c.blockAt(0).listDepth, equals(0));
+    });
+
+    testWidgets('Enter on a list item continues the same list', (tester) async {
+      final c = await pumpList(tester);
+      await tester.enterText(find.byType(TextField).first, '第二项');
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(c.blockCount, equals(2));
+      final sibling = c.blockAt(1);
+      expect(sibling.type, equals(BlockType.list));
+      expect(sibling.listOrdered, isFalse);
+      expect(sibling.listDepth, equals(0));
+      // The new sibling is focused.
+      expect(c.focusNodeFor(1).hasFocus, isTrue);
+    });
+
+    testWidgets('Enter on a nested list item keeps the depth', (tester) async {
+      final c = RichTextEditingController(const RichTextDocument(
+        blocks: [
+          RichTextBlock(
+            type: BlockType.list,
+            text: '深层项',
+            attrs: {'ordered': true, 'depth': 2},
+          ),
+        ],
+      ));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CardRichTextEditor(
+            controller: c,
+            cardId: 'card_list_nested',
+          ),
+        ),
+      ));
+      await tester.tap(find.byType(TextField).first);
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(c.blockCount, equals(2));
+      expect(c.blockAt(1).listDepth, equals(2));
+      expect(c.blockAt(1).listOrdered, isTrue);
+    });
+
+    testWidgets('Enter on an empty list item exits back to paragraph',
+        (tester) async {
+      final c = await pumpList(tester);
+      await tester.enterText(find.byType(TextField).first, '');
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(c.blockCount, equals(1));
+      expect(c.blockAt(0).type, equals(BlockType.paragraph));
+    });
+  });
+
+  group('quote children editing', () {
+    testWidgets('Enter on a quote creates an editable child paragraph',
+        (tester) async {
+      final c = RichTextEditingController(const RichTextDocument(
+        blocks: [RichTextBlock(type: BlockType.quote, text: '引言')],
+      ));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CardRichTextEditor(
+            controller: c,
+            cardId: 'card_quote',
+          ),
+        ),
+      ));
+      await tester.tap(find.byType(TextField).first);
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(c.childCount(0), equals(1));
+      expect(c.childFocusNodeFor(0, 0).hasFocus, isTrue);
+
+      // Type into the child; flush reads it back.
+      await tester.enterText(find.byType(TextField).at(1), '引用正文');
+      await tester.pump();
+      final doc = c.flushToDocument();
+      expect(doc.blocks.first.children.first.text, equals('引用正文'));
+    });
+
+    testWidgets('Enter on an empty quote child removes it', (tester) async {
+      final c = RichTextEditingController(const RichTextDocument(
+        blocks: [
+          RichTextBlock(
+            type: BlockType.quote,
+            text: '引言',
+            children: [RichTextBlock(type: BlockType.paragraph)],
+          ),
+        ],
+      ));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CardRichTextEditor(
+            controller: c,
+            cardId: 'card_quote_empty',
+          ),
+        ),
+      ));
+      // Focus the child field (the second TextField).
+      await tester.tap(find.byType(TextField).at(1));
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(c.childCount(0), equals(0));
+    });
+
+    testWidgets('quote children survive flush and serialization',
+        (tester) async {
+      final c = RichTextEditingController(const RichTextDocument(
+        blocks: [
+          RichTextBlock(
+            type: BlockType.quote,
+            text: '引言',
+            children: [
+              RichTextBlock(type: BlockType.paragraph, text: '已有子段'),
+            ],
+          ),
+        ],
+      ));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CardRichTextEditor(
+            controller: c,
+            cardId: 'card_quote_rt',
+          ),
+        ),
+      ));
+      expect(find.text('已有子段'), findsOneWidget);
+      final json = c.flushToDocument().toJson();
+      expect(json['blocks'][0]['children'][0]['text'], equals('已有子段'));
+    });
+  });
+
+  group('media import (image / attachment)', () {
+    final onePng = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8'
+        '/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==');
+
+    Future<RichTextObjectStore> pumpWithImporter(
+      WidgetTester tester,
+      RichTextEditingController c,
+      RichTextMediaImporter importer, {
+      RichTextObjectStore? store,
+    }) async {
+      final objectStore = store ?? RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_'));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CardRichTextEditor(
+            controller: c,
+            cardId: 'card_media',
+            objectStore: objectStore,
+            mediaImporter: importer,
+          ),
+        ),
+      ));
+      return objectStore;
+    }
+
+    testWidgets('image import inserts an image block with a stable asset ref',
+        (tester) async {
+      final c = RichTextEditingController(RichTextDocument.empty());
+      final store = RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_img_'));
+      await pumpWithImporter(tester, c, (kind) async {
+        final f = File('${store.baseDir.path}${Platform.pathSeparator}tmp_pick.png');
+        f.writeAsBytesSync(onePng);
+        return [await store.importFile(f.path, alt: '临时截图.png')];
+      }, store: store);
+
+      await tester.runAsync(() async {
+        await tester.tap(find.text('🖼'));
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      });
+      await tester.pumpAndSettle();
+
+      final doc = c.flushToDocument();
+      expect(doc.assetRefs.length, equals(1));
+      final ref = doc.assetRefs.first;
+      expect(ref.objectRef, startsWith('objects/'));
+      expect(ref.mimeType, equals('image/png'));
+      expect(doc.blocks.last.type, equals(BlockType.image));
+      expect(doc.blocks.last.assetRefId, equals(ref.refId));
+      // The temporary pick path never enters the model.
+      expect(ref.objectRef.contains('tmp_pick'), isFalse);
+      // The object file exists under objects/.
+      expect(store.resolveFile(ref), isNotNull);
+    });
+
+    testWidgets('attachment import inserts a reference block', (tester) async {
+      final c = RichTextEditingController(RichTextDocument.empty());
+      final store = RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_att_'));
+      await pumpWithImporter(tester, c, (kind) async {
+        final f = File('${store.baseDir.path}${Platform.pathSeparator}tmp_doc.pdf');
+        f.writeAsBytesSync([1, 2, 3]);
+        return [await store.importFile(f.path, alt: '报告.pdf')];
+      }, store: store);
+
+      await tester.runAsync(() async {
+        await tester.tap(find.text('📎'));
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      });
+      await tester.pumpAndSettle();
+
+      final doc = c.flushToDocument();
+      expect(doc.blocks.last.type, equals(BlockType.reference));
+      expect(doc.blocks.last.attrs['label'], equals('报告.pdf'));
+      expect(doc.assetRefs.first.mimeType, equals('application/pdf'));
+    });
+
+    testWidgets('media block renders with preview and delete button',
+        (tester) async {
+      final c = RichTextEditingController(RichTextDocument.empty());
+      final store = RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_render_'));
+      await pumpWithImporter(tester, c, (kind) async {
+        final f = File('${store.baseDir.path}${Platform.pathSeparator}tmp_pic.png');
+        f.writeAsBytesSync(onePng);
+        return [await store.importFile(f.path, alt: '示意图')];
+      }, store: store);
+
+      await tester.runAsync(() async {
+        await tester.tap(find.text('🖼'));
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      });
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.close), findsOneWidget);
+
+      // Delete removes the block.
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      final doc = c.flushToDocument();
+      expect(doc.blocks.where((b) => b.type == BlockType.image), isEmpty);
+      expect(doc.assetRefs, isEmpty);
+    });
+
+    testWidgets('imported media round-trips through save → reload',
+        (tester) async {
+      final tempDir = Directory.systemTemp.createTempSync('media_ui_rt_');
+      final storage = RichTextStorage(tempDir);
+      final store = RichTextObjectStore(tempDir);
+      final c = RichTextEditingController(RichTextDocument.empty());
+      await pumpWithImporter(tester, c, (kind) async {
+        final f = File('${tempDir.path}${Platform.pathSeparator}tmp_rt.png');
+        f.writeAsBytesSync(onePng);
+        return [await store.importFile(f.path, alt: '恢复图.png')];
+      }, store: store);
+
+      await tester.runAsync(() async {
+        await tester.tap(find.text('🖼'));
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      });
+      await tester.pumpAndSettle();
+
+      // Save and "restart": new controller loaded from storage.
+      storage.saveSync('card_media', c.flushToDocument());
+      final loaded = storage.loadSync('card_media')!;
+      final restarted = RichTextEditingController(loaded);
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: CardRichTextEditor(
+            controller: restarted,
+            cardId: 'card_media',
+            objectStore: store,
+            mediaImporter: (kind) async => const [],
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(loaded.assetRefs.length, equals(1));
+      expect(loaded.assetRefs.first.objectRef, startsWith('objects/'));
+      expect(store.resolveFile(loaded.assetRefs.first), isNotNull);
+      expect(find.text('恢复图.png'), findsOneWidget);
     });
   });
 

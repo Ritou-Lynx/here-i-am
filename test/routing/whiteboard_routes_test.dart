@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'dart:io';
+
+import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/routing/router.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
@@ -30,6 +33,11 @@ void main() {
     // point it at the in-memory test database so the real route wiring is
     // exercised end to end.
     AppDatabase.setTestInstance(db);
+    // The card editor resolves its storage via path_provider, whose platform
+    // channel is unavailable under `flutter test`; point it at a temp dir.
+    CardRichTextEditorScreen.setStorageForTesting(
+      RichTextStorage(Directory.systemTemp.createTempSync('route_rt_')),
+    );
     router = createAppRouter(
       GlobalKey<NavigatorState>(),
       () => const Scaffold(body: SizedBox()),
@@ -96,7 +104,8 @@ void main() {
       (tester) async {
     await pumpRoute(tester, AppRoutes.cardEditPath('card_abc'));
     expect(find.byType(CardRichTextEditorScreen), findsOneWidget);
-    expect(find.text('card_abc'), findsOneWidget);
+    // The real editor screen opens (W2 body) with the card id in its title.
+    expect(find.textContaining('card_abc'), findsOneWidget);
   });
 
   testWidgets('source study route resolves with sourceId parameter',
