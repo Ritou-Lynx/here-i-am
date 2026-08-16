@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.util.Log
@@ -91,10 +92,35 @@ class AudioRouteChannelHandler(private val context: Context) {
 
     fun setSpeakerphone(enabled: Boolean) {
         try {
-            audioManager?.isSpeakerphoneOn = enabled
+            val manager = audioManager
+            if (manager == null) return
+            // NOTE: do NOT force AudioManager.mode here. Setting MODE_IN_COMMUNICATION
+            // before an AudioRecord session exists can put the audio pipeline in a
+            // state where the voice-communication stream produces no output at all
+            // (silent call). The mode is set by record.startStream (audioManagerMode:
+            // modeInCommunication) — this method is called after the mic opens.
+            //
+            // API 31+: setCommunicationDevice is the modern, unguarded route
+            // switcher. On several OEMs (notably Samsung One UI) the legacy
+            // setSpeakerphoneOn() is protected and throws "Audio Settings
+            // Permission Denial", silently leaving the route on the earpiece.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val device = if (enabled) {
+                    manager.availableCommunicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                } else {
+                    manager.availableCommunicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
+                }
+                val ok = if (device != null) manager.setCommunicationDevice(device) else false
+                if (ok) {
+                    Log.d(TAG, "setCommunicationDevice=${if (enabled) "SPEAKER" else "EARPIECE"}")
+                    return
+                }
+                Log.w(TAG, "setCommunicationDevice returned false; fallback setSpeakerphoneOn")
+            }
+            manager.isSpeakerphoneOn = enabled
             Log.d(TAG, "setSpeakerphoneOn=$enabled")
         } catch (e: Exception) {
-            Log.w(TAG, "setSpeakerphoneOn failed: ${e.message}")
+            Log.w(TAG, "setSpeakerphone failed: ${e.message}")
         }
     }
 
@@ -179,7 +205,10 @@ object CallControlNotification {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "通话控制",
-            NotificationManager.IMPORTANCE_HIGH,
+            // IMPORTANCE_LOW: silent, no vibration/sound on update. HIGH would
+            // vibrate on every notify() (each mute/speaker toggle), and the
+            // haptic buzz gets picked up by the mic and transcribed as "111".
+            NotificationManager.IMPORTANCE_LOW,
         ).apply {
             description = "通话中的静音 / 外放 / 挂断控制"
             setShowBadge(false)
@@ -194,8 +223,14 @@ object CallControlNotification {
             muted = muted,
             enabled = enabled,
         )
+        val requestCode = when (action) {
+            ACTION_MUTE -> 2001
+            ACTION_SPEAKER -> 2002
+            ACTION_HANGUP -> 2003
+            else -> 2000
+        }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
-        return PendingIntent.getBroadcast(context, action.hashCode(), intent, flags)
+        return PendingIntent.getBroadcast(context, requestCode, intent, flags)
     }
 }

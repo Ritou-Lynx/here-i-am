@@ -113,8 +113,15 @@ class AlibabaStreamingAsrClient {
         'enable_intermediate_result': true,
         'enable_punctuation_prediction': true,
         'enable_inverse_text_normalization': true,
-        'max_sentence_silence': 800,
-        'speech_noise_threshold': -0.5,
+        // Sentence-tail silence: how long NLS waits after speech before
+        // emitting SentenceEnd. Lower = faster turn boundary but risks
+        // splitting a sentence at a natural pause.
+        'max_sentence_silence': 500,
+        // VAD sensitivity. -0.5 (the most sensitive end) triggers on faint
+        // environmental sounds (key taps, haptic buzz, button clicks, TTS
+        // echo tails). 0.5 rejects most non-speech noise while still picking
+        // up normal conversation.
+        'speech_noise_threshold': 0.5,
       },
       'context': {
         'sdk': {

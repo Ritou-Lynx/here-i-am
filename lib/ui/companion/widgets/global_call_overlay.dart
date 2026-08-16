@@ -109,11 +109,21 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
 
   void _onStatus(CallVoiceStatus status) {
     if (!mounted) return;
+    // Only setState on an actual change — otherwise every isolate status
+    // echo re-renders the buttons and they appear to flash / double-tap.
+    final transcriptChanged = status.transcript.isNotEmpty &&
+        status.transcript != _transcript;
+    if (status.status == _status &&
+        status.muted == _muted &&
+        status.speaker == _speakerOn &&
+        !transcriptChanged) {
+      return;
+    }
     setState(() {
       _status = status.status;
       _muted = status.muted;
       _speakerOn = status.speaker;
-      if (status.transcript.isNotEmpty) {
+      if (transcriptChanged) {
         _transcript = status.transcript;
         _isReply = status.isReply;
       }
@@ -122,6 +132,8 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
 
   void _toggleMute() {
     final muted = !_muted;
+    // Optimistic local flip for instant feedback; the isolate confirms via
+    // _onStatus. Guarded against re-entry by the change check above.
     setState(() => _muted = muted);
     unawaited(widget.router.setMuted(muted));
   }

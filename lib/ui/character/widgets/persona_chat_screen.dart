@@ -4696,7 +4696,12 @@ only after you have written the goodbye you want the user to hear.''',
       (_autoReadEnabled || _isInlineVoiceMode) &&
       !_isAppInBackground &&
       !_isStreaming &&
-      !_voiceModeOpeningInProgress;
+      !_voiceModeOpeningInProgress &&
+      // A global call is active: the call session in the foreground-task
+      // isolate already speaks replies via streaming TTS. Auto-reading the
+      // same message here would play it a second time over the media stream
+      // (earpiece + speaker double playback).
+      !CallVoiceRouter.instance.isCallActive;
 
   void _autoReadNewestCharacterMessage({
     required List<PersonaChatMessage> previousMessages,

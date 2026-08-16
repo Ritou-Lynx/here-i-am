@@ -64,6 +64,8 @@ class CallVoiceSession {
   int _runSerial = 0;
   int _micRestartAttempts = 0;
   DateTime? _lastActivityAt;
+  DateTime? _lastTtsEndAt;
+  DateTime? _lastBargeInAt;
   bool _micMuted = false;
   bool _speakerOn = true;
 
@@ -82,7 +84,10 @@ class CallVoiceSession {
   // into one turn so mid-sentence pauses don't split a user utterance.
   final StringBuffer _pendingSentence = StringBuffer();
   Timer? _sentenceTimer;
-  static const _batchWindow = Duration(milliseconds: 1500);
+  // Short window: users read the post-speech pause + debounce + NLS tail
+  // detection as "slow to reply". 600ms still merges most mid-sentence
+  // pauses without a big latency hit.
+  static const _batchWindow = Duration(milliseconds: 600);
 
   CallVoicePhase get phase => _phase;
   bool get isActive => _phase != CallVoicePhase.idle;
@@ -127,6 +132,9 @@ class CallVoiceSession {
 
       final controller = VoiceInputController();
       controller.onStreamingEvent = _onStreamingEvent;
+      controller.onBargeInDuck = _onBargeInDuck;
+      controller.onBargeInDetected = _onBargeInDetected;
+      controller.onBargeInRestore = _onBargeInRestore;
       controller.onStreamingSessionLost = _onStreamingSessionLost;
 
       _controller = controller;
@@ -175,16 +183,6 @@ class CallVoiceSession {
     // routes both mic + speaker through STREAM_VOICE_CALL (AEC applies).
     await VoiceCallAudioSession.instance.enter();
 
-    // Apply the speaker route (earpiece vs loudspeaker). Default is speaker
-    // (用户偏好外放) unless the caller says otherwise.
-    try {
-      await _audioRouteChannel.invokeMethod(
-        'setSpeakerphone',
-        {'enabled': speakerOn},
-      );
-    } catch (e) {
-      _log.warning('setSpeakerphone failed: $e');
-    }
     // Tell the media-button bridge a call is active so it stops claiming
     // USAGE_MEDIA audio focus (route bouncing between earpiece and speaker).
     try {
@@ -197,6 +195,18 @@ class CallVoiceSession {
     if (!ok) {
       await _failWith('麦克风不可用，通话已结束');
       return;
+    }
+
+    // Apply the speaker route AFTER the mic opens: record.startStream sets
+    // MODE_IN_COMMUNICATION, and on several devices setMode resets the
+    // speakerphone flag — setting it beforehand gets lost.
+    try {
+      await _audioRouteChannel.invokeMethod(
+        'setSpeakerphone',
+        {'enabled': speakerOn},
+      );
+    } catch (e) {
+      _log.warning('setSpeakerphone failed: $e');
     }
 
     // Clear the pending call bookkeeping — the call is now answered.
@@ -229,10 +239,17 @@ class CallVoiceSession {
     _micMuted = muted;
     _controller?.setMuted(muted);
     if (muted) {
-      // Drop any pending sentence — the user explicitly wants to be unheard.
+      // Drop any pending sentence and TEAR DOWN the NLS session entirely —
+      // muted means nothing can be heard, physically. Unmute re-arms a fresh
+      // ASR session (recorder + NLS).
       _sentenceTimer?.cancel();
       _sentenceTimer = null;
       _pendingSentence.clear();
+      final controller = _controller;
+      if (controller != null && controller.isStreaming) {
+        _log.info('mute: tearing down NLS session');
+        await controller.cancelStreaming();
+      }
     } else {
       final controller = _controller;
       if (controller != null && !controller.isStreaming) {
@@ -279,7 +296,12 @@ class CallVoiceSession {
   Future<void> end() => _endInternal();
 
   Future<void> _endInternal() async {
-    if (_phase == CallVoicePhase.idle) return;
+    // Even if we're already idle (a previous end won), still tell the main
+    // isolate so the overlay / UI closes. Idempotent.
+    if (_phase == CallVoicePhase.idle) {
+      _notifyMain({'type': 'call_ended'});
+      return;
+    }
     _log.info('end (phase=$_phase)');
     _runSerial++;
     _activeIdentity = null;
@@ -385,16 +407,44 @@ class CallVoiceSession {
   void _onStreamingEvent(StreamingAsrEvent event) {
     switch (event) {
       case SentenceBeginEvent():
-        // NLS detected real speech. If the companion is speaking, treat it
+        // NLS detected speech start. If the companion is speaking, treat it
         // as a barge-in (the platform AEC cancels TTS echo; anything that
-        // reaches NLS VAD while TTS plays is real user speech).
+        // reaches NLS VAD while TTS plays is real user speech). Cooldown
+        // guards against echo chaining (interrupt → residual echo → interrupt).
         if (_phase == CallVoicePhase.speaking) {
-          _log.info('SentenceBegin during TTS — barge-in');
-          unawaited(_interruptReply());
+          final lastBarge = _lastBargeInAt;
+          if (lastBarge == null ||
+              DateTime.now().difference(lastBarge) >
+                  const Duration(milliseconds: 1500)) {
+            _log.info('SentenceBegin during TTS — barge-in');
+            unawaited(_interruptReply());
+          } else {
+            _log.fine('barge-in cooldown active — ignoring echo begin');
+          }
         }
       case SentenceEndEvent():
         final text = event.text.trim();
         if (text.isEmpty) return;
+        // While the companion is speaking, any recognized sentence is most
+        // likely TTS echo leaking into the mic (the AEC is imperfect,
+        // especially on loudspeaker). Dispatch it would re-trigger a reply
+        // and create an echo loop. User interruptions are handled by
+        // SentenceBegin (interrupts TTS) and the speech that follows the
+        // interruption is transcribed after we return to listening.
+        if (_phase == CallVoicePhase.speaking) {
+          _log.fine('dropping sentence while speaking (echo): "$text"');
+          return;
+        }
+        // Drop the echo tail of the just-finished TTS: right after a reply
+        // stops speaking, the AEC still has residual speaker energy in the
+        // mic signal for ~300-400ms and NLS can transcribe it as a phantom
+        // sentence (typically the last word or two of what we just said).
+        final ttsEnd = _lastTtsEndAt;
+        if (ttsEnd != null &&
+            DateTime.now().difference(ttsEnd) < const Duration(milliseconds: 400)) {
+          _log.fine('dropping echo tail sentence: "$text"');
+          return;
+        }
         _lastActivityAt = DateTime.now();
         _log.info('sentence: '
             '"${text.length > 60 ? text.substring(0, 60) : text}"');
@@ -415,10 +465,26 @@ class CallVoiceSession {
     }
   }
 
+  void _onBargeInDuck() {
+    // Lower TTS volume is handled by the UI side in the main isolate; in the
+    // background we simply keep playing (duck is just a hint).
+    _log.fine('barge-in duck');
+  }
+
+  void _onBargeInDetected() {
+    _log.info('barge-in detected');
+    unawaited(_interruptReply());
+  }
+
+  void _onBargeInRestore() {
+    _log.fine('barge-in restore');
+  }
+
   /// Stop the in-flight reply and return the mic to listening so the user's
   /// follow-up sentence can start a fresh turn. The mic/NLS session stays
   /// open throughout (no pause/restore dance).
   Future<void> _interruptReply() async {
+    _lastBargeInAt = DateTime.now();
     _runSerial++;
     _activeIdentity = null;
     final tts = _ttsSession;
@@ -434,6 +500,7 @@ class CallVoiceSession {
       _phase = CallVoicePhase.listening;
       await _updateNotification('📞 通话中…（随时可以说话）');
     }
+    await _restoreMicAfterTts();
   }
 
   // ── Turn dispatch ────────────────────────────────────────────────────────
@@ -489,12 +556,16 @@ class CallVoiceSession {
         await tts.start();
         _ttsSession = tts;
         await _updateNotification('🔊 正在回复…');
-        // NLS keeps receiving mic audio during TTS — the platform AEC
-        // (voiceCommunication source + MODE_IN_COMMUNICATION) cancels the
-        // speaker echo. Pausing forwarding would starve NLS and make it
-        // timeout (40000004); the local barge-in detector would also false-
-        // trigger on TTS echo. Barge-in is driven by NLS SentenceBegin
-        // instead (see _onStreamingEvent).
+        // Pause forwarding while TTS plays: speaker output would otherwise
+        // leak into the mic (imperfect AEC, especially on loudspeaker) and
+        // NLS would transcribe our own reply as the user (echo loop, and
+        // SentenceBegin would barge-in and cut our own TTS). The local
+        // BargeInDetector (started by pauseAudioForwarding) still lets the
+        // user interrupt — see _onBargeInDetected.
+        final controller = _controller;
+        if (controller != null && controller.isStreaming) {
+          controller.pauseAudioForwarding();
+        }
       } else {
         await _updateNotification('💬 正在回复…');
       }
@@ -546,15 +617,35 @@ class CallVoiceSession {
       if (serial == _runSerial && turnIdentity.isCurrent(_activeIdentity)) {
         _ttsSession = null;
         _activeIdentity = null;
-        // Back to listening only if the call is still alive. The mic/NLS
-        // session never stopped (no pauseAudioForwarding), so nothing to
-        // restore here.
+        _lastTtsEndAt = DateTime.now();
+        // Back to listening only if the call is still alive.
         if (_phase != CallVoicePhase.idle) {
           _phase = CallVoicePhase.listening;
+          await _restoreMicAfterTts();
           await _updateNotification('📞 通话中…（随时可以说话）');
           _notifyMain({'type': 'call_status', 'status': 'listening'});
         }
       }
+    }
+  }
+
+  /// After TTS finishes, hand the mic back to the NLS session. If the NLS
+  /// session was closed while TTS played (idle-close while forwarding was
+  /// paused), re-arm a fresh streaming session. A short delay lets any
+  /// in-flight teardown (from _handleStreamingSessionLost) finish before we
+  /// read [VoiceInputController.isStreaming].
+  Future<void> _restoreMicAfterTts() async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    final controller = _controller;
+    if (controller == null || _phase == CallVoicePhase.idle) return;
+    if (controller.isStreaming) {
+      controller.resumeAudioForwarding();
+      return;
+    }
+    _log.info('NLS session gone after TTS — re-arming mic');
+    final ok = await _armMic();
+    if (!ok && _phase != CallVoicePhase.idle) {
+      await _scheduleMicReconnect();
     }
   }
 
@@ -597,8 +688,10 @@ class CallVoiceSession {
     _ttsSession = tts;
     try {
       await tts.start();
-      // NLS keeps receiving mic audio during the opening TTS (no pausing —
-      // see _runTurn comment). Barge-in arrives via NLS SentenceBegin.
+      final controller = _controller;
+      if (controller != null && controller.isStreaming) {
+        controller.pauseAudioForwarding();
+      }
       tts.feedText(text);
       await tts.finishAndWait();
     } catch (e, st) {
@@ -607,6 +700,8 @@ class CallVoiceSession {
       if (serial == _runSerial && turnIdentity.isCurrent(_activeIdentity)) {
         _ttsSession = null;
         _activeIdentity = null;
+        _lastTtsEndAt = DateTime.now();
+        await _restoreMicAfterTts();
         if (_phase != CallVoicePhase.idle) {
           await _updateNotification('📞 通话中…（随时可以说话）');
           _notifyMain({'type': 'call_status', 'status': 'listening'});

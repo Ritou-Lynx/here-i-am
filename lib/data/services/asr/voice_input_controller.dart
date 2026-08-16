@@ -430,14 +430,17 @@ class VoiceInputController extends ChangeNotifier {
           autoGain: true,
           echoCancel: true,
           noiseSuppress: true,
-          // VoIP call path: route mic through the voice-call audio source so
-          // the platform AEC cancels speaker echo (TTS output) from the mic
-          // signal, and set MODE_IN_COMMUNICATION so mic + speaker coexist.
-          // For press-to-talk (useVoiceCommunication=false), use default mic
-          // source — no AEC needed since TTS is not playing simultaneously.
+          // VoIP call path: route through MODE_IN_COMMUNICATION so mic +
+          // speaker coexist and the platform routes call audio. The audio
+          // SOURCE is the default mic (not VOICE_COMMUNICATION): on several
+          // OEMs (notably Samsung) the VOICE_COMMUNICATION source's hardware
+          // AEC aggressively cancels anything that isn't a close-in voice,
+          // which in loudspeaker mode swallows normal-distance speech.
+          // Echo suppression comes from MODE_IN_COMMUNICATION + the
+          // AcousticEchoCanceler effect (echoCancel: true above).
           androidConfig: useVoiceCommunication
               ? const AndroidRecordConfig(
-                  audioSource: AndroidAudioSource.voiceCommunication,
+                  audioSource: AndroidAudioSource.mic,
                   audioManagerMode: AudioManagerMode.modeInCommunication,
                 )
               : const AndroidRecordConfig(
@@ -546,7 +549,15 @@ class VoiceInputController extends ChangeNotifier {
   /// forwarding is paused are fed to [BargeInDetector].
   void startBargeInDetection() {
     if (_bargeInDetector != null) return;
-    _bargeInDetector = BargeInDetector();
+    _bargeInDetector = BargeInDetector(
+      // Higher thresholds than the defaults: on loudspeaker the platform AEC
+      // is imperfect and TTS echo can reach the mic; only a sustained, loud
+      // voice should count as an interruption (a "duck" from echo shouldn't
+      // chop our own reply).
+      duckMs: 360,
+      interruptMs: 900,
+      speechThresholdRms: 0.02,
+    );
     _bargeInDetector!.onEvent = (event, prerollSnapshot) {
       switch (event) {
         case BargeInEvent.duck:
@@ -639,8 +650,14 @@ class VoiceInputController extends ChangeNotifier {
     if (_audioForwardingPaused) {
       // TTS owns the lifecycle; do a full teardown so startStreaming can
       // re-arm cleanly later, but don't fire onStreamingSessionLost (the
-      // TTS-complete handler re-arms the mic itself).
+      // TTS-complete handler re-arms the mic itself). Performed AWAITED —
+      // if it runs unawaited, the caller (e.g. _restoreMicAfterTts) can read
+      // isStreaming==true right after teardown starts and resumeAudioForwarding
+      // on a dead client, losing the mic until the next NLS loss.
       _logger.info('NLS session closed during TTS; full teardown (no callback)');
+      // Fire-and-forget; the TTS-complete handler (_restoreMicAfterTts) waits
+      // ~200ms before checking isStreaming, which gives this teardown time to
+      // finish before it decides whether to resume or re-arm.
       unawaited(() async {
         await _cancelStreamingInternal();
         _streamingStopping = false;

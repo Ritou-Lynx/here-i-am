@@ -56,8 +56,11 @@ class StreamingTtsSession {
   /// Short sentences ("嗯。", "好。", "然后呢。") are buffered until they
   /// accumulate past this threshold, then merged and sent as a single request.
   /// This avoids per-call minimum billing and reduces total API round-trips.
-  /// The threshold is low enough that first-audio latency stays acceptable.
-  static const int _minSentenceRunes = 24;
+  ///
+  /// Kept low (8) so a short reply in a voice call starts speaking quickly —
+  /// a high threshold delays the first audio by however long it takes the
+  /// LLM to accumulate more text, which users read as "slow to reply".
+  static const int _minSentenceRunes = 8;
 
   /// Called when a segment starts playing. Useful for syncing subtitles.
   void Function(TtsSegment segment)? onSegmentStart;
