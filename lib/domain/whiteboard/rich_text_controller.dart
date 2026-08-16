@@ -6,12 +6,19 @@
 /// correctly by Flutter's [EditableText] (each field manages its own
 /// composing region). The controller rebuilds the [RichTextDocument] from
 /// the text fields on demand, preserving marks.
+///
+/// Nested blocks ([RichTextBlock.children], used by quote children and list
+/// nesting) get one editing level of their own: each child is backed by its
+/// own [RichTextBlockController] + [FocusNode], and [flushToDocument] reads
+/// child text back into the model. Deeper nesting is preserved by the model
+/// and projection but not edited this round.
 library;
 
 import 'package:flutter/widgets.dart';
 
 import 'package:memex/ui/whiteboard/fonts.dart';
 
+import 'rich_text_asset_ref.dart';
 import 'rich_text_document.dart';
 import 'rich_text_history.dart';
 import 'rich_text_marks.dart';
@@ -75,7 +82,9 @@ class RichTextBlockController extends TextEditingController {
     }
     // Flutter applies the composing underline itself when withComposing is
     // true; we just forward our styled children.
-    return TextSpan(style: effective, children: children.isEmpty ? null : children);
+    return TextSpan(
+        style: effective,
+        children: children.isEmpty ? null : children);
   }
 
   TextStyle _applyMarkStyle(TextStyle style, RichTextMark mark) {
@@ -110,10 +119,22 @@ class RichTextBlockController extends TextEditingController {
   }
 }
 
+/// A nested (child) block's editing state.
+class _ChildEditState {
+  final RichTextBlockController controller;
+  final FocusNode focusNode;
+  RichTextBlock block;
+
+  _ChildEditState(this.block)
+      : controller = RichTextBlockController(block: block),
+        focusNode = FocusNode();
+}
+
 class _BlockEditState {
   final RichTextBlockController controller;
   final FocusNode focusNode;
   RichTextBlock block;
+  final List<_ChildEditState> children = [];
 
   _BlockEditState(this.block)
       : controller = RichTextBlockController(block: block),
@@ -151,13 +172,36 @@ class RichTextEditingController extends ChangeNotifier {
   /// Returns the block at [index] (current model state).
   RichTextBlock blockAt(int index) => _states[index].block;
 
+  /// Number of editable child blocks nested under the block at [parentIndex].
+  int childCount(int parentIndex) => _states[parentIndex].children.length;
+
+  /// Returns the child block at `(parentIndex, childIndex)`.
+  RichTextBlock childBlockAt(int parentIndex, int childIndex) =>
+      _states[parentIndex].children[childIndex].block;
+
+  /// Returns the TextEditingController for the child at
+  /// `(parentIndex, childIndex)`.
+  TextEditingController childControllerFor(int parentIndex, int childIndex) =>
+      _states[parentIndex].children[childIndex].controller;
+
+  /// Returns the FocusNode for the child at `(parentIndex, childIndex)`.
+  FocusNode childFocusNodeFor(int parentIndex, int childIndex) =>
+      _states[parentIndex].children[childIndex].focusNode;
+
   /// Rebuilds the [RichTextDocument] from the current text field values,
-  /// preserving marks and attrs. Call this before reading [document] after
-  /// the user has typed.
+  /// preserving marks and attrs (including children). Call this before
+  /// reading [document] after the user has typed.
   RichTextDocument flushToDocument() {
     final blocks = <RichTextBlock>[];
     for (final s in _states) {
-      blocks.add(s.block.copyWith(text: s.controller.text));
+      final children = <RichTextBlock>[
+        for (final c in s.children)
+          c.block.copyWith(text: c.controller.text),
+      ];
+      blocks.add(s.block.copyWith(
+        text: s.controller.text,
+        children: children.isEmpty ? null : children,
+      ));
     }
     _doc = _doc.copyWith(blocks: blocks);
     return _doc;
@@ -220,6 +264,18 @@ class RichTextEditingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Toggles an inline mark over a selection in a nested child block.
+  void applyMarkToChild(int parentIndex, int childIndex, MarkType type,
+      int start, int end,
+      {Map<String, dynamic> attrs = const {}}) {
+    final c = _states[parentIndex].children[childIndex];
+    c.block = c.block.copyWith(text: c.controller.text);
+    c.block = toggleMark(c.block, type, start, end, attrs: attrs);
+    c.controller.updateBlock(c.block);
+    _dirty = true;
+    notifyListeners();
+  }
+
   /// Inserts a new block after [blockIndex] and returns its index.
   int insertBlockAfter(int blockIndex, RichTextBlock block) {
     final newDoc = flushToDocument();
@@ -233,6 +289,46 @@ class RichTextEditingController extends ChangeNotifier {
     return blockIndex + 1;
   }
 
+  /// Inserts a new child block after `(parentIndex, childIndex)` inside the
+  /// parent's children list, and returns the inserted child index.
+  ///
+  /// [childIndex] may be `-1` to insert at the front.
+  int insertChildAfter(
+      int parentIndex, int childIndex, RichTextBlock block) {
+    final newDoc = flushToDocument();
+    final parent = newDoc.blocks[parentIndex];
+    final children = List<RichTextBlock>.from(parent.children);
+    final insertAt = (childIndex + 1).clamp(0, children.length);
+    children.insert(insertAt, block);
+    final blocks = List<RichTextBlock>.from(newDoc.blocks);
+    blocks[parentIndex] = parent.copyWith(children: children);
+    _doc = newDoc.copyWith(blocks: blocks);
+    _history.commit(_doc);
+    _syncStates();
+    _dirty = true;
+    notifyListeners();
+    return insertAt;
+  }
+
+  /// Deletes the child block at `(parentIndex, childIndex)`.
+  void deleteChild(int parentIndex, int childIndex) {
+    final newDoc = flushToDocument();
+    final parent = newDoc.blocks[parentIndex];
+    final children = List<RichTextBlock>.from(parent.children);
+    if (children.isEmpty || childIndex >= children.length) return;
+    children.removeAt(childIndex);
+    final blocks = List<RichTextBlock>.from(newDoc.blocks);
+    blocks[parentIndex] = parent.copyWith(children: children);
+    _doc = newDoc.copyWith(
+      blocks: blocks,
+      assetRefs: _usedAssetRefs(blocks, newDoc.assetRefs),
+    );
+    _history.commit(_doc);
+    _syncStates();
+    _dirty = true;
+    notifyListeners();
+  }
+
   /// Changes the type of the block at [index] (e.g. paragraph → heading).
   void setBlockType(int index, BlockType type,
       {Map<String, dynamic> attrs = const {}}) {
@@ -243,11 +339,68 @@ class RichTextEditingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Changes the type of the child block at `(parentIndex, childIndex)`.
+  void setChildBlockType(int parentIndex, int childIndex, BlockType type,
+      {Map<String, dynamic> attrs = const {}}) {
+    final c = _states[parentIndex].children[childIndex];
+    c.block =
+        c.block.copyWith(type: type, attrs: {...c.block.attrs, ...attrs});
+    c.controller.updateBlock(c.block);
+    _dirty = true;
+    notifyListeners();
+  }
+
+  /// Indents a list block at [index] (depth +1, clamped to 8). When
+  /// [childIndex] is given, targets the nested child instead of the
+  /// top-level block. Returns the new depth, or null when the block is not a
+  /// list / already at the bound.
+  int? indentListBlock(int index, {int? childIndex}) =>
+      _adjustListDepth(index, childIndex: childIndex, delta: 1);
+
+  /// Outdents a list block at [index] (depth -1, clamped to 0). When
+  /// [childIndex] is given, targets the nested child instead of the
+  /// top-level block. Returns the new depth, or null when the block is not a
+  /// list / already at the bound.
+  int? outdentListBlock(int index, {int? childIndex}) =>
+      _adjustListDepth(index, childIndex: childIndex, delta: -1);
+
+  int? _adjustListDepth(int index, {int? childIndex, required int delta}) {
+    if (childIndex != null) {
+      final c = _states[index].children[childIndex];
+      if (c.block.type != BlockType.list) return null;
+      final current = c.block.listDepth;
+      final next = (current + delta).clamp(0, 8);
+      if (next == current) return null;
+      c.block = c.block.copyWith(
+        attrs: {...c.block.attrs, 'depth': next},
+      );
+      c.controller.updateBlock(c.block);
+      _history.commit(flushToDocument(), coalesce: false);
+      _dirty = true;
+      notifyListeners();
+      return next;
+    }
+    final s = _states[index];
+    if (s.block.type != BlockType.list) return null;
+    final current = s.block.listDepth;
+    final next = (current + delta).clamp(0, 8);
+    if (next == current) return null;
+    s.block = s.block.copyWith(
+      attrs: {...s.block.attrs, 'depth': next},
+    );
+    s.controller.updateBlock(s.block);
+    _history.commit(flushToDocument(), coalesce: false);
+    _dirty = true;
+    notifyListeners();
+    return next;
+  }
+
   /// Deletes the block at [index]. Ensures at least one block remains.
   void deleteBlock(int index) {
     if (_states.length <= 1) {
       // Clear the only block instead of removing it.
       _states.first.controller.clear();
+      _states.first.children.clear();
       _states.first.block = const RichTextBlock(type: BlockType.paragraph);
       _dirty = true;
       notifyListeners();
@@ -256,11 +409,38 @@ class RichTextEditingController extends ChangeNotifier {
     final newDoc = flushToDocument();
     final blocks = List<RichTextBlock>.from(newDoc.blocks);
     blocks.removeAt(index);
-    _doc = newDoc.copyWith(blocks: blocks);
+    _doc = newDoc.copyWith(
+      blocks: blocks,
+      assetRefs: _usedAssetRefs(blocks, newDoc.assetRefs),
+    );
     _history.commit(_doc);
     _syncStates();
     _dirty = true;
     notifyListeners();
+  }
+
+  /// Keeps only the asset refs still referenced by at least one block
+  /// (garbage collection of orphaned objects after block deletion).
+  static List<RichTextAssetRef> _usedAssetRefs(
+    List<RichTextBlock> blocks,
+    List<RichTextAssetRef> refs,
+  ) {
+    final used = <String>{};
+    void visit(RichTextBlock b) {
+      final id = b.assetRefId;
+      if (id != null) used.add(id);
+      for (final c in b.children) {
+        visit(c);
+      }
+    }
+
+    for (final b in blocks) {
+      visit(b);
+    }
+    return [
+      for (final r in refs)
+        if (used.contains(r.refId)) r,
+    ];
   }
 
   /// Replaces the entire document (e.g. after loading from storage).
@@ -272,19 +452,39 @@ class RichTextEditingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Adds a stable asset reference to the document (idempotent by refId).
+  /// Used by media import; the document JSON then only carries the object
+  /// ref, never the temporary source path.
+  void appendAssetRef(RichTextAssetRef ref) {
+    final refs = List<RichTextAssetRef>.from(_doc.assetRefs);
+    if (refs.any((r) => r.refId == ref.refId)) return;
+    refs.add(ref);
+    _doc = _doc.copyWith(assetRefs: refs);
+    _dirty = true;
+    notifyListeners();
+  }
+
   /// Syncs the per-block editing states from [_doc].
   void _syncStates() {
     // Dispose old states.
     for (final s in _states) {
       s.controller.dispose();
       s.focusNode.dispose();
+      for (final c in s.children) {
+        c.controller.dispose();
+        c.focusNode.dispose();
+      }
     }
     _states.clear();
     if (_doc.blocks.isEmpty) {
       _doc = RichTextDocument.empty();
     }
     for (final block in _doc.blocks) {
-      _states.add(_BlockEditState(block));
+      final state = _BlockEditState(block);
+      for (final child in block.children) {
+        state.children.add(_ChildEditState(child));
+      }
+      _states.add(state);
     }
   }
 
@@ -293,6 +493,10 @@ class RichTextEditingController extends ChangeNotifier {
     for (final s in _states) {
       s.controller.dispose();
       s.focusNode.dispose();
+      for (final c in s.children) {
+        c.controller.dispose();
+        c.focusNode.dispose();
+      }
     }
     _history.dispose();
     super.dispose();

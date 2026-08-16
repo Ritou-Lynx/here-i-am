@@ -5,15 +5,23 @@
 /// intercepts unsaved exit via [confirmUnsavedExit]. This is the "entry →
 /// persist → restart-recover" minimum closed loop for W2.
 ///
+/// Media import: [CardRichTextEditor] asks this screen for asset refs; the
+/// screen copies picked files into the [RichTextObjectStore] (relative
+/// `objects/…` refs) and hands the stable refs back — the document JSON never
+/// carries temporary source paths.
+///
 /// The screen is deliberately minimal and self-contained: no MemexRouter, no
 /// Drift, no whiteboard canvas. It only needs a storage directory and a card
 /// id, so it can be dropped into any future shell.
 library;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'package:memex/domain/whiteboard/rich_text_asset_ref.dart';
 import 'package:memex/domain/whiteboard/rich_text_controller.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/editor/unsaved_exit_guard.dart';
@@ -26,11 +34,20 @@ class CardRichTextEditorScreen extends StatefulWidget {
   /// instead of creating its own (useful for tests and shell reuse).
   final RichTextEditingController? controller;
 
+  /// Object store for imported media (defaults to one rooted at the
+  /// storage base dir).
+  final RichTextObjectStore? objectStore;
+
+  /// Media import override (tests inject fakes; default uses FilePicker).
+  final RichTextMediaImporter? mediaImporter;
+
   const CardRichTextEditorScreen({
     super.key,
     required this.storage,
     required this.cardId,
     this.controller,
+    this.objectStore,
+    this.mediaImporter,
   });
 
   @override
@@ -40,6 +57,7 @@ class CardRichTextEditorScreen extends StatefulWidget {
 
 class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   late RichTextEditingController _controller;
+  late RichTextObjectStore _objectStore;
 
   @override
   void initState() {
@@ -49,6 +67,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
     } else {
       _controller = RichTextEditingController(RichTextDocument.empty());
     }
+    _objectStore =
+        widget.objectStore ?? RichTextObjectStore(widget.storage.baseDir);
     // Card documents are small local JSON files; synchronous load keeps the
     // closed loop simple and testable without a fake-async stall.
     final doc = widget.storage.loadSync(widget.cardId);
@@ -81,6 +101,26 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
     }
   }
 
+  Future<List<RichTextAssetRef>> _defaultMediaImporter(
+      MediaImportKind kind) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: kind == MediaImportKind.image ? FileType.image : FileType.any,
+      allowMultiple: true,
+    );
+    if (result == null) return const [];
+    final refs = <RichTextAssetRef>[];
+    for (final file in result.files) {
+      final path = file.path;
+      if (path == null) continue; // Web only; desktop always has a path.
+      final ref = await _objectStore.importFile(
+        path,
+        alt: file.name,
+      );
+      refs.add(ref);
+    }
+    return refs;
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -95,7 +135,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
         if (choice != UnsavedExitChoice.cancel && context.mounted) {
           Navigator.of(context).pop();
         }
-      },      child: Scaffold(
+      },
+      child: Scaffold(
         appBar: AppBar(
           title: Text('卡片编辑 · ${widget.cardId}'),
           actions: [
@@ -110,6 +151,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
           child: CardRichTextEditor(
             controller: _controller,
             cardId: widget.cardId,
+            objectStore: _objectStore,
+            mediaImporter: widget.mediaImporter ?? _defaultMediaImporter,
             onSave: (_) => _save(),
           ),
         ),

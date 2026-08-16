@@ -291,13 +291,16 @@ class RichTextDocument {
           orderedIndex++;
           if (block.text.isNotEmpty) {
             buffer.write(prefix);
+            buffer.write('  ' * block.listDepth);
             buffer.write(marker);
             buffer.write(block.text);
           }
           if (block.children.isNotEmpty) {
             buffer.write('\n');
+            // Nested children sit one visual level deeper than the parent's
+            // own depth-based indent.
             _appendPlainText(buffer, block.children,
-                prefix: '$prefix  ');
+                prefix: '$prefix${'  ' * (block.listDepth + 1)}');
           }
           if (!block.listOrdered) orderedIndex = 1;
           break;

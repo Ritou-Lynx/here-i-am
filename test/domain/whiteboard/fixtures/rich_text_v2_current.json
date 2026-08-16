@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "blocks": [
+    {
+      "type": "heading",
+      "text": "V2 完整文档",
+      "attrs": {
+        "level": 2
+      }
+    },
+    {
+      "type": "list",
+      "text": "嵌套列表项",
+      "attrs": {
+        "ordered": false,
+        "depth": 1
+      }
+    },
+    {
+      "type": "quote",
+      "text": "引言",
+      "children": [
+        {
+          "type": "paragraph",
+          "text": "引用里的子段"
+        }
+      ]
+    },
+    {
+      "type": "image",
+      "attrs": {
+        "asset_ref_id": "ref_v2_1",
+        "alt": "示意图"
+      }
+    }
+  ],
+  "asset_refs": [
+    {
+      "ref_id": "ref_v2_1",
+      "object_ref": "objects/abc123.png",
+      "mime_type": "image/png"
+    }
+  ]
+}
