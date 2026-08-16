@@ -311,6 +311,56 @@ void main() {
     });
   });
 
+  group('Four ingestion states (ok / failed / needsAuth / unsupported)', () {
+    test('video platform URL → unsupported (W4 scope), no fetch attempted',
+        () async {
+      final svc = buildService({});
+
+      final outcome =
+          await svc.ingestUrl('https://www.bilibili.com/video/BV1xx411c7mD');
+
+      expect(outcome.succeeded, isFalse);
+      expect(outcome.result.status, IngestionStatus.unsupported);
+      expect(outcome.result.errorMessage, contains('研读模块'));
+      expect(outcome.result.provider, 'bilibili');
+      expect(outcome.result.source, isNull);
+      expect(outcome.card, isNull);
+    });
+
+    test('youtube URL → unsupported', () async {
+      final svc = buildService({});
+
+      final outcome =
+          await svc.ingestUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+
+      expect(outcome.result.status, IngestionStatus.unsupported);
+      expect(outcome.result.provider, 'youtube');
+    });
+
+    test('HTTP 403 → needsAuth with honest error message', () async {
+      final svc = buildService({
+        'https://example.com/auth': _Canned('', 403, 'text/html'),
+      });
+
+      final outcome = await svc.ingestUrl('https://example.com/auth');
+
+      expect(outcome.succeeded, isFalse);
+      expect(outcome.result.status, IngestionStatus.needsAuth);
+      expect(outcome.result.errorMessage, contains('HTTP 403'));
+      expect(outcome.card, isNull);
+    });
+
+    test('HTTP 401 → needsAuth', () async {
+      final svc = buildService({
+        'https://example.com/login': _Canned('', 401, 'text/html'),
+      });
+
+      final outcome = await svc.ingestUrl('https://example.com/login');
+
+      expect(outcome.result.status, IngestionStatus.needsAuth);
+    });
+  });
+
   group('Error MIME and parse failure', () {
     test('wrong MIME type produces failed result', () async {
       final svc = buildService({

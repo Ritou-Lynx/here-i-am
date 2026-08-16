@@ -18,17 +18,16 @@ enum BargeInEvent { duck, interrupt, restore }
 /// is confirmed. When interrupt fires, the snapshot contains the user's
 /// opening words —灌回 the new turn's recorder so the first word isn't lost.
 ///
-/// Speech detection uses a combination of RMS and zero-crossing rate (ZCR)
-/// rather than a single amplitude threshold. This is more robust against
-/// speaker echo and environmental noise than pure dB thresholding.
+/// Speech detection uses RMS as the primary gate, with ZCR only excluding
+/// DC offset / flat signals. This keeps real speech (which spans a wide
+/// ZCR range) from being vetoed, while the platform AEC handles echo.
 class BargeInDetector {
   BargeInDetector({
     this.duckMs = 240,
     this.interruptMs = 520,
     this.restoreMs = 160,
     this.prerollMs = 1000,
-    this.speechThresholdRms = 0.01,
-    this.speechThresholdZcr = 0.15,
+    this.speechThresholdRms = 0.005,
   });
 
   /// Continuous voice duration to trigger duck (lower TTS volume).
@@ -43,11 +42,10 @@ class BargeInDetector {
   /// Preroll ring buffer duration in milliseconds.
   final double prerollMs;
 
-  /// RMS threshold for speech detection (0-1, ~-40dB for 16-bit).
+  /// RMS threshold for speech detection (0-1, ~-46dB for 16-bit).
+  /// Primary gate — real user speech is loud; the platform AEC removes
+  /// most TTS echo. Cove reference: rms >= 0.004.
   final double speechThresholdRms;
-
-  /// Zero-crossing rate threshold (0-1). High ZCR = noise, low ZCR = voice.
-  final double speechThresholdZcr;
 
   bool _ducked = false;
   bool _interrupted = false;
@@ -138,10 +136,14 @@ class BargeInDetector {
     return null;
   }
 
-  /// Simple speech detection: RMS above threshold AND ZCR below threshold
-  /// (voice has lower ZCR than noise). This is intentionally simple —
-  /// it's a front-end for barge-in, not a production VAD. The platform AEC
-  /// handles most echo; this just catches real user speech during TTS.
+  /// Simple speech detection: RMS above threshold is the primary gate.
+  ///
+  /// ZCR is NOT used to veto voice — human speech spans a wide ZCR range
+  /// (vowels ~0.01-0.1, consonants ~0.2-0.4), so a narrow ZCR ceiling
+  /// wrongly rejects most real speech frames. ZCR is only used to exclude
+  /// DC offset / flat signals (zcr ≈ 0), where RMS can be misleadingly
+  /// high. The platform AEC handles most echo; this just catches real
+  /// user speech during TTS.
   bool _isLikelyUserSpeech(Float32List frame) {
     if (frame.isEmpty) return false;
 
@@ -161,7 +163,10 @@ class BargeInDetector {
     final rms = math.sqrt(sumSq / frame.length);
     final zcr = crossings / frame.length;
 
-    return rms >= speechThresholdRms && zcr <= speechThresholdZcr;
+    if (rms < speechThresholdRms) return false;
+    // Exclude DC offset / flat signals (zcr ≈ 0). Any real content
+    // (voice or noise) crosses zero at least occasionally.
+    return zcr > 0.005;
   }
 }
 

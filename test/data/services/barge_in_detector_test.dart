@@ -16,8 +16,7 @@ void main() {
         interruptMs: interruptMs,
         restoreMs: restoreMs,
         prerollMs: 1000,
-        speechThresholdRms: 0.001,
-        speechThresholdZcr: 1.0, // accept everything as "speech" for timing tests
+        speechThresholdRms: 0.001, // accept everything for timing tests
       );
     }
 
@@ -26,6 +25,19 @@ void main() {
       for (var i = 0; i < sampleCount; i++) {
         // Simple sine wave — has low ZCR, high RMS.
         f[i] = (amplitude * 0.7) * math.sin(i * 0.05);
+      }
+      return f;
+    }
+
+    /// A frame shaped like real speech: sine + strong high-frequency noise
+    /// (consonant-like, ZCR ~0.3-0.5). Must still be detected as speech —
+    /// this is the regression test for the ZCR-veto bug.
+    Float32List noisySpeechFrame(int sampleCount, {double amplitude = 0.5}) {
+      final f = Float32List(sampleCount);
+      for (var i = 0; i < sampleCount; i++) {
+        final sine = math.sin(i * 0.05);
+        final noise = 0.8 * (math.sin(i * 3.7) + math.sin(i * 5.3)) / 2;
+        f[i] = amplitude * (0.5 * sine + 0.5 * noise);
       }
       return f;
     }
@@ -136,6 +148,38 @@ void main() {
       expect(events, isEmpty);
       expect(det.isDucked, isFalse);
       expect(det.isInterrupted, isFalse);
+      det.stop();
+    });
+
+    test('regression: high-ZCR speech-shaped frames still trigger interrupt', () {
+      // Real speech has high ZCR on consonants (~0.3-0.5). The old
+      // implementation vetoed these via zcr <= 0.15, so barge-in never
+      // fired. This test pins the fix: RMS is the gate, ZCR only excludes
+      // DC offset.
+      final det = makeDetector(duckMs: 240, interruptMs: 520);
+      det.start(16000);
+      final events = <BargeInEvent>[];
+      det.onEvent = (e, _) => events.add(e);
+
+      for (var i = 0; i < 52; i++) {
+        det.push(noisySpeechFrame(160), 16000);
+      }
+      expect(events, contains(BargeInEvent.duck));
+      expect(events, contains(BargeInEvent.interrupt));
+      expect(det.isInterrupted, isTrue);
+      det.stop();
+    });
+
+    test('regression: low-RMS speech-shaped frames do not trigger', () {
+      final det = makeDetector(duckMs: 240, interruptMs: 520);
+      det.start(16000);
+      final events = <BargeInEvent>[];
+      det.onEvent = (e, _) => events.add(e);
+
+      for (var i = 0; i < 52; i++) {
+        det.push(noisySpeechFrame(160, amplitude: 0.0001), 16000);
+      }
+      expect(events, isEmpty);
       det.stop();
     });
 
