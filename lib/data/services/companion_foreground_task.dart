@@ -85,10 +85,18 @@ class CompanionTaskHandler extends TaskHandler {
       case 'call_start':
         final characterId = data['characterId'] as String?;
         if (characterId == null) return;
-        await CallVoiceSession.instance.start(characterId);
+        await CallVoiceSession.instance.start(
+          characterId,
+          speakerOn: data['speaker'] as bool? ?? true,
+        );
       case 'call_end':
       case 'call_ended':
         await CallVoiceSession.instance.end();
+      case 'call_mute':
+        await CallVoiceSession.instance.setMuted(data['muted'] as bool? ?? true);
+      case 'call_speaker':
+        await CallVoiceSession.instance
+            .setSpeakerphone(data['enabled'] as bool? ?? true);
     }
   }
 

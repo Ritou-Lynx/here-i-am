@@ -128,6 +128,11 @@ class VoiceInputController extends ChangeNotifier {
   bool _streamingStopping = false;
   bool _audioForwardingPaused = false;
 
+  /// When true, mic audio is discarded entirely (not forwarded to ASR, not
+  /// fed to the barge-in detector). Used by call mute — the mic keeps running
+  /// so the VoIP session / AEC state stays intact, but nothing is heard.
+  bool _muted = false;
+
   /// Two-stage barge-in detector (duck → interrupt → restore) with PCM
   /// preroll ring buffer. Active while TTS plays (audio forwarding paused).
   BargeInDetector? _bargeInDetector;
@@ -181,6 +186,18 @@ class VoiceInputController extends ChangeNotifier {
 
   /// Whether a press-to-talk streaming session is active.
   bool get isPressToTalk => _pressToTalkActive;
+
+  /// Whether mic audio is discarded (call mute).
+  bool get muted => _muted;
+
+  /// Mute / unmute the streaming mic. Audio chunks are dropped while muted
+  /// (no ASR forwarding, no barge-in detection) but the mic stays open so the
+  /// VoIP call audio session remains intact. No-op outside streaming mode.
+  void setMuted(bool muted) {
+    if (_muted == muted) return;
+    _muted = muted;
+    _logger.info('Streaming mic muted=$muted');
+  }
 
   /// Intermediate text accumulated so far during press-to-talk (for UI display).
   String get pressToTalkPartialText => _pressToTalkBuffer.toString().trim();
@@ -431,6 +448,7 @@ class VoiceInputController extends ChangeNotifier {
       );
       _streamingAudioSub = audioStream.listen(
         (chunk) {
+          if (_muted) return; // call mute: drop audio entirely
           if (!_audioForwardingPaused) {
             _streamingClient?.sendAudio(chunk);
           } else {

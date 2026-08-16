@@ -81,6 +81,8 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
   String _status = 'starting';
   String _transcript = '';
   bool _isReply = false;
+  bool _muted = false;
+  bool _speakerOn = true;
   late DateTime _startedAt;
   Timer? _ticker;
 
@@ -91,6 +93,8 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+    _muted = widget.router.micMuted;
+    _speakerOn = widget.router.speakerOn;
     widget.router.onStatusChanged = _onStatus;
     widget.router.onCallEnded = (_) {
       if (mounted) GlobalCallOverlay.instance.hide();
@@ -107,11 +111,25 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
     if (!mounted) return;
     setState(() {
       _status = status.status;
+      _muted = status.muted;
+      _speakerOn = status.speaker;
       if (status.transcript.isNotEmpty) {
         _transcript = status.transcript;
         _isReply = status.isReply;
       }
     });
+  }
+
+  void _toggleMute() {
+    final muted = !_muted;
+    setState(() => _muted = muted);
+    unawaited(widget.router.setMuted(muted));
+  }
+
+  void _toggleSpeaker() {
+    final speakerOn = !_speakerOn;
+    setState(() => _speakerOn = speakerOn);
+    unawaited(widget.router.setSpeakerphone(speakerOn));
   }
 
   String get _statusLabel {
@@ -186,10 +204,29 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
                   ),
                 ),
               const Spacer(flex: 4),
-              _HangUpButton(
-                onPressed: () {
-                  router.hangUp();
-                },
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _RoundButton(
+                    icon: _muted ? Icons.mic_off : Icons.mic,
+                    color: _muted ? const Color(0xFFE53935) : Colors.white24,
+                    label: _muted ? '取消静音' : '静音',
+                    onPressed: _toggleMute,
+                  ),
+                  const SizedBox(width: 56),
+                  _HangUpButton(
+                    onPressed: () {
+                      router.hangUp();
+                    },
+                  ),
+                  const SizedBox(width: 56),
+                  _RoundButton(
+                    icon: _speakerOn ? Icons.volume_up : Icons.volume_off,
+                    color: _speakerOn ? const Color(0xFF4CAF50) : Colors.white24,
+                    label: _speakerOn ? '外放' : '听筒',
+                    onPressed: _toggleSpeaker,
+                  ),
+                ],
               ),
               const SizedBox(height: 48),
             ],
@@ -257,6 +294,44 @@ class _HangUpButton extends StatelessWidget {
         ),
         child: const Icon(Icons.call_end, color: Colors.white, size: 32),
       ),
+    );
+  }
+}
+
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(28),
+          child: Ink(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Icon(icon, color: Colors.white, size: 26),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+      ],
     );
   }
 }

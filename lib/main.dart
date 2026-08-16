@@ -91,7 +91,13 @@ final GlobalKey<RootShellState> rootShellKey = GlobalKey<RootShellState>();
 
 void _openPersonaChatVoiceModeFromRoot(String characterId) {
   if (AppFlavor.isHereIAm) {
-    _requestHereIamPersonaChat(characterId, startVoiceMode: true);
+    // Global call: audio runs in the foreground-task isolate + overlay UI, so
+    // the call survives backgrounding/lock (previously the main-isolate inline
+    // voice mode died the moment the engine was suspended).
+    unawaited(() async {
+      await CallVoiceRouter.instance.startCall(characterId);
+      GlobalCallOverlay.instance.show();
+    }());
     return;
   }
 

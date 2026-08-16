@@ -24,5 +24,6 @@ object ChannelRegistrar {
         PhoneUsageChannelHandler.register(flutterEngine, activity)
         DeviceAppBlockerChannelHandler.register(flutterEngine, activity)
         CompanionShareChannelHandler.register(flutterEngine, activity)
+        AudioRouteChannelHandler.register(flutterEngine, activity)
     }
 }

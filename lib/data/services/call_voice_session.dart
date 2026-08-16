@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/services.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -48,6 +50,12 @@ class CallVoiceSession {
 
   static const _defaultOpening = '喂，我在呢。';
 
+  /// Host-app channels (registered on both the main and the foreground-task
+  /// engines — see AudioRouteChannelHandler + HereIAmApplication).
+  static const _audioRouteChannel = MethodChannel('com.memexlab.memex/audio_route');
+  static const _callControlChannel =
+      MethodChannel('com.memexlab.memex/call_control');
+
   CallVoicePhase _phase = CallVoicePhase.idle;
   VoiceInputController? _controller;
   StreamingTtsSession? _ttsSession;
@@ -56,6 +64,8 @@ class CallVoiceSession {
   int _runSerial = 0;
   int _micRestartAttempts = 0;
   DateTime? _lastActivityAt;
+  bool _micMuted = false;
+  bool _speakerOn = true;
 
   late final VoiceTurnSequencer _turnSequencer =
       VoiceTurnSequencer('call_${identityHash()}');
@@ -140,7 +150,7 @@ class CallVoiceSession {
   }
 
   /// Start a continuous call for [characterId]. Idempotent.
-  Future<void> start(String characterId) async {
+  Future<void> start(String characterId, {bool speakerOn = true}) async {
     if (_phase != CallVoicePhase.idle) {
       _log.info('start ignored: already active (phase=$_phase)');
       return;
@@ -157,11 +167,24 @@ class CallVoiceSession {
     _runSerial++;
     _phase = CallVoicePhase.starting;
     _micRestartAttempts = 0;
+    _micMuted = false;
+    _speakerOn = speakerOn;
     await _updateNotification('📞 通话中…');
 
     // Enter the VoIP call audio session BEFORE the mic opens so the platform
     // routes both mic + speaker through STREAM_VOICE_CALL (AEC applies).
     await VoiceCallAudioSession.instance.enter();
+
+    // Apply the speaker route (earpiece vs loudspeaker). Default is speaker
+    // (用户偏好外放) unless the caller says otherwise.
+    try {
+      await _audioRouteChannel.invokeMethod(
+        'setSpeakerphone',
+        {'enabled': speakerOn},
+      );
+    } catch (e) {
+      _log.warning('setSpeakerphone failed: $e');
+    }
 
     final ok = await _armMic();
     if (!ok) {
@@ -179,11 +202,63 @@ class CallVoiceSession {
     _phase = CallVoicePhase.listening;
     await _updateNotification('📞 通话中…（随时可以说话）');
     _notifyMain({'type': 'call_status', 'status': 'listening'});
+    await _showControlNotification();
 
     // Opening line: read the queued opening message (agent-composed) or fall
     // back to a default greeting. Spoken through TTS while the mic listens.
     final opening = await _resolveOpening();
     await _speakAndPersist(opening, isOpening: true);
+  }
+
+  /// Mute / unmute the call mic (the companion stops hearing the user).
+  Future<void> setMuted(bool muted) async {
+    if (_phase == CallVoicePhase.idle) return;
+    if (_micMuted == muted) return;
+    _micMuted = muted;
+    _controller?.setMuted(muted);
+    if (muted) {
+      // Drop any pending sentence — the user explicitly wants to be unheard.
+      _sentenceTimer?.cancel();
+      _sentenceTimer = null;
+      _pendingSentence.clear();
+    } else {
+      final controller = _controller;
+      if (controller != null && !controller.isStreaming) {
+        _log.info('unmute: NLS session gone — re-arming mic');
+        final ok = await _armMic();
+        if (!ok) await _scheduleMicReconnect();
+      }
+    }
+    await _updateNotification(muted ? '🔇 已静音' : '📞 通话中…');
+    _notifyMain({
+      'type': 'call_status',
+      'status': _phase == CallVoicePhase.speaking ? 'speaking' : 'listening',
+      'muted': _micMuted,
+      'speaker': _speakerOn,
+    });
+    await _showControlNotification();
+  }
+
+  /// Switch the audio route between earpiece and loudspeaker.
+  Future<void> setSpeakerphone(bool enabled) async {
+    if (_phase == CallVoicePhase.idle) return;
+    if (_speakerOn == enabled) return;
+    _speakerOn = enabled;
+    try {
+      await _audioRouteChannel.invokeMethod(
+        'setSpeakerphone',
+        {'enabled': enabled},
+      );
+    } catch (e) {
+      _log.warning('setSpeakerphone failed: $e');
+    }
+    _notifyMain({
+      'type': 'call_status',
+      'status': _phase == CallVoicePhase.speaking ? 'speaking' : 'listening',
+      'muted': _micMuted,
+      'speaker': _speakerOn,
+    });
+    await _showControlNotification();
   }
 
   /// Handle a hang-up request (from the app UI or the CallKit notification).
@@ -230,6 +305,7 @@ class CallVoiceSession {
     } catch (e) {
       _log.warning('endAllCalls failed: $e');
     }
+    await _hideControlNotification();
     _notifyMain({'type': 'call_ended'});
     await _restoreNotification();
   }
@@ -250,16 +326,34 @@ class CallVoiceSession {
 
   Future<void> _onStreamingSessionLost() async {
     if (_phase == CallVoicePhase.idle) return;
-    _micRestartAttempts++;
-    if (_micRestartAttempts > 3) {
-      _log.warning('mic lost $_micRestartAttempts times — ending call');
-      await end();
+    if (_micMuted) {
+      // Muted: NLS closes because no audio is forwarded. Reconnect on unmute
+      // (setMuted checks isStreaming).
+      _log.info('mic session lost while muted — reconnect on unmute');
       return;
     }
-    _log.info('mic session lost — re-arming (attempt $_micRestartAttempts)');
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (_phase == CallVoicePhase.idle) return;
-    await _armMic();
+    await _scheduleMicReconnect();
+  }
+
+  /// Re-arm the mic with exponential backoff. Runs forever (a long companion
+  /// call like sleep-over may idle the NLS session many times) until the call
+  /// ends or the user mutes.
+  Future<void> _scheduleMicReconnect() async {
+    _micRestartAttempts++;
+    final delayMs =
+        math.min(2000 * _micRestartAttempts, 30000).toInt();
+    _log.info('mic session lost — re-arming in ${delayMs}ms '
+        '(attempt $_micRestartAttempts)');
+    await Future.delayed(Duration(milliseconds: delayMs));
+    if (_phase == CallVoicePhase.idle || _micMuted) return;
+    final ok = await _armMic();
+    if (ok) {
+      _micRestartAttempts = 0;
+      _log.info('mic re-armed');
+      return;
+    }
+    _log.warning('mic re-arm failed — retrying (attempt $_micRestartAttempts)');
+    await _scheduleMicReconnect();
   }
 
   void _onStreamingEvent(StreamingAsrEvent event) {
@@ -321,14 +415,11 @@ class CallVoiceSession {
         _log.warning('tts cancel on barge-in: $e');
       }
     }
-    final controller = _controller;
-    if (controller != null && controller.isStreaming) {
-      controller.resumeAudioForwarding();
-    }
     if (_phase == CallVoicePhase.speaking) {
       _phase = CallVoicePhase.listening;
       await _updateNotification('📞 通话中…（随时可以说话）');
     }
+    await _restoreMicAfterTts();
   }
 
   // ── Turn dispatch ────────────────────────────────────────────────────────
@@ -444,14 +535,31 @@ class CallVoiceSession {
         // Back to listening only if the call is still alive.
         if (_phase != CallVoicePhase.idle) {
           _phase = CallVoicePhase.listening;
-          final controller = _controller;
-          if (controller != null && controller.isStreaming) {
-            controller.resumeAudioForwarding();
-          }
+          await _restoreMicAfterTts();
           await _updateNotification('📞 通话中…（随时可以说话）');
           _notifyMain({'type': 'call_status', 'status': 'listening'});
         }
       }
+    }
+  }
+
+  /// After TTS finishes, hand the mic back to the NLS session. If the NLS
+  /// session was closed while TTS played (idle-close — no audio was forwarded
+  /// during playback, and the controller tears the client down), re-arm a
+  /// fresh streaming session. This was the bug that killed multi-turn calls:
+  /// the mic stayed "open" but nothing re-created the dead ASR connection.
+  Future<void> _restoreMicAfterTts() async {
+    final controller = _controller;
+    if (controller == null || _phase == CallVoicePhase.idle) return;
+    if (controller.isStreaming) {
+      controller.resumeAudioForwarding();
+      return;
+    }
+    _log.info('NLS session gone after TTS — re-arming mic');
+    final ok = await _armMic();
+    if (!ok && _phase != CallVoicePhase.idle) {
+      _log.warning('mic re-arm after TTS failed — scheduling retry');
+      await _scheduleMicReconnect();
     }
   }
 
@@ -506,10 +614,7 @@ class CallVoiceSession {
       if (serial == _runSerial && turnIdentity.isCurrent(_activeIdentity)) {
         _ttsSession = null;
         _activeIdentity = null;
-        final controller = _controller;
-        if (controller != null && controller.isStreaming) {
-          controller.resumeAudioForwarding();
-        }
+        await _restoreMicAfterTts();
         if (_phase != CallVoicePhase.idle) {
           await _updateNotification('📞 通话中…（随时可以说话）');
           _notifyMain({'type': 'call_status', 'status': 'listening'});
@@ -529,8 +634,32 @@ class CallVoiceSession {
     } catch (e) {
       _log.warning('endAllCalls on fail: $e');
     }
+    await _hideControlNotification();
     _notifyMain({'type': 'call_ended', 'reason': text});
     await _restoreNotification();
+  }
+
+  /// Show/refresh the in-call control notification (mute / speaker / hang-up
+  /// actions) — the one that works while the app is backgrounded, because the
+  /// CallKit CallStyle notification only supports a hang-up action.
+  Future<void> _showControlNotification() async {
+    try {
+      await _callControlChannel.invokeMethod('show', {
+        'muted': _micMuted,
+        'speaker': _speakerOn,
+        'name': _characterName ?? 'Memex',
+      });
+    } catch (e) {
+      _log.fine('call control notification failed: $e');
+    }
+  }
+
+  Future<void> _hideControlNotification() async {
+    try {
+      await _callControlChannel.invokeMethod('cancel');
+    } catch (e) {
+      _log.fine('call control notification cancel failed: $e');
+    }
   }
 
   Future<void> _updateNotification(String text) async {

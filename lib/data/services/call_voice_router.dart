@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:memex/data/services/audio_route_service.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
@@ -33,6 +34,10 @@ class CallVoiceRouter {
           final status = data['status'] as String?;
           if (status != null) {
             _status = status;
+            final muted = data['muted'] as bool?;
+            if (muted != null) _micMuted = muted;
+            final speaker = data['speaker'] as bool?;
+            if (speaker != null) _speakerOn = speaker;
             final transcript = data['transcript'] as String?;
             if (transcript != null && transcript.isNotEmpty) {
               _lastTranscript = transcript;
@@ -42,6 +47,8 @@ class CallVoiceRouter {
                 status: status,
                 transcript: _lastTranscript,
                 isReply: data['reply'] == true,
+                muted: _micMuted,
+                speaker: _speakerOn,
               ),
             );
           }
@@ -62,6 +69,8 @@ class CallVoiceRouter {
   String? _status;
   String _lastTranscript = '';
   bool _taskReady = false;
+  bool _micMuted = false;
+  bool _speakerOn = true;
 
   /// Messages queued until the foreground-task isolate handshakes. FIFO so a
   /// rapid call_start → call_end sequence keeps its order.
@@ -125,6 +134,10 @@ class CallVoiceRouter {
     _status = 'starting';
     _lastTranscript = '';
 
+    // Remembered speaker default (外放 by default), applied on the isolate.
+    final speakerOn = await AudioRouteService.instance.loadSpeakerPreference();
+    _speakerOn = speakerOn;
+
     // The persistent service is the host of the call isolate. If it can't
     // start (mic permission missing), the call cannot run — notify the UI so
     // it can surface a hint instead of a silent failure.
@@ -156,6 +169,7 @@ class CallVoiceRouter {
     _queueOrSend({
       'type': 'call_start',
       'characterId': characterId,
+      'speaker': speakerOn,
     });
   }
 
@@ -166,6 +180,30 @@ class CallVoiceRouter {
     _log.info('hangUp requested');
     await _queueOrSend({'type': 'call_end'});
   }
+
+  /// Mute / unmute the call mic (from the in-app overlay).
+  Future<void> setMuted(bool muted) async {
+    if (_activeCharacterId == null) return;
+    _micMuted = muted;
+    await _queueOrSend({'type': 'call_mute', 'muted': muted});
+  }
+
+  /// Switch speaker route from the in-app overlay. Also remembers the choice
+  /// as the default for future calls.
+  Future<void> setSpeakerphone(bool enabled) async {
+    _speakerOn = enabled;
+    await AudioRouteService.instance.setSpeakerphone(enabled);
+    await AudioRouteService.instance.saveSpeakerPreference(enabled);
+    if (_activeCharacterId != null) {
+      await _queueOrSend({'type': 'call_speaker', 'enabled': enabled});
+    }
+  }
+
+  /// Current mute state (mirror of what the isolate reports / we requested).
+  bool get micMuted => _micMuted;
+
+  /// Current speaker route (loudspeaker = true).
+  bool get speakerOn => _speakerOn;
 
   /// Whether a call is currently active; used by the app resume path to
   /// re-show the overlay after the engine comes back.
@@ -211,10 +249,14 @@ class CallVoiceStatus {
     required this.status,
     required this.transcript,
     this.isReply = false,
+    this.muted = false,
+    this.speaker = true,
   });
 
   /// starting / listening / speaking / ended
   final String status;
   final String transcript;
   final bool isReply;
+  final bool muted;
+  final bool speaker;
 }

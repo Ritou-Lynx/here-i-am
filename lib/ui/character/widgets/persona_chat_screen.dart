@@ -25,8 +25,10 @@ import 'package:memex/data/services/asr/asr_config.dart';
 import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
+import 'package:memex/data/services/call_voice_router.dart';
 import 'package:memex/data/services/voice_call_audio_session.dart';
 import 'package:memex/ui/character/widgets/hangup_tone.dart';
+import 'package:memex/ui/companion/widgets/global_call_overlay.dart';
 import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/data/services/bad_case_collector.dart';
 import 'package:memex/data/services/streaming_tts_player.dart';
@@ -1083,6 +1085,19 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       return true;
     }
     return false;
+  }
+
+  /// Chat voice-call entry: starts a global call (audio in the
+  /// foreground-task isolate + call overlay), which survives backgrounding —
+  /// unlike the old main-isolate inline voice mode that died the moment the
+  /// engine was suspended. Tapping again while a call is active hangs up.
+  Future<void> _toggleGlobalCallFromChat() async {
+    if (CallVoiceRouter.instance.isActive()) {
+      await CallVoiceRouter.instance.hangUp();
+      return;
+    }
+    await CallVoiceRouter.instance.startCall(_currentCharacterId);
+    GlobalCallOverlay.instance.show();
   }
 
   /// Toggle voice recording. If we just stopped a recording and got text back,
@@ -6893,7 +6908,7 @@ only after you have written the goodbye you want the user to hear.''',
       isVoiceInputEnabled: _isInlineVoiceMode ? true : !_isVoiceReplyActive,
       isVoiceModeActive: _isInlineVoiceMode,
       isVoiceModeMicMuted: _isVoiceModeMicMuted,
-      onVoiceModeTap: () => unawaited(_setInlineVoiceMode(!_isInlineVoiceMode)),
+      onVoiceModeTap: () => unawaited(_toggleGlobalCallFromChat()),
       onAddTap: widget.enableRichCapture
           ? () => setState(() => _isMediaTrayOpen = !_isMediaTrayOpen)
           : null,
