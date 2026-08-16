@@ -74,6 +74,9 @@ class _ContextDockState extends State<ContextDock> {
   }
 
   String _subtitleStatusLabel(VideoStudyViewModel vm) {
+    if (vm.subtitleFetchStatus == SubtitleAutoFetchStatus.fetching) {
+      return '自动获取字幕中…';
+    }
     if (vm.needsSubtitle) return '需要字幕';
     final track = vm.track;
     if (track == null) return '—';

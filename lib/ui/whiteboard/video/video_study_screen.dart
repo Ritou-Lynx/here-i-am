@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'session_store.dart';
 import 'view_models/video_study_view_model.dart';
 import 'widgets/video_player_panel.dart';
 import 'widgets/context_dock.dart';
@@ -24,14 +25,18 @@ import 'widgets/context_dock.dart';
 /// YouTubePlayerAdapter for Android, etc.).
 /// [sourceId] and [sourceVersionId] identify the video source.
 /// [embedUrl] is the platform-specific URL or video ID.
+/// [sessionStore] (optional) persists the session for restart recovery.
+/// [timedTextService] (optional) overrides the platform-subtitle fetcher
+/// (defaults to an HTTP-backed YouTube timedtext service).
 class VideoStudyScreen extends StatefulWidget {
   final PlayerAdapter adapter;
   final String sourceId;
   final String sourceVersionId;
   final String? embedUrl;
   final TimedTextTrack? initialTrack;
-  final String? sessionPath;
   final String? providerId;
+  final VideoSessionStore? sessionStore;
+  final YouTubeTimedTextService? timedTextService;
 
   const VideoStudyScreen({
     super.key,
@@ -40,8 +45,9 @@ class VideoStudyScreen extends StatefulWidget {
     required this.sourceVersionId,
     this.embedUrl,
     this.initialTrack,
-    this.sessionPath,
     this.providerId,
+    this.sessionStore,
+    this.timedTextService,
   });
 
   @override
@@ -60,11 +66,11 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
       sourceVersionId: widget.sourceVersionId,
       providerId: widget.providerId ?? widget.adapter.providerId,
       initialTrack: widget.initialTrack,
+      sessionStore: widget.sessionStore,
+      timedTextService: widget.timedTextService,
     );
     _viewModel.initialize(embedUrl: widget.embedUrl).then((_) {
-      if (widget.sessionPath != null) {
-        _viewModel.restoreSession(widget.sessionPath!);
-      }
+      _viewModel.restoreSession();
     });
   }
 
