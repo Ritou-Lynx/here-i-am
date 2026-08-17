@@ -355,6 +355,13 @@ class SharedLifeMemoryService {
     query.limit(200);
     final rows = await query.get();
     final terms = _searchTerms(text);
+    // Relevance gate: require at least 2 term hits (or all terms if fewer
+    // than 3 were extracted). A single common 2-gram like "公司" matching an
+    // unrelated entity is the main source of context pollution — e.g. the
+    // user says "公司有水的" and every entity mentioning "公司" gets injected,
+    // hijacking the reply toward an old topic. The previous `score > 0`
+    // threshold let any single shared token through.
+    final minHits = terms.length >= 3 ? 2 : terms.length;
     final ranked = rows
         .map((row) {
           final haystack =
@@ -362,7 +369,7 @@ class SharedLifeMemoryService {
           final score = terms.where(haystack.contains).length;
           return (row: row, score: score);
         })
-        .where((entry) => terms.isEmpty || entry.score > 0)
+        .where((entry) => terms.isEmpty || entry.score >= minHits)
         .toList()
       ..sort((a, b) {
         final scoreCompare = b.score.compareTo(a.score);
@@ -378,9 +385,12 @@ class SharedLifeMemoryService {
         return b.row.updatedAt.compareTo(a.row.updatedAt);
       });
 
-    final selected = ranked.isEmpty && terms.isNotEmpty
-        ? rows.take(limit)
-        : ranked.take(limit).map((entry) => entry.row);
+    // No recency fill when nothing matched: injecting unrelated recent
+    // entities (e.g. an old ledger entry when the user is talking about
+    // sleep) was the second pollution vector. Returning empty lets the
+    // model fall back to its tool-call `LifeMemoryQuery` when it actually
+    // needs shared-life data, instead of being primed with noise.
+    final selected = ranked.take(limit).map((entry) => entry.row);
     return selected.map(_snapshotFromRow).toList(growable: false);
   }
 

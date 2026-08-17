@@ -1876,8 +1876,26 @@ class DreamingOrchestratorServiceV3 {
       return List.unmodifiable(ftsHits);
     }
 
+    // Recency fill: only top up with episodes sharing a topic_id with at
+    // least one FTS/embedding hit. A topic-agnostic significance fill was the
+    // main cause of context pollution — e.g. a "product_interest / 记账"
+    // episode with significance 5 would be injected into a sleep chat just
+    // because it was recently important, priming the model to resume an old
+    // unfinished thread. When there are zero semantic hits there is nothing
+    // to anchor a fill to, so we return only what matched (possibly empty).
+    if (ftsHits.isEmpty) {
+      return List.unmodifiable(ftsHits);
+    }
+    final fillTopicIds = ftsHits
+        .map((hit) => hit.episode.topicId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
     final fillQuery = _db.select(_db.memoryEpisodes)
-      ..where((t) => t.status.equals('active'))
+      ..where((t) =>
+          t.status.equals('active') &
+          (fillTopicIds.isEmpty
+              ? const Constant(true)
+              : t.topicId.isIn(fillTopicIds.toList())))
       ..orderBy([
         (t) => OrderingTerm.desc(t.significance),
         (t) => OrderingTerm.desc(t.createdAt),
@@ -2007,21 +2025,13 @@ class DreamingOrchestratorServiceV3 {
       }
     }
 
-    // ── Recency fill ───────────────────────────────────────────────────
-    if (allHits.length < limit) {
-      final fillQuery = _db.select(_db.memoryFragments)
-        ..where((t) => t.status.isIn(const ['active', 'consolidated']))
-        ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-        ..limit(limit + seenIds.length);
-      if (seenIds.isNotEmpty) {
-        fillQuery.where((t) => t.id.isNotIn(seenIds.toList(growable: false)));
-      }
-      final fillRows = await fillQuery.get();
-      for (final fr in fillRows) {
-        if (allHits.length >= limit) break;
-        allHits.add(DreamingFragmentContextHit(fragment: fr, score: 0));
-      }
-    }
+    // No recency fill for fragments: fragments have no topic_id to gate on,
+    // and a recency-only fill was injecting unrelated recent fragments (e.g.
+    // a ledger-refund fragment surfacing during a sleep chat). Returning
+    // only semantically matched fragments keeps the context on-topic. The
+    // episode layer (which does have topic_id and still fills within-topic)
+    // carries the relationship narrative, so dropping fragment fills does
+    // not starve the model of memory.
     return List.unmodifiable(allHits);
   }
 
@@ -2609,19 +2619,11 @@ class DreamingOrchestratorServiceV3 {
       }
     }
 
-    // Recency fill.
-    if (results.length < limit) {
-      final fillQuery = _db.select(_db.memorySagas)
-        ..where((t) => t.status.equals('active'))
-        ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
-        ..limit(limit);
-      final fillRows = await fillQuery.get();
-      for (final saga in fillRows) {
-        if (results.length >= limit) break;
-        if (seenIds.add(saga.id)) results.add(saga);
-      }
-    }
-
+    // No recency fill for sagas: sagas describe cross-week/month arcs and
+    // injecting an unrelated long-arc narrative (e.g. "Claude issue" or a
+    // roommate conflict) into a casual chat was hijacking the reply. Only
+    // FTS-matched sagas are returned; if none match, the episode/fragment
+    // layers still carry relevant context.
     return results;
   }
 
