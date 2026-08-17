@@ -29,6 +29,8 @@ import 'package:memex/ui/memory/widgets/lab/dreaming_debug_page.dart';
 // Parallel windows fill the placeholder screens; they do NOT edit router.dart.
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
+import 'package:memex/ui/whiteboard/desktop/desktop_home_screen.dart';
+import 'package:memex/ui/whiteboard/desktop/desktop_shell.dart';
 import 'package:memex/ui/whiteboard/link_import_screen.dart';
 import 'package:memex/ui/whiteboard/source_study_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
@@ -43,12 +45,16 @@ GoRouter createAppRouter(
 ) {
   return GoRouter(
     navigatorKey: navigatorKey,
-    initialLocation: AppRoutes.home,
+    initialLocation: isDesktopPlatform() ? AppRoutes.desktopHome : AppRoutes.home,
     observers: [personaChatNavigatorObserver],
     routes: [
       GoRoute(
         path: AppRoutes.home,
         builder: (_, __) => rootBuilder(),
+      ),
+      GoRoute(
+        path: AppRoutes.desktopHome,
+        builder: (_, __) => const DesktopHomeScreen(),
       ),
       GoRoute(
         path: AppRoutes.userSetup,

@@ -12,6 +12,7 @@ import 'package:memex/routing/routes.dart';
 import 'package:memex/routing/router.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
+import 'package:memex/ui/whiteboard/desktop/desktop_home_screen.dart';
 import 'package:memex/ui/whiteboard/link_import_screen.dart';
 import 'package:memex/ui/whiteboard/source_study_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
@@ -118,5 +119,16 @@ void main() {
   testWidgets('link import route resolves', (tester) async {
     await pumpRoute(tester, AppRoutes.linkImport);
     expect(find.byType(LinkImportScreen), findsOneWidget);
+  });
+
+  testWidgets('desktop home route resolves with dashboard', (tester) async {
+    router.go(AppRoutes.desktopHome);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    // Use pump (not pumpAndSettle) — the dashboard loads async data and the
+    // RefreshIndicator may keep a frame pending; we only need the route to
+    // resolve to the screen type.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(DesktopHomeScreen), findsOneWidget);
   });
 }
