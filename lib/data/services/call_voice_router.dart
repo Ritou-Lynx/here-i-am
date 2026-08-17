@@ -172,9 +172,18 @@ class CallVoiceRouter {
   /// Hang up from the app UI. The isolate tears down the audio pipeline and
   /// clears the CallKit session itself.
   Future<void> hangUp() async {
-    if (_activeCharacterId == null) return;
     _log.info('hangUp requested');
+    // Always send the hang-up message even if _activeCharacterId is null
+    // (the isolate side is idempotent and will clean up CallKit / notifications).
+    // This covers the race where a CallKit broadcast already cleared the active
+    // state but the UI hang-up button was just pressed — without this fallback,
+    // the button would be a silent no-op and the overlay would never close.
     await _queueOrSend({'type': 'call_end'});
+    // Proactively clear local state so the overlay closes immediately rather
+    // than waiting for the isolate echo.
+    if (_activeCharacterId != null) {
+      _clearActive();
+    }
   }
 
   /// Mute / unmute the call mic (from the in-app overlay).

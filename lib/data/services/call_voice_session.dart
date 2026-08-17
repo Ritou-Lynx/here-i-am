@@ -14,6 +14,7 @@ import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
+import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/streaming_tts_player.dart';
 import 'package:memex/data/services/voice_call_audio_session.dart';
 import 'package:memex/db/app_database.dart';
@@ -296,15 +297,10 @@ class CallVoiceSession {
   Future<void> end() => _endInternal();
 
   Future<void> _endInternal() async {
-    // Even if we're already idle (a previous end won), still tell the main
-    // isolate so the overlay / UI closes. Idempotent.
-    if (_phase == CallVoicePhase.idle) {
-      _notifyMain({'type': 'call_ended'});
-      return;
-    }
     _log.info('end (phase=$_phase)');
     _runSerial++;
     _activeIdentity = null;
+    final wasIdle = _phase == CallVoicePhase.idle;
     _phase = CallVoicePhase.idle;
 
     _sentenceTimer?.cancel();
@@ -342,7 +338,10 @@ class CallVoiceSession {
     }
     await _updateNotification('📞 通话已结束');
     // Clear the CallKit ongoing session + notification so no stale "in call"
-    // notification survives the hang-up. Safe to call even if already ended.
+    // notification survives the hang-up. Safe to call even if already ended
+    // (idempotent). Always execute this even if phase was already idle, to
+    // cover the case where a previous end was interrupted or a double-end
+    // raced and the first call short-circuited before cleanup.
     try {
       await FlutterCallkitIncoming.endAllCalls();
     } catch (e) {
@@ -591,10 +590,16 @@ class CallVoiceSession {
         }
         buffer.write(chunk);
         tts?.feedText(chunk);
+        // Strip TTS audio tags and action/emotion markers so the overlay shows
+        // only the spoken text (no `[whispers]`, `*动作*`, `(情绪)` etc).
+        final sanitized = PersonaReplySanitizer.spokenTextOnly(
+          buffer.toString(),
+          stripTtsTags: true,
+        );
         _notifyMain({
           'type': 'call_status',
           'status': 'speaking',
-          'transcript': buffer.toString(),
+          'transcript': sanitized,
           'reply': true,
         });
       }

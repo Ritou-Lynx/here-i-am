@@ -213,15 +213,18 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
               if (_transcript.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 48),
-                  child: Text(
-                    _transcript,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _isReply ? Colors.white70 : Colors.white,
-                      fontSize: 14,
-                      fontStyle: _isReply ? FontStyle.italic : FontStyle.normal,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 120),
+                    child: SingleChildScrollView(
+                      child: Text(
+                        _transcript,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _isReply ? Colors.white70 : Colors.white,
+                          fontSize: 14,
+                          fontStyle: FontStyle.normal,
+                        ),
+                      ),
                     ),
                   ),
                 ),

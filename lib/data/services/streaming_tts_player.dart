@@ -183,13 +183,32 @@ class StreamingTtsSession {
       await completer.future;
       await sub.cancel();
 
-      if (!_disposed && bytes.isNotEmpty) {
+      if (!_disposed) {
+        if (bytes.isEmpty) {
+          // TTS synthesis failed / returned empty bytes. Push a silent
+          // placeholder segment so the OrderedTtsQueue does not get stuck
+          // waiting for this seq forever (seq gap would deadlock the queue).
+          _log.warning('TTS seq=$currentSeq returned empty, pushing placeholder');
+        }
         final file = File(
           '${Directory.systemTemp.path}/tts_seg_'
           '${DateTime.now().microsecondsSinceEpoch}_$currentSeq.mp3',
         );
-        await file.writeAsBytes(bytes, flush: true);
-        _log.fine('segment seq=$currentSeq: ${bytes.length} bytes');
+        if (bytes.isNotEmpty) {
+          await file.writeAsBytes(bytes, flush: true);
+          _log.fine('segment seq=$currentSeq: ${bytes.length} bytes');
+        } else {
+          // Write a minimal silent mp3 placeholder (48-byte valid mp3 header
+          // with no audio frames) so the queue does not skip this seq.
+          await file.writeAsBytes([
+            0xFF, 0xFB, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          ], flush: true);
+        }
 
         final segment = TtsSegment(
           identity: identity ?? _throwawayIdentity(),
