@@ -18,8 +18,17 @@ const _ledgerExpense = Color(0xFFA66F58);
 const _ledgerTransfer = Color(0xFF9A8051);
 const _ledgerFog = Color(0xEAF7F5ED);
 
-class CompanionLedgerPanel extends StatelessWidget {
+enum _ViewMode { list, calendar }
+
+class CompanionLedgerPanel extends StatefulWidget {
   const CompanionLedgerPanel({super.key});
+
+  @override
+  State<CompanionLedgerPanel> createState() => _CompanionLedgerPanelState();
+}
+
+class _CompanionLedgerPanelState extends State<CompanionLedgerPanel> {
+  _ViewMode _viewMode = _ViewMode.list;
 
   @override
   Widget build(BuildContext context) {
@@ -42,26 +51,39 @@ class CompanionLedgerPanel extends StatelessWidget {
             onRefresh: () => LifeInsightScheduler(db: AppDatabase.instance)
                 .forceRunWeeklyAnalysis(),
           ),
-          _Header(onAdd: () => _showEntrySheet(context)),
+          _Header(
+            selectedMonth: viewModel.selectedMonth,
+            viewMode: _viewMode,
+            onViewModeChanged: (m) => setState(() => _viewMode = m),
+            onPrevMonth: () => viewModel.changeMonth(-1),
+            onNextMonth: () => viewModel.changeMonth(1),
+            onAdd: () => _showEntrySheet(context),
+          ),
           const SizedBox(height: 16),
           _CashSummary(overview: viewModel.overview),
           const SizedBox(height: 12),
           _SplitSummary(overview: viewModel.overview),
           const SizedBox(height: 22),
-          const Text(
-            '最近明细',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: _ledgerOnRain,
-              shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+          if (_viewMode == _ViewMode.list) ...[
+            const Text(
+              '当月明细',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _ledgerOnRain,
+                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          if (viewModel.entries.isEmpty)
-            const _EmptyLedger()
-          else
-            ...viewModel.entries.map(_LedgerEntryTile.new),
+            const SizedBox(height: 10),
+            if (viewModel.entries.isEmpty)
+              const _EmptyLedger()
+            else
+              ...viewModel.entries.map(_LedgerEntryTile.new),
+          ] else
+            _MonthCalendarSection(
+              entries: viewModel.entries,
+              selectedMonth: viewModel.selectedMonth,
+            ),
         ],
       ),
     );
@@ -95,38 +117,145 @@ class CompanionLedgerPanel extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onAdd});
+  const _Header({
+    required this.selectedMonth,
+    required this.viewMode,
+    required this.onViewModeChanged,
+    required this.onPrevMonth,
+    required this.onNextMonth,
+    required this.onAdd,
+  });
 
+  final String selectedMonth;
+  final _ViewMode viewMode;
+  final ValueChanged<_ViewMode> onViewModeChanged;
+  final VoidCallback onPrevMonth;
+  final VoidCallback onNextMonth;
   final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    final parts = selectedMonth.split('-');
+    final monthLabel =
+        '${parts[0]}年${int.parse(parts[1])}月';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Expanded(
-          child: Text(
-            '全部记录',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: _ledgerOnRain,
-              shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+        Row(
+          children: [
+            _MonthNavArrow(icon: Icons.chevron_left_rounded, onTap: onPrevMonth),
+            Expanded(
+              child: Text(
+                monthLabel,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _ledgerOnRain,
+                  shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+                ),
+              ),
             ),
-          ),
+            _MonthNavArrow(icon: Icons.chevron_right_rounded, onTap: onNextMonth),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('记一笔'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _ledgerAccent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
         ),
-        FilledButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add_rounded, size: 18),
-          label: const Text('记一笔'),
-          style: FilledButton.styleFrom(
-            backgroundColor: _ledgerAccent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            visualDensity: VisualDensity.compact,
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: _ledgerFog,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xB8FFFFFF), width: .8),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _ViewTogglePill(
+                  label: '明细',
+                  selected: viewMode == _ViewMode.list,
+                  onTap: () => onViewModeChanged(_ViewMode.list),
+                ),
+              ),
+              Expanded(
+                child: _ViewTogglePill(
+                  label: '日历',
+                  selected: viewMode == _ViewMode.calendar,
+                  onTap: () => onViewModeChanged(_ViewMode.calendar),
+                ),
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _MonthNavArrow extends StatelessWidget {
+  const _MonthNavArrow({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Icon(icon, size: 26, color: _ledgerOnRain),
+      ),
+    );
+  }
+}
+
+class _ViewTogglePill extends StatelessWidget {
+  const _ViewTogglePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(9),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: selected
+            ? BoxDecoration(
+                color: _ledgerAccent,
+                borderRadius: BorderRadius.circular(9),
+              )
+            : null,
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : _ledgerMuted,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -139,13 +268,29 @@ class _CashSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final net = _number(overview['cash_net']);
+    final allTimeNet = _number(overview['all_time_cash_net']);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('真实收支结余', style: TextStyle(color: _ledgerMuted)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              const Text('本月收支结余', style: TextStyle(color: _ledgerMuted)),
+              const SizedBox(width: 10),
+              Text(
+                '总至今 ${_money(allTimeNet, signed: true)}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: _ledgerMuted,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 7),
           Text(
             _money(net, signed: true),
@@ -162,14 +307,14 @@ class _CashSummary extends StatelessWidget {
             children: [
               Expanded(
                 child: _Metric(
-                  label: '收入',
+                  label: '本月收入',
                   value: _money(_number(overview['external_income'])),
                   color: _ledgerIncome,
                 ),
               ),
               Expanded(
                 child: _Metric(
-                  label: '支出',
+                  label: '本月支出',
                   value: _money(_number(overview['external_expense'])),
                   color: _ledgerExpense,
                 ),
@@ -909,3 +1054,281 @@ Color _entryColor(String type) => switch (type) {
       'transfer' || 'penalty' => _ledgerTransfer,
       _ => _ledgerAccent,
     };
+
+// ─────────────────── 月格日历 ───────────────────
+
+class _MonthCalendarSection extends StatelessWidget {
+  const _MonthCalendarSection({
+    required this.entries,
+    required this.selectedMonth,
+  });
+
+  final List<Map<String, dynamic>> entries;
+  final String selectedMonth;
+
+  @override
+  Widget build(BuildContext context) {
+    final byDay = _groupEntriesByDay(entries, selectedMonth);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
+      child: _MonthCalendarGrid(
+        month: selectedMonth,
+        dayEntries: byDay,
+        onDaySelected: (day, dayList) =>
+            _showDaySheet(context, day, dayList),
+      ),
+    );
+  }
+
+  Map<int, List<Map<String, dynamic>>> _groupEntriesByDay(
+    List<Map<String, dynamic>> rows,
+    String month,
+  ) {
+    final parts = month.split('-');
+    final year = int.parse(parts[0]);
+    final mon = int.parse(parts[1]);
+    final map = <int, List<Map<String, dynamic>>>{};
+    for (final r in rows) {
+      final epoch = (r['recorded_at'] as num?)?.toInt() ?? 0;
+      final dt = DateTime.fromMillisecondsSinceEpoch(epoch * 1000);
+      if (dt.year != year || dt.month != mon) continue;
+      map.putIfAbsent(dt.day, () => []).add(r);
+    }
+    return map;
+  }
+
+  Future<void> _showDaySheet(
+    BuildContext context,
+    int day,
+    List<Map<String, dynamic>> dayList,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DayEntriesSheet(day: day, entries: dayList),
+    );
+  }
+}
+
+class _MonthCalendarGrid extends StatelessWidget {
+  const _MonthCalendarGrid({
+    required this.month,
+    required this.dayEntries,
+    required this.onDaySelected,
+  });
+
+  final String month;
+  final Map<int, List<Map<String, dynamic>>> dayEntries;
+  final void Function(int day, List<Map<String, dynamic>> list) onDaySelected;
+
+  static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = month.split('-');
+    final year = int.parse(parts[0]);
+    final mon = int.parse(parts[1]);
+    final firstOfMonth = DateTime(year, mon, 1);
+    // 周一=0 .. 周日=6
+    int leadingBlanks;
+    {
+      final w = firstOfMonth.weekday; // Monday=1..Sunday=7
+      leadingBlanks = w - 1;
+    }
+    final daysInMonth = DateTime(year, mon + 1, 0).day;
+    final today = DateTime.now();
+    final isCurrentMonth = today.year == year && today.month == mon;
+
+    return Column(
+      children: [
+        Row(
+          children: _weekdays
+              .map((w) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        w,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: _ledgerMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 4),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: 0.92,
+            mainAxisSpacing: 4,
+            crossAxisSpacing: 2,
+          ),
+          itemCount: leadingBlanks + daysInMonth,
+          itemBuilder: (context, index) {
+            if (index < leadingBlanks) {
+              return const SizedBox.shrink();
+            }
+            final day = index - leadingBlanks + 1;
+            final list = dayEntries[day] ?? const [];
+            final isToday =
+                isCurrentMonth && day == today.day;
+            return _CalendarDayCell(
+              day: day,
+              entries: list,
+              isToday: isToday,
+              onTap: list.isEmpty ? null : () => onDaySelected(day, list),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _CalendarDayCell extends StatelessWidget {
+  const _CalendarDayCell({
+    required this.day,
+    required this.entries,
+    required this.isToday,
+    required this.onTap,
+  });
+
+  final int day;
+  final List<Map<String, dynamic>> entries;
+  final bool isToday;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    // 当日净流：收入+返还-支出-转出
+    double net = 0;
+    for (final e in entries) {
+      final type = e['type'] as String? ?? '';
+      final total = _number(e['total_amount']);
+      final dir = e['transfer_direction'] as String?;
+      final isInflow = type == 'income' ||
+          type == 'reward' ||
+          type == 'repayment' ||
+          (type == 'transfer' && dir == 'ai_to_user');
+      net += isInflow ? total : -total;
+    }
+    final hasEntries = entries.isNotEmpty;
+    final ink = net >= 0 ? _ledgerIncome : _ledgerExpense;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: hasEntries
+              ? ink.withValues(alpha: 0.10)
+              : (isToday ? _ledgerAccent.withValues(alpha: 0.10) : null),
+          borderRadius: BorderRadius.circular(10),
+          border: isToday
+              ? Border.all(color: _ledgerAccent, width: 1.2)
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '$day',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
+                color: _ledgerInk,
+              ),
+            ),
+            if (hasEntries) ...[
+              const SizedBox(height: 1),
+              Text(
+                _money(net.abs(), signed: false).replaceAll('¥', ''),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: ink,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DayEntriesSheet extends StatelessWidget {
+  const _DayEntriesSheet({required this.day, required this.entries});
+
+  final int day;
+  final List<Map<String, dynamic>> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    double net = 0;
+    for (final e in entries) {
+      final type = e['type'] as String? ?? '';
+      final total = _number(e['total_amount']);
+      final dir = e['transfer_direction'] as String?;
+      final isInflow = type == 'income' ||
+          type == 'reward' ||
+          type == 'repayment' ||
+          (type == 'transfer' && dir == 'ai_to_user');
+      net += isInflow ? total : -total;
+    }
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      decoration: const BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '$day日明细',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '当日 ${_money(net, signed: true)}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: net >= 0 ? _ledgerIncome : _ledgerExpense,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: entries.length,
+              itemBuilder: (_, i) => _LedgerEntryTile(entries[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

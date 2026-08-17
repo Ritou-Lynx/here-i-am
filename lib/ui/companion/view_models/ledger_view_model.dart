@@ -44,6 +44,35 @@ class LedgerViewModel extends ChangeNotifier {
   Map<String, dynamic> overview = const {};
   List<Map<String, dynamic>> entries = const [];
 
+  /// 当前选中月份 'YYYY-MM'。null 表示全部时间视图（兼容旧行为，UI 不主动使用）。
+  String get selectedMonth => _selectedMonth;
+  String _selectedMonth = _formatMonth(DateTime.now());
+
+  static String _formatMonth(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}';
+
+  /// 切换到相邻月份：delta 为 -1 上月，+1 下月。
+  void changeMonth(int delta) {
+    final parts = _selectedMonth.split('-');
+    final cur = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+    final next = DateTime(cur.year, cur.month + delta);
+    final now = DateTime.now();
+    // 不允许选到未来月份。
+    if (next.isAfter(DateTime(now.year, now.month + 1))) return;
+    final newMonth = _formatMonth(next);
+    if (newMonth == _selectedMonth) return;
+    _selectedMonth = newMonth;
+    load.execute();
+  }
+
+  /// 跳到指定月份（'YYYY-MM'），或 null=当月。
+  void setMonth(String? month) {
+    final target = month ?? _formatMonth(DateTime.now());
+    if (target == _selectedMonth) return;
+    _selectedMonth = target;
+    load.execute();
+  }
+
   Future<Result<void>> _load() => runResultVoid(_refresh);
 
   Future<Result<void>> _addEntry(LedgerEntryDraft draft) {
@@ -100,8 +129,8 @@ class LedgerViewModel extends ChangeNotifier {
 
   Future<void> _refresh() async {
     final results = await Future.wait([
-      _service.getLedgerOverview(),
-      _service.getRecentEntries(limit: 100),
+      _service.getLedgerOverview(month: _selectedMonth),
+      _service.getRecentEntries(limit: 100, month: _selectedMonth),
     ]);
     overview = results[0] as Map<String, dynamic>;
     entries = results[1] as List<Map<String, dynamic>>;

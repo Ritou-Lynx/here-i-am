@@ -217,6 +217,9 @@ class AiFinanceService {
       'ai_savings': aiSummary['savings'],
       'ai_owes_user': aiSummary['owes_user'],
       'all_time_my_allocated_net': allTime['my_allocated_net'],
+      'all_time_external_income': allTime['external_income'],
+      'all_time_external_expense': allTime['external_expense'],
+      'all_time_cash_net': allTime['cash_net'],
       'entry_count': rows.length,
     };
   }
@@ -301,12 +304,26 @@ class AiFinanceService {
 
   Future<List<Map<String, dynamic>>> getRecentEntries({
     int limit = 10,
+    String? month, // 'YYYY-MM'，限定返回该月内的条目
   }) async {
+    int? sinceEpoch;
+    int? untilEpoch;
+    if (month != null) {
+      final parts = month.split('-');
+      final start = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+      final end = DateTime(start.year, start.month + 1);
+      sinceEpoch = start.millisecondsSinceEpoch ~/ 1000;
+      untilEpoch = end.millisecondsSinceEpoch ~/ 1000 - 1;
+    }
     final rows = _dedupeLedgerRows(
-      await _dao.getSharedEntries(limit: limit * 4 < 200 ? 200 : limit * 4),
+      await _dao.getSharedEntries(
+        sinceEpoch: sinceEpoch,
+        untilEpoch: untilEpoch,
+        limit: month != null ? 1000 : (limit * 4 < 200 ? 200 : limit * 4),
+      ),
     )..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     return rows
-        .take(limit)
+        .take(month != null ? rows.length : limit)
         .map((r) => {
               'id': r.id,
               'source_character_id': r.characterId,
