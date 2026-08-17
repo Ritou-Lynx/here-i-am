@@ -28,7 +28,29 @@
         {"id": "zhedog/不对", "file": "zhedog/zhedog_21.jpg", "desc": "不对"},
         {"id": "zhedog/思考", "file": "zhedog/zhedog_22.jpg", "desc": "思考"},
         {"id": "zhedog/急急急", "file": "zhedog/zhedog_23.jpg", "desc": "急急急"},
-        {"id": "zhedog/宝宝", "file": "zhedog/zhedog_24.jpg", "desc": "宝宝"}
+        {"id": "zhedog/宝宝", "file": "zhedog/zhedog_24.jpg", "desc": "宝宝"},
+        {"id": "zhedog/爱", "file": "zhedog/zhedog_25.png", "desc": "爱"},
+        {"id": "zhedog/可怜", "file": "zhedog/zhedog_26.png", "desc": "可怜"},
+        {"id": "zhedog/了", "file": "zhedog/zhedog_27.png", "desc": "了"},
+        {"id": "zhedog/震惊", "file": "zhedog/zhedog_29.png", "desc": "震惊"},
+        {"id": "zhedog/气呼呼", "file": "zhedog/zhedog_30.png", "desc": "气呼呼"},
+        {"id": "zhedog/激动", "file": "zhedog/zhedog_31.png", "desc": "激动"},
+        {"id": "zhedog/爽", "file": "zhedog/zhedog_32.png", "desc": "爽"},
+        {"id": "zhedog/倒下了", "file": "zhedog/zhedog_33.png", "desc": "倒下了"},
+        {"id": "zhedog/不好意思", "file": "zhedog/zhedog_34.png", "desc": "不好意思"},
+        {"id": "zhedog/我不听", "file": "zhedog/zhedog_35.png", "desc": "我不听"},
+        {"id": "zhedog/干得漂亮", "file": "zhedog/zhedog_36.png", "desc": "干得漂亮"},
+        {"id": "zhedog/花花", "file": "zhedog/zhedog_37.png", "desc": "花花"},
+        {"id": "zhedog/比心", "file": "zhedog/zhedog_38.png", "desc": "比心"},
+        {"id": "zhedog/狂怒", "file": "zhedog/zhedog_39.png", "desc": "狂怒"},
+        {"id": "zhedog/品鉴", "file": "zhedog/zhedog_40.png", "desc": "品鉴"},
+        {"id": "zhedog/无语", "file": "zhedog/zhedog_41.png", "desc": "无语"},
+        {"id": "zhedog/哦", "file": "zhedog/zhedog_43.png", "desc": "哦"},
+        {"id": "zhedog/嗯", "file": "zhedog/zhedog_44.png", "desc": "嗯"},
+        {"id": "zhedog/吸狗", "file": "zhedog/zhedog_45.png", "desc": "吸狗"},
+        {"id": "zhedog/幸福", "file": "zhedog/zhedog_46.jpg", "desc": "幸福"},
+        {"id": "zhedog/构思", "file": "zhedog/zhedog_47.png", "desc": "构思"},
+        {"id": "zhedog/打电话", "file": "zhedog/zhedog_48.png", "desc": "打电话"}
       ]
     }
   ]
