@@ -10,6 +10,7 @@ import 'package:memex/routing/router.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/desktop/desktop_workbench_shell.dart';
+import 'package:memex/ui/desktop/widgets/desktop_chat_overlay.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 
@@ -162,7 +163,27 @@ void main() {
 
   testWidgets('floating Lin Ai chat opens as overlay panel and collapses back '
       'to the ball', (tester) async {
-    await pumpWorkbench(tester);
+    var open = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) => Stack(
+            children: [
+              Positioned.fill(
+                child: DesktopChatOverlay(
+                  open: open,
+                  characterId: 'i',
+                  initialVoiceMode: false,
+                  onOpen: () => setState(() => open = true),
+                  onClose: () => setState(() => open = false),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('desktop_floating_ball')), findsOneWidget);
     expect(find.byKey(const ValueKey('desktop_chat_panel')), findsNothing);
