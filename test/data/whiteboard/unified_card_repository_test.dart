@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -118,6 +119,26 @@ void main() {
       await repository.listSourceVersions(first.source.sourceId),
       hasLength(2),
     );
+  });
+
+  test('startup recovery restores a Source object backup after interruption',
+      () async {
+    final committed = await repository.commitIngestion(
+      _ingestion(hash: 'recover_source', body: 'source object body'),
+    );
+    final target = File(
+      '${tempDir.path}${Platform.pathSeparator}'
+      '${committed.version.objectRef.replaceAll('/', Platform.pathSeparator)}',
+    );
+    final original = jsonDecode(await target.readAsString());
+    await target.rename('${target.path}.bak');
+    await File('${target.path}.tmp').writeAsString('{broken', flush: true);
+
+    await repository.recoverFileReplacements();
+
+    expect(jsonDecode(await target.readAsString()), original);
+    expect(await File('${target.path}.tmp').exists(), isFalse);
+    expect(await File('${target.path}.bak').exists(), isFalse);
   });
 
   test('delete BoardItem does not delete Card, Source, or RichText', () async {

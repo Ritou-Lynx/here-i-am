@@ -1,21 +1,41 @@
-﻿/// W1 interaction completion tests — keyboard shortcuts, card-library
+/// W1 interaction completion tests — keyboard shortcuts, card-library
 /// drag & drop, BoardTargetPicker, group collapse, edge endpoint editing,
 /// rotation handle, and Huabu-style single-undo-step logical actions.
 library;
 
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui show PointerDeviceKind;
 
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/ui/whiteboard_canvas/interactions/ui_intent.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
+
+class _StaticCardRepository extends UnifiedCardRepository {
+  _StaticCardRepository({
+    required super.db,
+    required super.whiteboardRoot,
+    required this.records,
+  });
+
+  final List<UnifiedCardRecord> records;
+
+  @override
+  Future<List<UnifiedCardRecord>> listCards([
+    CardLibraryQuery query = const CardLibraryQuery(),
+  ]) async =>
+      records;
+}
 
 WhiteboardSnapshot _snapshot({
   bool withEdge = false,
@@ -197,8 +217,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await _sendShortcut(tester, LogicalKeyboardKey.keyZ, control: true);
-      await _sendShortcut(tester,
-          LogicalKeyboardKey.keyZ, control: true, shift: true);
+      await _sendShortcut(tester, LogicalKeyboardKey.keyZ,
+          control: true, shift: true);
       expect(
         vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a').x,
         equals(50),
@@ -252,6 +272,74 @@ void main() {
   });
 
   group('card-library drag & drop', () {
+    testWidgets('reloads when the repository arrives after the panel opens',
+        (tester) async {
+      final tempDir =
+          Directory.systemTemp.createTempSync('late_card_repository_');
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(() async {
+        await db.close();
+        if (await tempDir.exists()) await tempDir.delete(recursive: true);
+      });
+      final repository = _StaticCardRepository(
+        db: db,
+        whiteboardRoot: tempDir,
+        records: [
+          UnifiedCardRecord(
+            card: CardContract(
+              cardId: 'card_late_repository',
+              cardKind: CardKind.note,
+              title: 'Late Repository Card',
+              body: 'Repository data loaded after the panel was already open.',
+              createdAt: DateTime(2026, 8, 19),
+            ),
+            documentState: CardDocumentState.missing,
+            isPlaced: false,
+          ),
+        ],
+      );
+
+      final snapshot = _snapshot();
+      final vm = WhiteboardCanvasViewModel(
+        initialSnapshot: snapshot,
+        boardId: snapshot.boards.first.boardId,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WhiteboardCanvasScreen(viewModel: vm),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.grid_view_outlined));
+      await tester.pump();
+      expect(find.text('Late Repository Card'), findsNothing);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WhiteboardCanvasScreen(
+              viewModel: vm,
+              cardRepository: repository,
+            ),
+          ),
+        ),
+      );
+      for (var attempt = 0;
+          attempt < 20 && find.text('Late Repository Card').evaluate().isEmpty;
+          attempt++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.text('Late Repository Card'), findsOneWidget);
+      expect(find.byKey(const Key('wb_lib_row_card_late_repository')),
+          findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
+
     testWidgets('dragging a library card onto the canvas places it there',
         (tester) async {
       // card_c exists in the library but is NOT placed on the board.
@@ -271,8 +359,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final item = vm.exportForSave().boardItems
-          .firstWhere((i) => i.cardId == 'card_c');
+      final item =
+          vm.exportForSave().boardItems.firstWhere((i) => i.cardId == 'card_c');
       expect(item.boardId, equals('board_widget'));
       // dropX - screenCenterX - grabOffsetX = 450 - 400 + rowRect.left
       expect(item.x, closeTo(rowRect.left + 50, 10));
@@ -284,8 +372,8 @@ void main() {
   group('BoardTargetPicker', () {
     testWidgets('opens from the library row and places into another board',
         (tester) async {
-      final vm =
-          await _pumpCanvas(tester, _snapshot(withExtraCard: true, withOtherBoard: true));
+      final vm = await _pumpCanvas(
+          tester, _snapshot(withExtraCard: true, withOtherBoard: true));
       await tester.tap(find.byIcon(Icons.grid_view_outlined));
       await tester.pumpAndSettle();
 
@@ -303,15 +391,16 @@ void main() {
       await tester.tap(find.text('Other Board'));
       await tester.pumpAndSettle();
 
-      final item = vm.exportForSave().boardItems
-          .firstWhere((i) => i.cardId == 'card_c');
+      final item =
+          vm.exportForSave().boardItems.firstWhere((i) => i.cardId == 'card_c');
       expect(item.boardId, equals('board_other'));
       expect(find.textContaining('已放入白板「Other Board」'), findsOneWidget);
     });
 
     testWidgets('search filters boards and empty result is honest',
         (tester) async {
-      await _pumpCanvas(tester, _snapshot(withExtraCard: true, withOtherBoard: true));
+      await _pumpCanvas(
+          tester, _snapshot(withExtraCard: true, withOtherBoard: true));
       await tester.tap(find.byIcon(Icons.grid_view_outlined));
       await tester.pumpAndSettle();
       await tester.tap(find.descendant(
@@ -351,8 +440,7 @@ void main() {
 
       final snapshot = vm.exportForSave();
       final board = snapshot.boards.firstWhere((b) => b.name == '新板');
-      final item =
-          snapshot.boardItems.firstWhere((i) => i.cardId == 'card_c');
+      final item = snapshot.boardItems.firstWhere((i) => i.cardId == 'card_c');
       expect(item.boardId, equals(board.boardId));
     });
   });
@@ -465,13 +553,13 @@ void main() {
       await tester.drag(handle, const Offset(0, 80));
       await tester.pumpAndSettle();
 
-      final rotated = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final rotated =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
       expect(rotated.rotation, closeTo(90, 8));
 
       await _sendShortcut(tester, LogicalKeyboardKey.keyZ, control: true);
-      final restored = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final restored =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
       expect(restored.rotation, equals(0));
     });
   });
@@ -482,13 +570,13 @@ void main() {
       await tester.drag(find.text('Card A'), const Offset(120, 40));
       await tester.pumpAndSettle();
 
-      final moved = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final moved =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
       expect(moved.x, greaterThan(90));
 
       await _sendShortcut(tester, LogicalKeyboardKey.keyZ, control: true);
-      final restored = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final restored =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
       expect(restored.x, equals(0),
           reason: 'a whole drag gesture must be exactly one undo step');
     });
@@ -505,13 +593,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final resized = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final resized =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
       expect(resized.width, greaterThan(190));
 
       await _sendShortcut(tester, LogicalKeyboardKey.keyZ, control: true);
-      final restored = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final restored =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
       expect(restored.width, equals(140),
           reason: 'a whole resize drag must be exactly one undo step');
     });

@@ -35,6 +35,7 @@ class WhiteboardDataBootstrap {
       db: AppDatabase.instance,
       whiteboardRoot: root,
     );
+    await repository.recoverFileReplacements();
     await LegacyWhiteboardDataMigrator(
       repository: repository,
       legacyRichTextRoot: Directory(p.join(root.path, 'rich_text')),

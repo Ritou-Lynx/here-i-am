@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:memex/data/whiteboard/ingestion/ingestion_store.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/domain/whiteboard/recoverable_file_exchange.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 
 class LegacyMigrationFailure {
@@ -76,6 +77,7 @@ class LegacyWhiteboardDataMigrator {
       );
 
   Future<LegacyMigrationReport> run() async {
+    await recoverReportFile();
     final report = LegacyMigrationReport(startedAt: DateTime.now().toUtc());
     await _backfillDrift(report);
     await _migrateRichText(report);
@@ -85,13 +87,19 @@ class LegacyWhiteboardDataMigrator {
     return report;
   }
 
+  /// Restores an interrupted report replacement before startup diagnostics
+  /// inspect or replace the report.
+  Future<bool> recoverReportFile() => RecoverableFileExchange.recover(
+        reportFile,
+        validator: _isValidReport,
+      );
+
   Future<void> _backfillDrift(LegacyMigrationReport report) async {
     final rows = await repository.db.select(repository.db.memoryCards).get();
     for (final row in rows) {
       if (row.memoryScope != 'user_truth' || row.type != 'note') continue;
       if (isLikelyTestArtifact(row.id, row.title)) {
         report.possibleTestArtifacts.add('drift:${row.id}:${row.title}');
-        continue;
       }
       try {
         if (await repository.backfillLegacyMemoryCardExtra(row.id)) {
@@ -119,7 +127,6 @@ class LegacyWhiteboardDataMigrator {
       final cardId = name.substring('card_'.length);
       if (isLikelyTestArtifact(cardId, '')) {
         report.possibleTestArtifacts.add('rich_text:$cardId');
-        continue;
       }
       try {
         final loaded = await storage.loadWithStatus(cardId);
@@ -197,7 +204,6 @@ class LegacyWhiteboardDataMigrator {
           report.possibleTestArtifacts.add(
             'ingestion:${record.card!.cardId}:${record.card!.title}',
           );
-          continue;
         }
         await repository.importLegacyIngestion(
           source: record.source,
@@ -216,11 +222,20 @@ class LegacyWhiteboardDataMigrator {
   }
 
   Future<void> _writeReport(LegacyMigrationReport report) async {
-    await reportFile.parent.create(recursive: true);
-    final temp = File('${reportFile.path}.tmp');
-    await temp.writeAsString(jsonEncode(report.toJson()), flush: true);
-    if (await reportFile.exists()) await reportFile.delete();
-    await temp.rename(reportFile.path);
+    await RecoverableFileExchange.write(
+      reportFile,
+      jsonEncode(report.toJson()),
+      validator: _isValidReport,
+    );
+  }
+
+  static bool _isValidReport(String contents) {
+    try {
+      final json = jsonDecode(contents);
+      return json is Map<String, dynamic> && json['schema_version'] == 1;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Identifies cleanup candidates but never deletes them.

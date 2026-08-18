@@ -14,6 +14,7 @@ import 'package:drift/drift.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
+import 'package:memex/domain/whiteboard/recoverable_file_exchange.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
@@ -102,6 +103,33 @@ class UnifiedCardRepository {
   final AppDatabase db;
   final Directory whiteboardRoot;
   final RichTextStorage richTextStorage;
+
+  /// Repairs interrupted rich-text and Source-object exchanges at startup.
+  Future<void> recoverFileReplacements() async {
+    await richTextStorage.recoverAll();
+    final sourceRoot = Directory(
+      _join(_join(whiteboardRoot.path, 'objects'), 'sources'),
+    );
+    if (!await sourceRoot.exists()) return;
+    final targets = <String>{};
+    await for (final entity in sourceRoot.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is! File) continue;
+      var path = entity.path;
+      if (path.endsWith('.tmp') || path.endsWith('.bak')) {
+        path = path.substring(0, path.length - 4);
+      }
+      if (path.endsWith('.json')) targets.add(path);
+    }
+    for (final path in targets) {
+      await RecoverableFileExchange.recover(
+        File(path),
+        validator: _isValidJsonMap,
+      );
+    }
+  }
 
   /// Returns an active card by stable id, or null when it is absent/deleted.
   Future<UnifiedCardRecord?> getCard(
@@ -812,7 +840,11 @@ class UnifiedCardRepository {
           if (entry.key != 'body_text') entry.key: entry.value,
       },
     };
-    await _writeJsonAtomically(file, payload);
+    await RecoverableFileExchange.write(
+      file,
+      jsonEncode(payload),
+      validator: _isValidJsonMap,
+    );
   }
 
   File _objectFile(String objectRef) {
@@ -826,14 +858,12 @@ class UnifiedCardRepository {
     return File(_join(whiteboardRoot.path, objectRef));
   }
 
-  static Future<void> _writeJsonAtomically(
-    File target,
-    Map<String, dynamic> json,
-  ) async {
-    final temp = File('${target.path}.tmp');
-    await temp.writeAsString(jsonEncode(json), flush: true);
-    if (await target.exists()) await target.delete();
-    await temp.rename(target.path);
+  static bool _isValidJsonMap(String contents) {
+    try {
+      return jsonDecode(contents) is Map<String, dynamic>;
+    } catch (_) {
+      return false;
+    }
   }
 
   static CardContract _toCard(MemoryCard row, WhiteboardCardExtra extra) =>

@@ -10,6 +10,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'recoverable_file_exchange.dart';
 import 'rich_text_document.dart';
 import 'rich_text_migration.dart';
 
@@ -44,7 +45,11 @@ class RichTextStorage {
     if (!dir.existsSync()) {
       await dir.create(recursive: true);
     }
-    await _writeAtomically(_file(cardId), jsonEncode(doc.toJson()));
+    await RecoverableFileExchange.write(
+      _file(cardId),
+      jsonEncode(doc.toJson()),
+      validator: _isValidDocument,
+    );
   }
 
   /// Loads a document for [cardId], migrating it to the current schema.
@@ -62,6 +67,10 @@ class RichTextStorage {
   /// Loads a document without hiding missing/corrupt filesystem state.
   Future<RichTextLoadResult> loadWithStatus(String cardId) async {
     final file = _file(cardId);
+    await RecoverableFileExchange.recover(
+      file,
+      validator: _isValidDocument,
+    );
     if (!file.existsSync()) {
       return const RichTextLoadResult(status: RichTextLoadStatus.missing);
     }
@@ -86,7 +95,11 @@ class RichTextStorage {
     if (!dir.existsSync()) {
       dir.createSync(recursive: true);
     }
-    _writeAtomicallySync(_file(cardId), jsonEncode(doc.toJson()));
+    RecoverableFileExchange.writeSync(
+      _file(cardId),
+      jsonEncode(doc.toJson()),
+      validator: _isValidDocument,
+    );
   }
 
   /// Synchronous load for tests and synchronous init paths.
@@ -100,6 +113,10 @@ class RichTextStorage {
 
   RichTextLoadResult loadWithStatusSync(String cardId) {
     final file = _file(cardId);
+    RecoverableFileExchange.recoverSync(
+      file,
+      validator: _isValidDocument,
+    );
     if (!file.existsSync()) {
       return const RichTextLoadResult(status: RichTextLoadStatus.missing);
     }
@@ -119,7 +136,34 @@ class RichTextStorage {
   }
 
   /// Returns true if a saved document exists for [cardId].
-  bool exists(String cardId) => _file(cardId).existsSync();
+  bool exists(String cardId) {
+    final file = _file(cardId);
+    RecoverableFileExchange.recoverSync(
+      file,
+      validator: _isValidDocument,
+    );
+    return file.existsSync();
+  }
+
+  /// Repairs interrupted replacements for all discovered card directories.
+  Future<void> recoverAll() async {
+    if (!await baseDir.exists()) return;
+    await for (final entity in baseDir.list(followLinks: false)) {
+      if (entity is! Directory) continue;
+      final name =
+          entity.uri.pathSegments.where((segment) => segment.isNotEmpty).last;
+      if (!name.startsWith('card_')) continue;
+      final cardId = name.substring('card_'.length);
+      try {
+        await RecoverableFileExchange.recover(
+          _file(cardId),
+          validator: _isValidDocument,
+        );
+      } catch (_) {
+        // One damaged card must not block recovery of the remaining cards.
+      }
+    }
+  }
 
   /// Deletes the saved document for [cardId]. No-op if absent.
   Future<void> delete(String cardId) async {
@@ -129,18 +173,14 @@ class RichTextStorage {
     }
   }
 
-  static Future<void> _writeAtomically(File target, String contents) async {
-    final temp = File('${target.path}.tmp');
-    await temp.writeAsString(contents, flush: true);
-    if (await target.exists()) await target.delete();
-    await temp.rename(target.path);
-  }
-
-  static void _writeAtomicallySync(File target, String contents) {
-    final temp = File('${target.path}.tmp');
-    temp.writeAsStringSync(contents, flush: true);
-    if (target.existsSync()) target.deleteSync();
-    temp.renameSync(target.path);
+  static bool _isValidDocument(String contents) {
+    try {
+      final json = jsonDecode(contents) as Map<String, dynamic>;
+      migrateRichTextDocument(json);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   static void _validateCardId(String cardId) {

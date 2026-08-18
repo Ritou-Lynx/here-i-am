@@ -50,12 +50,14 @@ class LinkIngestionService {
   final UnifiedCardRepository _repository;
   final LinkIngestor _ingestor;
 
-  /// Fetches [url]. With [createCard] false this performs no persistence.
-  /// The true branch is retained for callers that explicitly confirm in one
-  /// call; new preview UIs should call [commitResult] with the shown result.
+  /// Fetches [url] without persistence by default.
+  ///
+  /// [createCard] must be explicitly true for a caller-owned confirmation
+  /// flow. Preview UIs should normally call [commitResult] with the exact
+  /// result already shown to the user.
   Future<LinkIngestionOutcome> ingestUrl(
     String url, {
-    bool createCard = true,
+    bool createCard = false,
     CardKind cardKind = CardKind.source,
     OwnerSpace ownerSpace = OwnerSpace.user,
     CardCreatedBy createdBy = CardCreatedBy.user,

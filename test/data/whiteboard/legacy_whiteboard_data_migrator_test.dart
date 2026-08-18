@@ -92,7 +92,7 @@ void main() {
     expect(card!.card.body, '更新的用户正文');
   });
 
-  test('one corrupt record does not block good data and test data is retained',
+  test('one corrupt record does not block good data and marked data migrates',
       () async {
     await _writeRichText(richRoot, 'good_card', '可迁移内容');
     final brokenDir = Directory('${richRoot.path}/card_broken_card');
@@ -107,11 +107,33 @@ void main() {
     expect(report.failures.map((failure) => failure.reference),
         contains('broken_card'));
     expect(report.possibleTestArtifacts, contains('rich_text:richtext_itest'));
+    final markedCard = await repository.getCard('richtext_itest');
+    expect(markedCard, isNotNull);
+    expect(markedCard!.card.body, '测试污染候选');
+    expect(
+      (await repository.listCards()).map((record) => record.card.cardId),
+      contains('richtext_itest'),
+      reason: 'a cleanup candidate remains part of the unified card library',
+    );
     expect(
       File('${richRoot.path}/card_richtext_itest/rich_text.json').existsSync(),
       isTrue,
       reason: 'cleanup is opt-in; migration only reports candidates',
     );
+  });
+
+  test('migration report restores a valid backup after an interrupted swap',
+      () async {
+    await migrator.run();
+    final report = migrator.reportFile;
+    final original = await report.readAsString();
+    await report.rename('${report.path}.bak');
+    await File('${report.path}.tmp').writeAsString('{broken');
+
+    expect(await migrator.recoverReportFile(), isTrue);
+    expect(await report.readAsString(), original);
+    expect(await File('${report.path}.tmp').exists(), isFalse);
+    expect(await File('${report.path}.bak').exists(), isFalse);
   });
 }
 

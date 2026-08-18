@@ -9,8 +9,6 @@
 ///   - cards / memory → [MemoryCardQueryService]
 library;
 
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
@@ -19,6 +17,7 @@ import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/task_room_service.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 
@@ -91,9 +90,13 @@ class DesktopHomeData {
 
 /// Loads the workbench home data once and exposes load state.
 class DesktopHomeViewModel extends ChangeNotifier {
-  DesktopHomeViewModel({required this.db});
+  DesktopHomeViewModel({
+    required this.db,
+    UnifiedCardRepository? cardRepository,
+  }) : _cardRepository = cardRepository;
 
   final AppDatabase db;
+  final UnifiedCardRepository? _cardRepository;
 
   bool _loading = true;
   Object? _error;
@@ -124,10 +127,8 @@ class DesktopHomeViewModel extends ChangeNotifier {
 
   Future<DesktopHomeData> _collect() async {
     final store = WhiteboardDriftStore(db);
-    final unifiedCards = UnifiedCardRepository(
-      db: db,
-      whiteboardRoot: Directory.systemTemp,
-    );
+    final unifiedCards =
+        _cardRepository ?? await WhiteboardDataBootstrap.productionRepository();
     final taskService = TaskRoomService(db: db);
     final cardService = MemoryCardQueryService(db);
 

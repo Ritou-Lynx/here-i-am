@@ -53,7 +53,10 @@ void main() {
       expect(outcome.cardCreated, isTrue);
 
       // Idempotent re-import — no new version / card.
-      final again = await service.ingestUrl('https://example.com/');
+      final again = await service.ingestUrl(
+        'https://example.com/',
+        createCard: true,
+      );
       expect(again.upsert!.versionIsNew, isFalse);
       expect(again.cardCreated, isFalse);
 

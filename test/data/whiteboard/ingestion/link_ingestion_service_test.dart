@@ -112,7 +112,10 @@ void main() {
         ),
       });
 
-      final outcome = await svc.ingestUrl('https://example.com/doc');
+      final outcome = await svc.ingestUrl(
+        'https://example.com/doc',
+        createCard: true,
+      );
 
       expect(outcome.succeeded, isTrue);
       expect(outcome.result.status, IngestionStatus.ok);
@@ -151,8 +154,14 @@ void main() {
       };
       final svc = buildService(responses);
 
-      final first = await svc.ingestUrl('https://example.com/dup');
-      final second = await svc.ingestUrl('https://example.com/dup');
+      final first = await svc.ingestUrl(
+        'https://example.com/dup',
+        createCard: true,
+      );
+      final second = await svc.ingestUrl(
+        'https://example.com/dup',
+        createCard: true,
+      );
 
       expect(first.succeeded, isTrue);
       expect(second.succeeded, isTrue);
@@ -181,13 +190,19 @@ void main() {
       };
       final svc = buildService(responses);
 
-      final first = await svc.ingestUrl('https://example.com/dup');
+      final first = await svc.ingestUrl(
+        'https://example.com/dup',
+        createCard: true,
+      );
 
       // Swap the canned response to updated content.
       responses['https://example.com/dup'] =
           _Canned(_fixture('updated_content.html'), 200, 'text/html');
 
-      final second = await svc.ingestUrl('https://example.com/dup');
+      final second = await svc.ingestUrl(
+        'https://example.com/dup',
+        createCard: true,
+      );
 
       expect(first.succeeded, isTrue);
       expect(second.succeeded, isTrue);
@@ -258,7 +273,10 @@ void main() {
         repository: repository,
         ingestor: LinkIngestor(httpClient: client1),
       );
-      final outcome = await svc1.ingestUrl('https://example.com/doc');
+      final outcome = await svc1.ingestUrl(
+        'https://example.com/doc',
+        createCard: true,
+      );
       expect(outcome.succeeded, isTrue);
       final sourceId = outcome.result.source!.sourceId;
       final cardId = outcome.card!.cardId;
@@ -298,7 +316,10 @@ void main() {
 
       // First session.
       final svc1 = buildService(responses);
-      final first = await svc1.ingestUrl('https://example.com/dup');
+      final first = await svc1.ingestUrl(
+        'https://example.com/dup',
+        createCard: true,
+      );
       expect(first.cardCreated, isTrue);
 
       // Second session with a fresh database connection on the same temp DB.
@@ -316,7 +337,10 @@ void main() {
         repository: repository,
         ingestor: LinkIngestor(httpClient: client2),
       );
-      final second = await svc2.ingestUrl('https://example.com/dup');
+      final second = await svc2.ingestUrl(
+        'https://example.com/dup',
+        createCard: true,
+      );
 
       expect(second.upsert!.versionIsNew, isFalse);
       expect(second.cardCreated, isFalse);
@@ -328,6 +352,34 @@ void main() {
   });
 
   group('createCard=false', () {
+    test('omitting createCard is a zero-persistence preview', () async {
+      final svc = buildService({
+        'https://example.com/doc': _Canned(
+          _fixture('open_graph.html'),
+          200,
+          'text/html',
+        ),
+      });
+
+      final preview = await svc.ingestUrl('https://example.com/doc');
+
+      expect(preview.succeeded, isTrue);
+      expect(preview.card, isNull);
+      expect(await svc.listCards(), isEmpty);
+      expect(
+        await svc.getSource(preview.result.source!.sourceId),
+        isNull,
+      );
+
+      final committed = await svc.commitResult(preview.result);
+      expect(committed.cardCreated, isTrue);
+      expect(await svc.listCards(), hasLength(1));
+      expect(
+        await svc.getSource(preview.result.source!.sourceId),
+        isNotNull,
+      );
+    });
+
     test('fetch preview writes neither source nor card', () async {
       final svc = buildService({
         'https://example.com/doc': _Canned(
@@ -440,7 +492,10 @@ void main() {
         ),
       });
 
-      final outcome = await svc.ingestUrl('https://example.com/doc');
+      final outcome = await svc.ingestUrl(
+        'https://example.com/doc',
+        createCard: true,
+      );
       final card = outcome.card!;
 
       expect(card.cardKind, CardKind.source);

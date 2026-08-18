@@ -1968,6 +1968,7 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
 
   List<CardContract> _allCards = [];
   bool _loading = true;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -1975,12 +1976,24 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
     _loadCards();
   }
 
+  @override
+  void didUpdateWidget(covariant _CardLibraryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.repository, widget.repository)) {
+      _loadCards();
+    }
+  }
+
   Future<void> _loadCards() async {
+    final generation = ++_loadGeneration;
+    if (!_loading && mounted) {
+      setState(() => _loading = true);
+    }
     final repository = widget.repository;
     final cards = repository == null
         ? widget.viewModel.exportForSave().cards
         : (await repository.listCards()).map((record) => record.card).toList();
-    if (!mounted) return;
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _allCards = cards;
       _loading = false;
