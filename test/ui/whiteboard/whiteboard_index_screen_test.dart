@@ -43,8 +43,7 @@ void main() {
     await pumpIndex(tester);
 
     expect(find.byType(WhiteboardIndexScreen), findsOneWidget);
-    // The page title '白板' appears in both the shell sidebar nav and the
-    // desktop page head; assert the board name is rendered instead.
+    expect(find.text('白板'), findsOneWidget);
     expect(find.text('桌面集成验证板'), findsOneWidget);
     expect(find.byKey(const ValueKey('whiteboard_create_button')), findsOneWidget);
   });

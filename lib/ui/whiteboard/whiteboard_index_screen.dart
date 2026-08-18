@@ -3,10 +3,6 @@
 /// Route: `/whiteboard`. Parameter signature frozen by W6; this body is the
 /// Task S shell surface: real board list from Drift + create board. Boards
 /// open the full-screen canvas (`/whiteboard/:boardId`).
-///
-/// On desktop platforms the screen renders a board tile grid inside
-/// [DesktopShell]; on mobile it renders the original list layout so the
-/// mobile app is unchanged.
 library;
 
 import 'package:flutter/material.dart';
@@ -16,10 +12,6 @@ import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
-import 'package:memex/ui/whiteboard/desktop/desktop_buttons.dart';
-import 'package:memex/ui/whiteboard/desktop/desktop_page_head.dart';
-import 'package:memex/ui/whiteboard/desktop/desktop_shell.dart';
-import 'package:memex/ui/whiteboard/desktop/desktop_shell_tokens.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 
 /// Board index — real list backed by [WhiteboardDriftStore].
@@ -139,32 +131,6 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (isDesktopPlatform()) {
-      return _buildDesktop();
-    }
-    return _buildMobile();
-  }
-
-  // ── Desktop: board tile grid inside DesktopShell ────────────────────────
-
-  Widget _buildDesktop() {
-    return DesktopShell(
-      activeRoute: AppRoutes.whiteboard,
-      child: _DesktopBoardPage(
-        loading: _loading,
-        error: _error,
-        boards: _boards,
-        onCreate: _createBoard,
-        onOpen: (boardId) =>
-            context.go(AppRoutes.whiteboardCanvasPath(boardId)),
-        onRetry: _load,
-      ),
-    );
-  }
-
-  // ── Mobile: original list layout (unchanged) ────────────────────────────
-
-  Widget _buildMobile() {
     const tokens = SpringRainUiTokens.daylight;
     return Scaffold(
       backgroundColor: tokens.canvas,
@@ -200,11 +166,11 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _buildMobileBody(tokens),
+      body: _buildBody(tokens),
     );
   }
 
-  Widget _buildMobileBody(SpringRainUiTokens tokens) {
+  Widget _buildBody(SpringRainUiTokens tokens) {
     if (_loading) {
       return const Center(
         child: SizedBox(
@@ -338,262 +304,5 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
     if (diff == 0) return '今天';
     if (diff == 1) return '昨天';
     return '${local.month} 月 ${local.day} 日';
-  }
-}
-
-/// Desktop board page — tile grid inside the shell workspace.
-class _DesktopBoardPage extends StatelessWidget {
-  const _DesktopBoardPage({
-    required this.loading,
-    required this.error,
-    required this.boards,
-    required this.onCreate,
-    required this.onOpen,
-    required this.onRetry,
-  });
-
-  final bool loading;
-  final Object? error;
-  final List<WhiteboardIndexEntry> boards;
-  final VoidCallback onCreate;
-  final ValueChanged<String> onOpen;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: DesktopShellTokens.canvas,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(54, 26, 28, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DesktopPageHead(
-              title: '白板',
-              kicker: '${boards.length} 张白板',
-              actions: [
-                DesktopPrimaryButton(
-                  key: const ValueKey('whiteboard_create_button'),
-                  label: '新建白板',
-                  icon: Icons.add_rounded,
-                  onPressed: onCreate,
-                ),
-              ],
-            ),
-            _buildBody(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    if (loading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 80),
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: DesktopShellTokens.green,
-            ),
-          ),
-        ),
-      );
-    }
-    if (error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 80),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '白板列表没有读出来，重试即可继续。',
-                style: TextStyle(
-                  fontSize: DesktopShellTokens.content,
-                  color: DesktopShellTokens.textMuted,
-                ),
-              ),
-              const SizedBox(height: 12),
-              DesktopQuietButton(label: '重试', onPressed: onRetry),
-            ],
-          ),
-        ),
-      );
-    }
-    if (boards.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 80),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '还没有白板',
-                style: TextStyle(
-                  fontSize: DesktopShellTokens.moduleTitle,
-                  fontWeight: FontWeight.w600,
-                  color: DesktopShellTokens.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '点上方「新建白板」创建第一张白板。',
-                style: TextStyle(
-                  fontSize: DesktopShellTokens.meta,
-                  color: DesktopShellTokens.textFaint,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: boards
-          .map((board) => _DesktopBoardTile(
-                board: board,
-                onTap: () => onOpen(board.boardId),
-              ))
-          .toList(),
-    );
-  }
-}
-
-/// A board tile in the desktop grid — mirrors `.hia-board-tile`.
-class _DesktopBoardTile extends StatelessWidget {
-  const _DesktopBoardTile({required this.board, required this.onTap});
-
-  final WhiteboardIndexEntry board;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final updatedAt = board.updatedAt ?? board.createdAt;
-    final local = updatedAt.toLocal();
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(local.year, local.month, local.day);
-    final diff = today.difference(day).inDays;
-    final when = diff == 0
-        ? '今天'
-        : diff == 1
-            ? '昨天'
-            : '${local.month} 月 ${local.day} 日';
-
-    return Material(
-      color: DesktopShellTokens.surface,
-      borderRadius: BorderRadius.circular(DesktopShellTokens.radius),
-      child: InkWell(
-        key: ValueKey('board_row_${board.boardId}'),
-        borderRadius: BorderRadius.circular(DesktopShellTokens.radius),
-        onTap: onTap,
-        child: Container(
-          width: 260,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                board.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: DesktopShellTokens.boardTileTitle,
-                  fontWeight: FontWeight.w500,
-                  color: DesktopShellTokens.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                when,
-                style: const TextStyle(
-                  fontSize: DesktopShellTokens.meta,
-                  color: DesktopShellTokens.textMuted,
-                ),
-              ),
-              const SizedBox(height: 18),
-              _BoardPreviewDots(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The dotted preview area with two placeholder card rectangles — mirrors
-/// `.hia-board-preview`.
-class _BoardPreviewDots extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DotPatternPainter(),
-      child: SizedBox(
-        height: 76,
-        child: Stack(
-          children: const [
-            Positioned(
-              left: 30,
-              top: 18,
-              child: _PreviewCard(),
-            ),
-            Positioned(
-              left: 110,
-              top: 34,
-              child: _PreviewCard(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Paints the raised surface + dot grid background for board preview.
-class _DotPatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        const Radius.circular(7),
-      ),
-      Paint()..color = DesktopShellTokens.surfaceRaised,
-    );
-    final dotPaint = Paint()
-      ..color = DesktopShellTokens.divider
-      ..style = PaintingStyle.fill;
-    const step = 18.0;
-    for (var x = 1.0; x < size.width; x += step) {
-      for (var y = 1.0; y < size.height; y += step) {
-        canvas.drawCircle(Offset(x, y), 1, dotPaint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DotPatternPainter oldDelegate) => false;
-}
-
-class _PreviewCard extends StatelessWidget {
-  const _PreviewCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 28,
-      decoration: BoxDecoration(
-        color: DesktopShellTokens.surfaceSoft,
-        border: Border.all(color: DesktopShellTokens.divider),
-        borderRadius: BorderRadius.circular(4),
-      ),
-    );
   }
 }
