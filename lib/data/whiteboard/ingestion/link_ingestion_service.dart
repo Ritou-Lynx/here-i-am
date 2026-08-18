@@ -1,32 +1,28 @@
-/// Link ingestion service — the application layer that decides whether
-/// to create or update a Card from an [IngestionResult].
+/// Link ingestion application service.
 ///
-/// This is the public API for W3. UI / other services call [ingestUrl],
-/// which:
-///   1. Runs [LinkIngestor] to produce an [IngestionResult];
-///   2. Persists Source + SourceVersion via [IngestionStore] (with
-///      de-dup);
-///   3. If [createCard] is true (default), creates or updates a Card
-///      referencing the source.
-///
-/// The ingestor itself never writes Cards — this service makes the
-/// explicit "yes, create a card" decision on behalf of the application.
+/// Fetching produces only an IngestionResult. Drift Source / SourceVersion /
+/// Card rows are written together only after an explicit commit.
 library;
 
-import 'package:memex/data/whiteboard/ingestion/ingestion_store.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestor.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 
-/// Outcome of a full ingestion with persistence + card creation.
-class LinkIngestionOutcome {
-  final IngestionResult result;
-  final UpsertResult? upsert;
-  final CardContract? card;
-  final bool cardCreated;
-  final bool cardUpdated;
+class LinkIngestionRecord {
+  const LinkIngestionRecord({
+    required this.source,
+    required this.versions,
+    this.card,
+  });
 
+  final SourceContent source;
+  final List<SourceVersion> versions;
+  final CardContract? card;
+}
+
+class LinkIngestionOutcome {
   const LinkIngestionOutcome({
     required this.result,
     this.upsert,
@@ -35,24 +31,28 @@ class LinkIngestionOutcome {
     this.cardUpdated = false,
   });
 
+  final IngestionResult result;
+  final IngestionCommitResult? upsert;
+  final CardContract? card;
+  final bool cardCreated;
+  final bool cardUpdated;
+
   bool get succeeded => result.status == IngestionStatus.ok;
 }
 
-/// Application-layer service for ingesting links.
 class LinkIngestionService {
   LinkIngestionService({
-    required IngestionStore store,
+    required UnifiedCardRepository repository,
     LinkIngestor? ingestor,
-  })  : _store = store,
+  })  : _repository = repository,
         _ingestor = ingestor ?? LinkIngestor();
 
-  final IngestionStore _store;
+  final UnifiedCardRepository _repository;
   final LinkIngestor _ingestor;
 
-  /// Ingests [url] and optionally creates/updates a Card.
-  ///
-  /// Set [createCard] to false to only persist the Source + Version
-  /// without creating a Card (e.g. for a "fetch only" preview flow).
+  /// Fetches [url]. With [createCard] false this performs no persistence.
+  /// The true branch is retained for callers that explicitly confirm in one
+  /// call; new preview UIs should call [commitResult] with the shown result.
   Future<LinkIngestionOutcome> ingestUrl(
     String url, {
     bool createCard = true,
@@ -61,45 +61,52 @@ class LinkIngestionService {
     CardCreatedBy createdBy = CardCreatedBy.user,
   }) async {
     final result = await _ingestor.ingest(url);
-
-    if (result.status != IngestionStatus.ok || result.source == null) {
+    if (!createCard || result.status != IngestionStatus.ok) {
       return LinkIngestionOutcome(result: result);
     }
-
-    final upsert = await _store.upsertSource(result);
-
-    CardContract? card;
-    bool cardCreated = false;
-    bool cardUpdated = false;
-
-    if (createCard) {
-      final existing = await _store.getCardForSource(result.source!.sourceId);
-      card = await _store.createOrUpdateCard(
-        result: result,
-        kind: cardKind,
-        ownerSpace: ownerSpace,
-        createdBy: createdBy,
-      );
-      if (existing == null) {
-        cardCreated = true;
-      } else {
-        cardUpdated = true;
-      }
-    }
-
-    return LinkIngestionOutcome(
-      result: result,
-      upsert: upsert,
-      card: card,
-      cardCreated: cardCreated,
-      cardUpdated: cardUpdated,
+    return commitResult(
+      result,
+      cardKind: cardKind,
+      ownerSpace: ownerSpace,
+      createdBy: createdBy,
     );
   }
 
-  /// Returns the stored record for a source, or null.
-  Future<IngestionRecord?> getSource(String sourceId) =>
-      _store.getRecord(sourceId);
+  /// Commits a previously presented successful result without re-fetching.
+  Future<LinkIngestionOutcome> commitResult(
+    IngestionResult result, {
+    CardKind cardKind = CardKind.source,
+    OwnerSpace ownerSpace = OwnerSpace.user,
+    CardCreatedBy createdBy = CardCreatedBy.user,
+  }) async {
+    if (result.status != IngestionStatus.ok) {
+      return LinkIngestionOutcome(result: result);
+    }
+    final committed = await _repository.commitIngestion(
+      result,
+      cardKind: cardKind,
+      ownerSpace: ownerSpace,
+      createdBy: createdBy,
+    );
+    return LinkIngestionOutcome(
+      result: result,
+      upsert: committed,
+      card: committed.card,
+      cardCreated: committed.cardCreated,
+      cardUpdated: !committed.cardCreated,
+    );
+  }
 
-  /// Lists all cards.
-  Future<List<CardContract>> listCards() => _store.listCards();
+  Future<LinkIngestionRecord?> getSource(String sourceId) async {
+    final source = await _repository.getSource(sourceId);
+    if (source == null) return null;
+    return LinkIngestionRecord(
+      source: source,
+      versions: await _repository.listSourceVersions(sourceId),
+      card: await _repository.getCardForSource(sourceId),
+    );
+  }
+
+  Future<List<CardContract>> listCards() async =>
+      (await _repository.listCards()).map((record) => record.card).toList();
 }

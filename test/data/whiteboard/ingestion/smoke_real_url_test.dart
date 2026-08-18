@@ -1,10 +1,12 @@
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestion_service.dart';
-import 'package:memex/data/whiteboard/ingestion/ingestion_store.dart';
 import 'package:memex/data/whiteboard/ingestion/safe_http_client.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestor.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 
 /// Real public URL smoke test — skipped unless a network is available.
@@ -14,8 +16,7 @@ import 'package:memex/domain/whiteboard/source_content.dart';
 /// gated: it tries a quick TCP connect to example.com and skips itself if
 /// unreachable.
 void main() {
-  test('smoke: ingests a real public URL when network is available',
-      () async {
+  test('smoke: ingests a real public URL when network is available', () async {
     final canReachNetwork = await _canReachNetwork();
     if (!canReachNetwork) {
       markTestSkipped('No network available — smoke test skipped');
@@ -23,11 +24,17 @@ void main() {
     }
 
     final tempDir = await Directory.systemTemp.createTemp('w3_smoke_');
+    AppDatabase? db;
     try {
-      final store = IngestionStore(tempDir);
+      final dbFile = File('${tempDir.path}/smoke.sqlite');
+      db = AppDatabase.forTesting(NativeDatabase(dbFile));
+      final repository = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: tempDir,
+      );
       final client = SafeHttpClient();
       final service = LinkIngestionService(
-        store: store,
+        repository: repository,
         ingestor: LinkIngestor(httpClient: client),
       );
 
@@ -37,7 +44,8 @@ void main() {
       );
 
       expect(outcome.succeeded, isTrue,
-          reason: 'example.com should be fetchable: ${outcome.result.errorMessage}');
+          reason:
+              'example.com should be fetchable: ${outcome.result.errorMessage}');
       expect(outcome.result.canonicalUrl, isNotEmpty);
       expect(outcome.result.source, isNotNull);
       expect(outcome.result.source!.mediaType, SourceMediaType.web);
@@ -49,12 +57,20 @@ void main() {
       expect(again.upsert!.versionIsNew, isFalse);
       expect(again.cardCreated, isFalse);
 
-      // Restart recovery: fresh store reads persisted data.
-      final store2 = IngestionStore(tempDir);
-      final record = await store2.getRecord(outcome.result.source!.sourceId);
+      // Restart recovery: fresh connection reads the same temporary DB.
+      await db.close();
+      db = AppDatabase.forTesting(NativeDatabase(dbFile));
+      final service2 = LinkIngestionService(
+        repository: UnifiedCardRepository(
+          db: db,
+          whiteboardRoot: tempDir,
+        ),
+      );
+      final record = await service2.getSource(outcome.result.source!.sourceId);
       expect(record, isNotNull);
       expect(record!.card, isNotNull);
     } finally {
+      await db?.close();
       await tempDir.delete(recursive: true);
     }
   });

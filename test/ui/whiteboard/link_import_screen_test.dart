@@ -2,14 +2,16 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:memex/data/whiteboard/ingestion/ingestion_store.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestion_service.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestor.dart';
 import 'package:memex/data/whiteboard/ingestion/safe_http_client.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard/link_import_screen.dart';
 
@@ -59,12 +61,16 @@ Dio _dio(Map<String, _Canned> responses) {
   return Dio(BaseOptions(
     followRedirects: false,
     validateStatus: (s) => s != null && s >= 200 && s < 400,
-  ))..httpClientAdapter = _FakeAdapter(responses);
+  ))
+    ..httpClientAdapter = _FakeAdapter(responses);
 }
 
-LinkIngestionService _service(Directory dir, Map<String, _Canned> responses) {
+LinkIngestionService _service(
+  UnifiedCardRepository repository,
+  Map<String, _Canned> responses,
+) {
   return LinkIngestionService(
-    store: IngestionStore(dir),
+    repository: repository,
     ingestor: LinkIngestor(
       httpClient: SafeHttpClient(
         dio: _dio(responses),
@@ -76,12 +82,17 @@ LinkIngestionService _service(Directory dir, Map<String, _Canned> responses) {
 
 void main() {
   late Directory tempDir;
+  late AppDatabase db;
+  late UnifiedCardRepository repository;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('w3_ui_');
+    db = AppDatabase.forTesting(NativeDatabase.memory());
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
   });
 
   tearDown(() async {
+    await db.close();
     // Windows may briefly lock a store file held by an in-flight async
     // operation when the widget tree is torn down — retry the delete.
     for (var i = 0; i < 20; i++) {
@@ -144,7 +155,7 @@ void main() {
   }
 
   testWidgets('initial state: input + empty recent list hint', (tester) async {
-    await pump(tester, _service(tempDir, {}));
+    await pump(tester, _service(repository, {}));
 
     expect(find.byType(TextField), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '抓取'), findsOneWidget);
@@ -152,7 +163,7 @@ void main() {
   });
 
   testWidgets('empty input shows inline error', (tester) async {
-    await pump(tester, _service(tempDir, {}));
+    await pump(tester, _service(repository, {}));
 
     await tester.tap(find.widgetWithText(FilledButton, '抓取'));
     await tester.pumpAndSettle();
@@ -162,9 +173,11 @@ void main() {
 
   testWidgets('ok flow: fetch → preview → explicit card creation',
       (tester) async {
-    final service = _service(tempDir, {
+    final service = _service(repository, {
       'https://example.com/doc': _Canned(
-        _fixture('open_graph.html'), 200, 'text/html; charset=utf-8',
+        _fixture('open_graph.html'),
+        200,
+        'text/html; charset=utf-8',
       ),
     });
     await pump(tester, service);
@@ -190,11 +203,11 @@ void main() {
     expect(cards, hasLength(1));
   });
 
-  testWidgets('failed state shown honestly with error message',
-      (tester) async {
-    await pump(tester, _service(tempDir, {}));
+  testWidgets('failed state shown honestly with error message', (tester) async {
+    await pump(tester, _service(repository, {}));
 
-    await tester.enterText(find.byType(TextField), 'https://example.com/missing');
+    await tester.enterText(
+        find.byType(TextField), 'https://example.com/missing');
     await tester.tap(find.widgetWithText(FilledButton, '抓取'));
     await settleFor(tester, find.text('抓取失败'));
     await tester.pumpAndSettle();
@@ -204,7 +217,7 @@ void main() {
   });
 
   testWidgets('needsAuth state shown honestly', (tester) async {
-    final service = _service(tempDir, {
+    final service = _service(repository, {
       'https://example.com/auth': _Canned('', 403, 'text/html'),
     });
     await pump(tester, service);
@@ -220,7 +233,7 @@ void main() {
 
   testWidgets('unsupported state shown honestly (video platform)',
       (tester) async {
-    await pump(tester, _service(tempDir, {}));
+    await pump(tester, _service(repository, {}));
 
     await tester.enterText(
       find.byType(TextField),
@@ -234,16 +247,19 @@ void main() {
     expect(find.widgetWithText(FilledButton, '存入卡片库'), findsNothing);
   });
 
-  testWidgets('restart recovery: fresh service on same dir shows recent '
+  testWidgets(
+      'restart recovery: fresh service on same dir shows recent '
       'imports; re-import is idempotent', (tester) async {
     final responses = {
       'https://example.com/doc': _Canned(
-        _fixture('open_graph.html'), 200, 'text/html',
+        _fixture('open_graph.html'),
+        200,
+        'text/html',
       ),
     };
 
     // Session 1: create the card.
-    final service1 = _service(tempDir, responses);
+    final service1 = _service(repository, responses);
     await pump(tester, service1);
     await fetch(tester, 'https://example.com/doc');
     await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
@@ -254,7 +270,7 @@ void main() {
 
     // Session 2: a brand-new service + store instance on the SAME directory
     // — the recent list is recovered from disk.
-    final service2 = _service(tempDir, responses);
+    final service2 = _service(repository, responses);
     await pump(tester, service2);
     await settleFor(tester, find.text('春雨昼眠主题设计文档'));
     expect(find.text('最近导入'), findsOneWidget);

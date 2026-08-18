@@ -11,7 +11,7 @@
 /// never writes a Card.
 ///
 /// Restart recovery: recent imports are re-read from the file-backed
-/// `IngestionStore` on every open; re-importing an already-known URL is
+/// `UnifiedCardRepository` on every open; re-importing an already-known URL is
 /// idempotent (no duplicate Card, no silent copy).
 library;
 
@@ -19,10 +19,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_provider/path_provider.dart';
 
-import 'package:memex/data/whiteboard/ingestion/ingestion_store.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestion_service.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/routing/routes.dart';
@@ -31,7 +32,7 @@ import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 /// Entry point for ordinary link ingestion.
 ///
 /// [service] / [storeDirResolver] are injectable for tests; production uses
-/// the default file-backed store under the app support directory.
+/// the unified Drift repository plus its app-support object root.
 class LinkImportScreen extends StatefulWidget {
   final LinkIngestionService? service;
   final Future<Directory> Function()? storeDirResolver;
@@ -100,14 +101,19 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   }
 
   Future<LinkIngestionService> _createService() async {
-    final Directory dir;
     if (widget.storeDirResolver != null) {
-      dir = await widget.storeDirResolver!();
-    } else {
-      final support = await getApplicationSupportDirectory();
-      dir = Directory('${support.path}/whiteboard/ingestion');
+      final root = await widget.storeDirResolver!();
+      return LinkIngestionService(
+        repository: UnifiedCardRepository(
+          db: AppDatabase.instance,
+          whiteboardRoot: root,
+        ),
+      );
     }
-    return LinkIngestionService(store: IngestionStore(dir));
+    final repository = await WhiteboardDataBootstrap.productionRepository();
+    return LinkIngestionService(
+      repository: repository,
+    );
   }
 
   Future<void> _loadRecent() async {
@@ -121,8 +127,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
           : null;
       recent.add(_RecentImport(
         card: card,
-        canonicalUrl:
-            record?.source.metadata['canonical_url'] as String? ?? '',
+        canonicalUrl: record?.source.metadata['canonical_url'] as String? ?? '',
         provider: record?.source.provider,
         versionCount: record?.versions.length ?? 1,
         createdAt: card.createdAt,
@@ -183,10 +188,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
     if (service == null || outcome == null || _cardBusy) return;
     setState(() => _cardBusy = true);
     try {
-      final finalOutcome = await service.ingestUrl(
-        outcome.result.canonicalUrl,
-        createCard: true,
-      );
+      final finalOutcome = await service.commitResult(outcome.result);
       if (!mounted) return;
       setState(() {
         _outcome = finalOutcome;

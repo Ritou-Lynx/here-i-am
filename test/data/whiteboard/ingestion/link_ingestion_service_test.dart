@@ -2,12 +2,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:memex/data/whiteboard/ingestion/ingestion_store.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestion_service.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestor.dart';
 import 'package:memex/data/whiteboard/ingestion/safe_http_client.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
@@ -64,32 +66,39 @@ Dio _dio(Map<String, _Canned> responses) {
   return Dio(BaseOptions(
     followRedirects: false,
     validateStatus: (s) => s != null && s >= 200 && s < 400,
-  ))..httpClientAdapter = _FakeAdapter(responses);
+  ))
+    ..httpClientAdapter = _FakeAdapter(responses);
 }
 
 // ---------------------------------------------------------------------------
 
 void main() {
   late Directory tempDir;
+  late File dbFile;
+  late AppDatabase db;
+  late UnifiedCardRepository repository;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('w3_test_');
+    dbFile = File('${tempDir.path}/cards.sqlite');
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
   });
 
   tearDown(() async {
+    await db.close();
     if (await tempDir.exists()) {
       await tempDir.delete(recursive: true);
     }
   });
 
   LinkIngestionService buildService(Map<String, _Canned> responses) {
-    final store = IngestionStore(tempDir);
     final client = SafeHttpClient(
       dio: _dio(responses),
       config: const SafeHttpConfig(enforceDnsCheck: false),
     );
     final ingestor = LinkIngestor(httpClient: client);
-    return LinkIngestionService(store: store, ingestor: ingestor);
+    return LinkIngestionService(repository: repository, ingestor: ingestor);
   }
 
   group('LinkIngestor end-to-end', () {
@@ -97,7 +106,9 @@ void main() {
         () async {
       final svc = buildService({
         'https://example.com/doc': _Canned(
-          _fixture('open_graph.html'), 200, 'text/html; charset=utf-8',
+          _fixture('open_graph.html'),
+          200,
+          'text/html; charset=utf-8',
         ),
       });
 
@@ -133,7 +144,9 @@ void main() {
         () async {
       final responses = {
         'https://example.com/dup': _Canned(
-          _fixture('duplicate_import.html'), 200, 'text/html',
+          _fixture('duplicate_import.html'),
+          200,
+          'text/html',
         ),
       };
       final svc = buildService(responses);
@@ -204,11 +217,15 @@ void main() {
     test('canonical URL updated after redirect', () async {
       final svc = buildService({
         'https://example.com/old': _Canned(
-          '', 302, 'text/html',
+          '',
+          302,
+          'text/html',
           location: 'https://cdn.example.com/new',
         ),
         'https://cdn.example.com/new': _Canned(
-          _fixture('redirect_target.html'), 200, 'text/html',
+          _fixture('redirect_target.html'),
+          200,
+          'text/html',
         ),
       });
 
@@ -226,33 +243,45 @@ void main() {
     test('data persists across store instances', () async {
       final responses = {
         'https://example.com/doc': _Canned(
-          _fixture('open_graph.html'), 200, 'text/html',
+          _fixture('open_graph.html'),
+          200,
+          'text/html',
         ),
       };
 
       // First instance ingests.
-      final store1 = IngestionStore(tempDir);
       final client1 = SafeHttpClient(
         dio: _dio(responses),
         config: const SafeHttpConfig(enforceDnsCheck: false),
       );
       final svc1 = LinkIngestionService(
-          store: store1, ingestor: LinkIngestor(httpClient: client1));
+        repository: repository,
+        ingestor: LinkIngestor(httpClient: client1),
+      );
       final outcome = await svc1.ingestUrl('https://example.com/doc');
       expect(outcome.succeeded, isTrue);
       final sourceId = outcome.result.source!.sourceId;
       final cardId = outcome.card!.cardId;
 
-      // Second instance reads from the same directory.
-      final store2 = IngestionStore(tempDir);
-      final record = await store2.getRecord(sourceId);
+      // A fresh connection reads the same temporary file after shutdown.
+      await db.close();
+      db = AppDatabase.forTesting(NativeDatabase(dbFile));
+      repository = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: tempDir,
+      );
+      final restartedService = LinkIngestionService(
+        repository: repository,
+        ingestor: LinkIngestor(httpClient: client1),
+      );
+      final record = await restartedService.getSource(sourceId);
       expect(record, isNotNull);
       expect(record!.source.title, '春雨昼眠主题设计文档');
       expect(record.versions.length, 1);
       expect(record.card, isNotNull);
       expect(record.card!.cardId, cardId);
 
-      final cards = await store2.listCards();
+      final cards = await restartedService.listCards();
       expect(cards.length, 1);
       expect(cards.first.cardId, cardId);
       expect(cards.first.sourceId, sourceId);
@@ -261,7 +290,9 @@ void main() {
     test('re-import after restart deduplicates', () async {
       final responses = {
         'https://example.com/dup': _Canned(
-          _fixture('duplicate_import.html'), 200, 'text/html',
+          _fixture('duplicate_import.html'),
+          200,
+          'text/html',
         ),
       };
 
@@ -270,14 +301,21 @@ void main() {
       final first = await svc1.ingestUrl('https://example.com/dup');
       expect(first.cardCreated, isTrue);
 
-      // Second session with a fresh store pointing at the same dir.
-      final store2 = IngestionStore(tempDir);
+      // Second session with a fresh database connection on the same temp DB.
+      await db.close();
+      db = AppDatabase.forTesting(NativeDatabase(dbFile));
+      repository = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: tempDir,
+      );
       final client2 = SafeHttpClient(
         dio: _dio(responses),
         config: const SafeHttpConfig(enforceDnsCheck: false),
       );
       final svc2 = LinkIngestionService(
-          store: store2, ingestor: LinkIngestor(httpClient: client2));
+        repository: repository,
+        ingestor: LinkIngestor(httpClient: client2),
+      );
       final second = await svc2.ingestUrl('https://example.com/dup');
 
       expect(second.upsert!.versionIsNew, isFalse);
@@ -290,10 +328,12 @@ void main() {
   });
 
   group('createCard=false', () {
-    test('persists source without creating a card', () async {
+    test('fetch preview writes neither source nor card', () async {
       final svc = buildService({
         'https://example.com/doc': _Canned(
-          _fixture('open_graph.html'), 200, 'text/html',
+          _fixture('open_graph.html'),
+          200,
+          'text/html',
         ),
       });
 
@@ -308,6 +348,10 @@ void main() {
 
       final cards = await svc.listCards();
       expect(cards, isEmpty);
+      expect(
+        await svc.getSource(outcome.result.source!.sourceId),
+        isNull,
+      );
     });
   });
 
@@ -390,7 +434,9 @@ void main() {
     test('created card references source_id and is kind=source', () async {
       final svc = buildService({
         'https://example.com/doc': _Canned(
-          _fixture('open_graph.html'), 200, 'text/html',
+          _fixture('open_graph.html'),
+          200,
+          'text/html',
         ),
       });
 

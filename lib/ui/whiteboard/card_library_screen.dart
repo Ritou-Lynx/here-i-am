@@ -1,25 +1,20 @@
-/// Card library screen — the single card library with rich-text search.
+/// Card library screen — a Repository-backed view of the single card truth.
 ///
-/// Route: `/cards`. Searches the plain-text projections of saved rich text
-/// documents ([RichTextSearchIndex]): the query matches what the user can
-/// see in the editor — text, list markers, quote prefixes, media alt/caption
-/// — because the projection is computed by `RichTextDocument.toPlainText()`.
+/// Route: `/cards`. Production queries [UnifiedCardRepository], whose body
+/// projection includes rich-text visible text. [RichTextSearchIndex] remains
+/// only as a compatibility injection seam for focused legacy widget tests.
 /// Tapping a hit opens the card editor via the frozen `/cards/:cardId` route.
 ///
-/// The card library is self-contained: it resolves the same production
-/// storage directory as `CardRichTextEditorScreen` (app support dir /
-/// `whiteboard/rich_text`) and never touches Drift, the router table, or the
-/// canvas.
+/// The card library never scans rich-text folders as production truth.
 library;
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/domain/whiteboard/rich_text_search.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
@@ -30,22 +25,12 @@ import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 class CardLibraryScreen extends StatefulWidget {
   /// Optional injected index (tests); defaults to the production directory.
   final RichTextSearchIndex? index;
+  final UnifiedCardRepository? repository;
 
-  const CardLibraryScreen({super.key, this.index});
+  const CardLibraryScreen({super.key, this.index, this.repository});
 
-  /// Resolves the production search index: app support dir /
-  /// `whiteboard/rich_text`. Falls back to a temp dir when the platform
-  /// channel is unavailable (headless / widget tests).
-  static Future<RichTextSearchIndex> resolveIndex() async {
-    Directory dir;
-    try {
-      final support = await getApplicationSupportDirectory();
-      dir = Directory(p.join(support.path, 'whiteboard', 'rich_text'));
-    } catch (_) {
-      dir = Directory(
-          p.join(Directory.systemTemp.path, 'hereiam_whiteboard_rich_text'));
-    }
-    return RichTextSearchIndex(dir);
+  static Future<UnifiedCardRepository> resolveRepository() async {
+    return WhiteboardDataBootstrap.productionRepository();
   }
 
   @override
@@ -53,14 +38,23 @@ class CardLibraryScreen extends StatefulWidget {
 }
 
 class _CardLibraryScreenState extends State<CardLibraryScreen> {
-  late final Future<RichTextSearchIndex> _indexFuture =
-      widget.index != null ? Future.value(widget.index) : _resolveIndex();
+  late final Future<UnifiedCardRepository?> _repositoryFuture =
+      widget.repository != null
+          ? Future.value(widget.repository)
+          : widget.index != null
+              ? Future.value(null)
+              : CardLibraryScreen.resolveRepository();
   final TextEditingController _queryController = TextEditingController();
   Timer? _debounce;
-  List<RichTextSearchHit> _hits = const [];
+  List<_CardLibraryHit> _hits = const [];
 
-  static Future<RichTextSearchIndex> _resolveIndex() =>
-      CardLibraryScreen.resolveIndex();
+  @override
+  void initState() {
+    super.initState();
+    if (widget.index == null) {
+      _runQuery('');
+    }
+  }
 
   @override
   void dispose() {
@@ -71,18 +65,42 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
 
   void _onQueryChanged(String raw) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () async {
-      final query = raw.trim();
+    _debounce = Timer(
+      const Duration(milliseconds: 250),
+      () => _runQuery(raw.trim()),
+    );
+  }
+
+  Future<void> _runQuery(String query) async {
+    final legacyIndex = widget.index;
+    if (legacyIndex != null) {
+      final hits = query.isEmpty
+          ? const <RichTextSearchHit>[]
+          : legacyIndex.search(query);
       if (!mounted) return;
-      if (query.isEmpty) {
-        setState(() => _hits = const []);
-        return;
-      }
-      // Card documents are small local JSON files; search is synchronous.
-      final index = await _indexFuture;
-      final hits = index.search(query);
-      if (!mounted) return;
-      setState(() => _hits = hits);
+      setState(() {
+        _hits = hits
+            .map((hit) => _CardLibraryHit(
+                  cardId: hit.cardId,
+                  title: hit.title,
+                  plainText: hit.plainText,
+                ))
+            .toList();
+      });
+      return;
+    }
+    final repository = await _repositoryFuture;
+    if (repository == null) return;
+    final records = await repository.listCards(CardLibraryQuery(search: query));
+    if (!mounted) return;
+    setState(() {
+      _hits = records
+          .map((record) => _CardLibraryHit(
+                cardId: record.card.cardId,
+                title: record.card.title,
+                plainText: record.card.body,
+              ))
+          .toList();
     });
   }
 
@@ -136,13 +154,13 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
                 fillColor: WhiteboardCanvasTokens.cardSurface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide:
-                      const BorderSide(color: WhiteboardCanvasTokens.cardBorder),
+                  borderSide: const BorderSide(
+                      color: WhiteboardCanvasTokens.cardBorder),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide:
-                      const BorderSide(color: WhiteboardCanvasTokens.cardBorder),
+                  borderSide: const BorderSide(
+                      color: WhiteboardCanvasTokens.cardBorder),
                 ),
               ),
             ),
@@ -154,7 +172,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
   }
 
   Widget _buildResults() {
-    if (_queryController.text.trim().isEmpty) {
+    if (_queryController.text.trim().isEmpty && widget.index != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -234,7 +252,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
   }
 
   /// A compact snippet around the first non-empty line for preview.
-  String _snippet(RichTextSearchHit hit) {
+  String _snippet(_CardLibraryHit hit) {
     final lines = hit.plainText
         .split('\n')
         .map((l) => l.trim())
@@ -242,4 +260,16 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         .toList();
     return lines.isEmpty ? hit.cardId : lines.take(3).join(' · ');
   }
+}
+
+class _CardLibraryHit {
+  const _CardLibraryHit({
+    required this.cardId,
+    required this.title,
+    required this.plainText,
+  });
+
+  final String cardId;
+  final String title;
+  final String plainText;
 }

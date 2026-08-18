@@ -89,7 +89,8 @@ class LinkIngestor {
         provider: finalCanonical.provider,
         originalUrl: canonical.original,
         status: IngestionStatus.failed,
-        errorMessage: 'No recognisable content (page may be JS-rendered or gated)',
+        errorMessage:
+            'No recognisable content (page may be JS-rendered or gated)',
         resolvedAt: resolvedAt,
       );
     }
@@ -148,6 +149,7 @@ class LinkIngestor {
         if (parsed.title != null) 'title': parsed.title,
         if (parsed.description != null) 'description': parsed.description,
         if (parsed.ogImage != null) 'og_image': parsed.ogImage,
+        if (parsed.bodyText != null) 'body_text': parsed.bodyText,
         if (parsed.bodyExcerpt != null) 'body_excerpt': parsed.bodyExcerpt,
         if (parsed.imageUrls.isNotEmpty) 'image_urls': parsed.imageUrls,
         'http_status': httpResult.statusCode,
