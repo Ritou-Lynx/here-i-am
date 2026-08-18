@@ -22,7 +22,10 @@ import 'package:flutter/gestures.dart' as gestures;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
+import 'package:drift/drift.dart' hide Column;
+import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
 
 import 'engine/flutter_canvas_adapter.dart';
 import 'interactions/lod.dart';
@@ -1954,9 +1957,54 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
   /// down (used to land the dropped card under the cursor).
   Offset _grabOffset = Offset.zero;
 
+  List<CardContract> _allCards = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCards();
+  }
+
+  Future<void> _loadCards() async {
+    final db = AppDatabase.instance;
+
+    // Debug: Check total cards first
+    final allMemoryCards = await db.select(db.memoryCards).get();
+    print('DEBUG: Total memory cards in DB: ${allMemoryCards.length}');
+
+    final memoryCards = await (db.select(db.memoryCards)
+          ..where((c) => c.memoryScope.equals('user_truth'))
+          ..orderBy([(c) => OrderingTerm(expression: c.updatedAt, mode: OrderingMode.desc)]))
+        .get();
+
+    print('DEBUG: User-truth cards found: ${memoryCards.length}');
+    if (memoryCards.isNotEmpty) {
+      print('DEBUG: First card: ${memoryCards.first.title}');
+    }
+
+    if (!mounted) return;
+
+    // Convert MemoryCard to CardContract
+    final cards = memoryCards.map<CardContract>((mc) {
+      return CardContract(
+        cardId: mc.id,
+        title: mc.title,
+        cardKind: CardKind.note,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(mc.createdAt),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(mc.updatedAt),
+      );
+    }).toList();
+
+    setState(() {
+      _allCards = cards;
+      _loading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cards = widget.viewModel.snapshot.cards;
+    final cards = _allCards;
     final alreadyPlaced =
         widget.viewModel.boardState.nodes.map((n) => n.cardId).toSet();
 
@@ -1999,17 +2047,24 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
             ),
             const Divider(height: 1, color: WhiteboardCanvasTokens.divider),
             Expanded(
-              child: cards.isEmpty
+              child: _loading
                   ? const Center(
-                      child: Text(
-                        '没有可放入的卡片',
-                        style: TextStyle(
-                          color: WhiteboardCanvasTokens.textFaint,
-                          fontSize: WhiteboardCanvasTokens.metaSize,
-                        ),
+                      child: CircularProgressIndicator(
+                        color: WhiteboardCanvasTokens.textSecondary,
+                        strokeWidth: 2,
                       ),
                     )
-                  : ListView.builder(
+                  : cards.isEmpty
+                      ? const Center(
+                          child: Text(
+                            '没有可放入的卡片',
+                            style: TextStyle(
+                              color: WhiteboardCanvasTokens.textFaint,
+                              fontSize: WhiteboardCanvasTokens.metaSize,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
                       padding: const EdgeInsets.all(8),
                       itemCount: cards.length,
                       itemBuilder: (context, index) {
