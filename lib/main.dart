@@ -13,7 +13,6 @@ import 'package:memex/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:memex/config/dependencies.dart';
 import 'package:memex/config/app_flavor.dart';
-import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
 import 'package:memex/ui/app_lock/widgets/lock_screen_page.dart';
 import 'package:memex/ui/core/app_startup_visibility.dart';
 import 'package:memex/ui/core/themes/app_theme.dart';
@@ -33,6 +32,8 @@ import 'package:memex/data/services/companion_share_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
 import 'package:memex/data/repositories/memex_router.dart';
+import 'package:memex/data/services/agent_activity_service.dart';
+import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -70,9 +71,7 @@ import 'package:memex/data/services/backup_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:memex/routing/router.dart';
 import 'package:memex/routing/routes.dart';
-import 'package:memex/data/services/onboarding_service.dart';
-import 'package:memex/data/services/demo_service.dart';
-import 'package:memex/ui/core/widgets/demo_overlay.dart';
+
 import 'package:memex/ui/main_screen/widgets/share_intent_handler.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_confirm_dialog.dart';
 import 'package:quick_actions/quick_actions.dart';
@@ -164,6 +163,21 @@ void main() async {
   // call-kit plugins — gate the mobile-only startup wiring behind this flag.
   final isDesktop =
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+  // Desktop: initialize DB + minimal services before runApp so desktop pages
+  // can access AppDatabase.instance in initState without race conditions.
+  if (isDesktop) {
+    var userId = await UserStorage.getUserId();
+    if (userId == null) {
+      userId = 'desktop_local';
+      await UserStorage.saveUser(userId);
+    }
+    if (!AppDatabase.isInitialized) {
+      await AppDatabase.init(userId);
+    }
+    SharedLifeMemoryService.init(AppDatabase.instance, userId);
+    AgentActivityService.setInstance(LocalAgentActivityService.instance);
+  }
 
   // Initialize Workmanager (for background tasks)
   if (!isDesktop) {
@@ -351,7 +365,7 @@ void main() async {
   ));
 }
 
-/// Root route content: user check then loading / UserSetupScreen / MainScreen (Compass-style).
+/// Root route content: user check then loading / MainScreen (Compass-style).
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
 
@@ -361,9 +375,7 @@ class RootShell extends StatefulWidget {
 
 class RootShellState extends State<RootShell> {
   bool _hasUser = false;
-  bool _onboardingComplete = false;
   bool _isChecking = true;
-  bool _isLoadingFromICloud = false;
   int _mainScreenEpoch =
       0; // incremented to force full rebuild on storage switch
 
@@ -380,21 +392,13 @@ class RootShellState extends State<RootShell> {
   }
 
   Future<void> _checkUser() async {
-    final hasUser = await UserStorage.hasUser();
-    var onboardingDone = await OnboardingService.isOnboardingComplete();
+    var hasUser = await UserStorage.hasUser();
 
-    // Migration: existing users who set up before the onboarding flag was added
-    // should be treated as onboarding-complete.
-    if (hasUser && !onboardingDone) {
-      final configs = await UserStorage.getLLMConfigs();
-      final hasValidConfig = configs.any((c) => c.isValid);
-      if (hasValidConfig) {
-        await OnboardingService.markOnboardingComplete();
-        onboardingDone = true;
-      }
+    if (!hasUser) {
+      await UserStorage.saveUser('Lynx');
+      hasUser = true;
     }
 
-    // Store for WorkManager background isolate access
     if (hasUser) {
       final userId = await UserStorage.getUserId();
       if (userId != null) {
@@ -406,7 +410,6 @@ class RootShellState extends State<RootShell> {
     if (mounted) {
       setState(() {
         _hasUser = hasUser;
-        _onboardingComplete = onboardingDone;
         _isChecking = false;
       });
     }
@@ -414,35 +417,14 @@ class RootShellState extends State<RootShell> {
 
   void _onUserCreated() async {
     AppStartupVisibilityController.markLoading();
-    // Check iCloud BEFORE any other awaits to avoid timing issues
     final userId = await UserStorage.getUserId();
-    bool isICloud = false;
     if (userId != null) {
-      // Store for WorkManager background isolate access
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('current_user_id', userId);
-      final loc = await UserStorage.getWorkspaceStorageLocation(userId);
-      isICloud = loc == StorageLocation.icloud;
     }
-
-    await OnboardingService.markOnboardingComplete();
-
-    if (isICloud && mounted) {
-      setState(() => _isLoadingFromICloud = true);
-      // Wait for the loading UI to actually render before starting heavy work
-      await Future.delayed(const Duration(milliseconds: 100));
-      await MemexRouter().applyWorkspaceStorageChange();
-      if (mounted) {
-        setState(() {
-          _isLoadingFromICloud = false;
-          _hasUser = true;
-          _onboardingComplete = true;
-        });
-      }
-    } else if (mounted) {
+    if (mounted) {
       setState(() {
         _hasUser = true;
-        _onboardingComplete = true;
       });
     }
   }
@@ -452,7 +434,6 @@ class RootShellState extends State<RootShell> {
     AppStartupVisibilityController.markLoading();
     setState(() {
       _hasUser = false;
-      _onboardingComplete = false;
       _isChecking = true;
       _mainScreenEpoch++;
     });
@@ -464,16 +445,8 @@ class RootShellState extends State<RootShell> {
     if (_isChecking) {
       return const AppOpeningSplash();
     }
-    if (_isLoadingFromICloud) {
-      return AppOpeningSplash(
-        statusText: UserStorage.l10n.loadingFromICloud,
-      );
-    }
-    if (!_hasUser || !_onboardingComplete) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        AppStartupVisibilityController.dismissNativeSplash();
-      });
-      return UserSetupScreen(onUserCreated: _onUserCreated);
+    if (!_hasUser) {
+      return const AppOpeningSplash();
     }
     return const MainScreen();
   }
@@ -820,12 +793,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    DemoService.instance.addListener(_onDemoChanged);
-    // Desktop (whiteboard workbench) has no WorkManager / foreground-service
-    // plugins; keep those registrations mobile-only.
     final isDesktop =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-    // Init event bus connection and local DB (delay to ensure token is loaded)
     Future.delayed(const Duration(seconds: 1), () async {
       final userId = await UserStorage.getUserId();
       if (userId != null && !AppDatabase.isInitialized) {
@@ -845,11 +814,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       }
       _eventBus.connect();
       await CoreSyncRuntimeService.instance.initialize();
-
-      // Start onboarding demo on first launch
-      if (userId != null) {
-        DemoService.instance.start(userId);
-      }
     });
 
     // Check and report all health data
@@ -1182,32 +1146,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     });
   }
 
-  void _onDemoChanged() {
-    if (!mounted) return;
-    final demo = DemoService.instance;
-
-    // When demo advances to tapKnowledgeTab, refresh the knowledge base
-    // so the demo-written guide file appears.
-    if (demo.currentStep == DemoStep.tapKnowledgeTab) {
-      // KnowledgeBaseScreen has been removed.
-    }
-
-    setState(() {});
-  }
-
   Future<void> _handleAICoreButtonTap() async {
-    // No LLM config check; users can submit records without AI configured.
-
     if (mounted) {
-      // Prefill text during demo
-      if (DemoService.instance.currentStep == DemoStep.tapSend) {
-        setState(() {
-          _sharedDraft = InputData(text: DemoService.instance.prefillText);
-          _isInputOpen = true;
-        });
-      } else {
-        setState(() => _isInputOpen = true);
-      }
+      setState(() => _isInputOpen = true);
     }
   }
 
@@ -1382,7 +1323,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    DemoService.instance.removeListener(_onDemoChanged);
     WidgetsBinding.instance.removeObserver(this);
     _memoryButtonTapTimer?.cancel();
     _knowledgeBaseButtonTapTimer?.cancel();
@@ -1392,7 +1332,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         EventBusMessageType.invalidModelConfig, _handleInvalidModelConfig);
     _eventBus.removeHandler(
         EventBusMessageType.errorNotification, _handleErrorNotification);
-    // Note: do not disconnect event bus here; other screens may still use it
     super.dispose();
   }
 
@@ -1867,19 +1806,12 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   Future<bool> _handleInputSubmit(InputData data) async {
-    // During demo: advance tapSend 鈫?tapCard first, so the overlay
-    // immediately shows a blocking scrim (cardReady is still false).
-    DemoService.instance.tryAdvance(DemoStep.tapSend);
-
-    // Close input sheet immediately
     if (mounted) {
       setState(() {
         _isInputOpen = false;
         _sharedDraft = null;
       });
     }
-
-    // TimelineViewModel has been removed.
 
     try {
       // Call API
@@ -1900,18 +1832,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         await PublishTimestampService.saveLastPublishTimestamp(
           DateTime.now().millisecondsSinceEpoch,
         );
-
-        // During demo: write preset completed card with insight/comment
-        if (DemoService.instance.isActive) {
-          final userId = await UserStorage.getUserId();
-          if (userId != null) {
-            DemoService.instance.handleDemoSubmit(
-              userId,
-              response['fact_id'] as String,
-              data.text ?? '',
-            );
-          }
-        }
       }
 
       // Show success message
@@ -1984,12 +1904,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     top: -16.0,
                     left: 156.0,
                     child: AICoreButton(
-                      key: DemoService.instance.isActive
-                          ? DemoService.instance.addButtonKey
-                          : _aiButtonKey,
+                      key: _aiButtonKey,
                       onTap: () {
-                        // Advance first so _handleAICoreButtonTap sees tapSend step for prefill
-                        DemoService.instance.tryAdvance(DemoStep.tapAddButton);
                         _handleAICoreButtonTap();
                       },
                       onLongPress: _handleAICoreButtonLongPressStart,
@@ -2054,12 +1970,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     top: 47.02,
                     left: 299.58,
                     child: GestureDetector(
-                      key: DemoService.instance.knowledgeTabKey,
                       behavior: HitTestBehavior.opaque,
                       onTap: () {
                         _handleLibraryTabTap();
-                        DemoService.instance
-                            .tryAdvance(DemoStep.tapKnowledgeTab);
                       },
                       child: Column(
                         mainAxisSize: MainAxisSize.min,

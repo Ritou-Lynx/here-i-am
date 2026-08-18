@@ -15,7 +15,6 @@ import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
 import 'package:memex/ui/interest/widgets/interest_hub_screen.dart';
 import 'package:memex/ui/book/book_tts_voice_lab_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_room_screen.dart';
-import 'package:memex/ui/user_setup/widgets/user_setup_screen.dart';
 import 'package:memex/ui/memory/widgets/memory_center_screen.dart';
 import 'package:memex/ui/memory/widgets/memory_card_list_page.dart';
 import 'package:memex/ui/memory/widgets/lab/fragments_page.dart';
@@ -55,14 +54,6 @@ GoRouter createAppRouter(
       GoRoute(
         path: AppRoutes.desktopHome,
         builder: (_, __) => const DesktopHomeScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.userSetup,
-        builder: (context, state) => UserSetupScreen(
-          onUserCreated: () {
-            context.go(AppRoutes.home);
-          },
-        ),
       ),
       GoRoute(
         path: AppRoutes.aboutI,

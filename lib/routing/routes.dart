@@ -12,9 +12,6 @@ abstract final class AppRoutes {
   /// Desktop home dashboard (desktop platforms only).
   static const String desktopHome = '/desktop-home';
 
-  /// User setup (onboarding).
-  static const String userSetup = '/user-setup';
-
   /// Personal center (settings).
   static const String personalCenter = '/personal-center';
 

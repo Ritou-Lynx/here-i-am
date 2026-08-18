@@ -21,7 +21,7 @@ import 'package:memex/data/services/speech_transcription_service.dart';
 import 'package:memex/data/services/input_draft_service.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
-import 'package:memex/data/services/demo_service.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -1584,9 +1584,6 @@ class _InputSheetState extends State<InputSheet>
         ),
         const Spacer(),
         GestureDetector(
-          key: DemoService.instance.isActive
-              ? DemoService.instance.sendButtonKey
-              : null,
           onTap: _handleSubmit,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
