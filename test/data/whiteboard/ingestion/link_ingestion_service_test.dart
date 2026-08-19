@@ -23,6 +23,7 @@ String _fixture(String name) =>
 
 class _FakeAdapter implements HttpClientAdapter {
   final Map<String, _Canned> responses;
+  int fetchCount = 0;
   _FakeAdapter(this.responses);
 
   @override
@@ -31,6 +32,7 @@ class _FakeAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<dynamic>? cancelFuture,
   ) async {
+    fetchCount += 1;
     final url = options.path;
     final canned = responses[url];
     if (canned == null) {
@@ -62,12 +64,12 @@ class _Canned {
   _Canned(this.body, this.statusCode, this.contentType, {this.location});
 }
 
-Dio _dio(Map<String, _Canned> responses) {
+Dio _dio(Map<String, _Canned> responses, {_FakeAdapter? adapter}) {
   return Dio(BaseOptions(
     followRedirects: false,
     validateStatus: (s) => s != null && s >= 200 && s < 400,
   ))
-    ..httpClientAdapter = _FakeAdapter(responses);
+    ..httpClientAdapter = adapter ?? _FakeAdapter(responses);
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +177,7 @@ void main() {
       // No new card
       expect(first.cardCreated, isTrue);
       expect(second.cardCreated, isFalse);
-      expect(second.cardUpdated, isTrue);
+      expect(second.cardUpdated, isFalse);
       expect(second.card!.cardId, first.card!.cardId);
 
       // Only one card in store
@@ -370,6 +372,13 @@ void main() {
         await svc.getSource(preview.result.source!.sourceId),
         isNull,
       );
+      final objectRoot = Directory('${tempDir.path}/objects');
+      expect(
+        await objectRoot.exists()
+            ? await objectRoot.list(recursive: true).isEmpty
+            : true,
+        isTrue,
+      );
 
       final committed = await svc.commitResult(preview.result);
       expect(committed.cardCreated, isTrue);
@@ -378,6 +387,34 @@ void main() {
         await svc.getSource(preview.result.source!.sourceId),
         isNotNull,
       );
+    });
+
+    test('commitResult persists the confirmed preview without a second fetch',
+        () async {
+      final responses = {
+        'https://example.com/doc': _Canned(
+          _fixture('open_graph.html'),
+          200,
+          'text/html',
+        ),
+      };
+      final adapter = _FakeAdapter(responses);
+      final client = SafeHttpClient(
+        dio: _dio(responses, adapter: adapter),
+        config: const SafeHttpConfig(enforceDnsCheck: false),
+      );
+      final svc = LinkIngestionService(
+        repository: repository,
+        ingestor: LinkIngestor(httpClient: client),
+      );
+
+      final preview = await svc.ingestUrl('https://example.com/doc');
+      expect(adapter.fetchCount, 1);
+
+      final committed = await svc.commitResult(preview.result);
+
+      expect(committed.cardCreated, isTrue);
+      expect(adapter.fetchCount, 1);
     });
 
     test('fetch preview writes neither source nor card', () async {

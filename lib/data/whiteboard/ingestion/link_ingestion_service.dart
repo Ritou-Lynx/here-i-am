@@ -95,7 +95,7 @@ class LinkIngestionService {
       upsert: committed,
       card: committed.card,
       cardCreated: committed.cardCreated,
-      cardUpdated: !committed.cardCreated,
+      cardUpdated: !committed.cardCreated && committed.versionIsNew,
     );
   }
 

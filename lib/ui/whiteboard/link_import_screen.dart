@@ -10,7 +10,7 @@
 /// **explicitly** taps "存入卡片库" to create the Card — the fetch itself
 /// never writes a Card.
 ///
-/// Restart recovery: recent imports are re-read from the file-backed
+/// Restart recovery: recent imports are re-read from the Drift-backed
 /// `UnifiedCardRepository` on every open; re-importing an already-known URL is
 /// idempotent (no duplicate Card, no silent copy).
 library;
@@ -70,6 +70,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
 
   LinkIngestionOutcome? _outcome;
   CardContract? _existingCard;
+  bool _matchesExistingVersion = false;
   bool _cardSaved = false;
 
   List<_RecentImport> _recent = [];
@@ -155,21 +156,30 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       _inputError = null;
       _outcome = null;
       _existingCard = null;
+      _matchesExistingVersion = false;
       _cardSaved = false;
     });
     try {
       // Fetch only — the Card is created explicitly by the user later.
       final outcome = await service.ingestUrl(url, createCard: false);
       CardContract? existing;
+      var matchesExistingVersion = false;
       final sourceId = outcome.result.source?.sourceId;
       if (sourceId != null) {
         final record = await service.getSource(sourceId);
         existing = record?.card;
+        final incomingHash = outcome.result.source?.contentHash;
+        matchesExistingVersion = incomingHash != null &&
+            record != null &&
+            record.versions.any(
+              (version) => version.contentHash == incomingHash,
+            );
       }
       if (!mounted) return;
       setState(() {
         _outcome = outcome;
         _existingCard = existing;
+        _matchesExistingVersion = matchesExistingVersion;
         _fetching = false;
       });
       await _loadRecent();
@@ -193,6 +203,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       setState(() {
         _outcome = finalOutcome;
         _existingCard = null;
+        _matchesExistingVersion = true;
         _cardSaved = true;
         _cardBusy = false;
       });
@@ -391,11 +402,20 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
     final title = source.title;
     final description = result.metadata['description'] as String?;
     final excerpt = result.metadata['body_excerpt'] as String?;
-    final imageCount = (result.metadata['image_urls'] as List?)?.length ?? 0;
+    final images = (result.metadata['image_urls'] as List?)
+            ?.whereType<String>()
+            .toList() ??
+        const <String>[];
+    final imageCount = images.length;
+    final previewImage = result.metadata['og_image'] as String? ??
+        (images.isEmpty ? null : images.first);
     final savedCard = outcome.card ?? _existingCard;
+    final alreadyImported =
+        savedCard != null && _matchesExistingVersion && !_cardSaved;
+    final updateAvailable = savedCard != null && !_matchesExistingVersion;
 
     final Widget actionArea;
-    if (savedCard != null || _cardSaved) {
+    if (alreadyImported || _cardSaved) {
       final card = savedCard ?? outcome.card;
       final updated = outcome.cardUpdated;
       actionArea = Column(
@@ -446,7 +466,13 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       actionArea = FilledButton.icon(
         onPressed: _cardBusy ? null : _saveCard,
         icon: const Icon(Icons.save_outlined, size: 16),
-        label: Text(_cardBusy ? '正在存入…' : '存入卡片库'),
+        label: Text(
+          _cardBusy
+              ? '正在存入…'
+              : updateAvailable
+                  ? '确认内容更新'
+                  : '存入卡片库',
+        ),
         style: FilledButton.styleFrom(
           backgroundColor: WhiteboardCanvasTokens.action,
           foregroundColor: Colors.white,
@@ -495,7 +521,51 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
+          if (previewImage != null && previewImage.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: WhiteboardCanvasTokens.canvas,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.image_outlined,
+                    color: WhiteboardCanvasTokens.actionSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '页面主图',
+                          style: TextStyle(
+                            color: WhiteboardCanvasTokens.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          previewImage,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: WhiteboardCanvasTokens.textFaint,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 6),
           Text(
             result.canonicalUrl,
             style: const TextStyle(
@@ -511,6 +581,23 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
                 color: WhiteboardCanvasTokens.textSecondary,
                 fontSize: 13,
                 height: 1.5,
+              ),
+            ),
+          ],
+          if (source.metadata['site_name'] != null ||
+              source.metadata['author'] != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              [
+                source.metadata['site_name'],
+                source.metadata['author'],
+              ]
+                  .whereType<String>()
+                  .where((value) => value.isNotEmpty)
+                  .join(' · '),
+              style: const TextStyle(
+                color: WhiteboardCanvasTokens.textFaint,
+                fontSize: 11,
               ),
             ),
           ],
@@ -540,6 +627,17 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
             ),
           ),
           const SizedBox(height: 14),
+          if (updateAvailable) ...[
+            const Text(
+              '已导入过这个链接，但网页内容发生了变化。确认后会为同一来源新增版本，不会复制卡片。',
+              style: TextStyle(
+                color: WhiteboardCanvasTokens.focus,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           actionArea,
         ],
       ),

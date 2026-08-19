@@ -187,6 +187,8 @@ void main() {
     // Success state with preview content.
     expect(find.text('抓取成功'), findsOneWidget);
     expect(find.text('春雨昼眠主题设计文档'), findsOneWidget);
+    expect(find.text('页面主图'), findsOneWidget);
+    expect(find.textContaining('故我在设计站 · 林埃'), findsOneWidget);
     expect(find.text('存入卡片库'), findsOneWidget);
 
     // Explicitly create the card.
@@ -282,5 +284,45 @@ void main() {
 
     final cards2 = await tester.runAsync(() => service2.listCards());
     expect(cards2, hasLength(1));
+  });
+
+  testWidgets(
+      'changed content requires confirmation and appends a version to same card',
+      (tester) async {
+    final responses = <String, _Canned>{
+      'https://example.com/doc': _Canned(
+        _fixture('open_graph.html'),
+        200,
+        'text/html',
+      ),
+    };
+    final service = _service(repository, responses);
+    await pump(tester, service);
+
+    await fetch(tester, 'https://example.com/doc');
+    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await settleFor(tester, find.text('已在卡片库'));
+    final firstCard =
+        (await tester.runAsync(() => service.listCards()))!.single;
+
+    responses['https://example.com/doc'] = _Canned(
+      _fixture('updated_content.html'),
+      200,
+      'text/html',
+    );
+    await fetch(tester, 'https://example.com/doc');
+
+    expect(find.text('确认内容更新'), findsOneWidget);
+    expect(find.textContaining('同一来源新增版本'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, '确认内容更新'));
+    await settleFor(tester, find.text('卡片已更新（内容有新版本）'));
+
+    final cards = (await tester.runAsync(() => service.listCards()))!;
+    final record = await tester.runAsync(
+      () => service.getSource(firstCard.sourceId!),
+    );
+    expect(cards, hasLength(1));
+    expect(cards.single.cardId, firstCard.cardId);
+    expect(record!.versions, hasLength(2));
   });
 }
