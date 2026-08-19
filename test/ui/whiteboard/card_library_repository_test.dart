@@ -104,6 +104,69 @@ void main() {
     expect(find.text('暂无网页预览'), findsOneWidget);
   });
 
+  testWidgets(
+      'untrusted thumbnail metadata never creates network or file images',
+      (tester) async {
+    final candidates = <String, String>{
+      'loopback': 'http://127.0.0.1/private.png',
+      'private': 'http://192.168.1.20/cover.png',
+      'https': 'https://example.com/cover.png',
+      'file_uri': 'file:///C:/Windows/System32/drivers/etc/hosts',
+      'absolute': r'C:\Windows\System32\drivers\etc\hosts',
+      'traversal': '../outside.png',
+    };
+    final cards = <CardContract>[];
+    for (final entry in candidates.entries) {
+      cards.add(await _createSourceCard(
+        repository,
+        sourceId: 'src_unsafe_${entry.key}',
+        type: SourceMediaType.web,
+        title: 'unsafe ${entry.key}',
+        metadata: {'thumbnail_url': entry.value},
+      ));
+    }
+
+    var createHttpClientCount = 0;
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await HttpOverrides.runZoned(
+      () async {
+        await pumpApp(tester);
+
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Image &&
+                (widget.image is NetworkImage || widget.image is FileImage),
+          ),
+          findsNothing,
+        );
+        for (final card in cards) {
+          final cardFinder =
+              find.byKey(ValueKey('card-library-card-${card.cardId}'));
+          final preview = find.descendant(
+            of: cardFinder,
+            matching: find.byWidgetPredicate(
+              (widget) => widget is Expanded && widget.flex == 7,
+            ),
+          );
+          expect(preview, findsOneWidget);
+          expect(
+            find.descendant(of: preview, matching: find.text('暂无网页预览')),
+            findsOneWidget,
+          );
+        }
+      },
+      createHttpClient: (_) {
+        createHttpClientCount++;
+        throw StateError('Card library must not create an HTTP client');
+      },
+    );
+    expect(createHttpClientCount, 0);
+  });
+
   testWidgets('type, source, tag and keyword filters compose', (tester) async {
     await repository.createTextCard(
       cardId: 'note_filter',
@@ -284,6 +347,7 @@ Future<CardContract> _createSourceCard(
   required String sourceId,
   required SourceMediaType type,
   required String title,
+  Map<String, dynamic> metadata = const {},
 }) async {
   final now = DateTime.utc(2026, 8, 19, 12);
   final versionId = 'ver_${sourceId}_v1';
@@ -297,6 +361,7 @@ Future<CardContract> _createSourceCard(
     currentVersionId: versionId,
     contentHash: 'hash_$sourceId',
     objectRef: 'objects/sources/$sourceId/$versionId.json',
+    metadata: metadata,
     createdAt: now,
     updatedAt: now,
   );

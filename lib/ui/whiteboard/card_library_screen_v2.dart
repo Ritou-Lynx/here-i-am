@@ -6,7 +6,6 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -589,27 +588,12 @@ class _MediaPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final thumbnail = hit.thumbnail?.trim();
-    if (thumbnail != null && thumbnail.isNotEmpty) {
-      if (thumbnail.startsWith('http://') || thumbnail.startsWith('https://')) {
-        return Image.network(
-          thumbnail,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _missing(),
-        );
-      }
-      final path = thumbnail.startsWith('file://')
-          ? Uri.parse(thumbnail).toFilePath()
-          : thumbnail;
-      final file = File(path);
-      if (file.isAbsolute && file.existsSync()) {
-        return Image.file(
-          file,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _missing(),
-        );
-      }
-    }
+    // Source metadata is untrusted: URLs must not bypass the shared safe
+    // asset pipeline, and local-looking strings do not grant filesystem
+    // access. Until that pipeline exposes a cached-thumbnail resolver, the
+    // library deliberately renders the typed missing state for every media
+    // card. A future local preview may accept only a stable object_ref
+    // resolved beneath the whiteboard object root.
     return _missing();
   }
 
@@ -741,7 +725,6 @@ class _CardLibraryHit {
     this.sourceId,
     this.sourceType,
     this.sourceLabel,
-    this.thumbnail,
   });
 
   factory _CardLibraryHit.legacy({
@@ -758,20 +741,6 @@ class _CardLibraryHit {
       );
 
   factory _CardLibraryHit.fromRecord(UnifiedCardRecord record) {
-    final metadata = record.source?.metadata ?? const <String, dynamic>{};
-    String? thumbnail = record.thumbnail;
-    for (final key in const [
-      'thumbnail',
-      'thumbnail_url',
-      'og_image',
-      'cover',
-      'cover_url',
-    ]) {
-      final candidate = metadata[key];
-      if ((thumbnail == null || thumbnail.isEmpty) && candidate is String) {
-        thumbnail = candidate;
-      }
-    }
     return _CardLibraryHit(
       cardId: record.card.cardId,
       title: record.card.title,
@@ -781,7 +750,6 @@ class _CardLibraryHit {
       sourceId: record.card.sourceId,
       sourceType: record.source?.mediaType,
       sourceLabel: record.source?.provider,
-      thumbnail: thumbnail,
     );
   }
 
@@ -793,7 +761,6 @@ class _CardLibraryHit {
   final String? sourceId;
   final SourceMediaType? sourceType;
   final String? sourceLabel;
-  final String? thumbnail;
 
   bool get isMedia => sourceType != null && sourceType != SourceMediaType.text;
   bool get opensSource => cardKind == CardKind.source && sourceId != null;
