@@ -242,6 +242,24 @@ void main() {
     expect(web.single.card.cardId, source.card.cardId);
   });
 
+  test('source object reader returns body and honest missing state', () async {
+    final committed = await repository.commitIngestion(
+      _ingestion(hash: 'object_reader', body: '可研读的完整正文'),
+    );
+    final available = await repository.getSourceObject(committed.version);
+    expect(available.state, SourceObjectState.available);
+    expect(available.bodyText, '可研读的完整正文');
+
+    final missing = await repository.getSourceObject(SourceVersion(
+      versionId: 'ver_missing',
+      sourceId: committed.source.sourceId,
+      contentHash: 'missing',
+      objectRef: 'objects/sources/missing/version.json',
+      createdAt: DateTime.utc(2026, 8, 19),
+    ));
+    expect(missing.state, SourceObjectState.missing);
+  });
+
   test('all test persistence stays inside an explicit temporary directory',
       () async {
     await repository.createTextCard(title: '隔离测试');

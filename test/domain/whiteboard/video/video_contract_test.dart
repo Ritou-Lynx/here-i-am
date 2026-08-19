@@ -28,8 +28,7 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  test('full closed loop: playback → sync → anchor → save → restore',
-      () async {
+  test('full closed loop: playback → sync → anchor → save → restore', () async {
     // ── 1. Fixture player (real-time simulation of an online player)
     final adapter = FixturePlayerAdapter(durationMs: 36000);
 
@@ -122,10 +121,8 @@ void main() {
         anchorResult.anchor.anchorId: anchorResult.card.cardId,
       },
     );
-    final sessionPath =
-        '${tempDir.path}${Platform.pathSeparator}session.json';
-    await File(sessionPath)
-        .writeAsString(jsonEncode(session.toJson()));
+    final sessionPath = '${tempDir.path}${Platform.pathSeparator}session.json';
+    await File(sessionPath).writeAsString(jsonEncode(session.toJson()));
 
     controller.dispose();
     adapter.dispose();
@@ -140,9 +137,8 @@ void main() {
     await restartedAdapter.load('src_concert');
 
     // ── 9. Restore session from disk
-    final restoredJson =
-        jsonDecode(await File(sessionPath).readAsString())
-            as Map<String, dynamic>;
+    final restoredJson = jsonDecode(await File(sessionPath).readAsString())
+        as Map<String, dynamic>;
     final restoredSession = VideoAnnotationSession.fromJson(restoredJson);
     expect(restoredSession.sourceVersionId, equals('ver_concert_v1'));
     expect(restoredSession.lastPositionMs, equals(6000));
@@ -158,14 +154,16 @@ void main() {
     expect(restartedController.activeCueIndex, equals(1));
 
     // ── 11. Version change → anchors re-anchor (not orphaned, not lost)
-    final reanchored = service.restoreSession(
+    final orphaned = service.restoreSession(
       saved: restoredSession,
       currentVersionId: 'ver_concert_v2',
     );
-    expect(reanchored.sourceVersionId, equals('ver_concert_v2'));
-    expect(reanchored.anchors.first.status, equals(AnchorStatus.reanchored));
-    expect(reanchored.anchors.first.positionSpec['start_ms'], equals(10000),
-        reason: 'time positions survive version change');
+    expect(orphaned.sourceVersionId, equals('ver_concert_v1'));
+    expect(orphaned.lastPositionMs, equals(0));
+    expect(orphaned.anchors.first.sourceVersionId, equals('ver_concert_v1'));
+    expect(orphaned.anchors.first.status, equals(AnchorStatus.orphaned));
+    expect(orphaned.anchors.first.positionSpec['start_ms'], equals(10000),
+        reason: 'old evidence is retained without claiming a new location');
 
     restartedController.dispose();
     restartedAdapter.dispose();
@@ -202,7 +200,8 @@ void main() {
     expect(xhs.canEmbedPlayer, isFalse);
 
     // Fixture is a test provider, excluded from production.
-    expect(ProviderCapabilityMatrix.productionProviders, isNot(contains('fixture')));
+    expect(ProviderCapabilityMatrix.productionProviders,
+        isNot(contains('fixture')));
   });
 
   test('consistency: reverse highlight / anchors need a readable position', () {

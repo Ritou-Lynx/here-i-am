@@ -52,11 +52,9 @@ dependencies:
   # WebView (for future HTML card rendering)
   webview_flutter: ^4.4.4
 
-  # ── W6 白板依赖占位（唯一一次 pubspec 评审；后续窗口禁止再改 pubspec）──
-  # 桌面视频播放（W4）：桌面播放器 ADR 尚未定案（Web IFrame /
-  # webview_windows / 外部降级三选一）。ADR 落定并写进
-  # WHITEBOARD_ENGINE_ADAPTER_ADR.md 后，由 W0 在此取消注释并锁定：
-  # webview_windows: ^0.3.3   # Windows WebView2 宿主（W4 桌面播放候选）
+  # Windows Desktop YouTube study surface (WebView2). This maintained fork of
+  # webview_windows 0.4.x targets the project's Flutter 3.44 / Dart 3.12 floor.
+  webview_flutter_windows: ^1.1.1
 
   # HTML parsing (Reading Companion fetch pipeline)
   html: ^0.15.4

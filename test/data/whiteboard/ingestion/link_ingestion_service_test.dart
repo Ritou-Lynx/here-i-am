@@ -460,14 +460,70 @@ void main() {
       expect(outcome.card, isNull);
     });
 
-    test('youtube URL → unsupported', () async {
+    test('youtube URL previews without writes, then commits unified identity',
+        () async {
       final svc = buildService({});
 
-      final outcome =
-          await svc.ingestUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      final outcome = await svc.ingestUrl(
+        'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+        createCard: false,
+      );
 
-      expect(outcome.result.status, IngestionStatus.unsupported);
+      expect(outcome.result.status, IngestionStatus.ok);
       expect(outcome.result.provider, 'youtube');
+      expect(outcome.result.source!.mediaType, SourceMediaType.video);
+      expect(outcome.result.source!.canonicalId, 'M7lc1UVf-VE');
+      expect(outcome.card, isNull);
+      expect(await svc.listCards(), isEmpty, reason: 'preview is zero-write');
+      expect(
+        await svc.getSource(outcome.result.source!.sourceId),
+        isNull,
+        reason: 'Source is also committed only after confirmation',
+      );
+
+      final committed = await svc.commitResult(outcome.result);
+      expect(committed.cardCreated, isTrue);
+      expect(committed.card!.sourceId, outcome.result.source!.sourceId);
+      final record = await svc.getSource(outcome.result.source!.sourceId);
+      expect(record!.card!.cardId, committed.card!.cardId);
+      expect(record.source.currentVersionId,
+          outcome.result.source!.currentVersionId);
+    });
+
+    test('equivalent YouTube links stay one Source, version, and Card',
+        () async {
+      final svc = buildService({});
+      const urls = [
+        'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+        'https://www.youtube.com/watch?v=M7lc1UVf-VE&t=43s&si=watch-share',
+        'https://youtu.be/M7lc1UVf-VE?si=short-share&t=43',
+        'https://www.youtube.com/shorts/M7lc1UVf-VE?si=shorts-share',
+      ];
+      final sourceIds = <String>{};
+      final versionIds = <String>{};
+      final contentHashes = <String>{};
+      final cardIds = <String>{};
+
+      for (var index = 0; index < urls.length; index++) {
+        final preview = await svc.ingestUrl(urls[index], createCard: false);
+        sourceIds.add(preview.result.source!.sourceId);
+        versionIds.add(preview.result.source!.currentVersionId!);
+        contentHashes.add(preview.result.source!.contentHash!);
+
+        final committed = await svc.commitResult(preview.result);
+        cardIds.add(committed.card!.cardId);
+        expect(committed.cardCreated, index == 0);
+        expect(committed.upsert!.versionIsNew, index == 0);
+      }
+
+      expect(sourceIds, {'src_youtube_M7lc1UVf-VE'});
+      expect(versionIds, hasLength(1));
+      expect(contentHashes, hasLength(1));
+      expect(cardIds, hasLength(1));
+      expect(await db.select(db.whiteboardSources).get(), hasLength(1));
+      expect(await svc.listCards(), hasLength(1));
+      final record = await svc.getSource(sourceIds.single);
+      expect(record!.versions, hasLength(1));
     });
 
     test('HTTP 403 → needsAuth with honest error message', () async {

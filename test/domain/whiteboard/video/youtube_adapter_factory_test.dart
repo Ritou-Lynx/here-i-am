@@ -1,15 +1,18 @@
 /// Tests for [createYouTubeAdapter] platform routing.
 ///
-/// On the Dart VM (no `dart:js_interop`), this verifies the factory returns a
-/// [StubYouTubePlayerAdapter] (no-op stub with YouTube capability declarations).
+/// On Windows this verifies the factory selects the WebView2 adapter. Other
+/// native desktop platforms retain the honest unavailable stub.
 /// On Flutter Web, a separate test file exercises the [WebYouTubePlayerAdapter]
 /// via conditional import.
 library;
+
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/domain/whiteboard/video/youtube_adapter_factory.dart';
 import 'package:memex/domain/whiteboard/video/youtube_adapter_factory_stub.dart';
+import 'package:memex/domain/whiteboard/video/windows_youtube_player_adapter.dart';
 
 void main() {
   group('createYouTubeAdapter (non-web)', () {
@@ -18,21 +21,13 @@ void main() {
       expect(adapter.providerId, equals('youtube'));
     });
 
-    test('returns a StubYouTubePlayerAdapter on non-web', () {
+    test('routes Windows to WebView2 and other desktop to the stub', () {
       final adapter = createYouTubeAdapter();
-      expect(adapter, isA<StubYouTubePlayerAdapter>());
-    });
-
-    test('stub isAvailable is false', () {
-      final adapter = createYouTubeAdapter() as StubYouTubePlayerAdapter;
-      expect(adapter.isAvailable, isFalse);
-    });
-
-    test('load is a no-op on the stub', () async {
-      final adapter = createYouTubeAdapter() as StubYouTubePlayerAdapter;
-      // Should not throw; load returns silently.
-      await adapter.load('src_test',
-          embedUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      if (Platform.isWindows) {
+        expect(adapter, isA<WindowsYouTubePlayerAdapter>());
+      } else {
+        expect(adapter, isA<StubYouTubePlayerAdapter>());
+      }
     });
 
     test('capability declares youtube matrix values', () {
@@ -46,18 +41,49 @@ void main() {
       expect(cap.hasTranscript, isFalse);
     });
 
-    test('play/pause/seek/position/duration are no-ops on the stub', () async {
-      final adapter = createYouTubeAdapter() as StubYouTubePlayerAdapter;
-      await adapter.play();
-      await adapter.pause();
-      await adapter.seekTo(5000);
-      expect(await adapter.currentPositionMs(), equals(0));
-      expect(await adapter.durationMs(), isNull);
+    test('Windows URL parsing accepts official YouTube shapes', () {
+      expect(
+        WindowsYouTubePlayerAdapter.extractVideoId(
+          'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+        ),
+        'M7lc1UVf-VE',
+      );
+      expect(
+        WindowsYouTubePlayerAdapter.extractVideoId(
+          'https://youtu.be/M7lc1UVf-VE?t=2',
+        ),
+        'M7lc1UVf-VE',
+      );
+      expect(
+        WindowsYouTubePlayerAdapter.extractVideoId(
+          'https://www.youtube.com/embed/M7lc1UVf-VE',
+        ),
+        'M7lc1UVf-VE',
+      );
+      expect(
+        WindowsYouTubePlayerAdapter.extractVideoId('https://example.com/x'),
+        isNull,
+      );
     });
 
-    test('timeEvents is empty on the stub', () async {
-      final adapter = createYouTubeAdapter() as StubYouTubePlayerAdapter;
-      expect(await adapter.timeEvents.isEmpty, isTrue);
+    test('Windows failures stay explicit for runtime, network, and embedding',
+        () {
+      expect(
+        WindowsYouTubePlayerAdapter.runtimeFailureMessage(null),
+        contains('WebView2 Runtime'),
+      );
+      expect(
+        WindowsYouTubePlayerAdapter.pageLoadFailureMessage('connectionAborted'),
+        contains('connectionAborted'),
+      );
+      expect(
+        WindowsYouTubePlayerAdapter.youtubeErrorMessage(101),
+        contains('禁止'),
+      );
+      expect(
+        WindowsYouTubePlayerAdapter.youtubeErrorMessage(150),
+        contains('嵌入'),
+      );
     });
   });
 }

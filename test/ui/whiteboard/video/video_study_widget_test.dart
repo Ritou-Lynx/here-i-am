@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
-import 'package:memex/domain/whiteboard/video/youtube_adapter_factory.dart';
+import 'package:memex/domain/whiteboard/video/youtube_adapter_factory_stub.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
 
 /// Builds a FixturePlayerAdapter + track for widget testing.
@@ -61,7 +61,8 @@ class _FakeTimedTextService extends YouTubeTimedTextService {
 }
 
 void main() {
-  testWidgets('VideoStudyScreen shows player and subtitle dock', (tester) async {
+  testWidgets('VideoStudyScreen shows player and subtitle dock',
+      (tester) async {
     final adapter = _buildFixture();
     final track = _buildTrack();
 
@@ -94,7 +95,40 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('NeedsSubtitle state shows import prompt when no track', (tester) async {
+  testWidgets('Fixture surface icon follows paused and playing state',
+      (tester) async {
+    final adapter = _buildFixture();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
+    expect(find.byIcon(Icons.pause_circle_outline), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.play_arrow).first);
+    await tester.pump();
+    expect(find.byIcon(Icons.pause_circle_outline), findsOneWidget);
+    expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.pause).first);
+    await tester.pump();
+    expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
+    expect(find.byIcon(Icons.pause_circle_outline), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('NeedsSubtitle state shows import prompt when no track',
+      (tester) async {
     final adapter = _buildFixture();
 
     await tester.pumpWidget(
@@ -142,7 +176,8 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('Annotation flow creates card and shows confirmation', (tester) async {
+  testWidgets('Annotation flow creates card and shows confirmation',
+      (tester) async {
     final adapter = _buildFixture();
     final track = _buildTrack();
 
@@ -222,12 +257,7 @@ void main() {
     Widget buildYoutubeScreen({
       required YouTubeTimedTextService service,
     }) {
-      // Build the adapter under the windows override so the VM-test stub is
-      // created (no WebViewController in unit tests), then restore the test
-      // default (android) so the VM's auto-fetch platform gate sees android.
-      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-      final adapter = createYouTubeAdapter();
-      debugDefaultTargetPlatformOverride = null;
+      final adapter = StubYouTubePlayerAdapter();
       return MaterialApp(
         home: VideoStudyScreen(
           adapter: adapter,
@@ -240,8 +270,10 @@ void main() {
       );
     }
 
-    testWidgets('auto-fetch success loads the platform track and study is ready',
+    testWidgets(
+        'auto-fetch success loads the platform track and study is ready',
         (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       final service = _FakeTimedTextService(
         YouTubeTimedTextResult(track: platformTrack()),
       );
@@ -249,15 +281,19 @@ void main() {
       await tester.pumpWidget(buildYoutubeScreen(service: service));
       await tester.pumpAndSettle();
 
-      expect(service.calls, equals(1), reason: 'auto-fetch ran for youtube');
+      expect(service.calls, equals(1),
+          reason: 'auto-fetch ran for YouTube on Windows');
       expect(find.text('需要字幕'), findsNothing);
       expect(find.text('Light switch, night begins'), findsOneWidget);
       expect(find.text('Smoke rises on stage'), findsOneWidget);
       expect(find.textContaining('平台字幕'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
     });
 
     testWidgets('auto-fetch failure shows honest "需要字幕" with reason',
         (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       final service = _FakeTimedTextService(
         const YouTubeTimedTextResult(
           error: 'YouTube 未返回可用字幕轨（该视频可能没有字幕，或自动获取被网络/跨域限制）',
@@ -274,9 +310,12 @@ void main() {
         find.text('YouTube 未返回可用字幕轨（该视频可能没有字幕，或自动获取被网络/跨域限制）'),
         findsOneWidget,
       );
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
     });
 
     testWidgets('fixture provider does not trigger auto-fetch', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       final service = _FakeTimedTextService(
         YouTubeTimedTextResult(track: platformTrack()),
       );
@@ -299,6 +338,8 @@ void main() {
       expect(find.text('需要字幕'), findsWidgets);
 
       adapter.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
     });
   });
 }

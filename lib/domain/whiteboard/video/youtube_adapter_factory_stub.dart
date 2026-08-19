@@ -11,8 +11,12 @@
 /// platforms that can't run a real WebView.
 library;
 
+import 'dart:io';
+
 import '../player_adapter.dart';
 import 'provider_capability_matrix.dart';
+import 'windows_youtube_player_adapter.dart';
+import 'youtube_player_adapter.dart';
 
 /// A no-op YouTube adapter for platforms without WebView (e.g. Windows/Linux
 /// desktop, Dart VM test runner). Declares the YouTube capability matrix
@@ -53,6 +57,11 @@ class StubYouTubePlayerAdapter implements PlayerAdapter {
 
 /// Creates a [PlayerAdapter] for YouTube on non-web platforms.
 ///
-/// Returns [StubYouTubePlayerAdapter], a safe no-op. On Android, callers should
-/// construct [YouTubePlayerAdapter] directly.
-PlayerAdapter createYouTubeAdapterForPlatform() => StubYouTubePlayerAdapter();
+/// Returns the Android WebView adapter when running on Android. Its constructor
+/// remains an honest unavailable adapter on Windows/Linux/macOS, so product UI
+/// can declare that native embedding is not implemented there.
+PlayerAdapter createYouTubeAdapterForPlatform() {
+  if (Platform.isWindows) return WindowsYouTubePlayerAdapter();
+  if (Platform.isAndroid) return YouTubePlayerAdapter();
+  return StubYouTubePlayerAdapter();
+}

@@ -6,8 +6,8 @@
 library;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 
+import 'package:memex/data/whiteboard/repository_video_annotation_store.dart';
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
 import '../session_store.dart';
 
@@ -35,6 +35,8 @@ class VideoStudyViewModel extends ChangeNotifier {
   final String sourceId;
   final String sourceVersionId;
   final String providerId;
+  final RepositoryVideoAnnotationStore? annotationStore;
+  final bool runtimePlayerAvailable;
 
   /// Optional session persistence for restart recovery. When null, session
   /// save/restore is skipped (in-memory only).
@@ -67,6 +69,8 @@ class VideoStudyViewModel extends ChangeNotifier {
   int? _pendingAnnotationStartMs;
   int? _pendingAnnotationEndMs;
   bool _showSaveConfirmation = false;
+  bool _isSavingAnnotation = false;
+  bool _dockVisible = true;
 
   VideoStudyViewModel({
     required this.adapter,
@@ -75,6 +79,8 @@ class VideoStudyViewModel extends ChangeNotifier {
     required this.providerId,
     TimedTextTrack? initialTrack,
     this.sessionStore,
+    this.annotationStore,
+    this.runtimePlayerAvailable = true,
     YouTubeTimedTextService? timedTextService,
   }) {
     _track = initialTrack;
@@ -162,15 +168,28 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   DockOrientation get dockOrientation => _dockOrientation;
   double get dockRatio => _dockRatio;
+  bool get dockVisible => _dockVisible;
+  bool get isSavingAnnotation => _isSavingAnnotation;
+
+  bool get hasRuntimePlaybackSurface =>
+      runtimePlayerAvailable && hasAnyPlaybackSurface;
+
+  void setDockVisible(bool visible) {
+    _dockVisible = visible;
+    notifyListeners();
+    saveSession();
+  }
 
   void setDockOrientation(DockOrientation orientation) {
     _dockOrientation = orientation;
     notifyListeners();
+    saveSession();
   }
 
   void setDockRatio(double ratio) {
     _dockRatio = ratio.clamp(0.20, 0.50);
     notifyListeners();
+    saveSession();
   }
 
   // ─── Lifecycle ───
@@ -240,7 +259,9 @@ class VideoStudyViewModel extends ChangeNotifier {
   /// Whether platform-subtitle auto-fetch should run for the current setup.
   bool get _canAutoFetchSubtitles =>
       providerId == 'youtube' &&
-      (kIsWeb || defaultTargetPlatform == TargetPlatform.android) &&
+      (kIsWeb ||
+          defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.windows) &&
       (_track?.cues.isEmpty != false);
 
   void _maybeAutoFetchSubtitles(String? embedUrl) {
@@ -256,9 +277,11 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   Future<void> _fetchPlatformSubtitles(String? embedUrl) async {
     final videoRef = embedUrl ?? sourceId;
-    final result =
-        await _timedTextService.fetchForVideo(videoRef, sourceId: sourceId,
-            sourceVersionId: sourceVersionId);
+    final result = await _timedTextService.fetchForVideo(
+      videoRef,
+      sourceId: sourceId,
+      sourceVersionId: sourceVersionId,
+    );
     if (result.isSuccess && result.track != null) {
       _setTrack(result.track!);
       _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
@@ -272,7 +295,10 @@ class VideoStudyViewModel extends ChangeNotifier {
   }
 
   /// Loads a subtitle track from raw SRT/VTT content.
-  void loadSubtitleFromText(String raw, {TimedTextSourceKind sourceKind = TimedTextSourceKind.userImport}) {
+  void loadSubtitleFromText(
+    String raw, {
+    TimedTextSourceKind sourceKind = TimedTextSourceKind.userImport,
+  }) {
     final result = SubtitleParser.parse(
       raw,
       sourceId: sourceId,
@@ -383,27 +409,54 @@ class VideoStudyViewModel extends ChangeNotifier {
   }
 
   /// Confirms and saves an annotation.
-  void confirmAnnotation({required String title, required String body, String? quote}) {
-    if (_pendingAnnotationStartMs == null) return;
+  Future<bool> confirmAnnotation({
+    required String title,
+    required String body,
+    String? quote,
+    CardCreatedBy createdBy = CardCreatedBy.user,
+  }) async {
+    if (_pendingAnnotationStartMs == null || _isSavingAnnotation) return false;
 
     final spec = _pendingAnnotationStartMs == _pendingAnnotationEndMs
-        ? TimeRangeAnchorSpec.point(_pendingAnnotationStartMs!,
-            cueId: _pendingAnnotationCueId)
+        ? TimeRangeAnchorSpec.point(
+            _pendingAnnotationStartMs!,
+            cueId: _pendingAnnotationCueId,
+          )
         : TimeRangeAnchorSpec.range(
             _pendingAnnotationStartMs!,
             _pendingAnnotationEndMs!,
-            cueId: _pendingAnnotationCueId);
+            cueId: _pendingAnnotationCueId,
+          );
 
-    final result = _annotationService.createAnnotation(
-      sourceId: sourceId,
-      sourceVersionId: sourceVersionId,
-      request: AnnotationCreationRequest(
-        spec: spec,
-        title: title,
-        body: body,
-        quote: quote,
-      ),
+    final request = AnnotationCreationRequest(
+      spec: spec,
+      title: title,
+      body: body,
+      quote: quote,
+      createdBy: createdBy,
     );
+    _isSavingAnnotation = true;
+    _errorMessage = null;
+    notifyListeners();
+    late VideoAnnotationResult result;
+    try {
+      result = annotationStore == null
+          ? _annotationService.createAnnotation(
+              sourceId: sourceId,
+              sourceVersionId: sourceVersionId,
+              request: request,
+            )
+          : await annotationStore!.createAnnotation(
+              sourceId: sourceId,
+              sourceVersionId: sourceVersionId,
+              request: request,
+            );
+    } catch (error) {
+      _errorMessage = '标注保存失败：$error';
+      _isSavingAnnotation = false;
+      notifyListeners();
+      return false;
+    }
 
     _annotations.add(UIAnnotation(anchor: result.anchor, card: result.card));
     _anchorToCard[result.anchor.anchorId] = result.card.cardId;
@@ -411,6 +464,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     _pendingAnnotationStartMs = null;
     _pendingAnnotationEndMs = null;
     _showSaveConfirmation = true;
+    _isSavingAnnotation = false;
     notifyListeners();
 
     // Persist the session immediately so the annotation survives a restart.
@@ -423,6 +477,7 @@ class VideoStudyViewModel extends ChangeNotifier {
         notifyListeners();
       }
     });
+    return true;
   }
 
   /// Dismisses the save confirmation immediately.
@@ -461,6 +516,8 @@ class VideoStudyViewModel extends ChangeNotifier {
         anchors: _annotations.map((a) => a.anchor).toList(),
         annotationCards: _annotations.map((a) => a.card).toList(),
         anchorToCard: _anchorToCard,
+        dockOrientation: _dockOrientation.name,
+        dockRatio: _dockRatio,
       );
       await store.save(session);
     } catch (_) {
@@ -475,8 +532,32 @@ class VideoStudyViewModel extends ChangeNotifier {
     if (store == null) return;
     try {
       final saved = await store.load();
-      if (saved == null) return;
-      restoreFromSession(saved, currentVersionId: currentVersionId);
+      if (saved != null) {
+        restoreFromSession(saved, currentVersionId: currentVersionId);
+      }
+      final persisted = await annotationStore?.listAnnotations(
+        sourceId: sourceId,
+        currentVersionId: currentVersionId ?? sourceVersionId,
+        currentDurationMs: _durationMs > 0 ? _durationMs : null,
+      );
+      if (persisted != null) {
+        _annotations
+          ..clear()
+          ..addAll(
+            persisted.map(
+              (result) =>
+                  UIAnnotation(anchor: result.anchor, card: result.card),
+            ),
+          );
+        _anchorToCard
+          ..clear()
+          ..addEntries(
+            persisted.map(
+              (result) => MapEntry(result.anchor.anchorId, result.card.cardId),
+            ),
+          );
+        notifyListeners();
+      }
     } catch (e) {
       _errorMessage = '恢复失败：$e';
       notifyListeners();
@@ -484,8 +565,10 @@ class VideoStudyViewModel extends ChangeNotifier {
   }
 
   /// Restores from an in-memory [VideoAnnotationSession].
-  void restoreFromSession(VideoAnnotationSession session,
-      {String? currentVersionId}) {
+  void restoreFromSession(
+    VideoAnnotationSession session, {
+    String? currentVersionId,
+  }) {
     var effective = session;
     if (currentVersionId != null &&
         currentVersionId != session.sourceVersionId) {
@@ -495,18 +578,27 @@ class VideoStudyViewModel extends ChangeNotifier {
       );
     }
 
-    _annotations.clear();
-    _anchorToCard.clear();
-    for (var i = 0; i < effective.anchors.length; i++) {
-      final anchor = effective.anchors[i];
-      final card = effective.annotationCards.length > i
-          ? effective.annotationCards[i]
-          : null;
-      if (card != null) {
-        _annotations.add(UIAnnotation(anchor: anchor, card: card));
-        _anchorToCard[anchor.anchorId] = card.cardId;
+    // Legacy/demo sessions may carry cards. Production restore replaces this
+    // list from UnifiedCardRepository immediately after restoring UI state.
+    if (annotationStore == null) {
+      _annotations.clear();
+      _anchorToCard.clear();
+      for (var i = 0; i < effective.anchors.length; i++) {
+        final anchor = effective.anchors[i];
+        final card = effective.annotationCards.length > i
+            ? effective.annotationCards[i]
+            : null;
+        if (card != null) {
+          _annotations.add(UIAnnotation(anchor: anchor, card: card));
+          _anchorToCard[anchor.anchorId] = card.cardId;
+        }
       }
     }
+
+    _dockOrientation = effective.dockOrientation == 'bottom'
+        ? DockOrientation.bottom
+        : DockOrientation.right;
+    _dockRatio = effective.dockRatio.clamp(0.20, 0.50);
 
     // Restore playback position
     if (canSeek && effective.lastPositionMs > 0) {

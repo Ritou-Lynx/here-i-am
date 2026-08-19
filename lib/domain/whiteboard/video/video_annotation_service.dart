@@ -24,6 +24,8 @@ class VideoAnnotationSession {
   final List<AnchorContract> anchors;
   final List<CardContract> annotationCards;
   final Map<String, String> anchorToCard;
+  final String dockOrientation;
+  final double dockRatio;
   final DateTime savedAt;
 
   const VideoAnnotationSession({
@@ -33,6 +35,8 @@ class VideoAnnotationSession {
     required this.anchors,
     required this.annotationCards,
     required this.anchorToCard,
+    this.dockOrientation = 'right',
+    this.dockRatio = 0.35,
     required this.savedAt,
   });
 
@@ -47,9 +51,12 @@ class VideoAnnotationSession {
       annotationCards: (json['annotation_cards'] as List<dynamic>)
           .map((c) => CardContract.fromJson(c as Map<String, dynamic>))
           .toList(),
-      anchorToCard: (json['anchor_to_card'] as Map<String, dynamic>?)
-              ?.map((k, v) => MapEntry(k, v as String)) ??
+      anchorToCard: (json['anchor_to_card'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(k, v as String),
+          ) ??
           const {},
+      dockOrientation: json['dock_orientation'] as String? ?? 'right',
+      dockRatio: (json['dock_ratio'] as num?)?.toDouble() ?? 0.35,
       savedAt: DateTime.parse(json['saved_at'] as String),
     );
   }
@@ -61,6 +68,8 @@ class VideoAnnotationSession {
         'anchors': anchors.map((a) => a.toJson()).toList(),
         'annotation_cards': annotationCards.map((c) => c.toJson()).toList(),
         'anchor_to_card': anchorToCard,
+        'dock_orientation': dockOrientation,
+        'dock_ratio': dockRatio,
         'saved_at': savedAt.toUtc().toIso8601String(),
       };
 }
@@ -116,9 +125,8 @@ class VideoAnnotationService {
       cardId: cardId,
       cardKind: CardKind.annotation,
       sourceId: sourceId,
-      ownerSpace: request.createdBy == CardCreatedBy.i
-          ? OwnerSpace.i
-          : OwnerSpace.user,
+      ownerSpace:
+          request.createdBy == CardCreatedBy.i ? OwnerSpace.i : OwnerSpace.user,
       title: request.title,
       body: request.body,
       tags: const ['video_annotation'],
@@ -143,6 +151,8 @@ class VideoAnnotationService {
     required List<AnchorContract> anchors,
     required List<CardContract> annotationCards,
     required Map<String, String> anchorToCard,
+    String dockOrientation = 'right',
+    double dockRatio = 0.35,
   }) {
     return VideoAnnotationSession(
       sourceId: sourceId,
@@ -151,6 +161,8 @@ class VideoAnnotationService {
       anchors: anchors,
       annotationCards: annotationCards,
       anchorToCard: anchorToCard,
+      dockOrientation: dockOrientation,
+      dockRatio: dockRatio,
       savedAt: DateTime.now().toUtc(),
     );
   }
@@ -158,10 +170,10 @@ class VideoAnnotationService {
   /// Restores a session from a saved snapshot, re-resolving anchor status
   /// against the current source version.
   ///
-  /// If [currentVersionId] differs from the saved version, anchors that
-  /// pointed to the old version get [AnchorStatus.reanchored] (we preserve
-  /// the time position but mark it as re-anchored). If the source itself
-  /// changed fundamentally, anchors become [AnchorStatus.orphaned].
+  /// If [currentVersionId] differs from the saved version, MVP preserves the
+  /// old version identity and marks every affected anchor orphaned. A future
+  /// explicit re-anchor flow must supply media-identity/position evidence or
+  /// a user confirmation; timestamps alone are not evidence.
   VideoAnnotationSession restoreSession({
     required VideoAnnotationSession saved,
     required String currentVersionId,
@@ -170,32 +182,31 @@ class VideoAnnotationService {
       return saved;
     }
 
-    // Version changed — re-anchor time positions (timestamps are stable
-    // for video content unless the video itself was replaced).
-    final reanchored = saved.anchors.map((a) {
-      if (a.status == AnchorStatus.orphaned) return a;
+    final orphaned = saved.anchors.map((a) {
       return AnchorContract(
         anchorId: a.anchorId,
         sourceId: a.sourceId,
-        sourceVersionId: currentVersionId,
+        sourceVersionId: a.sourceVersionId,
         positionKind: a.positionKind,
         positionSpec: a.positionSpec,
         quote: a.quote,
         prefix: a.prefix,
         suffix: a.suffix,
         fingerprint: a.fingerprint,
-        status: AnchorStatus.reanchored,
+        status: AnchorStatus.orphaned,
         createdAt: a.createdAt,
       );
     }).toList();
 
     return VideoAnnotationSession(
       sourceId: saved.sourceId,
-      sourceVersionId: currentVersionId,
-      lastPositionMs: saved.lastPositionMs,
-      anchors: reanchored,
+      sourceVersionId: saved.sourceVersionId,
+      lastPositionMs: 0,
+      anchors: orphaned,
       annotationCards: saved.annotationCards,
       anchorToCard: saved.anchorToCard,
+      dockOrientation: saved.dockOrientation,
+      dockRatio: saved.dockRatio,
       savedAt: saved.savedAt,
     );
   }

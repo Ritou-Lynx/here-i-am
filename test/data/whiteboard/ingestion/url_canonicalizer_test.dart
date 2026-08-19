@@ -75,8 +75,7 @@ void main() {
     });
 
     test('youtube watch v', () {
-      final c = canonicalizeUrl(
-          'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      final c = canonicalizeUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
       expect(c, isNotNull);
       expect(c!.provider, 'youtube');
       expect(c.canonicalId, 'dQw4w9WgXcQ');
@@ -89,9 +88,21 @@ void main() {
       expect(c.canonicalId, 'dQw4w9WgXcQ');
     });
 
+    test('equivalent YouTube URL shapes share one canonical video id', () {
+      const urls = [
+        'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+        'https://www.youtube.com/watch?v=M7lc1UVf-VE&t=43s&si=share-token',
+        'https://youtu.be/M7lc1UVf-VE?si=share-token&t=43',
+        'https://www.youtube.com/shorts/M7lc1UVf-VE?si=share-token',
+      ];
+
+      final ids = urls.map((url) => canonicalizeUrl(url)!.canonicalId).toSet();
+      expect(ids, {'M7lc1UVf-VE'});
+    });
+
     test('wechat mp with biz+mid', () {
-      final c = canonicalizeUrl(
-          'https://mp.weixin.qq.com/s?__biz=abc&mid=123&idx=1');
+      final c =
+          canonicalizeUrl('https://mp.weixin.qq.com/s?__biz=abc&mid=123&idx=1');
       expect(c, isNotNull);
       expect(c!.provider, 'wechat_mp');
       expect(c.canonicalId, 'wx:abc:123:1');

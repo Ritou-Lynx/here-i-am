@@ -52,10 +52,7 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
       decoration: BoxDecoration(
         color: SpringRainUiTokens.daylightSurfaceRaised,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0x4043593B),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0x4043593B), width: 1),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -64,11 +61,7 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
           // Header with time range
           Row(
             children: [
-              const Icon(
-                Icons.bookmark,
-                size: 16,
-                color: Color(0xFF43593B),
-              ),
+              const Icon(Icons.bookmark, size: 16, color: Color(0xFF43593B)),
               const SizedBox(width: 6),
               Text(
                 '时间标注',
@@ -155,15 +148,23 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
               ),
               const SizedBox(width: 8),
               FilledButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.check, size: 16),
-                label: const Text('保存标注'),
+                onPressed: widget.viewModel.isSavingAnnotation ? null : _save,
+                icon: widget.viewModel.isSavingAnnotation
+                    ? const SizedBox.square(
+                        dimension: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check, size: 16),
+                label: Text(
+                  widget.viewModel.isSavingAnnotation ? '保存中…' : '保存标注',
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF43593B),
                   foregroundColor: const Color(0xFFF0EFEB),
                   textStyle: const TextStyle(fontSize: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ],
@@ -173,8 +174,8 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
     );
   }
 
-  void _save() {
-    widget.viewModel.confirmAnnotation(
+  Future<void> _save() async {
+    await widget.viewModel.confirmAnnotation(
       title: _titleController.text.trim(),
       body: _bodyController.text.trim(),
       quote: _quoteController.text.trim().isEmpty

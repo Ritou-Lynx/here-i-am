@@ -23,6 +23,22 @@ import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 /// Filesystem availability of a card's rich-text body.
 enum CardDocumentState { available, missing, corrupt }
 
+/// Filesystem availability of an immutable SourceVersion object.
+enum SourceObjectState { available, missing, corrupt }
+
+/// A recovered SourceVersion payload. Drift remains the identity authority;
+/// this record only exposes the immutable body/metadata projection.
+class SourceObjectRecord {
+  const SourceObjectRecord({required this.state, this.payload});
+
+  final SourceObjectState state;
+  final Map<String, dynamic>? payload;
+
+  String? get bodyText => payload?['body_text'] as String?;
+  Map<String, dynamic> get metadata =>
+      (payload?['metadata'] as Map<String, dynamic>?) ?? const {};
+}
+
 /// A unified card projection returned to all card-library consumers.
 class UnifiedCardRecord {
   const UnifiedCardRecord({
@@ -375,6 +391,38 @@ class UnifiedCardRepository {
           ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
         .get();
     return rows.map(_toVersion).toList();
+  }
+
+  /// Loads the immutable object referenced by [version] and reports missing
+  /// or corrupt data without turning the object directory into another store.
+  Future<SourceObjectRecord> getSourceObject(SourceVersion version) async {
+    File file;
+    try {
+      file = _objectFile(version.objectRef);
+    } catch (_) {
+      return const SourceObjectRecord(state: SourceObjectState.corrupt);
+    }
+    final recovered = await RecoverableFileExchange.recover(
+      file,
+      validator: _isValidJsonMap,
+    );
+    if (!recovered || !await file.exists()) {
+      return const SourceObjectRecord(state: SourceObjectState.missing);
+    }
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! Map<String, dynamic> ||
+          decoded['source_id'] != version.sourceId ||
+          decoded['source_version_id'] != version.versionId) {
+        return const SourceObjectRecord(state: SourceObjectState.corrupt);
+      }
+      return SourceObjectRecord(
+        state: SourceObjectState.available,
+        payload: decoded,
+      );
+    } catch (_) {
+      return const SourceObjectRecord(state: SourceObjectState.corrupt);
+    }
   }
 
   Future<CardContract?> getCardForSource(String sourceId) =>
