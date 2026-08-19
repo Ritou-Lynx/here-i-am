@@ -200,7 +200,7 @@ class AppDatabase extends _$AppDatabase {
   final int? _testSchemaVersion;
 
   @override
-  int get schemaVersion => _testSchemaVersion ?? 59;
+  int get schemaVersion => _testSchemaVersion ?? 60;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -851,15 +851,15 @@ class AppDatabase extends _$AppDatabase {
             // Each step is table-guarded: minimal/hand-built test databases
             // and any partial real install may not carry every table yet.
             await _addColumnIfTableExists(
-              'shared_life_event_operations', 'source_sync_ids TEXT');
+                'shared_life_event_operations', 'source_sync_ids TEXT');
             await _addColumnIfTableExists(
-              'memory_fragments', 'source_sync_ids TEXT');
+                'memory_fragments', 'source_sync_ids TEXT');
             await _addColumnIfTableExists(
-              'memory_recall_events', 'chat_message_sync_id TEXT');
+                'memory_recall_events', 'chat_message_sync_id TEXT');
             await _addColumnIfTableExists(
-              'co_reading_session_messages', 'message_sync_id TEXT');
+                'co_reading_session_messages', 'message_sync_id TEXT');
             await _addColumnIfTableExists(
-              'memory_card_sources', 'source_sync_id TEXT');
+                'memory_card_sources', 'source_sync_id TEXT');
             await _backfillStableMessageRefs();
             await _createStableMessageRefIndices();
           }
@@ -898,7 +898,8 @@ class AppDatabase extends _$AppDatabase {
             //
             // Idempotent like v58: an interrupted upgrade must not leave the
             // DB half-migrated. Fields first, indices after.
-            await _createTableIfMissing(m, whiteboardBoards, 'whiteboard_boards');
+            await _createTableIfMissing(
+                m, whiteboardBoards, 'whiteboard_boards');
             await _createTableIfMissing(
                 m, whiteboardBoardItems, 'whiteboard_board_items');
             await _createTableIfMissing(
@@ -913,6 +914,30 @@ class AppDatabase extends _$AppDatabase {
             await _createTableIfMissing(
                 m, whiteboardCardExtras, 'whiteboard_card_extras');
             await _createWhiteboardIndices();
+          }
+          if (from < 60) {
+            // Dev Room Codex controls. Keep OpenCode and Codex defaults
+            // separate, and persist the effective run/session controls so the
+            // phone can explain which configuration was actually requested.
+            await _addColumnIfTableExists(
+                'dev_projects', 'default_codex_model TEXT');
+            await _addColumnIfTableExists(
+                'dev_projects', 'default_codex_reasoning_effort TEXT');
+            await _addColumnIfTableExists(
+                'dev_projects', 'default_codex_service_tier TEXT');
+            await _addColumnIfTableExists(
+                'dev_projects', 'default_codex_verbosity TEXT');
+            await _addColumnIfTableExists(
+                'dev_agent_sessions', 'default_reasoning_effort TEXT');
+            await _addColumnIfTableExists(
+                'dev_agent_sessions', 'default_service_tier TEXT');
+            await _addColumnIfTableExists(
+                'dev_agent_sessions', 'default_verbosity TEXT');
+            await _addColumnIfTableExists(
+                'dev_agent_runs', 'reasoning_effort TEXT');
+            await _addColumnIfTableExists(
+                'dev_agent_runs', 'service_tier TEXT');
+            await _addColumnIfTableExists('dev_agent_runs', 'verbosity TEXT');
           }
         },
         beforeOpen: (OpeningDetails details) async {
@@ -942,7 +967,8 @@ class AppDatabase extends _$AppDatabase {
           } catch (e) {
             // Table may not exist on very old schemas; ignore — the v44
             // migration / createAll handles fresh table creation.
-            _logger.warning('beforeOpen: transfer_direction backfill skipped: $e');
+            _logger
+                .warning('beforeOpen: transfer_direction backfill skipped: $e');
           }
         },
       );
@@ -1022,8 +1048,7 @@ class AppDatabase extends _$AppDatabase {
         'CREATE INDEX IF NOT EXISTS idx_memory_embeddings_updated '
         'ON memory_embeddings(updated_at)');
     await _createProjectMemoryIndices();
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_topic_threads_status '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_topic_threads_status '
         'ON topic_threads(status)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_topic_threads_last_discussed '
@@ -1055,8 +1080,7 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_comic_screenplay_chapter_page '
         'ON comic_page_screenplays(chapter_id, page_num)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_comic_mangas_status '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_comic_mangas_status '
         'ON comic_mangas(status)');
   }
 
@@ -1163,10 +1187,8 @@ class AppDatabase extends _$AppDatabase {
       if (idsRaw == null || idsRaw.trim().isEmpty) continue;
       final intIds = _decodeIntList(idsRaw);
       if (intIds.isEmpty) continue;
-      final syncIds = intIds
-          .map((id) => idToSync[id])
-          .whereType<String>()
-          .toList();
+      final syncIds =
+          intIds.map((id) => idToSync[id]).whereType<String>().toList();
       if (syncIds.isEmpty) continue;
       await customStatement(
         'UPDATE $table SET $syncColumn = ? WHERE rowid = ?',
@@ -1353,32 +1375,25 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_game_sessions_last_played '
         'ON game_sessions(last_played_at)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_game_sessions_parent '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_game_sessions_parent '
         'ON game_sessions(parent_session_id)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_game_messages_session_ts '
         'ON game_messages(session_id, timestamp)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_game_messages_type '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_game_messages_type '
         'ON game_messages(session_id, message_type)');
   }
 
   Future<void> _createTaskRoomIndices() async {
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_task_rooms_status '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_task_rooms_status '
         'ON task_rooms(status)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_task_rooms_type '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_task_rooms_type '
         'ON task_rooms(task_type, status)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_task_rooms_updated '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_task_rooms_updated '
         'ON task_rooms(updated_at)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_task_artifacts_task '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_task_artifacts_task '
         'ON task_artifacts(task_id, created_at)');
-    await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_task_decisions_task '
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_task_decisions_task '
         'ON task_decisions(task_id, decided_at)');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_persona_chat_messages_task_room '

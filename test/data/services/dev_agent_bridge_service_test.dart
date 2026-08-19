@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
+import 'package:memex/domain/models/dev_agent_codex_options.dart';
 
 void main() {
   group('DevAgentBridgeService.validateBridgeUrlError', () {
@@ -60,6 +61,43 @@ void main() {
           includeDebugLoopback: false,
         ),
         {'https://host.example.invalid'},
+      );
+    });
+  });
+
+  group('Dev Room agent option payload', () {
+    test('Codex includes structured controls', () {
+      expect(
+        DevAgentBridgeService.agentOptionsPayloadForTesting(
+          agentType: DevAgentType.codex,
+          model: 'gpt-5.6-terra',
+          codexOptions: const DevAgentCodexOptions(
+            model: 'gpt-5.6-terra',
+            reasoningEffort: 'high',
+            serviceTier: 'fast',
+            verbosity: 'low',
+          ),
+        ),
+        {
+          'model': 'gpt-5.6-terra',
+          'codex_options': {
+            'model': 'gpt-5.6-terra',
+            'reasoning_effort': 'high',
+            'service_tier': 'fast',
+            'verbosity': 'low',
+          },
+        },
+      );
+    });
+
+    test('OpenCode never receives Codex controls', () {
+      expect(
+        DevAgentBridgeService.agentOptionsPayloadForTesting(
+          agentType: DevAgentType.opencode,
+          model: 'provider/model',
+          codexOptions: DevAgentCodexOptions.deep,
+        ),
+        {'model': 'provider/model'},
       );
     });
   });

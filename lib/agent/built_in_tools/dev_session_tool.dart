@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/models/dev_agent_codex_options.dart';
 import 'package:memex/utils/logger.dart';
 
 Tool buildDevSessionStartOrContinueTool({
@@ -97,14 +98,23 @@ Tool buildDevSessionStartOrContinueTool({
         'model': {
           'type': 'string',
           'description':
-              'Optional model override in provider/model format, e.g. '
-                  '`opencode-go/glm-5.2`, `opencode-go/qwen3.7-max`, '
-                  '`ollama-cloud/minimax-m3`. Only honored for OpenCode '
-                  'runs. When omitted, the Dev Project\'s default OpenCode '
-                  'model is used (falling back to opencode.jsonc). The user '
-                  'can switch models any time by asking the character to '
-                  '`use <model> for this` or by editing the project default '
-                  'in Dev Room.',
+              'Optional model override. Use provider/model for OpenCode or a '
+                  'Codex model id such as gpt-5.6-terra for Codex.',
+        },
+        'codex_reasoning_effort': {
+          'type': 'string',
+          'enum': ['low', 'medium', 'high', 'xhigh', 'max'],
+          'description': 'Optional Codex reasoning depth for this session.',
+        },
+        'codex_service_tier': {
+          'type': 'string',
+          'enum': ['fast'],
+          'description': 'Use the Codex Fast service tier when requested.',
+        },
+        'codex_verbosity': {
+          'type': 'string',
+          'enum': ['low', 'medium', 'high'],
+          'description': 'Optional Codex final-answer detail level.',
         },
       },
       'required': ['message'],
@@ -119,6 +129,7 @@ Tool buildDevSessionStartOrContinueTool({
             'reason': 'message is required',
           });
         }
+        final codexOptions = _codexOptionsFromArgs(args);
 
         final sessionId = (args['session_id'] as String?)?.trim();
         if (sessionId != null && sessionId.isNotEmpty) {
@@ -126,6 +137,7 @@ Tool buildDevSessionStartOrContinueTool({
             sessionId: sessionId,
             message: message,
             model: _normalizeModel(args['model']),
+            codexOptions: codexOptions,
           );
           return jsonEncode({
             'success': true,
@@ -166,6 +178,7 @@ Tool buildDevSessionStartOrContinueTool({
               sessionId: session.id,
               message: message,
               model: _normalizeModel(args['model']),
+              codexOptions: codexOptions,
             );
             return jsonEncode({
               'success': true,
@@ -214,12 +227,14 @@ Tool buildDevSessionStartOrContinueTool({
           characterId: characterId,
           mode: (args['mode'] as String?)?.trim(),
           model: _normalizeModel(args['model']),
+          codexOptions: codexOptions,
         );
 
         final runId = await bridgeService.continueSession(
           sessionId: session.id,
           message: message,
           model: _normalizeModel(args['model']),
+          codexOptions: codexOptions,
         );
         return jsonEncode({
           'success': true,
@@ -231,8 +246,8 @@ Tool buildDevSessionStartOrContinueTool({
           'project_name': project.name,
           'agent_type': requestedAgentType.value,
           'project_permission_tier': project.permissionTier,
-'message':
-                '$characterName started a Dev Session. Tell the user the run is underway and the result will show up here in chat when it finishes.',
+          'message':
+              '$characterName started a Dev Session. Tell the user the run is underway and the result will show up here in chat when it finishes.',
         });
       } catch (e, stack) {
         logger.warning('dev_session_start_or_continue failed', e, stack);
@@ -359,6 +374,7 @@ Future<DevAgentSession> _createSession({
   String? goal,
   String? mode,
   String? model,
+  DevAgentCodexOptions codexOptions = DevAgentCodexOptions.inherited,
 }) async {
   final sessionId = await service.createSession(
     projectId: project.id,
@@ -372,6 +388,7 @@ Future<DevAgentSession> _createSession({
             ? 'read_only'
             : 'workspace_write',
     defaultModel: model,
+    codexOptions: codexOptions,
   );
   final session = await service.getSession(sessionId);
   if (session == null) {
@@ -401,7 +418,10 @@ String? _normalizeModel(Object? raw) {
   if (value.isEmpty) return null;
   // provider/model — the part before the slash must be a valid identifier;
   // the part after must not be empty or contain whitespace.
-  if (!value.contains('/')) return null;
+  if (!value.contains('/')) {
+    // Codex uses one model slug; OpenCode uses provider/model.
+    return RegExp(r'^[A-Za-z0-9._:-]+$').hasMatch(value) ? value : null;
+  }
   final parts = value.split('/');
   if (parts.length < 2) return null;
   final provider = parts.first.trim();
@@ -411,4 +431,18 @@ String? _normalizeModel(Object? raw) {
     return null;
   }
   return '$provider/$model';
+}
+
+DevAgentCodexOptions _codexOptionsFromArgs(Map<String, dynamic> args) {
+  String? text(String key) {
+    final value = args[key]?.toString().trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  return DevAgentCodexOptions(
+    model: _normalizeModel(args['model']),
+    reasoningEffort: text('codex_reasoning_effort'),
+    serviceTier: text('codex_service_tier'),
+    verbosity: text('codex_verbosity'),
+  );
 }

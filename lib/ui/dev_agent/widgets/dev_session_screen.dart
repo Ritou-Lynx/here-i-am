@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/models/dev_agent_codex_options.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/dev_agent/widgets/codex_options_editor.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_run_screen.dart';
 
 class DevSessionScreen extends StatefulWidget {
@@ -67,6 +69,43 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
     }
   }
 
+  Future<void> _configureCodex(DevAgentSession session) async {
+    var options = DevAgentBridgeService.codexOptionsForSession(session);
+    final selected = await showDialog<DevAgentCodexOptions>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('当前 Codex 会话配置'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: CodexOptionsEditor(
+                value: options,
+                initiallyExpanded: true,
+                onChanged: (value) => setDialogState(() => options = value),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, options),
+              child: const Text('应用到会话'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    await DevAgentBridgeService.instance.setSessionCodexOptions(
+      session.id,
+      selected,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DevAgentSession?>(
@@ -91,6 +130,12 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
             backgroundColor: SpringRainUiTokens.daylightCanvas,
             foregroundColor: SpringRainUiTokens.daylightTextPrimary,
             actions: [
+              if (session?.agentType == DevAgentType.codex.value)
+                IconButton(
+                  tooltip: 'Codex 配置',
+                  onPressed: () => _configureCodex(session!),
+                  icon: const Icon(Icons.tune),
+                ),
               IconButton(
                 tooltip: '刷新',
                 onPressed: _refresh,
@@ -102,6 +147,11 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
               ? const Center(child: CircularProgressIndicator())
               : Column(
                   children: [
+                    if (session.agentType == DevAgentType.codex.value)
+                      _CodexConfigBanner(
+                        options: DevAgentBridgeService.codexOptionsForSession(
+                            session),
+                      ),
                     if (session.goal?.trim().isNotEmpty == true)
                       _GoalBanner(goal: session.goal!.trim()),
                     Expanded(
@@ -118,7 +168,8 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
                                   '直接追问、分配下一步，或让它继续检查项目。',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: SpringRainUiTokens.daylightTextSecondary,
+                                    color: SpringRainUiTokens
+                                        .daylightTextSecondary,
                                   ),
                                 ),
                               ),
@@ -156,6 +207,28 @@ class _DevSessionScreenState extends State<DevSessionScreen> {
       'opencode' => 'OpenCode',
       _ => 'Codex',
     };
+  }
+}
+
+class _CodexConfigBanner extends StatelessWidget {
+  const _CodexConfigBanner({required this.options});
+
+  final DevAgentCodexOptions options;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: SpringRainUiTokens.daylightSurface,
+      child: Text(
+        options.isEmpty ? 'Codex · 继承电脑设置' : 'Codex · ${options.summary}',
+        style: const TextStyle(
+          color: SpringRainUiTokens.daylightTextSecondary,
+          fontSize: 12,
+        ),
+      ),
+    );
   }
 }
 
@@ -256,8 +329,7 @@ class _SessionMessageTile extends StatelessWidget {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          DevRunScreen(runId: message.linkedRunId!),
+                      builder: (_) => DevRunScreen(runId: message.linkedRunId!),
                     ),
                   ),
                   icon: const Icon(Icons.open_in_new, size: 16),

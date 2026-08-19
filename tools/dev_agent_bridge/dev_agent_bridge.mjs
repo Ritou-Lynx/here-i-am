@@ -18,6 +18,10 @@ import { fileURLToPath } from 'node:url';
 import { createIActivityStore } from '../i_continuity_gateway/i_activity_store.mjs';
 import { loadProjectRegistry } from '../i_continuity_gateway/i_project_registry.mjs';
 import { persistDevRoomCloseout } from './project_memory_closeout.mjs';
+import {
+  appendCodexOptionArgs,
+  normalizeCodexOptions,
+} from './codex_run_options.mjs';
 
 const host = process.env.DEV_AGENT_BRIDGE_HOST || '127.0.0.1';
 const port = Number(process.env.DEV_AGENT_BRIDGE_PORT || 47831);
@@ -437,7 +441,7 @@ function _riskForOpencodeTool(name) {
   }
 }
 
-function commandFor(agentType, project, prompt, mode, cwd, modelOverride) {
+function commandFor(agentType, project, prompt, mode, cwd, runOptions) {
   const isWrite = mode === 'workspace_write';
 
   if (agentType === 'codex') {
@@ -457,7 +461,11 @@ function commandFor(agentType, project, prompt, mode, cwd, modelOverride) {
       // every write, and in --json (non-interactive) mode that auto-rejects.
       args.push('-c', 'approval_policy="never"');
     }
-    if (codexModel) args.push('-m', codexModel);
+    appendCodexOptionArgs(
+      args,
+      runOptions?.codex || normalizeCodexOptions(null),
+      codexModel,
+    );
     args.push(prompt);
     return commandSpec('codex', args, 'Codex');
   }
@@ -502,8 +510,8 @@ function commandFor(agentType, project, prompt, mode, cwd, modelOverride) {
     //   2. DEV_AGENT_OPENCODE_MODEL env var (bridge-level fallback)
     //   3. opencode.jsonc default (`provider` field)
     const ocModel =
-      typeof modelOverride === 'string' && modelOverride.trim()
-        ? modelOverride.trim()
+      typeof runOptions?.model === 'string' && runOptions.model.trim()
+        ? runOptions.model.trim()
         : (process.env.DEV_AGENT_OPENCODE_MODEL || '');
     const args = [
       'run',
@@ -768,7 +776,7 @@ function commandSpec(name, args, displayName) {
   return wrapForWindows(name, args);
 }
 
-function startProcess(run, agentType, project, prompt, mode, modelOverride) {
+function startProcess(run, agentType, project, prompt, mode, runOptions) {
   // For write mode we need a worktree before launching the agent so any file
   // changes are isolated. Read-only runs execute directly in the project root.
   let cwd = project.rootPath;
@@ -791,7 +799,7 @@ function startProcess(run, agentType, project, prompt, mode, modelOverride) {
 
   let spec;
   try {
-    spec = commandFor(agentType, project, prompt, mode, cwd, modelOverride);
+    spec = commandFor(agentType, project, prompt, mode, cwd, runOptions);
   } catch (error) {
     setStatus(run, 'failed', error.message);
     return;
@@ -889,7 +897,7 @@ if (req.method === 'GET' && path === '/v1/health') {
         bridge_id: 'local-dev-agent-bridge',
         version: '0.1.0',
         agents: ['claude_code', 'codex', 'opencode'],
-        features: ['git_status', 'git_pull', 'git_push', 'project_memory_projection', 'project_memory_auto_closeout'],
+        features: ['git_status', 'git_pull', 'git_push', 'project_memory_projection', 'project_memory_auto_closeout', 'codex_options_v1'],
         transport: certPath && keyPath ? 'https' : 'http-local',
       });
       return;
@@ -956,13 +964,20 @@ if (req.method === 'GET' && path === '/v1/health') {
         ? body.model.trim()
         : '';
       const runModel = bodyModel || null;
+      const codexOptions = String(body.agent_type || '') === 'codex'
+        ? normalizeCodexOptions(body.codex_options, runModel)
+        : null;
+      const effectiveRunModel = codexOptions
+        ? (codexOptions.model || codexModel || null)
+        : runModel;
       const run = {
         id: runId,
         sessionId: runId,
         agentType: String(body.agent_type || ''),
         project,
         mode,
-        model: runModel,
+        model: effectiveRunModel,
+        codexOptions,
         status: 'pending',
         summary: null,
         startedAt: nowSeconds(),
@@ -979,13 +994,17 @@ if (req.method === 'GET' && path === '/v1/health') {
       persistState();
       addEvent(run, 'status', { status: 'pending', message: 'Run accepted by bridge.' });
       console.log(
-        `[runs] new run ${runId.slice(0, 8)} agent=${run.agentType} mode=${mode} tier=${project.permissionTier} model=${runModel || '(default)'} project="${project.name}" id=${project.id.slice(0, 8)}`,
+        `[runs] new run ${runId.slice(0, 8)} agent=${run.agentType} mode=${mode} tier=${project.permissionTier} model=${effectiveRunModel || '(default)'} project="${project.name}" id=${project.id.slice(0, 8)}`,
       );
-      startProcess(run, run.agentType, project, prompt, mode, runModel);
+      startProcess(run, run.agentType, project, prompt, mode, {
+        model: runModel,
+        codex: codexOptions,
+      });
       json(res, 200, {
         run_id: runId,
         session_id: runId,
         status: run.status,
+        model: effectiveRunModel,
       });
       return;
     }

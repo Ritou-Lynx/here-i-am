@@ -10,6 +10,7 @@ import 'package:logging/logging.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/memory_v3/services/project_memory_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/models/dev_agent_codex_options.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
 
@@ -245,12 +246,14 @@ class DevAgentBridgeService {
     required String bridgeUrl,
     String permissionTier = 'read_only',
     String? defaultOpencodeModel,
+    DevAgentCodexOptions codexOptions = DevAgentCodexOptions.inherited,
   }) async {
     final projectId = id ?? _uuid.v4();
     _validateBridgeUrl(bridgeUrl);
     _validatePermissionTier(permissionTier);
 
     final trimmedModel = defaultOpencodeModel?.trim();
+    final normalizedCodexOptions = _normalizeCodexOptions(codexOptions);
 
     await _db.into(_db.devProjects).insertOnConflictUpdate(
           DevProjectsCompanion.insert(
@@ -267,6 +270,11 @@ class DevAgentBridgeService {
                   ? trimmedModel
                   : null,
             ),
+            defaultCodexModel: Value(normalizedCodexOptions.model),
+            defaultCodexReasoningEffort:
+                Value(normalizedCodexOptions.reasoningEffort),
+            defaultCodexServiceTier: Value(normalizedCodexOptions.serviceTier),
+            defaultCodexVerbosity: Value(normalizedCodexOptions.verbosity),
             createdAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
           ),
         );
@@ -440,6 +448,44 @@ class DevAgentBridgeService {
         .getSingleOrNull();
   }
 
+  static DevAgentCodexOptions codexOptionsForProject(DevProject project) {
+    return DevAgentCodexOptions(
+      model: project.defaultCodexModel,
+      reasoningEffort: project.defaultCodexReasoningEffort,
+      serviceTier: project.defaultCodexServiceTier,
+      verbosity: project.defaultCodexVerbosity,
+    );
+  }
+
+  static DevAgentCodexOptions codexOptionsForSession(
+    DevAgentSession session,
+  ) {
+    return DevAgentCodexOptions(
+      model: session.defaultModel,
+      reasoningEffort: session.defaultReasoningEffort,
+      serviceTier: session.defaultServiceTier,
+      verbosity: session.defaultVerbosity,
+    );
+  }
+
+  Future<void> setSessionCodexOptions(
+    String sessionId,
+    DevAgentCodexOptions options,
+  ) async {
+    final normalized = _normalizeCodexOptions(options);
+    await (_db.update(_db.devAgentSessions)
+          ..where((t) => t.id.equals(sessionId)))
+        .write(
+      DevAgentSessionsCompanion(
+        defaultModel: Value(normalized.model),
+        defaultReasoningEffort: Value(normalized.reasoningEffort),
+        defaultServiceTier: Value(normalized.serviceTier),
+        defaultVerbosity: Value(normalized.verbosity),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+      ),
+    );
+  }
+
   Future<List<DevAgentSession>> listSessions({
     String? projectId,
     String? ownerCharacterId,
@@ -488,6 +534,7 @@ class DevAgentBridgeService {
     String? ownerCharacterId,
     String mode = 'read_only',
     String? defaultModel,
+    DevAgentCodexOptions codexOptions = DevAgentCodexOptions.inherited,
   }) async {
     final project = await getProject(projectId);
     if (project == null) {
@@ -495,6 +542,16 @@ class DevAgentBridgeService {
     }
     final trimmedTitle = title.trim().isEmpty ? 'Dev Session' : title.trim();
     final trimmedModel = defaultModel?.trim();
+    final projectCodexOptions = codexOptionsForProject(project);
+    final normalizedCodexOptions = _normalizeCodexOptions(codexOptions);
+    final sessionCodexOptions = normalizedCodexOptions.withFallback(
+      projectCodexOptions,
+    );
+    final inheritedModel = switch (agentType) {
+      DevAgentType.codex => sessionCodexOptions.model,
+      DevAgentType.opencode => project.defaultOpencodeModel,
+      DevAgentType.claudeCode => null,
+    };
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final sessionId = _uuid.v4();
     await _db.into(_db.devAgentSessions).insert(
@@ -512,7 +569,22 @@ class DevAgentBridgeService {
             defaultModel: Value(
               trimmedModel != null && trimmedModel.isNotEmpty
                   ? trimmedModel
-                  : project.defaultOpencodeModel,
+                  : inheritedModel,
+            ),
+            defaultReasoningEffort: Value(
+              agentType == DevAgentType.codex
+                  ? sessionCodexOptions.reasoningEffort
+                  : null,
+            ),
+            defaultServiceTier: Value(
+              agentType == DevAgentType.codex
+                  ? sessionCodexOptions.serviceTier
+                  : null,
+            ),
+            defaultVerbosity: Value(
+              agentType == DevAgentType.codex
+                  ? sessionCodexOptions.verbosity
+                  : null,
             ),
             status: const Value('active'),
             createdAt: now,
@@ -526,6 +598,7 @@ class DevAgentBridgeService {
     required String sessionId,
     required String message,
     String? model,
+    DevAgentCodexOptions? codexOptions,
   }) async {
     final session = await getSession(sessionId);
     if (session == null) {
@@ -541,20 +614,31 @@ class DevAgentBridgeService {
       role: 'user',
       content: trimmed,
     );
+    final agentType = DevAgentType.values.firstWhere(
+      (type) => type.value == session.agentType,
+      orElse: () => DevAgentType.codex,
+    );
+    final requestedCodexOptions = _normalizeCodexOptions(
+      codexOptions ?? DevAgentCodexOptions(model: model),
+    );
+    final effectiveCodexOptions = requestedCodexOptions.withFallback(
+      codexOptionsForSession(session),
+    );
     final runId = await startRun(
       projectId: session.projectId,
       prompt: trimmed,
       bridgePrompt: bridgePrompt,
-      agentType: DevAgentType.values.firstWhere(
-        (type) => type.value == session.agentType,
-        orElse: () => DevAgentType.codex,
-      ),
+      agentType: agentType,
       devSessionId: sessionId,
-      model: model,
+      model: agentType == DevAgentType.codex
+          ? effectiveCodexOptions.model
+          : model ?? session.defaultModel,
+      codexOptions:
+          agentType == DevAgentType.codex ? effectiveCodexOptions : null,
     );
     // If the user explicitly chose a model mid-session, persist it on the
     // session so the next continue without args reuses the same one.
-    final trimmedModel = model?.trim();
+    final trimmedModel = (codexOptions?.model ?? model)?.trim();
     if (trimmedModel != null && trimmedModel.isNotEmpty) {
       await (_db.update(_db.devAgentSessions)
             ..where((t) => t.id.equals(sessionId)))
@@ -564,6 +648,9 @@ class DevAgentBridgeService {
           updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
         ),
       );
+    }
+    if (agentType == DevAgentType.codex && codexOptions != null) {
+      await setSessionCodexOptions(sessionId, effectiveCodexOptions);
     }
     await _insertSessionMessage(
       sessionId: sessionId,
@@ -615,7 +702,7 @@ class DevAgentBridgeService {
     return query.get();
   }
 
-Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
+  Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
     _validateBridgeUrl(bridgeUrl);
     final Map<String, dynamic> data;
     try {
@@ -800,6 +887,7 @@ Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
     String? bridgePrompt,
     String? devSessionId,
     String? model,
+    DevAgentCodexOptions? codexOptions,
   }) async {
     final project = await getProject(projectId);
     if (project == null) {
@@ -821,10 +909,21 @@ Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
     // send anything. We always persist the resolved model on the run row
     // so the App can show "OpenCode / qwen3.7-max" without re-querying
     // the bridge.
-    final resolvedModel = _resolveModel(
-      explicitModel: model,
-      projectDefault: project.defaultOpencodeModel,
+    final projectCodexOptions = codexOptionsForProject(project);
+    final requestedCodexOptions = _normalizeCodexOptions(
+      codexOptions ?? DevAgentCodexOptions(model: model),
     );
+    final resolvedCodexOptions = requestedCodexOptions.withFallback(
+      projectCodexOptions,
+    );
+    final resolvedModel = switch (agentType) {
+      DevAgentType.codex => resolvedCodexOptions.model,
+      DevAgentType.opencode => _resolveModel(
+          explicitModel: model,
+          projectDefault: project.defaultOpencodeModel,
+        ),
+      DevAgentType.claudeCode => null,
+    };
 
     final runId = _uuid.v4();
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -837,6 +936,21 @@ Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
             initialPrompt: trimmedPrompt,
             status: 'pending',
             model: Value(resolvedModel),
+            reasoningEffort: Value(
+              agentType == DevAgentType.codex
+                  ? resolvedCodexOptions.reasoningEffort
+                  : null,
+            ),
+            serviceTier: Value(
+              agentType == DevAgentType.codex
+                  ? resolvedCodexOptions.serviceTier
+                  : null,
+            ),
+            verbosity: Value(
+              agentType == DevAgentType.codex
+                  ? resolvedCodexOptions.verbosity
+                  : null,
+            ),
             startedAt: now,
           ),
         );
@@ -860,18 +974,26 @@ Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
           'mode': project.permissionTier == 'read_only'
               ? 'read_only'
               : 'workspace_write',
-          if (resolvedModel != null) 'model': resolvedModel,
+          ..._agentOptionsPayload(
+            agentType: agentType,
+            model: resolvedModel,
+            codexOptions: resolvedCodexOptions,
+          ),
         },
       );
       final data = response.data ?? {};
       final bridgeRunId = data['run_id']?.toString();
       final sessionId = data['session_id']?.toString() ?? bridgeRunId;
       final status = data['status']?.toString() ?? 'running';
+      final bridgeModel = data['model']?.toString().trim();
       await (_db.update(_db.devAgentRuns)..where((t) => t.id.equals(runId)))
           .write(
         DevAgentRunsCompanion(
           sessionId: Value(sessionId),
           status: Value(status),
+          model: bridgeModel != null && bridgeModel.isNotEmpty
+              ? Value(bridgeModel)
+              : const Value.absent(),
         ),
       );
       if (devSessionId != null) {
@@ -1486,6 +1608,71 @@ Future<DevAgentBridgeHealth> checkBridgeHealth(String bridgeUrl) async {
     }
     if (chosen == null || chosen.isEmpty) return null;
     return chosen;
+  }
+
+  static Map<String, dynamic> _agentOptionsPayload({
+    required DevAgentType agentType,
+    required String? model,
+    required DevAgentCodexOptions codexOptions,
+  }) {
+    return {
+      if (model != null) 'model': model,
+      if (agentType == DevAgentType.codex && !codexOptions.isEmpty)
+        'codex_options': codexOptions.toJson(),
+    };
+  }
+
+  @visibleForTesting
+  static Map<String, dynamic> agentOptionsPayloadForTesting({
+    required DevAgentType agentType,
+    String? model,
+    DevAgentCodexOptions codexOptions = DevAgentCodexOptions.inherited,
+  }) {
+    return _agentOptionsPayload(
+      agentType: agentType,
+      model: model,
+      codexOptions: codexOptions,
+    );
+  }
+
+  static DevAgentCodexOptions _normalizeCodexOptions(
+    DevAgentCodexOptions options,
+  ) {
+    String? clean(String? value) {
+      final trimmed = value?.trim();
+      return trimmed == null || trimmed.isEmpty ? null : trimmed;
+    }
+
+    final model = clean(options.model);
+    final reasoningEffort = clean(options.reasoningEffort)?.toLowerCase();
+    final serviceTier = clean(options.serviceTier)?.toLowerCase();
+    final verbosity = clean(options.verbosity)?.toLowerCase();
+    const reasoningValues = {
+      'minimal',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    };
+    const serviceTierValues = {'fast'};
+    const verbosityValues = {'low', 'medium', 'high'};
+    if (reasoningEffort != null && !reasoningValues.contains(reasoningEffort)) {
+      throw const DevAgentBridgeException(
+          'Unsupported Codex reasoning effort.');
+    }
+    if (serviceTier != null && !serviceTierValues.contains(serviceTier)) {
+      throw const DevAgentBridgeException('Unsupported Codex service tier.');
+    }
+    if (verbosity != null && !verbosityValues.contains(verbosity)) {
+      throw const DevAgentBridgeException('Unsupported Codex verbosity.');
+    }
+    return DevAgentCodexOptions(
+      model: model,
+      reasoningEffort: reasoningEffort,
+      serviceTier: serviceTier,
+      verbosity: verbosity,
+    );
   }
 
   Future<void> _markRunFailed(String runId, String message) async {

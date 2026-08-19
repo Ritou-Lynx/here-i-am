@@ -35,8 +35,10 @@ The Bridge normalizes three coding-agent CLIs into one event stream:
   level post-run via the existing Accept/Discard flow.
 - **Codex** (`codex exec --json --sandbox ... --cd <cwd> <prompt>`):
   OpenAI Codex CLI. `approval_policy="never"` override for workspace-write
-  so JSON (non-interactive) mode doesn't auto-reject. Optional
-  `DEV_AGENT_CODEX_MODEL` env var selects a specific model.
+  so JSON (non-interactive) mode doesn't auto-reject. Per-run
+  `codex_options` can select model, reasoning effort, Fast service tier, and
+  answer verbosity. Omitted values inherit the computer's Codex config;
+  `DEV_AGENT_CODEX_MODEL` remains the legacy model fallback.
 - **Claude Code** (`claude -p <prompt> --output-format stream-json
   --verbose --permission-mode plan|acceptEdits --tools ...`): Anthropic
   Claude Code CLI. Tool whitelist matches the run mode (read-only gets
@@ -113,9 +115,16 @@ Request:
     "default_branch": "v3-lab",
     "permission_tier": "read_only"
   },
-  "agent_type": "opencode",
+  "agent_type": "codex",
   "prompt": "Read the project and summarize current risks.",
-  "mode": "read_only"
+  "mode": "read_only",
+  "model": "gpt-5.6-terra",
+  "codex_options": {
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "medium",
+    "service_tier": "fast",
+    "verbosity": "medium"
+  }
 }
 ```
 
@@ -125,7 +134,8 @@ Response:
 {
   "run_id": "bridge-run-id",
   "session_id": "provider-session-id",
-  "status": "running"
+  "status": "running",
+  "model": "gpt-5.6-terra"
 }
 ```
 

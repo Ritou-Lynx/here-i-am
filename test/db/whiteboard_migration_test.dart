@@ -54,16 +54,20 @@ void main() {
   });
 
   Future<List<String>> tableNames(AppDatabase db) async {
-    final rows = await db.customSelect(
-      "SELECT name FROM sqlite_master WHERE type='table'",
-    ).get();
+    final rows = await db
+        .customSelect(
+          "SELECT name FROM sqlite_master WHERE type='table'",
+        )
+        .get();
     return rows.map((row) => row.data['name'] as String).toList();
   }
 
   Future<List<String>> indexNames(AppDatabase db) async {
-    final rows = await db.customSelect(
-      "SELECT name FROM sqlite_master WHERE type='index'",
-    ).get();
+    final rows = await db
+        .customSelect(
+          "SELECT name FROM sqlite_master WHERE type='index'",
+        )
+        .get();
     return rows.map((row) => row.data['name'] as String).toList();
   }
 
@@ -71,9 +75,8 @@ void main() {
       () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
 
-    final version =
-        await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 59);
+    final version = await db.customSelect('PRAGMA user_version').getSingle();
+    expect(version.data['user_version'], 60);
 
     final tables = await tableNames(db);
     for (final table in whiteboardTables) {
@@ -136,7 +139,7 @@ void main() {
     final db = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 59);
+    expect(version.data['user_version'], 60);
 
     final tables = await tableNames(db);
     for (final table in whiteboardTables) {
@@ -149,9 +152,11 @@ void main() {
     }
 
     // 3. Pre-existing data survives.
-    final oldMessage = await db.customSelect(
-      'SELECT * FROM persona_chat_messages WHERE id = 1',
-    ).getSingleOrNull();
+    final oldMessage = await db
+        .customSelect(
+          'SELECT * FROM persona_chat_messages WHERE id = 1',
+        )
+        .getSingleOrNull();
     expect(oldMessage, matcher.isNotNull);
     expect(oldMessage!.data['content'], 'pre-existing row');
 
@@ -218,7 +223,7 @@ void main() {
     final db = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 59);
+    expect(version.data['user_version'], 60);
 
     // Missing tables were created, existing tables untouched (data kept).
     final tables = await tableNames(db);

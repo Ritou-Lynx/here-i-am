@@ -51,8 +51,8 @@ class _DevRunScreenState extends State<DevRunScreen> {
   Future<void> _decide(String decision) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final result =
-          await DevAgentBridgeService.instance.decideRun(widget.runId, decision);
+      final result = await DevAgentBridgeService.instance
+          .decideRun(widget.runId, decision);
       if (!mounted) return;
       final label = switch (decision) {
         'leave' => '已留作待办',
@@ -65,7 +65,8 @@ class _DevRunScreenState extends State<DevRunScreen> {
           content: Text(
             result.accepted
                 ? label
-                : (result.message ?? '$decision 被 Bridge 拒绝：${result.reason ?? "unknown"}'),
+                : (result.message ??
+                    '$decision 被 Bridge 拒绝：${result.reason ?? "unknown"}'),
           ),
         ),
       );
@@ -480,6 +481,16 @@ class _RunHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          if (run.agentType == 'codex') ...[
+            Text(
+              _codexRunConfig(run),
+              style: const TextStyle(
+                color: SpringRainUiTokens.daylightTextTertiary,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           SelectableText(
             run.initialPrompt,
             style: const TextStyle(
@@ -503,6 +514,18 @@ class _RunHeader extends StatelessWidget {
   }
 }
 
+String _codexRunConfig(DevAgentRun run) {
+  final parts = <String>[
+    run.model ?? '继承模型',
+    if (run.reasoningEffort != null) '思考 ${run.reasoningEffort}',
+    if (run.serviceTier != null) '速度 ${run.serviceTier}',
+    if (run.verbosity != null) '回答 ${run.verbosity}',
+  ];
+  return parts.length == 1 && run.model == null
+      ? 'Codex · 继承电脑设置'
+      : 'Codex · ${parts.join(' · ')}';
+}
+
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.status});
 
@@ -512,25 +535,25 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (color, bg) = switch (status) {
       'done' => (
-        SpringRainUiTokens.daylightSuccess,
-        SpringRainUiTokens.daylightSuccessSoft,
-      ),
+          SpringRainUiTokens.daylightSuccess,
+          SpringRainUiTokens.daylightSuccessSoft,
+        ),
       'failed' => (
-        SpringRainUiTokens.daylightError,
-        SpringRainUiTokens.daylightErrorSoft,
-      ),
+          SpringRainUiTokens.daylightError,
+          SpringRainUiTokens.daylightErrorSoft,
+        ),
       'aborted' => (
-        SpringRainUiTokens.daylightWarning,
-        SpringRainUiTokens.daylightWarningSoft,
-      ),
+          SpringRainUiTokens.daylightWarning,
+          SpringRainUiTokens.daylightWarningSoft,
+        ),
       'waiting_approval' => (
-        SpringRainUiTokens.daylightWarning,
-        SpringRainUiTokens.daylightWarningSoft,
-      ),
+          SpringRainUiTokens.daylightWarning,
+          SpringRainUiTokens.daylightWarningSoft,
+        ),
       _ => (
-        SpringRainUiTokens.daylightAccent,
-        SpringRainUiTokens.daylightAccentSoft,
-      ),
+          SpringRainUiTokens.daylightAccent,
+          SpringRainUiTokens.daylightAccentSoft,
+        ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

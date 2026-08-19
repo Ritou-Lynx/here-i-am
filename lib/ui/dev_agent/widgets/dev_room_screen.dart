@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/models/dev_agent_codex_options.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/dev_agent/widgets/codex_options_editor.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_project_settings_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_run_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_session_list_screen.dart';
@@ -44,8 +46,15 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
     DevProject project,
     DevAgentType agentType,
   ) async {
-    final prompt = await _PromptDialog.show(context, agentType);
-    if (prompt == null || prompt.trim().isEmpty) return;
+    final request = await _PromptDialog.show(
+      context,
+      agentType,
+      initialCodexOptions: agentType == DevAgentType.codex
+          ? DevAgentBridgeService.codexOptionsForProject(project)
+          : DevAgentCodexOptions.inherited,
+    );
+    if (request == null || request.prompt.trim().isEmpty) return;
+    final prompt = request.prompt;
     try {
       final firstLine = prompt.trim().split('\n').first.trim();
       final title = firstLine.length > 36
@@ -58,6 +67,7 @@ class _DevRoomScreenState extends State<DevRoomScreen> {
         mode: project.permissionTier == 'read_only'
             ? 'read_only'
             : 'workspace_write',
+        codexOptions: request.codexOptions,
       );
       await DevAgentBridgeService.instance.continueSession(
         sessionId: sessionId,
@@ -362,20 +372,20 @@ class _TierChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color, bg) = switch (tier) {
       'workspace_write' => (
-        '写入',
-        SpringRainUiTokens.daylightSuccess,
-        SpringRainUiTokens.daylightSuccessSoft,
-      ),
+          '写入',
+          SpringRainUiTokens.daylightSuccess,
+          SpringRainUiTokens.daylightSuccessSoft,
+        ),
       'release_ops' => (
-        '发布',
-        SpringRainUiTokens.daylightWarning,
-        SpringRainUiTokens.daylightWarningSoft,
-      ),
+          '发布',
+          SpringRainUiTokens.daylightWarning,
+          SpringRainUiTokens.daylightWarningSoft,
+        ),
       _ => (
-        '只读',
-        SpringRainUiTokens.daylightAccent,
-        SpringRainUiTokens.daylightAccentSoft,
-      ),
+          '只读',
+          SpringRainUiTokens.daylightAccent,
+          SpringRainUiTokens.daylightAccentSoft,
+        ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -385,7 +395,8 @@ class _TierChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+        style:
+            TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -523,8 +534,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
 
     setState(() => _operating = true);
     try {
-      final result =
-          await DevAgentBridgeService.instance.pullGit(_project.id);
+      final result = await DevAgentBridgeService.instance.pullGit(_project.id);
       if (!mounted) return;
       if (result.ok) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -585,8 +595,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
 
     setState(() => _operating = true);
     try {
-      final result =
-          await DevAgentBridgeService.instance.pushGit(_project.id);
+      final result = await DevAgentBridgeService.instance.pushGit(_project.id);
       if (!mounted) return;
       if (result.ok) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -654,7 +663,8 @@ class _GitStatusBarState extends State<_GitStatusBar> {
     if (_error != null && _status == null) {
       return Row(
         children: [
-          const Icon(Icons.error_outline, size: 14, color: SpringRainUiTokens.daylightError),
+          const Icon(Icons.error_outline,
+              size: 14, color: SpringRainUiTokens.daylightError),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -707,7 +717,7 @@ class _GitStatusBarState extends State<_GitStatusBar> {
           Row(
             children: [
               if (showPull) ...[
-                Icon(Icons.cloud_download_outlined,
+                const Icon(Icons.cloud_download_outlined,
                     size: 14, color: SpringRainUiTokens.daylightWarning),
                 const SizedBox(width: 4),
                 Text(
@@ -955,18 +965,36 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+class _PromptRequest {
+  const _PromptRequest({
+    required this.prompt,
+    required this.codexOptions,
+  });
+
+  final String prompt;
+  final DevAgentCodexOptions codexOptions;
+}
+
 class _PromptDialog extends StatefulWidget {
-  const _PromptDialog({required this.agentType});
+  const _PromptDialog({
+    required this.agentType,
+    required this.initialCodexOptions,
+  });
 
   final DevAgentType agentType;
+  final DevAgentCodexOptions initialCodexOptions;
 
-  static Future<String?> show(
+  static Future<_PromptRequest?> show(
     BuildContext context,
-    DevAgentType agentType,
-  ) {
-    return showDialog<String>(
+    DevAgentType agentType, {
+    DevAgentCodexOptions initialCodexOptions = DevAgentCodexOptions.inherited,
+  }) {
+    return showDialog<_PromptRequest>(
       context: context,
-      builder: (_) => _PromptDialog(agentType: agentType),
+      builder: (_) => _PromptDialog(
+        agentType: agentType,
+        initialCodexOptions: initialCodexOptions,
+      ),
     );
   }
 
@@ -976,6 +1004,13 @@ class _PromptDialog extends StatefulWidget {
 
 class _PromptDialogState extends State<_PromptDialog> {
   final _controller = TextEditingController();
+  late DevAgentCodexOptions _codexOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _codexOptions = widget.initialCodexOptions;
+  }
 
   @override
   void dispose() {
@@ -992,13 +1027,30 @@ class _PromptDialogState extends State<_PromptDialog> {
     };
     return AlertDialog(
       title: Text('交给 $agentName'),
-      content: TextField(
-        controller: _controller,
-        minLines: 4,
-        maxLines: 8,
-        decoration: const InputDecoration(
-          hintText: '例如：只读项目，告诉我当前 Dev Room 还缺哪些入口？',
-          border: OutlineInputBorder(),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _controller,
+                minLines: 4,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  hintText: '例如：只读项目，告诉我当前 Dev Room 还缺哪些入口？',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              if (widget.agentType == DevAgentType.codex) ...[
+                const SizedBox(height: 12),
+                CodexOptionsEditor(
+                  value: _codexOptions,
+                  onChanged: (value) => setState(() => _codexOptions = value),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
       actions: [
@@ -1007,7 +1059,13 @@ class _PromptDialogState extends State<_PromptDialog> {
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, _controller.text),
+          onPressed: () => Navigator.pop(
+            context,
+            _PromptRequest(
+              prompt: _controller.text,
+              codexOptions: _codexOptions,
+            ),
+          ),
           child: const Text('启动'),
         ),
       ],

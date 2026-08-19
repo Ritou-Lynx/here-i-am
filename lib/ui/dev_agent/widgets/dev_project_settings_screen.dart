@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/models/dev_agent_codex_options.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/dev_agent/widgets/codex_options_editor.dart';
 
 class DevProjectSettingsScreen extends StatefulWidget {
   const DevProjectSettingsScreen({
@@ -33,6 +35,7 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
   List<String> _modelChoices = const [];
   bool _loadingModels = false;
   String? _modelChoicesWarning;
+  late DevAgentCodexOptions _codexOptions;
   bool _saving = false;
   bool _checkingBridge = false;
   String? _bridgeStatus;
@@ -44,7 +47,7 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
     _nameController = TextEditingController(text: project?.name ?? '');
     _rootPathController = TextEditingController(text: project?.rootPath ?? '');
     _defaultBranchController =
-        TextEditingController(text: project?.defaultBranch ?? 'personal-lab');
+        TextEditingController(text: project?.defaultBranch ?? 'v3-lab');
     _bridgeUrlController =
         TextEditingController(text: project?.bridgeUrl ?? '');
     _modelController = TextEditingController(
@@ -52,6 +55,9 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
     );
     _permissionTier =
         project?.permissionTier ?? DevProjectPermissionTier.readOnly.value;
+    _codexOptions = project == null
+        ? DevAgentCodexOptions.inherited
+        : DevAgentBridgeService.codexOptionsForProject(project);
   }
 
   @override
@@ -76,6 +82,7 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
         bridgeUrl: _bridgeUrlController.text,
         permissionTier: _permissionTier,
         defaultOpencodeModel: _normalizeModel(_modelController.text),
+        codexOptions: _codexOptions,
       );
       if (!mounted) return;
       Navigator.pop(context);
@@ -318,6 +325,11 @@ class _DevProjectSettingsScreenState extends State<DevProjectSettingsScreen> {
                 setState(() {});
               },
             ),
+            const SizedBox(height: 14),
+            CodexOptionsEditor(
+              value: _codexOptions,
+              onChanged: (value) => setState(() => _codexOptions = value),
+            ),
           ],
         ),
       ),
@@ -382,7 +394,7 @@ class _OpencodeModelField extends StatelessWidget {
                 ),
             ],
           )
-else if (!loading && warning != null)
+        else if (!loading && warning != null)
           Text(
             'Bridge 没法拉取模型列表（${warning!}）。可以直接在下方框里填。',
             style: const TextStyle(

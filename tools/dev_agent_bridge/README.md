@@ -15,6 +15,23 @@ Codex on the development machine. The phone remains a controller only.
   - `codex` via `codex exec --json --sandbox read-only`
   - `claude_code` via `claude -p --output-format stream-json`
 
+### Codex controls
+
+`POST /v1/runs` accepts an optional `codex_options` object for Codex runs:
+
+```json
+{
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "medium",
+  "service_tier": "fast",
+  "verbosity": "medium"
+}
+```
+
+Each omitted value inherits the development computer's Codex configuration.
+The legacy top-level `model` field and `DEV_AGENT_CODEX_MODEL` remain supported
+for older App/Bridge combinations.
+
 MyPilot is still the preferred long-term base for hooks, reconnects, and write
 approvals, but the current global MyPilot install on this machine is broken
 (`dist/backend/cli.js` is missing). This prototype lets the app and CLI event

@@ -16,7 +16,8 @@ void main() {
 
   setUp(() {
     // 创建临时数据库文件
-    final tempDir = Directory.systemTemp.createTempSync('task_room_migration_test_');
+    final tempDir =
+        Directory.systemTemp.createTempSync('task_room_migration_test_');
     tempDbFile = File('${tempDir.path}/test.db');
   });
 
@@ -30,7 +31,9 @@ void main() {
     } catch (_) {}
   });
 
-  test('v57 → v58 migration creates TaskRooms tables and adds PersonaChatMessages.taskRoomId', () async {
+  test(
+      'v57 → v58 migration creates TaskRooms tables and adds PersonaChatMessages.taskRoomId',
+      () async {
     // ========================================================================
     // 1. 创建 v57 数据库
     // ========================================================================
@@ -70,35 +73,39 @@ void main() {
     // ========================================================================
     final migratedDb = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
-    // 验证 user_version 已升级到 59（W6 集成基座将 schemaVersion bump 到 59）
-    final version = await migratedDb.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 59);
+    // 验证 user_version 已升级到当前版本。
+    final version =
+        await migratedDb.customSelect('PRAGMA user_version').getSingle();
+    expect(version.data['user_version'], 60);
 
     // ========================================================================
     // 3. 验证新表已创建
     // ========================================================================
-    final tables = await migratedDb.customSelect(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('task_rooms', 'task_artifacts', 'task_decisions')"
-    ).get();
+    final tables = await migratedDb
+        .customSelect(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('task_rooms', 'task_artifacts', 'task_decisions')")
+        .get();
 
     expect(tables.length, 3);
     final tableNames = tables.map((row) => row.data['name']).toSet();
-    expect(tableNames, containsAll(['task_rooms', 'task_artifacts', 'task_decisions']));
+    expect(tableNames,
+        containsAll(['task_rooms', 'task_artifacts', 'task_decisions']));
 
     // ========================================================================
     // 4. 验证 PersonaChatMessages 新增了 taskRoomId 字段
     // ========================================================================
-    final columnsResult = await migratedDb.customSelect(
-      "PRAGMA table_info(persona_chat_messages)"
-    ).get();
+    final columnsResult = await migratedDb
+        .customSelect("PRAGMA table_info(persona_chat_messages)")
+        .get();
 
-    final columnNames = columnsResult.map((row) => row.data['name'] as String).toList();
+    final columnNames =
+        columnsResult.map((row) => row.data['name'] as String).toList();
     expect(columnNames, contains('task_room_id'));
 
     // 验证旧数据依然存在
-    final oldMessage = await migratedDb.customSelect(
-      "SELECT * FROM persona_chat_messages WHERE id = 1"
-    ).getSingleOrNull();
+    final oldMessage = await migratedDb
+        .customSelect("SELECT * FROM persona_chat_messages WHERE id = 1")
+        .getSingleOrNull();
 
     expect(oldMessage, matcher.isNotNull);
     expect(oldMessage!.data['content'], 'Hello');
@@ -107,9 +114,10 @@ void main() {
     // ========================================================================
     // 5. 验证索引已创建
     // ========================================================================
-    final indices = await migratedDb.customSelect(
-      "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_task_artifacts_task', 'idx_task_decisions_task', 'idx_persona_chat_messages_task_room')"
-    ).get();
+    final indices = await migratedDb
+        .customSelect(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_task_artifacts_task', 'idx_task_decisions_task', 'idx_persona_chat_messages_task_room')")
+        .get();
 
     expect(indices.length, 3);
 
@@ -117,17 +125,17 @@ void main() {
     // 6. 验证新表可以正常插入数据
     // ========================================================================
     await migratedDb.into(migratedDb.taskRooms).insert(
-      TaskRoomsCompanion.insert(
-        id: 'task-test',
-        title: 'Test task',
-        goal: 'Test migration',
-        taskType: 'coding',
-        status: 'pending',
-        progressPercent: const Value(0),
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-      ),
-    );
+          TaskRoomsCompanion.insert(
+            id: 'task-test',
+            title: 'Test task',
+            goal: 'Test migration',
+            taskType: 'coding',
+            status: 'pending',
+            progressPercent: const Value(0),
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+            updatedAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
 
     final insertedTask = await (migratedDb.select(migratedDb.taskRooms)
           ..where((t) => t.id.equals('task-test')))
@@ -139,7 +147,8 @@ void main() {
     await migratedDb.close();
   });
 
-  test('v57 → v58 migration preserves all existing persona_chat_messages data', () async {
+  test('v57 → v58 migration preserves all existing persona_chat_messages data',
+      () async {
     // ========================================================================
     // 1. 创建 v57 数据库并插入多条消息
     // ========================================================================
@@ -180,7 +189,8 @@ void main() {
     final migratedDb = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
     // 验证所有消息都保留
-    final messages = await migratedDb.select(migratedDb.personaChatMessages).get();
+    final messages =
+        await migratedDb.select(migratedDb.personaChatMessages).get();
     expect(messages.length, 5);
 
     // 验证每条消息的内容正确
@@ -194,8 +204,8 @@ void main() {
     await (migratedDb.update(migratedDb.personaChatMessages)
           ..where((t) => t.id.equals(1)))
         .write(PersonaChatMessagesCompanion(
-          taskRoomId: const Value('task-123'),
-        ));
+      taskRoomId: const Value('task-123'),
+    ));
 
     final updatedMsg = await (migratedDb.select(migratedDb.personaChatMessages)
           ..where((t) => t.id.equals(1)))
@@ -265,27 +275,34 @@ void main() {
 
     final migratedDb = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
-    final version = await migratedDb.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 59);
+    final version =
+        await migratedDb.customSelect('PRAGMA user_version').getSingle();
+    expect(version.data['user_version'], 60);
 
-    final columnsResult = await migratedDb.customSelect(
-      'PRAGMA table_info(persona_chat_messages)',
-    ).get();
+    final columnsResult = await migratedDb
+        .customSelect(
+          'PRAGMA table_info(persona_chat_messages)',
+        )
+        .get();
     final columnNames =
         columnsResult.map((row) => row.data['name'] as String).toList();
     expect(columnNames, contains('task_room_id'));
 
-    final indices = await migratedDb.customSelect(
-      "SELECT name FROM sqlite_master WHERE type='index' AND name IN "
-      "('idx_task_rooms_status','idx_task_rooms_type','idx_task_rooms_updated',"
-      "'idx_task_artifacts_task','idx_task_decisions_task',"
-      "'idx_persona_chat_messages_task_room')",
-    ).get();
+    final indices = await migratedDb
+        .customSelect(
+          "SELECT name FROM sqlite_master WHERE type='index' AND name IN "
+          "('idx_task_rooms_status','idx_task_rooms_type','idx_task_rooms_updated',"
+          "'idx_task_artifacts_task','idx_task_decisions_task',"
+          "'idx_persona_chat_messages_task_room')",
+        )
+        .get();
     expect(indices.length, 6);
 
-    final oldMessage = await migratedDb.customSelect(
-      'SELECT * FROM persona_chat_messages WHERE id = 1',
-    ).getSingleOrNull();
+    final oldMessage = await migratedDb
+        .customSelect(
+          'SELECT * FROM persona_chat_messages WHERE id = 1',
+        )
+        .getSingleOrNull();
     expect(oldMessage, matcher.isNotNull);
     expect(oldMessage!.data['content'], 'Hello');
 
