@@ -217,7 +217,9 @@ class _WhiteboardCanvasRouteScreenState
     if (vm == null || !await _save(vm)) return;
     if (!mounted) return;
     final sourceId = card.sourceId;
-    final target = sourceId != null && sourceId.isNotEmpty
+    final target = card.cardKind == CardKind.source &&
+            sourceId != null &&
+            sourceId.isNotEmpty
         ? AppRoutes.sourceStudyPath(sourceId)
         : AppRoutes.cardEditPath(card.cardId);
     await context.push(target);

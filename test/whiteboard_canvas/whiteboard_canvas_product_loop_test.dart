@@ -11,6 +11,7 @@ import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
@@ -122,9 +123,9 @@ void main() {
     router.dispose();
   });
 
-  testWidgets('source Card opens the frozen source consumer route',
+  testWidgets('product routing follows CardKind before optional sourceId',
       (tester) async {
-    final root = Directory.systemTemp.createTempSync('f1_source_route_');
+    final root = Directory.systemTemp.createTempSync('f1_route_matrix_');
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
     final store = WhiteboardDriftStore(db);
@@ -135,15 +136,45 @@ void main() {
 
     final committed = (await tester
         .runAsync(() => repository.commitIngestion(_sourceIngestion())))!;
+    await tester.runAsync(() async {
+      await repository.createTextCard(
+        cardId: 'card_annotation_source',
+        title: '带来源批注卡',
+      );
+      await repository.updateCardMetadata(
+        'card_annotation_source',
+        cardKind: CardKind.annotation,
+      );
+      await repository.linkSourceToCard(
+        'card_annotation_source',
+        committed.source.sourceId,
+      );
+      await repository.createTextCard(
+        cardId: 'card_source_missing',
+        title: '缺少来源的来源卡',
+      );
+      await repository.updateCardMetadata(
+        'card_source_missing',
+        cardKind: CardKind.source,
+      );
+      await repository.createTextCard(
+        cardId: 'card_plain_note',
+        title: '普通文字卡',
+      );
+    });
     final boardId =
         (await tester.runAsync(() => store.createBoard(name: '来源路由')))!;
     expect(
       await tester.runAsync(() => store.save(
             boardId,
-            _layout(
+            _routingLayout(
               boardId,
-              cardId: committed.card.cardId,
-              itemId: 'item_source',
+              [
+                committed.card.cardId,
+                'card_annotation_source',
+                'card_source_missing',
+                'card_plain_note',
+              ],
             ),
           )),
       isTrue,
@@ -157,9 +188,35 @@ void main() {
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await _settle(tester);
 
-    await _doubleTap(tester, find.text('F1 来源卡'));
-    await _waitForWidget(tester, find.text('来源消费页'));
-    expect(find.text('来源消费页'), findsOneWidget);
+    final cases = [
+      (
+        title: 'F1 来源卡',
+        page: '来源消费页',
+        marker: 'source:${committed.source.sourceId}',
+      ),
+      (
+        title: '带来源批注卡',
+        page: '文字卡消费页',
+        marker: 'card:card_annotation_source',
+      ),
+      (
+        title: '缺少来源的来源卡',
+        page: '文字卡消费页',
+        marker: 'card:card_source_missing',
+      ),
+      (
+        title: '普通文字卡',
+        page: '文字卡消费页',
+        marker: 'card:card_plain_note',
+      ),
+    ];
+    for (final routeCase in cases) {
+      await _doubleTap(tester, find.text(routeCase.title));
+      await _waitForWidget(tester, find.text(routeCase.page));
+      expect(find.text(routeCase.marker), findsOneWidget);
+      router.pop();
+      await _settle(tester);
+    }
     router.dispose();
   });
 
@@ -267,7 +324,8 @@ void main() {
     router.dispose();
   });
 
-  test('500 real Repository cards hydrate without material regression', () async {
+  test('500 real Repository cards hydrate without material regression',
+      () async {
     final root = Directory.systemTemp.createTempSync('f1_repository_500_');
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
@@ -338,10 +396,11 @@ GoRouter _router({
       ),
       GoRoute(
         path: AppRoutes.cardEdit,
-        builder: (context, _) => Scaffold(
+        builder: (context, state) => Scaffold(
           body: Column(
             children: [
               const Text('文字卡消费页'),
+              Text('card:${state.pathParameters['cardId']}'),
               TextButton(
                 onPressed: context.pop,
                 child: const Text('返回白板'),
@@ -352,7 +411,14 @@ GoRouter _router({
       ),
       GoRoute(
         path: AppRoutes.sourceStudy,
-        builder: (_, __) => const Scaffold(body: Text('来源消费页')),
+        builder: (_, state) => Scaffold(
+          body: Column(
+            children: [
+              const Text('来源消费页'),
+              Text('source:${state.pathParameters['sourceId']}'),
+            ],
+          ),
+        ),
       ),
     ],
   );
@@ -376,6 +442,31 @@ WhiteboardSnapshot _layout(
         width: 240,
         height: 160,
       ),
+    ],
+  );
+}
+
+WhiteboardSnapshot _routingLayout(String boardId, List<String> cardIds) {
+  final now = DateTime.utc(2026, 8, 19);
+  const positions = [
+    (-260.0, -160.0),
+    (20.0, -160.0),
+    (-260.0, 20.0),
+    (20.0, 20.0),
+  ];
+  return WhiteboardSnapshot(
+    boards: [Board(boardId: boardId, name: '来源路由', createdAt: now)],
+    boardItems: [
+      for (var i = 0; i < cardIds.length; i++)
+        BoardItem(
+          itemId: 'item_route_$i',
+          boardId: boardId,
+          cardId: cardIds[i],
+          x: positions[i].$1,
+          y: positions[i].$2,
+          width: 220,
+          height: 120,
+        ),
     ],
   );
 }
