@@ -147,6 +147,29 @@ Future<WhiteboardCanvasViewModel> _pumpCanvas(
   WhiteboardSnapshot snapshot, {
   VoidCallback? onExit,
 }) async {
+  final repositoryRoot = Directory.systemTemp.createTempSync('w1_cards_');
+  final repositoryDb = AppDatabase.forTesting(NativeDatabase.memory());
+  final repository = UnifiedCardRepository(
+    db: repositoryDb,
+    whiteboardRoot: repositoryRoot,
+  );
+  for (final card in snapshot.cards) {
+    await tester.runAsync(() => repository.createTextCard(
+          cardId: card.cardId,
+          title: card.title,
+          body: card.body,
+          tags: card.tags,
+          ownerSpace: card.ownerSpace,
+          createdBy: card.createdBy,
+          createdAt: card.createdAt,
+        ));
+  }
+  addTearDown(() async {
+    await repositoryDb.close();
+    if (repositoryRoot.existsSync()) {
+      repositoryRoot.deleteSync(recursive: true);
+    }
+  });
   final vm = WhiteboardCanvasViewModel(
     initialSnapshot: snapshot,
     boardId: snapshot.boards.isNotEmpty ? snapshot.boards.first.boardId : 'b',
@@ -157,6 +180,7 @@ Future<WhiteboardCanvasViewModel> _pumpCanvas(
         body: WhiteboardCanvasScreen(
           viewModel: vm,
           onExit: onExit,
+          cardRepository: repository,
         ),
       ),
     ),

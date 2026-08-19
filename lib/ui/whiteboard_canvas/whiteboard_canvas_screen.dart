@@ -90,12 +90,14 @@ class WhiteboardCanvasScreen extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
   final VoidCallback? onExit;
   final UnifiedCardRepository? cardRepository;
+  final void Function(CardContract card)? onOpenCard;
 
   const WhiteboardCanvasScreen({
     super.key,
     required this.viewModel,
     this.onExit,
     this.cardRepository,
+    this.onOpenCard,
   });
 
   @override
@@ -147,8 +149,11 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     return {
       const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () =>
           vm.undo(),
-      const SingleActivator(LogicalKeyboardKey.keyZ,
-          control: true, shift: true): () => vm.redo(),
+      const SingleActivator(
+        LogicalKeyboardKey.keyZ,
+        control: true,
+        shift: true,
+      ): () => vm.redo(),
       const SingleActivator(LogicalKeyboardKey.keyY, control: true): () =>
           vm.redo(),
       const SingleActivator(LogicalKeyboardKey.keyA, control: true): () =>
@@ -223,6 +228,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
             children: [
               WhiteboardCanvasArea(
                 viewModel: vm,
+                onOpenCard: widget.onOpenCard,
                 onToggleTopBar: () =>
                     setState(() => _topBarVisible = !_topBarVisible),
                 onToggleSidePanel: () =>
@@ -289,12 +295,14 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
 /// The canvas area — handles all gestures and renders the board.
 class WhiteboardCanvasArea extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
+  final void Function(CardContract card)? onOpenCard;
   final VoidCallback onToggleTopBar;
   final VoidCallback onToggleSidePanel;
 
   const WhiteboardCanvasArea({
     super.key,
     required this.viewModel,
+    this.onOpenCard,
     required this.onToggleTopBar,
     required this.onToggleSidePanel,
   });
@@ -304,6 +312,8 @@ class WhiteboardCanvasArea extends StatefulWidget {
 }
 
 class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
+  static const _doubleClickWindow = Duration(milliseconds: 400);
+
   // Pan gesture (view movement) — triggered by middle-mouse or space+drag
   bool _isPanning = false;
   Offset _lastPointerPosition = Offset.zero;
@@ -325,6 +335,24 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   // Last computed transform, for drop-position math outside build().
   CanvasTransform? _lastTransform;
   final GlobalKey _canvasAreaKey = GlobalKey();
+  String? _lastClickedItemId;
+  DateTime? _lastClickAt;
+
+  void _handleCardClick(CanvasCardNode node) {
+    final now = DateTime.now();
+    final isDoubleClick = _lastClickedItemId == node.itemId &&
+        _lastClickAt != null &&
+        now.difference(_lastClickAt!) <= _doubleClickWindow;
+    widget.viewModel.handleIntent(SelectItemIntent(itemId: node.itemId));
+    if (isDoubleClick && node.card != null && widget.onOpenCard != null) {
+      _lastClickedItemId = null;
+      _lastClickAt = null;
+      widget.onOpenCard!(node.card!);
+      return;
+    }
+    _lastClickedItemId = node.itemId;
+    _lastClickAt = now;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -368,7 +396,10 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
                     return;
                   }
                   if (_selectEdgeAt(
-                      event.localPosition, boardState, transform)) {
+                    event.localPosition,
+                    boardState,
+                    transform,
+                  )) {
                     return;
                   }
                   setState(() {
@@ -528,8 +559,10 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     final ab = b - a;
     final len2 = ab.dx * ab.dx + ab.dy * ab.dy;
     if (len2 == 0) return (p - a).distance;
-    final t =
-        (((p - a).dx * ab.dx + (p - a).dy * ab.dy) / len2).clamp(0.0, 1.0);
+    final t = (((p - a).dx * ab.dx + (p - a).dy * ab.dy) / len2).clamp(
+      0.0,
+      1.0,
+    );
     return (p - (a + ab * t)).distance;
   }
 
@@ -610,9 +643,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     final ids = vm.selection.isSelected(itemId)
         ? vm.selection.selectedItemIds
         : {itemId};
-    vm.moveItems({
-      for (final id in ids) id: math.Point(dx, dy),
-    });
+    vm.moveItems({for (final id in ids) id: math.Point(dx, dy)});
     _dragState = _CardDragState(itemId: itemId, lastPosition: position);
   }
 
@@ -648,11 +679,9 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         (cornerScreenPos.dy - _resizeState!.lastPosition.dy) / vm.viewport.zoom;
     final newW = (_resizeState!.startWidth + dx).clamp(120.0, 3000.0);
     final newH = (_resizeState!.startHeight + dy).clamp(80.0, 3000.0);
-    vm.handleIntent(ResizeItemIntent(
-      itemId: itemId,
-      width: newW,
-      height: newH,
-    ));
+    vm.handleIntent(
+      ResizeItemIntent(itemId: itemId, width: newW, height: newH),
+    );
   }
 
   void _onResizeEnd() {
@@ -685,7 +714,9 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     if (_rotateState?.itemId != itemId) return;
     final center = _rotateState!.centerScreen;
     final angle = math.atan2(
-        pointerScreenPos.dy - center.dy, pointerScreenPos.dx - center.dx);
+      pointerScreenPos.dy - center.dy,
+      pointerScreenPos.dx - center.dx,
+    );
     var degrees = angle * 180 / math.pi;
     degrees = ((degrees % 360) + 360) % 360;
     widget.viewModel.handleIntent(
@@ -744,15 +775,15 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     final transform = _lastTransform;
     if (transform != null) {
       final canvasPoint = transform.screenToCanvas(state.currentPoint);
-      final target = _itemAtCanvas(
-        math.Point(canvasPoint.dx, canvasPoint.dy),
-      );
+      final target = _itemAtCanvas(math.Point(canvasPoint.dx, canvasPoint.dy));
       if (target != null) {
-        final ok = vm.handleIntent(RetargetEdgeIntent(
-          edgeId: state.edgeId,
-          fromItemId: state.isFrom ? target.itemId : null,
-          toItemId: state.isFrom ? null : target.itemId,
-        ));
+        final ok = vm.handleIntent(
+          RetargetEdgeIntent(
+            edgeId: state.edgeId,
+            fromItemId: state.isFrom ? target.itemId : null,
+            toItemId: state.isFrom ? null : target.itemId,
+          ),
+        );
         if (!ok) vm.cancelLogicalAction();
       } else {
         // Dropped on empty canvas: no side effects.
@@ -845,9 +876,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             isSelected: vm.selection.isSelected(node.itemId),
             isReadonly: vm.isReadonly,
             lodTier: _lodTiers[node.itemId] ?? LodTier.full,
-            onTap: () {
-              vm.handleIntent(SelectItemIntent(itemId: node.itemId));
-            },
+            onTap: () => _handleCardClick(node),
             onDragStart: (position) => _onDragStart(node.itemId, position),
             onDragUpdate: (position) => _onDragUpdate(node.itemId, position),
             onDragEnd: _onDragEnd,
@@ -861,11 +890,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
               ..._buildSelectionHandles(node, transform),
         // Selected edge endpoint handles
         if (visibleSelectedEdge != null && !vm.isReadonly)
-          ..._buildEdgeHandles(
-            visibleSelectedEdge,
-            itemsByItemId,
-            transform,
-          ),
+          ..._buildEdgeHandles(visibleSelectedEdge, itemsByItemId, transform),
         // Marquee selection box (on top)
         if (_isMarqueeing && _marqueeStart != null && _marqueeCurrent != null)
           Positioned(
@@ -945,12 +970,16 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     // Local offsets before rotation: rotate handle at (0, -(h/2+17)),
     // resize handle at (w/2+7, h/2+7).
     final rotateLocal = Offset(0, -(screenRect.height / 2 + 17));
-    final resizeLocal =
-        Offset(screenRect.width / 2 + 7, screenRect.height / 2 + 7);
+    final resizeLocal = Offset(
+      screenRect.width / 2 + 7,
+      screenRect.height / 2 + 7,
+    );
     Offset rotatePoint(Offset local) =>
         center +
         Offset(
-            local.dx * cos - local.dy * sin, local.dx * sin + local.dy * cos);
+          local.dx * cos - local.dy * sin,
+          local.dx * sin + local.dy * cos,
+        );
 
     return [
       Positioned(
@@ -1086,10 +1115,7 @@ class _CanvasPainter extends CustomPainter {
         from.x + from.width / 2,
         from.y + from.height / 2,
       );
-      final toCenter = Offset(
-        to.x + to.width / 2,
-        to.y + to.height / 2,
-      );
+      final toCenter = Offset(to.x + to.width / 2, to.y + to.height / 2);
       final fromScreen = transform.canvasToScreen(fromCenter);
       final toScreen = transform.canvasToScreen(toCenter);
 
@@ -1184,10 +1210,7 @@ class _CanvasPainter extends CustomPainter {
       ..lineTo(p2.dx, p2.dy)
       ..close();
 
-    canvas.drawPath(
-      path,
-      paint..style = PaintingStyle.fill,
-    );
+    canvas.drawPath(path, paint..style = PaintingStyle.fill);
   }
 
   @override
@@ -1264,9 +1287,7 @@ class _CardWidget extends StatelessWidget {
           angle: item.rotation * math.pi / 180,
           alignment: Alignment.center,
           child: _CardContent(
-            key: Key(
-              'wb_card_content_${item.itemId}_${lodTier.name}',
-            ),
+            key: Key('wb_card_content_${item.itemId}_${lodTier.name}'),
             node: node,
             isSelected: isSelected,
             lodTier: lodTier,
@@ -1301,8 +1322,9 @@ class _CardContent extends StatelessWidget {
           color: isOrphaned
               ? WhiteboardCanvasTokens.orphanedSurface
               : WhiteboardCanvasTokens.cardSurface,
-          borderRadius:
-              BorderRadius.circular(WhiteboardCanvasTokens.cardRadius),
+          borderRadius: BorderRadius.circular(
+            WhiteboardCanvasTokens.cardRadius,
+          ),
           border: Border.all(
             color: isOrphaned
                 ? WhiteboardCanvasTokens.orphanedBorder
@@ -1551,8 +1573,9 @@ class _GroupWidget extends StatelessWidget {
             color: collapsed
                 ? WhiteboardCanvasTokens.groupRect
                 : WhiteboardCanvasTokens.groupRect,
-            borderRadius:
-                BorderRadius.circular(WhiteboardCanvasTokens.groupRadius),
+            borderRadius: BorderRadius.circular(
+              WhiteboardCanvasTokens.groupRadius,
+            ),
             border: Border.all(
               color: collapsed
                   ? WhiteboardCanvasTokens.actionSecondary
@@ -1701,7 +1724,11 @@ class _EdgeEndpointHandle extends StatelessWidget {
   final String edgeId;
   final Offset fixedPoint;
   final void Function(
-      String edgeId, bool isFrom, Offset fixedPoint, Offset pointerPos) onStart;
+    String edgeId,
+    bool isFrom,
+    Offset fixedPoint,
+    Offset pointerPos,
+  ) onStart;
   final void Function(Offset pointerPos) onUpdate;
   final VoidCallback onEnd;
 
@@ -1725,12 +1752,8 @@ class _EdgeEndpointHandle extends StatelessWidget {
         cursor: SystemMouseCursors.move,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onPanStart: (details) => onStart(
-            edgeId,
-            isFrom,
-            fixedPoint,
-            details.globalPosition,
-          ),
+          onPanStart: (details) =>
+              onStart(edgeId, isFrom, fixedPoint, details.globalPosition),
           onPanUpdate: (details) => onUpdate(details.globalPosition),
           onPanEnd: (_) => onEnd(),
           onPanCancel: () => onEnd(),
@@ -1781,8 +1804,9 @@ class _FloatingTopBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: WhiteboardCanvasTokens.panelSurface,
-          borderRadius:
-              BorderRadius.circular(WhiteboardCanvasTokens.groupRadius),
+          borderRadius: BorderRadius.circular(
+            WhiteboardCanvasTokens.groupRadius,
+          ),
           border: Border.all(
             color: WhiteboardCanvasTokens.cardBorder,
             width: 0.5,
@@ -1883,8 +1907,9 @@ class _FloatingBottomBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: WhiteboardCanvasTokens.panelSurface,
-          borderRadius:
-              BorderRadius.circular(WhiteboardCanvasTokens.groupRadius),
+          borderRadius: BorderRadius.circular(
+            WhiteboardCanvasTokens.groupRadius,
+          ),
           border: Border.all(
             color: WhiteboardCanvasTokens.cardBorder,
             width: 0.5,
@@ -1968,6 +1993,7 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
 
   List<CardContract> _allCards = [];
   bool _loading = true;
+  Object? _loadError;
   int _loadGeneration = 0;
 
   @override
@@ -1986,13 +2012,35 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
 
   Future<void> _loadCards() async {
     final generation = ++_loadGeneration;
-    if (!_loading && mounted) {
-      setState(() => _loading = true);
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
     }
     final repository = widget.repository;
-    final cards = repository == null
-        ? widget.viewModel.exportForSave().cards
-        : (await repository.listCards()).map((record) => record.card).toList();
+    if (repository == null) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _allCards = const [];
+        _loading = false;
+        _loadError = StateError('卡片仓库不可用');
+      });
+      return;
+    }
+    late final List<CardContract> cards;
+    try {
+      cards =
+          (await repository.listCards()).map((record) => record.card).toList();
+    } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _allCards = const [];
+        _loading = false;
+        _loadError = error;
+      });
+      return;
+    }
     if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _allCards = cards;
@@ -2014,8 +2062,9 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
         width: 240,
         decoration: BoxDecoration(
           color: WhiteboardCanvasTokens.panelSurface,
-          borderRadius:
-              BorderRadius.circular(WhiteboardCanvasTokens.groupRadius),
+          borderRadius: BorderRadius.circular(
+            WhiteboardCanvasTokens.groupRadius,
+          ),
           border: Border.all(
             color: WhiteboardCanvasTokens.cardBorder,
             width: 0.5,
@@ -2053,60 +2102,85 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                         strokeWidth: 2,
                       ),
                     )
-                  : cards.isEmpty
-                      ? const Center(
-                          child: Text(
-                            '没有可放入的卡片',
-                            style: TextStyle(
-                              color: WhiteboardCanvasTokens.textFaint,
-                              fontSize: WhiteboardCanvasTokens.metaSize,
+                  : _loadError != null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  '卡片库没有读出来',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: WhiteboardCanvasTokens.textSecondary,
+                                    fontSize: WhiteboardCanvasTokens.metaSize,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton(
+                                  key: const Key('wb_card_library_retry'),
+                                  onPressed: _loadCards,
+                                  child: const Text('重试'),
+                                ),
+                              ],
                             ),
                           ),
                         )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(8),
-                          itemCount: cards.length,
-                          itemBuilder: (context, index) {
-                            final card = cards[index];
-                            final isPlaced =
-                                alreadyPlaced.contains(card.cardId);
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Listener(
-                                key: Key('wb_lib_row_${card.cardId}'),
-                                onPointerDown: (event) {
-                                  _grabOffset = event.localPosition;
-                                },
-                                child: Draggable<WhiteboardCardDragData>(
-                                  data: WhiteboardCardDragData(
-                                    cardId: card.cardId,
-                                    title: card.title,
-                                    grabOffset: _grabOffset,
-                                  ),
-                                  feedback: _DragCardFeedback(
-                                    title: card.title,
-                                    kindName: card.cardKind.name,
-                                  ),
-                                  childWhenDragging: Opacity(
-                                    opacity: 0.35,
-                                    child: _libraryRow(
-                                      card.title,
-                                      card.cardKind.name,
-                                      isPlaced,
-                                      card.cardId,
-                                    ),
-                                  ),
-                                  child: _libraryRow(
-                                    card.title,
-                                    card.cardKind.name,
-                                    isPlaced,
-                                    card.cardId,
-                                  ),
+                      : cards.isEmpty
+                          ? const Center(
+                              child: Text(
+                                '没有可放入的卡片',
+                                style: TextStyle(
+                                  color: WhiteboardCanvasTokens.textFaint,
+                                  fontSize: WhiteboardCanvasTokens.metaSize,
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(8),
+                              itemCount: cards.length,
+                              itemBuilder: (context, index) {
+                                final card = cards[index];
+                                final isPlaced =
+                                    alreadyPlaced.contains(card.cardId);
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Listener(
+                                    key: Key('wb_lib_row_${card.cardId}'),
+                                    onPointerDown: (event) {
+                                      _grabOffset = event.localPosition;
+                                    },
+                                    child: Draggable<WhiteboardCardDragData>(
+                                      data: WhiteboardCardDragData(
+                                        cardId: card.cardId,
+                                        title: card.title,
+                                        grabOffset: _grabOffset,
+                                      ),
+                                      feedback: _DragCardFeedback(
+                                        title: card.title,
+                                        kindName: card.cardKind.name,
+                                      ),
+                                      childWhenDragging: Opacity(
+                                        opacity: 0.35,
+                                        child: _libraryRow(
+                                          card.title,
+                                          card.cardKind.name,
+                                          isPlaced,
+                                          card.cardId,
+                                        ),
+                                      ),
+                                      child: _libraryRow(
+                                        card.title,
+                                        card.cardKind.name,
+                                        isPlaced,
+                                        card.cardId,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
             ),
           ],
         ),
@@ -2168,10 +2242,7 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                     ),
                     tooltip: '放入白板…',
                     visualDensity: VisualDensity.compact,
-                    onPressed: () => widget.onOpenBoardPicker(
-                      cardId,
-                      title,
-                    ),
+                    onPressed: () => widget.onOpenBoardPicker(cardId, title),
                   ),
                 ],
               ),
@@ -2207,8 +2278,9 @@ class _DragCardFeedback extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: WhiteboardCanvasTokens.panelSurface,
-          borderRadius:
-              BorderRadius.circular(WhiteboardCanvasTokens.cardRadius),
+          borderRadius: BorderRadius.circular(
+            WhiteboardCanvasTokens.cardRadius,
+          ),
           border: Border.all(
             color: WhiteboardCanvasTokens.cardBorderSelected,
             width: 1.5,

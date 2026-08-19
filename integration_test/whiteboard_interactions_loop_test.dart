@@ -21,10 +21,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:drift/native.dart';
 
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
-import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 
@@ -66,20 +66,18 @@ void main() {
 
     final db = AppDatabase.forTesting(NativeDatabase(dbFile));
     final store = WhiteboardDriftStore(db);
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: dir);
 
     // ── Board data through the SHARED WRITE PATH (snapshot → store) ──
     final now = DateTime.now();
     final boardId = await store.createBoard(name: '交互验收板');
-    final cards = [
-      for (final (i, title) in ['验收卡 A', '验收卡 B', '验收卡 C'].indexed)
-        CardContract(
-          cardId: 'itest_card_$i',
-          cardKind: CardKind.note,
-          title: title,
-          body: '交互验收卡 $i 正文',
-          createdAt: now,
-        ),
-    ];
+    for (final (i, title) in ['验收卡 A', '验收卡 B', '验收卡 C'].indexed) {
+      await repository.createTextCard(
+        cardId: 'itest_card_$i',
+        title: title,
+        body: '交互验收卡 $i 正文',
+      );
+    }
     final boardItems = [
       BoardItem(
         itemId: 'itest_item_a',
@@ -113,7 +111,6 @@ void main() {
       boards: [
         Board(boardId: boardId, name: '交互验收板', createdAt: now),
       ],
-      cards: cards,
       boardItems: boardItems,
       groups: [
         BoardGroup(
@@ -145,6 +142,7 @@ void main() {
         home: WhiteboardCanvasRouteScreen(
           boardId: boardId,
           store: store,
+          cardRepository: repository,
         ),
       ),
     );
@@ -256,19 +254,16 @@ void main() {
 
     // ── ⑦ 500-card board: real-window frame data ──
     final perfBoardId = await store.createBoard(name: '帧率验收板');
-    final perfCards = <CardContract>[];
     final perfItems = <BoardItem>[];
     for (int i = 0; i < 500; i++) {
       final row = i ~/ 20;
       final col = i % 20;
-      perfCards.add(CardContract(
+      await repository.createTextCard(
         cardId: 'perf_card_$i',
-        cardKind: CardKind.note,
         title: 'Card $i',
         body: 'Performance card $i body.',
         tags: const ['perf'],
-        createdAt: now,
-      ));
+      );
       perfItems.add(BoardItem(
         itemId: 'perf_item_$i',
         boardId: perfBoardId,
@@ -291,7 +286,6 @@ void main() {
               createdAt: now,
             ),
           ],
-          cards: perfCards,
           boardItems: perfItems,
         ),
       ),
@@ -306,6 +300,7 @@ void main() {
           key: UniqueKey(),
           boardId: perfBoardId,
           store: store,
+          cardRepository: repository,
         ),
       ),
     );
