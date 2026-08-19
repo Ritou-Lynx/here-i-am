@@ -64,10 +64,15 @@ class OrderedTtsQueue {
   int _playingSeq = -1;
   bool _cancelled = false;
   bool _playing = false;
+  bool _draining = false;
+  bool _done = false;
+  bool _drainNotified = false;
   bool _disposed = false;
 
   AudioPlayer? _player;
   Completer<void>? _playCompleter;
+  Completer<void>? _drainedCompleter;
+  double _playbackVolume = 1;
 
   /// Called when a segment starts playing. Useful for syncing subtitles.
   void Function(TtsSegment segment)? onSegmentStart;
@@ -86,10 +91,27 @@ class OrderedTtsQueue {
   /// Number of segments still waiting to be played.
   int get pendingCount => _pending.length;
 
+  /// Change the volume of both the active and subsequent segments.
+  Future<void> setVolume(double volume) async {
+    _playbackVolume = volume.clamp(0.0, 1.0).toDouble();
+    final player = _player;
+    if (player != null) {
+      await player.setVolume(_playbackVolume);
+    }
+  }
+
   /// Mark that no more segments will arrive (LLM stream finished). After this,
   /// [onQueueDrained] fires when the last segment finishes playing.
   void markDone() {
+    _done = true;
     _drainIfComplete();
+  }
+
+  /// Completes only after [markDone] and after the drain coroutine has
+  /// actually released the last segment.
+  Future<void> waitUntilDrained() {
+    if (_isFullyDrained) return Future.value();
+    return (_drainedCompleter ??= Completer<void>()).future;
   }
 
   /// Push a synthesized segment into the queue.
@@ -116,7 +138,7 @@ class OrderedTtsQueue {
     _pending[segment.seq] = segment;
     _log.fine('Pushed seq=${segment.seq}, pending=${_pending.length}, '
         'nextSeq=$_nextSeq');
-    unawaited(_drain());
+    _ensureDrain();
     return TtsQueuePushResult.accepted;
   }
 
@@ -126,6 +148,7 @@ class OrderedTtsQueue {
     _cancelled = true;
     _log.info('cancel: pending=${_pending.length}, playing=$_playing');
     _pending.clear();
+    _completeDrainWaiter();
     await _stopPlayer();
   }
 
@@ -133,25 +156,50 @@ class OrderedTtsQueue {
   Future<void> dispose() async {
     _disposed = true;
     _pending.clear();
+    _completeDrainWaiter();
     await _stopPlayer();
   }
 
   Future<void> _drain() async {
-    if (_playing || _cancelled || _disposed) return;
-    while (!_cancelled && !_disposed && _pending.containsKey(_nextSeq)) {
-      final segment = _pending.remove(_nextSeq)!;
-      _playingSeq = _nextSeq;
-      _nextSeq++;
-      await _playSegment(segment);
-      _playingSeq = -1;
-      if (_cancelled || _disposed) return;
+    try {
+      while (!_cancelled && !_disposed && _pending.containsKey(_nextSeq)) {
+        final segment = _pending.remove(_nextSeq)!;
+        _playingSeq = _nextSeq;
+        _nextSeq++;
+        await _playSegment(segment);
+        _playingSeq = -1;
+        if (_cancelled || _disposed) return;
+      }
+    } finally {
+      _draining = false;
+      _drainIfComplete();
     }
-    _drainIfComplete();
   }
 
+  void _ensureDrain() {
+    if (_draining || _cancelled || _disposed) return;
+    _draining = true;
+    unawaited(_drain());
+  }
+
+  bool get _isFullyDrained =>
+      _done && !_draining && !_playing && _pending.isEmpty;
+
   void _drainIfComplete() {
-    if (!_playing && _pending.isEmpty && !_cancelled && !_disposed) {
+    if (_isFullyDrained && !_cancelled && !_disposed && !_drainNotified) {
+      _drainNotified = true;
+      final completer = _drainedCompleter;
+      if (completer != null && !completer.isCompleted) {
+        completer.complete();
+      }
       onQueueDrained?.call();
+    }
+  }
+
+  void _completeDrainWaiter() {
+    final completer = _drainedCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
     }
   }
 
@@ -167,12 +215,12 @@ class OrderedTtsQueue {
     }
 
     _playing = true;
-    onSegmentStart?.call(segment);
 
     // Injectable playback path (tests or custom players).
     final injector = playSegment;
     if (injector != null) {
       try {
+        onSegmentStart?.call(segment);
         await injector(segment, identity);
       } catch (e) {
         _log.warning('Segment ${segment.seq} playback failed: $e');
@@ -183,23 +231,77 @@ class OrderedTtsQueue {
       return;
     }
 
-    // Default just_audio playback path.
+    // Default just_audio playback path. Reuse one player for the whole queue.
+    // Creating and disposing a native player for every sentence tears down
+    // and recreates Android's voice-communication AudioTrack at each boundary;
+    // on Samsung that can briefly start the next clip, cut its first syllable,
+    // then restart it. A stable player keeps the call audio track continuous.
     final claim = _PlaybackClaim(
       identity: identity,
       seq: segment.seq,
       nonce: DateTime.now().microsecondsSinceEpoch,
     );
+    final player = await _ensurePlayer();
+    if (player == null) {
+      _cleanFile(segment.file);
+      _playing = false;
+      return;
+    }
+    final playCompleter = Completer<void>();
+    _playCompleter = playCompleter;
+    StreamSubscription<PlayerState>? sub;
+    var playbackFailed = false;
 
-    // handleAudioSessionActivation: false + androidApplyAudioAttributes: false
-    // keep just_audio from re-configuring the (process-wide) audio session on
-    // every segment — the VoIP call session (VoiceCallAudioSession.enter)
-    // owns the session; a just_audio re-configure would bounce the route
-    // between loudspeaker (media stream) and earpiece (voice-call stream),
-    // producing the "earpiece once, loudspeaker again" alternating playback.
+    try {
+      await player.setFilePath(segment.file.path);
+      await player.setVolume(_playbackVolume);
+      if (_cancelled || _disposed || !claim.isValidFor(identity)) {
+        _log.fine('Segment ${segment.seq} cancelled before play');
+        return;
+      }
+      sub = player.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          if (!claim.isValidFor(identity)) return;
+          if (!playCompleter.isCompleted) playCompleter.complete();
+        }
+      });
+      onSegmentStart?.call(segment);
+      await player.play();
+      await playCompleter.future.timeout(
+        const Duration(seconds: 90),
+        onTimeout: () =>
+            _log.warning('Segment ${segment.seq} playback timed out'),
+      );
+    } catch (e) {
+      playbackFailed = true;
+      _log.warning('Segment ${segment.seq} playback failed: $e');
+    } finally {
+      await sub?.cancel();
+      if (identical(_playCompleter, playCompleter)) {
+        _playCompleter = null;
+      }
+      // Keep a healthy player alive for the next sentence. cancel()/dispose()
+      // may already own it; only a genuine playback failure retires it here.
+      if (playbackFailed && identical(_player, player)) {
+        _player = null;
+        await player.dispose();
+      }
+      _cleanFile(segment.file);
+      _playing = false;
+    }
+  }
+
+  Future<AudioPlayer?> _ensurePlayer() async {
+    final existing = _player;
+    if (existing != null) return existing;
+
+    // The VoIP call session owns the process-wide audio session. These flags
+    // prevent just_audio from reconfiguring focus and route between sentences.
     final player = AudioPlayer(
       handleAudioSessionActivation: false,
       androidApplyAudioAttributes: false,
     );
+    _player = player;
     if (voiceMode) {
       try {
         await player.setAndroidAudioAttributes(
@@ -212,41 +314,26 @@ class OrderedTtsQueue {
         _log.warning('set audio attributes failed: $e');
       }
     }
-    _player = player;
-    _playCompleter = Completer<void>();
 
-    try {
-      await player.setFilePath(segment.file.path);
-      if (_cancelled || _disposed || !claim.isValidFor(identity)) {
-        _log.fine('Segment ${segment.seq} cancelled before play');
-        return;
-      }
-      final sub = player.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed) {
-          if (!claim.isValidFor(identity)) return;
-          if (!_playCompleter!.isCompleted) _playCompleter!.complete();
-        }
-      });
-      await player.play();
-      await _playCompleter!.future.timeout(
-        const Duration(seconds: 90),
-        onTimeout: () => _log.warning('Segment ${segment.seq} playback timed out'),
-      );
-      await sub.cancel();
-    } catch (e) {
-      _log.warning('Segment ${segment.seq} playback failed: $e');
-    } finally {
-      await player.dispose();
-      _player = null;
-      _playCompleter = null;
-      _cleanFile(segment.file);
-      _playing = false;
+    if (_cancelled || _disposed || !identical(_player, player)) {
+      if (identical(_player, player)) _player = null;
+      try {
+        await player.dispose();
+      } catch (_) {}
+      return null;
     }
+    return player;
   }
 
   Future<void> _stopPlayer() async {
     final player = _player;
     final completer = _playCompleter;
+    // Release ownership synchronously. _playSegment's finally block can run
+    // as soon as the completer/stop resolves and must see that this cleanup
+    // path owns the platform player.
+    _player = null;
+    _playCompleter = null;
+    _playing = false;
     if (completer != null && !completer.isCompleted) {
       completer.complete();
     }
@@ -257,9 +344,7 @@ class OrderedTtsQueue {
       try {
         await player.dispose();
       } catch (_) {}
-      _player = null;
     }
-    _playing = false;
   }
 
   void _cleanFile(File file) {

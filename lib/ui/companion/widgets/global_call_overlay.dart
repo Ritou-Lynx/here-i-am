@@ -96,6 +96,9 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
     });
     _muted = widget.router.micMuted;
     _speakerOn = widget.router.speakerOn;
+    _status = widget.router.status ?? 'starting';
+    _transcript = widget.router.lastTranscript;
+    _isReply = widget.router.lastIsReply;
     widget.router.onStatusChanged = _onStatus;
     widget.router.onCallEnded = (_) {
       if (mounted) GlobalCallOverlay.instance.hide();
@@ -116,8 +119,8 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
     // report a stale value (its status pushes race our optimistic flip),
     // which would bounce the button state back and forth. The local button
     // state (updated in _toggleMute/_toggleSpeaker) is the source of truth.
-    final transcriptChanged = status.transcript.isNotEmpty &&
-        status.transcript != _transcript;
+    final transcriptChanged =
+        status.transcript.isNotEmpty && status.transcript != _transcript;
     if (status.status == _status && !transcriptChanged) {
       return;
     }
@@ -241,13 +244,14 @@ class _CallOverlayContentState extends State<_CallOverlayContent> {
                   const SizedBox(width: 56),
                   _HangUpButton(
                     onPressed: () {
-                      router.hangUp();
+                      unawaited(router.hangUp());
                     },
                   ),
                   const SizedBox(width: 56),
                   _RoundButton(
                     icon: _speakerOn ? Icons.volume_up : Icons.volume_off,
-                    color: _speakerOn ? const Color(0xFF4CAF50) : Colors.white24,
+                    color:
+                        _speakerOn ? const Color(0xFF4CAF50) : Colors.white24,
                     label: _speakerOn ? '外放' : '听筒',
                     onPressed: _toggleSpeaker,
                   ),

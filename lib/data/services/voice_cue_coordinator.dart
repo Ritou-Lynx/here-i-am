@@ -133,4 +133,11 @@ class VoiceCueCoordinator {
     _currentClip = null;
     _cueService.reset();
   }
+
+  /// Stop any active cue, including clips normally allowed to complete before
+  /// formal TTS, then clear session state.
+  Future<void> stop() async {
+    await _cueService.preempt();
+    reset();
+  }
 }

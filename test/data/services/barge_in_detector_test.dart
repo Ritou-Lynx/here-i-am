@@ -151,7 +151,8 @@ void main() {
       det.stop();
     });
 
-    test('regression: high-ZCR speech-shaped frames still trigger interrupt', () {
+    test('regression: high-ZCR speech-shaped frames still trigger interrupt',
+        () {
       // Real speech has high ZCR on consonants (~0.3-0.5). The old
       // implementation vetoed these via zcr <= 0.15, so barge-in never
       // fired. This test pins the fix: RMS is the gate, ZCR only excludes
@@ -180,6 +181,49 @@ void main() {
         det.push(noisySpeechFrame(160, amplitude: 0.0001), 16000);
       }
       expect(events, isEmpty);
+      det.stop();
+    });
+
+    test('speaker echo calibration rejects echo but accepts near-end speech',
+        () {
+      final det = BargeInDetector(
+        duckMs: 260,
+        interruptMs: 650,
+        restoreMs: 180,
+        prerollMs: 800,
+        speechThresholdRms: 0.008,
+        echoThresholdMultiplier: 1.6,
+      );
+      det.start(16000);
+      final events = <BargeInEvent>[];
+      det.onEvent = (e, _) => events.add(e);
+
+      det.beginEchoCalibration(durationMs: 650);
+      // Android playback can begin with quiet decoder/header frames. The
+      // calibration must retain the later, real TTS peak instead of averaging
+      // it down and then treating the companion's first syllable as a user.
+      for (var i = 0; i < 10; i++) {
+        det.push(voicedFrame(160, amplitude: 0.001), 16000);
+      }
+      for (var i = 0; i < 55; i++) {
+        det.push(voicedFrame(160, amplitude: 0.03), 16000);
+      }
+      expect(det.effectiveSpeechThresholdRms, greaterThan(0.008));
+      expect(events, isEmpty);
+
+      // Residual TTS echo at the calibrated level must not self-interrupt.
+      for (var i = 0; i < 80; i++) {
+        det.push(voicedFrame(160, amplitude: 0.03), 16000);
+      }
+      expect(events, isEmpty);
+
+      // A close near-end voice rises above the echo baseline and interrupts
+      // within the natural 650ms window.
+      for (var i = 0; i < 65; i++) {
+        det.push(voicedFrame(160, amplitude: 0.08), 16000);
+      }
+      expect(events, contains(BargeInEvent.duck));
+      expect(events, contains(BargeInEvent.interrupt));
       det.stop();
     });
 

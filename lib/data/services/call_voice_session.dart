@@ -11,12 +11,14 @@ import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/call_voice_state_bridge.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/streaming_tts_player.dart';
 import 'package:memex/data/services/voice_call_audio_session.dart';
+import 'package:memex/data/services/voice_latency_tracker.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -53,7 +55,8 @@ class CallVoiceSession {
 
   /// Host-app channels (registered on both the main and the foreground-task
   /// engines — see AudioRouteChannelHandler + HereIAmApplication).
-  static const _audioRouteChannel = MethodChannel('com.memexlab.memex/audio_route');
+  static const _audioRouteChannel =
+      MethodChannel('com.memexlab.memex/audio_route');
   static const _callControlChannel =
       MethodChannel('com.memexlab.memex/call_control');
 
@@ -67,8 +70,10 @@ class CallVoiceSession {
   DateTime? _lastActivityAt;
   DateTime? _lastTtsEndAt;
   DateTime? _lastBargeInAt;
+  bool _ttsAudioActive = false;
   bool _micMuted = false;
   bool _speakerOn = true;
+  Future<void> _stateWriteChain = Future.value();
 
   late final VoiceTurnSequencer _turnSequencer =
       VoiceTurnSequencer('call_${identityHash()}');
@@ -159,7 +164,8 @@ class CallVoiceSession {
   Future<void> start(String characterId, {bool speakerOn = true}) =>
       _startInternal(characterId, speakerOn: speakerOn);
 
-  Future<void> _startInternal(String characterId, {required bool speakerOn}) async {
+  Future<void> _startInternal(String characterId,
+      {required bool speakerOn}) async {
     if (_phase != CallVoicePhase.idle) {
       _log.info('start ignored: already active (phase=$_phase)');
       return;
@@ -175,6 +181,7 @@ class CallVoiceSession {
 
     _runSerial++;
     _phase = CallVoicePhase.starting;
+    _ttsAudioActive = false;
     _micRestartAttempts = 0;
     _micMuted = false;
     _speakerOn = speakerOn;
@@ -270,12 +277,20 @@ class CallVoiceSession {
   }
 
   /// Switch the audio route between earpiece and loudspeaker.
-  Future<void> setSpeakerphone(bool enabled) => _setSpeakerphoneInternal(enabled);
+  Future<void> setSpeakerphone(bool enabled) =>
+      _setSpeakerphoneInternal(enabled);
 
   Future<void> _setSpeakerphoneInternal(bool enabled) async {
     if (_phase == CallVoicePhase.idle) return;
     if (_speakerOn == enabled) return;
     _speakerOn = enabled;
+    final controller = _controller;
+    if (_ttsAudioActive && controller != null && controller.isStreaming) {
+      controller.pauseAudioForwarding(speakerphone: enabled);
+      if (!enabled) {
+        controller.notifyTtsPlaybackStarted();
+      }
+    }
     try {
       await _audioRouteChannel.invokeMethod(
         'setSpeakerphone',
@@ -300,7 +315,6 @@ class CallVoiceSession {
     _log.info('end (phase=$_phase)');
     _runSerial++;
     _activeIdentity = null;
-    final wasIdle = _phase == CallVoicePhase.idle;
     _phase = CallVoicePhase.idle;
 
     _sentenceTimer?.cancel();
@@ -316,6 +330,7 @@ class CallVoiceSession {
         _log.warning('tts cancel on end: $e');
       }
     }
+    _ttsAudioActive = false;
 
     final controller = _controller;
     if (controller != null) {
@@ -406,11 +421,10 @@ class CallVoiceSession {
   void _onStreamingEvent(StreamingAsrEvent event) {
     switch (event) {
       case SentenceBeginEvent():
-        // NLS detected speech start. If the companion is speaking, treat it
-        // as a barge-in (the platform AEC cancels TTS echo; anything that
-        // reaches NLS VAD while TTS plays is real user speech). Cooldown
-        // guards against echo chaining (interrupt → residual echo → interrupt).
-        if (_phase == CallVoicePhase.speaking) {
+        // Earpiece mode can treat server VAD during playback as barge-in.
+        // Loudspeaker mode is strict half-duplex because leaked TTS is not
+        // distinguishable from nearby user speech without a playback reference.
+        if (_ttsAudioActive && !_speakerOn) {
           final lastBarge = _lastBargeInAt;
           if (lastBarge == null ||
               DateTime.now().difference(lastBarge) >
@@ -430,7 +444,7 @@ class CallVoiceSession {
         // and create an echo loop. User interruptions are handled by
         // SentenceBegin (interrupts TTS) and the speech that follows the
         // interruption is transcribed after we return to listening.
-        if (_phase == CallVoicePhase.speaking) {
+        if (_ttsAudioActive) {
           _log.fine('dropping sentence while speaking (echo): "$text"');
           return;
         }
@@ -440,7 +454,8 @@ class CallVoiceSession {
         // sentence (typically the last word or two of what we just said).
         final ttsEnd = _lastTtsEndAt;
         if (ttsEnd != null &&
-            DateTime.now().difference(ttsEnd) < const Duration(milliseconds: 400)) {
+            DateTime.now().difference(ttsEnd) <
+                const Duration(milliseconds: 400)) {
           _log.fine('dropping echo tail sentence: "$text"');
           return;
         }
@@ -459,15 +474,25 @@ class CallVoiceSession {
         _pendingSentence.write(text);
         _sentenceTimer?.cancel();
         _sentenceTimer = Timer(_batchWindow, () => unawaited(_dispatchTurn()));
-      default:
-        break;
+      case TranscriptionResultChangedEvent():
+        final text = event.text.trim();
+        if (text.isEmpty || _ttsAudioActive) return;
+        _notifyMain({
+          'type': 'call_status',
+          'status':
+              _phase == CallVoicePhase.speaking ? 'speaking' : 'listening',
+          'transcript': text,
+          'partial': true,
+        });
     }
   }
 
   void _onBargeInDuck() {
-    // Lower TTS volume is handled by the UI side in the main isolate; in the
-    // background we simply keep playing (duck is just a hint).
     _log.fine('barge-in duck');
+    final tts = _ttsSession;
+    if (tts != null) {
+      unawaited(tts.setVolume(0.24));
+    }
   }
 
   void _onBargeInDetected() {
@@ -477,6 +502,10 @@ class CallVoiceSession {
 
   void _onBargeInRestore() {
     _log.fine('barge-in restore');
+    final tts = _ttsSession;
+    if (tts != null) {
+      unawaited(tts.setVolume(1));
+    }
   }
 
   /// Stop the in-flight reply and return the mic to listening so the user's
@@ -486,6 +515,14 @@ class CallVoiceSession {
     _lastBargeInAt = DateTime.now();
     _runSerial++;
     _activeIdentity = null;
+    _ttsAudioActive = false;
+    // Hand audio back to ASR before touching the player. AudioPlayer.stop /
+    // dispose can complete asynchronously (and has failed on Samsung during
+    // an active playback cancellation); mic recovery must never wait on it.
+    final controller = _controller;
+    if (controller != null && controller.isStreaming) {
+      controller.resumeAudioForwarding();
+    }
     final tts = _ttsSession;
     _ttsSession = null;
     if (tts != null) {
@@ -520,6 +557,14 @@ class CallVoiceSession {
   Future<void> _runTurn(String text) async {
     final serial = ++_runSerial;
     final turnIdentity = _turnSequencer.nextTurn();
+    final latencyTracker = VoiceLatencyTracker(
+      turnId: turnIdentity.turnId,
+      callSessionId: turnIdentity.callSessionId,
+      asrBackend: 'alibaba-nls-streaming',
+      ttsTransport: 'streaming',
+    )
+      ..markTurnStart()
+      ..markAsrComplete();
     _activeIdentity = turnIdentity;
     _lastActivityAt = DateTime.now();
     final userId = _userId;
@@ -538,6 +583,7 @@ class CallVoiceSession {
 
     StreamingTtsSession? tts;
     final voiceId = _voiceId;
+    var sawFirstModelText = false;
     try {
       final userMessageId = await PersonaChatService.instance.addUserMessage(
         characterId,
@@ -552,19 +598,33 @@ class CallVoiceSession {
           identity: turnIdentity,
           voiceMode: true,
         );
+        tts.onSegmentStart = (segment) {
+          if (segment.seq != 0) return;
+          latencyTracker
+            ..markTtsFirstAudio()
+            ..markFormalFirstSound();
+          _ttsAudioActive = true;
+          final controller = _controller;
+          if (controller != null && controller.isStreaming) {
+            controller.pauseAudioForwarding(speakerphone: _speakerOn);
+            if (!_speakerOn) {
+              controller.notifyTtsPlaybackStarted();
+            }
+          }
+        };
         await tts.start();
         _ttsSession = tts;
         await _updateNotification('🔊 正在回复…');
-        // Pause forwarding while TTS plays: speaker output would otherwise
+        // Pause forwarding when the first TTS segment actually starts:
+        // speaker output would otherwise
         // leak into the mic (imperfect AEC, especially on loudspeaker) and
         // NLS would transcribe our own reply as the user (echo loop, and
         // SentenceBegin would barge-in and cut our own TTS). The local
-        // BargeInDetector (started by pauseAudioForwarding) still lets the
-        // user interrupt — see _onBargeInDetected.
-        final controller = _controller;
-        if (controller != null && controller.isStreaming) {
-          controller.pauseAudioForwarding();
-        }
+        // Loudspeaker mode intentionally stays strict half-duplex here;
+        // earpiece mode retains local barge-in.
+        // Do not pause here while the model is still thinking. NLS closes an
+        // audio-starved stream after about ten seconds, which previously left
+        // the call visibly alive but deaf before the reply even began.
       } else {
         await _updateNotification('💬 正在回复…');
       }
@@ -573,6 +633,7 @@ class CallVoiceSession {
         AgentDefinitions.companionAgent,
         defaultClientKey: LLMConfig.defaultClientKey,
       );
+      latencyTracker.markModelRequest();
       final buffer = StringBuffer();
       await for (final chunk in CompanionAgent.chat(
         client: resources.client,
@@ -587,6 +648,10 @@ class CallVoiceSession {
         if (serial != _runSerial || !turnIdentity.isCurrent(_activeIdentity)) {
           await tts?.cancel();
           return;
+        }
+        if (!sawFirstModelText && chunk.trim().isNotEmpty) {
+          sawFirstModelText = true;
+          latencyTracker.markModelFirstText();
         }
         buffer.write(chunk);
         tts?.feedText(chunk);
@@ -619,9 +684,11 @@ class CallVoiceSession {
     } catch (e, st) {
       _log.severe('turn failed: $e\n$st');
     } finally {
+      latencyTracker.log();
       if (serial == _runSerial && turnIdentity.isCurrent(_activeIdentity)) {
         _ttsSession = null;
         _activeIdentity = null;
+        _ttsAudioActive = false;
         _lastTtsEndAt = DateTime.now();
         // Back to listening only if the call is still alive.
         if (_phase != CallVoicePhase.idle) {
@@ -636,11 +703,14 @@ class CallVoiceSession {
 
   /// After TTS finishes, hand the mic back to the NLS session. If the NLS
   /// session was closed while TTS played (idle-close while forwarding was
-  /// paused), re-arm a fresh streaming session. A short delay lets any
-  /// in-flight teardown (from _handleStreamingSessionLost) finish before we
-  /// read [VoiceInputController.isStreaming].
+  /// paused), re-arm a fresh streaming session. The longer loudspeaker delay
+  /// also drops the acoustic echo tail before mic audio is forwarded again.
   Future<void> _restoreMicAfterTts() async {
-    await Future.delayed(const Duration(milliseconds: 200));
+    // Loudspeaker echo remains in the mic path briefly after playback stops.
+    // Do not forward that tail to ASR or it can become a phantom user turn.
+    await Future.delayed(
+      Duration(milliseconds: _speakerOn ? 650 : 250),
+    );
     final controller = _controller;
     if (controller == null || _phase == CallVoicePhase.idle) return;
     if (controller.isStreaming) {
@@ -675,8 +745,7 @@ class CallVoiceSession {
     if (characterId == null) return;
 
     try {
-      await PersonaChatService.instance
-          .addCharacterMessage(characterId, text);
+      await PersonaChatService.instance.addCharacterMessage(characterId, text);
     } catch (e) {
       _log.warning('persist opening failed: $e');
     }
@@ -693,10 +762,18 @@ class CallVoiceSession {
     _ttsSession = tts;
     try {
       await tts.start();
-      final controller = _controller;
-      if (controller != null && controller.isStreaming) {
-        controller.pauseAudioForwarding();
-      }
+      tts.onSegmentStart = (segment) {
+        if (segment.seq == 0) {
+          _ttsAudioActive = true;
+          final controller = _controller;
+          if (controller != null && controller.isStreaming) {
+            controller.pauseAudioForwarding(speakerphone: _speakerOn);
+            if (!_speakerOn) {
+              controller.notifyTtsPlaybackStarted();
+            }
+          }
+        }
+      };
       tts.feedText(text);
       await tts.finishAndWait();
     } catch (e, st) {
@@ -705,6 +782,7 @@ class CallVoiceSession {
       if (serial == _runSerial && turnIdentity.isCurrent(_activeIdentity)) {
         _ttsSession = null;
         _activeIdentity = null;
+        _ttsAudioActive = false;
         _lastTtsEndAt = DateTime.now();
         await _restoreMicAfterTts();
         if (_phase != CallVoicePhase.idle) {
@@ -782,10 +860,19 @@ class CallVoiceSession {
   }
 
   void _notifyMain(Map<String, dynamic> data) {
+    final snapshot = <String, dynamic>{
+      ...data,
+      'version': DateTime.now().microsecondsSinceEpoch,
+    };
     try {
-      FlutterForegroundTask.sendDataToMain(data);
+      FlutterForegroundTask.sendDataToMain(snapshot);
     } catch (e) {
       _log.fine('sendDataToMain failed: $e');
     }
+    _stateWriteChain = _stateWriteChain
+        .then((_) => CallVoiceStateBridge.write(snapshot))
+        .catchError((Object e) {
+      _log.fine('persist call state failed: $e');
+    });
   }
 }

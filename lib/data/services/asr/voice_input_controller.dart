@@ -77,16 +77,14 @@ class VoiceInputController extends ChangeNotifier {
   Future<bool> _ensureMicPermission() async {
     if (await _recorder.hasPermission()) return true;
     try {
-      final status = await Permission.microphone
-          .request()
-          .timeout(const Duration(seconds: 10),
-              onTimeout: () => PermissionStatus.denied);
+      final status = await Permission.microphone.request().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => PermissionStatus.denied);
       if (status.isGranted) return true;
       // Foreground: the user refused the system dialog — hard stop.
       return false;
     } catch (e) {
-      _logger.warning(
-          'mic permission request unavailable ($e); proceeding ',
+      _logger.warning('mic permission request unavailable ($e); proceeding ',
           'optimistically — the system arbitrates at AudioRecord time');
       return true;
     }
@@ -127,6 +125,7 @@ class VoiceInputController extends ChangeNotifier {
   StreamSubscription<Uint8List>? _streamingAudioSub;
   bool _streamingStopping = false;
   bool _audioForwardingPaused = false;
+  Uint8List? _pendingBargeInPreroll;
 
   /// When true, mic audio is discarded entirely (not forwarded to ASR, not
   /// fed to the barge-in detector). Used by call mute — the mic keeps running
@@ -294,7 +293,8 @@ class VoiceInputController extends ChangeNotifier {
     // Safety watchdog: auto-stop after max duration.
     _pressToTalkWatchdog?.cancel();
     _pressToTalkWatchdog = Timer(_pressToTalkMaxDuration, () {
-      _logger.info('Press-to-talk watchdog: max duration reached, auto-stopping');
+      _logger
+          .info('Press-to-talk watchdog: max duration reached, auto-stopping');
       unawaited(() async {
         final text = await stopPressToTalk();
         await onPressToTalkAutoComplete?.call(text);
@@ -455,8 +455,9 @@ class VoiceInputController extends ChangeNotifier {
           if (!_audioForwardingPaused) {
             _streamingClient?.sendAudio(chunk);
           } else {
-            // TTS is playing — feed PCM to the barge-in detector instead
-            // of dropping it. The detector runs duck/interrupt/restore.
+            // Earpiece mode feeds the optional detector. In loudspeaker mode
+            // there is no detector, so playback-contaminated chunks are
+            // deliberately discarded until the echo guard ends.
             _feedBargeInDetector(chunk);
           }
         },
@@ -472,12 +473,14 @@ class VoiceInputController extends ChangeNotifier {
       return;
     }
 
+    _flushPendingBargeInPreroll();
     _logger.info('Streaming session started');
   }
 
   /// Gracefully stop the streaming session. Sends [StopTranscription] to the
   /// server, waits for [TranscriptionCompleted], and tears down the mic.
   Future<void> stopStreaming() async {
+    _pendingBargeInPreroll = null;
     if (_streamingClient == null || _streamingStopping) return;
     _streamingStopping = true;
 
@@ -513,6 +516,7 @@ class VoiceInputController extends ChangeNotifier {
   /// Hard-cancel a streaming session without the graceful stop handshake.
   /// Use when the user hung up or the screen is unmounting mid-session.
   Future<void> cancelStreaming() async {
+    _pendingBargeInPreroll = null;
     if (_streamingClient == null) return;
     await _cancelStreamingInternal();
     _state = VoiceInputState.idle;
@@ -520,20 +524,26 @@ class VoiceInputController extends ChangeNotifier {
     _logger.info('Streaming session cancelled');
   }
 
-  /// Pause forwarding mic audio to the NLS server. Call this while TTS is
-  /// playing so the speaker output is not recognized as user speech (echo
-  /// loop) — a fallback for devices where the platform AEC leaks echo. The
-  /// mic stays open (VoIP call audio session keeps mic + speaker coexisting),
-  /// chunks are fed to the [BargeInDetector] for two-stage duck/interrupt.
+  /// Pause forwarding mic audio to the NLS server while TTS is playing.
   ///
-  /// This is a defense-in-depth guard. With the TTS player routed through the
-  /// voice-communication stream (see `_voiceCallTtsContext`), the platform AEC
-  /// should cancel speaker echo and the NLS server-side VAD will not fire on
-  /// TTS output. The detector catches any residual echo that slips past AEC
-  /// on misbehaving devices.
-  void pauseAudioForwarding() {
+  /// Loudspeaker mode is deliberately strict half-duplex. The recorder stays
+  /// open to preserve the Android call audio session, but mic chunks are
+  /// discarded until playback and its echo tail have ended. A level-only
+  /// detector cannot distinguish nearby speech from loudspeaker echo without
+  /// a playback reference. Earpiece mode keeps local barge-in because its
+  /// acoustic leakage is much lower.
+  void pauseAudioForwarding({bool speakerphone = true}) {
     _audioForwardingPaused = true;
-    startBargeInDetection();
+    _pendingBargeInPreroll = null;
+    if (speakerphone) {
+      // A level-only detector has no playback reference, so loudspeaker echo
+      // is indistinguishable from nearby user speech. Keep the recorder open
+      // for the Android call session, but discard mic chunks during TTS.
+      stopBargeInDetection();
+      _logger.info('Speakerphone TTS guard active (strict half-duplex)');
+      return;
+    }
+    startBargeInDetection(speakerphone: false);
   }
 
   /// Resume forwarding mic audio to the NLS server after TTS stops. If the NLS
@@ -541,23 +551,34 @@ class VoiceInputController extends ChangeNotifier {
   /// [onStreamingSessionLost] path already reset state to idle; the caller's
   /// TTS-complete handler re-arms the mic via [startStreaming].
   void resumeAudioForwarding() {
+    _flushPendingBargeInPreroll();
     _audioForwardingPaused = false;
     stopBargeInDetection();
   }
 
+  /// Recalibrate the adaptive echo gate when earpiece TTS really starts.
+  void notifyTtsPlaybackStarted() {
+    // Cover the real attack and first syllables. A 160ms window often only
+    // measured decoder/header silence on Android, making the following TTS
+    // audio look like a user interruption.
+    _bargeInDetector?.beginEchoCalibration(durationMs: 650);
+  }
+
   /// Start two-stage barge-in detection. Audio chunks arriving while
   /// forwarding is paused are fed to [BargeInDetector].
-  void startBargeInDetection() {
+  void startBargeInDetection({bool speakerphone = true}) {
     if (_bargeInDetector != null) return;
     // Very high thresholds: on loudspeaker the mic picks up our own TTS echo
     // (no hardware AEC on the default mic source). Only a loud, sustained
     // voice (interrupt 1.5s @ RMS 0.05 ≈ -26dB) counts as a real interruption
     // — anything quieter/longer-than-a-blip is treated as echo and ignored.
     _bargeInDetector = BargeInDetector(
-      duckMs: 500,
-      interruptMs: 1500,
-      restoreMs: 300,
-      speechThresholdRms: 0.05,
+      duckMs: speakerphone ? 260 : 240,
+      interruptMs: speakerphone ? 650 : 520,
+      restoreMs: speakerphone ? 180 : 160,
+      prerollMs: 800,
+      speechThresholdRms: speakerphone ? 0.008 : 0.005,
+      echoThresholdMultiplier: speakerphone ? 1.6 : 1.2,
     );
     _bargeInDetector!.onEvent = (event, prerollSnapshot) {
       switch (event) {
@@ -566,6 +587,7 @@ class VoiceInputController extends ChangeNotifier {
           onBargeInDuck?.call();
         case BargeInEvent.interrupt:
           _logger.info('Barge-in: interrupt confirmed');
+          _pendingBargeInPreroll = _floatPcmToInt16Bytes(prerollSnapshot);
           stopBargeInDetection();
           onBargeInDetected?.call();
         case BargeInEvent.restore:
@@ -577,7 +599,9 @@ class VoiceInputController extends ChangeNotifier {
     final detector = _bargeInDetector;
     if (detector != null) {
       _logger.info('Barge-in detector started (duck=${detector.duckMs}ms, '
-          'interrupt=${detector.interruptMs}ms, rms=${detector.speechThresholdRms})');
+          'interrupt=${detector.interruptMs}ms, '
+          'rms=${detector.speechThresholdRms}, '
+          'echoMultiplier=${detector.echoThresholdMultiplier})');
     }
   }
 
@@ -601,6 +625,25 @@ class VoiceInputController extends ChangeNotifier {
       floats[i] = sample / 32768.0;
     }
     detector.push(floats, 16000);
+  }
+
+  Uint8List? _floatPcmToInt16Bytes(Float32List? samples) {
+    if (samples == null || samples.isEmpty) return null;
+    final bytes = Uint8List(samples.length * 2);
+    final data = ByteData.sublistView(bytes);
+    for (var i = 0; i < samples.length; i++) {
+      final value = (samples[i].clamp(-1.0, 1.0) * 32767).round();
+      data.setInt16(i * 2, value, Endian.little);
+    }
+    return bytes;
+  }
+
+  void _flushPendingBargeInPreroll() {
+    final preroll = _pendingBargeInPreroll;
+    if (preroll == null || preroll.isEmpty) return;
+    _pendingBargeInPreroll = null;
+    _streamingClient?.sendAudio(preroll);
+    _logger.info('Barge-in: restored ${preroll.length ~/ 2} preroll samples');
   }
 
   Future<void> _cancelStreamingInternal() async {
@@ -658,7 +701,8 @@ class VoiceInputController extends ChangeNotifier {
       // if it runs unawaited, the caller (e.g. _restoreMicAfterTts) can read
       // isStreaming==true right after teardown starts and resumeAudioForwarding
       // on a dead client, losing the mic until the next NLS loss.
-      _logger.info('NLS session closed during TTS; full teardown (no callback)');
+      _logger
+          .info('NLS session closed during TTS; full teardown (no callback)');
       // Fire-and-forget; the TTS-complete handler (_restoreMicAfterTts) waits
       // ~200ms before checking isStreaming, which gives this teardown time to
       // finish before it decides whether to resume or re-arm.

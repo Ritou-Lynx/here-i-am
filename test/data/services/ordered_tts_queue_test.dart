@@ -159,6 +159,41 @@ void main() {
   });
 
   group('OrderedTtsQueue lifecycle', () {
+    test('waitUntilDrained does not complete during pending-to-player handoff',
+        () async {
+      const id = VoiceTurnIdentity(
+        callSessionId: 'call_01',
+        turnId: 'turn_01',
+        turnSequence: 1,
+        generationId: 'gen_01_a',
+      );
+      final blocker = Completer<void>();
+      final playbackStarted = Completer<void>();
+      Future<void> blockingPlayer(TtsSegment seg, VoiceTurnIdentity a) async {
+        playbackStarted.complete();
+        await blocker.future;
+      }
+
+      final queue = OrderedTtsQueue(
+        identity: id,
+        playSegment: blockingPlayer,
+      );
+      final file = createTempAudioFile('drain_handoff');
+      queue.push(TtsSegment(identity: id, seq: 0, file: file, text: 'test'));
+      queue.markDone();
+
+      var drained = false;
+      final wait = queue.waitUntilDrained().then((_) => drained = true);
+      await playbackStarted.future;
+      await Future<void>.delayed(Duration.zero);
+      expect(drained, isFalse);
+
+      blocker.complete();
+      await wait;
+      expect(drained, isTrue);
+      await queue.dispose();
+    });
+
     test('isCancelled starts false and becomes true after cancel', () async {
       const id = VoiceTurnIdentity(
         callSessionId: 'call_01',

@@ -319,7 +319,10 @@ class VoiceCueService {
     bool voiceMode = false,
   }) async {
     _preempted = false;
-    final player = AudioPlayer();
+    final player = AudioPlayer(
+      handleAudioSessionActivation: false,
+      androidApplyAudioAttributes: false,
+    );
     _player = player;
 
     try {

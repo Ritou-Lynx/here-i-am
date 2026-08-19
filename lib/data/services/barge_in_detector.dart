@@ -28,6 +28,7 @@ class BargeInDetector {
     this.restoreMs = 160,
     this.prerollMs = 1000,
     this.speechThresholdRms = 0.005,
+    this.echoThresholdMultiplier = 1.0,
   });
 
   /// Continuous voice duration to trigger duck (lower TTS volume).
@@ -47,10 +48,17 @@ class BargeInDetector {
   /// most TTS echo. Cove reference: rms >= 0.004.
   final double speechThresholdRms;
 
+  /// Multiplier applied to the measured speaker-echo baseline while TTS is
+  /// playing. Values greater than 1 require near-end speech to rise above the
+  /// residual echo instead of relying on one fixed, device-specific gate.
+  final double echoThresholdMultiplier;
+
   bool _ducked = false;
   bool _interrupted = false;
   double _voicedMs = 0;
   double _silentMs = 0;
+  double _echoBaselineRms = 0;
+  double _echoCalibrationRemainingMs = 0;
   PcmRingBuffer? _preroll;
 
   /// Callback for duck/interrupt/restore events.
@@ -62,6 +70,12 @@ class BargeInDetector {
   /// Whether the detector has triggered an interrupt (TTS should stop).
   bool get isInterrupted => _interrupted;
 
+  /// Current RMS gate after applying the calibrated echo baseline.
+  double get effectiveSpeechThresholdRms => math.max(
+        speechThresholdRms,
+        _echoBaselineRms * echoThresholdMultiplier,
+      );
+
   /// Start the detector. Allocates the preroll ring buffer.
   void start(int sampleRate) {
     _preroll = PcmRingBuffer(
@@ -72,6 +86,8 @@ class BargeInDetector {
     _interrupted = false;
     _voicedMs = 0;
     _silentMs = 0;
+    _echoBaselineRms = 0;
+    _echoCalibrationRemainingMs = 0;
   }
 
   /// Stop the detector and release the preroll buffer.
@@ -81,6 +97,8 @@ class BargeInDetector {
     _interrupted = false;
     _voicedMs = 0;
     _silentMs = 0;
+    _echoBaselineRms = 0;
+    _echoCalibrationRemainingMs = 0;
   }
 
   /// Reset for a new detection cycle (e.g. after an interrupt has been handled).
@@ -89,6 +107,18 @@ class BargeInDetector {
     _silentMs = 0;
     _ducked = false;
     _interrupted = false;
+  }
+
+  /// Measure residual speaker echo when actual TTS playback begins.
+  ///
+  /// The detector is armed while the model is still thinking, so calibrating
+  /// at construction time would only measure silence. During this short
+  /// window no duck/interrupt event is emitted; preroll capture continues.
+  void beginEchoCalibration({double durationMs = 160}) {
+    if (echoThresholdMultiplier <= 1 || durationMs <= 0) return;
+    resetEvidence();
+    _echoBaselineRms = 0;
+    _echoCalibrationRemainingMs = durationMs;
   }
 
   /// Feed a PCM frame and return any event that fires.
@@ -103,7 +133,19 @@ class BargeInDetector {
     }
 
     final frameMs = frame.length / sampleRate * 1000;
-    final isSpeech = _isLikelyUserSpeech(frame);
+    final features = _measureFrame(frame);
+
+    if (_echoCalibrationRemainingMs > 0) {
+      _updateEchoBaseline(features.rms, fast: true);
+      _echoCalibrationRemainingMs = math.max(
+        0.0,
+        _echoCalibrationRemainingMs - frameMs,
+      );
+      return null;
+    }
+
+    final isSpeech =
+        features.rms >= effectiveSpeechThresholdRms && features.zcr > 0.005;
 
     if (isSpeech) {
       _voicedMs += frameMs;
@@ -123,6 +165,9 @@ class BargeInDetector {
       }
     } else {
       _silentMs += frameMs;
+      if (!_ducked && echoThresholdMultiplier > 1) {
+        _updateEchoBaseline(features.rms);
+      }
 
       if (_ducked && !_interrupted && _silentMs >= restoreMs) {
         // Short burst was not sustained — restore volume.
@@ -144,8 +189,10 @@ class BargeInDetector {
   /// DC offset / flat signals (zcr ≈ 0), where RMS can be misleadingly
   /// high. The platform AEC handles most echo; this just catches real
   /// user speech during TTS.
-  bool _isLikelyUserSpeech(Float32List frame) {
-    if (frame.isEmpty) return false;
+  _BargeInFrameFeatures _measureFrame(Float32List frame) {
+    if (frame.isEmpty) {
+      return const _BargeInFrameFeatures(rms: 0, zcr: 0);
+    }
 
     double sumSq = 0;
     int crossings = 0;
@@ -163,11 +210,32 @@ class BargeInDetector {
     final rms = math.sqrt(sumSq / frame.length);
     final zcr = crossings / frame.length;
 
-    if (rms < speechThresholdRms) return false;
-    // Exclude DC offset / flat signals (zcr ≈ 0). Any real content
-    // (voice or noise) crosses zero at least occasionally.
-    return zcr > 0.005;
+    return _BargeInFrameFeatures(rms: rms, zcr: zcr);
   }
+
+  void _updateEchoBaseline(double rms, {bool fast = false}) {
+    if (fast) {
+      // Playback often starts with a short quiet codec/header frame. Keep the
+      // loudest frame from the calibration window instead of averaging that
+      // frame down, otherwise the companion's next syllable is mistaken for
+      // a near-end speaker and immediately interrupts itself.
+      _echoBaselineRms = math.max(_echoBaselineRms, rms);
+      return;
+    }
+    if (_echoBaselineRms == 0) {
+      _echoBaselineRms = rms;
+      return;
+    }
+    const weight = 0.04;
+    _echoBaselineRms = (_echoBaselineRms * (1 - weight)) + (rms * weight);
+  }
+}
+
+class _BargeInFrameFeatures {
+  const _BargeInFrameFeatures({required this.rms, required this.zcr});
+
+  final double rms;
+  final double zcr;
 }
 
 /// Fixed-capacity PCM ring buffer for preroll capture.

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:memex/data/services/audio_route_service.dart';
 import 'package:memex/data/services/callkit_service.dart';
+import 'package:memex/data/services/call_voice_state_bridge.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/companion_foreground_task.dart';
 import 'package:memex/utils/logger.dart';
@@ -25,39 +26,7 @@ class CallVoiceRouter {
   CallVoiceRouter._() {
     FlutterForegroundTask.addTaskDataCallback((data) {
       if (data is! Map) return;
-      final type = data['type'];
-      switch (type) {
-        case 'task_ready':
-          _taskReady = true;
-          debugPrint('[CallVoiceRouter] task ready');
-        case 'call_status':
-          final status = data['status'] as String?;
-          if (status != null) {
-            _status = status;
-            final muted = data['muted'] as bool?;
-            if (muted != null) _micMuted = muted;
-            final speaker = data['speaker'] as bool?;
-            if (speaker != null) _speakerOn = speaker;
-            final transcript = data['transcript'] as String?;
-            if (transcript != null && transcript.isNotEmpty) {
-              _lastTranscript = transcript;
-            }
-            onStatusChanged?.call(
-              CallVoiceStatus(
-                status: status,
-                transcript: _lastTranscript,
-                isReply: data['reply'] == true,
-                muted: _micMuted,
-                speaker: _speakerOn,
-              ),
-            );
-          }
-        case 'call_ended':
-          _status = 'ended';
-          final reason = data['reason'] as String?;
-          _clearActive();
-          onCallEnded?.call(reason);
-      }
+      _handleTaskData(Map<String, dynamic>.from(data));
     });
   }
 
@@ -68,6 +37,10 @@ class CallVoiceRouter {
   /// Current call status string (starting / listening / speaking / ended).
   String? _status;
   String _lastTranscript = '';
+  bool _lastIsReply = false;
+  int _lastBridgeVersion = 0;
+  Timer? _statePollTimer;
+  bool _statePollInProgress = false;
   bool _taskReady = false;
   bool _micMuted = false;
   bool _speakerOn = true;
@@ -88,6 +61,8 @@ class CallVoiceRouter {
   String? get activeCharacterName => _activeCharacterName;
   String? get activeCharacterAvatar => _activeCharacterAvatar;
   String? get status => _status;
+  String get lastTranscript => _lastTranscript;
+  bool get lastIsReply => _lastIsReply;
 
   /// Initialize at app startup (wire the task data callback — done in the
   /// constructor; kept for symmetry with [VoiceSessionRouter]).
@@ -129,6 +104,9 @@ class CallVoiceRouter {
     _activeCharacterId = characterId;
     _status = 'starting';
     _lastTranscript = '';
+    _lastIsReply = false;
+    _lastBridgeVersion = DateTime.now().microsecondsSinceEpoch;
+    _startStatePolling();
 
     // Remembered speaker default (外放 by default), applied on the isolate.
     final speakerOn = await AudioRouteService.instance.loadSpeakerPreference();
@@ -178,12 +156,13 @@ class CallVoiceRouter {
     // This covers the race where a CallKit broadcast already cleared the active
     // state but the UI hang-up button was just pressed — without this fallback,
     // the button would be a silent no-op and the overlay would never close.
+    // Close the local UI before the three background delivery retries. The
+    // old ordering made the red button look dead for about 4.5 seconds.
+    final callback = onCallEnded;
+    _status = 'ended';
+    _clearActive();
+    callback?.call(null);
     await _queueOrSend({'type': 'call_end'});
-    // Proactively clear local state so the overlay closes immediately rather
-    // than waiting for the isolate echo.
-    if (_activeCharacterId != null) {
-      _clearActive();
-    }
   }
 
   /// Mute / unmute the call mic (from the in-app overlay).
@@ -257,9 +236,78 @@ class CallVoiceRouter {
   }
 
   void _clearActive() {
+    _statePollTimer?.cancel();
+    _statePollTimer = null;
     _activeCharacterId = null;
     _activeCharacterName = null;
     _activeCharacterAvatar = null;
+  }
+
+  void _startStatePolling() {
+    _statePollTimer?.cancel();
+    _statePollTimer = Timer.periodic(
+      const Duration(milliseconds: 250),
+      (_) => unawaited(_pollCallState()),
+    );
+  }
+
+  Future<void> _pollCallState() async {
+    if (_statePollInProgress || _activeCharacterId == null) return;
+    _statePollInProgress = true;
+    try {
+      final snapshot = await CallVoiceStateBridge.read();
+      if (snapshot != null) _handleTaskData(snapshot);
+    } catch (e) {
+      _log.fine('poll call state failed: $e');
+    } finally {
+      _statePollInProgress = false;
+    }
+  }
+
+  void _handleTaskData(Map<String, dynamic> data) {
+    final type = data['type'];
+    if (type == 'task_ready') {
+      _taskReady = true;
+      debugPrint('[CallVoiceRouter] task ready');
+      return;
+    }
+
+    final version = data['version'] as int? ?? 0;
+    if (version > 0) {
+      if (version <= _lastBridgeVersion) return;
+      _lastBridgeVersion = version;
+    }
+
+    switch (type) {
+      case 'call_status':
+        final status = data['status'] as String?;
+        if (status == null) return;
+        _status = status;
+        final muted = data['muted'] as bool?;
+        if (muted != null) _micMuted = muted;
+        final speaker = data['speaker'] as bool?;
+        if (speaker != null) _speakerOn = speaker;
+        final transcript = data['transcript'] as String?;
+        if (transcript != null && transcript.isNotEmpty) {
+          _lastTranscript = transcript;
+          _lastIsReply = data['reply'] == true;
+        }
+        onStatusChanged?.call(
+          CallVoiceStatus(
+            status: status,
+            transcript: _lastTranscript,
+            isReply: _lastIsReply,
+            muted: _micMuted,
+            speaker: _speakerOn,
+          ),
+        );
+      case 'call_ended':
+        _status = 'ended';
+        final reason = data['reason'] as String?;
+        final callback = onCallEnded;
+        _clearActive();
+        callback?.call(reason);
+    }
   }
 }
 

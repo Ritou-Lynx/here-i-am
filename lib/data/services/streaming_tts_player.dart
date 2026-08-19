@@ -80,7 +80,8 @@ class StreamingTtsSession {
         onAllSegmentsPlayed?.call();
       }
     };
-    _log.info('start: voiceId=$voiceId voiceMode=$voiceMode identity=$identity');
+    _log.info(
+        'start: voiceId=$voiceId voiceMode=$voiceMode identity=$identity');
   }
 
   void feedText(String chunk) {
@@ -112,14 +113,14 @@ class StreamingTtsSession {
     // Mark the queue as done so onQueueDrained can fire.
     _queue.markDone();
 
-    // Wait for the queue to drain (all segments played).
-    final playDeadline = DateTime.now().add(const Duration(seconds: 120));
-    while (_queue.isPlaying || _queue.pendingCount > 0) {
-      if (DateTime.now().isAfter(playDeadline)) {
-        _log.warning('finishAndWait: playback timed out');
-        break;
-      }
-      await Future.delayed(const Duration(milliseconds: 50));
+    // Wait on the queue's actual drain coroutine, not a sampled
+    // pending/isPlaying pair: between removing a pending segment and entering
+    // playback both used to be false, so fast cache hits were cancelled before
+    // the first sound reached the speaker.
+    try {
+      await _queue.waitUntilDrained().timeout(const Duration(seconds: 120));
+    } on TimeoutException {
+      _log.warning('finishAndWait: playback timed out');
     }
 
     _log.info('finishAndWait: all segments played');
@@ -129,6 +130,9 @@ class StreamingTtsSession {
   Future<void> cancel() async {
     await _dispose();
   }
+
+  /// Duck or restore active playback without cancelling the generation.
+  Future<void> setVolume(double volume) => _queue.setVolume(volume);
 
   void _onSentence(String sentence) {
     if (_disposed) return;
@@ -188,7 +192,8 @@ class StreamingTtsSession {
           // TTS synthesis failed / returned empty bytes. Push a silent
           // placeholder segment so the OrderedTtsQueue does not get stuck
           // waiting for this seq forever (seq gap would deadlock the queue).
-          _log.warning('TTS seq=$currentSeq returned empty, pushing placeholder');
+          _log.warning(
+              'TTS seq=$currentSeq returned empty, pushing placeholder');
         }
         final file = File(
           '${Directory.systemTemp.path}/tts_seg_'
@@ -201,12 +206,54 @@ class StreamingTtsSession {
           // Write a minimal silent mp3 placeholder (48-byte valid mp3 header
           // with no audio frames) so the queue does not skip this seq.
           await file.writeAsBytes([
-            0xFF, 0xFB, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xFF,
+            0xFB,
+            0x90,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
           ], flush: true);
         }
 

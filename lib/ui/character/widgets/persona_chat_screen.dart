@@ -2660,6 +2660,7 @@ only after you have written the goodbye you want the user to hear.''',
           // formal_first_sound for latency tracking.
           ttsSession.onSegmentStart = (segment) {
             if (segment.seq == 0) {
+              _voiceController.notifyTtsPlaybackStarted();
               latencyTracker?.markFormalFirstSound();
               unawaited(VoiceCueCoordinator.instance.preemptForFormalTts());
             }
@@ -5222,6 +5223,7 @@ only after you have written the goodbye you want the user to hear.''',
         try {
           await _audioPlayer.setVolume(1.0);
         } catch (_) {}
+        _voiceController.notifyTtsPlaybackStarted();
         await _audioPlayer.play(DeviceFileSource(audioPath));
         unawaited(_watchTtsPlaybackCompletion(requestSerial, messageId));
       }
