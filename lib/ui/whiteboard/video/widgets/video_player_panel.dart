@@ -108,16 +108,16 @@ class _PlayerSurface extends StatelessWidget {
             children: [
               Icon(
                 viewModel.isPlaying
-                    ? Icons.play_circle_outline
-                    : Icons.pause_circle_outline,
+                    ? Icons.pause_circle_outline
+                    : Icons.play_circle_outline,
                 size: 64,
                 color: const Color(0xFF8F8E88),
               ),
               const SizedBox(height: 12),
-              Text(
+              const Text(
                 'Fixture Player',
                 style: TextStyle(
-                  color: const Color(0xFF8F8E88),
+                  color: Color(0xFF8F8E88),
                   fontSize: 12,
                   fontFamily: 'Cascadia Code',
                 ),
@@ -125,8 +125,8 @@ class _PlayerSurface extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 VideoStudyViewModel.formatTimecode(viewModel.positionMs),
-                style: TextStyle(
-                  color: const Color(0xFFB0AFA9),
+                style: const TextStyle(
+                  color: Color(0xFFB0AFA9),
                   fontSize: 20,
                   fontFamily: 'Cascadia Code',
                 ),
@@ -210,10 +210,10 @@ class _PlayerControls extends StatelessWidget {
                   fontFamily: 'Cascadia Code',
                 ),
               ),
-              Text(
+              const Text(
                 ' / ',
                 style: TextStyle(
-                  color: const Color(0xFF8F8E88),
+                  color: Color(0xFF8F8E88),
                   fontSize: 13,
                   fontFamily: 'Cascadia Code',
                 ),

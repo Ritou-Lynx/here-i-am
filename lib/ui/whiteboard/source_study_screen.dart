@@ -19,6 +19,7 @@ import 'package:memex/domain/whiteboard/video/platform_player_adapters.dart';
 import 'package:memex/domain/whiteboard/video/windows_youtube_player_adapter.dart';
 import 'package:memex/domain/whiteboard/video/youtube_adapter_factory.dart';
 import 'package:memex/domain/whiteboard/video/youtube_player_adapter.dart';
+import 'package:memex/domain/whiteboard/video/youtube_timedtext_service.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/whiteboard/video/session_store.dart';
@@ -31,12 +32,14 @@ class SourceStudyScreen extends StatefulWidget {
     this.repository,
     this.adapterFactory,
     this.initialTrack,
+    this.timedTextService,
   });
 
   final String sourceId;
   final UnifiedCardRepository? repository;
   final PlayerAdapter Function(String provider)? adapterFactory;
   final TimedTextTrack? initialTrack;
+  final YouTubeTimedTextService? timedTextService;
 
   @override
   State<SourceStudyScreen> createState() => _SourceStudyScreenState();
@@ -136,6 +139,7 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
       embedUrl: _embedUrl(source, provider),
       runtimePlayerAvailable: _runtimePlayerAvailable(adapter),
       initialTrack: widget.initialTrack,
+      timedTextService: widget.timedTextService,
       sessionStore: createVideoSessionStore(sourceId: source.sourceId),
       annotationStore: RepositoryVideoAnnotationStore(data.repository),
       onBack: _back,

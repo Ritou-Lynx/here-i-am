@@ -79,15 +79,14 @@ class YouTubeTimedTextService {
     final url = videoIdOrUrl;
     if (url == null || url.isEmpty) return null;
     if (RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(url)) return url;
-    final watchMatch =
-        RegExp(r'[?&]v=([a-zA-Z0-9_-]{11})').firstMatch(url);
+    final watchMatch = RegExp(r'[?&]v=([a-zA-Z0-9_-]{11})').firstMatch(url);
     if (watchMatch != null) return watchMatch.group(1);
-    final shortMatch =
-        RegExp(r'youtu\.be/([a-zA-Z0-9_-]{11})').firstMatch(url);
+    final shortMatch = RegExp(r'youtu\.be/([a-zA-Z0-9_-]{11})').firstMatch(url);
     if (shortMatch != null) return shortMatch.group(1);
-    final embedMatch =
-        RegExp(r'embed/([a-zA-Z0-9_-]{11})').firstMatch(url);
+    final embedMatch = RegExp(r'embed/([a-zA-Z0-9_-]{11})').firstMatch(url);
     if (embedMatch != null) return embedMatch.group(1);
+    final shortsMatch = RegExp(r'shorts/([a-zA-Z0-9_-]{11})').firstMatch(url);
+    if (shortsMatch != null) return shortsMatch.group(1);
     return null;
   }
 
@@ -182,8 +181,8 @@ class YouTubeTimedTextService {
   /// valid JSON. Returns null when the page has no captions or the structure
   /// is unrecognized (e.g. bot-blocked page).
   List<YouTubeCaptionTrack>? parseTrackList(String html) {
-    final match = RegExp(r'"captionTracks":\s*(\[.*?\])', dotAll: true)
-        .firstMatch(html);
+    final match =
+        RegExp(r'"captionTracks":\s*(\[.*?\])', dotAll: true).firstMatch(html);
     if (match == null) return null;
     try {
       final raw = jsonDecode(match.group(1)!) as List<dynamic>;
@@ -212,8 +211,9 @@ class YouTubeTimedTextService {
   YouTubeCaptionTrack? _pickTrack(List<YouTubeCaptionTrack> tracks) {
     for (final t in tracks) {
       if (t.languageCode == preferredLanguage ||
-          t.languageCode.toLowerCase().startsWith(
-              '${preferredLanguage.toLowerCase()}-')) {
+          t.languageCode
+              .toLowerCase()
+              .startsWith('${preferredLanguage.toLowerCase()}-')) {
         return t;
       }
     }
@@ -268,8 +268,9 @@ class YouTubeTimedTextService {
           endMs = startMs + durNum.toInt();
         } else if (i + 1 < events.length) {
           final next = events[i + 1];
-          final nextStart =
-              next is Map<String, dynamic> ? (next['tStartMs'] ?? next['aStartMs']) : null;
+          final nextStart = next is Map<String, dynamic>
+              ? (next['tStartMs'] ?? next['aStartMs'])
+              : null;
           endMs = nextStart is num ? nextStart.toInt() : startMs + 2000;
         } else {
           endMs = startMs + 2000;

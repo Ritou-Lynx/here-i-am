@@ -43,7 +43,8 @@ const _watchPageWithCaptions = '''
 ''';
 
 /// A watch page without any captions (bot-blocked or no captions).
-const _watchPageNoCaptions = '<script>var ytInitialPlayerResponse = {"playabilityStatus":{}};</script>';
+const _watchPageNoCaptions =
+    '<script>var ytInitialPlayerResponse = {"playabilityStatus":{}};</script>';
 
 /// A JSON3 payload with multi-segment lines and a missing duration.
 const _json3Payload = '''
@@ -67,17 +68,27 @@ void main() {
     });
 
     test('extracts from watch URLs', () {
-      expect(service.extractVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
+      expect(
+          service.extractVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
           equals('dQw4w9WgXcQ'));
-      expect(service.extractVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42'),
+      expect(
+          service.extractVideoId(
+              'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42'),
           equals('dQw4w9WgXcQ'));
     });
 
-    test('extracts from youtu.be and embed URLs', () {
+    test('extracts from youtu.be, embed, and shorts URLs', () {
       expect(service.extractVideoId('https://youtu.be/dQw4w9WgXcQ'),
           equals('dQw4w9WgXcQ'));
-      expect(service.extractVideoId('https://www.youtube.com/embed/dQw4w9WgXcQ'),
+      expect(
+          service.extractVideoId('https://www.youtube.com/embed/dQw4w9WgXcQ'),
           equals('dQw4w9WgXcQ'));
+      expect(
+        service.extractVideoId(
+          'https://www.youtube.com/shorts/dQw4w9WgXcQ?si=share',
+        ),
+        equals('dQw4w9WgXcQ'),
+      );
     });
 
     test('rejects non-YouTube references', () {
@@ -132,7 +143,8 @@ void main() {
     test('missing duration falls back to the next cue start', () {
       final cues = service.parseJson3(_json3Payload, language: 'zh');
       expect(cues[3].startMs, equals(15000));
-      expect(cues[3].endMs, equals(17000), reason: 'next cue start; last cue +2s');
+      expect(cues[3].endMs, equals(17000),
+          reason: 'next cue start; last cue +2s');
     });
 
     test('returns empty on malformed payload', () {
@@ -205,8 +217,7 @@ void main() {
       expect(transport.calls, greaterThanOrEqualTo(2));
     });
 
-    test('honest failure: no captions → error, no fabricated track',
-        () async {
+    test('honest failure: no captions → error, no fabricated track', () async {
       final transport = _FakeTransport(responses: {
         watchUrl: _watchPageNoCaptions,
         embedUrl: _watchPageNoCaptions,

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,6 +10,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/video/youtube_adapter_factory_stub.dart';
+import 'package:memex/domain/whiteboard/video/youtube_timedtext_service.dart';
 import 'package:memex/ui/whiteboard/source_study_screen.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
 
@@ -59,6 +61,12 @@ void main() {
 
   testWidgets('video source enters real provider path and never Fixture Player',
       (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final timedTextService = _FakeTimedTextService(
+      const YouTubeTimedTextResult(
+        error: 'Windows 平台字幕不可用：当前视频没有字幕轨',
+      ),
+    );
     repository = _StaticSourceRepository(
       db: db,
       root: root,
@@ -70,14 +78,18 @@ void main() {
         sourceId: 'src_youtube_product',
         repository: repository,
         adapterFactory: (_) => StubYouTubePlayerAdapter(),
+        timedTextService: timedTextService,
       ),
     ));
     await _pumpSource(tester);
 
     expect(find.byType(VideoStudyScreen), findsOneWidget);
     expect(find.text('Fixture Player'), findsNothing);
+    expect(timedTextService.calls, 1);
     expect(find.text('此平台不支持研读播放'), findsOneWidget,
         reason: 'the injected unavailable adapter must degrade honestly');
+    await tester.pumpWidget(const SizedBox.shrink());
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('missing source is an honest unavailable state', (tester) async {
@@ -91,6 +103,23 @@ void main() {
     expect(find.text('找不到这个来源'), findsOneWidget);
     expect(find.text('src_missing'), findsOneWidget);
   });
+}
+
+class _FakeTimedTextService extends YouTubeTimedTextService {
+  _FakeTimedTextService(this.result);
+
+  final YouTubeTimedTextResult result;
+  int calls = 0;
+
+  @override
+  Future<YouTubeTimedTextResult> fetchForVideo(
+    String videoIdOrUrl, {
+    required String sourceId,
+    String? sourceVersionId,
+  }) async {
+    calls++;
+    return result;
+  }
 }
 
 Future<void> _pumpSource(WidgetTester tester) async {

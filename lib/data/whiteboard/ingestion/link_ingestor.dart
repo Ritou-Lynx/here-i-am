@@ -182,8 +182,10 @@ class LinkIngestor {
       );
     }
     final sourceId = _deriveSourceId(canonical);
+    // Provider media identity is independent of the pasted URL shape and
+    // navigation/share parameters (watch, youtu.be, shorts, t, si, ...).
     final contentHash = sha256
-        .convert(utf8.encode('youtube\n$videoId\n${canonical.normalized}'))
+        .convert(utf8.encode('${canonical.provider}\n$videoId'))
         .toString()
         .substring(0, 32);
     final versionId = _deriveVersionId(sourceId, contentHash);

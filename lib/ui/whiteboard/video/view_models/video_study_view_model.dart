@@ -259,7 +259,9 @@ class VideoStudyViewModel extends ChangeNotifier {
   /// Whether platform-subtitle auto-fetch should run for the current setup.
   bool get _canAutoFetchSubtitles =>
       providerId == 'youtube' &&
-      (kIsWeb || defaultTargetPlatform == TargetPlatform.android) &&
+      (kIsWeb ||
+          defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.windows) &&
       (_track?.cues.isEmpty != false);
 
   void _maybeAutoFetchSubtitles(String? embedUrl) {

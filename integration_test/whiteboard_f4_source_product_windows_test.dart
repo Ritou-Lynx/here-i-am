@@ -9,8 +9,8 @@ import 'package:memex/data/whiteboard/ingestion/link_ingestion_service.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
-import 'package:memex/domain/whiteboard/player_adapter.dart';
 import 'package:memex/domain/whiteboard/video/windows_youtube_player_adapter.dart';
+import 'package:memex/domain/whiteboard/video/youtube_timedtext_service.dart';
 import 'package:memex/ui/whiteboard/source_study_screen.dart';
 import 'package:memex/ui/whiteboard/video/session_store.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
@@ -46,18 +46,31 @@ void main() {
     expect(committed.cardCreated, isTrue);
     expect(await repository.getSource(sourceId), isNotNull);
 
+    final timedTextService = _UnavailableTimedTextService();
     final adapter = WindowsYouTubePlayerAdapter();
     await tester.pumpWidget(MaterialApp(
       home: SourceStudyScreen(
         sourceId: sourceId,
         repository: repository,
         adapterFactory: (_) => adapter,
-        initialTrack: _track(sourceId, source.currentVersionId!),
+        timedTextService: timedTextService,
       ),
     ));
     await _pumpUntil(tester, () => adapter.isReady);
+    await _pumpUntilFinder(tester, find.text('导入字幕'));
     expect(find.byType(VideoStudyScreen), findsOneWidget);
     expect(find.text('Fixture Player'), findsNothing);
+    expect(timedTextService.calls, 1);
+    expect(find.textContaining('当前视频没有可用平台字幕'), findsOneWidget);
+
+    await tester.tap(find.text('导入字幕'));
+    await tester.pumpAndSettle();
+    expect(find.text('选择 SRT / VTT 文件'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, _windowsVtt);
+    await tester.tap(find.widgetWithText(FilledButton, '导入'));
+    await tester.pumpAndSettle();
+    expect(find.text('Windows cue one'), findsOneWidget);
+    expect(find.text('Windows cue two'), findsOneWidget);
 
     final duration = await adapter.durationMs();
     expect(duration, isNotNull);
@@ -83,7 +96,9 @@ void main() {
     final activeCue = tester.widget<Text>(find.text('Windows cue one'));
     expect(activeCue.style?.color, const Color(0xFF293025));
 
-    await tester.tap(find.byKey(const ValueKey('annotate_windows_cue_1')));
+    await tester.tap(
+      find.byKey(ValueKey('annotate_cue_${sourceId}_0')),
+    );
     await _pumpFor(tester, const Duration(milliseconds: 300));
     await tester.enterText(find.byType(TextField).at(0), 'Windows 原生标注');
     await tester.enterText(find.byType(TextField).at(1), '来自真实 WebView2 播放位置');
@@ -111,7 +126,7 @@ void main() {
         sourceId: sourceId,
         repository: repository,
         adapterFactory: (_) => restartedAdapter,
-        initialTrack: _track(sourceId, source.currentVersionId!),
+        timedTextService: timedTextService,
       ),
     ));
     await _pumpUntil(tester, () => restartedAdapter.isReady);
@@ -125,31 +140,35 @@ void main() {
     );
     expect(restored, hasLength(1));
     expect(find.text('Windows 原生标注'), findsWidgets);
+    expect(timedTextService.calls, 2,
+        reason: 'Windows retries platform subtitles for each real study load');
   }, timeout: const Timeout(Duration(minutes: 3)));
 }
 
-TimedTextTrack _track(String sourceId, String versionId) => TimedTextTrack(
-      trackId: 'windows_imported_vtt',
-      sourceId: sourceId,
-      sourceVersionId: versionId,
-      sourceKind: TimedTextSourceKind.userImport,
-      format: 'vtt',
-      reliability: TimedTextReliability.reliable,
-      cues: const [
-        TimedTextCue(
-          cueId: 'windows_cue_1',
-          startMs: 10000,
-          endMs: 18000,
-          text: 'Windows cue one',
-        ),
-        TimedTextCue(
-          cueId: 'windows_cue_2',
-          startMs: 30000,
-          endMs: 38000,
-          text: 'Windows cue two',
-        ),
-      ],
+class _UnavailableTimedTextService extends YouTubeTimedTextService {
+  int calls = 0;
+
+  @override
+  Future<YouTubeTimedTextResult> fetchForVideo(
+    String videoIdOrUrl, {
+    required String sourceId,
+    String? sourceVersionId,
+  }) async {
+    calls++;
+    return const YouTubeTimedTextResult(
+      error: '当前视频没有可用平台字幕；请导入 SRT 或 VTT',
     );
+  }
+}
+
+const String _windowsVtt = '''WEBVTT
+
+00:10.000 --> 00:18.000
+Windows cue one
+
+00:20.000 --> 00:28.000
+Windows cue two
+''';
 
 Future<void> _pumpUntil(
   WidgetTester tester,
@@ -160,6 +179,14 @@ Future<void> _pumpUntil(
     await tester.pump(const Duration(milliseconds: 250));
   }
   fail('Timed out waiting for Windows WebView2 YouTube player');
+}
+
+Future<void> _pumpUntilFinder(WidgetTester tester, Finder finder) async {
+  for (var i = 0; i < 80; i++) {
+    if (tester.any(finder)) return;
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  fail('Timed out waiting for $finder');
 }
 
 Future<void> _pumpFor(WidgetTester tester, Duration duration) async {
