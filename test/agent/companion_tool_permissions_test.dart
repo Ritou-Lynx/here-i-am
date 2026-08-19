@@ -30,6 +30,9 @@ void main() {
       expect(toolNames, contains('WeatherOutingRiskCheck'));
       expect(toolNames, contains('NearbyPlaceSearch'));
       expect(toolNames, contains('MobilityRoutePlan'));
+      expect(toolNames, contains('topic_thread_create'));
+      expect(toolNames, contains('topic_thread_recall'));
+      expect(toolNames, contains('topic_thread_append_session'));
     });
   });
 }

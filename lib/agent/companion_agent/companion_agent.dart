@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
 import 'package:memex/agent/companion_agent/sleep_companion_state.dart';
+import 'package:memex/agent/companion_agent/topic_thread_request_router.dart';
 
 import 'package:memex/agent/skills/companion_agent/companion_agent_skill.dart';
 import 'package:memex/agent/state_util.dart';
@@ -369,6 +370,24 @@ class CompanionAgent {
       'the tool. Only say "记上了" / "记好了" / "已保存" AFTER the tool call '
       'returns success — if it returns success:false, tell the user it '
       'failed instead of claiming success.';
+
+  // ── Topic Thread append request detection & directive ──────────────────
+
+  static bool _containsTopicThreadAppendRequest(String text) =>
+      TopicThreadRequestRouter.isAppendRequest(text);
+
+  @visibleForTesting
+  static bool containsTopicThreadAppendRequestForTesting(String text) =>
+      _containsTopicThreadAppendRequest(text);
+
+  static const _topicThreadAppendRequestDirective =
+      '⛔ SYSTEM DIRECTIVE (enforced — not advice):\n'
+      'The user explicitly asked to organize this discussion into an EXISTING '
+      'Topic Thread. You MUST call `topic_thread_append_session` in this turn.\n'
+      'Do NOT call `topic_thread_create`, even if append fails. If no active '
+      'thread or multiple candidates are reported, ask the user to identify '
+      'the original thread. Never claim you lack modification permission; '
+      'report the actual tool result.';
 
   /// Patterns indicating the agent's text output claims a record/save was
   /// completed.
@@ -1794,6 +1813,18 @@ class CompanionAgent {
       if (hasRecordRequest) {
         state.systemReminders['record_request_directive'] =
             _recordRequestDirective;
+      }
+
+      // Existing Topic Thread write-back has stricter routing than generic
+      // recording: it must append to the recalled thread and must never create
+      // a duplicate as fallback.
+      final hasTopicThreadAppendRequest =
+          _containsTopicThreadAppendRequest(userMessage);
+      if (hasTopicThreadAppendRequest) {
+        state.systemReminders['topic_thread_append_request_directive'] =
+            _topicThreadAppendRequestDirective;
+      } else {
+        state.systemReminders.remove('topic_thread_append_request_directive');
       }
 
       // Inject the available sticker list so the LLM can pick the right

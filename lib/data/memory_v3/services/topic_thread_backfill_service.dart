@@ -6,7 +6,10 @@
 /// for attaching past conversations to a long-running topic.
 library;
 
+import 'dart:convert';
+
 import 'package:dart_agent_core/dart_agent_core.dart';
+import 'package:drift/drift.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -29,8 +32,10 @@ class TopicThreadBackfillResult {
 
 class TopicThreadBackfillService {
   TopicThreadBackfillService({required AppDatabase db})
-      : _threads = TopicThreadService(db: db);
+      : _db = db,
+        _threads = TopicThreadService(db: db);
 
+  final AppDatabase _db;
   final TopicThreadService _threads;
 
   static const _maxInputChars = 4000;
@@ -52,6 +57,7 @@ class TopicThreadBackfillService {
     required String characterName,
     LLMClient? client,
     ModelConfig? modelConfig,
+    Map<String, dynamic> sourceRefExtra = const {},
   }) async {
     // Filter to extractable chat rows, ascending by id.
     final chat = messages
@@ -94,7 +100,10 @@ class TopicThreadBackfillService {
       threadId: threadId,
       summary: summary,
       sourceType: 'chat',
-      sourceRef: {'messageIds': chat.map((m) => m.id).toList()},
+      sourceRef: {
+        'messageIds': chat.map((m) => m.id).toList(),
+        ...sourceRefExtra,
+      },
       authority: 'user_confirmed',
       occurredAt: chat.last.timestamp,
     );
@@ -104,6 +113,80 @@ class TopicThreadBackfillService {
       summary: summary,
       messageCount: chat.length,
     );
+  }
+
+  /// Summarize the active chat range and append it to an existing thread.
+  ///
+  /// The recall command itself is before [afterMessageId], while the current
+  /// save command is [beforeMessageId]. Both are excluded from the summary.
+  /// Repeated tool execution for the same range returns the existing session.
+  Future<TopicThreadBackfillResult> summarizeRangeAndAppend({
+    required String threadId,
+    required String characterId,
+    required String characterName,
+    required int afterMessageId,
+    required int beforeMessageId,
+    LLMClient? client,
+    ModelConfig? modelConfig,
+  }) async {
+    if (beforeMessageId <= afterMessageId + 1) {
+      throw ArgumentError('当前话题还没有可整理的新讨论');
+    }
+
+    final existing = await _findExistingRange(
+      threadId: threadId,
+      afterMessageId: afterMessageId,
+      beforeMessageId: beforeMessageId,
+    );
+    if (existing != null) return existing;
+
+    final messages = await (_db.select(_db.personaChatMessages)
+          ..where((t) =>
+              t.characterId.equals(characterId) &
+              t.id.isBiggerThanValue(afterMessageId) &
+              t.id.isSmallerThanValue(beforeMessageId))
+          ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+        .get();
+
+    return summarizeAndAppend(
+      threadId: threadId,
+      messages: messages,
+      characterName: characterName,
+      client: client,
+      modelConfig: modelConfig,
+      sourceRefExtra: {
+        'rangeAfterMessageId': afterMessageId,
+        'rangeBeforeMessageId': beforeMessageId,
+      },
+    );
+  }
+
+  Future<TopicThreadBackfillResult?> _findExistingRange({
+    required String threadId,
+    required int afterMessageId,
+    required int beforeMessageId,
+  }) async {
+    final sessions = await _threads.getSessions(threadId, limit: 50);
+    for (final session in sessions) {
+      try {
+        final source = jsonDecode(session.sourceRefJson);
+        if (source is! Map<String, dynamic> ||
+            source['rangeAfterMessageId'] != afterMessageId ||
+            source['rangeBeforeMessageId'] != beforeMessageId) {
+          continue;
+        }
+        final ids = source['messageIds'];
+        return TopicThreadBackfillResult(
+          sessionId: session.id,
+          summary: session.summary,
+          messageCount: ids is List ? ids.length : 0,
+        );
+      } catch (_) {
+        // Older source refs may not be valid JSON; they cannot match this
+        // range marker and are safe to ignore.
+      }
+    }
+    return null;
   }
 
   String _buildTranscript(List<PersonaChatMessage> chat, String characterName) {

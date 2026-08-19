@@ -132,7 +132,15 @@ class CharacterToolsFactory {
     }
     if (AppDatabase.isInitialized) {
       tools.add(buildTopicThreadCreateTool());
-      tools.add(buildTopicThreadRecallTool());
+      tools.add(buildTopicThreadRecallTool(
+        characterId: characterId,
+        currentUserMessageId: currentUserMessageId,
+      ));
+      tools.add(buildTopicThreadAppendSessionTool(
+        characterId: characterId,
+        characterName: characterName ?? '林埃',
+        currentUserMessageId: currentUserMessageId,
+      ));
     }
     if (SharedLifeMemoryService.isInitialized &&
         !RecordOrganizerServiceV3.isInitialized) {

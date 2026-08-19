@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io' show stderr;
 
 import 'package:dart_agent_core/dart_agent_core.dart';
@@ -147,6 +148,69 @@ void main() {
       throwsA(isA<StateError>()),
     );
     expect(await db.select(db.topicThreadSessions).get(), isEmpty);
+  });
+
+  test('summarizeRangeAndAppend excludes boundary commands and is idempotent',
+      () async {
+    if (!fts5Available) return;
+    final threadId = await TopicThreadService(db: db).createThread(title: '秋招');
+    await _insertMessage(
+      db,
+      content: '接着聊秋招',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 8, 18, 20),
+    );
+    await _insertMessage(
+      db,
+      content: '我们接着上次的选择聊。',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 8, 18, 20, 1),
+    );
+    await _insertMessage(
+      db,
+      content: '我更倾向先投成长空间大的岗位。',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 8, 18, 20, 2),
+    );
+    await _insertMessage(
+      db,
+      content: '那筛选时可以把成长空间放在薪资前面。',
+      isFromCharacter: true,
+      timestamp: DateTime(2026, 8, 18, 20, 3),
+    );
+    await _insertMessage(
+      db,
+      content: '整理到这个话题里',
+      isFromCharacter: false,
+      timestamp: DateTime(2026, 8, 18, 20, 4),
+    );
+
+    final first = await service.summarizeRangeAndAppend(
+      threadId: threadId,
+      characterId: 'i',
+      characterName: '林埃',
+      afterMessageId: 1,
+      beforeMessageId: 5,
+      client: _FakeLLMClient('秋招筛选更看重岗位成长空间，薪资优先级相对靠后。'),
+      modelConfig: ModelConfig(model: 'fake'),
+    );
+    final second = await service.summarizeRangeAndAppend(
+      threadId: threadId,
+      characterId: 'i',
+      characterName: '林埃',
+      afterMessageId: 1,
+      beforeMessageId: 5,
+      client: _FakeLLMClient('不应再次生成'),
+      modelConfig: ModelConfig(model: 'fake'),
+    );
+
+    expect(first.sessionId, second.sessionId);
+    expect(first.messageCount, 3);
+    final sessions = await db.select(db.topicThreadSessions).get();
+    expect(sessions, hasLength(1));
+    final source = jsonDecode(sessions.single.sourceRefJson) as Map;
+    expect(source['messageIds'], [2, 3, 4]);
+    expect(source['messageIds'], isNot(contains(5)));
   });
 }
 

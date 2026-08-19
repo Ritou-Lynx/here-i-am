@@ -72,6 +72,20 @@ class TopicThreadService {
         .getSingleOrNull();
   }
 
+  /// Find an active thread whose normalized title exactly matches [title].
+  ///
+  /// This is deliberately conservative: ambiguous semantic similarity must be
+  /// resolved by the user, while an exact duplicate should never be created.
+  Future<TopicThread?> findActiveThreadByTitle(String title) async {
+    final normalized = _normalizeTitle(title);
+    if (normalized.isEmpty) return null;
+    final threads = await getThreads();
+    for (final thread in threads) {
+      if (_normalizeTitle(thread.title) == normalized) return thread;
+    }
+    return null;
+  }
+
   /// Update [currentStage] and/or [openQuestions] (agent_inferred, low-friction).
   ///
   /// Do NOT use this to update [corePositions] — use [updateCorePositions].
@@ -243,13 +257,17 @@ class TopicThreadService {
 
   static String _encodeMap(Map<String, dynamic> map) {
     if (map.isEmpty) return '{}';
-    // Simple single-level JSON serialisation
+    // Simple single-level JSON serialisation. Topic Thread source refs only
+    // contain scalar values and scalar lists.
     final pairs = map.entries.map((e) {
       final v = e.value is String ? '"${e.value}"' : '${e.value}';
       return '"${e.key}": $v';
     }).join(', ');
     return '{$pairs}';
   }
+
+  static String _normalizeTitle(String title) =>
+      title.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '');
 
   static List<String> _decodeList(String json) {
     if (json == '[]' || json.isEmpty) return [];

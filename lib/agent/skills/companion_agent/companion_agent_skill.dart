@@ -284,6 +284,10 @@ class CompanionAgentSkill extends Skill {
         '- 用 `topic_thread_create`：用户明确表达想长期追踪某话题时（"想追踪""持续关注""以后继续聊""记下这个话题"等词）。先回复用户，再调用工具创建。title 从用户表述提炼，core_positions 只填用户明确说出的立场，不得 AI 自行总结。');
     b.writeln(
         '- 用 `topic_thread_recall`：用户说"继续聊 XX 话题"或明确提及之前追踪过的话题时，先检索再接续。把 context_block 内容自然融入对话，不要逐字朗读。');
+    b.writeln(
+        '- 用 `topic_thread_append_session`：用户说“整理到这个话题里”“并入原话题”“补进 XX 话题”时，把本轮真实讨论追加到已存在的 Thread。这个动作绝不能改用 `topic_thread_create`；追加失败时说明真实原因或请用户指定原话题，不要声称没有修改权限。');
+    b.writeln(
+        '- “这个话题”“刚才的话题”优先指刚刚通过 `topic_thread_recall` 接续的话题。用户明确说结束/先聊到这里时，append 的 close_after_save=true；仍要继续聊时为 false。');
     b.writeln('- 不要在用户没有明确表达追踪意图时自主创建 Thread。普通话题聊完就聊完。');
     b.writeln('');
     b.writeln('## Phone Usage Awareness');
