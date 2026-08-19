@@ -10,6 +10,9 @@
 /// with the cue's time range.
 library;
 
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/player_adapter.dart';
@@ -125,17 +128,15 @@ class _CueItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = Theme.of(context)
-        .extension<SpringRainUiTokens>() ?? SpringRainUiTokens.daylight;
+    final tokens = Theme.of(context).extension<SpringRainUiTokens>() ??
+        SpringRainUiTokens.daylight;
 
     return InkWell(
       onTap: canSeek ? onTap : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive
-              ? tokens.accentSoft
-              : Colors.transparent,
+          color: isActive ? tokens.accentSoft : Colors.transparent,
           border: Border(
             left: BorderSide(
               color: isActive ? tokens.accent : Colors.transparent,
@@ -257,8 +258,8 @@ class _NeedsSubtitleView extends StatelessWidget {
                   backgroundColor: SpringRainUiTokens.daylightAccent,
                   foregroundColor: SpringRainUiTokens.daylightTextOnAccent,
                   textStyle: const TextStyle(fontSize: 14),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
@@ -281,6 +282,7 @@ class _SubtitleImportDialog extends StatefulWidget {
 
 class _SubtitleImportDialogState extends State<_SubtitleImportDialog> {
   final _controller = TextEditingController();
+  String? _fileError;
 
   @override
   void dispose() {
@@ -298,13 +300,35 @@ class _SubtitleImportDialogState extends State<_SubtitleImportDialog> {
       ),
       content: SizedBox(
         width: 480,
-        child: TextField(
-          controller: _controller,
-          maxLines: 12,
-          decoration: const InputDecoration(
-            hintText: '粘贴 SRT 或 VTT 内容…',
-            border: OutlineInputBorder(),
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _pickFile,
+              icon: const Icon(Icons.file_open_outlined, size: 16),
+              label: const Text('选择 SRT / VTT 文件'),
+            ),
+            if (_fileError != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                _fileError!,
+                style: const TextStyle(
+                  color: SpringRainUiTokens.daylightError,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            TextField(
+              controller: _controller,
+              maxLines: 12,
+              decoration: const InputDecoration(
+                hintText: '或粘贴 SRT / VTT 内容…',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
       ),
       actions: [
@@ -322,5 +346,32 @@ class _SubtitleImportDialogState extends State<_SubtitleImportDialog> {
         ),
       ],
     );
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['srt', 'vtt'],
+        withData: true,
+      );
+      if (result == null) return;
+      final bytes = result.files.single.bytes;
+      if (bytes == null) {
+        setState(() => _fileError = '无法读取字幕文件。');
+        return;
+      }
+      final text = utf8.decode(bytes, allowMalformed: true);
+      if (text.trim().isEmpty) {
+        setState(() => _fileError = '字幕文件为空。');
+        return;
+      }
+      setState(() {
+        _fileError = null;
+        _controller.text = text;
+      });
+    } catch (error) {
+      setState(() => _fileError = '字幕文件读取失败：$error');
+    }
   }
 }

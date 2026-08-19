@@ -10,6 +10,7 @@ import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'dart:io';
 
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
+import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/routing/router.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
@@ -121,13 +122,28 @@ void main() {
 
   testWidgets('source study route resolves with sourceId parameter',
       (tester) async {
-    await pumpRoute(tester, AppRoutes.sourceStudyPath('src_video_1'));
+    WhiteboardDataBootstrap.setRepositoryForTesting(
+      _MissingSourceRepository(db: db, whiteboardRoot: repositoryRoot),
+    );
+    router.go(AppRoutes.sourceStudyPath('src_video_1'));
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pump();
     expect(find.byType(SourceStudyScreen), findsOneWidget);
-    expect(find.text('src_video_1'), findsOneWidget);
+    expect(
+      tester.widget<SourceStudyScreen>(find.byType(SourceStudyScreen)).sourceId,
+      'src_video_1',
+    );
   });
 
   testWidgets('link import route resolves', (tester) async {
     await pumpRoute(tester, AppRoutes.linkImport);
     expect(find.byType(LinkImportScreen), findsOneWidget);
   });
+}
+
+class _MissingSourceRepository extends UnifiedCardRepository {
+  _MissingSourceRepository({required super.db, required super.whiteboardRoot});
+
+  @override
+  Future<SourceContent?> getSource(String sourceId) async => null;
 }

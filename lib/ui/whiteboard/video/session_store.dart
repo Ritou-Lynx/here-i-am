@@ -27,4 +27,5 @@ abstract class VideoSessionStore {
 }
 
 /// Creates the platform-appropriate session store.
-VideoSessionStore createVideoSessionStore() => createVideoSessionStoreImpl();
+VideoSessionStore createVideoSessionStore({String? sourceId}) =>
+    createVideoSessionStoreImpl(sourceId: sourceId);

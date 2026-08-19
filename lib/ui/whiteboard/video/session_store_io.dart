@@ -12,12 +12,17 @@ import 'session_store.dart';
 class FileVideoSessionStore implements VideoSessionStore {
   final File file;
 
-  FileVideoSessionStore({File? file}) : file = file ?? _defaultFile();
+  FileVideoSessionStore({File? file, String? sourceId})
+    : file = file ?? _defaultFile(sourceId);
 
-  static File _defaultFile() {
+  static File _defaultFile(String? sourceId) {
     final tmp = Directory.systemTemp;
+    final suffix = sourceId == null
+        ? ''
+        : '_${sourceId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}';
     return File(
-        '${tmp.path}${Platform.pathSeparator}whiteboard_w4_video_session.json');
+      '${tmp.path}${Platform.pathSeparator}whiteboard_w4_video_session$suffix.json',
+    );
   }
 
   @override
@@ -33,7 +38,8 @@ class FileVideoSessionStore implements VideoSessionStore {
       final raw = await file.readAsString();
       if (raw.trim().isEmpty) return null;
       return VideoAnnotationSession.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
     } catch (_) {
       return null;
     }
@@ -50,4 +56,5 @@ class FileVideoSessionStore implements VideoSessionStore {
 }
 
 /// Creates the file-backed store (native platforms).
-VideoSessionStore createVideoSessionStoreImpl() => FileVideoSessionStore();
+VideoSessionStore createVideoSessionStoreImpl({String? sourceId}) =>
+    FileVideoSessionStore(sourceId: sourceId);

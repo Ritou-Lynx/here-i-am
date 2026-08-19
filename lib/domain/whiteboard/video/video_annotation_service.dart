@@ -24,6 +24,8 @@ class VideoAnnotationSession {
   final List<AnchorContract> anchors;
   final List<CardContract> annotationCards;
   final Map<String, String> anchorToCard;
+  final String dockOrientation;
+  final double dockRatio;
   final DateTime savedAt;
 
   const VideoAnnotationSession({
@@ -33,6 +35,8 @@ class VideoAnnotationSession {
     required this.anchors,
     required this.annotationCards,
     required this.anchorToCard,
+    this.dockOrientation = 'right',
+    this.dockRatio = 0.35,
     required this.savedAt,
   });
 
@@ -47,22 +51,28 @@ class VideoAnnotationSession {
       annotationCards: (json['annotation_cards'] as List<dynamic>)
           .map((c) => CardContract.fromJson(c as Map<String, dynamic>))
           .toList(),
-      anchorToCard: (json['anchor_to_card'] as Map<String, dynamic>?)
-              ?.map((k, v) => MapEntry(k, v as String)) ??
+      anchorToCard:
+          (json['anchor_to_card'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(k, v as String),
+          ) ??
           const {},
+      dockOrientation: json['dock_orientation'] as String? ?? 'right',
+      dockRatio: (json['dock_ratio'] as num?)?.toDouble() ?? 0.35,
       savedAt: DateTime.parse(json['saved_at'] as String),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'source_id': sourceId,
-        'source_version_id': sourceVersionId,
-        'last_position_ms': lastPositionMs,
-        'anchors': anchors.map((a) => a.toJson()).toList(),
-        'annotation_cards': annotationCards.map((c) => c.toJson()).toList(),
-        'anchor_to_card': anchorToCard,
-        'saved_at': savedAt.toUtc().toIso8601String(),
-      };
+    'source_id': sourceId,
+    'source_version_id': sourceVersionId,
+    'last_position_ms': lastPositionMs,
+    'anchors': anchors.map((a) => a.toJson()).toList(),
+    'annotation_cards': annotationCards.map((c) => c.toJson()).toList(),
+    'anchor_to_card': anchorToCard,
+    'dock_orientation': dockOrientation,
+    'dock_ratio': dockRatio,
+    'saved_at': savedAt.toUtc().toIso8601String(),
+  };
 }
 
 /// Creates a point or range anchor with an associated annotation card.
@@ -143,6 +153,8 @@ class VideoAnnotationService {
     required List<AnchorContract> anchors,
     required List<CardContract> annotationCards,
     required Map<String, String> anchorToCard,
+    String dockOrientation = 'right',
+    double dockRatio = 0.35,
   }) {
     return VideoAnnotationSession(
       sourceId: sourceId,
@@ -151,6 +163,8 @@ class VideoAnnotationService {
       anchors: anchors,
       annotationCards: annotationCards,
       anchorToCard: anchorToCard,
+      dockOrientation: dockOrientation,
+      dockRatio: dockRatio,
       savedAt: DateTime.now().toUtc(),
     );
   }
@@ -196,6 +210,8 @@ class VideoAnnotationService {
       anchors: reanchored,
       annotationCards: saved.annotationCards,
       anchorToCard: saved.anchorToCard,
+      dockOrientation: saved.dockOrientation,
+      dockRatio: saved.dockRatio,
       savedAt: saved.savedAt,
     );
   }

@@ -26,24 +26,30 @@ JSStorage? _storage() => globalContext['localStorage'] as JSStorage?;
 
 /// Persists the video annotation session in `window.localStorage`.
 class LocalStorageVideoSessionStore implements VideoSessionStore {
+  LocalStorageVideoSessionStore({String? sourceId})
+    : _key = sourceId == null ? _storageKey : '${_storageKey}_$sourceId';
+
+  final String _key;
+
   @override
   Future<void> save(VideoAnnotationSession session) async {
     final storage = _storage();
     if (storage == null) return;
-    storage.setItem(_storageKey, jsonEncode(session.toJson()));
+    storage.setItem(_key, jsonEncode(session.toJson()));
   }
 
   @override
   Future<VideoAnnotationSession?> load() async {
     final storage = _storage();
     if (storage == null) return null;
-    final raw = storage.getItem(_storageKey);
+    final raw = storage.getItem(_key);
     if (raw == null) return null;
     final value = raw.toDart;
     if (value.isEmpty) return null;
     try {
       return VideoAnnotationSession.fromJson(
-          jsonDecode(value) as Map<String, dynamic>);
+        jsonDecode(value) as Map<String, dynamic>,
+      );
     } catch (_) {
       return null;
     }
@@ -53,10 +59,10 @@ class LocalStorageVideoSessionStore implements VideoSessionStore {
   Future<void> clear() async {
     final storage = _storage();
     if (storage == null) return;
-    storage.removeItem(_storageKey);
+    storage.removeItem(_key);
   }
 }
 
 /// Creates the localStorage-backed store (web platform).
-VideoSessionStore createVideoSessionStoreImpl() =>
-    LocalStorageVideoSessionStore();
+VideoSessionStore createVideoSessionStoreImpl({String? sourceId}) =>
+    LocalStorageVideoSessionStore(sourceId: sourceId);

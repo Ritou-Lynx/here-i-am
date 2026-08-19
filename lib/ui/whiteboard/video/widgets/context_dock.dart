@@ -29,8 +29,8 @@ class _ContextDockState extends State<ContextDock> {
   @override
   Widget build(BuildContext context) {
     final vm = widget.viewModel;
-    final tokens = Theme.of(context)
-            .extension<SpringRainUiTokens>() ??
+    final tokens =
+        Theme.of(context).extension<SpringRainUiTokens>() ??
         SpringRainUiTokens.daylight;
 
     return Container(
@@ -42,7 +42,13 @@ class _ContextDockState extends State<ContextDock> {
           _DockHeader(
             title: '字幕 / 时间轴',
             subtitle: _subtitleStatusLabel(vm),
-            onClose: () => Navigator.of(context).maybePop(),
+            orientation: vm.dockOrientation,
+            onToggleOrientation: () => vm.setDockOrientation(
+              vm.dockOrientation == DockOrientation.right
+                  ? DockOrientation.bottom
+                  : DockOrientation.right,
+            ),
+            onClose: () => vm.setDockVisible(false),
           ),
           const Divider(height: 1, color: Color(0x1F5B5843)),
           // Study timeline with time anchors — lives in the dock (not overlaid
@@ -62,12 +68,11 @@ class _ContextDockState extends State<ContextDock> {
                     onDismiss: vm.dismissSaveConfirmation,
                   )
                 : vm.hasPendingAnnotation
-                    ? _PendingAnnotationPane(viewModel: vm)
-                    : SubtitleListView(viewModel: vm),
+                ? _PendingAnnotationPane(viewModel: vm)
+                : SubtitleListView(viewModel: vm),
           ),
           // Annotation list (footer)
-          if (vm.annotations.isNotEmpty)
-            _AnnotationCardsList(viewModel: vm),
+          if (vm.annotations.isNotEmpty) _AnnotationCardsList(viewModel: vm),
         ],
       ),
     );
@@ -93,11 +98,15 @@ class _ContextDockState extends State<ContextDock> {
 class _DockHeader extends StatelessWidget {
   final String title;
   final String subtitle;
+  final DockOrientation orientation;
+  final VoidCallback onToggleOrientation;
   final VoidCallback onClose;
 
   const _DockHeader({
     required this.title,
     required this.subtitle,
+    required this.orientation,
+    required this.onToggleOrientation,
     required this.onClose,
   });
 
@@ -131,6 +140,18 @@ class _DockHeader extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: orientation == DockOrientation.right ? '停靠到底部' : '停靠到右侧',
+            icon: Icon(
+              orientation == DockOrientation.right
+                  ? Icons.view_stream_outlined
+                  : Icons.view_column_outlined,
+              size: 18,
+            ),
+            color: SpringRainUiTokens.daylightTextSecondary,
+            onPressed: onToggleOrientation,
+          ),
+          IconButton(
+            tooltip: '收起字幕与标注',
             icon: const Icon(Icons.close, size: 18),
             color: SpringRainUiTokens.daylightTextSecondary,
             onPressed: onClose,
@@ -196,9 +217,10 @@ class _SaveConfirmationPane extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                      Icons.check_circle,
-                      size: 18,
-                      color: Color(0xFF43593B)),
+                    Icons.check_circle,
+                    size: 18,
+                    color: Color(0xFF43593B),
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     '标注已保存',
@@ -240,10 +262,7 @@ class _AnnotationCardsList extends StatelessWidget {
       decoration: BoxDecoration(
         color: SpringRainUiTokens.daylightSurfaceMuted,
         border: Border(
-          top: BorderSide(
-            color: SpringRainUiTokens.daylightDivider,
-            width: 1,
-          ),
+          top: BorderSide(color: SpringRainUiTokens.daylightDivider, width: 1),
         ),
       ),
       child: SizedBox(
@@ -269,10 +288,7 @@ class _AnnotationCardThumb extends StatelessWidget {
   final UIAnnotation annotation;
   final VoidCallback onTap;
 
-  const _AnnotationCardThumb({
-    required this.annotation,
-    required this.onTap,
-  });
+  const _AnnotationCardThumb({required this.annotation, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -291,10 +307,7 @@ class _AnnotationCardThumb extends StatelessWidget {
         decoration: BoxDecoration(
           color: SpringRainUiTokens.daylightSurfaceRaised,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: const Color(0x1F5B5843),
-            width: 1,
-          ),
+          border: Border.all(color: const Color(0x1F5B5843), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

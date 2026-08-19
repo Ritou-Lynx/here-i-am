@@ -30,6 +30,8 @@ VideoAnnotationSession _sampleSession() {
     anchors: [anchor],
     annotationCards: [card],
     anchorToCard: {anchor.anchorId: card.cardId},
+    dockOrientation: 'bottom',
+    dockRatio: 0.28,
     savedAt: DateTime.utc(2026, 8, 16, 12),
   );
 }
@@ -62,6 +64,8 @@ void main() {
       expect(loaded.annotationCards.length, equals(1));
       expect(loaded.annotationCards.first.title, equals('副歌'));
       expect(loaded.anchorToCard['anchor_test_1'], equals('card_test_1'));
+      expect(loaded.dockOrientation, 'bottom');
+      expect(loaded.dockRatio, 0.28);
     });
 
     test('load with no file returns null', () async {
@@ -123,6 +127,8 @@ void main() {
       expect(json['anchors'], isA<List<dynamic>>());
       expect(json['annotation_cards'], isA<List<dynamic>>());
       expect(json['anchor_to_card'], isA<Map<String, dynamic>>());
+      expect(json['dock_orientation'], 'bottom');
+      expect(json['dock_ratio'], 0.28);
     });
   });
 }

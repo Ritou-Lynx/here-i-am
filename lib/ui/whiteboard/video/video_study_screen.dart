@@ -12,6 +12,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:memex/data/whiteboard/repository_video_annotation_store.dart';
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'session_store.dart';
@@ -37,6 +38,9 @@ class VideoStudyScreen extends StatefulWidget {
   final String? providerId;
   final VideoSessionStore? sessionStore;
   final YouTubeTimedTextService? timedTextService;
+  final RepositoryVideoAnnotationStore? annotationStore;
+  final bool runtimePlayerAvailable;
+  final VoidCallback? onBack;
 
   const VideoStudyScreen({
     super.key,
@@ -48,6 +52,9 @@ class VideoStudyScreen extends StatefulWidget {
     this.providerId,
     this.sessionStore,
     this.timedTextService,
+    this.annotationStore,
+    this.runtimePlayerAvailable = true,
+    this.onBack,
   });
 
   @override
@@ -68,9 +75,11 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
       initialTrack: widget.initialTrack,
       sessionStore: widget.sessionStore,
       timedTextService: widget.timedTextService,
+      annotationStore: widget.annotationStore,
+      runtimePlayerAvailable: widget.runtimePlayerAvailable,
     );
     _viewModel.initialize(embedUrl: widget.embedUrl).then((_) {
-      _viewModel.restoreSession();
+      _viewModel.restoreSession(currentVersionId: widget.sourceVersionId);
     });
   }
 
@@ -86,16 +95,32 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
       value: _viewModel,
       child: Scaffold(
         backgroundColor: const Color(0xFF1C1C1A),
-        body: Consumer<VideoStudyViewModel>(
-          builder: (context, vm, _) {
-            if (!vm.isLoaded) {
-              return _LoadingView(errorMessage: vm.errorMessage);
-            }
-            return _VideoStudyBody(
-              viewModel: vm,
-              embedUrl: widget.embedUrl,
-            );
-          },
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Consumer<VideoStudyViewModel>(
+                builder: (context, vm, _) {
+                  if (!vm.isLoaded) {
+                    return _LoadingView(errorMessage: vm.errorMessage);
+                  }
+                  return _VideoStudyBody(
+                    viewModel: vm,
+                    embedUrl: widget.embedUrl,
+                  );
+                },
+              ),
+            ),
+            if (widget.onBack != null)
+              Positioned(
+                left: 16,
+                top: 16,
+                child: IconButton.filledTonal(
+                  tooltip: '返回来源',
+                  onPressed: widget.onBack,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -112,10 +137,17 @@ class _LoadingView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(
-            color: SpringRainUiTokens.daylightAccent,
-            strokeWidth: 2,
-          ),
+          if (errorMessage == null)
+            const CircularProgressIndicator(
+              color: SpringRainUiTokens.daylightAccent,
+              strokeWidth: 2,
+            )
+          else
+            const Icon(
+              Icons.cloud_off_outlined,
+              color: SpringRainUiTokens.daylightTextTertiary,
+              size: 36,
+            ),
           const SizedBox(height: 16),
           Text(
             errorMessage ?? '加载中…',
@@ -138,8 +170,25 @@ class _VideoStudyBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!viewModel.hasAnyPlaybackSurface) {
+    if (!viewModel.hasRuntimePlaybackSurface) {
       return _LinkOnlyView(viewModel: viewModel);
+    }
+
+    if (!viewModel.dockVisible) {
+      return Stack(
+        children: [
+          Positioned.fill(child: VideoPlayerPanel(viewModel: viewModel)),
+          Positioned(
+            right: 16,
+            top: 16,
+            child: IconButton.filledTonal(
+              tooltip: '打开字幕与标注',
+              onPressed: () => viewModel.setDockVisible(true),
+              icon: const Icon(Icons.subtitles_outlined),
+            ),
+          ),
+        ],
+      );
     }
 
     if (viewModel.dockOrientation == DockOrientation.right) {
@@ -176,8 +225,7 @@ class _HorizontalLayout extends StatelessWidget {
               isHorizontal: false,
               ratio: viewModel.dockRatio,
               onDrag: (delta) {
-                final newRatio =
-                    viewModel.dockRatio + delta / totalWidth;
+                final newRatio = viewModel.dockRatio + delta / totalWidth;
                 viewModel.setDockRatio(newRatio);
               },
             ),
@@ -218,8 +266,7 @@ class _VerticalLayout extends StatelessWidget {
               isHorizontal: true,
               ratio: viewModel.dockRatio,
               onDrag: (delta) {
-                final newRatio =
-                    viewModel.dockRatio + delta / totalHeight;
+                final newRatio = viewModel.dockRatio + delta / totalHeight;
                 viewModel.setDockRatio(newRatio);
               },
             ),
