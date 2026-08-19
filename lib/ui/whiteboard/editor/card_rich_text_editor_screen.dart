@@ -188,6 +188,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                   objectStore: _objectStore,
                   mediaImporter: widget.mediaImporter ?? _defaultMediaImporter,
                   onSave: (_) => _save(),
+                  markSavedAfterCallback: false,
                 ),
               ),
             ),
