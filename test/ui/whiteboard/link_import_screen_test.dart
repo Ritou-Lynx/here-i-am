@@ -120,6 +120,14 @@ void main() {
           builder: (_, __) =>
               const Scaffold(body: Center(child: Text('卡片库页面'))),
         ),
+        GoRoute(
+          path: AppRoutes.sourceStudy,
+          builder: (_, state) => Scaffold(
+            body: Center(
+              child: Text('视频研读:${state.pathParameters['sourceId']}'),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -203,6 +211,36 @@ void main() {
     // One card in the store, recent list shows it.
     final cards = await tester.runAsync(() => service.listCards());
     expect(cards, hasLength(1));
+  });
+
+  testWidgets('YouTube preview is zero-write then confirms into source route',
+      (tester) async {
+    final service = _service(repository, {});
+    await pump(tester, service);
+
+    await fetch(
+      tester,
+      'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+    );
+
+    expect(find.textContaining('M7lc1UVf-VE'), findsWidgets);
+    expect(await tester.runAsync(service.listCards), isEmpty);
+    expect(
+      await tester.runAsync(
+        () => service.getSource('src_youtube_M7lc1UVf-VE'),
+      ),
+      isNull,
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await settleFor(
+      tester,
+      find.text('视频研读:src_youtube_M7lc1UVf-VE'),
+    );
+
+    final cards = await tester.runAsync(service.listCards);
+    expect(cards, hasLength(1));
+    expect(cards!.single.sourceId, 'src_youtube_M7lc1UVf-VE');
   });
 
   testWidgets('failed state shown honestly with error message', (tester) async {

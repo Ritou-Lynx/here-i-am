@@ -76,7 +76,7 @@ void main() {
         isTrue);
   });
 
-  test('version changes re-anchor valid ranges and orphan invalid ranges',
+  test('version changes orphan every range and preserve old version identity',
       () async {
     final store = RepositoryVideoAnnotationStore(repository);
     await store.createAnnotation(
@@ -104,11 +104,17 @@ void main() {
     );
     expect(
       restored.singleWhere((item) => item.card.title == '仍然有效').anchor.status,
-      AnchorStatus.reanchored,
+      AnchorStatus.orphaned,
     );
     final orphan = restored.singleWhere((item) => item.card.title == '超出新版时长');
     expect(orphan.anchor.status, AnchorStatus.orphaned);
     expect(orphan.anchor.sourceVersionId, 'ver_youtube_demo_v1');
+    expect(
+      restored.every(
+        (item) => item.anchor.sourceVersionId == 'ver_youtube_demo_v1',
+      ),
+      isTrue,
+    );
   });
 }
 

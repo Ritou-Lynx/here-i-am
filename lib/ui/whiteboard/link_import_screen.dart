@@ -26,6 +26,7 @@ import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
+import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 
@@ -208,6 +209,12 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
         _cardBusy = false;
       });
       await _loadRecent();
+      final source = finalOutcome.result.source;
+      if (mounted &&
+          source?.mediaType == SourceMediaType.video &&
+          source?.sourceId != null) {
+        context.go(AppRoutes.sourceStudyPath(source!.sourceId));
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -219,6 +226,15 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
 
   void _openCardLibrary() {
     context.go(AppRoutes.cardLibrary);
+  }
+
+  void _openSavedDestination() {
+    final source = _outcome?.result.source;
+    if (source?.mediaType == SourceMediaType.video) {
+      context.go(AppRoutes.sourceStudyPath(source!.sourceId));
+      return;
+    }
+    _openCardLibrary();
   }
 
   // -----------------------------------------------------------------------
@@ -452,9 +468,16 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
             ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: _openCardLibrary,
-            icon: const Icon(Icons.library_books_outlined, size: 16),
-            label: const Text('打开卡片库'),
+            onPressed: _openSavedDestination,
+            icon: Icon(
+              source.mediaType == SourceMediaType.video
+                  ? Icons.play_circle_outline
+                  : Icons.library_books_outlined,
+              size: 16,
+            ),
+            label: Text(
+              source.mediaType == SourceMediaType.video ? '打开视频研读' : '打开卡片库',
+            ),
             style: OutlinedButton.styleFrom(
               foregroundColor: WhiteboardCanvasTokens.action,
               side: const BorderSide(color: WhiteboardCanvasTokens.action),
@@ -618,6 +641,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
           Text(
             [
               if (result.hasBody) '正文',
+              if (source.mediaType == SourceMediaType.video) '视频',
               if (imageCount > 0) '$imageCount 张图片',
               if (source.mimeType != null) source.mimeType!,
             ].join(' · '),

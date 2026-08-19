@@ -46,9 +46,16 @@ class LinkIngestor {
       );
     }
 
-    // Video platforms are W4 (研读模块) scope — say so honestly instead of
-    // pretending ordinary HTML ingestion supports them.
-    if (canonical.provider == 'bilibili' || canonical.provider == 'youtube') {
+    // YouTube is a URL-native W4 source: previewing it needs no fetch and no
+    // persistence. The exact IngestionResult is committed only after the user
+    // confirms in /import, preserving the F3 unified Card identity.
+    if (canonical.provider == 'youtube') {
+      return _youtubePreview(canonical, resolvedAt);
+    }
+
+    // Bilibili remains link-only because there is no stable public control
+    // API. Do not pretend ordinary HTML ingestion makes it study-capable.
+    if (canonical.provider == 'bilibili') {
       return IngestionResult(
         canonicalUrl: canonical.normalized,
         provider: canonical.provider,
@@ -154,6 +161,79 @@ class LinkIngestor {
         if (parsed.imageUrls.isNotEmpty) 'image_urls': parsed.imageUrls,
         'http_status': httpResult.statusCode,
         'mime_type': httpResult.mimeType,
+      },
+      resolvedAt: resolvedAt,
+    );
+  }
+
+  IngestionResult _youtubePreview(
+    CanonicalUrl canonical,
+    DateTime resolvedAt,
+  ) {
+    final videoId = canonical.canonicalId;
+    if (videoId == null) {
+      return IngestionResult(
+        canonicalUrl: canonical.normalized,
+        provider: canonical.provider,
+        originalUrl: canonical.original,
+        status: IngestionStatus.unsupported,
+        errorMessage: '无法从这个 YouTube 链接识别 video id',
+        resolvedAt: resolvedAt,
+      );
+    }
+    final sourceId = _deriveSourceId(canonical);
+    final contentHash = sha256
+        .convert(utf8.encode('youtube\n$videoId\n${canonical.normalized}'))
+        .toString()
+        .substring(0, 32);
+    final versionId = _deriveVersionId(sourceId, contentHash);
+    final objectRef = 'ingestion/$sourceId/$versionId.json';
+    final embedUrl = 'https://www.youtube.com/watch?v=$videoId';
+    final source = SourceContent(
+      sourceId: sourceId,
+      mediaType: SourceMediaType.video,
+      title: 'YouTube 视频 · $videoId',
+      ownerSpace: OwnerSpace.user,
+      origin: SourceOrigin.externalLink,
+      provider: 'youtube',
+      canonicalId: videoId,
+      mimeType: 'text/uri-list',
+      currentVersionId: versionId,
+      contentHash: contentHash,
+      objectRef: objectRef,
+      metadata: {
+        'canonical_url': embedUrl,
+        'original_url': canonical.original,
+        'embed_url': embedUrl,
+        'provider': 'youtube',
+        'video_id': videoId,
+      },
+      createdAt: resolvedAt,
+      updatedAt: resolvedAt,
+    );
+    final sourceVersion = SourceVersion(
+      versionId: versionId,
+      sourceId: sourceId,
+      contentHash: contentHash,
+      objectRef: objectRef,
+      parserVersion: 'w4-youtube-url-v1',
+      createdAt: resolvedAt,
+    );
+    return IngestionResult(
+      resultId: StableId.generate('ingest').value,
+      canonicalUrl: embedUrl,
+      provider: 'youtube',
+      originalUrl: canonical.original,
+      status: IngestionStatus.ok,
+      source: source,
+      sourceVersion: sourceVersion.toJson(),
+      hasMedia: true,
+      videoCapability: VideoCapabilityLevel.playbackStudy,
+      metadata: {
+        'title': source.title,
+        'provider': 'youtube',
+        'video_id': videoId,
+        'embed_url': embedUrl,
       },
       resolvedAt: resolvedAt,
     );

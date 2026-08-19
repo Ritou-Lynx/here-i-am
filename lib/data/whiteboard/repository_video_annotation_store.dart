@@ -49,8 +49,8 @@ class RepositoryVideoAnnotationStore {
   }
 
   /// Restores annotation cards for one Source from the unified repository.
-  /// A changed version re-anchors only when the time range still fits the
-  /// current duration; otherwise the Anchor is exposed as orphaned.
+  /// A changed version preserves the old identity and is always exposed as
+  /// orphaned. Duration overlap alone is not valid re-anchor evidence.
   Future<List<VideoAnnotationResult>> listAnnotations({
     required String sourceId,
     required String currentVersionId,
@@ -72,7 +72,6 @@ class RepositoryVideoAnnotationStore {
             anchor: _resolveAnchor(
               anchor,
               currentVersionId: currentVersionId,
-              currentDurationMs: currentDurationMs,
             ),
             card: card,
           ),
@@ -87,27 +86,19 @@ class RepositoryVideoAnnotationStore {
   static AnchorContract _resolveAnchor(
     AnchorContract anchor, {
     required String currentVersionId,
-    int? currentDurationMs,
   }) {
     if (anchor.sourceVersionId == currentVersionId) return anchor;
-    final endMs = (anchor.positionSpec['end_ms'] as num?)?.toInt();
-    final canReanchor =
-        endMs != null &&
-        endMs >= 0 &&
-        currentDurationMs != null &&
-        currentDurationMs > 0 &&
-        endMs <= currentDurationMs;
     return AnchorContract(
       anchorId: anchor.anchorId,
       sourceId: anchor.sourceId,
-      sourceVersionId: canReanchor ? currentVersionId : anchor.sourceVersionId,
+      sourceVersionId: anchor.sourceVersionId,
       positionKind: anchor.positionKind,
       positionSpec: anchor.positionSpec,
       quote: anchor.quote,
       prefix: anchor.prefix,
       suffix: anchor.suffix,
       fingerprint: anchor.fingerprint,
-      status: canReanchor ? AnchorStatus.reanchored : AnchorStatus.orphaned,
+      status: AnchorStatus.orphaned,
       createdAt: anchor.createdAt,
     );
   }

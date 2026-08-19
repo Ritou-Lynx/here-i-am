@@ -460,14 +460,34 @@ void main() {
       expect(outcome.card, isNull);
     });
 
-    test('youtube URL → unsupported', () async {
+    test('youtube URL previews without writes, then commits unified identity',
+        () async {
       final svc = buildService({});
 
-      final outcome =
-          await svc.ingestUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      final outcome = await svc.ingestUrl(
+        'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+        createCard: false,
+      );
 
-      expect(outcome.result.status, IngestionStatus.unsupported);
+      expect(outcome.result.status, IngestionStatus.ok);
       expect(outcome.result.provider, 'youtube');
+      expect(outcome.result.source!.mediaType, SourceMediaType.video);
+      expect(outcome.result.source!.canonicalId, 'M7lc1UVf-VE');
+      expect(outcome.card, isNull);
+      expect(await svc.listCards(), isEmpty, reason: 'preview is zero-write');
+      expect(
+        await svc.getSource(outcome.result.source!.sourceId),
+        isNull,
+        reason: 'Source is also committed only after confirmation',
+      );
+
+      final committed = await svc.commitResult(outcome.result);
+      expect(committed.cardCreated, isTrue);
+      expect(committed.card!.sourceId, outcome.result.source!.sourceId);
+      final record = await svc.getSource(outcome.result.source!.sourceId);
+      expect(record!.card!.cardId, committed.card!.cardId);
+      expect(record.source.currentVersionId,
+          outcome.result.source!.currentVersionId);
     });
 
     test('HTTP 403 → needsAuth with honest error message', () async {

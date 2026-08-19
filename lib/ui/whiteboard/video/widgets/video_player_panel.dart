@@ -7,11 +7,12 @@
 /// development — they fade out in production when idle.
 library;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_windows/webview_flutter_windows.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
+import 'package:memex/domain/whiteboard/video/windows_youtube_player_adapter.dart';
 import 'web_player_surface.dart'
     if (dart.library.js_interop) 'web_player_surface_web.dart'
     as player_surface;
@@ -31,6 +32,9 @@ class VideoPlayerPanel extends StatelessWidget {
   bool get _usesNativeControls {
     final adapter = viewModel.adapter;
     if (player_surface.buildWebYouTubeSurface(adapter) != null) return true;
+    if (adapter is WindowsYouTubePlayerAdapter && adapter.isAvailable) {
+      return true;
+    }
     if (adapter is YouTubePlayerAdapter && adapter.isAvailable) return true;
     return false;
   }
@@ -75,6 +79,17 @@ class _PlayerSurface extends StatelessWidget {
       return webSurface;
     }
 
+    // Windows Desktop — native Edge WebView2 hosting the YouTube IFrame API.
+    if (adapter is WindowsYouTubePlayerAdapter && adapter.isAvailable) {
+      final controller = adapter.webviewController;
+      if (controller != null && controller.value.isInitialized) {
+        return Webview(
+          controller,
+          permissionRequested: (_, __, ___) => WebviewPermissionDecision.deny,
+        );
+      }
+    }
+
     // YouTube adapter with WebView (Android)
     if (adapter is YouTubePlayerAdapter && adapter.isAvailable) {
       final controller = adapter.webViewController;
@@ -92,7 +107,9 @@ class _PlayerSurface extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                viewModel.isPlaying ? Icons.play_circle_outline : Icons.pause_circle_outline,
+                viewModel.isPlaying
+                    ? Icons.play_circle_outline
+                    : Icons.pause_circle_outline,
                 size: 64,
                 color: const Color(0xFF8F8E88),
               ),

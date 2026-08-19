@@ -8,6 +8,7 @@ import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
+import 'package:memex/domain/whiteboard/video/youtube_adapter_factory_stub.dart';
 import 'package:memex/ui/whiteboard/source_study_screen.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
 
@@ -68,6 +69,7 @@ void main() {
       home: SourceStudyScreen(
         sourceId: 'src_youtube_product',
         repository: repository,
+        adapterFactory: (_) => StubYouTubePlayerAdapter(),
       ),
     ));
     await _pumpSource(tester);
@@ -75,7 +77,7 @@ void main() {
     expect(find.byType(VideoStudyScreen), findsOneWidget);
     expect(find.text('Fixture Player'), findsNothing);
     expect(find.text('此平台不支持研读播放'), findsOneWidget,
-        reason: 'VM tests run as native Windows, which has no embedded player');
+        reason: 'the injected unavailable adapter must degrade honestly');
   });
 
   testWidgets('missing source is an honest unavailable state', (tester) async {

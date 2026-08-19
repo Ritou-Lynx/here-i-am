@@ -16,6 +16,7 @@ import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/player_adapter.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/video/platform_player_adapters.dart';
+import 'package:memex/domain/whiteboard/video/windows_youtube_player_adapter.dart';
 import 'package:memex/domain/whiteboard/video/youtube_adapter_factory.dart';
 import 'package:memex/domain/whiteboard/video/youtube_player_adapter.dart';
 import 'package:memex/routing/routes.dart';
@@ -24,10 +25,18 @@ import 'package:memex/ui/whiteboard/video/session_store.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
 
 class SourceStudyScreen extends StatefulWidget {
-  const SourceStudyScreen({super.key, required this.sourceId, this.repository});
+  const SourceStudyScreen({
+    super.key,
+    required this.sourceId,
+    this.repository,
+    this.adapterFactory,
+    this.initialTrack,
+  });
 
   final String sourceId;
   final UnifiedCardRepository? repository;
+  final PlayerAdapter Function(String provider)? adapterFactory;
+  final TimedTextTrack? initialTrack;
 
   @override
   State<SourceStudyScreen> createState() => _SourceStudyScreenState();
@@ -117,7 +126,8 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
   Widget _buildVideo(_SourceStudyData data) {
     final source = data.source!;
     final provider = _providerId(source);
-    final adapter = _adapterFor(provider);
+    final adapter =
+        widget.adapterFactory?.call(provider) ?? _adapterFor(provider);
     return VideoStudyScreen(
       adapter: adapter,
       sourceId: source.sourceId,
@@ -125,6 +135,7 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
       providerId: provider,
       embedUrl: _embedUrl(source, provider),
       runtimePlayerAvailable: _runtimePlayerAvailable(adapter),
+      initialTrack: widget.initialTrack,
       sessionStore: createVideoSessionStore(sourceId: source.sourceId),
       annotationStore: RepositoryVideoAnnotationStore(data.repository),
       onBack: _back,
@@ -165,6 +176,7 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
 
   static bool _runtimePlayerAvailable(PlayerAdapter adapter) {
     if (kIsWeb) return adapter.providerId == 'youtube';
+    if (adapter is WindowsYouTubePlayerAdapter) return adapter.isAvailable;
     if (adapter is YouTubePlayerAdapter) return adapter.isAvailable;
     return false;
   }

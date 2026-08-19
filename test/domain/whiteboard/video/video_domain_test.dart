@@ -303,7 +303,8 @@ void main() {
       expect(result.card.title, equals('副歌开始'));
       expect(result.card.body, equals('这段副歌很关键'));
       expect(result.card.tags, contains('video_annotation'));
-      expect(result.card.presentation['anchor_id'], equals(result.anchor.anchorId));
+      expect(result.card.presentation['anchor_id'],
+          equals(result.anchor.anchorId));
       expect(result.card.presentation['start_ms'], equals(10000));
     });
 
@@ -355,7 +356,7 @@ void main() {
       expect(restored.anchorToCard['anchor_1'], equals('card_ann_1'));
     });
 
-    test('restoreSession re-anchors when version changed', () {
+    test('restoreSession preserves old version and orphans on change', () {
       final anchor = TimeRangeAnchorSpec.buildAnchor(
         anchorId: 'anchor_1',
         sourceId: 'src_video_test',
@@ -384,8 +385,11 @@ void main() {
         currentVersionId: 'ver_video_test_v2',
       );
 
-      expect(restored.sourceVersionId, equals('ver_video_test_v2'));
-      expect(restored.anchors.first.status, equals(AnchorStatus.reanchored));
+      expect(restored.sourceVersionId, equals('ver_video_test_v1'));
+      expect(restored.lastPositionMs, equals(0));
+      expect(
+          restored.anchors.first.sourceVersionId, equals('ver_video_test_v1'));
+      expect(restored.anchors.first.status, equals(AnchorStatus.orphaned));
       expect(restored.anchors.first.positionSpec['start_ms'], equals(10000));
     });
 
@@ -488,7 +492,8 @@ void main() {
     });
 
     test('fixture is NOT in the production provider list', () {
-      expect(ProviderCapabilityMatrix.productionProviders, isNot(contains('fixture')));
+      expect(ProviderCapabilityMatrix.productionProviders,
+          isNot(contains('fixture')));
       expect(ProviderCapabilityMatrix.testProviders, contains('fixture'));
       expect(ProviderCapabilityMatrix.productionProviders,
           containsAll(['youtube', 'bilibili', 'xiaohongshu']));
@@ -510,7 +515,9 @@ void main() {
       expect(ProviderCapabilityMatrix.rows.length, greaterThanOrEqualTo(10));
     });
 
-    test('reverse highlight / time anchor are NOT supported where position is unreadable', () {
+    test(
+        'reverse highlight / time anchor are NOT supported where position is unreadable',
+        () {
       final biliRow = ProviderCapabilityMatrix.rows
           .firstWhere((r) => r.name.contains('Reverse highlight'));
       final anchorRow = ProviderCapabilityMatrix.rows
@@ -524,13 +531,15 @@ void main() {
     test('bilibili embeddability and controllability are distinct rows', () {
       final embedRow = ProviderCapabilityMatrix.rows
           .firstWhere((r) => r.name == 'Embeddable player');
-      final controlRow = ProviderCapabilityMatrix.rows
-          .firstWhere((r) => r.name.contains('Controllable playback interface'));
+      final controlRow = ProviderCapabilityMatrix.rows.firstWhere(
+          (r) => r.name.contains('Controllable playback interface'));
       expect(embedRow.bilibili, equals(CapabilityVerdict.partial));
       expect(controlRow.bilibili, equals(CapabilityVerdict.unsupported));
     });
 
-    test('current-source subtitle availability is a runtime verdict, not static', () {
+    test(
+        'current-source subtitle availability is a runtime verdict, not static',
+        () {
       final row = ProviderCapabilityMatrix.rows
           .firstWhere((r) => r.name.contains('usable subtitle track'));
       expect(row.youtube, equals(CapabilityVerdict.notConfirmed));
@@ -539,7 +548,8 @@ void main() {
   });
 
   group('VideoStudyAvailability (runtime model)', () {
-    test('no readable position → no reverse highlight, no current-time anchor', () {
+    test('no readable position → no reverse highlight, no current-time anchor',
+        () {
       const capability = PlayerCapability(
         canSeek: false,
         canReadPosition: false,
@@ -646,12 +656,18 @@ void main() {
       // Concrete link-only adapters (no WebView dependency) must agree.
       final bili = BilibiliPlayerAdapter();
       final xhs = XiaohongshuPlayerAdapter();
-      expect(bili.capability.canEmbedPlayer,
-          equals(ProviderCapabilityMatrix.capabilityFor('bilibili').canEmbedPlayer));
-      expect(bili.capability.canReadPosition,
-          equals(ProviderCapabilityMatrix.capabilityFor('bilibili').canReadPosition));
-      expect(xhs.capability.canReadPosition,
-          equals(ProviderCapabilityMatrix.capabilityFor('xiaohongshu').canReadPosition));
+      expect(
+          bili.capability.canEmbedPlayer,
+          equals(ProviderCapabilityMatrix.capabilityFor('bilibili')
+              .canEmbedPlayer));
+      expect(
+          bili.capability.canReadPosition,
+          equals(ProviderCapabilityMatrix.capabilityFor('bilibili')
+              .canReadPosition));
+      expect(
+          xhs.capability.canReadPosition,
+          equals(ProviderCapabilityMatrix.capabilityFor('xiaohongshu')
+              .canReadPosition));
     });
   });
 
