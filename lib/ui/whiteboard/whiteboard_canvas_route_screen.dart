@@ -12,6 +12,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
@@ -40,13 +42,27 @@ class _WhiteboardCanvasRouteScreenState
       widget.store ?? WhiteboardDriftStore(AppDatabase.instance);
 
   WhiteboardCanvasViewModel? _viewModel;
+  UnifiedCardRepository? _cardRepository;
   String? _error;
   bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.store == null) {
+      unawaited(_loadCardRepository());
+    }
     _load();
+  }
+
+  Future<void> _loadCardRepository() async {
+    try {
+      final repository = await WhiteboardDataBootstrap.productionRepository();
+      if (!mounted) return;
+      setState(() => _cardRepository = repository);
+    } catch (_) {
+      // The loaded Drift snapshot stays available as a read-only fallback.
+    }
   }
 
   Future<void> _load() async {
@@ -152,6 +168,7 @@ class _WhiteboardCanvasRouteScreenState
     }
     return WhiteboardCanvasScreen(
       viewModel: vm,
+      cardRepository: _cardRepository,
       onExit: () => _handleExit(context),
     );
   }

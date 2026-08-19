@@ -29,6 +29,10 @@ import 'package:memex/ui/whiteboard/editor/unsaved_exit_guard.dart';
 class CardRichTextEditorScreen extends StatefulWidget {
   final RichTextStorage storage;
   final String cardId;
+  final RichTextDocument? initialDocument;
+  final Future<void> Function(String cardId, RichTextDocument document)?
+      onSaveDocument;
+  final String? degradedMessage;
 
   /// Optional externally-owned controller. When provided, the screen uses it
   /// instead of creating its own (useful for tests and shell reuse).
@@ -45,6 +49,9 @@ class CardRichTextEditorScreen extends StatefulWidget {
     super.key,
     required this.storage,
     required this.cardId,
+    this.initialDocument,
+    this.onSaveDocument,
+    this.degradedMessage,
     this.controller,
     this.objectStore,
     this.mediaImporter,
@@ -71,7 +78,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
         widget.objectStore ?? RichTextObjectStore(widget.storage.baseDir);
     // Card documents are small local JSON files; synchronous load keeps the
     // closed loop simple and testable without a fake-async stall.
-    final doc = widget.storage.loadSync(widget.cardId);
+    final doc =
+        widget.initialDocument ?? widget.storage.loadSync(widget.cardId);
     _controller.loadDocument(doc ?? RichTextDocument.empty());
     // Rebuild on controller changes so PopScope.canPop reflects the latest
     // dirty state (typing, save, undo/redo all notify).
@@ -92,12 +100,30 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   }
 
   Future<void> _save() async {
-    widget.storage.saveSync(widget.cardId, _controller.flushToDocument());
-    _controller.markSaved();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已保存')),
-      );
+    try {
+      final document = _controller.flushToDocument();
+      final save = widget.onSaveDocument;
+      if (save != null) {
+        await save(widget.cardId, document);
+      } else {
+        // Keep the injected standalone-storage seam synchronous: existing
+        // widget tests and offline callers expect the file to exist as soon
+        // as the button callback returns. Production Repository saves remain
+        // awaited through [onSaveDocument].
+        widget.storage.saveSync(widget.cardId, document);
+      }
+      _controller.markSaved();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已保存')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存失败：$error')),
+        );
+      }
     }
   }
 
@@ -146,15 +172,26 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
             ),
           ],
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: CardRichTextEditor(
-            controller: _controller,
-            cardId: widget.cardId,
-            objectStore: _objectStore,
-            mediaImporter: widget.mediaImporter ?? _defaultMediaImporter,
-            onSave: (_) => _save(),
-          ),
+        body: Column(
+          children: [
+            if (widget.degradedMessage != null)
+              MaterialBanner(
+                content: Text(widget.degradedMessage!),
+                actions: const [SizedBox.shrink()],
+              ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: CardRichTextEditor(
+                  controller: _controller,
+                  cardId: widget.cardId,
+                  objectStore: _objectStore,
+                  mediaImporter: widget.mediaImporter ?? _defaultMediaImporter,
+                  onSave: (_) => _save(),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

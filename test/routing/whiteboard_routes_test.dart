@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'dart:io';
 
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
@@ -25,6 +27,7 @@ void main() {
   late AppDatabase db;
   late WhiteboardDriftStore store;
   late GoRouter router;
+  late Directory repositoryRoot;
 
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
@@ -33,6 +36,10 @@ void main() {
     // point it at the in-memory test database so the real route wiring is
     // exercised end to end.
     AppDatabase.setTestInstance(db);
+    repositoryRoot = Directory.systemTemp.createTempSync('route_repository_');
+    WhiteboardDataBootstrap.setRepositoryForTesting(
+      UnifiedCardRepository(db: db, whiteboardRoot: repositoryRoot),
+    );
     // The card editor resolves its storage via path_provider, whose platform
     // channel is unavailable under `flutter test`; point it at a temp dir.
     CardRichTextEditorScreen.setStorageForTesting(
@@ -45,7 +52,11 @@ void main() {
   });
 
   tearDown(() async {
+    WhiteboardDataBootstrap.setRepositoryForTesting(null);
     await db.close();
+    if (repositoryRoot.existsSync()) {
+      repositoryRoot.deleteSync(recursive: true);
+    }
   });
 
   Future<void> pumpRoute(WidgetTester tester, String path) async {
@@ -59,7 +70,8 @@ void main() {
     expect(find.byType(WhiteboardIndexScreen), findsOneWidget);
   });
 
-  testWidgets('canvas route resolves with boardId and renders full-screen '
+  testWidgets(
+      'canvas route resolves with boardId and renders full-screen '
       'canvas for an existing board (direct route entry)', (tester) async {
     final boardId = await store.createBoard(name: '路由测试板');
     await pumpRoute(tester, AppRoutes.whiteboardCanvasPath(boardId));
@@ -100,8 +112,7 @@ void main() {
     expect(find.byType(CardLibraryScreen), findsOneWidget);
   });
 
-  testWidgets('card edit route resolves with cardId parameter',
-      (tester) async {
+  testWidgets('card edit route resolves with cardId parameter', (tester) async {
     await pumpRoute(tester, AppRoutes.cardEditPath('card_abc'));
     expect(find.byType(CardRichTextEditorScreen), findsOneWidget);
     // The real editor screen opens (W2 body) with the card id in its title.

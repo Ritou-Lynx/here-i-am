@@ -65,11 +65,54 @@ void main() {
       expect(loaded.blocks[1].marks.first.type, equals(MarkType.bold));
     });
 
+    test('read completes an interrupted replacement from a valid temp',
+        () async {
+      const oldDocument = RichTextDocument(blocks: [
+        RichTextBlock(type: BlockType.paragraph, text: 'old body'),
+      ]);
+      const newDocument = RichTextDocument(blocks: [
+        RichTextBlock(type: BlockType.paragraph, text: 'new body'),
+      ]);
+      await storage.save('card_temp_recovery', oldDocument);
+      final target = File(
+        '${tempDir.path}${Platform.pathSeparator}card_card_temp_recovery'
+        '${Platform.pathSeparator}rich_text.json',
+      );
+      await target.rename('${target.path}.bak');
+      await File('${target.path}.tmp')
+          .writeAsString(jsonEncode(newDocument.toJson()), flush: true);
+
+      final loaded = await RichTextStorage(tempDir).load('card_temp_recovery');
+      expect(loaded!.blocks.single.text, 'new body');
+      expect(await File('${target.path}.tmp').exists(), isFalse);
+      expect(await File('${target.path}.bak').exists(), isFalse);
+    });
+
+    test('read restores backup when an interrupted temp is corrupt', () async {
+      const oldDocument = RichTextDocument(blocks: [
+        RichTextBlock(type: BlockType.paragraph, text: 'recover old body'),
+      ]);
+      await storage.save('card_backup_recovery', oldDocument);
+      final target = File(
+        '${tempDir.path}${Platform.pathSeparator}card_card_backup_recovery'
+        '${Platform.pathSeparator}rich_text.json',
+      );
+      await target.rename('${target.path}.bak');
+      await File('${target.path}.tmp').writeAsString('{broken', flush: true);
+
+      final loaded =
+          await RichTextStorage(tempDir).load('card_backup_recovery');
+      expect(loaded!.blocks.single.text, 'recover old body');
+      expect(await File('${target.path}.tmp').exists(), isFalse);
+      expect(await File('${target.path}.bak').exists(), isFalse);
+    });
+
     test('corrupt file degrades to empty document', () async {
       // Use the storage's own path layout: card_<id>/rich_text.json
       await storage.save('card_corrupt', RichTextDocument.empty());
       // Overwrite with corrupt content.
-      final dir = Directory('${tempDir.path}${Platform.pathSeparator}card_card_corrupt');
+      final dir = Directory(
+          '${tempDir.path}${Platform.pathSeparator}card_card_corrupt');
       File('${dir.path}${Platform.pathSeparator}rich_text.json')
           .writeAsStringSync('not valid json {{{');
       final loaded = await storage.load('card_corrupt');
@@ -80,7 +123,8 @@ void main() {
 
     test('old schema v0 file migrates on load', () async {
       await storage.save('card_v0', RichTextDocument.empty());
-      final dir = Directory('${tempDir.path}${Platform.pathSeparator}card_card_v0');
+      final dir =
+          Directory('${tempDir.path}${Platform.pathSeparator}card_card_v0');
       File('${dir.path}${Platform.pathSeparator}rich_text.json')
           .writeAsStringSync(jsonEncode({
         'schema_version': 0,
@@ -100,9 +144,11 @@ void main() {
     });
 
     test('sync load works', () {
-      storage.saveSync('card_sync', const RichTextDocument(blocks: [
-        RichTextBlock(type: BlockType.paragraph, text: '同步'),
-      ]));
+      storage.saveSync(
+          'card_sync',
+          const RichTextDocument(blocks: [
+            RichTextBlock(type: BlockType.paragraph, text: '同步'),
+          ]));
       final loaded = storage.loadSync('card_sync');
       expect(loaded!.blocks.first.text, equals('同步'));
     });

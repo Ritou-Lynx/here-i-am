@@ -9,7 +9,6 @@
 ///   - cards / memory → [MemoryCardQueryService]
 library;
 
-import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
@@ -17,7 +16,10 @@ import 'package:memex/data/memory_v3/models/task_room_enums.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/memory_v3/services/task_room_service.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
 
 /// One row of the "继续工作" module: a recently touched board or an active
 /// task room. Both open real destinations from the frozen routes.
@@ -88,9 +90,13 @@ class DesktopHomeData {
 
 /// Loads the workbench home data once and exposes load state.
 class DesktopHomeViewModel extends ChangeNotifier {
-  DesktopHomeViewModel({required this.db});
+  DesktopHomeViewModel({
+    required this.db,
+    UnifiedCardRepository? cardRepository,
+  }) : _cardRepository = cardRepository;
 
   final AppDatabase db;
+  final UnifiedCardRepository? _cardRepository;
 
   bool _loading = true;
   Object? _error;
@@ -121,6 +127,8 @@ class DesktopHomeViewModel extends ChangeNotifier {
 
   Future<DesktopHomeData> _collect() async {
     final store = WhiteboardDriftStore(db);
+    final unifiedCards =
+        _cardRepository ?? await WhiteboardDataBootstrap.productionRepository();
     final taskService = TaskRoomService(db: db);
     final cardService = MemoryCardQueryService(db);
 
@@ -150,12 +158,14 @@ class DesktopHomeViewModel extends ChangeNotifier {
     final scheduleCards = await cardService.listScheduleCards(limit: 20);
     final scheduleOverview = await cardService.getScheduleOverview();
 
-    final pendingCards = await _loadPendingCards(cardService);
-    final recentMemoryCards =
-        (await cardService.listRecentCards(limit: 6)).take(_boardLimit).toList();
+    final pendingCards = await _loadPendingCards(cardService, unifiedCards);
+    final recentMemoryCards = (await cardService.listRecentCards(limit: 6))
+        .take(_boardLimit)
+        .toList();
 
     final todayCount = await _countTodayRecords(cardService);
-    final followUpCount = (await cardService.getFollowUpCards(limit: 50)).length;
+    final followUpCount =
+        (await cardService.getFollowUpCards(limit: 50)).length;
 
     final statusCounts = <TaskStatus, int>{};
     for (final room in taskRooms) {
@@ -191,33 +201,24 @@ class DesktopHomeViewModel extends ChangeNotifier {
   /// 分类 / 放入白板。
   Future<List<MemoryCardViewData>> _loadPendingCards(
     MemoryCardQueryService cardService,
+    UnifiedCardRepository repository,
   ) async {
-    final candidates = await (db.select(db.memoryCards)
-          ..where((t) =>
-              t.memoryScope.equals('user_truth') & t.type.equals('note'))
-          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
-          ..limit(30))
-        .get();
-
-    final placed = await (db.select(db.whiteboardBoardItems)
-          ..orderBy([(t) => OrderingTerm.desc(t.zIndex)]))
-        .get();
-    final placedCardIds = placed.map((item) => item.cardId).toSet();
-
-    final ids = candidates
-        .where((row) => !placedCardIds.contains(row.id))
-        .take(_boardLimit)
-        .map((row) => row.id)
-        .toList();
+    final candidates = await repository.listCards(
+      const CardLibraryQuery(
+        kinds: {CardKind.note},
+        placedOnBoard: false,
+        limit: _boardLimit,
+      ),
+    );
+    final ids = candidates.map((record) => record.card.cardId).toList();
     if (ids.isEmpty) return const [];
     return cardService.getCardsByIds(ids);
   }
 
   Future<int> _countTodayRecords(MemoryCardQueryService cardService) async {
     final todayStart = DateTime.now();
-    final startMs =
-        DateTime(todayStart.year, todayStart.month, todayStart.day)
-            .millisecondsSinceEpoch;
+    final startMs = DateTime(todayStart.year, todayStart.month, todayStart.day)
+        .millisecondsSinceEpoch;
     final recent = await cardService.listRecentCards(limit: 150);
     return recent.where((c) => c.createdAt >= startMs).length;
   }
