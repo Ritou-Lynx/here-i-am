@@ -1,4 +1,4 @@
-/// Hermetic desktop loop for Card -> rich text -> library -> recovery.
+/// Hermetic desktop loop for library -> Card -> rich text -> recovery.
 ///
 /// Run: flutter test integration_test/whiteboard_rich_text_loop_test.dart -d windows
 library;
@@ -24,10 +24,8 @@ void main() {
     final root = await Directory.systemTemp.createTemp('memex_wb_rich_');
     final dbFile =
         File('${root.path}${Platform.pathSeparator}whiteboard.sqlite');
-    final db = AppDatabase.forTesting(NativeDatabase(dbFile));
-    final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
-    const cardId = 'f0_rich_text_loop';
-    await repository.createTextCard(cardId: cardId, title: 'F0 card');
+    var db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    var repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
     CardRichTextEditorScreen.setRepositoryForTesting(repository);
     addTearDown(() async {
       CardRichTextEditorScreen.setRepositoryForTesting(null);
@@ -37,7 +35,7 @@ void main() {
 
     late final GoRouter router;
     router = GoRouter(
-      initialLocation: '/cards/$cardId',
+      initialLocation: '/cards',
       routes: [
         GoRoute(
           path: '/cards',
@@ -55,6 +53,10 @@ void main() {
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const ValueKey('card-library-create-text')));
+    await tester.pumpAndSettle();
+    final cardId = (await repository.listCards()).single.card.cardId;
+
     Finder inEditor(Finder finder) => find.descendant(
           of: find.byType(CardRichTextEditor),
           matching: finder,
@@ -64,14 +66,22 @@ void main() {
       inEditor(find.byType(TextField)).first,
       '中文 mixed English — searchable recovery keyword',
     );
-    await tester.tap(find.text('保存'));
+    await tester.tap(find.text('保存').first);
     await tester.pumpAndSettle();
 
-    final persisted = await repository.getCard(cardId);
+    var persisted = await repository.getCard(cardId);
+    for (var i = 0;
+        i < 40 &&
+            !(persisted?.card.body.contains('searchable recovery keyword') ??
+                false);
+        i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      persisted = await repository.getCard(cardId);
+    }
     expect(persisted!.card.body, contains('searchable recovery keyword'));
     expect(persisted.documentState, CardDocumentState.available);
 
-    router.go('/cards');
+    router.pop();
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextField).first,
@@ -86,6 +96,23 @@ void main() {
       inEditor(find.byType(TextField)).first,
     );
     expect(restoredField.controller!.text,
+        contains('searchable recovery keyword'));
+
+    // A real restart closes the SQLite connection, reopens the same file and
+    // resolves the editor through a fresh Repository instance.
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    await tester.pumpAndSettle();
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    CardRichTextEditorScreen.setRepositoryForTesting(repository);
+    router.go('/cards/$cardId');
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    final restartedField = tester.widget<TextField>(
+      inEditor(find.byType(TextField)).first,
+    );
+    expect(restartedField.controller!.text,
         contains('searchable recovery keyword'));
   });
 }

@@ -55,9 +55,11 @@ void main() {
     testWidgets('loads saved document on start (restart recovery)',
         (tester) async {
       // Persist a document as if it was saved in a previous session.
-      storage.saveSync('card_closed', const RichTextDocument(blocks: [
-        RichTextBlock(type: BlockType.paragraph, text: '上次保存的内容'),
-      ]));
+      storage.saveSync(
+          'card_closed',
+          const RichTextDocument(blocks: [
+            RichTextBlock(type: BlockType.paragraph, text: '上次保存的内容'),
+          ]));
 
       await pumpScreen(tester, 'card_closed');
 
@@ -84,9 +86,30 @@ void main() {
       expect(find.text('写入并保存'), findsOneWidget);
     });
 
+    testWidgets('failed repository save stays dirty and reports failure',
+        (tester) async {
+      final controller = RichTextEditingController(RichTextDocument.empty());
+      await tester.pumpWidget(MaterialApp(
+        home: CardRichTextEditorScreen(
+          storage: storage,
+          cardId: 'card_save_failure',
+          controller: controller,
+          onSaveDocument: (_, __) async => throw StateError('disk full'),
+        ),
+      ));
+
+      await tester.enterText(find.byType(TextField).first, '不能丢失的内容');
+      await tester.pump();
+      await tester.tap(find.text('保存').first);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('保存失败'), findsOneWidget);
+      expect(controller.isDirty, isTrue);
+      expect(storage.exists('card_save_failure'), isFalse);
+    });
+
     testWidgets('unsaved exit shows confirmation dialog', (tester) async {
-      final controller =
-          RichTextEditingController(RichTextDocument.empty());
+      final controller = RichTextEditingController(RichTextDocument.empty());
       await pumpScreen(tester, 'card_unsaved', controller: controller);
 
       // Type without saving, then press the app bar back button (which goes

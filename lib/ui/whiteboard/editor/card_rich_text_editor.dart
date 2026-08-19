@@ -47,8 +47,8 @@ enum MediaImportKind { image, attachment }
 /// Imports media into the object store and returns stable asset refs.
 /// The editor inserts the corresponding blocks; it never touches the
 /// filesystem directly (tests inject fakes here).
-typedef RichTextMediaImporter =
-    Future<List<RichTextAssetRef>> Function(MediaImportKind kind);
+typedef RichTextMediaImporter = Future<List<RichTextAssetRef>> Function(
+    MediaImportKind kind);
 
 /// An editing position: a top-level block, or a child nested under one.
 typedef RichTextEditPath = ({int block, int? child});
@@ -57,6 +57,7 @@ typedef RichTextEditPath = ({int block, int? child});
 class CardRichTextEditor extends StatefulWidget {
   final RichTextEditingController controller;
   final RichTextSaveCallback? onSave;
+  final bool markSavedAfterCallback;
   final String cardId;
   final VoidCallback? onDirty;
 
@@ -73,6 +74,7 @@ class CardRichTextEditor extends StatefulWidget {
     required this.controller,
     required this.cardId,
     this.onSave,
+    this.markSavedAfterCallback = true,
     this.onDirty,
     this.objectStore,
     this.mediaImporter,
@@ -220,21 +222,29 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
             italic: true),
         _toolbarButton('U', () => _toggleMarkOnFocused(c, MarkType.underline),
             underline: true),
-        _toolbarButton('S', () => _toggleMarkOnFocused(c, MarkType.strikethrough),
+        _toolbarButton(
+            'S', () => _toggleMarkOnFocused(c, MarkType.strikethrough),
             strikethrough: true),
         _toolbarButton('</>', () => _toggleMarkOnFocused(c, MarkType.code),
             mono: true),
-        _toolbarButton('🔗', () => _addLinkOnFocused(context, c),
-            mono: true),
+        _toolbarButton('🔗', () => _addLinkOnFocused(context, c), mono: true),
         const SizedBox(width: 8),
-        _toolbarButton('H1', () => _setBlockTypeFocused(c, BlockType.heading,
-            attrs: const {'level': 1})),
-        _toolbarButton('H2', () => _setBlockTypeFocused(c, BlockType.heading,
-            attrs: const {'level': 2})),
-        _toolbarButton('•', () => _setBlockTypeFocused(c, BlockType.list,
-            attrs: const {'ordered': false})),
-        _toolbarButton('1.', () => _setBlockTypeFocused(c, BlockType.list,
-            attrs: const {'ordered': true})),
+        _toolbarButton(
+            'H1',
+            () => _setBlockTypeFocused(c, BlockType.heading,
+                attrs: const {'level': 1})),
+        _toolbarButton(
+            'H2',
+            () => _setBlockTypeFocused(c, BlockType.heading,
+                attrs: const {'level': 2})),
+        _toolbarButton(
+            '•',
+            () => _setBlockTypeFocused(c, BlockType.list,
+                attrs: const {'ordered': false})),
+        _toolbarButton(
+            '1.',
+            () => _setBlockTypeFocused(c, BlockType.list,
+                attrs: const {'ordered': true})),
         _toolbarButton('❝', () => _setBlockTypeFocused(c, BlockType.quote)),
         _toolbarButton('{ }', () => _setBlockTypeFocused(c, BlockType.code)),
         const SizedBox(width: 8),
@@ -244,8 +254,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         if (widget.mediaImporter != null) ...[
           _toolbarButton('🖼', () => _importMedia(c, MediaImportKind.image),
               mono: true),
-          _toolbarButton('📎',
-              () => _importMedia(c, MediaImportKind.attachment),
+          _toolbarButton(
+              '📎', () => _importMedia(c, MediaImportKind.attachment),
               mono: true),
           const SizedBox(width: 8),
         ],
@@ -254,7 +264,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         if (widget.onSave != null)
           _toolbarButton('保存', () {
             widget.onSave!(c.flushToDocument());
-            c.markSaved();
+            if (widget.markSavedAfterCallback) c.markSaved();
           }),
       ],
     );
@@ -290,9 +300,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         child: Text(
           label,
           style: style.copyWith(
-            color: enabled
-                ? const Color(0xFF293025)
-                : const Color(0xFF999B91),
+            color: enabled ? const Color(0xFF293025) : const Color(0xFF999B91),
           ),
         ),
       ),
@@ -584,7 +592,9 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
 
   void _focusChild(int parentIndex, int childIndex) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.controller.childFocusNodeFor(parentIndex, childIndex).requestFocus();
+      widget.controller
+          .childFocusNodeFor(parentIndex, childIndex)
+          .requestFocus();
     });
   }
 
@@ -675,8 +685,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
               child: const Text('取消'),
             ),
             FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(controller.text),
+              onPressed: () => Navigator.of(context).pop(controller.text),
               child: const Text('插入'),
             ),
           ],
@@ -772,7 +781,9 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         if (key == LogicalKeyboardKey.keyS) {
           if (widget.onSave != null) {
             widget.onSave!(widget.controller.flushToDocument());
-            widget.controller.markSaved();
+            if (widget.markSavedAfterCallback) {
+              widget.controller.markSaved();
+            }
           }
           return KeyEventResult.handled;
         }
