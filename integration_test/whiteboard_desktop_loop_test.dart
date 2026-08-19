@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
@@ -27,6 +28,7 @@ void main() {
 
     final db = AppDatabase.forTesting(NativeDatabase(dbFile));
     final store = WhiteboardDriftStore(db);
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
     final boardId = await store.createBoard(name: 'F0 isolated desktop board');
 
     await tester.pumpWidget(
@@ -34,6 +36,7 @@ void main() {
         home: WhiteboardCanvasRouteScreen(
           boardId: boardId,
           store: store,
+          cardRepository: repository,
         ),
       ),
     );

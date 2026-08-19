@@ -16,6 +16,9 @@ import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
+import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
@@ -24,11 +27,18 @@ import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
 class WhiteboardCanvasRouteScreen extends StatefulWidget {
   final String boardId;
   final WhiteboardDriftStore? store;
+  final UnifiedCardRepository? cardRepository;
+  final Future<UnifiedCardRepository> Function()? repositoryLoader;
+  final Future<bool> Function(String boardId, WhiteboardSnapshot snapshot)?
+      saveSnapshot;
 
   const WhiteboardCanvasRouteScreen({
     super.key,
     required this.boardId,
     this.store,
+    this.cardRepository,
+    this.repositoryLoader,
+    this.saveSnapshot,
   });
 
   @override
@@ -44,28 +54,29 @@ class _WhiteboardCanvasRouteScreenState
   WhiteboardCanvasViewModel? _viewModel;
   UnifiedCardRepository? _cardRepository;
   String? _error;
+  String? _saveError;
   bool _loaded = false;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.store == null) {
-      unawaited(_loadCardRepository());
-    }
-    _load();
+    unawaited(_load());
   }
 
-  Future<void> _loadCardRepository() async {
-    try {
-      final repository = await WhiteboardDataBootstrap.productionRepository();
-      if (!mounted) return;
-      setState(() => _cardRepository = repository);
-    } catch (_) {
-      // The loaded Drift snapshot stays available as a read-only fallback.
-    }
+  @override
+  void dispose() {
+    _viewModel?.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loaded = false;
+        _error = null;
+      });
+    }
     final WhiteboardDriftStore store;
     try {
       store = _store;
@@ -79,24 +90,37 @@ class _WhiteboardCanvasRouteScreenState
     }
     try {
       final result = await store.load(widget.boardId);
-      if (!mounted) return;
-      if (result.isSuccess && result.snapshot != null) {
-        final vm = WhiteboardCanvasViewModel(
-          initialSnapshot: result.snapshot!,
-          boardId: widget.boardId,
-        );
-        vm.onSaveRequested = () => unawaited(_save(vm));
-        setState(() {
-          _viewModel = vm;
-          _error = null;
-          _loaded = true;
-        });
-      } else {
+      if (!result.isSuccess || result.snapshot == null) {
+        if (!mounted) return;
         setState(() {
           _error = result.error ?? '加载白板失败';
           _loaded = true;
         });
+        return;
       }
+
+      final repository = widget.cardRepository ??
+          await (widget.repositoryLoader?.call() ??
+              WhiteboardDataBootstrap.productionRepository());
+      final snapshot = await _hydrateFromRepository(
+        result.snapshot!,
+        repository,
+      );
+      if (!mounted) return;
+      final oldViewModel = _viewModel;
+      final vm = WhiteboardCanvasViewModel(
+        initialSnapshot: snapshot,
+        boardId: widget.boardId,
+      );
+      vm.onSaveRequested = () => unawaited(_save(vm, announce: true));
+      setState(() {
+        _viewModel = vm;
+        _cardRepository = repository;
+        _error = null;
+        _saveError = null;
+        _loaded = true;
+      });
+      oldViewModel?.dispose();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -106,16 +130,97 @@ class _WhiteboardCanvasRouteScreenState
     }
   }
 
-  Future<void> _save(WhiteboardCanvasViewModel vm) async {
-    await _store.save(vm.boardId, vm.exportForSave());
+  Future<WhiteboardSnapshot> _hydrateFromRepository(
+    WhiteboardSnapshot layout,
+    UnifiedCardRepository repository,
+  ) async {
+    final records = await repository.listCards();
+    final sources = {
+      for (final record in records)
+        if (record.source != null) record.source!.sourceId: record.source!,
+    };
+    final versions = {
+      for (final record in records)
+        if (record.currentSourceVersion != null)
+          record.currentSourceVersion!.versionId: record.currentSourceVersion!,
+    };
+    return WhiteboardSnapshot(
+      schemaVersion: layout.schemaVersion,
+      sources: sources.values.toList(growable: false),
+      sourceVersions: versions.values.toList(growable: false),
+      cards: records.map((record) => record.card).toList(growable: false),
+      boards: layout.boards,
+      boardItems: layout.boardItems,
+      groups: layout.groups,
+      groupMembers: layout.groupMembers,
+      edges: layout.edges,
+      viewport: layout.viewport,
+      updatedAt: layout.updatedAt,
+    );
   }
 
-  void _handleExit(BuildContext context) {
-    final vm = _viewModel;
-    if (vm != null) {
-      unawaited(_save(vm));
+  WhiteboardSnapshot _layoutOnly(WhiteboardSnapshot snapshot) {
+    return WhiteboardSnapshot(
+      schemaVersion: snapshot.schemaVersion,
+      boards: snapshot.boards,
+      boardItems: snapshot.boardItems,
+      groups: snapshot.groups,
+      groupMembers: snapshot.groupMembers,
+      edges: snapshot.edges,
+      viewport: snapshot.viewport,
+      updatedAt: DateTime.now().toUtc(),
+    );
+  }
+
+  Future<bool> _save(
+    WhiteboardCanvasViewModel vm, {
+    bool announce = false,
+  }) async {
+    if (_saving) return false;
+    if (mounted) {
+      setState(() {
+        _saving = true;
+        _saveError = null;
+      });
     }
-    context.go('/');
+    var succeeded = false;
+    try {
+      final snapshot = _layoutOnly(vm.exportForSave());
+      succeeded = await (widget.saveSnapshot?.call(vm.boardId, snapshot) ??
+          _store.save(vm.boardId, snapshot));
+    } catch (_) {
+      succeeded = false;
+    }
+    if (!mounted) return succeeded;
+    setState(() {
+      _saving = false;
+      _saveError = succeeded ? null : '白板没有保存成功，请重试。';
+    });
+    if (announce) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(succeeded ? '白板已保存' : _saveError!)),
+      );
+    }
+    return succeeded;
+  }
+
+  Future<void> _handleExit() async {
+    final vm = _viewModel;
+    if (vm != null && !await _save(vm)) {
+      return;
+    }
+    if (mounted) context.go(AppRoutes.whiteboard);
+  }
+
+  Future<void> _openCard(CardContract card) async {
+    final vm = _viewModel;
+    if (vm == null || !await _save(vm)) return;
+    if (!mounted) return;
+    final sourceId = card.sourceId;
+    final target = sourceId != null && sourceId.isNotEmpty
+        ? AppRoutes.sourceStudyPath(sourceId)
+        : AppRoutes.cardEditPath(card.cardId);
+    await context.push(target);
   }
 
   @override
@@ -158,18 +263,73 @@ class _WhiteboardCanvasRouteScreenState
               ),
               const SizedBox(height: 16),
               OutlinedButton(
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: () => context.go(AppRoutes.whiteboard),
                 child: const Text('返回'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                key: const ValueKey('whiteboard_canvas_retry'),
+                onPressed: _load,
+                child: const Text('重试'),
               ),
             ],
           ),
         ),
       );
     }
-    return WhiteboardCanvasScreen(
-      viewModel: vm,
-      cardRepository: _cardRepository,
-      onExit: () => _handleExit(context),
+    return Stack(
+      children: [
+        WhiteboardCanvasScreen(
+          viewModel: vm,
+          cardRepository: _cardRepository,
+          onOpenCard: (card) => unawaited(_openCard(card)),
+          onExit: () => unawaited(_handleExit()),
+        ),
+        if (_saving)
+          const Positioned(
+            right: 16,
+            bottom: 16,
+            child: SizedBox(
+              key: ValueKey('whiteboard_saving'),
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        if (_saveError != null)
+          Positioned(
+            key: const ValueKey('whiteboard_save_error'),
+            right: 16,
+            bottom: 16,
+            child: Material(
+              color: WhiteboardCanvasTokens.panelSurface,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _saveError!,
+                      style: const TextStyle(
+                        color: WhiteboardCanvasTokens.orphanedBorder,
+                        fontSize: WhiteboardCanvasTokens.metaSize,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => unawaited(_save(vm, announce: true)),
+                      child: const Text('重试'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
