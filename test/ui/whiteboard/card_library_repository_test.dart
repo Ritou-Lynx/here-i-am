@@ -6,10 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
+import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
@@ -19,12 +21,14 @@ void main() {
   late File dbFile;
   late AppDatabase db;
   late UnifiedCardRepository repository;
+  late WhiteboardDriftStore boardStore;
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('f2_card_library_');
     dbFile = File('${root.path}${Platform.pathSeparator}whiteboard.sqlite');
     db = AppDatabase.forTesting(NativeDatabase(dbFile));
     repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    boardStore = WhiteboardDriftStore(db);
     CardRichTextEditorScreen.setRepositoryForTesting(repository);
   });
 
@@ -40,7 +44,10 @@ void main() {
       routes: [
         GoRoute(
           path: AppRoutes.cardLibrary,
-          builder: (_, __) => CardLibraryScreen(repository: repository),
+          builder: (_, __) => CardLibraryScreen(
+            repository: repository,
+            boardStore: boardStore,
+          ),
         ),
         GoRoute(
           path: AppRoutes.cardEdit,
@@ -190,7 +197,16 @@ void main() {
       type: SourceMediaType.web,
       title: '筛选网页',
     );
+    await boardStore.createBoard(name: '筛选目标板');
     await pumpApp(tester);
+
+    await tester.tap(
+      find.byKey(const ValueKey('card-library-place-note_filter')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('最近白板'), findsOneWidget);
+    await tester.tap(find.text('筛选目标板'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('card-library-kind-filter')));
     await tester.pumpAndSettle();
@@ -209,9 +225,17 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('card-library-placed-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('已上板').last);
+    await tester.pumpAndSettle();
     expect(find.text('河边笔记'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('card-library-kind-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('全部').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('card-library-placed-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('全部').last);
     await tester.pumpAndSettle();
@@ -231,6 +255,125 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('筛选网页'), findsOneWidget);
     expect(find.text('河边笔记'), findsNothing);
+  });
+
+  testWidgets(
+      'target picker searches all boards and one card can enter multiple boards',
+      (tester) async {
+    final card = await repository.createTextCard(
+      cardId: 'note_multi_board',
+      title: '只保留一个身份',
+      body: '同一张卡可以进入多个白板。',
+    );
+    final firstBoardId = await boardStore.createBoard(name: '最近白板 A');
+    final secondBoardId = await boardStore.createBoard(name: '远端检索目标');
+    for (var i = 0; i < 5; i++) {
+      await boardStore.createBoard(name: '占位白板 $i');
+    }
+    await pumpApp(tester);
+
+    Future<void> placeInto(String boardName, {String? search}) async {
+      await tester.tap(
+        find.byKey(const ValueKey('card-library-place-note_multi_board')),
+      );
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const ValueKey('board-target-search')),
+      );
+      if (search != null) {
+        await tester.enterText(
+          find.byKey(const ValueKey('board-target-search')),
+          search,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('全部白板'), findsOneWidget);
+      }
+      await tester.tap(find.text(boardName).last);
+      await _pumpUntilGone(
+        tester,
+        find.byKey(const ValueKey('board-target-search')),
+      );
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const ValueKey('card-library-card-note_multi_board')),
+      );
+    }
+
+    await placeInto('最近白板 A', search: '最近白板 A');
+    await placeInto('远端检索目标', search: '远端检索');
+
+    final first = (await boardStore.load(firstBoardId)).snapshot!;
+    final second = (await boardStore.load(secondBoardId)).snapshot!;
+    expect(
+      first.boardItems.where((item) => item.cardId == card.cardId),
+      hasLength(2),
+      reason: 'the global snapshot keeps both independent BoardItems',
+    );
+    expect(
+      second.boardItems.where((item) => item.cardId == card.cardId),
+      hasLength(2),
+    );
+    expect(await repository.listCards(), hasLength(1));
+
+    // Finish the UI portion before directly mutating the snapshot below. This
+    // avoids racing the screen's post-placement refresh on the same executor.
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    await tester.pumpAndSettle();
+
+    final withoutFirstPlacement = WhiteboardSnapshot(
+      schemaVersion: first.schemaVersion,
+      sources: first.sources,
+      sourceVersions: first.sourceVersions,
+      cards: first.cards,
+      boards: first.boards,
+      boardItems: first.boardItems
+          .where((item) => item.boardId != firstBoardId)
+          .toList(),
+      groups: first.groups,
+      groupMembers: first.groupMembers,
+      edges: first.edges,
+      viewport: first.viewport,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    expect(await boardStore.save(firstBoardId, withoutFirstPlacement), isTrue);
+    expect(
+      await repository.getCard(card.cardId, loadDocument: false),
+      isNotNull,
+    );
+  });
+
+  testWidgets('new-board target creates a board and only adds a BoardItem',
+      (tester) async {
+    final card = await repository.createTextCard(
+      cardId: 'note_new_board',
+      title: '新板目标卡',
+    );
+    await pumpApp(tester);
+
+    await tester.tap(
+      find.byKey(const ValueKey('card-library-place-note_new_board')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('新建白板'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('board-target-new-name')),
+      '从卡片库新建',
+    );
+    await tester.tap(find.text('创建并放入'));
+    await tester.pumpAndSettle();
+
+    final boards = await boardStore.listBoards();
+    expect(boards, hasLength(1));
+    expect(boards.single.name, '从卡片库新建');
+    final snapshot = (await boardStore.load(boards.single.boardId)).snapshot!;
+    expect(
+      snapshot.boardItems
+          .singleWhere((item) => item.cardId == card.cardId)
+          .boardId,
+      boards.single.boardId,
+    );
+    expect(await repository.listCards(), hasLength(1));
   });
 
   testWidgets('text opens editor, source opens study, import only navigates',
@@ -321,6 +464,7 @@ void main() {
     await db.close();
     db = AppDatabase.forTesting(NativeDatabase(dbFile));
     repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    boardStore = WhiteboardDriftStore(db);
     CardRichTextEditorScreen.setRepositoryForTesting(repository);
 
     final recovered = await repository.getCard(created.cardId);
@@ -340,6 +484,17 @@ Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
     if (finder.evaluate().isNotEmpty) return;
   }
   expect(finder, findsWidgets, reason: 'widget did not appear after 2 seconds');
+}
+
+Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
+  for (var i = 0; i < 80; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 25)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    if (finder.evaluate().isEmpty) return;
+  }
+  expect(finder, findsNothing, reason: 'widget did not close after 4 seconds');
 }
 
 Future<CardContract> _createSourceCard(

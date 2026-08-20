@@ -8,6 +8,8 @@
 /// tap); this picker is the explicit target-switching path.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/board.dart';
@@ -18,7 +20,11 @@ import '../whiteboard_canvas_view_model.dart';
 /// The picker itself. The parent is responsible for placing it in the
 /// overlay stack and for the click-outside barrier.
 class BoardTargetPicker extends StatefulWidget {
-  final WhiteboardCanvasViewModel viewModel;
+  final WhiteboardCanvasViewModel? viewModel;
+  final List<Board>? availableBoards;
+  final String? currentBoardId;
+  final FutureOr<bool> Function(Board board)? onPlaceRequested;
+  final FutureOr<Board?> Function(String name)? onCreateRequested;
   final String cardId;
   final String cardTitle;
   final VoidCallback onClose;
@@ -34,7 +40,25 @@ class BoardTargetPicker extends StatefulWidget {
     required this.cardTitle,
     required this.onClose,
     required this.onPlaced,
-  });
+  })  : availableBoards = null,
+        currentBoardId = null,
+        onPlaceRequested = null,
+        onCreateRequested = null;
+
+  /// Reuses the same picker from the independent card library, where there
+  /// is no live canvas ViewModel. The caller remains responsible for
+  /// persisting exactly one BoardItem through the production board store.
+  const BoardTargetPicker.external({
+    super.key,
+    required this.availableBoards,
+    required this.cardId,
+    required this.cardTitle,
+    required this.onClose,
+    required this.onPlaced,
+    required this.onPlaceRequested,
+    required this.onCreateRequested,
+    this.currentBoardId,
+  }) : viewModel = null;
 
   @override
   State<BoardTargetPicker> createState() => _BoardTargetPickerState();
@@ -44,6 +68,8 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
   final TextEditingController _search = TextEditingController();
   final TextEditingController _newName = TextEditingController();
   bool _creating = false;
+  bool _busy = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -53,38 +79,72 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
   }
 
   List<Board> get _boards {
-    final vm = widget.viewModel;
-    final boards = vm.snapshot.boards.toList()
+    final boards = (widget.availableBoards ??
+            widget.viewModel?.snapshot.boards ??
+            const <Board>[])
+        .toList()
       ..sort((a, b) {
         final at = a.updatedAt ?? a.createdAt;
         final bt = b.updatedAt ?? b.createdAt;
         return bt.compareTo(at);
       });
     final query = _search.text.trim().toLowerCase();
-    if (query.isEmpty) return boards;
-    return boards
-        .where((b) => b.name.toLowerCase().contains(query))
-        .toList();
+    if (query.isEmpty) return boards.take(5).toList();
+    return boards.where((b) => b.name.toLowerCase().contains(query)).toList();
   }
 
-  void _place(Board board) {
-    final vm = widget.viewModel;
+  Future<void> _place(Board board) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final externalPlace = widget.onPlaceRequested;
+      final placed = externalPlace != null
+          ? await externalPlace(board)
+          : _placeWithViewModel(board);
+      if (!mounted) return;
+      if (!placed) {
+        setState(() => _error = '没有放入成功，请重试。');
+        return;
+      }
+      widget.onPlaced(board.name);
+    } catch (error) {
+      if (mounted) setState(() => _error = '放入失败：$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  bool _placeWithViewModel(Board board) {
+    final vm = widget.viewModel!;
     final vp = vm.viewport;
-    vm.placeCardOnBoard(
-      cardId: widget.cardId,
-      boardId: board.boardId,
-      x: vp.centerX - 130,
-      y: vp.centerY - 100,
-    );
-    widget.onPlaced(board.name);
+    return vm.placeCardOnBoard(
+          cardId: widget.cardId,
+          boardId: board.boardId,
+          x: vp.centerX - 130,
+          y: vp.centerY - 100,
+        ) !=
+        null;
   }
 
-  void _createAndPlace() {
+  Future<void> _createAndPlace() async {
     final name = _newName.text.trim();
-    if (name.isEmpty) return;
-    final vm = widget.viewModel;
-    final board = vm.createBoard(name);
-    _place(board);
+    if (name.isEmpty || _busy) return;
+    try {
+      final externalCreate = widget.onCreateRequested;
+      final board = externalCreate != null
+          ? await externalCreate(name)
+          : widget.viewModel!.createBoard(name);
+      if (board == null) {
+        if (mounted) setState(() => _error = '白板没有创建成功，请重试。');
+        return;
+      }
+      await _place(board);
+    } catch (error) {
+      if (mounted) setState(() => _error = '创建失败：$error');
+    }
   }
 
   static String _date(DateTime? dt) {
@@ -96,8 +156,9 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
 
   @override
   Widget build(BuildContext context) {
-    final vm = widget.viewModel;
     final boards = _boards;
+    final searching = _search.text.trim().isNotEmpty;
+    final currentBoardId = widget.currentBoardId ?? widget.viewModel?.boardId;
 
     return Material(
       color: Colors.transparent,
@@ -145,6 +206,17 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                       ),
                     ),
                   ),
+                  if (_busy)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: SizedBox.square(
+                        dimension: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: WhiteboardCanvasTokens.action,
+                        ),
+                      ),
+                    ),
                   IconButton(
                     icon: const Icon(
                       Icons.close,
@@ -161,6 +233,7 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: TextField(
+                key: const ValueKey('board-target-search'),
                 controller: _search,
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(
@@ -203,6 +276,20 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
               ),
             ),
             const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  searching ? '全部白板' : '最近白板',
+                  style: const TextStyle(
+                    color: WhiteboardCanvasTokens.textSecondary,
+                    fontSize: WhiteboardCanvasTokens.statusSize,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
             Flexible(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 240),
@@ -223,10 +310,9 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                         itemCount: boards.length,
                         itemBuilder: (context, index) {
                           final board = boards[index];
-                          final isCurrent =
-                              board.boardId == vm.boardId;
+                          final isCurrent = board.boardId == currentBoardId;
                           return InkWell(
-                            onTap: () => _place(board),
+                            onTap: _busy ? null : () => _place(board),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -237,8 +323,7 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                                   const Icon(
                                     Icons.space_dashboard_outlined,
                                     size: 16,
-                                    color: WhiteboardCanvasTokens
-                                        .textSecondary,
+                                    color: WhiteboardCanvasTokens.textSecondary,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
@@ -249,7 +334,8 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                                       style: const TextStyle(
                                         color:
                                             WhiteboardCanvasTokens.textPrimary,
-                                        fontSize: WhiteboardCanvasTokens.metaSize,
+                                        fontSize:
+                                            WhiteboardCanvasTokens.metaSize,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -258,9 +344,9 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                                   Text(
                                     _date(board.updatedAt ?? board.createdAt),
                                     style: const TextStyle(
-                                      color:
-                                          WhiteboardCanvasTokens.textFaint,
-                                      fontSize: WhiteboardCanvasTokens.statusSize,
+                                      color: WhiteboardCanvasTokens.textFaint,
+                                      fontSize:
+                                          WhiteboardCanvasTokens.statusSize,
                                     ),
                                   ),
                                   if (isCurrent) ...[
@@ -271,16 +357,16 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                                         vertical: 1,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: WhiteboardCanvasTokens
-                                            .actionSoft,
+                                        color:
+                                            WhiteboardCanvasTokens.actionSoft,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: const Text(
                                         '当前',
                                         style: TextStyle(
                                           color: WhiteboardCanvasTokens.action,
-                                          fontSize: WhiteboardCanvasTokens
-                                              .statusSize,
+                                          fontSize:
+                                              WhiteboardCanvasTokens.statusSize,
                                         ),
                                       ),
                                     ),
@@ -297,6 +383,20 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
               height: 1,
               color: WhiteboardCanvasTokens.divider,
             ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(
+                      color: Color(0xFF9B5B52),
+                      fontSize: WhiteboardCanvasTokens.statusSize,
+                    ),
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
               child: _creating
@@ -304,6 +404,7 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                       children: [
                         Expanded(
                           child: TextField(
+                            key: const ValueKey('board-target-new-name'),
                             controller: _newName,
                             autofocus: true,
                             onSubmitted: (_) => _createAndPlace(),
@@ -345,15 +446,13 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                         TextButton(
                           onPressed: _createAndPlace,
                           style: TextButton.styleFrom(
-                            foregroundColor:
-                                WhiteboardCanvasTokens.action,
+                            foregroundColor: WhiteboardCanvasTokens.action,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
                             ),
                             minimumSize: Size.zero,
-                            tapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           child: const Text(
                             '创建并放入',

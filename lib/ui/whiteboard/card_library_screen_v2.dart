@@ -12,18 +12,31 @@ import 'package:go_router/go_router.dart';
 
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
+import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/rich_text_search.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
+import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
+import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
+import 'package:memex/ui/whiteboard_canvas/widgets/board_target_picker.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 
 class CardLibraryScreen extends StatefulWidget {
   final RichTextSearchIndex? index;
   final UnifiedCardRepository? repository;
+  final WhiteboardDriftStore? boardStore;
 
-  const CardLibraryScreen({super.key, this.index, this.repository});
+  const CardLibraryScreen({
+    super.key,
+    this.index,
+    this.repository,
+    this.boardStore,
+  });
 
   static Future<UnifiedCardRepository> resolveRepository() =>
       WhiteboardDataBootstrap.productionRepository();
@@ -46,6 +59,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
   CardKind? _kind;
   SourceMediaType? _sourceType;
   String? _tag;
+  bool? _placed;
   bool _loading = true;
   bool _creating = false;
   String? _error;
@@ -105,6 +119,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         sourceTypes: _sourceType == null ? null : {_sourceType!},
         tags: _tag == null ? null : {_tag!},
         search: query,
+        placedOnBoard: _placed,
       ));
       final allRecords = _knownTags.isEmpty
           ? await repository.listCards()
@@ -157,36 +172,149 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     if (mounted && widget.index == null) await _runQuery();
   }
 
+  Future<WhiteboardDriftStore?> _resolveBoardStore() async {
+    if (widget.boardStore != null) return widget.boardStore;
+    final repository = await _repositoryFuture;
+    return repository == null ? null : WhiteboardDriftStore(repository.db);
+  }
+
+  Future<void> _showBoardTargetPicker(_CardLibraryHit hit) async {
+    if (widget.index != null) return;
+    try {
+      final store = await _resolveBoardStore();
+      if (store == null) return;
+      final entries = await store.listBoards();
+      final boards = entries
+          .map(
+            (entry) => Board(
+              boardId: entry.boardId,
+              name: entry.name,
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+            ),
+          )
+          .toList();
+      if (!mounted) return;
+      final boardName = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(24),
+          child: BoardTargetPicker.external(
+            availableBoards: boards,
+            cardId: hit.cardId,
+            cardTitle: hit.title.isEmpty ? '未命名卡片' : hit.title,
+            onClose: () => Navigator.of(dialogContext).pop(),
+            onPlaced: (name) => Navigator.of(dialogContext).pop(name),
+            onPlaceRequested: (board) => _placeCard(store, board, hit.cardId),
+            onCreateRequested: (name) => _createTargetBoard(store, name),
+          ),
+        ),
+      );
+      if (!mounted || boardName == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已放入“$boardName”')),
+      );
+      await _runQuery();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('放入白板失败：$error')),
+      );
+    }
+  }
+
+  Future<Board?> _createTargetBoard(
+    WhiteboardDriftStore store,
+    String name,
+  ) async {
+    final now = DateTime.now().toUtc();
+    final boardId = await store.createBoard(name: name);
+    return Board(
+      boardId: boardId,
+      name: name,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
+  Future<bool> _placeCard(
+    WhiteboardDriftStore store,
+    Board board,
+    String cardId,
+  ) async {
+    final result = await store.load(board.boardId);
+    final snapshot = result.snapshot;
+    if (snapshot == null) {
+      throw StateError(result.error ?? '无法读取目标白板');
+    }
+    if (!snapshot.cards.any((card) => card.cardId == cardId)) {
+      throw StateError('卡片不存在或尚未完成保存');
+    }
+    final nextZ = snapshot.boardItems
+            .where((item) => item.boardId == board.boardId)
+            .fold<int>(
+              0,
+              (largest, item) => item.zIndex > largest ? item.zIndex : largest,
+            ) +
+        1;
+    final item = BoardItem(
+      itemId: StableId.generate('item').value,
+      boardId: board.boardId,
+      cardId: cardId,
+      x: snapshot.viewport.centerX - 130,
+      y: snapshot.viewport.centerY - 100,
+      zIndex: nextZ,
+    );
+    final saved = await store.save(
+      board.boardId,
+      WhiteboardSnapshot(
+        schemaVersion: snapshot.schemaVersion,
+        sources: snapshot.sources,
+        sourceVersions: snapshot.sourceVersions,
+        cards: snapshot.cards,
+        boards: snapshot.boards,
+        boardItems: [...snapshot.boardItems, item],
+        groups: snapshot.groups,
+        groupMembers: snapshot.groupMembers,
+        edges: snapshot.edges,
+        viewport: snapshot.viewport,
+        updatedAt: DateTime.now().toUtc(),
+      ),
+    );
+    if (!saved) throw StateError('目标白板保存失败');
+    return true;
+  }
+
+  void _goBack() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      context.go(AppRoutes.home);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Scaffold(
-      backgroundColor: WhiteboardCanvasTokens.canvas,
-      appBar: AppBar(
-        backgroundColor: WhiteboardCanvasTokens.canvas,
-        foregroundColor: WhiteboardCanvasTokens.textPrimary,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, size: 20),
-          tooltip: '返回首页',
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              context.go(AppRoutes.home);
-            }
-          },
-        ),
-        title: const Text('卡片库'),
-        titleTextStyle: whiteboardUiTextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      backgroundColor: tokens.canvas,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          DesktopPageTitle(
+            title: '卡片库',
+            meta: _loading ? null : '${_hits.length} 张结果',
+            onBack: _goBack,
+            backTooltip: '返回首页',
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            padding: const EdgeInsets.fromLTRB(
+              DesktopWorkspaceTokens.pageHorizontalPadding,
+              4,
+              DesktopWorkspaceTokens.pageHorizontalPadding,
+              12,
+            ),
             child: _buildToolbar(),
           ),
           Expanded(child: _buildResults()),
@@ -304,6 +432,17 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
                   _runQuery();
                 },
               ),
+              _FilterMenu<bool>(
+                key: const ValueKey('card-library-placed-filter'),
+                label: '上板',
+                value: _placed,
+                values: const [true, false],
+                labelFor: (value) => value ? '已上板' : '未上板',
+                onChanged: (value) {
+                  setState(() => _placed = value);
+                  _runQuery();
+                },
+              ),
             ],
           ),
         ],
@@ -338,6 +477,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
       final narrowed = _kind != null ||
           _sourceType != null ||
           _tag != null ||
+          _placed != null ||
           _queryController.text.trim().isNotEmpty;
       return _LibraryMessage(
         icon: Icons.inbox_outlined,
@@ -372,6 +512,9 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
               key: ValueKey('card-library-card-${hit.cardId}'),
               hit: hit,
               onTap: () => _open(hit),
+              onPlace: widget.index == null
+                  ? () => _showBoardTargetPicker(hit)
+                  : null,
             );
           },
         );
@@ -477,10 +620,12 @@ class _CardPreview extends StatelessWidget {
     super.key,
     required this.hit,
     required this.onTap,
+    this.onPlace,
   });
 
   final _CardLibraryHit hit;
   final VoidCallback onTap;
+  final VoidCallback? onPlace;
 
   @override
   Widget build(BuildContext context) {
@@ -507,33 +652,43 @@ class _CardPreview extends StatelessWidget {
           flex: 3,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Row(
               children: [
-                Text(
-                  hit.title.isEmpty ? '未命名卡片' : hit.title,
-                  style: richTextBodyTextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        hit.title.isEmpty ? '未命名卡片' : hit.title,
+                        style: richTextBodyTextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        [
+                          _sourceTypeLabel(hit.sourceType!),
+                          if (hit.sourceLabel != null) hit.sourceLabel!,
+                          if (hit.tags.isNotEmpty) hit.tags.take(2).join(' · '),
+                        ].join(' · '),
+                        style: whiteboardUiTextStyle(
+                          fontSize: 12,
+                          color: WhiteboardCanvasTokens.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  [
-                    _sourceTypeLabel(hit.sourceType!),
-                    if (hit.sourceLabel != null) hit.sourceLabel!,
-                    if (hit.tags.isNotEmpty) hit.tags.take(2).join(' · '),
-                  ].join(' · '),
-                  style: whiteboardUiTextStyle(
-                    fontSize: 12,
-                    color: WhiteboardCanvasTokens.textSecondary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                if (onPlace != null) ...[
+                  const SizedBox(width: 6),
+                  _placeButton(),
+                ],
               ],
             ),
           ),
@@ -565,17 +720,64 @@ class _CardPreview extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            hit.title.isEmpty ? '未命名文字卡' : hit.title,
-            style: richTextBodyTextStyle(
-              fontSize: 12,
-              color: WhiteboardCanvasTokens.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  hit.title.isEmpty ? '未命名文字卡' : hit.title,
+                  style: richTextBodyTextStyle(
+                    fontSize: 12,
+                    color: WhiteboardCanvasTokens.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (onPlace != null) ...[
+                const SizedBox(width: 6),
+                _placeButton(),
+              ],
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _placeButton() {
+    return Semantics(
+      button: true,
+      label: '将${hit.title}放入白板',
+      child: GestureDetector(
+        key: ValueKey('card-library-place-${hit.cardId}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onPlace,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.dashboard_customize_outlined,
+                  size: 15,
+                  color: WhiteboardCanvasTokens.action,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '放入白板',
+                  style: whiteboardUiTextStyle(
+                    fontSize: 11,
+                    color: WhiteboardCanvasTokens.action,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

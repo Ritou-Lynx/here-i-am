@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,11 +16,15 @@ import 'package:memex/ui/whiteboard/whiteboard_index_screen.dart';
 /// action; tap opens the full-screen canvas route.
 void main() {
   late AppDatabase db;
+  late Directory tempDir;
+  late File dbFile;
   late WhiteboardDriftStore store;
   late GoRouter router;
 
-  setUp(() {
-    db = AppDatabase.forTesting(NativeDatabase.memory());
+  setUp(() async {
+    tempDir = await Directory.systemTemp.createTemp('m2a_board_index_');
+    dbFile = File('${tempDir.path}${Platform.pathSeparator}whiteboard.sqlite');
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
     store = WhiteboardDriftStore(db);
     AppDatabase.setTestInstance(db);
     router = createAppRouter(
@@ -28,7 +34,9 @@ void main() {
   });
 
   tearDown(() async {
+    router.dispose();
     await db.close();
+    if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
   Future<void> pumpIndex(WidgetTester tester) async {
@@ -39,13 +47,18 @@ void main() {
 
   testWidgets('index renders gray-paper page with real board list',
       (tester) async {
-    await store.createBoard(name: '桌面集成验证板');
+    final boardId = await store.createBoard(name: '桌面集成验证板');
     await pumpIndex(tester);
 
     expect(find.byType(WhiteboardIndexScreen), findsOneWidget);
-    expect(find.text('白板'), findsOneWidget);
+    expect(find.text('白板'), findsWidgets);
     expect(find.text('桌面集成验证板'), findsOneWidget);
-    expect(find.byKey(const ValueKey('whiteboard_create_button')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('whiteboard_create_button')), findsOneWidget);
+    expect(
+      find.byKey(ValueKey('whiteboard_preview_$boardId')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('index shows honest empty state when there are no boards',
@@ -60,26 +73,56 @@ void main() {
     await pumpIndex(tester);
 
     await tester.tap(find.text('跳转测试板'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await _pumpUntilFound(tester, find.byType(WhiteboardCanvasRouteScreen));
 
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
     expect(router.routeInformationProvider.value.uri.path,
         AppRoutes.whiteboardCanvasPath(boardId));
   });
 
-  testWidgets('create flow makes a board and opens its canvas',
-      (tester) async {
+  testWidgets('create flow makes a board and opens its canvas', (tester) async {
     await pumpIndex(tester);
 
     await tester.tap(find.byKey(const ValueKey('whiteboard_create_button')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '新白板');
     await tester.tap(find.text('创建'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await _pumpUntilFound(tester, find.byType(WhiteboardCanvasRouteScreen));
 
     final boards = await store.listBoards();
     expect(boards, hasLength(1));
     expect(boards.single.name, '新白板');
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
   });
+
+  testWidgets('board index survives a database restart', (tester) async {
+    await store.createBoard(name: '重启仍在的白板');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await db.close();
+    router.dispose();
+
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    AppDatabase.setTestInstance(db);
+    store = WhiteboardDriftStore(db);
+    router = createAppRouter(
+      GlobalKey<NavigatorState>(),
+      () => const Scaffold(body: SizedBox()),
+    );
+
+    await pumpIndex(tester);
+
+    expect(find.text('重启仍在的白板'), findsOneWidget);
+    expect(find.byKey(const ValueKey('whiteboard_grid')), findsOneWidget);
+  });
+}
+
+Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
+  for (var i = 0; i < 40; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+    if (finder.evaluate().isNotEmpty) return;
+  }
+  expect(finder, findsWidgets, reason: 'widget did not appear after 2 seconds');
 }
