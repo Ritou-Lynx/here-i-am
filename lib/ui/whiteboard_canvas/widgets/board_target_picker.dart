@@ -184,23 +184,24 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
     final boards = _boards;
     final searching = _search.text.trim().isNotEmpty;
     final currentBoardId = widget.currentBoardId ?? widget.viewModel?.boardId;
+    final colors = WhiteboardCanvasTokens.of(context);
 
     return Material(
       color: Colors.transparent,
       child: Container(
         width: 300,
         decoration: BoxDecoration(
-          color: WhiteboardCanvasTokens.panelSurface,
+          color: colors.panelSurface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: WhiteboardCanvasTokens.cardBorder,
+            color: colors.cardBorder,
             width: 0.5,
           ),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x2434322F),
+              color: colors.floatingShadow,
               blurRadius: 12,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -211,10 +212,10 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
               padding: const EdgeInsets.fromLTRB(12, 10, 8, 6),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     '放入白板',
                     style: TextStyle(
-                      color: WhiteboardCanvasTokens.textPrimary,
+                      color: colors.textPrimary,
                       fontSize: WhiteboardCanvasTokens.titleSize,
                       fontWeight: FontWeight.w600,
                     ),
@@ -225,28 +226,28 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                       widget.cardTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: WhiteboardCanvasTokens.textFaint,
+                      style: TextStyle(
+                        color: colors.textFaint,
                         fontSize: WhiteboardCanvasTokens.statusSize,
                       ),
                     ),
                   ),
                   if (_busy)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
                       child: SizedBox.square(
                         dimension: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: WhiteboardCanvasTokens.action,
+                          color: colors.action,
                         ),
                       ),
                     ),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close,
                       size: 18,
-                      color: WhiteboardCanvasTokens.textSecondary,
+                      color: colors.textSecondary,
                     ),
                     tooltip: '关闭',
                     visualDensity: VisualDensity.compact,
@@ -262,14 +263,14 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                 controller: _search,
                 enabled: !_busy,
                 onChanged: (_) => setState(() {}),
-                style: const TextStyle(
-                  color: WhiteboardCanvasTokens.textPrimary,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: WhiteboardCanvasTokens.metaSize,
                 ),
                 decoration: InputDecoration(
                   hintText: '搜索白板',
-                  hintStyle: const TextStyle(
-                    color: WhiteboardCanvasTokens.textFaint,
+                  hintStyle: TextStyle(
+                    color: colors.textFaint,
                     fontSize: WhiteboardCanvasTokens.metaSize,
                   ),
                   isDense: true,
@@ -277,24 +278,24 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                     horizontal: 10,
                     vertical: 8,
                   ),
-                  prefixIcon: const Icon(
+                  prefixIcon: Icon(
                     Icons.search,
                     size: 16,
-                    color: WhiteboardCanvasTokens.textFaint,
+                    color: colors.textFaint,
                   ),
                   filled: true,
-                  fillColor: WhiteboardCanvasTokens.canvas,
+                  fillColor: colors.canvas,
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: WhiteboardCanvasTokens.divider,
+                    borderSide: BorderSide(
+                      color: colors.divider,
                       width: 1,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: WhiteboardCanvasTokens.actionSecondary,
+                    borderSide: BorderSide(
+                      color: colors.actionSecondary,
                       width: 1.5,
                     ),
                   ),
@@ -308,8 +309,8 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   searching ? '全部白板' : '最近白板',
-                  style: const TextStyle(
-                    color: WhiteboardCanvasTokens.textSecondary,
+                  style: TextStyle(
+                    color: colors.textSecondary,
                     fontSize: WhiteboardCanvasTokens.statusSize,
                     fontWeight: FontWeight.w600,
                   ),
@@ -320,12 +321,12 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 240),
                 child: boards.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
                         child: Text(
                           '没有匹配的白板，新建一个吧',
                           style: TextStyle(
-                            color: WhiteboardCanvasTokens.textFaint,
+                            color: colors.textFaint,
                             fontSize: WhiteboardCanvasTokens.metaSize,
                           ),
                         ),
@@ -346,10 +347,10 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.space_dashboard_outlined,
                                     size: 16,
-                                    color: WhiteboardCanvasTokens.textSecondary,
+                                    color: colors.textSecondary,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
@@ -357,9 +358,8 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                                       board.name,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color:
-                                            WhiteboardCanvasTokens.textPrimary,
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
                                         fontSize:
                                             WhiteboardCanvasTokens.metaSize,
                                         fontWeight: FontWeight.w500,
@@ -369,8 +369,8 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                                   const SizedBox(width: 8),
                                   Text(
                                     _date(board.updatedAt ?? board.createdAt),
-                                    style: const TextStyle(
-                                      color: WhiteboardCanvasTokens.textFaint,
+                                    style: TextStyle(
+                                      color: colors.textFaint,
                                       fontSize:
                                           WhiteboardCanvasTokens.statusSize,
                                     ),
@@ -383,14 +383,13 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                                         vertical: 1,
                                       ),
                                       decoration: BoxDecoration(
-                                        color:
-                                            WhiteboardCanvasTokens.actionSoft,
+                                        color: colors.actionSoft,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         '当前',
                                         style: TextStyle(
-                                          color: WhiteboardCanvasTokens.action,
+                                          color: colors.action,
                                           fontSize:
                                               WhiteboardCanvasTokens.statusSize,
                                         ),
@@ -405,9 +404,9 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                       ),
               ),
             ),
-            const Divider(
+            Divider(
               height: 1,
-              color: WhiteboardCanvasTokens.divider,
+              color: colors.divider,
             ),
             if (_error != null)
               Padding(
@@ -416,8 +415,8 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     _error!,
-                    style: const TextStyle(
-                      color: Color(0xFF9B5B52),
+                    style: TextStyle(
+                      color: colors.orphanedBorder,
                       fontSize: WhiteboardCanvasTokens.statusSize,
                     ),
                   ),
@@ -436,14 +435,14 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                             autofocus: true,
                             onSubmitted:
                                 _busy ? null : (_) => _createAndPlace(),
-                            style: const TextStyle(
-                              color: WhiteboardCanvasTokens.textPrimary,
+                            style: TextStyle(
+                              color: colors.textPrimary,
                               fontSize: WhiteboardCanvasTokens.metaSize,
                             ),
                             decoration: InputDecoration(
                               hintText: '新白板名称',
-                              hintStyle: const TextStyle(
-                                color: WhiteboardCanvasTokens.textFaint,
+                              hintStyle: TextStyle(
+                                color: colors.textFaint,
                                 fontSize: WhiteboardCanvasTokens.metaSize,
                               ),
                               isDense: true,
@@ -452,18 +451,18 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                                 vertical: 8,
                               ),
                               filled: true,
-                              fillColor: WhiteboardCanvasTokens.canvas,
+                              fillColor: colors.canvas,
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(
-                                  color: WhiteboardCanvasTokens.divider,
+                                borderSide: BorderSide(
+                                  color: colors.divider,
                                   width: 1,
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(
-                                  color: WhiteboardCanvasTokens.actionSecondary,
+                                borderSide: BorderSide(
+                                  color: colors.actionSecondary,
                                   width: 1.5,
                                 ),
                               ),
@@ -474,7 +473,7 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                         TextButton(
                           onPressed: _busy ? null : _createAndPlace,
                           style: TextButton.styleFrom(
-                            foregroundColor: WhiteboardCanvasTokens.action,
+                            foregroundColor: colors.action,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
@@ -496,20 +495,20 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                       onTap:
                           _busy ? null : () => setState(() => _creating = true),
                       borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
                           children: [
                             Icon(
                               Icons.add,
                               size: 16,
-                              color: WhiteboardCanvasTokens.action,
+                              color: colors.action,
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               '新建白板',
                               style: TextStyle(
-                                color: WhiteboardCanvasTokens.action,
+                                color: colors.action,
                                 fontSize: WhiteboardCanvasTokens.metaSize,
                                 fontWeight: FontWeight.w600,
                               ),

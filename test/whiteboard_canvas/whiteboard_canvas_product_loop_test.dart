@@ -54,6 +54,7 @@ void main() {
     );
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await _settle(tester);
+    await _openCanvasNavigation(tester);
     expect(find.text('F1 产品闭环'), findsOneWidget);
     expect(find.text('真实文字卡'), findsNothing,
         reason: 'an empty board must not invent fixture cards');
@@ -109,6 +110,7 @@ void main() {
     await tester.tap(find.text('真实文字卡'));
     await tester.sendKeyEvent(LogicalKeyboardKey.delete);
     await _settle(tester);
+    await _openCanvasTools(tester);
     await tester.tap(find.byTooltip('保存快照 (Ctrl+S)'));
     await _settle(tester);
     expect(pendingSave, isNotNull);
@@ -310,6 +312,7 @@ void main() {
     );
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await _settle(tester);
+    await _openCanvasTools(tester);
     await tester.tap(find.byTooltip('保存快照 (Ctrl+S)'));
     await _settle(tester);
 
@@ -354,6 +357,21 @@ void main() {
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 20; i++) {
     await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
+Future<void> _openCanvasNavigation(WidgetTester tester) async {
+  if (find.byKey(const Key('wb_navigation_group')).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const Key('wb_canvas_chrome_launcher')));
+    await _settle(tester);
+  }
+}
+
+Future<void> _openCanvasTools(WidgetTester tester) async {
+  await _openCanvasNavigation(tester);
+  if (find.byKey(const Key('wb_action_tools')).evaluate().isEmpty) {
+    await tester.tap(find.byTooltip('画布工具'));
+    await _settle(tester);
   }
 }
 

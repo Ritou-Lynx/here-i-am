@@ -16,6 +16,7 @@
 library;
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/gestures.dart' as gestures;
@@ -105,8 +106,8 @@ class WhiteboardCanvasScreen extends StatefulWidget {
 }
 
 class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
-  bool _topBarVisible = true;
-  bool _sidePanelVisible = true;
+  bool _navigationVisible = false;
+  bool _toolsVisible = false;
   bool _showCardLibrary = false;
 
   /// Card currently being placed via the BoardTargetPicker.
@@ -136,7 +137,28 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       setState(() => _pickerCardId = null);
       return;
     }
+    if (_showCardLibrary) {
+      setState(() => _showCardLibrary = false);
+      return;
+    }
+    if (_toolsVisible) {
+      setState(() => _toolsVisible = false);
+      return;
+    }
+    if (_navigationVisible) {
+      setState(() => _navigationVisible = false);
+      return;
+    }
     widget.onExit?.call();
+  }
+
+  void _dismissNavigation() {
+    setState(() {
+      _navigationVisible = false;
+      _toolsVisible = false;
+      _showCardLibrary = false;
+      _pickerCardId = null;
+    });
   }
 
   void _nudge(double dx, double dy) {
@@ -200,14 +222,15 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
 
   void _onPlacedInBoard(String boardName) {
     setState(() => _pickerCardId = null);
+    final colors = WhiteboardCanvasTokens.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 2),
-        backgroundColor: WhiteboardCanvasTokens.dark,
+        backgroundColor: colors.dark,
         content: Text(
           '已放入白板「$boardName」',
-          style: const TextStyle(
-            color: WhiteboardCanvasTokens.canvas,
+          style: TextStyle(
+            color: colors.canvas,
             fontSize: WhiteboardCanvasTokens.metaSize,
           ),
         ),
@@ -218,73 +241,85 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   @override
   Widget build(BuildContext context) {
     final vm = widget.viewModel;
+    final colors = WhiteboardCanvasTokens.of(context);
     return Scaffold(
-      backgroundColor: WhiteboardCanvasTokens.canvas,
+      key: const Key('wb_fullscreen_canvas_shell'),
+      backgroundColor: colors.canvas,
       body: CallbackShortcuts(
         bindings: _buildShortcuts(),
         child: Focus(
           autofocus: true,
-          child: Stack(
-            children: [
-              WhiteboardCanvasArea(
-                viewModel: vm,
-                onOpenCard: widget.onOpenCard,
-                onToggleTopBar: () =>
-                    setState(() => _topBarVisible = !_topBarVisible),
-                onToggleSidePanel: () =>
-                    setState(() => _sidePanelVisible = !_sidePanelVisible),
-              ),
-              if (_topBarVisible)
-                _FloatingTopBar(
-                  viewModel: vm,
-                  onExit: widget.onExit,
-                  onToggleTopBar: () =>
-                      setState(() => _topBarVisible = !_topBarVisible),
-                  onToggleSidePanel: () =>
-                      setState(() => _sidePanelVisible = !_sidePanelVisible),
-                  onShowCardLibrary: () {
-                    setState(() {
-                      _showCardLibrary = !_showCardLibrary;
-                      if (!_showCardLibrary) _pickerCardId = null;
-                    });
-                  },
-                  cardLibraryVisible: _showCardLibrary,
-                ),
-              if (_showCardLibrary && _sidePanelVisible)
-                _CardLibraryPanel(
-                  viewModel: vm,
-                  repository: widget.cardRepository,
-                  onClose: () {
-                    setState(() {
-                      _showCardLibrary = false;
-                      _pickerCardId = null;
-                    });
-                  },
-                  onOpenBoardPicker: _openBoardPicker,
-                ),
-              if (_pickerCardId != null) ...[
-                // Click-outside barrier for the popover.
+          child: SizedBox.expand(
+            key: const Key('wb_fullscreen_canvas'),
+            child: Stack(
+              children: [
                 Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: () => setState(() => _pickerCardId = null),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-                Positioned(
-                  left: 264,
-                  top: 64,
-                  child: BoardTargetPicker(
+                  child: WhiteboardCanvasArea(
                     viewModel: vm,
-                    cardId: _pickerCardId!,
-                    cardTitle: _pickerCardTitle,
-                    onClose: () => setState(() => _pickerCardId = null),
-                    onPlaced: _onPlacedInBoard,
+                    onOpenCard: widget.onOpenCard,
                   ),
                 ),
+                if (!_navigationVisible)
+                  _CanvasChromeLauncher(
+                    onTap: () => setState(() => _navigationVisible = true),
+                  )
+                else
+                  _CanvasNavigationGroup(
+                    boardName: vm.boardState.board.name,
+                    onExit: widget.onExit,
+                    onDismiss: _dismissNavigation,
+                    toolsVisible: _toolsVisible,
+                    onToggleTools: () =>
+                        setState(() => _toolsVisible = !_toolsVisible),
+                    cardLibraryVisible: _showCardLibrary,
+                    onToggleCardLibrary: () {
+                      setState(() {
+                        _showCardLibrary = !_showCardLibrary;
+                        if (!_showCardLibrary) _pickerCardId = null;
+                      });
+                    },
+                  ),
+                if (_toolsVisible)
+                  _FloatingActionTools(
+                    viewModel: vm,
+                    onClose: () => setState(() => _toolsVisible = false),
+                  ),
+                if (_toolsVisible) _FloatingViewTools(viewModel: vm),
+                if (_showCardLibrary)
+                  _CardLibraryPanel(
+                    viewModel: vm,
+                    repository: widget.cardRepository,
+                    onClose: () {
+                      setState(() {
+                        _showCardLibrary = false;
+                        _pickerCardId = null;
+                      });
+                    },
+                    onOpenBoardPicker: _openBoardPicker,
+                  ),
+                if (_pickerCardId != null) ...[
+                  // Click-outside barrier for the popover.
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => setState(() => _pickerCardId = null),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                  Positioned(
+                    left: 264,
+                    top: 64,
+                    child: BoardTargetPicker(
+                      viewModel: vm,
+                      cardId: _pickerCardId!,
+                      cardTitle: _pickerCardTitle,
+                      onClose: () => setState(() => _pickerCardId = null),
+                      onPlaced: _onPlacedInBoard,
+                    ),
+                  ),
+                ],
               ],
-              _FloatingBottomBar(viewModel: vm),
-            ],
+            ),
           ),
         ),
       ),
@@ -296,15 +331,11 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
 class WhiteboardCanvasArea extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
   final void Function(CardContract card)? onOpenCard;
-  final VoidCallback onToggleTopBar;
-  final VoidCallback onToggleSidePanel;
 
   const WhiteboardCanvasArea({
     super.key,
     required this.viewModel,
     this.onOpenCard,
-    required this.onToggleTopBar,
-    required this.onToggleSidePanel,
   });
 
   @override
@@ -358,6 +389,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   Widget build(BuildContext context) {
     final vm = widget.viewModel;
     final boardState = vm.boardState;
+    final colors = WhiteboardCanvasTokens.of(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -446,6 +478,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
                 painter: _CanvasPainter(
                   boardState: boardState,
                   transform: transform,
+                  colors: colors,
                   selection: vm.selection.selectedItemIds,
                   marqueeRect: _isMarqueeing &&
                           _marqueeStart != null &&
@@ -804,6 +837,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     Size size,
   ) {
     final vm = widget.viewModel;
+    final colors = WhiteboardCanvasTokens.of(context);
     final hidden = _hiddenItemIds(boardState);
 
     final itemsByItemId = {
@@ -901,9 +935,9 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             child: IgnorePointer(
               child: Container(
                 decoration: BoxDecoration(
-                  color: WhiteboardCanvasTokens.selectionBox,
+                  color: colors.selectionBox,
                   border: Border.all(
-                    color: WhiteboardCanvasTokens.selectionBoxBorder,
+                    color: colors.selectionBoxBorder,
                     width: 1,
                   ),
                 ),
@@ -1057,6 +1091,7 @@ class _EdgeRetargetState {
 class _CanvasPainter extends CustomPainter {
   final CanvasBoardState boardState;
   final CanvasTransform transform;
+  final WhiteboardCanvasColors colors;
   final Set<String> selection;
   final Rect? marqueeRect;
   final String? selectedEdgeId;
@@ -1066,6 +1101,7 @@ class _CanvasPainter extends CustomPainter {
   _CanvasPainter({
     required this.boardState,
     required this.transform,
+    required this.colors,
     required this.selection,
     this.marqueeRect,
     this.selectedEdgeId,
@@ -1081,22 +1117,24 @@ class _CanvasPainter extends CustomPainter {
   }
 
   void _drawGrid(Canvas canvas, Size size) {
-    final gridSize = 40.0 * transform.viewport.zoom;
+    final gridSize = 22.0 * transform.viewport.zoom;
     if (gridSize < 8) return;
 
     final offsetX = transform.canvasToScreen(Offset.zero).dx % gridSize;
     final offsetY = transform.canvasToScreen(Offset.zero).dy % gridSize;
 
     final paint = Paint()
-      ..color = const Color(0x0DB5B2A8)
-      ..strokeWidth = 0.5;
+      ..color = colors.gridDot
+      ..strokeWidth = (1.15 * transform.viewport.zoom).clamp(0.65, 1.2)
+      ..strokeCap = StrokeCap.round;
 
+    final points = <Offset>[];
     for (double x = offsetX; x < size.width; x += gridSize) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+      for (double y = offsetY; y < size.height; y += gridSize) {
+        points.add(Offset(x, y));
+      }
     }
-    for (double y = offsetY; y < size.height; y += gridSize) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
+    canvas.drawPoints(ui.PointMode.points, points, paint);
   }
 
   void _drawEdges(Canvas canvas) {
@@ -1120,9 +1158,7 @@ class _CanvasPainter extends CustomPainter {
       final toScreen = transform.canvasToScreen(toCenter);
 
       final paint = Paint()
-        ..color = isSelected
-            ? WhiteboardCanvasTokens.edgeSelected
-            : WhiteboardCanvasTokens.edge
+        ..color = isSelected ? colors.edgeSelected : colors.edge
         ..strokeWidth = isSelected
             ? WhiteboardCanvasTokens.edgeWidthSelected
             : WhiteboardCanvasTokens.edgeWidth
@@ -1150,8 +1186,8 @@ class _CanvasPainter extends CustomPainter {
         final labelPainter = TextPainter(
           text: TextSpan(
             text: label,
-            style: const TextStyle(
-              color: WhiteboardCanvasTokens.edgeLabel,
+            style: TextStyle(
+              color: colors.edgeLabel,
               fontSize: WhiteboardCanvasTokens.metaSize,
             ),
           ),
@@ -1172,7 +1208,7 @@ class _CanvasPainter extends CustomPainter {
     final preview = retargetPreview;
     if (preview == null) return;
     final paint = Paint()
-      ..color = WhiteboardCanvasTokens.edgeSelected
+      ..color = colors.edgeSelected
       ..strokeWidth = WhiteboardCanvasTokens.edgeWidthSelected
       ..style = PaintingStyle.stroke;
 
@@ -1185,7 +1221,7 @@ class _CanvasPainter extends CustomPainter {
       preview.to,
       4,
       Paint()
-        ..color = WhiteboardCanvasTokens.edgeSelected
+        ..color = colors.edgeSelected
         ..style = PaintingStyle.fill,
     );
   }
@@ -1222,6 +1258,7 @@ class _CanvasPainter extends CustomPainter {
         oldDelegate.marqueeRect != marqueeRect ||
         oldDelegate.selectedEdgeId != selectedEdgeId ||
         oldDelegate.retargetPreview != retargetPreview ||
+        oldDelegate.colors != colors ||
         !setEquals(oldDelegate.hiddenItemIds, hiddenItemIds);
   }
 }
@@ -1315,22 +1352,21 @@ class _CardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final isOrphaned = node.isOrphaned;
     final card = node.card;
+    final colors = WhiteboardCanvasTokens.of(context);
 
     if (lodTier == LodTier.minimal) {
       return Container(
         decoration: BoxDecoration(
-          color: isOrphaned
-              ? WhiteboardCanvasTokens.orphanedSurface
-              : WhiteboardCanvasTokens.cardSurface,
+          color: isOrphaned ? colors.orphanedSurface : colors.cardSurface,
           borderRadius: BorderRadius.circular(
             WhiteboardCanvasTokens.cardRadius,
           ),
           border: Border.all(
             color: isOrphaned
-                ? WhiteboardCanvasTokens.orphanedBorder
+                ? colors.orphanedBorder
                 : isSelected
-                    ? WhiteboardCanvasTokens.cardBorderSelected
-                    : WhiteboardCanvasTokens.cardBorder,
+                    ? colors.cardBorderSelected
+                    : colors.cardBorder,
             width: isSelected
                 ? WhiteboardCanvasTokens.cardBorderWidthSelected
                 : WhiteboardCanvasTokens.cardBorderWidth,
@@ -1340,17 +1376,17 @@ class _CardContent extends StatelessWidget {
         child: Row(
           children: [
             if (isOrphaned) ...[
-              const Icon(
+              Icon(
                 Icons.broken_image_outlined,
-                color: WhiteboardCanvasTokens.orphanedBorder,
+                color: colors.orphanedBorder,
                 size: 14,
               ),
               const SizedBox(width: 6),
-              const Expanded(
+              Expanded(
                 child: Text(
                   '失效引用',
                   style: TextStyle(
-                    color: WhiteboardCanvasTokens.orphanedBorder,
+                    color: colors.orphanedBorder,
                     fontSize: WhiteboardCanvasTokens.statusSize,
                   ),
                   maxLines: 1,
@@ -1361,8 +1397,8 @@ class _CardContent extends StatelessWidget {
               Expanded(
                 child: Text(
                   card!.title,
-                  style: const TextStyle(
-                    color: WhiteboardCanvasTokens.textPrimary,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontSize: WhiteboardCanvasTokens.metaSize,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1378,20 +1414,27 @@ class _CardContent extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isOrphaned
-            ? WhiteboardCanvasTokens.orphanedSurface
-            : WhiteboardCanvasTokens.cardSurface,
+        color: isOrphaned ? colors.orphanedSurface : colors.cardSurface,
         borderRadius: BorderRadius.circular(WhiteboardCanvasTokens.cardRadius),
         border: Border.all(
           color: isOrphaned
-              ? WhiteboardCanvasTokens.orphanedBorder
+              ? colors.orphanedBorder
               : isSelected
-                  ? WhiteboardCanvasTokens.cardBorderSelected
-                  : WhiteboardCanvasTokens.cardBorder,
+                  ? colors.cardBorderSelected
+                  : colors.cardBorder,
           width: isSelected
               ? WhiteboardCanvasTokens.cardBorderWidthSelected
               : WhiteboardCanvasTokens.cardBorderWidth,
         ),
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: colors.selectionFocus,
+                  blurRadius: 0,
+                  spreadRadius: 3,
+                ),
+              ]
+            : null,
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -1407,8 +1450,8 @@ class _CardContent extends StatelessWidget {
           else ...[
             Text(
               card!.title,
-              style: const TextStyle(
-                color: WhiteboardCanvasTokens.textPrimary,
+              style: TextStyle(
+                color: colors.textPrimary,
                 fontSize: WhiteboardCanvasTokens.titleSize,
                 fontWeight: FontWeight.w600,
               ),
@@ -1419,8 +1462,8 @@ class _CardContent extends StatelessWidget {
             Expanded(
               child: Text(
                 card.body,
-                style: const TextStyle(
-                  color: WhiteboardCanvasTokens.textSecondary,
+                style: TextStyle(
+                  color: colors.textSecondary,
                   fontSize: WhiteboardCanvasTokens.bodySize,
                 ),
                 maxLines: 5,
@@ -1440,17 +1483,17 @@ class _CardContent extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: WhiteboardCanvasTokens.cardSurface,
+                        color: colors.cardSurface,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: WhiteboardCanvasTokens.divider,
+                          color: colors.divider,
                           width: 0.5,
                         ),
                       ),
                       child: Text(
                         tag,
-                        style: const TextStyle(
-                          color: WhiteboardCanvasTokens.textFaint,
+                        style: TextStyle(
+                          color: colors.textFaint,
                           fontSize: WhiteboardCanvasTokens.statusSize,
                         ),
                       ),
@@ -1474,28 +1517,29 @@ class _OrphanedCardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.broken_image_outlined,
-            color: WhiteboardCanvasTokens.orphanedBorder,
+            color: colors.orphanedBorder,
             size: 24,
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '失效卡片引用',
             style: TextStyle(
-              color: WhiteboardCanvasTokens.orphanedBorder,
+              color: colors.orphanedBorder,
               fontSize: WhiteboardCanvasTokens.metaSize,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             cardId,
-            style: const TextStyle(
-              color: WhiteboardCanvasTokens.textFaint,
+            style: TextStyle(
+              color: colors.textFaint,
               fontSize: WhiteboardCanvasTokens.statusSize,
               fontFamily: 'monospace',
             ),
@@ -1525,6 +1569,7 @@ class _GroupWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
     final memberItems = <BoardItem>[];
     for (final member in groupNode.members) {
       final item = itemsByItemId[member.itemId];
@@ -1570,16 +1615,12 @@ class _GroupWidget extends StatelessWidget {
         onTap: onToggle,
         child: Container(
           decoration: BoxDecoration(
-            color: collapsed
-                ? WhiteboardCanvasTokens.groupRect
-                : WhiteboardCanvasTokens.groupRect,
+            color: colors.groupRect,
             borderRadius: BorderRadius.circular(
               WhiteboardCanvasTokens.groupRadius,
             ),
             border: Border.all(
-              color: collapsed
-                  ? WhiteboardCanvasTokens.actionSecondary
-                  : WhiteboardCanvasTokens.groupBorder,
+              color: collapsed ? colors.actionSecondary : colors.groupBorder,
               width: collapsed ? 1.5 : 1,
             ),
           ),
@@ -1589,7 +1630,7 @@ class _GroupWidget extends StatelessWidget {
               margin: const EdgeInsets.only(top: 6, left: 12),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: WhiteboardCanvasTokens.canvas,
+                color: colors.canvas,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Row(
@@ -1598,17 +1639,16 @@ class _GroupWidget extends StatelessWidget {
                   Icon(
                     collapsed ? Icons.unfold_more : Icons.unfold_less,
                     size: 14,
-                    color: collapsed
-                        ? WhiteboardCanvasTokens.actionSecondary
-                        : WhiteboardCanvasTokens.groupLabel,
+                    color:
+                        collapsed ? colors.actionSecondary : colors.groupLabel,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     groupNode.group.name.isNotEmpty
                         ? groupNode.group.name
                         : '未命名分组',
-                    style: const TextStyle(
-                      color: WhiteboardCanvasTokens.groupLabel,
+                    style: TextStyle(
+                      color: colors.groupLabel,
                       fontSize: WhiteboardCanvasTokens.metaSize,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1617,8 +1657,8 @@ class _GroupWidget extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       '${groupNode.members.length} 张卡片',
-                      style: const TextStyle(
-                        color: WhiteboardCanvasTokens.actionSecondary,
+                      style: TextStyle(
+                        color: colors.actionSecondary,
                         fontSize: WhiteboardCanvasTokens.statusSize,
                       ),
                     ),
@@ -1647,6 +1687,7 @@ class _ResizeHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.resizeUpLeftDownRight,
       child: GestureDetector(
@@ -1659,9 +1700,9 @@ class _ResizeHandle extends StatelessWidget {
           width: 14,
           height: 14,
           decoration: BoxDecoration(
-            color: WhiteboardCanvasTokens.canvas,
+            color: colors.canvas,
             border: Border.all(
-              color: WhiteboardCanvasTokens.cardBorderSelected,
+              color: colors.cardBorderSelected,
               width: 1.5,
             ),
             borderRadius: BorderRadius.circular(2),
@@ -1686,6 +1727,7 @@ class _RotateHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
     return MouseRegion(
       cursor: SystemMouseCursors.grab,
       child: GestureDetector(
@@ -1698,17 +1740,17 @@ class _RotateHandle extends StatelessWidget {
           width: 18,
           height: 18,
           decoration: BoxDecoration(
-            color: WhiteboardCanvasTokens.canvas,
+            color: colors.canvas,
             border: Border.all(
-              color: WhiteboardCanvasTokens.cardBorderSelected,
+              color: colors.cardBorderSelected,
               width: 1.5,
             ),
             borderRadius: BorderRadius.circular(9),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.rotate_right,
             size: 12,
-            color: WhiteboardCanvasTokens.textSecondary,
+            color: colors.textSecondary,
           ),
         ),
       ),
@@ -1745,6 +1787,7 @@ class _EdgeEndpointHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
     return Positioned(
       left: position.dx - 7,
       top: position.dy - 7,
@@ -1761,9 +1804,9 @@ class _EdgeEndpointHandle extends StatelessWidget {
             width: 14,
             height: 14,
             decoration: BoxDecoration(
-              color: WhiteboardCanvasTokens.panelSurface,
+              color: colors.panelSurface,
               border: Border.all(
-                color: WhiteboardCanvasTokens.edgeSelected,
+                color: colors.edgeSelected,
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(7),
@@ -1775,115 +1818,102 @@ class _EdgeEndpointHandle extends StatelessWidget {
   }
 }
 
-/// Floating top bar — minimal, dismissable.
-class _FloatingTopBar extends StatelessWidget {
-  final WhiteboardCanvasViewModel viewModel;
-  final VoidCallback? onExit;
-  final VoidCallback onToggleTopBar;
-  final VoidCallback onToggleSidePanel;
-  final VoidCallback onShowCardLibrary;
-  final bool cardLibraryVisible;
+/// A single compact affordance remains when every optional canvas surface has
+/// retreated. It is intentionally not a bar: the board still occupies the full
+/// window and the launcher never reserves layout space.
+class _CanvasChromeLauncher extends StatelessWidget {
+  const _CanvasChromeLauncher({required this.onTap});
 
-  const _FloatingTopBar({
-    required this.viewModel,
-    this.onExit,
-    required this.onToggleTopBar,
-    required this.onToggleSidePanel,
-    required this.onShowCardLibrary,
-    required this.cardLibraryVisible,
-  });
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final vm = viewModel;
     return Positioned(
+      key: const Key('wb_canvas_chrome_launcher'),
       top: 12,
       left: 12,
-      right: 12,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: WhiteboardCanvasTokens.panelSurface,
-          borderRadius: BorderRadius.circular(
-            WhiteboardCanvasTokens.groupRadius,
-          ),
-          border: Border.all(
-            color: WhiteboardCanvasTokens.cardBorder,
-            width: 0.5,
-          ),
+      child: _FloatingSurface(
+        padding: const EdgeInsets.all(4),
+        child: _FloatingButton(
+          icon: Icons.space_dashboard_outlined,
+          tooltip: '打开画布控件',
+          onTap: onTap,
         ),
+      ),
+    );
+  }
+}
+
+/// Navigation and surface switches. Closing it also retreats every surface it
+/// owns so the canvas returns to a single launcher.
+class _CanvasNavigationGroup extends StatelessWidget {
+  const _CanvasNavigationGroup({
+    required this.boardName,
+    required this.onExit,
+    required this.onDismiss,
+    required this.toolsVisible,
+    required this.onToggleTools,
+    required this.cardLibraryVisible,
+    required this.onToggleCardLibrary,
+  });
+
+  final String boardName;
+  final VoidCallback? onExit;
+  final VoidCallback onDismiss;
+  final bool toolsVisible;
+  final VoidCallback onToggleTools;
+  final bool cardLibraryVisible;
+  final VoidCallback onToggleCardLibrary;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
+    return Positioned(
+      key: const Key('wb_navigation_group'),
+      top: 12,
+      left: 12,
+      child: _FloatingSurface(
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _FloatingButton(
               icon: Icons.arrow_back,
               tooltip: '退出白板 (Esc)',
               onTap: onExit,
             ),
-            const SizedBox(width: 8),
-            Text(
-              vm.boardState.board.name,
-              style: const TextStyle(
-                color: WhiteboardCanvasTokens.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220),
+              child: Text(
+                boardName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-            const Spacer(),
-            _FloatingButton(
-              icon: Icons.undo,
-              tooltip: '撤销 (Ctrl+Z)',
-              isEnabled: vm.canUndo && !vm.isReadonly,
-              onTap: vm.canUndo && !vm.isReadonly ? () => vm.undo() : null,
-            ),
-            const SizedBox(width: 4),
-            _FloatingButton(
-              icon: Icons.redo,
-              tooltip: '重做 (Ctrl+Y)',
-              isEnabled: vm.canRedo && !vm.isReadonly,
-              onTap: vm.canRedo && !vm.isReadonly ? () => vm.redo() : null,
-            ),
-            const SizedBox(width: 4),
-            _FloatingButton(
-              icon: Icons.delete_outline,
-              tooltip: '删除选中 (Del)',
-              isEnabled: vm.selection.isNotEmpty && !vm.isReadonly,
-              onTap: vm.selection.isNotEmpty && !vm.isReadonly
-                  ? () => vm.removeSelectedItems()
-                  : null,
-            ),
-            const SizedBox(width: 4),
-            _FloatingButton(
-              icon: Icons.layers,
-              tooltip: '置顶',
-              isEnabled: vm.selection.isNotEmpty && !vm.isReadonly,
-              onTap: vm.selection.isNotEmpty && !vm.isReadonly
-                  ? () => vm.bringSelectedItemToFront()
-                  : null,
-            ),
-            const SizedBox(width: 4),
-            _FloatingButton(
-              icon: Icons.create_new_folder_outlined,
-              tooltip: '选中建组',
-              isEnabled: vm.selection.length >= 2 && !vm.isReadonly,
-              onTap: vm.selection.length >= 2 && !vm.isReadonly
-                  ? () => vm.createGroupFromSelection()
-                  : null,
-            ),
-            const SizedBox(width: 4),
-            _FloatingButton(
-              icon: Icons.save_outlined,
-              tooltip: '保存快照 (Ctrl+S)',
-              isEnabled: !vm.isReadonly,
-              onTap: !vm.isReadonly ? () => vm.onSaveRequested?.call() : null,
-            ),
-            const Spacer(),
+            const SizedBox(width: 8),
             _FloatingButton(
               icon: cardLibraryVisible
                   ? Icons.collections_bookmark_outlined
                   : Icons.grid_view_outlined,
-              tooltip: '卡片库',
-              isEnabled: true,
-              onTap: onShowCardLibrary,
+              tooltip: cardLibraryVisible ? '关闭卡片库' : '卡片库',
+              onTap: onToggleCardLibrary,
+            ),
+            const SizedBox(width: 4),
+            _FloatingButton(
+              icon: toolsVisible ? Icons.build : Icons.build_outlined,
+              tooltip: toolsVisible ? '关闭画布工具' : '画布工具',
+              onTap: onToggleTools,
+            ),
+            const SizedBox(width: 4),
+            _FloatingButton(
+              icon: Icons.close,
+              tooltip: '收起画布控件',
+              onTap: onDismiss,
             ),
           ],
         ),
@@ -1892,30 +1922,109 @@ class _FloatingTopBar extends StatelessWidget {
   }
 }
 
-/// Floating bottom bar — zoom controls and status.
-class _FloatingBottomBar extends StatelessWidget {
-  final WhiteboardCanvasViewModel viewModel;
+/// Edit actions appear only when explicitly requested from the navigation
+/// group. Keyboard shortcuts remain active while this surface is absent.
+class _FloatingActionTools extends StatelessWidget {
+  const _FloatingActionTools({
+    required this.viewModel,
+    required this.onClose,
+  });
 
-  const _FloatingBottomBar({required this.viewModel});
+  final WhiteboardCanvasViewModel viewModel;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
+    final vm = viewModel;
     return Positioned(
-      bottom: 12,
-      left: 12,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: WhiteboardCanvasTokens.panelSurface,
-          borderRadius: BorderRadius.circular(
-            WhiteboardCanvasTokens.groupRadius,
-          ),
-          border: Border.all(
-            color: WhiteboardCanvasTokens.cardBorder,
-            width: 0.5,
+      key: const Key('wb_action_tools'),
+      top: 12,
+      left: 0,
+      right: 0,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: _FloatingSurface(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _FloatingButton(
+                icon: Icons.undo,
+                tooltip: '撤销 (Ctrl+Z)',
+                isEnabled: vm.canUndo && !vm.isReadonly,
+                onTap: vm.canUndo && !vm.isReadonly ? vm.undo : null,
+              ),
+              const SizedBox(width: 4),
+              _FloatingButton(
+                icon: Icons.redo,
+                tooltip: '重做 (Ctrl+Y)',
+                isEnabled: vm.canRedo && !vm.isReadonly,
+                onTap: vm.canRedo && !vm.isReadonly ? vm.redo : null,
+              ),
+              const SizedBox(width: 4),
+              _FloatingButton(
+                icon: Icons.delete_outline,
+                tooltip: '删除选中 (Del)',
+                isEnabled: vm.selection.isNotEmpty && !vm.isReadonly,
+                onTap: vm.selection.isNotEmpty && !vm.isReadonly
+                    ? vm.removeSelectedItems
+                    : null,
+              ),
+              const SizedBox(width: 4),
+              _FloatingButton(
+                icon: Icons.layers,
+                tooltip: '置顶',
+                isEnabled: vm.selection.isNotEmpty && !vm.isReadonly,
+                onTap: vm.selection.isNotEmpty && !vm.isReadonly
+                    ? vm.bringSelectedItemToFront
+                    : null,
+              ),
+              const SizedBox(width: 4),
+              _FloatingButton(
+                icon: Icons.create_new_folder_outlined,
+                tooltip: '选中建组',
+                isEnabled: vm.selection.length >= 2 && !vm.isReadonly,
+                onTap: vm.selection.length >= 2 && !vm.isReadonly
+                    ? vm.createGroupFromSelection
+                    : null,
+              ),
+              const SizedBox(width: 4),
+              _FloatingButton(
+                icon: Icons.save_outlined,
+                tooltip: '保存快照 (Ctrl+S)',
+                isEnabled: !vm.isReadonly,
+                onTap: !vm.isReadonly ? vm.onSaveRequested : null,
+              ),
+              const SizedBox(width: 4),
+              _FloatingButton(
+                icon: Icons.close,
+                tooltip: '关闭画布工具',
+                onTap: onClose,
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// View controls share the tool visibility lifecycle; there is no permanent
+/// status bar along the bottom edge.
+class _FloatingViewTools extends StatelessWidget {
+  const _FloatingViewTools({required this.viewModel});
+
+  final WhiteboardCanvasViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
+    return Positioned(
+      key: const Key('wb_view_tools'),
+      bottom: 12,
+      right: 12,
+      child: _FloatingSurface(
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _FloatingButton(
               icon: Icons.zoom_out,
@@ -1925,8 +2034,8 @@ class _FloatingBottomBar extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '${(viewModel.viewport.zoom * 100).round()}%',
-              style: const TextStyle(
-                color: WhiteboardCanvasTokens.textSecondary,
+              style: TextStyle(
+                color: colors.textSecondary,
                 fontSize: WhiteboardCanvasTokens.metaSize,
               ),
             ),
@@ -1940,28 +2049,51 @@ class _FloatingBottomBar extends StatelessWidget {
             _FloatingButton(
               icon: Icons.center_focus_strong,
               tooltip: '重置视图',
-              onTap: () => viewModel.resetViewport(),
+              onTap: viewModel.resetViewport,
             ),
-            const SizedBox(width: 12),
-            if (viewModel.selection.isNotEmpty)
+            if (viewModel.selection.isNotEmpty) ...[
+              const SizedBox(width: 10),
               Text(
                 '已选 ${viewModel.selection.length} 项',
-                style: const TextStyle(
-                  color: WhiteboardCanvasTokens.textSecondary,
+                style: TextStyle(
+                  color: colors.textSecondary,
                   fontSize: WhiteboardCanvasTokens.metaSize,
                 ),
               ),
-            const SizedBox(width: 12),
-            const Text(
-              '左键框选 · 中键/右键平移 · 滚轮缩放',
-              style: TextStyle(
-                color: WhiteboardCanvasTokens.textFaint,
-                fontSize: WhiteboardCanvasTokens.statusSize,
-              ),
-            ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FloatingSurface extends StatelessWidget {
+  const _FloatingSurface({
+    required this.child,
+    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.panelSurface,
+        borderRadius: BorderRadius.circular(WhiteboardCanvasTokens.groupRadius),
+        border: Border.all(color: colors.divider, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: colors.floatingShadow,
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(padding: padding, child: child),
     );
   }
 }
@@ -2051,22 +2183,24 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
   @override
   Widget build(BuildContext context) {
     final cards = _allCards;
+    final colors = WhiteboardCanvasTokens.of(context);
     final alreadyPlaced =
         widget.viewModel.boardState.nodes.map((n) => n.cardId).toSet();
 
     return Positioned(
+      key: const Key('wb_card_library_panel'),
       left: 12,
       top: 60,
       bottom: 60,
       child: Container(
         width: 240,
         decoration: BoxDecoration(
-          color: WhiteboardCanvasTokens.panelSurface,
+          color: colors.panelSurface,
           borderRadius: BorderRadius.circular(
             WhiteboardCanvasTokens.groupRadius,
           ),
           border: Border.all(
-            color: WhiteboardCanvasTokens.cardBorder,
+            color: colors.cardBorder,
             width: 0.5,
           ),
         ),
@@ -2076,10 +2210,10 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
               padding: const EdgeInsets.fromLTRB(12, 10, 8, 6),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     '卡片库',
                     style: TextStyle(
-                      color: WhiteboardCanvasTokens.textPrimary,
+                      color: colors.textPrimary,
                       fontSize: WhiteboardCanvasTokens.titleSize,
                       fontWeight: FontWeight.w500,
                     ),
@@ -2093,12 +2227,12 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                 ],
               ),
             ),
-            const Divider(height: 1, color: WhiteboardCanvasTokens.divider),
+            Divider(height: 1, color: colors.divider),
             Expanded(
               child: _loading
-                  ? const Center(
+                  ? Center(
                       child: CircularProgressIndicator(
-                        color: WhiteboardCanvasTokens.textSecondary,
+                        color: colors.textSecondary,
                         strokeWidth: 2,
                       ),
                     )
@@ -2109,11 +2243,11 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text(
+                                Text(
                                   '卡片库没有读出来',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: WhiteboardCanvasTokens.textSecondary,
+                                    color: colors.textSecondary,
                                     fontSize: WhiteboardCanvasTokens.metaSize,
                                   ),
                                 ),
@@ -2128,11 +2262,11 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                           ),
                         )
                       : cards.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Text(
                                 '没有可放入的卡片',
                                 style: TextStyle(
-                                  color: WhiteboardCanvasTokens.textFaint,
+                                  color: colors.textFaint,
                                   fontSize: WhiteboardCanvasTokens.metaSize,
                                 ),
                               ),
@@ -2195,6 +2329,7 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
     String cardId,
   ) {
     final vm = widget.viewModel;
+    final colors = WhiteboardCanvasTokens.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(8),
@@ -2218,8 +2353,8 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(
-                        color: WhiteboardCanvasTokens.textPrimary,
+                      style: TextStyle(
+                        color: colors.textPrimary,
                         fontSize: WhiteboardCanvasTokens.metaSize,
                         fontWeight: FontWeight.w500,
                       ),
@@ -2228,17 +2363,17 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                     ),
                   ),
                   if (isPlaced)
-                    const Icon(
+                    Icon(
                       Icons.check_circle_outline,
                       size: 14,
-                      color: WhiteboardCanvasTokens.textFaint,
+                      color: colors.textFaint,
                     ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.space_dashboard_outlined,
                       size: 16,
-                      color: WhiteboardCanvasTokens.actionSecondary,
+                      color: colors.actionSecondary,
                     ),
                     tooltip: '放入白板…',
                     visualDensity: VisualDensity.compact,
@@ -2249,8 +2384,8 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
               const SizedBox(height: 2),
               Text(
                 kindName,
-                style: const TextStyle(
-                  color: WhiteboardCanvasTokens.textFaint,
+                style: TextStyle(
+                  color: colors.textFaint,
                   fontSize: WhiteboardCanvasTokens.statusSize,
                 ),
               ),
@@ -2271,25 +2406,26 @@ class _DragCardFeedback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
     return Material(
       color: Colors.transparent,
       child: Container(
         width: 180,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: WhiteboardCanvasTokens.panelSurface,
+          color: colors.panelSurface,
           borderRadius: BorderRadius.circular(
             WhiteboardCanvasTokens.cardRadius,
           ),
           border: Border.all(
-            color: WhiteboardCanvasTokens.cardBorderSelected,
+            color: colors.cardBorderSelected,
             width: 1.5,
           ),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x2434322F),
+              color: colors.floatingShadow,
               blurRadius: 12,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -2301,8 +2437,8 @@ class _DragCardFeedback extends StatelessWidget {
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: WhiteboardCanvasTokens.textPrimary,
+              style: TextStyle(
+                color: colors.textPrimary,
                 fontSize: WhiteboardCanvasTokens.titleSize,
                 fontWeight: FontWeight.w600,
               ),
@@ -2310,8 +2446,8 @@ class _DragCardFeedback extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               kindName,
-              style: const TextStyle(
-                color: WhiteboardCanvasTokens.textFaint,
+              style: TextStyle(
+                color: colors.textFaint,
                 fontSize: WhiteboardCanvasTokens.statusSize,
               ),
             ),
@@ -2338,6 +2474,7 @@ class _FloatingButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
     return Tooltip(
       message: tooltip,
       child: Material(
@@ -2350,9 +2487,7 @@ class _FloatingButton extends StatelessWidget {
             child: Icon(
               icon,
               size: 20,
-              color: isEnabled
-                  ? WhiteboardCanvasTokens.textPrimary
-                  : WhiteboardCanvasTokens.textFaint,
+              color: isEnabled ? colors.textPrimary : colors.textFaint,
             ),
           ),
         ),

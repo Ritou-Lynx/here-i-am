@@ -1,4 +1,4 @@
-﻿/// Widget tests for the W1 whiteboard canvas 鈥?real Flutter rendering
+/// Widget tests for the W1 whiteboard canvas 鈥?real Flutter rendering
 /// verification of core interactions.
 ///
 /// These tests pump the actual [WhiteboardCanvasScreen] and simulate pointer
@@ -72,7 +72,8 @@ WhiteboardSnapshot _singleCardSnapshot() {
   );
 }
 
-Future<void> _pumpCanvas(WidgetTester tester, WhiteboardSnapshot snapshot) async {
+Future<void> _pumpCanvas(
+    WidgetTester tester, WhiteboardSnapshot snapshot) async {
   final vm = WhiteboardCanvasViewModel(
     initialSnapshot: snapshot,
     boardId: snapshot.boards.isNotEmpty ? snapshot.boards.first.boardId : 'b',
@@ -87,6 +88,17 @@ Future<void> _pumpCanvas(WidgetTester tester, WhiteboardSnapshot snapshot) async
     ),
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> _openCanvasTools(WidgetTester tester) async {
+  if (find.byKey(const Key('wb_navigation_group')).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const Key('wb_canvas_chrome_launcher')));
+    await tester.pumpAndSettle();
+  }
+  if (find.byKey(const Key('wb_action_tools')).evaluate().isEmpty) {
+    await tester.tap(find.byTooltip('画布工具'));
+    await tester.pumpAndSettle();
+  }
 }
 
 void main() {
@@ -105,16 +117,15 @@ void main() {
       await tester.tap(find.text('Card A'));
       await tester.pumpAndSettle();
 
-      // Selection indicator: bottom bar shows "已选 1 项"
-      expect(find.textContaining('已选 1'), findsOneWidget);
+      expect(_getVm(tester).selection.length, 1);
     });
 
     testWidgets('drag on card moves it and updates snapshot', (tester) async {
       await _pumpCanvas(tester, _singleCardSnapshot());
       final vm = _getVm(tester);
 
-      final before = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final before =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
 
       // Drag card A by (100, 60) — start at the card center.
       await tester.drag(
@@ -123,8 +134,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final after = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final after =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
       expect(after.x, greaterThan(before.x + 50));
       expect(after.y, greaterThan(before.y + 30));
       // Position must have changed by the full drag minus touch slop.
@@ -139,14 +150,14 @@ void main() {
       final b = tester.getRect(find.text('Card B'));
 
       // Marquee from top-left of card A to bottom-right of card B.
-      final gesture = await tester.startGesture(a.topLeft - const Offset(20, 20));
+      final gesture =
+          await tester.startGesture(a.topLeft - const Offset(20, 20));
       await gesture.moveTo(b.bottomRight + const Offset(20, 20));
       await tester.pump();
       await gesture.up();
       await tester.pumpAndSettle();
 
-      // Both cards selected
-      expect(find.textContaining('已选 2'), findsOneWidget);
+      expect(_getVm(tester).selection.length, 2);
     });
 
     testWidgets('delete removes BoardItem but not Card', (tester) async {
@@ -159,7 +170,7 @@ void main() {
       final vm = _getVm(tester);
       final cardCount = vm.exportForSave().cards.length;
 
-      // Tap delete button in top bar
+      await _openCanvasTools(tester);
       await tester.tap(find.byIcon(Icons.delete_outline));
       await tester.pumpAndSettle();
 
@@ -174,6 +185,7 @@ void main() {
 
       await tester.tap(find.text('Card A'));
       await tester.pumpAndSettle();
+      await _openCanvasTools(tester);
       await tester.tap(find.byIcon(Icons.delete_outline));
       await tester.pumpAndSettle();
 
@@ -212,14 +224,15 @@ void main() {
 
       await tester.tap(find.text('Card A'));
       await tester.pumpAndSettle();
+      await _openCanvasTools(tester);
       await tester.tap(find.byIcon(Icons.layers));
       await tester.pumpAndSettle();
 
       final vm = _getVm(tester);
-      final itemA = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
-      final itemB = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_b');
+      final itemA =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
+      final itemB =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_b');
       expect(itemA.zIndex, greaterThan(itemB.zIndex));
     });
 
@@ -229,12 +242,14 @@ void main() {
       // Select both via marquee spanning both cards
       final a = tester.getRect(find.text('Card A'));
       final b = tester.getRect(find.text('Card B'));
-      final gesture = await tester.startGesture(a.topLeft - const Offset(20, 20));
+      final gesture =
+          await tester.startGesture(a.topLeft - const Offset(20, 20));
       await gesture.moveTo(b.bottomRight + const Offset(20, 20));
       await tester.pump();
       await gesture.up();
       await tester.pumpAndSettle();
 
+      await _openCanvasTools(tester);
       await tester.tap(find.byIcon(Icons.create_new_folder_outlined));
       await tester.pumpAndSettle();
 
@@ -247,9 +262,14 @@ void main() {
         (tester) async {
       await _pumpCanvas(tester, _singleCardSnapshot());
 
-      // The canvas surface is the full body; floating bars are overlays.
-      // No AppBar exists.
       expect(find.byType(AppBar), findsNothing);
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.byKey(const Key('wb_navigation_group')), findsNothing);
+      expect(find.byKey(const Key('wb_action_tools')), findsNothing);
+      expect(find.byKey(const Key('wb_view_tools')), findsNothing);
+      expect(find.byKey(const Key('wb_card_library_panel')), findsNothing);
+      expect(
+          find.byKey(const Key('wb_canvas_chrome_launcher')), findsOneWidget);
     });
   });
 
@@ -281,8 +301,8 @@ void main() {
       );
 
       // Verify a round-trip keeps the item positions
-      final item = vm.exportForSave().boardItems
-          .firstWhere((i) => i.itemId == 'item_a');
+      final item =
+          vm.exportForSave().boardItems.firstWhere((i) => i.itemId == 'item_a');
       expect(item.x, equals(100));
       expect(item.y, equals(100));
 

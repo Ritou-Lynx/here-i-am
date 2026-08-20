@@ -191,6 +191,21 @@ Future<WhiteboardCanvasViewModel> _pumpCanvas(
   return vm;
 }
 
+Future<void> _openCanvasNavigation(WidgetTester tester) async {
+  if (find.byKey(const Key('wb_navigation_group')).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const Key('wb_canvas_chrome_launcher')));
+    await tester.pumpAndSettle();
+  }
+}
+
+Future<void> _openCardLibrary(WidgetTester tester) async {
+  await _openCanvasNavigation(tester);
+  if (find.byKey(const Key('wb_card_library_panel')).evaluate().isEmpty) {
+    await tester.tap(find.byTooltip('卡片库'));
+    await tester.pumpAndSettle();
+  }
+}
+
 Future<void> _sendShortcut(
   WidgetTester tester,
   LogicalKeyboardKey key, {
@@ -254,10 +269,10 @@ void main() {
     testWidgets('Ctrl+A selects all and Del deletes BoardItems only',
         (tester) async {
       final vm = await _pumpCanvas(tester, _snapshot());
-      expect(find.textContaining('已选'), findsNothing);
+      expect(vm.selection, isEmpty);
 
       await _sendShortcut(tester, LogicalKeyboardKey.keyA, control: true);
-      expect(find.textContaining('已选 2'), findsOneWidget);
+      expect(vm.selection.length, 2);
 
       final cardCount = vm.exportForSave().cards.length;
       await _sendShortcut(tester, LogicalKeyboardKey.delete);
@@ -338,8 +353,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.grid_view_outlined));
-      await tester.pump();
+      await _openCardLibrary(tester);
       expect(find.text('Late Repository Card'), findsNothing);
 
       await tester.pumpWidget(
@@ -370,8 +384,7 @@ void main() {
         (tester) async {
       // card_c exists in the library but is NOT placed on the board.
       final vm = await _pumpCanvas(tester, _snapshot(withExtraCard: true));
-      await tester.tap(find.byIcon(Icons.grid_view_outlined));
-      await tester.pumpAndSettle();
+      await _openCardLibrary(tester);
 
       expect(find.text('Card C'), findsOneWidget);
       final rowRect =
@@ -400,8 +413,7 @@ void main() {
         (tester) async {
       final vm = await _pumpCanvas(
           tester, _snapshot(withExtraCard: true, withOtherBoard: true));
-      await tester.tap(find.byIcon(Icons.grid_view_outlined));
-      await tester.pumpAndSettle();
+      await _openCardLibrary(tester);
 
       final rowButton = find.descendant(
         of: find.byKey(const Key('wb_lib_row_card_c')),
@@ -427,8 +439,7 @@ void main() {
         (tester) async {
       await _pumpCanvas(
           tester, _snapshot(withExtraCard: true, withOtherBoard: true));
-      await tester.tap(find.byIcon(Icons.grid_view_outlined));
-      await tester.pumpAndSettle();
+      await _openCardLibrary(tester);
       await tester.tap(find.descendant(
         of: find.byKey(const Key('wb_lib_row_card_c')),
         matching: find.byIcon(Icons.space_dashboard_outlined),
@@ -450,8 +461,7 @@ void main() {
     testWidgets('新建白板 creates the board and places the card into it',
         (tester) async {
       final vm = await _pumpCanvas(tester, _snapshot(withExtraCard: true));
-      await tester.tap(find.byIcon(Icons.grid_view_outlined));
-      await tester.pumpAndSettle();
+      await _openCardLibrary(tester);
       await tester.tap(find.descendant(
         of: find.byKey(const Key('wb_lib_row_card_c')),
         matching: find.byIcon(Icons.space_dashboard_outlined),
