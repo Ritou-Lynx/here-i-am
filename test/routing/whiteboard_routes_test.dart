@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
+import 'package:memex/routing/desktop_route_wrapper.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/routing/router.dart';
 import 'package:memex/ui/desktop/widgets/desktop_sidebar.dart';
@@ -227,6 +228,116 @@ void main() {
     expect(
         find.byKey(const ValueKey('desktop_standard_shell')), findsOneWidget);
     expect(find.byType(DesktopSidebar), findsOneWidget);
+  });
+
+  testWidgets('desktop-only wrapper does not build its child off desktop',
+      (tester) async {
+    var childBuilds = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DesktopRouteWrapper(
+          title: '白板',
+          desktopOnly: true,
+          desktopPlatformOverride: false,
+          childBuilder: (_) {
+            childBuilds += 1;
+            return const ColoredBox(
+              key: ValueKey('desktop_business_child'),
+              color: Colors.red,
+            );
+          },
+        ),
+      ),
+    );
+
+    expect(childBuilds, 0);
+    expect(
+      find.byKey(const ValueKey('desktop_only_unavailable')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('desktop_business_child')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('ordinary wrapped routes still pass through off desktop',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: DesktopRouteWrapper(
+          title: '记忆',
+          desktopPlatformOverride: false,
+          child: ColoredBox(
+            key: ValueKey('ordinary_mobile_child'),
+            color: Colors.green,
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('ordinary_mobile_child')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('desktop_only_unavailable')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('all six frozen whiteboard routes are desktop-only on mobile',
+      (tester) async {
+    final mobileRouter = createAppRouter(
+      GlobalKey<NavigatorState>(),
+      () => const Scaffold(key: ValueKey('mobile_home')),
+      desktopPlatformOverride: false,
+    );
+    addTearDown(mobileRouter.dispose);
+    final cases = <(String, Finder)>[
+      (AppRoutes.whiteboard, find.byType(WhiteboardIndexScreen)),
+      (
+        AppRoutes.whiteboardCanvasPath('mobile_board'),
+        find.byType(WhiteboardCanvasRouteScreen),
+      ),
+      (AppRoutes.cardLibrary, find.byType(CardLibraryScreen)),
+      (
+        AppRoutes.cardEditPath('mobile_card'),
+        find.byType(CardRichTextEditorScreen),
+      ),
+      (
+        AppRoutes.sourceStudyPath('mobile_source'),
+        find.byType(SourceStudyScreen),
+      ),
+      (AppRoutes.linkImport, find.byType(LinkImportScreen)),
+    ];
+
+    for (final routeCase in cases) {
+      mobileRouter.go(routeCase.$1);
+      await tester.pumpWidget(
+        MaterialApp.router(routerConfig: mobileRouter),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('desktop_only_unavailable')),
+        findsOneWidget,
+        reason: routeCase.$1,
+      );
+      expect(routeCase.$2, findsNothing, reason: routeCase.$1);
+      expect(find.byType(DesktopSidebar), findsNothing, reason: routeCase.$1);
+      expect(find.textContaining('仅在桌面端提供'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('desktop_only_return_home')),
+        findsOneWidget,
+      );
+    }
+
+    await tester.tap(
+      find.byKey(const ValueKey('desktop_only_return_home')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mobile_home')), findsOneWidget);
   });
 }
 

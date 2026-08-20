@@ -38,9 +38,8 @@ import 'package:memex/ui/desktop/desktop_workspace_shell.dart';
 
 /// Creates the app [GoRouter]. Root content is built by [rootBuilder].
 GoRouter createAppRouter(
-  GlobalKey<NavigatorState> navigatorKey,
-  Widget Function() rootBuilder,
-) {
+    GlobalKey<NavigatorState> navigatorKey, Widget Function() rootBuilder,
+    {bool? desktopPlatformOverride}) {
   return GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: AppRoutes.home,
@@ -145,10 +144,12 @@ GoRouter createAppRouter(
       // video) only replace placeholder screen bodies, never these entries.
       GoRoute(
         path: AppRoutes.whiteboard,
-        builder: (_, __) => const DesktopRouteWrapper(
+        builder: (_, __) => DesktopRouteWrapper(
           title: '白板',
           childOwnsPageTitle: true,
-          child: WhiteboardIndexScreen(),
+          desktopOnly: true,
+          desktopPlatformOverride: desktopPlatformOverride,
+          childBuilder: (_) => const WhiteboardIndexScreen(),
         ),
       ),
       GoRoute(
@@ -156,17 +157,21 @@ GoRouter createAppRouter(
         builder: (context, state) => DesktopRouteWrapper(
           title: '白板',
           mode: DesktopWorkspaceMode.immersive,
-          child: WhiteboardCanvasRouteScreen(
+          desktopOnly: true,
+          desktopPlatformOverride: desktopPlatformOverride,
+          childBuilder: (_) => WhiteboardCanvasRouteScreen(
             boardId: state.pathParameters['boardId']!,
           ),
         ),
       ),
       GoRoute(
         path: AppRoutes.cardLibrary,
-        builder: (_, __) => const DesktopRouteWrapper(
+        builder: (_, __) => DesktopRouteWrapper(
           title: '卡片库',
           childOwnsPageTitle: true,
-          child: CardLibraryScreen(),
+          desktopOnly: true,
+          desktopPlatformOverride: desktopPlatformOverride,
+          childBuilder: (_) => const CardLibraryScreen(),
         ),
       ),
       GoRoute(
@@ -174,7 +179,9 @@ GoRouter createAppRouter(
         builder: (context, state) => DesktopRouteWrapper(
           title: '卡片编辑',
           childOwnsPageTitle: true,
-          child: CardRichTextEditorScreen(
+          desktopOnly: true,
+          desktopPlatformOverride: desktopPlatformOverride,
+          childBuilder: (_) => CardRichTextEditorScreen(
             cardId: state.pathParameters['cardId']!,
           ),
         ),
@@ -184,17 +191,21 @@ GoRouter createAppRouter(
         builder: (context, state) => DesktopRouteWrapper(
           title: '来源研读',
           mode: DesktopWorkspaceMode.immersive,
-          child: SourceStudyScreen(
+          desktopOnly: true,
+          desktopPlatformOverride: desktopPlatformOverride,
+          childBuilder: (_) => SourceStudyScreen(
             sourceId: state.pathParameters['sourceId']!,
           ),
         ),
       ),
       GoRoute(
         path: AppRoutes.linkImport,
-        builder: (_, __) => const DesktopRouteWrapper(
+        builder: (_, __) => DesktopRouteWrapper(
           title: '导入链接',
           childOwnsPageTitle: true,
-          child: LinkImportScreen(),
+          desktopOnly: true,
+          desktopPlatformOverride: desktopPlatformOverride,
+          childBuilder: (_) => const LinkImportScreen(),
         ),
       ),
     ],
