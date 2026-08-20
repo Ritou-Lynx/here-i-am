@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show debugDefaultTargetPlatformOverride;
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:memex/domain/whiteboard/rich_text_asset_ref.dart';
 import 'package:memex/domain/whiteboard/rich_text_controller.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
@@ -31,7 +31,8 @@ void main() {
   group('CardRichTextEditor widget', () {
     testWidgets('renders blocks from document and allows typing',
         (tester) async {
-      final controller = RichTextEditingController(const RichTextDocument(blocks: [
+      final controller =
+          RichTextEditingController(const RichTextDocument(blocks: [
         RichTextBlock(type: BlockType.heading, text: '标题', attrs: {'level': 1}),
         RichTextBlock(type: BlockType.paragraph, text: '正文'),
       ]));
@@ -55,8 +56,7 @@ void main() {
 
     testWidgets('typing in a field updates the document on flush',
         (tester) async {
-      final controller =
-          RichTextEditingController(RichTextDocument.empty());
+      final controller = RichTextEditingController(RichTextDocument.empty());
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: CardRichTextEditor(
@@ -79,8 +79,7 @@ void main() {
       // This test verifies that the editor uses real TextFields (which
       // handle IME composition) rather than a custom text painter. We
       // simulate a composing region update.
-      final controller =
-          RichTextEditingController(RichTextDocument.empty());
+      final controller = RichTextEditingController(RichTextDocument.empty());
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: CardRichTextEditor(
@@ -118,7 +117,8 @@ void main() {
 
     testWidgets('mixed CJK and Latin text renders without error',
         (tester) async {
-      final controller = RichTextEditingController(const RichTextDocument(blocks: [
+      final controller =
+          RichTextEditingController(const RichTextDocument(blocks: [
         RichTextBlock(type: BlockType.paragraph, text: '中文 ABC 123 mixed 混排'),
       ]));
       await tester.pumpWidget(MaterialApp(
@@ -134,7 +134,8 @@ void main() {
 
     testWidgets('save callback fires with current document', (tester) async {
       RichTextDocument? saved;
-      final controller = RichTextEditingController(const RichTextDocument(blocks: [
+      final controller =
+          RichTextEditingController(const RichTextDocument(blocks: [
         RichTextBlock(type: BlockType.paragraph, text: '保存测试'),
       ]));
       await tester.pumpWidget(MaterialApp(
@@ -159,7 +160,8 @@ void main() {
         (tester) async {
       // Save a document to storage.
       const original = RichTextDocument(blocks: [
-        RichTextBlock(type: BlockType.heading, text: '恢复标题', attrs: {'level': 2}),
+        RichTextBlock(
+            type: BlockType.heading, text: '恢复标题', attrs: {'level': 2}),
         RichTextBlock(type: BlockType.paragraph, text: '恢复正文'),
       ]);
       storage.saveSync('card_recover', original);
@@ -182,8 +184,7 @@ void main() {
     });
 
     testWidgets('undo and redo toolbar buttons work', (tester) async {
-      final controller =
-          RichTextEditingController(RichTextDocument.empty());
+      final controller = RichTextEditingController(RichTextDocument.empty());
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: CardRichTextEditor(
@@ -210,20 +211,19 @@ void main() {
       expect(controller.document.blocks.first.text, equals('第二版'));
 
       // Undo.
-      await tester.tap(find.text('↶'));
+      await tester.tap(find.byTooltip('撤销'));
       await tester.pump();
       expect(controller.document.blocks.first.text, equals('第一版'));
 
       // Redo.
-      await tester.tap(find.text('↷'));
+      await tester.tap(find.byTooltip('重做'));
       await tester.pump();
       expect(controller.document.blocks.first.text, equals('第二版'));
     });
 
     testWidgets('link button applies a link mark over the selection',
         (tester) async {
-      final controller = RichTextEditingController(
-          RichTextDocument.empty());
+      final controller = RichTextEditingController(RichTextDocument.empty());
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: CardRichTextEditor(
@@ -242,9 +242,10 @@ void main() {
       expect(controller.focusNodeFor(0).hasFocus, isTrue);
 
       // Open the link dialog and enter a URL.
-      await tester.tap(find.text('🔗'));
+      await tester.tap(find.byTooltip('插入链接'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).last, 'https://example.com');
+      await tester.enterText(
+          find.byType(TextField).last, 'https://example.com');
       await tester.tap(find.text('插入'));
       await tester.pumpAndSettle();
 
@@ -259,8 +260,7 @@ void main() {
     });
 
     testWidgets('link button rejects non-http schemes', (tester) async {
-      final controller = RichTextEditingController(
-          RichTextDocument.empty());
+      final controller = RichTextEditingController(RichTextDocument.empty());
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: CardRichTextEditor(
@@ -275,9 +275,10 @@ void main() {
       final tc = controller.controllerFor(0);
       tc.selection = const TextSelection(baseOffset: 0, extentOffset: 4);
 
-      await tester.tap(find.text('🔗'));
+      await tester.tap(find.byTooltip('插入链接'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).last, 'javascript:alert(1)');
+      await tester.enterText(
+          find.byType(TextField).last, 'javascript:alert(1)');
       await tester.tap(find.text('插入'));
       await tester.pumpAndSettle();
 
@@ -288,7 +289,8 @@ void main() {
 
     testWidgets('Ctrl+S triggers save', (tester) async {
       RichTextDocument? saved;
-      final controller = RichTextEditingController(const RichTextDocument(blocks: [
+      final controller =
+          RichTextEditingController(const RichTextDocument(blocks: [
         RichTextBlock(type: BlockType.paragraph, text: '快捷键保存'),
       ]));
       await tester.pumpWidget(MaterialApp(
@@ -304,8 +306,7 @@ void main() {
       // Focus the editor and send Ctrl+S.
       await tester.tap(find.byType(TextField).first);
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyS,
-          platform: 'macos');
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyS, platform: 'macos');
       // On macOS, Cmd is the modifier; we test the control path separately.
       // For cross-platform test, send with control modifier.
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -565,7 +566,8 @@ void main() {
       RichTextMediaImporter importer, {
       RichTextObjectStore? store,
     }) async {
-      final objectStore = store ?? RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_'));
+      final objectStore = store ??
+          RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_'));
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: CardRichTextEditor(
@@ -582,15 +584,17 @@ void main() {
     testWidgets('image import inserts an image block with a stable asset ref',
         (tester) async {
       final c = RichTextEditingController(RichTextDocument.empty());
-      final store = RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_img_'));
+      final store = RichTextObjectStore(
+          Directory.systemTemp.createTempSync('media_ui_img_'));
       await pumpWithImporter(tester, c, (kind) async {
-        final f = File('${store.baseDir.path}${Platform.pathSeparator}tmp_pick.png');
+        final f =
+            File('${store.baseDir.path}${Platform.pathSeparator}tmp_pick.png');
         f.writeAsBytesSync(onePng);
         return [await store.importFile(f.path, alt: '临时截图.png')];
       }, store: store);
 
       await tester.runAsync(() async {
-        await tester.tap(find.text('🖼'));
+        await tester.tap(find.byTooltip('导入图片'));
         await Future<void>.delayed(const Duration(milliseconds: 150));
       });
       await tester.pumpAndSettle();
@@ -610,15 +614,17 @@ void main() {
 
     testWidgets('attachment import inserts a reference block', (tester) async {
       final c = RichTextEditingController(RichTextDocument.empty());
-      final store = RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_att_'));
+      final store = RichTextObjectStore(
+          Directory.systemTemp.createTempSync('media_ui_att_'));
       await pumpWithImporter(tester, c, (kind) async {
-        final f = File('${store.baseDir.path}${Platform.pathSeparator}tmp_doc.pdf');
+        final f =
+            File('${store.baseDir.path}${Platform.pathSeparator}tmp_doc.pdf');
         f.writeAsBytesSync([1, 2, 3]);
         return [await store.importFile(f.path, alt: '报告.pdf')];
       }, store: store);
 
       await tester.runAsync(() async {
-        await tester.tap(find.text('📎'));
+        await tester.tap(find.byTooltip('导入附件'));
         await Future<void>.delayed(const Duration(milliseconds: 150));
       });
       await tester.pumpAndSettle();
@@ -632,24 +638,26 @@ void main() {
     testWidgets('media block renders with preview and delete button',
         (tester) async {
       final c = RichTextEditingController(RichTextDocument.empty());
-      final store = RichTextObjectStore(Directory.systemTemp.createTempSync('media_ui_render_'));
+      final store = RichTextObjectStore(
+          Directory.systemTemp.createTempSync('media_ui_render_'));
       await pumpWithImporter(tester, c, (kind) async {
-        final f = File('${store.baseDir.path}${Platform.pathSeparator}tmp_pic.png');
+        final f =
+            File('${store.baseDir.path}${Platform.pathSeparator}tmp_pic.png');
         f.writeAsBytesSync(onePng);
         return [await store.importFile(f.path, alt: '示意图')];
       }, store: store);
 
       await tester.runAsync(() async {
-        await tester.tap(find.text('🖼'));
+        await tester.tap(find.byTooltip('导入图片'));
         await Future<void>.delayed(const Duration(milliseconds: 150));
       });
       await tester.pumpAndSettle();
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.close), findsOneWidget);
+      expect(find.byIcon(Icons.close_rounded), findsOneWidget);
 
       // Delete removes the block.
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byIcon(Icons.close_rounded));
       await tester.pumpAndSettle();
       final doc = c.flushToDocument();
       expect(doc.blocks.where((b) => b.type == BlockType.image), isEmpty);
@@ -669,7 +677,7 @@ void main() {
       }, store: store);
 
       await tester.runAsync(() async {
-        await tester.tap(find.text('🖼'));
+        await tester.tap(find.byTooltip('导入图片'));
         await Future<void>.delayed(const Duration(milliseconds: 150));
       });
       await tester.pumpAndSettle();
@@ -717,7 +725,8 @@ void main() {
       return controller;
     }
 
-    testWidgets('body block uses code-first + CJK-fallback token', (tester) async {
+    testWidgets('body block uses code-first + CJK-fallback token',
+        (tester) async {
       await pumpMixed(tester, blocks: const [
         RichTextBlock(
           type: BlockType.paragraph,
@@ -760,7 +769,8 @@ void main() {
       expect(style.fontFamilyFallback, contains(richTextCjkFamily));
     });
 
-    testWidgets('inline code mark uses the Cascadia Code token', (tester) async {
+    testWidgets('inline code mark uses the Cascadia Code token',
+        (tester) async {
       final controller = await pumpMixed(tester, blocks: const [
         RichTextBlock(
           type: BlockType.paragraph,
@@ -810,8 +820,7 @@ void main() {
 /// [needle]. Returns the first matching leaf span, or null.
 TextSpan? _exactLeafSpan(TextSpan span, String needle) {
   final own = span.toPlainText();
-  if ((span.children == null || span.children!.isEmpty) &&
-      own == needle) {
+  if ((span.children == null || span.children!.isEmpty) && own == needle) {
     return span;
   }
   for (final child in span.children ?? const <InlineSpan>[]) {

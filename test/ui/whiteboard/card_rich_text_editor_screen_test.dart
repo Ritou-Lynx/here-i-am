@@ -141,7 +141,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, '会被放弃');
       await tester.pump();
 
-      await tester.tap(find.byType(BackButton));
+      await tester.tap(find.byKey(const ValueKey('desktop_page_back')));
       await tester.pumpAndSettle();
       expect(find.text('尚未保存'), findsOneWidget);
 
@@ -151,6 +151,29 @@ void main() {
 
       // Nothing persisted.
       expect(storage.exists('card_discard'), isFalse);
+    });
+
+    testWidgets('paper work surface fits narrow and desktop widths',
+        (tester) async {
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      tester.view.physicalSize = const Size(520, 760);
+      await pumpScreen(tester, 'card_narrow');
+      expect(tester.takeException(), isNull);
+      final narrowPaper = tester.getSize(
+        find.byKey(const ValueKey('rich_text_editor_paper')),
+      );
+      expect(narrowPaper.width, lessThanOrEqualTo(520));
+
+      tester.view.physicalSize = const Size(1280, 720);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final desktopPaper = tester.getSize(
+        find.byKey(const ValueKey('rich_text_editor_paper')),
+      );
+      expect(desktopPaper.width, inInclusiveRange(820, 920));
     });
   });
 }

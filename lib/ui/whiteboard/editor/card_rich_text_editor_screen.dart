@@ -23,8 +23,11 @@ import 'package:memex/domain/whiteboard/rich_text_controller.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/editor/unsaved_exit_guard.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 class CardRichTextEditorScreen extends StatefulWidget {
   final RichTextStorage storage;
@@ -65,6 +68,8 @@ class CardRichTextEditorScreen extends StatefulWidget {
 class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   late RichTextEditingController _controller;
   late RichTextObjectStore _objectStore;
+  final FocusNode _saveFocusNode = FocusNode(debugLabel: 'editor-save');
+  bool _saving = false;
 
   @override
   void initState() {
@@ -93,6 +98,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   @override
   void dispose() {
     _controller.removeListener(_onControllerChanged);
+    _saveFocusNode.dispose();
     if (widget.controller == null) {
       _controller.dispose();
     }
@@ -100,6 +106,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
     try {
       final document = _controller.flushToDocument();
       final save = widget.onSaveDocument;
@@ -124,6 +132,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
           SnackBar(content: Text('保存失败：$error')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -149,6 +159,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return PopScope(
       canPop: !_controller.isDirty,
       onPopInvokedWithResult: (didPop, result) async {
@@ -158,42 +169,184 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
           hasUnsavedChanges: _controller.isDirty,
           onSave: _save,
         );
+        // A failed save deliberately keeps the controller dirty. Do not let
+        // the confirmation path close the editor and lose those changes.
+        if (choice == UnsavedExitChoice.save && _controller.isDirty) return;
         if (choice != UnsavedExitChoice.cancel && context.mounted) {
           Navigator.of(context).pop();
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text('卡片编辑 · ${widget.cardId}'),
-          actions: [
-            TextButton(
-              onPressed: _save,
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-        body: Column(
-          children: [
-            if (widget.degradedMessage != null)
-              MaterialBanner(
-                content: Text(widget.degradedMessage!),
-                actions: const [SizedBox.shrink()],
+        backgroundColor: tokens.canvas,
+        body: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DesktopPageTitle(
+                title: '编辑卡片',
+                meta: widget.cardId,
+                onBack: () => Navigator.of(context).maybePop(),
+                actions: [
+                  _SaveStateIndicator(
+                    isDirty: _controller.isDirty,
+                    isSaving: _saving,
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    key: const ValueKey('rich_text_save_button'),
+                    focusNode: _saveFocusNode,
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined, size: 16),
+                    label: Text(_saving ? '保存中' : '保存'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(88, 36),
+                      backgroundColor: tokens.action,
+                      foregroundColor: tokens.canvas,
+                      disabledBackgroundColor:
+                          tokens.actionSoft.withValues(alpha: 0.42),
+                      disabledForegroundColor: tokens.textMuted,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      textStyle: whiteboardUiTextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: CardRichTextEditor(
-                  controller: _controller,
-                  cardId: widget.cardId,
-                  objectStore: _objectStore,
-                  mediaImporter: widget.mediaImporter ?? _defaultMediaImporter,
-                  onSave: (_) => _save(),
-                  markSavedAfterCallback: false,
+              if (widget.degradedMessage != null)
+                _DegradedDocumentNotice(message: widget.degradedMessage!),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 640;
+                    return Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 920),
+                        child: Container(
+                          key: const ValueKey('rich_text_editor_paper'),
+                          margin: EdgeInsets.fromLTRB(
+                            compact ? 12 : 24,
+                            4,
+                            compact ? 12 : 24,
+                            compact ? 12 : 20,
+                          ),
+                          padding: EdgeInsets.all(compact ? 14 : 20),
+                          decoration: BoxDecoration(
+                            color: tokens.surfaceRaised,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: tokens.divider),
+                          ),
+                          child: CardRichTextEditor(
+                            controller: _controller,
+                            cardId: widget.cardId,
+                            objectStore: _objectStore,
+                            mediaImporter:
+                                widget.mediaImporter ?? _defaultMediaImporter,
+                            onSave: (_) => _save(),
+                            markSavedAfterCallback: false,
+                            showSaveInToolbar: false,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _SaveStateIndicator extends StatelessWidget {
+  const _SaveStateIndicator({
+    required this.isDirty,
+    required this.isSaving,
+  });
+
+  final bool isDirty;
+  final bool isSaving;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final label = isSaving
+        ? '正在保存'
+        : isDirty
+            ? '未保存'
+            : '已保存';
+    final color = isDirty || isSaving ? tokens.focus : tokens.textFaint;
+    return Semantics(
+      liveRegion: true,
+      label: label,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: whiteboardUiTextStyle(
+              fontSize: 11,
+              height: 1.35,
+              color: color,
+              fontWeight: isDirty ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DegradedDocumentNotice extends StatelessWidget {
+  const _DegradedDocumentNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tokens.focus.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tokens.focus.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 18, color: tokens.focus),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: whiteboardUiTextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: tokens.textPrimary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

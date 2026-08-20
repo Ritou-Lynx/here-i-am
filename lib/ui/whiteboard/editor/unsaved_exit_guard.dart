@@ -8,6 +8,9 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
+
 /// Result of the discard confirmation.
 enum UnsavedExitChoice {
   save,
@@ -31,27 +34,59 @@ Future<UnsavedExitChoice> confirmUnsavedExit(
   if (!hasUnsavedChanges) return UnsavedExitChoice.discard;
   final choice = await showDialog<UnsavedExitChoice>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('尚未保存'),
-      content: const Text('当前编辑尚未保存。要保存后退出，还是放弃更改？'),
-      actions: [
-        TextButton(
-          onPressed: () =>
-              Navigator.of(context).pop(UnsavedExitChoice.cancel),
-          child: const Text('取消'),
+    builder: (context) {
+      final tokens = DesktopWorkspaceTokens.of(context);
+      return AlertDialog(
+        backgroundColor: tokens.surfaceRaised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
         ),
-        TextButton(
-          onPressed: () =>
-              Navigator.of(context).pop(UnsavedExitChoice.discard),
-          child: const Text('放弃'),
+        title: Row(
+          children: [
+            Icon(Icons.edit_note_rounded, size: 20, color: tokens.focus),
+            const SizedBox(width: 8),
+            Text(
+              '尚未保存',
+              style: whiteboardUiTextStyle(
+                fontSize: 18,
+                color: tokens.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        FilledButton(
-          onPressed: () =>
-              Navigator.of(context).pop(UnsavedExitChoice.save),
-          child: const Text('保存并退出'),
+        content: Text(
+          '当前编辑尚未保存。要保存后退出，还是放弃更改？',
+          style: whiteboardUiTextStyle(
+            fontSize: 13,
+            height: 1.55,
+            color: tokens.textMuted,
+          ),
         ),
-      ],
-    ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(UnsavedExitChoice.cancel),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(UnsavedExitChoice.discard),
+            style: TextButton.styleFrom(foregroundColor: tokens.error),
+            child: const Text('放弃'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(UnsavedExitChoice.save),
+            style: FilledButton.styleFrom(
+              backgroundColor: tokens.action,
+              foregroundColor: tokens.canvas,
+              minimumSize: const Size(112, 36),
+            ),
+            child: const Text('保存并退出'),
+          ),
+        ],
+      );
+    },
   );
   if (choice == UnsavedExitChoice.save) {
     await onSave();

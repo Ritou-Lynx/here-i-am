@@ -1,9 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -152,13 +152,13 @@ void main() {
     await tester.pumpWidget(
       MaterialApp.router(routerConfig: routerWith(service)),
     );
-    await settleFor(tester, find.widgetWithText(FilledButton, '抓取'));
+    await settleFor(tester, find.widgetWithText(FilledButton, '预览'));
   }
 
   Future<void> fetch(WidgetTester tester, String url) async {
     await tester.enterText(find.byType(TextField), url);
-    await tester.tap(find.widgetWithText(FilledButton, '抓取'));
-    await settleFor(tester, find.text('抓取成功'));
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await settleFor(tester, find.text('预览成功'));
     await tester.pumpAndSettle();
   }
 
@@ -166,17 +166,85 @@ void main() {
     await pump(tester, _service(repository, {}));
 
     expect(find.byType(TextField), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '抓取'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '预览'), findsOneWidget);
+    expect(find.textContaining('example.com/article'), findsNothing);
     expect(find.textContaining('还没有导入记录'), findsOneWidget);
   });
 
   testWidgets('empty input shows inline error', (tester) async {
     await pump(tester, _service(repository, {}));
 
-    await tester.tap(find.widgetWithText(FilledButton, '抓取'));
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
     await tester.pumpAndSettle();
 
     expect(find.text('请输入要导入的链接'), findsOneWidget);
+  });
+
+  testWidgets('narrow and desktop widths keep the import controls usable',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    tester.view.physicalSize = const Size(520, 760);
+    await pump(tester, _service(repository, {}));
+    expect(tester.takeException(), isNull);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('link_import_fetch_button')))
+          .width,
+      greaterThan(450),
+    );
+
+    tester.view.physicalSize = const Size(1280, 720);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('link_import_fetch_button')))
+          .width,
+      lessThan(180),
+    );
+  });
+
+  testWidgets('keyboard focus follows URL → preview → cancel → commit',
+      (tester) async {
+    final service = _service(repository, {
+      'https://example.com/doc': _Canned(
+        _fixture('open_graph.html'),
+        200,
+        'text/html',
+      ),
+    });
+    await pump(tester, service);
+
+    final input = tester.widget<TextField>(
+      find.byKey(const ValueKey('link_import_url_input')),
+    );
+    expect(input.focusNode!.hasFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    final previewButton = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('link_import_fetch_button')),
+    );
+    expect(previewButton.focusNode!.hasFocus, isTrue);
+
+    await fetch(tester, 'https://example.com/doc');
+    previewButton.focusNode!.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    final cancelButton = tester.widget<OutlinedButton>(
+      find.byKey(const ValueKey('link_import_cancel_preview')),
+    );
+    expect(cancelButton.focusNode!.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    final commitButton = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('link_import_commit_button')),
+    );
+    expect(commitButton.focusNode!.hasFocus, isTrue);
   });
 
   testWidgets('ok flow: fetch → preview → explicit card creation',
@@ -193,10 +261,11 @@ void main() {
     await fetch(tester, 'https://example.com/doc');
 
     // Success state with preview content.
-    expect(find.text('抓取成功'), findsOneWidget);
+    expect(find.text('预览成功'), findsOneWidget);
     expect(find.text('春雨昼眠主题设计文档'), findsOneWidget);
-    expect(find.text('页面主图'), findsOneWidget);
+    expect(find.textContaining('主图候选（未加载）'), findsOneWidget);
     expect(find.textContaining('故我在设计站 · 林埃'), findsOneWidget);
+    expect(find.text('链接级保存'), findsOneWidget);
     expect(find.text('存入卡片库'), findsOneWidget);
 
     // Explicitly create the card.
@@ -213,6 +282,49 @@ void main() {
     expect(cards, hasLength(1));
   });
 
+  testWidgets('cancel after preview leaves database unchanged', (tester) async {
+    final service = _service(repository, {
+      'https://example.com/doc': _Canned(
+        _fixture('open_graph.html'),
+        200,
+        'text/html',
+      ),
+    });
+    await pump(tester, service);
+    await fetch(tester, 'https://example.com/doc');
+
+    expect(await tester.runAsync(service.listCards), isEmpty);
+    expect(
+      await tester.runAsync(() => db.select(db.whiteboardSources).get()),
+      isEmpty,
+    );
+    expect(
+      await tester.runAsync(
+        () => db.select(db.whiteboardSourceVersions).get(),
+      ),
+      isEmpty,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('link_import_cancel_preview')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('link_import_preview_panel')), findsNothing);
+    expect(await tester.runAsync(service.listCards), isEmpty);
+    expect(
+      await tester.runAsync(() => db.select(db.whiteboardSources).get()),
+      isEmpty,
+    );
+    expect(
+      await tester.runAsync(
+        () => db.select(db.whiteboardSourceVersions).get(),
+      ),
+      isEmpty,
+    );
+  });
+
   testWidgets('YouTube preview is zero-write then confirms into source route',
       (tester) async {
     final service = _service(repository, {});
@@ -224,6 +336,7 @@ void main() {
     );
 
     expect(find.textContaining('M7lc1UVf-VE'), findsWidgets);
+    expect(find.text('研读级就绪'), findsOneWidget);
     expect(await tester.runAsync(service.listCards), isEmpty);
     expect(
       await tester.runAsync(
@@ -232,7 +345,7 @@ void main() {
       isNull,
     );
 
-    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await tester.tap(find.widgetWithText(FilledButton, '保存并进入研读'));
     await settleFor(
       tester,
       find.text('视频研读:src_youtube_M7lc1UVf-VE'),
@@ -248,11 +361,12 @@ void main() {
 
     await tester.enterText(
         find.byType(TextField), 'https://example.com/missing');
-    await tester.tap(find.widgetWithText(FilledButton, '抓取'));
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
     await settleFor(tester, find.text('抓取失败'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Network error'), findsOneWidget);
+    expect(find.text('明确失败'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '存入卡片库'), findsNothing);
   });
 
@@ -263,7 +377,7 @@ void main() {
     await pump(tester, service);
 
     await tester.enterText(find.byType(TextField), 'https://example.com/auth');
-    await tester.tap(find.widgetWithText(FilledButton, '抓取'));
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
     await settleFor(tester, find.text('需要登录或已被拒绝'));
     await tester.pumpAndSettle();
 
@@ -279,7 +393,7 @@ void main() {
       find.byType(TextField),
       'https://www.bilibili.com/video/BV1xx411c7mD',
     );
-    await tester.tap(find.widgetWithText(FilledButton, '抓取'));
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
     await settleFor(tester, find.text('暂不支持此链接'));
     await tester.pumpAndSettle();
 

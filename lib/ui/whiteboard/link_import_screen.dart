@@ -28,7 +28,9 @@ import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/routing/routes.dart';
-import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 /// Entry point for ordinary link ingestion.
 ///
@@ -62,6 +64,12 @@ class _RecentImport {
 
 class _LinkImportScreenState extends State<LinkImportScreen> {
   final TextEditingController _urlController = TextEditingController();
+  final FocusNode _urlFocusNode = FocusNode(debugLabel: 'link-import-url');
+  final FocusNode _fetchFocusNode = FocusNode(debugLabel: 'link-import-fetch');
+  final FocusNode _cancelPreviewFocusNode =
+      FocusNode(debugLabel: 'link-import-cancel-preview');
+  final FocusNode _commitFocusNode =
+      FocusNode(debugLabel: 'link-import-commit');
 
   LinkIngestionService? _service;
   String? _storeError;
@@ -85,6 +93,10 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   @override
   void dispose() {
     _urlController.dispose();
+    _urlFocusNode.dispose();
+    _fetchFocusNode.dispose();
+    _cancelPreviewFocusNode.dispose();
+    _commitFocusNode.dispose();
     super.dispose();
   }
 
@@ -99,6 +111,9 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
     }
     if (!mounted) return;
     setState(() => _service = service);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _urlFocusNode.requestFocus();
+    });
     await _loadRecent();
   }
 
@@ -211,8 +226,8 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       await _loadRecent();
       final source = finalOutcome.result.source;
       if (mounted &&
-          source?.mediaType == SourceMediaType.video &&
-          source?.sourceId != null) {
+          source?.sourceId != null &&
+          _isStudyReady(finalOutcome.result)) {
         context.go(AppRoutes.sourceStudyPath(source!.sourceId));
       }
     } catch (e) {
@@ -230,11 +245,28 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
 
   void _openSavedDestination() {
     final source = _outcome?.result.source;
-    if (source?.mediaType == SourceMediaType.video) {
-      context.go(AppRoutes.sourceStudyPath(source!.sourceId));
+    if (source != null && _outcome != null && _isStudyReady(_outcome!.result)) {
+      context.go(AppRoutes.sourceStudyPath(source.sourceId));
       return;
     }
     _openCardLibrary();
+  }
+
+  void _cancelPreview() {
+    setState(() {
+      _outcome = null;
+      _existingCard = null;
+      _matchesExistingVersion = false;
+      _cardSaved = false;
+      _inputError = null;
+    });
+    _urlFocusNode.requestFocus();
+  }
+
+  bool _isStudyReady(IngestionResult result) {
+    return result.source?.mediaType == SourceMediaType.video &&
+        (result.videoCapability == VideoCapabilityLevel.playbackStudy ||
+            result.videoCapability == VideoCapabilityLevel.localized);
   }
 
   // -----------------------------------------------------------------------
@@ -243,129 +275,239 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Scaffold(
-      backgroundColor: WhiteboardCanvasTokens.canvas,
-      appBar: AppBar(
-        backgroundColor: WhiteboardCanvasTokens.canvas,
-        foregroundColor: WhiteboardCanvasTokens.textPrimary,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, size: 20),
-          tooltip: '返回首页',
-          onPressed: () => context.go('/'),
+      backgroundColor: tokens.canvas,
+      body: FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DesktopPageTitle(
+              title: '导入链接',
+              meta: '预览零写入 · 确认后提交当前结果',
+              onBack: () => context.go('/'),
+            ),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 640;
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      compact ? 12 : 24,
+                      4,
+                      compact ? 12 : 24,
+                      32,
+                    ),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 960),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildFlowNote(),
+                            const SizedBox(height: 12),
+                            if (_storeError != null) _buildStoreError(),
+                            _buildInputRow(compact: compact),
+                            if (_inputError != null) _buildInputError(),
+                            if (_fetching) _buildFetching(),
+                            if (_outcome != null) _buildOutcome(_outcome!),
+                            const SizedBox(height: 24),
+                            _buildRecent(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
-        title: const Text('导入链接'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        children: [
-          if (_storeError != null) _buildStoreError(),
-          _buildInputRow(),
-          if (_inputError != null) _buildInputError(),
-          if (_fetching) _buildFetching(),
-          if (_outcome != null) _buildOutcome(_outcome!),
-          const SizedBox(height: 24),
-          _buildRecent(),
-        ],
       ),
     );
   }
 
-  Widget _buildStoreError() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: WhiteboardCanvasTokens.orphanedSurface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: WhiteboardCanvasTokens.orphanedBorder),
-      ),
-      child: Text(
-        _storeError!,
-        style: const TextStyle(
-          color: WhiteboardCanvasTokens.orphanedBorder,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputRow() {
+  Widget _buildFlowNote() {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: TextField(
-            controller: _urlController,
-            enabled: _service != null && !_fetching,
-            onSubmitted: (_) => _fetch(),
-            style: const TextStyle(
-              color: WhiteboardCanvasTokens.textPrimary,
-              fontSize: 14,
-            ),
-            decoration: InputDecoration(
-              hintText: '粘贴链接，例如 https://example.com/article',
-              hintStyle: const TextStyle(
-                color: WhiteboardCanvasTokens.textFaint,
-                fontSize: 13,
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(
-                  color: WhiteboardCanvasTokens.divider,
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(
-                  color: WhiteboardCanvasTokens.divider,
-                ),
-              ),
-            ),
-          ),
-        ),
+        Icon(Icons.shield_outlined, size: 18, color: tokens.actionSecondary),
         const SizedBox(width: 8),
-        FilledButton(
-          onPressed: (_service == null || _fetching) ? null : _fetch,
-          style: FilledButton.styleFrom(
-            backgroundColor: WhiteboardCanvasTokens.action,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        Expanded(
+          child: Text(
+            '先安全预览，再由你明确保存。确认时提交当前展示的结果，不会重新抓取。',
+            style: whiteboardUiTextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: tokens.textMuted,
+            ),
           ),
-          child: const Text('抓取'),
         ),
       ],
     );
   }
 
+  Widget _buildStoreError() {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.error.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tokens.error.withValues(alpha: 0.52)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline_rounded, size: 18, color: tokens.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _storeError!,
+              style: whiteboardUiTextStyle(
+                color: tokens.error,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputRow({required bool compact}) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final input = FocusTraversalOrder(
+      order: const NumericFocusOrder(10),
+      child: TextField(
+        key: const ValueKey('link_import_url_input'),
+        controller: _urlController,
+        focusNode: _urlFocusNode,
+        enabled: _service != null && !_fetching,
+        onSubmitted: (_) => _fetch(),
+        keyboardType: TextInputType.url,
+        textInputAction: TextInputAction.go,
+        autocorrect: false,
+        enableSuggestions: false,
+        style: richTextCodeTextStyle(
+          color: tokens.textPrimary,
+          fontSize: 13,
+        ),
+        decoration: InputDecoration(
+          hintText: '粘贴 http(s) 链接',
+          hintStyle: whiteboardUiTextStyle(
+            color: tokens.textFaint,
+            fontSize: 13,
+          ),
+          filled: true,
+          fillColor: tokens.surfaceRaised,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: tokens.divider),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: tokens.divider),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: tokens.action, width: 1.5),
+          ),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: tokens.divider),
+          ),
+        ),
+      ),
+    );
+    final button = FocusTraversalOrder(
+      order: const NumericFocusOrder(20),
+      child: FilledButton.icon(
+        key: const ValueKey('link_import_fetch_button'),
+        focusNode: _fetchFocusNode,
+        onPressed: (_service == null || _fetching) ? null : _fetch,
+        icon: const Icon(Icons.travel_explore_rounded, size: 17),
+        label: const Text('预览'),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(112, 44),
+          backgroundColor: tokens.action,
+          foregroundColor: tokens.canvas,
+          disabledBackgroundColor: tokens.actionSoft.withValues(alpha: 0.42),
+          disabledForegroundColor: tokens.textMuted,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: whiteboardUiTextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [input, const SizedBox(height: 8), button],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [Expanded(child: input), const SizedBox(width: 8), button],
+    );
+  }
+
   Widget _buildInputError() {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Text(
         _inputError!,
-        style: const TextStyle(
-          color: WhiteboardCanvasTokens.orphanedBorder,
+        style: whiteboardUiTextStyle(
+          color: tokens.error,
           fontSize: 12,
+          height: 1.4,
         ),
       ),
     );
   }
 
   Widget _buildFetching() {
-    return const Padding(
-      padding: EdgeInsets.only(top: 24),
-      child: Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            color: WhiteboardCanvasTokens.action,
-            strokeWidth: 2,
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tokens.actionSoft.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              color: tokens.action,
+              strokeWidth: 2,
+            ),
           ),
-        ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '正在安全预览，当前不会写入卡片库。',
+              style: whiteboardUiTextStyle(
+                fontSize: 12,
+                color: tokens.action,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -378,15 +520,16 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       case IngestionStatus.failed:
         return _buildStatusCard(
           icon: Icons.error_outline,
-          iconColor: WhiteboardCanvasTokens.orphanedBorder,
+          statusLabel: '明确失败',
           title: '抓取失败',
           message: result.errorMessage ?? '未知错误',
           url: result.canonicalUrl,
+          isError: true,
         );
       case IngestionStatus.needsAuth:
         return _buildStatusCard(
           icon: Icons.lock_outline,
-          iconColor: WhiteboardCanvasTokens.focus,
+          statusLabel: '需要授权',
           title: '需要登录或已被拒绝',
           message: result.errorMessage ?? '站点要求登录',
           url: result.canonicalUrl,
@@ -394,7 +537,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       case IngestionStatus.partial:
         return _buildStatusCard(
           icon: Icons.warning_amber_rounded,
-          iconColor: WhiteboardCanvasTokens.focus,
+          statusLabel: '内容不完整',
           title: '内容不完整',
           message: result.errorMessage ?? '只拿到部分内容',
           url: result.canonicalUrl,
@@ -402,7 +545,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       case IngestionStatus.unsupported:
         return _buildStatusCard(
           icon: Icons.warning_amber_rounded,
-          iconColor: WhiteboardCanvasTokens.focus,
+          statusLabel: '暂不支持',
           title: '暂不支持此链接',
           message: result.errorMessage ?? '普通链接抓取不支持该类型',
           url: result.canonicalUrl,
@@ -429,6 +572,8 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
     final alreadyImported =
         savedCard != null && _matchesExistingVersion && !_cardSaved;
     final updateAvailable = savedCard != null && !_matchesExistingVersion;
+    final studyReady = _isStudyReady(result);
+    final capabilityLabel = studyReady ? '研读级就绪' : '链接级保存';
 
     final Widget actionArea;
     if (alreadyImported || _cardSaved) {
@@ -437,31 +582,18 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       actionArea = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                color: WhiteboardCanvasTokens.action,
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                updated ? '卡片已更新（内容有新版本）' : '已在卡片库',
-                style: const TextStyle(
-                  color: WhiteboardCanvasTokens.action,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+          _buildInlineStatus(
+            icon: Icons.check_circle_outline_rounded,
+            label: updated ? '卡片已更新（内容有新版本）' : '已在卡片库',
+            color: DesktopWorkspaceTokens.of(context).action,
           ),
           if (card != null)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 card.cardId,
-                style: const TextStyle(
-                  color: WhiteboardCanvasTokens.textFaint,
+                style: richTextCodeTextStyle(
+                  color: DesktopWorkspaceTokens.of(context).textFaint,
                   fontSize: 11,
                 ),
               ),
@@ -470,66 +602,88 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
           OutlinedButton.icon(
             onPressed: _openSavedDestination,
             icon: Icon(
-              source.mediaType == SourceMediaType.video
+              studyReady
                   ? Icons.play_circle_outline
                   : Icons.library_books_outlined,
               size: 16,
             ),
-            label: Text(
-              source.mediaType == SourceMediaType.video ? '打开视频研读' : '打开卡片库',
-            ),
+            label: Text(studyReady ? '打开视频研读' : '打开卡片库'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: WhiteboardCanvasTokens.action,
-              side: const BorderSide(color: WhiteboardCanvasTokens.action),
+              foregroundColor: DesktopWorkspaceTokens.of(context).action,
+              side: BorderSide(
+                color: DesktopWorkspaceTokens.of(context).action,
+              ),
+              minimumSize: const Size(112, 36),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
         ],
       );
     } else {
-      actionArea = FilledButton.icon(
-        onPressed: _cardBusy ? null : _saveCard,
-        icon: const Icon(Icons.save_outlined, size: 16),
-        label: Text(
-          _cardBusy
-              ? '正在存入…'
-              : updateAvailable
-                  ? '确认内容更新'
-                  : '存入卡片库',
-        ),
-        style: FilledButton.styleFrom(
-          backgroundColor: WhiteboardCanvasTokens.action,
-          foregroundColor: Colors.white,
-        ),
+      actionArea = Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          FocusTraversalOrder(
+            order: const NumericFocusOrder(30),
+            child: OutlinedButton(
+              key: const ValueKey('link_import_cancel_preview'),
+              focusNode: _cancelPreviewFocusNode,
+              onPressed: _cardBusy ? null : _cancelPreview,
+              style: _secondaryButtonStyle(),
+              child: const Text('取消预览'),
+            ),
+          ),
+          FocusTraversalOrder(
+            order: const NumericFocusOrder(40),
+            child: FilledButton.icon(
+              key: const ValueKey('link_import_commit_button'),
+              focusNode: _commitFocusNode,
+              onPressed: _cardBusy ? null : _saveCard,
+              icon: Icon(
+                studyReady
+                    ? Icons.playlist_add_check_rounded
+                    : Icons.save_outlined,
+                size: 16,
+              ),
+              label: Text(
+                _cardBusy
+                    ? '正在存入…'
+                    : updateAvailable
+                        ? '确认内容更新'
+                        : studyReady
+                            ? '保存并进入研读'
+                            : '存入卡片库',
+              ),
+              style: _primaryButtonStyle(),
+            ),
+          ),
+        ],
       );
     }
 
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Container(
+      key: const ValueKey('link_import_preview_panel'),
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: tokens.surfaceRaised,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: WhiteboardCanvasTokens.divider),
+        border: Border.all(color: tokens.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.check_circle_outline,
-                color: WhiteboardCanvasTokens.action,
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  '抓取成功',
-                  style: TextStyle(
-                    color: WhiteboardCanvasTokens.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+              Expanded(
+                child: _buildInlineStatus(
+                  icon: Icons.check_circle_outline_rounded,
+                  label: '预览成功',
+                  color: tokens.action,
                 ),
               ),
               _providerChip(source.provider),
@@ -538,72 +692,30 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
           const SizedBox(height: 10),
           Text(
             title,
-            style: const TextStyle(
-              color: WhiteboardCanvasTokens.textPrimary,
-              fontSize: 14,
+            style: whiteboardUiTextStyle(
+              color: tokens.textPrimary,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
+              height: 1.35,
             ),
           ),
-          if (previewImage != null && previewImage.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: WhiteboardCanvasTokens.canvas,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.image_outlined,
-                    color: WhiteboardCanvasTokens.actionSecondary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '页面主图',
-                          style: TextStyle(
-                            color: WhiteboardCanvasTokens.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          previewImage,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: WhiteboardCanvasTokens.textFaint,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 6),
-          Text(
+          SelectableText(
             result.canonicalUrl,
-            style: const TextStyle(
-              color: WhiteboardCanvasTokens.textFaint,
-              fontSize: 12,
+            style: richTextCodeTextStyle(
+              color: tokens.textFaint,
+              fontSize: 11,
+              height: 1.45,
             ),
           ),
           if (description != null && description.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
               description,
-              style: const TextStyle(
-                color: WhiteboardCanvasTokens.textSecondary,
+              style: whiteboardUiTextStyle(
+                color: tokens.textMuted,
                 fontSize: 13,
-                height: 1.5,
+                height: 1.55,
               ),
             ),
           ],
@@ -611,75 +723,210 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
               source.metadata['author'] != null) ...[
             const SizedBox(height: 8),
             Text(
-              [
-                source.metadata['site_name'],
-                source.metadata['author'],
-              ]
+              [source.metadata['site_name'], source.metadata['author']]
                   .whereType<String>()
                   .where((value) => value.isNotEmpty)
                   .join(' · '),
-              style: const TextStyle(
-                color: WhiteboardCanvasTokens.textFaint,
+              style: whiteboardUiTextStyle(
+                color: tokens.textFaint,
                 fontSize: 11,
               ),
             ),
           ],
           if (excerpt != null && excerpt.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              excerpt,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: WhiteboardCanvasTokens.textSecondary,
-                fontSize: 13,
-                height: 1.5,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: tokens.surface,
+                borderRadius: BorderRadius.circular(10),
               ),
+              child: Text(
+                excerpt,
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+                style: whiteboardUiTextStyle(
+                  color: tokens.textMuted,
+                  fontSize: 13,
+                  height: 1.55,
+                ),
+              ),
+            ),
+          ],
+          if (previewImage != null && previewImage.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.image_outlined, color: tokens.textFaint, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '主图候选（未加载） · $previewImage',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: richTextCodeTextStyle(
+                      color: tokens.textFaint,
+                      fontSize: 10,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
           const SizedBox(height: 10),
           Text(
             [
-              if (result.hasBody) '正文',
-              if (source.mediaType == SourceMediaType.video) '视频',
+              if (result.hasBody) '正文可用',
+              if (source.mediaType == SourceMediaType.video) '视频来源',
               if (imageCount > 0) '$imageCount 张图片',
               if (source.mimeType != null) source.mimeType!,
             ].join(' · '),
-            style: const TextStyle(
-              color: WhiteboardCanvasTokens.textFaint,
+            style: whiteboardUiTextStyle(
+              color: tokens.textFaint,
               fontSize: 11,
             ),
           ),
           const SizedBox(height: 14),
+          _buildCapabilityState(
+            label: capabilityLabel,
+            studyReady: studyReady,
+          ),
           if (updateAvailable) ...[
-            const Text(
+            const SizedBox(height: 12),
+            Text(
               '已导入过这个链接，但网页内容发生了变化。确认后会为同一来源新增版本，不会复制卡片。',
-              style: TextStyle(
-                color: WhiteboardCanvasTokens.focus,
+              style: whiteboardUiTextStyle(
+                color: tokens.focus,
                 fontSize: 12,
                 height: 1.5,
               ),
             ),
-            const SizedBox(height: 10),
           ],
+          const SizedBox(height: 14),
           actionArea,
         ],
       ),
     );
   }
 
+  Widget _buildCapabilityState({
+    required String label,
+    required bool studyReady,
+  }) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: tokens.actionSoft.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            studyReady ? Icons.playlist_add_check_rounded : Icons.link_rounded,
+            size: 17,
+            color: tokens.action,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: whiteboardUiTextStyle(
+                    fontSize: 12,
+                    color: tokens.action,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  studyReady
+                      ? '来源可进入研读视图；字幕、时间轴与 Anchor 仍按实际加载结果确认。'
+                      : '保存 canonical URL 与当前 SourceVersion；缺失的正文、封面或字幕不会被补造。',
+                  style: whiteboardUiTextStyle(
+                    fontSize: 11,
+                    height: 1.45,
+                    color: tokens.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineStatus({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            style: whiteboardUiTextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  ButtonStyle _primaryButtonStyle() {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return FilledButton.styleFrom(
+      minimumSize: const Size(132, 36),
+      backgroundColor: tokens.action,
+      foregroundColor: tokens.canvas,
+      disabledBackgroundColor: tokens.actionSoft.withValues(alpha: 0.42),
+      disabledForegroundColor: tokens.textMuted,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      textStyle: whiteboardUiTextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  ButtonStyle _secondaryButtonStyle() {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return OutlinedButton.styleFrom(
+      minimumSize: const Size(96, 36),
+      foregroundColor: tokens.textMuted,
+      side: BorderSide(color: tokens.divider),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      textStyle: whiteboardUiTextStyle(fontSize: 13),
+    );
+  }
+
   Widget _providerChip(String? provider) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: WhiteboardCanvasTokens.actionSoft.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(999),
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: tokens.divider),
       ),
       child: Text(
         provider ?? 'web',
-        style: const TextStyle(
-          color: WhiteboardCanvasTokens.actionSecondary,
-          fontSize: 11,
+        style: richTextCodeTextStyle(
+          color: tokens.textMuted,
+          fontSize: 10,
         ),
       ),
     );
@@ -687,32 +934,45 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
 
   Widget _buildStatusCard({
     required IconData icon,
-    required Color iconColor,
+    required String statusLabel,
     required String title,
     required String message,
     required String url,
+    bool isError = false,
   }) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final statusColor = isError ? tokens.error : tokens.focus;
     return Container(
+      key: const ValueKey('link_import_status_panel'),
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: tokens.surfaceRaised,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: WhiteboardCanvasTokens.divider),
+        border: Border.all(color: tokens.divider),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: iconColor, size: 22),
+          Icon(icon, color: statusColor, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
+                  statusLabel,
+                  style: whiteboardUiTextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
                   title,
-                  style: const TextStyle(
-                    color: WhiteboardCanvasTokens.textPrimary,
+                  style: whiteboardUiTextStyle(
+                    color: tokens.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -720,18 +980,19 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
                 const SizedBox(height: 6),
                 Text(
                   message,
-                  style: const TextStyle(
-                    color: WhiteboardCanvasTokens.textSecondary,
+                  style: whiteboardUiTextStyle(
+                    color: tokens.textMuted,
                     fontSize: 13,
                     height: 1.5,
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                SelectableText(
                   url,
-                  style: const TextStyle(
-                    color: WhiteboardCanvasTokens.textFaint,
+                  style: richTextCodeTextStyle(
+                    color: tokens.textFaint,
                     fontSize: 11,
+                    height: 1.4,
                   ),
                 ),
               ],
@@ -743,23 +1004,36 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   }
 
   Widget _buildRecent() {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '最近导入',
-          style: TextStyle(
-            color: WhiteboardCanvasTokens.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          children: [
+            Text(
+              '最近导入',
+              style: whiteboardUiTextStyle(
+                color: tokens.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              '${_recent.length} 项',
+              style: whiteboardUiTextStyle(
+                color: tokens.textFaint,
+                fontSize: 11,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         if (_recent.isEmpty)
-          const Text(
+          Text(
             '还没有导入记录。抓取结果确认后，点击「存入卡片库」才会创建卡片。',
-            style: TextStyle(
-              color: WhiteboardCanvasTokens.textFaint,
+            style: whiteboardUiTextStyle(
+              color: tokens.textFaint,
               fontSize: 12,
               height: 1.5,
             ),
@@ -771,19 +1045,20 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   }
 
   Widget _buildRecentTile(_RecentImport item) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: tokens.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: WhiteboardCanvasTokens.divider),
+        border: Border.all(color: tokens.divider),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.link_outlined,
-            color: WhiteboardCanvasTokens.textFaint,
+            color: tokens.textFaint,
             size: 16,
           ),
           const SizedBox(width: 8),
@@ -795,8 +1070,8 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
                   item.card.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: WhiteboardCanvasTokens.textPrimary,
+                  style: whiteboardUiTextStyle(
+                    color: tokens.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -806,8 +1081,8 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
                     item.canonicalUrl,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: WhiteboardCanvasTokens.textFaint,
+                    style: richTextCodeTextStyle(
+                      color: tokens.textFaint,
                       fontSize: 11,
                     ),
                   ),
@@ -815,12 +1090,25 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            '${_formatDate(item.createdAt)} · ${item.versionCount} 版',
-            style: const TextStyle(
-              color: WhiteboardCanvasTokens.textFaint,
-              fontSize: 11,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${item.versionCount} 版',
+                style: richTextCodeTextStyle(
+                  color: tokens.textMuted,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _formatDate(item.createdAt),
+                style: richTextCodeTextStyle(
+                  color: tokens.textFaint,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
         ],
       ),

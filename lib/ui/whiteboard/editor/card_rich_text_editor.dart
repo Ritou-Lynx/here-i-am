@@ -36,6 +36,7 @@ import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_controller.dart';
 import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/rich_text_paste_sanitizer.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 
 /// Signature for save callback.
@@ -58,6 +59,7 @@ class CardRichTextEditor extends StatefulWidget {
   final RichTextEditingController controller;
   final RichTextSaveCallback? onSave;
   final bool markSavedAfterCallback;
+  final bool showSaveInToolbar;
   final String cardId;
   final VoidCallback? onDirty;
 
@@ -75,6 +77,7 @@ class CardRichTextEditor extends StatefulWidget {
     required this.cardId,
     this.onSave,
     this.markSavedAfterCallback = true,
+    this.showSaveInToolbar = true,
     this.onDirty,
     this.objectStore,
     this.mediaImporter,
@@ -190,10 +193,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final controller = widget.controller;
     return Focus(
-      autofocus: true,
       onKeyEvent: _onKeyEvent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,7 +205,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
             child: ListView.builder(
               itemCount: controller.blockCount,
               itemBuilder: (context, index) =>
-                  _buildBlockItem(context, controller, index, theme),
+                  _buildBlockItem(context, controller, index),
             ),
           ),
         ],
@@ -213,65 +214,133 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   }
 
   Widget _buildToolbar(BuildContext context, RichTextEditingController c) {
-    return Wrap(
-      spacing: 4,
-      children: [
-        _toolbarButton('B', () => _toggleMarkOnFocused(c, MarkType.bold),
-            bold: true),
-        _toolbarButton('I', () => _toggleMarkOnFocused(c, MarkType.italic),
-            italic: true),
-        _toolbarButton('U', () => _toggleMarkOnFocused(c, MarkType.underline),
-            underline: true),
-        _toolbarButton(
-            'S', () => _toggleMarkOnFocused(c, MarkType.strikethrough),
-            strikethrough: true),
-        _toolbarButton('</>', () => _toggleMarkOnFocused(c, MarkType.code),
-            mono: true),
-        _toolbarButton('🔗', () => _addLinkOnFocused(context, c), mono: true),
-        const SizedBox(width: 8),
-        _toolbarButton(
-            'H1',
-            () => _setBlockTypeFocused(c, BlockType.heading,
-                attrs: const {'level': 1})),
-        _toolbarButton(
-            'H2',
-            () => _setBlockTypeFocused(c, BlockType.heading,
-                attrs: const {'level': 2})),
-        _toolbarButton(
-            '•',
-            () => _setBlockTypeFocused(c, BlockType.list,
-                attrs: const {'ordered': false})),
-        _toolbarButton(
-            '1.',
-            () => _setBlockTypeFocused(c, BlockType.list,
-                attrs: const {'ordered': true})),
-        _toolbarButton('❝', () => _setBlockTypeFocused(c, BlockType.quote)),
-        _toolbarButton('{ }', () => _setBlockTypeFocused(c, BlockType.code)),
-        const SizedBox(width: 8),
-        _toolbarButton('缩进', () => _indentOnFocused(c, outdent: false)),
-        _toolbarButton('减缩', () => _indentOnFocused(c, outdent: true)),
-        const SizedBox(width: 8),
-        if (widget.mediaImporter != null) ...[
-          _toolbarButton('🖼', () => _importMedia(c, MediaImportKind.image),
-              mono: true),
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Container(
+      key: const ValueKey('rich_text_toolbar'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tokens.divider),
+      ),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
           _toolbarButton(
-              '📎', () => _importMedia(c, MediaImportKind.attachment),
+              tokens, 'B', '加粗', () => _toggleMarkOnFocused(c, MarkType.bold),
+              bold: true),
+          _toolbarButton(
+              tokens, 'I', '斜体', () => _toggleMarkOnFocused(c, MarkType.italic),
+              italic: true),
+          _toolbarButton(tokens, 'U', '下划线',
+              () => _toggleMarkOnFocused(c, MarkType.underline),
+              underline: true),
+          _toolbarButton(tokens, 'S', '删除线',
+              () => _toggleMarkOnFocused(c, MarkType.strikethrough),
+              strikethrough: true),
+          _toolbarButton(tokens, '</>', '行内代码',
+              () => _toggleMarkOnFocused(c, MarkType.code),
               mono: true),
-          const SizedBox(width: 8),
+          _toolbarIconButton(
+            tokens,
+            Icons.link_rounded,
+            '插入链接',
+            () => _addLinkOnFocused(context, c),
+          ),
+          const SizedBox(width: 4),
+          _toolbarButton(
+              tokens,
+              'H1',
+              '一级标题',
+              () => _setBlockTypeFocused(c, BlockType.heading,
+                  attrs: const {'level': 1})),
+          _toolbarButton(
+              tokens,
+              'H2',
+              '二级标题',
+              () => _setBlockTypeFocused(c, BlockType.heading,
+                  attrs: const {'level': 2})),
+          _toolbarButton(
+              tokens,
+              '•',
+              '无序列表',
+              () => _setBlockTypeFocused(c, BlockType.list,
+                  attrs: const {'ordered': false})),
+          _toolbarButton(
+              tokens,
+              '1.',
+              '有序列表',
+              () => _setBlockTypeFocused(c, BlockType.list,
+                  attrs: const {'ordered': true})),
+          _toolbarIconButton(
+            tokens,
+            Icons.format_quote_rounded,
+            '引用',
+            () => _setBlockTypeFocused(c, BlockType.quote),
+          ),
+          _toolbarButton(tokens, '{ }', '代码块',
+              () => _setBlockTypeFocused(c, BlockType.code),
+              mono: true),
+          const SizedBox(width: 4),
+          _toolbarIconButton(
+            tokens,
+            Icons.format_indent_increase_rounded,
+            '缩进',
+            () => _indentOnFocused(c, outdent: false),
+          ),
+          _toolbarIconButton(
+            tokens,
+            Icons.format_indent_decrease_rounded,
+            '减少缩进',
+            () => _indentOnFocused(c, outdent: true),
+          ),
+          if (widget.mediaImporter != null) ...[
+            const SizedBox(width: 4),
+            _toolbarIconButton(
+              tokens,
+              Icons.image_outlined,
+              '导入图片',
+              () => _importMedia(c, MediaImportKind.image),
+            ),
+            _toolbarIconButton(
+              tokens,
+              Icons.attach_file_rounded,
+              '导入附件',
+              () => _importMedia(c, MediaImportKind.attachment),
+            ),
+          ],
+          const SizedBox(width: 4),
+          _toolbarIconButton(
+            tokens,
+            Icons.undo_rounded,
+            '撤销',
+            c.undo,
+            enabled: c.canUndo,
+          ),
+          _toolbarIconButton(
+            tokens,
+            Icons.redo_rounded,
+            '重做',
+            c.redo,
+            enabled: c.canRedo,
+          ),
+          if (widget.onSave != null && widget.showSaveInToolbar)
+            _toolbarButton(tokens, '保存', '保存（Ctrl+S）', () {
+              widget.onSave!(c.flushToDocument());
+              if (widget.markSavedAfterCallback) c.markSaved();
+            }),
         ],
-        _toolbarButton('↶', c.undo, enabled: c.canUndo),
-        _toolbarButton('↷', c.redo, enabled: c.canRedo),
-        if (widget.onSave != null)
-          _toolbarButton('保存', () {
-            widget.onSave!(c.flushToDocument());
-            if (widget.markSavedAfterCallback) c.markSaved();
-          }),
-      ],
+      ),
     );
   }
 
   Widget _toolbarButton(
+    DesktopWorkspaceTokens tokens,
     String label,
+    String tooltip,
     VoidCallback onTap, {
     bool enabled = true,
     bool bold = false,
@@ -293,16 +362,66 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
           ? TextDecoration.underline
           : (strikethrough ? TextDecoration.lineThrough : TextDecoration.none),
     );
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+    return Tooltip(
+      message: tooltip,
+      child: TextButton(
+        onPressed: enabled ? onTap : null,
+        style: _toolbarControlStyle(tokens),
         child: Text(
           label,
           style: style.copyWith(
-            color: enabled ? const Color(0xFF293025) : const Color(0xFF999B91),
+            color: enabled ? tokens.textPrimary : tokens.textFaint,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _toolbarIconButton(
+    DesktopWorkspaceTokens tokens,
+    IconData icon,
+    String tooltip,
+    VoidCallback onTap, {
+    bool enabled = true,
+  }) {
+    return IconButton(
+      onPressed: enabled ? onTap : null,
+      tooltip: tooltip,
+      icon: Icon(icon, size: 18),
+      style: _toolbarControlStyle(tokens),
+    );
+  }
+
+  ButtonStyle _toolbarControlStyle(DesktopWorkspaceTokens tokens) {
+    return ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(Size(36, 36)),
+      maximumSize: const WidgetStatePropertyAll(Size(96, 36)),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 8),
+      ),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) return tokens.textFaint;
+        return tokens.textPrimary;
+      }),
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.pressed)) {
+          return tokens.actionSoft.withValues(alpha: 0.34);
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return tokens.actionSoft.withValues(alpha: 0.18);
+        }
+        return Colors.transparent;
+      }),
+      side: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.focused)) {
+          return BorderSide(color: tokens.action, width: 1.5);
+        }
+        return BorderSide(color: tokens.divider);
+      }),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
     );
   }
@@ -312,12 +431,11 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     BuildContext context,
     RichTextEditingController c,
     int index,
-    ThemeData theme,
   ) {
     final block = c.blockAt(index);
     final childCount = c.childCount(index);
     final children = <Widget>[
-      _buildBlockField(context, c, index, null, theme),
+      _buildBlockField(context, c, index, null),
     ];
     if (block.type == BlockType.quote && childCount > 0) {
       children.add(
@@ -327,7 +445,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (var j = 0; j < childCount; j++)
-                _buildBlockField(context, c, index, j, theme),
+                _buildBlockField(context, c, index, j),
             ],
           ),
         ),
@@ -347,18 +465,19 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     RichTextEditingController c,
     int blockIndex,
     int? childIndex,
-    ThemeData theme,
   ) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final block = childIndex == null
         ? c.blockAt(blockIndex)
         : c.childBlockAt(blockIndex, childIndex);
     if (block.type == BlockType.image ||
         block.type == BlockType.video ||
         block.type == BlockType.reference) {
-      return _buildMediaBlock(c, blockIndex, childIndex, block);
+      return _buildMediaBlock(context, c, blockIndex, childIndex, block);
     }
-    final style = _blockStyle(block, theme);
+    final style = _blockStyle(block, tokens);
     return TextField(
+      key: ValueKey('rich_text_block_${blockIndex}_${childIndex ?? 'root'}'),
       controller: childIndex == null
           ? c.controllerFor(blockIndex)
           : c.childControllerFor(blockIndex, childIndex),
@@ -366,16 +485,30 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
           ? c.focusNodeFor(blockIndex)
           : c.childFocusNodeFor(blockIndex, childIndex),
       style: style,
+      cursorColor: tokens.action,
       maxLines: null,
       minLines: 1,
       decoration: InputDecoration(
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(vertical: 6),
-        border: InputBorder.none,
+        filled: block.type == BlockType.code,
+        fillColor: block.type == BlockType.code ? tokens.surface : null,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: Colors.transparent),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: BorderSide(color: tokens.action, width: 1.5),
+        ),
         hintText: block.type == BlockType.paragraph && block.text.isEmpty
             ? '在此输入…'
             : null,
-        hintStyle: style.copyWith(color: const Color(0xFF999B91)),
+        hintStyle: style.copyWith(color: tokens.textFaint),
         prefixText: _blockPrefix(block),
         prefixStyle: style,
       ),
@@ -388,11 +521,13 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
 
   /// Media / attachment block: preview (when resolvable) + label + delete.
   Widget _buildMediaBlock(
+    BuildContext context,
     RichTextEditingController c,
     int blockIndex,
     int? childIndex,
     RichTextBlock block,
   ) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final ref = c.document.assetRefById(block.assetRefId ?? '');
     final isImage = block.type == BlockType.image;
     final label = isImage
@@ -410,16 +545,19 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         ? widget.objectStore!.resolveFile(ref)
         : null;
     if (isImage && file != null) {
-      preview = ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.file(
-          file,
-          height: 120,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Icon(
-            Icons.broken_image_outlined,
-            color: Color(0xFF999B91),
-            size: 32,
+      preview = SizedBox(
+        width: 140,
+        height: 92,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Icon(
+              Icons.broken_image_outlined,
+              color: tokens.textFaint,
+              size: 32,
+            ),
           ),
         ),
       );
@@ -427,18 +565,19 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       preview = Icon(
         isImage ? Icons.image_outlined : Icons.attach_file,
         size: 28,
-        color: const Color(0xFF74766E),
+        color: tokens.textMuted,
       );
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0x0F293025),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: const Color(0x33293025), width: 0.5),
+          color: tokens.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: tokens.divider),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -448,22 +587,23 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
             Flexible(
               child: Text(
                 label,
-                style: richTextBodyTextStyle(fontSize: 13),
+                style: richTextBodyTextStyle(
+                  fontSize: 13,
+                  color: tokens.textPrimary,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 4),
-            InkWell(
-              onTap: () => _deleteMediaBlock(c, blockIndex, childIndex),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(
-                  Icons.close,
-                  size: 16,
-                  color: Color(0xFF74766E),
-                ),
-              ),
+            IconButton(
+              onPressed: () => _deleteMediaBlock(c, blockIndex, childIndex),
+              tooltip: isImage ? '删除图片' : '删除附件',
+              icon: const Icon(Icons.close_rounded, size: 16),
+              color: tokens.textMuted,
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
             ),
           ],
         ),
@@ -480,9 +620,15 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     }
   }
 
-  TextStyle _blockStyle(RichTextBlock block, ThemeData theme) {
+  TextStyle _blockStyle(
+    RichTextBlock block,
+    DesktopWorkspaceTokens tokens,
+  ) {
     // All block typography flows through the centralized font tokens.
-    final base = richTextBodyTextStyle();
+    final base = richTextBodyTextStyle(
+      color: tokens.textPrimary,
+      height: 1.65,
+    );
     switch (block.type) {
       case BlockType.heading:
         final level = block.headingLevel;
@@ -500,11 +646,14 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       case BlockType.quote:
         return base.copyWith(
           fontStyle: FontStyle.italic,
-          color: const Color(0xFF74766E),
+          color: tokens.textMuted,
         );
       case BlockType.code:
         // Code blocks must use the Cascadia Code token, not the body token.
-        return richTextCodeTextStyle();
+        return richTextCodeTextStyle(
+          color: tokens.textPrimary,
+          height: 1.55,
+        );
       case BlockType.list:
         return base;
       default:
@@ -519,7 +668,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         final depthIndent = '  ' * block.listDepth;
         return '$depthIndent$marker';
       case BlockType.quote:
-        return '❝ ';
+        return '“ ';
       case BlockType.code:
         return '{ } ';
       default:
@@ -657,6 +806,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
 
   Future<void> _addLinkOnFocused(
       BuildContext context, RichTextEditingController c) async {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final path = _actionPath(c);
     if (path == null) return;
     final tc = path.child == null
@@ -664,19 +814,44 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         : c.childControllerFor(path.block, path.child!);
     final sel = tc.selection;
     if (sel.start == sel.end) return;
+    final linkController = TextEditingController();
     final href = await showDialog<String>(
       context: context,
       builder: (context) {
-        final controller = TextEditingController();
         return AlertDialog(
-          title: const Text('插入链接'),
+          backgroundColor: tokens.surfaceRaised,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          title: Text(
+            '插入链接',
+            style: whiteboardUiTextStyle(
+              fontSize: 18,
+              color: tokens.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           content: TextField(
-            controller: controller,
+            controller: linkController,
             autofocus: true,
             keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              hintText: 'https://…',
+            style: richTextCodeTextStyle(
+              fontSize: 13,
+              color: tokens.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: 'http(s)://',
               labelText: 'URL',
+              filled: true,
+              fillColor: tokens.surface,
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: tokens.action, width: 1.5),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: tokens.divider),
+              ),
             ),
           ),
           actions: [
@@ -685,7 +860,11 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
               child: const Text('取消'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
+              onPressed: () => Navigator.of(context).pop(linkController.text),
+              style: FilledButton.styleFrom(
+                backgroundColor: tokens.action,
+                foregroundColor: tokens.canvas,
+              ),
               child: const Text('插入'),
             ),
           ],
@@ -816,6 +995,9 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final raw = data?.text;
     if (raw == null || raw.isEmpty) return;
+    final sanitized = sanitizePastedBlocks([
+      RichTextBlock(type: BlockType.paragraph, text: raw),
+    ]).blocks.first.text;
     // Find the focused block and insert sanitized text.
     final path = _focusedPath(c);
     if (path == null) return;
@@ -824,10 +1006,10 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         : c.childControllerFor(path.block, path.child!);
     final sel = tc.selection;
     final text = tc.text;
-    final newText = text.replaceRange(sel.start, sel.end, raw);
+    final newText = text.replaceRange(sel.start, sel.end, sanitized);
     tc.value = TextEditingValue(
       text: newText,
-      selection: TextSelection.collapsed(offset: sel.start + raw.length),
+      selection: TextSelection.collapsed(offset: sel.start + sanitized.length),
     );
   }
 }

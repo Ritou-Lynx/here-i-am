@@ -17,9 +17,11 @@ import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor_screen.dart'
     as editor;
-import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 /// Full-screen rich text editor for a card.
 class CardRichTextEditorScreen extends StatefulWidget {
@@ -147,21 +149,18 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
       future: _loadFuture,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Scaffold(
-            backgroundColor: WhiteboardCanvasTokens.canvas,
-            body: Center(
-              child: Text(
-                '正在加载…',
-                style: TextStyle(color: WhiteboardCanvasTokens.textFaint),
-              ),
-            ),
+          return _EditorRouteState(
+            cardId: widget.cardId,
+            message: '正在加载卡片…',
+            loading: true,
           );
         }
         final load = snapshot.data!;
         if (load.error != null) {
-          return Scaffold(
-            backgroundColor: WhiteboardCanvasTokens.canvas,
-            body: Center(child: Text(load.error!)),
+          return _EditorRouteState(
+            cardId: widget.cardId,
+            message: load.error!,
+            isError: true,
           );
         }
         return editor.CardRichTextEditorScreen(
@@ -175,6 +174,72 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                   load.repository!.saveRichText(cardId, document),
         );
       },
+    );
+  }
+}
+
+class _EditorRouteState extends StatelessWidget {
+  const _EditorRouteState({
+    required this.cardId,
+    required this.message,
+    this.loading = false,
+    this.isError = false,
+  });
+
+  final String cardId;
+  final String message;
+  final bool loading;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Scaffold(
+      backgroundColor: tokens.canvas,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DesktopPageTitle(
+            title: '编辑卡片',
+            meta: cardId,
+            onBack: () => Navigator.of(context).maybePop(),
+          ),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        loading
+                            ? Icons.hourglass_empty_rounded
+                            : isError
+                                ? Icons.error_outline_rounded
+                                : Icons.info_outline_rounded,
+                        size: 24,
+                        color: isError ? tokens.error : tokens.textMuted,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: whiteboardUiTextStyle(
+                          fontSize: 13,
+                          height: 1.55,
+                          color: isError ? tokens.error : tokens.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
