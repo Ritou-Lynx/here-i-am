@@ -13,6 +13,8 @@ import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
 
@@ -111,6 +113,58 @@ void main() {
     expect(find.text('暂无网页预览'), findsOneWidget);
   });
 
+  testWidgets('desktop scope is explicit and mobile keeps Spring Rain',
+      (tester) async {
+    await repository.createTextCard(
+      cardId: 'platform_scope_card',
+      title: '平台作用域卡片',
+      body: '移动端继续使用春雨昼眠。',
+    );
+    await pumpApp(tester);
+
+    expect(find.byKey(const ValueKey('card_library_mobile')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('card-library-mobile-list')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('desktop_page_title')), findsNothing);
+    expect(find.byKey(const ValueKey('card-library-grid')), findsNothing);
+    expect(
+      tester
+          .widget<Scaffold>(
+            find.byKey(const ValueKey('card_library_mobile')),
+          )
+          .backgroundColor,
+      SpringRainUiTokens.daylightCanvas,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DesktopWorkspaceTheme(
+          child: CardLibraryScreen(
+            repository: repository,
+            boardStore: boardStore,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('card_library_desktop')), findsOneWidget);
+    expect(find.byKey(const ValueKey('desktop_page_title')), findsOneWidget);
+    expect(find.byKey(const ValueKey('card-library-grid')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('card-library-mobile-list')), findsNothing);
+    expect(
+      tester
+          .widget<Scaffold>(
+            find.byKey(const ValueKey('card_library_desktop')),
+          )
+          .backgroundColor,
+      DesktopWorkspaceTokens.lieflatPalm.canvas,
+    );
+  });
+
   testWidgets(
       'untrusted thumbnail metadata never creates network or file images',
       (tester) async {
@@ -200,9 +254,18 @@ void main() {
     await boardStore.createBoard(name: '筛选目标板');
     await pumpApp(tester);
 
-    await tester.tap(
-      find.byKey(const ValueKey('card-library-place-note_filter')),
+    final placeButton =
+        find.byKey(const ValueKey('card-library-place-note_filter'));
+    await tester.scrollUntilVisible(
+      placeButton,
+      160,
+      scrollable: find.descendant(
+        of: find.byKey(const ValueKey('card-library-mobile-list')),
+        matching: find.byType(Scrollable),
+      ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(placeButton);
     await tester.pumpAndSettle();
     expect(find.text('最近白板'), findsOneWidget);
     await tester.tap(find.text('筛选目标板'));

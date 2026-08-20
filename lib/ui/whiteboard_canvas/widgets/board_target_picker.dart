@@ -99,22 +99,30 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
       _busy = true;
       _error = null;
     });
+    String? placedBoardName;
     try {
-      final externalPlace = widget.onPlaceRequested;
-      final placed = externalPlace != null
-          ? await externalPlace(board)
-          : _placeWithViewModel(board);
+      final placed = await _requestPlace(board);
       if (!mounted) return;
       if (!placed) {
         setState(() => _error = '没有放入成功，请重试。');
         return;
       }
-      widget.onPlaced(board.name);
+      placedBoardName = board.name;
     } catch (error) {
       if (mounted) setState(() => _error = '放入失败：$error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+    if (mounted && placedBoardName != null) {
+      widget.onPlaced(placedBoardName);
+    }
+  }
+
+  Future<bool> _requestPlace(Board board) async {
+    final externalPlace = widget.onPlaceRequested;
+    return externalPlace != null
+        ? await externalPlace(board)
+        : _placeWithViewModel(board);
   }
 
   bool _placeWithViewModel(Board board) {
@@ -132,18 +140,35 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
   Future<void> _createAndPlace() async {
     final name = _newName.text.trim();
     if (name.isEmpty || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    String? placedBoardName;
     try {
       final externalCreate = widget.onCreateRequested;
       final board = externalCreate != null
           ? await externalCreate(name)
           : widget.viewModel!.createBoard(name);
+      if (!mounted) return;
       if (board == null) {
-        if (mounted) setState(() => _error = '白板没有创建成功，请重试。');
+        setState(() => _error = '白板没有创建成功，请重试。');
         return;
       }
-      await _place(board);
+      final placed = await _requestPlace(board);
+      if (!mounted) return;
+      if (!placed) {
+        setState(() => _error = '没有放入成功，请重试。');
+        return;
+      }
+      placedBoardName = board.name;
     } catch (error) {
       if (mounted) setState(() => _error = '创建失败：$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (mounted && placedBoardName != null) {
+      widget.onPlaced(placedBoardName);
     }
   }
 
@@ -225,7 +250,7 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                     ),
                     tooltip: '关闭',
                     visualDensity: VisualDensity.compact,
-                    onPressed: widget.onClose,
+                    onPressed: _busy ? null : widget.onClose,
                   ),
                 ],
               ),
@@ -235,6 +260,7 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
               child: TextField(
                 key: const ValueKey('board-target-search'),
                 controller: _search,
+                enabled: !_busy,
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(
                   color: WhiteboardCanvasTokens.textPrimary,
@@ -406,8 +432,10 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                           child: TextField(
                             key: const ValueKey('board-target-new-name'),
                             controller: _newName,
+                            enabled: !_busy,
                             autofocus: true,
-                            onSubmitted: (_) => _createAndPlace(),
+                            onSubmitted:
+                                _busy ? null : (_) => _createAndPlace(),
                             style: const TextStyle(
                               color: WhiteboardCanvasTokens.textPrimary,
                               fontSize: WhiteboardCanvasTokens.metaSize,
@@ -444,7 +472,7 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                         ),
                         const SizedBox(width: 8),
                         TextButton(
-                          onPressed: _createAndPlace,
+                          onPressed: _busy ? null : _createAndPlace,
                           style: TextButton.styleFrom(
                             foregroundColor: WhiteboardCanvasTokens.action,
                             padding: const EdgeInsets.symmetric(
@@ -465,7 +493,8 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
                       ],
                     )
                   : InkWell(
-                      onTap: () => setState(() => _creating = true),
+                      onTap:
+                          _busy ? null : () => setState(() => _creating = true),
                       borderRadius: BorderRadius.circular(8),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 4),

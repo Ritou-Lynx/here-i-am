@@ -9,6 +9,8 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/routing/router.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_index_screen.dart';
 
@@ -65,6 +67,54 @@ void main() {
       (tester) async {
     await pumpIndex(tester);
     expect(find.text('还没有白板'), findsOneWidget);
+  });
+
+  testWidgets('desktop scope is explicit and mobile keeps Spring Rain',
+      (tester) async {
+    await store.createBoard(name: '平台作用域白板');
+
+    await tester.pumpWidget(
+      const MaterialApp(home: WhiteboardIndexScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('whiteboard_mobile_index')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('whiteboard_mobile_list')), findsOneWidget);
+    expect(find.byKey(const ValueKey('desktop_page_title')), findsNothing);
+    expect(find.byKey(const ValueKey('whiteboard_grid')), findsNothing);
+    expect(
+      tester
+          .widget<Scaffold>(
+            find.byKey(const ValueKey('whiteboard_mobile_index')),
+          )
+          .backgroundColor,
+      SpringRainUiTokens.daylightCanvas,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: DesktopWorkspaceTheme(child: WhiteboardIndexScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('whiteboard_desktop_index')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('desktop_page_title')), findsOneWidget);
+    expect(find.byKey(const ValueKey('whiteboard_grid')), findsOneWidget);
+    expect(find.byKey(const ValueKey('whiteboard_mobile_list')), findsNothing);
+    expect(
+      tester
+          .widget<Scaffold>(
+            find.byKey(const ValueKey('whiteboard_desktop_index')),
+          )
+          .backgroundColor,
+      DesktopWorkspaceTokens.lieflatPalm.canvas,
+    );
   });
 
   testWidgets('tapping a board opens the full-screen canvas route',

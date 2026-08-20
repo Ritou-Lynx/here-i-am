@@ -3,6 +3,7 @@
 /// rotation handle, and Huabu-style single-undo-step logical actions.
 library;
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui show PointerDeviceKind;
@@ -18,6 +19,7 @@ import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/ui/whiteboard_canvas/interactions/ui_intent.dart';
+import 'package:memex/ui/whiteboard_canvas/widgets/board_target_picker.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
 
@@ -466,6 +468,131 @@ void main() {
       final board = snapshot.boards.firstWhere((b) => b.name == '新板');
       final item = snapshot.boardItems.firstWhere((i) => i.cardId == 'card_c');
       expect(item.boardId, equals(board.boardId));
+    });
+
+    testWidgets('delayed create-and-place is a complete single flight',
+        (tester) async {
+      final now = DateTime.utc(2026, 8, 20);
+      final existingBoard = Board(
+        boardId: 'board_existing',
+        name: '已有白板',
+        createdAt: now,
+      );
+      final createdBoard = Board(
+        boardId: 'board_created_once',
+        name: '只创建一次',
+        createdAt: now,
+      );
+      final createGate = Completer<Board?>();
+      final createdBoards = <Board>[];
+      final placedItems = <BoardItem>[];
+      final placedNames = <String>[];
+      var createCalls = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: BoardTargetPicker.external(
+                availableBoards: [existingBoard],
+                cardId: 'card_single_flight',
+                cardTitle: '单航班卡片',
+                onClose: () {},
+                onPlaced: placedNames.add,
+                onCreateRequested: (name) async {
+                  createCalls++;
+                  final board = await createGate.future;
+                  if (board != null) createdBoards.add(board);
+                  return board;
+                },
+                onPlaceRequested: (board) {
+                  placedItems.add(BoardItem(
+                    itemId: 'item_${placedItems.length}',
+                    boardId: board.boardId,
+                    cardId: 'card_single_flight',
+                  ));
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('新建白板'));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const ValueKey('board-target-new-name')),
+        '只创建一次',
+      );
+
+      await tester.tap(find.text('创建并放入'));
+      await tester.pump();
+      expect(createCalls, 1);
+      expect(
+        tester
+            .widget<TextButton>(
+              find.widgetWithText(TextButton, '创建并放入'),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const ValueKey('board-target-new-name')),
+            )
+            .enabled,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const ValueKey('board-target-search')),
+            )
+            .enabled,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<IconButton>(
+              find.ancestor(
+                of: find.byIcon(Icons.close),
+                matching: find.byType(IconButton),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<InkWell>(
+              find.ancestor(
+                of: find.text('已有白板'),
+                matching: find.byType(InkWell),
+              ),
+            )
+            .onTap,
+        isNull,
+      );
+
+      await tester.tap(
+        find.widgetWithText(TextButton, '创建并放入'),
+        warnIfMissed: false,
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.tap(find.text('已有白板'), warnIfMissed: false);
+      await tester.pump();
+      expect(createCalls, 1);
+      expect(placedItems, isEmpty);
+
+      createGate.complete(createdBoard);
+      await tester.pumpAndSettle();
+
+      expect(createdBoards, [createdBoard]);
+      expect(placedItems, hasLength(1));
+      expect(placedItems.single.boardId, createdBoard.boardId);
+      expect(placedNames, [createdBoard.name]);
     });
   });
 

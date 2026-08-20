@@ -13,6 +13,7 @@ import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
@@ -73,19 +74,21 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
   }
 
   Future<void> _createBoard() async {
-    final tokens = DesktopWorkspaceTokens.of(context);
+    final desktopTokens = Theme.of(context).extension<DesktopWorkspaceTokens>();
+    const mobileTokens = SpringRainUiTokens.daylight;
     var draft = '';
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: tokens.surfaceRaised,
+        backgroundColor:
+            desktopTokens?.surfaceRaised ?? mobileTokens.surfaceRaised,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Text(
           '新建白板',
           style: whiteboardUiTextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: tokens.textPrimary,
+            color: desktopTokens?.textPrimary ?? mobileTokens.textPrimary,
           ),
         ),
         content: TextField(
@@ -110,6 +113,11 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
               final value = draft.trim();
               if (value.isNotEmpty) Navigator.of(dialogContext).pop(value);
             },
+            style: FilledButton.styleFrom(
+              backgroundColor: desktopTokens?.action ?? mobileTokens.accent,
+              foregroundColor:
+                  desktopTokens?.canvas ?? mobileTokens.textOnAccent,
+            ),
             child: const Text('创建'),
           ),
         ],
@@ -138,8 +146,14 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = DesktopWorkspaceTokens.of(context);
+    final desktopTokens = Theme.of(context).extension<DesktopWorkspaceTokens>();
+    if (desktopTokens == null) return _buildMobile();
+    return _buildDesktop(desktopTokens);
+  }
+
+  Widget _buildDesktop(DesktopWorkspaceTokens tokens) {
     return Scaffold(
+      key: const ValueKey('whiteboard_desktop_index'),
       backgroundColor: tokens.canvas,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -168,6 +182,164 @@ class _WhiteboardIndexScreenState extends State<WhiteboardIndexScreen> {
           Expanded(child: _buildBody(tokens)),
         ],
       ),
+    );
+  }
+
+  Widget _buildMobile() {
+    const tokens = SpringRainUiTokens.daylight;
+    return Scaffold(
+      key: const ValueKey('whiteboard_mobile_index'),
+      backgroundColor: tokens.canvas,
+      appBar: AppBar(
+        backgroundColor: tokens.canvas,
+        foregroundColor: tokens.textPrimary,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, size: 20),
+          tooltip: '返回首页',
+          onPressed: _goBack,
+        ),
+        title: Text(
+          '白板',
+          style: whiteboardUiTextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            key: const ValueKey('whiteboard_create_button'),
+            onPressed: _createBoard,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text('新建', style: whiteboardUiTextStyle(fontSize: 14)),
+            style: TextButton.styleFrom(foregroundColor: tokens.accent),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: _buildMobileBody(tokens),
+    );
+  }
+
+  Widget _buildMobileBody(SpringRainUiTokens tokens) {
+    if (_loading) {
+      return Center(
+        child: SizedBox.square(
+          dimension: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: tokens.accent,
+          ),
+        ),
+      );
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '白板列表没有读出来，重试即可继续。',
+              style: whiteboardUiTextStyle(
+                fontSize: 14,
+                color: tokens.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _load,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: tokens.accent,
+                minimumSize: const Size(0, 36),
+              ),
+              child: Text('重试', style: whiteboardUiTextStyle(fontSize: 14)),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_boards.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '还没有白板',
+              style: whiteboardUiTextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: tokens.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '点右上角「新建」创建第一张白板。',
+              style: whiteboardUiTextStyle(
+                fontSize: 12,
+                color: tokens.textTertiary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      key: const ValueKey('whiteboard_mobile_list'),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      itemCount: _boards.length,
+      separatorBuilder: (_, __) => Divider(height: 1, color: tokens.divider),
+      itemBuilder: (context, index) {
+        final board = _boards[index];
+        return InkWell(
+          key: ValueKey('board_row_${board.boardId}'),
+          onTap: () =>
+              context.go(AppRoutes.whiteboardCanvasPath(board.boardId)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.space_dashboard_outlined,
+                  size: 20,
+                  color: tokens.textTertiary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        board.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: whiteboardUiTextStyle(
+                          fontSize: 14,
+                          color: tokens.textPrimary,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '最近更新 ${_relativeDay(board.updatedAt ?? board.createdAt)}',
+                        style: whiteboardUiTextStyle(
+                          fontSize: 12,
+                          color: tokens.textTertiary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: tokens.textTertiary,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

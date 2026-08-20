@@ -20,11 +20,11 @@ import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 import 'package:memex/ui/whiteboard_canvas/widgets/board_target_picker.dart';
-import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 
 class CardLibraryScreen extends StatefulWidget {
   final RichTextSearchIndex? index;
@@ -296,8 +296,15 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = DesktopWorkspaceTokens.of(context);
+    final desktopTokens = Theme.of(context).extension<DesktopWorkspaceTokens>();
+    if (desktopTokens == null) return _buildMobile();
+    return _buildDesktop(desktopTokens);
+  }
+
+  Widget _buildDesktop(DesktopWorkspaceTokens tokens) {
+    final palette = _LibraryPalette.desktop(tokens);
     return Scaffold(
+      key: const ValueKey('card_library_desktop'),
       backgroundColor: tokens.canvas,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,84 +322,126 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
               DesktopWorkspaceTokens.pageHorizontalPadding,
               12,
             ),
-            child: _buildToolbar(),
+            child: _buildToolbar(palette, desktop: true),
           ),
-          Expanded(child: _buildResults()),
+          Expanded(child: _buildResults(palette, desktop: true)),
         ],
       ),
     );
   }
 
-  Widget _buildToolbar() {
+  Widget _buildMobile() {
+    const tokens = SpringRainUiTokens.daylight;
+    final palette = _LibraryPalette.mobile(tokens);
+    return Scaffold(
+      key: const ValueKey('card_library_mobile'),
+      backgroundColor: tokens.canvas,
+      appBar: AppBar(
+        backgroundColor: tokens.canvas,
+        foregroundColor: tokens.textPrimary,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, size: 20),
+          tooltip: '返回首页',
+          onPressed: _goBack,
+        ),
+        title: Text(
+          '卡片库',
+          style: whiteboardUiTextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: _buildToolbar(palette, desktop: false),
+          ),
+          Expanded(child: _buildResults(palette, desktop: false)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolbar(
+    _LibraryPalette palette, {
+    required bool desktop,
+  }) {
+    final searchField = TextField(
+      key: const ValueKey('card-library-search'),
+      controller: _queryController,
+      onChanged: _onQueryChanged,
+      style: richTextBodyTextStyle(color: palette.textPrimary),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: '搜索标题、正文或标签…',
+        hintStyle: richTextBodyTextStyle(color: palette.textFaint),
+        prefixIcon: Icon(Icons.search, size: 18, color: palette.textFaint),
+        filled: true,
+        fillColor: palette.surface,
+        constraints: const BoxConstraints(minHeight: 44),
+        border: _inputBorder(palette),
+        enabledBorder: _inputBorder(palette),
+        focusedBorder: _inputBorder(
+          palette,
+          color: palette.action,
+          width: 1.5,
+        ),
+      ),
+    );
+    final actionButtons = <Widget>[
+      OutlinedButton.icon(
+        key: const ValueKey('card-library-import-link'),
+        onPressed: () => context.push(AppRoutes.linkImport),
+        icon: const Icon(Icons.link_rounded, size: 18),
+        label: const Text('导入链接'),
+        style: _secondaryButtonStyle(palette),
+      ),
+      FilledButton.icon(
+        key: const ValueKey('card-library-create-text'),
+        onPressed: widget.index != null || _creating ? null : _createTextCard,
+        icon: _creating
+            ? const SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.add_rounded, size: 18),
+        label: const Text('新建文字卡'),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 44),
+          backgroundColor: palette.action,
+          foregroundColor: palette.canvas,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: whiteboardUiTextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                key: const ValueKey('card-library-search'),
-                controller: _queryController,
-                onChanged: _onQueryChanged,
-                style: richTextBodyTextStyle(),
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: '搜索标题、正文或标签…',
-                  hintStyle: richTextBodyTextStyle(
-                    color: WhiteboardCanvasTokens.textFaint,
-                  ),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    size: 18,
-                    color: WhiteboardCanvasTokens.textFaint,
-                  ),
-                  filled: true,
-                  fillColor: WhiteboardCanvasTokens.cardSurface,
-                  constraints: const BoxConstraints(minHeight: 44),
-                  border: _inputBorder(),
-                  enabledBorder: _inputBorder(),
-                  focusedBorder: _inputBorder(
-                    color: WhiteboardCanvasTokens.action,
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              key: const ValueKey('card-library-import-link'),
-              onPressed: () => context.push(AppRoutes.linkImport),
-              icon: const Icon(Icons.link_rounded, size: 18),
-              label: const Text('导入链接'),
-              style: _secondaryButtonStyle(),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              key: const ValueKey('card-library-create-text'),
-              onPressed:
-                  widget.index != null || _creating ? null : _createTextCard,
-              icon: _creating
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add_rounded, size: 18),
-              label: const Text('新建文字卡'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 44),
-                backgroundColor: WhiteboardCanvasTokens.action,
-                foregroundColor: WhiteboardCanvasTokens.canvas,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                textStyle: whiteboardUiTextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
+        if (desktop)
+          Row(
+            children: [
+              Expanded(child: searchField),
+              const SizedBox(width: 8),
+              actionButtons.first,
+              const SizedBox(width: 8),
+              actionButtons.last,
+            ],
+          )
+        else ...[
+          searchField,
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: actionButtons),
+        ],
         if (widget.index == null) ...[
           const SizedBox(height: 8),
           Wrap(
@@ -409,6 +458,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
                   setState(() => _kind = value);
                   _runQuery();
                 },
+                palette: palette,
               ),
               _FilterMenu<SourceMediaType>(
                 key: const ValueKey('card-library-source-filter'),
@@ -420,6 +470,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
                   setState(() => _sourceType = value);
                   _runQuery();
                 },
+                palette: palette,
               ),
               _FilterMenu<String>(
                 key: const ValueKey('card-library-tag-filter'),
@@ -431,6 +482,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
                   setState(() => _tag = value);
                   _runQuery();
                 },
+                palette: palette,
               ),
               _FilterMenu<bool>(
                 key: const ValueKey('card-library-placed-filter'),
@@ -442,6 +494,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
                   setState(() => _placed = value);
                   _runQuery();
                 },
+                palette: palette,
               ),
             ],
           ),
@@ -450,12 +503,15 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     );
   }
 
-  Widget _buildResults() {
+  Widget _buildResults(
+    _LibraryPalette palette, {
+    required bool desktop,
+  }) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: WhiteboardCanvasTokens.action,
+          color: palette.action,
         ),
       );
     }
@@ -465,12 +521,14 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         title: _error!,
         actionLabel: '重试',
         onAction: _runQuery,
+        palette: palette,
       );
     }
     if (_queryController.text.trim().isEmpty && widget.index != null) {
-      return const _LibraryMessage(
+      return _LibraryMessage(
         icon: Icons.collections_bookmark_outlined,
         title: '输入关键词搜索卡片内容',
+        palette: palette,
       );
     }
     if (_hits.isEmpty) {
@@ -483,6 +541,31 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         icon: Icons.inbox_outlined,
         title: narrowed ? '没有匹配的卡片' : '卡片库还是空的',
         detail: narrowed ? '调整筛选条件或换一个关键词。' : '新建一张文字卡，或从链接导入内容。',
+        palette: palette,
+      );
+    }
+
+    if (!desktop) {
+      return ListView.separated(
+        key: const ValueKey('card-library-mobile-list'),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+        itemCount: _hits.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final hit = _hits[index];
+          return SizedBox(
+            height: hit.isMedia ? 260 : 220,
+            child: _CardPreview(
+              key: ValueKey('card-library-card-${hit.cardId}'),
+              hit: hit,
+              onTap: () => _open(hit),
+              onPlace: widget.index == null
+                  ? () => _showBoardTargetPicker(hit)
+                  : null,
+              palette: palette,
+            ),
+          );
+        },
       );
     }
 
@@ -515,6 +598,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
               onPlace: widget.index == null
                   ? () => _showBoardTargetPicker(hit)
                   : null,
+              palette: palette,
             );
           },
         );
@@ -522,22 +606,77 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     );
   }
 
-  OutlineInputBorder _inputBorder({
-    Color color = WhiteboardCanvasTokens.cardBorder,
+  OutlineInputBorder _inputBorder(
+    _LibraryPalette palette, {
+    Color? color,
     double width = 1,
   }) =>
       OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: color, width: width),
+        borderSide: BorderSide(color: color ?? palette.border, width: width),
       );
 
-  ButtonStyle _secondaryButtonStyle() => OutlinedButton.styleFrom(
+  ButtonStyle _secondaryButtonStyle(_LibraryPalette palette) =>
+      OutlinedButton.styleFrom(
         minimumSize: const Size(0, 44),
-        foregroundColor: WhiteboardCanvasTokens.textPrimary,
-        side: const BorderSide(color: WhiteboardCanvasTokens.cardBorder),
+        foregroundColor: palette.textPrimary,
+        side: BorderSide(color: palette.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         textStyle: whiteboardUiTextStyle(fontSize: 14),
       );
+}
+
+class _LibraryPalette {
+  const _LibraryPalette({
+    required this.canvas,
+    required this.surface,
+    required this.surfaceSelected,
+    required this.surfaceRaised,
+    required this.border,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textFaint,
+    required this.action,
+    required this.dark,
+  });
+
+  factory _LibraryPalette.desktop(DesktopWorkspaceTokens tokens) =>
+      _LibraryPalette(
+        canvas: tokens.canvas,
+        surface: tokens.surface,
+        surfaceSelected: tokens.actionSoft.withValues(alpha: .22),
+        surfaceRaised: tokens.surfaceRaised,
+        border: tokens.divider,
+        textPrimary: tokens.textPrimary,
+        textSecondary: tokens.textMuted,
+        textFaint: tokens.textFaint,
+        action: tokens.action,
+        dark: tokens.dark,
+      );
+
+  factory _LibraryPalette.mobile(SpringRainUiTokens tokens) => _LibraryPalette(
+        canvas: tokens.canvas,
+        surface: tokens.surface,
+        surfaceSelected: tokens.surfaceSelected,
+        surfaceRaised: tokens.surfaceRaised,
+        border: tokens.divider,
+        textPrimary: tokens.textPrimary,
+        textSecondary: tokens.textSecondary,
+        textFaint: tokens.textTertiary,
+        action: tokens.accent,
+        dark: tokens.textPrimary,
+      );
+
+  final Color canvas;
+  final Color surface;
+  final Color surfaceSelected;
+  final Color surfaceRaised;
+  final Color border;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textFaint;
+  final Color action;
+  final Color dark;
 }
 
 class _FilterMenu<T> extends StatelessWidget {
@@ -548,6 +687,7 @@ class _FilterMenu<T> extends StatelessWidget {
     required this.values,
     required this.labelFor,
     required this.onChanged,
+    required this.palette,
   });
 
   final String label;
@@ -555,13 +695,14 @@ class _FilterMenu<T> extends StatelessWidget {
   final List<T> values;
   final String Function(T value) labelFor;
   final ValueChanged<T?> onChanged;
+  final _LibraryPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<_FilterChoice<T>>(
       tooltip: '$label筛选',
       onSelected: (choice) => onChanged(choice.value),
-      color: WhiteboardCanvasTokens.panelSurface,
+      color: palette.surfaceRaised,
       itemBuilder: (context) => [
         PopupMenuItem<_FilterChoice<T>>(
           value: _FilterChoice<T>(null),
@@ -580,11 +721,9 @@ class _FilterMenu<T> extends StatelessWidget {
         height: 36,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: value == null
-              ? WhiteboardCanvasTokens.cardSurface
-              : WhiteboardCanvasTokens.cardSurfaceSelected,
+          color: value == null ? palette.surface : palette.surfaceSelected,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: WhiteboardCanvasTokens.cardBorder),
+          border: Border.all(color: palette.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -593,14 +732,14 @@ class _FilterMenu<T> extends StatelessWidget {
               '$label：${value == null ? '全部' : labelFor(value as T)}',
               style: whiteboardUiTextStyle(
                 fontSize: 12,
-                color: WhiteboardCanvasTokens.textSecondary,
+                color: palette.textSecondary,
               ),
             ),
             const SizedBox(width: 6),
-            const Icon(
+            Icon(
               Icons.expand_more_rounded,
               size: 16,
-              color: WhiteboardCanvasTokens.textSecondary,
+              color: palette.textSecondary,
             ),
           ],
         ),
@@ -620,20 +759,22 @@ class _CardPreview extends StatelessWidget {
     super.key,
     required this.hit,
     required this.onTap,
+    required this.palette,
     this.onPlace,
   });
 
   final _CardLibraryHit hit;
   final VoidCallback onTap;
   final VoidCallback? onPlace;
+  final _LibraryPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: WhiteboardCanvasTokens.cardSurface,
+      color: palette.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: WhiteboardCanvasTokens.cardBorder),
+        side: BorderSide(color: palette.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -647,7 +788,10 @@ class _CardPreview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(flex: 7, child: _MediaPreview(hit: hit)),
+        Expanded(
+          flex: 7,
+          child: _MediaPreview(hit: hit, palette: palette),
+        ),
         Flexible(
           flex: 3,
           child: Padding(
@@ -677,7 +821,7 @@ class _CardPreview extends StatelessWidget {
                         ].join(' · '),
                         style: whiteboardUiTextStyle(
                           fontSize: 12,
-                          color: WhiteboardCanvasTokens.textSecondary,
+                          color: palette.textSecondary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -706,8 +850,12 @@ class _CardPreview extends StatelessWidget {
           Wrap(
             spacing: 6,
             children: [
-              _NeutralLabel(text: _cardKindLabel(hit.cardKind)),
-              if (hit.tags.isNotEmpty) _NeutralLabel(text: hit.tags.first),
+              _NeutralLabel(
+                text: _cardKindLabel(hit.cardKind),
+                palette: palette,
+              ),
+              if (hit.tags.isNotEmpty)
+                _NeutralLabel(text: hit.tags.first, palette: palette),
             ],
           ),
           const SizedBox(height: 12),
@@ -727,7 +875,7 @@ class _CardPreview extends StatelessWidget {
                   hit.title.isEmpty ? '未命名文字卡' : hit.title,
                   style: richTextBodyTextStyle(
                     fontSize: 12,
-                    color: WhiteboardCanvasTokens.textSecondary,
+                    color: palette.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
@@ -760,17 +908,17 @@ class _CardPreview extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.dashboard_customize_outlined,
                   size: 15,
-                  color: WhiteboardCanvasTokens.action,
+                  color: palette.action,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   '放入白板',
                   style: whiteboardUiTextStyle(
                     fontSize: 11,
-                    color: WhiteboardCanvasTokens.action,
+                    color: palette.action,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -784,9 +932,10 @@ class _CardPreview extends StatelessWidget {
 }
 
 class _MediaPreview extends StatelessWidget {
-  const _MediaPreview({required this.hit});
+  const _MediaPreview({required this.hit, required this.palette});
 
   final _CardLibraryHit hit;
+  final _LibraryPalette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -818,18 +967,18 @@ class _MediaPreview extends StatelessWidget {
       _ => '暂无媒体预览',
     };
     return ColoredBox(
-      color: WhiteboardCanvasTokens.dark,
+      color: palette.dark,
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 32, color: WhiteboardCanvasTokens.canvas),
+            Icon(icon, size: 32, color: palette.canvas),
             const SizedBox(height: 8),
             Text(
               label,
               style: whiteboardUiTextStyle(
                 fontSize: 12,
-                color: WhiteboardCanvasTokens.canvas,
+                color: palette.canvas,
               ),
             ),
           ],
@@ -840,24 +989,25 @@ class _MediaPreview extends StatelessWidget {
 }
 
 class _NeutralLabel extends StatelessWidget {
-  const _NeutralLabel({required this.text});
+  const _NeutralLabel({required this.text, required this.palette});
 
   final String text;
+  final _LibraryPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: WhiteboardCanvasTokens.cardSurface,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: WhiteboardCanvasTokens.cardBorder),
+        border: Border.all(color: palette.border),
       ),
       child: Text(
         text,
         style: whiteboardUiTextStyle(
           fontSize: 11,
-          color: WhiteboardCanvasTokens.textSecondary,
+          color: palette.textSecondary,
         ),
       ),
     );
@@ -868,6 +1018,7 @@ class _LibraryMessage extends StatelessWidget {
   const _LibraryMessage({
     required this.icon,
     required this.title,
+    required this.palette,
     this.detail,
     this.actionLabel,
     this.onAction,
@@ -878,6 +1029,7 @@ class _LibraryMessage extends StatelessWidget {
   final String? detail;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final _LibraryPalette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -885,13 +1037,13 @@ class _LibraryMessage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: WhiteboardCanvasTokens.textFaint, size: 40),
+          Icon(icon, color: palette.textFaint, size: 40),
           const SizedBox(height: 12),
           Text(
             title,
             textAlign: TextAlign.center,
             style: whiteboardUiTextStyle(
-              color: WhiteboardCanvasTokens.textSecondary,
+              color: palette.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -902,7 +1054,7 @@ class _LibraryMessage extends StatelessWidget {
               detail!,
               textAlign: TextAlign.center,
               style: whiteboardUiTextStyle(
-                color: WhiteboardCanvasTokens.textFaint,
+                color: palette.textFaint,
                 fontSize: 12,
               ),
             ),
