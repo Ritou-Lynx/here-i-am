@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:drift/native.dart';
 
@@ -26,6 +27,7 @@ import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 
 Future<void> _waitFor(
@@ -49,6 +51,45 @@ Future<void> _waitFor(
   }
 }
 
+Future<void> _waitForCanvasReady(WidgetTester tester, String description) =>
+    _waitFor(
+      tester,
+      () =>
+          find
+              .byKey(const ValueKey('wb_canvas_chrome_launcher'))
+              .evaluate()
+              .isNotEmpty &&
+          find.byType(CircularProgressIndicator).evaluate().isEmpty,
+      timeout: const Duration(seconds: 15),
+      description: description,
+    );
+
+Future<void> _openCanvasNavigation(WidgetTester tester) async {
+  if (find.byKey(const ValueKey('wb_navigation_group')).evaluate().isEmpty) {
+    await tester.tap(
+      find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+  }
+  expect(find.byKey(const ValueKey('wb_navigation_group')), findsOneWidget);
+}
+
+Future<void> _openCanvasTools(WidgetTester tester) async {
+  await _openCanvasNavigation(tester);
+  if (find.byKey(const ValueKey('wb_action_tools')).evaluate().isEmpty) {
+    await tester.tap(find.byTooltip('画布工具'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+  }
+  expect(find.byKey(const ValueKey('wb_action_tools')), findsOneWidget);
+  expect(find.byKey(const ValueKey('wb_view_tools')), findsOneWidget);
+}
+
+Future<void> _saveCanvas(WidgetTester tester) async {
+  await _openCanvasTools(tester);
+  await tester.tap(find.byTooltip('保存快照 (Ctrl+S)'));
+  await tester.pumpAndSettle(const Duration(milliseconds: 200));
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -56,17 +97,22 @@ void main() {
       (tester) async {
     final dir = Directory.systemTemp.createTempSync('w1_itest_');
     final dbFile = File('${dir.path}/w1_itest.sqlite');
-    addTearDown(() {
+
+    final db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    var dbOpen = true;
+    AppDatabase? reopenedDb;
+    var reopenedDbOpen = false;
+    final store = WhiteboardDriftStore(db);
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: dir);
+    addTearDown(() async {
+      if (dbOpen) await db.close();
+      if (reopenedDbOpen) await reopenedDb?.close();
       try {
         if (dir.existsSync()) dir.deleteSync(recursive: true);
       } catch (_) {
         // The sqlite file may still be held by the engine on failure paths.
       }
     });
-
-    final db = AppDatabase.forTesting(NativeDatabase(dbFile));
-    final store = WhiteboardDriftStore(db);
-    final repository = UnifiedCardRepository(db: db, whiteboardRoot: dir);
 
     // ── Board data through the SHARED WRITE PATH (snapshot → store) ──
     final now = DateTime.now();
@@ -137,27 +183,46 @@ void main() {
         reason: 'shared write path must persist the fixture board');
 
     // ── Open the full-screen canvas through the production route screen ──
-    await tester.pumpWidget(
-      MaterialApp(
-        home: WhiteboardCanvasRouteScreen(
-          boardId: boardId,
-          store: store,
-          cardRepository: repository,
+    final navigationRouter = GoRouter(
+      initialLocation: AppRoutes.whiteboardCanvasPath(boardId),
+      routes: [
+        GoRoute(
+          path: AppRoutes.whiteboard,
+          builder: (_, __) => const Scaffold(
+            key: ValueKey('w1_exit_target'),
+            body: Center(child: Text('白板索引')),
+          ),
         ),
-      ),
+        GoRoute(
+          path: AppRoutes.whiteboardCanvas,
+          builder: (_, state) => WhiteboardCanvasRouteScreen(
+            boardId: state.pathParameters['boardId']!,
+            store: store,
+            cardRepository: repository,
+          ),
+        ),
+      ],
+    );
+    addTearDown(navigationRouter.dispose);
+    await tester.pumpWidget(
+      MaterialApp.router(routerConfig: navigationRouter),
     );
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
-    await _waitFor(
-      tester,
-      () => find.text('交互验收板').evaluate().isNotEmpty,
-      timeout: const Duration(seconds: 15),
-      description: 'canvas floating bar shows board name',
-    );
-    debugPrint('W1IT: canvas opened');
+    await _waitForCanvasReady(tester, 'canvas launcher replaces loading state');
+    expect(find.byKey(const ValueKey('wb_navigation_group')), findsNothing);
+    expect(find.byKey(const ValueKey('wb_action_tools')), findsNothing);
+    expect(find.byKey(const ValueKey('wb_view_tools')), findsNothing);
+    expect(find.byKey(const ValueKey('wb_card_library_panel')), findsNothing);
+    expect(find.text('交互验收板'), findsNothing);
+    debugPrint('W1IT: canvas opened with all optional chrome retreated');
+
+    await _openCanvasNavigation(tester);
+    expect(find.text('交互验收板'), findsOneWidget);
+    await _openCanvasTools(tester);
+    debugPrint('W1IT: navigation and tools opened from launcher');
 
     // Screen geometry of the real window (logical px).
-    final logicalSize =
-        tester.view.physicalSize / tester.view.devicePixelRatio;
+    final logicalSize = tester.view.physicalSize / tester.view.devicePixelRatio;
     final center = Offset(logicalSize.width / 2, logicalSize.height / 2);
     Offset toScreen(Offset canvas) => Offset(
           canvas.dx + center.dx,
@@ -177,8 +242,7 @@ void main() {
     // ── ② Arrow nudge + save ──
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
-    await tester.tap(find.byIcon(Icons.save_outlined));
-    await tester.pumpAndSettle(const Duration(milliseconds: 200));
+    await _saveCanvas(tester);
     var saved = await store.load(boardId);
     expect(
       saved.snapshot!.boardItems
@@ -196,8 +260,7 @@ void main() {
     expect(rotateHandle, findsOneWidget);
     await tester.drag(rotateHandle, const Offset(0, 90));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
-    await tester.tap(find.byIcon(Icons.save_outlined));
-    await tester.pumpAndSettle(const Duration(milliseconds: 200));
+    await _saveCanvas(tester);
     saved = await store.load(boardId);
     final rotated = saved.snapshot!.boardItems
         .firstWhere((i) => i.itemId == 'itest_item_a');
@@ -213,8 +276,7 @@ void main() {
       cCenter - toScreen(const Offset(230, 60)),
     );
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
-    await tester.tap(find.byIcon(Icons.save_outlined));
-    await tester.pumpAndSettle(const Duration(milliseconds: 200));
+    await _saveCanvas(tester);
     saved = await store.load(boardId);
     expect(
       saved.snapshot!.edges.first.toItemId,
@@ -228,16 +290,35 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.text('验收卡 A'), findsNothing,
         reason: 'collapsed group hides members on the real window');
-    await tester.tap(find.byIcon(Icons.save_outlined));
-    await tester.pumpAndSettle(const Duration(milliseconds: 200));
+    await _saveCanvas(tester);
     saved = await store.load(boardId);
     expect(saved.snapshot!.groups.first.collapsed, isTrue,
         reason: 'collapse state must persist');
     debugPrint('W1IT: group collapsed and persisted');
 
-    // ── ⑥ Restart recovery via a second connection on the same file ──
-    final reopened = AppDatabase.forTesting(NativeDatabase(dbFile));
-    final reopenedStore = WhiteboardDriftStore(reopened);
+    // ── ⑥ Exit, close the first connection, and reopen the window ──
+    await _openCanvasNavigation(tester);
+    await tester.tap(find.byTooltip('退出白板 (Esc)'));
+    await _waitFor(
+      tester,
+      () => find.byKey(const ValueKey('w1_exit_target')).evaluate().isNotEmpty,
+      timeout: const Duration(seconds: 15),
+      description: 'save and exit to the whiteboard index',
+    );
+    debugPrint('W1IT: exit saved and reached whiteboard index');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await db.close();
+    dbOpen = false;
+
+    reopenedDb = AppDatabase.forTesting(NativeDatabase(dbFile));
+    reopenedDbOpen = true;
+    final reopenedStore = WhiteboardDriftStore(reopenedDb);
+    final reopenedRepository = UnifiedCardRepository(
+      db: reopenedDb,
+      whiteboardRoot: dir,
+    );
     final afterRestart = await reopenedStore.load(boardId);
     expect(afterRestart.isSuccess, isTrue);
     final rs = afterRestart.snapshot!;
@@ -249,16 +330,36 @@ void main() {
         reason: 'retarget survives restart');
     expect(rs.groups.first.collapsed, isTrue,
         reason: 'collapse survives restart');
-    debugPrint('W1IT: restart recovery verified');
-    await reopened.close();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WhiteboardCanvasRouteScreen(
+          key: UniqueKey(),
+          boardId: boardId,
+          store: reopenedStore,
+          cardRepository: reopenedRepository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 200));
+    await _waitForCanvasReady(
+      tester,
+      'restarted canvas launcher replaces loading state',
+    );
+    expect(find.byKey(const ValueKey('wb_navigation_group')), findsNothing);
+    await _openCanvasNavigation(tester);
+    expect(find.text('交互验收板'), findsOneWidget);
+    expect(find.text('验收卡 A'), findsNothing,
+        reason: 'collapsed members stay hidden after the window reopens');
+    expect(find.text('验收卡 C'), findsOneWidget);
+    debugPrint('W1IT: restart recovery verified in reopened window');
 
     // ── ⑦ 500-card board: real-window frame data ──
-    final perfBoardId = await store.createBoard(name: '帧率验收板');
+    final perfBoardId = await reopenedStore.createBoard(name: '帧率验收板');
     final perfItems = <BoardItem>[];
     for (int i = 0; i < 500; i++) {
       final row = i ~/ 20;
       final col = i % 20;
-      await repository.createTextCard(
+      await reopenedRepository.createTextCard(
         cardId: 'perf_card_$i',
         title: 'Card $i',
         body: 'Performance card $i body.',
@@ -276,7 +377,7 @@ void main() {
       ));
     }
     expect(
-      await store.save(
+      await reopenedStore.save(
         perfBoardId,
         WhiteboardSnapshot(
           boards: [
@@ -299,18 +400,17 @@ void main() {
         home: WhiteboardCanvasRouteScreen(
           key: UniqueKey(),
           boardId: perfBoardId,
-          store: store,
-          cardRepository: repository,
+          store: reopenedStore,
+          cardRepository: reopenedRepository,
         ),
       ),
     );
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
-    await _waitFor(
+    await _waitForCanvasReady(
       tester,
-      () => find.text('帧率验收板').evaluate().isNotEmpty,
-      timeout: const Duration(seconds: 15),
-      description: '500-card canvas opened',
+      '500-card canvas launcher replaces loading state',
     );
+    expect(find.text('帧率验收板'), findsNothing);
     debugPrint('W1IT: 500-card canvas opened');
 
     final timings = <FrameTiming>[];
@@ -376,6 +476,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     tester.takeException();
     debugPrint('W1IT: ALL DONE');
-    await db.close();
+    await reopenedDb.close();
+    reopenedDbOpen = false;
   });
 }

@@ -65,6 +65,7 @@ void main() {
     WidgetTester tester,
     String path, {
     required Finder until,
+    Finder? andAbsent,
   }) async {
     router.go(path);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
@@ -73,7 +74,10 @@ void main() {
     // visible; do not use pumpAndSettle around indeterminate progress widgets.
     for (var i = 0; i < 100; i++) {
       await tester.pump(const Duration(milliseconds: 20));
-      if (until.evaluate().isNotEmpty) return;
+      if (until.evaluate().isNotEmpty &&
+          (andAbsent == null || andAbsent.evaluate().isEmpty)) {
+        return;
+      }
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 5)),
       );
@@ -100,7 +104,8 @@ void main() {
     await pumpRoute(
       tester,
       AppRoutes.whiteboardCanvasPath(boardId),
-      until: find.text('路由测试板'),
+      until: find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+      andAbsent: find.byType(CircularProgressIndicator),
     );
 
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
@@ -111,6 +116,20 @@ void main() {
     expect(find.byType(DesktopSidebar), findsNothing);
     expect(find.byKey(const ValueKey('desktop_sidebar_handle')), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_navigation_group')), findsNothing);
+    expect(find.byKey(const ValueKey('wb_action_tools')), findsNothing);
+    expect(find.byKey(const ValueKey('wb_view_tools')), findsNothing);
+    expect(find.byKey(const ValueKey('wb_card_library_panel')), findsNothing);
+    expect(find.text('路由测试板'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('wb_navigation_group')), findsOneWidget);
     expect(find.text('路由测试板'), findsOneWidget);
   });
 
@@ -131,12 +150,23 @@ void main() {
     await pumpRoute(
       tester,
       AppRoutes.whiteboardCanvasPath(boardId),
-      until: find.text('保存测试板'),
+      until: find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+      andAbsent: find.byType(CircularProgressIndicator),
     );
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
-    expect(find.text('保存测试板'), findsOneWidget);
+    expect(find.text('保存测试板'), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.save_outlined));
+    await tester.tap(
+      find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('保存测试板'), findsOneWidget);
+    await tester.tap(find.byTooltip('画布工具'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('wb_action_tools')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_view_tools')), findsOneWidget);
+
+    await tester.tap(find.byTooltip('保存快照 (Ctrl+S)'));
     await tester.pump(const Duration(milliseconds: 500));
 
     final saved = await store.load(boardId);
