@@ -13,6 +13,7 @@ import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/routing/router.dart';
+import 'package:memex/ui/desktop/widgets/desktop_sidebar.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
 import 'package:memex/ui/whiteboard/link_import_screen.dart';
@@ -60,32 +61,66 @@ void main() {
     }
   });
 
-  Future<void> pumpRoute(WidgetTester tester, String path) async {
+  Future<void> pumpRoute(
+    WidgetTester tester,
+    String path, {
+    required Finder until,
+  }) async {
     router.go(path);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    await tester.pumpAndSettle();
+    // Drift-backed screens complete work on the real event loop. Keep the
+    // widget clock moving while yielding briefly until the route's content is
+    // visible; do not use pumpAndSettle around indeterminate progress widgets.
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (until.evaluate().isNotEmpty) return;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+    fail('Route $path did not become ready');
   }
 
   testWidgets('whiteboard index route resolves', (tester) async {
-    await pumpRoute(tester, AppRoutes.whiteboard);
+    await pumpRoute(
+      tester,
+      AppRoutes.whiteboard,
+      until: find.byType(WhiteboardIndexScreen),
+    );
     expect(find.byType(WhiteboardIndexScreen), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desktop_standard_shell')), findsOneWidget);
+    expect(find.byType(DesktopSidebar), findsOneWidget);
   });
 
   testWidgets(
       'canvas route resolves with boardId and renders full-screen '
       'canvas for an existing board (direct route entry)', (tester) async {
     final boardId = await store.createBoard(name: '路由测试板');
-    await pumpRoute(tester, AppRoutes.whiteboardCanvasPath(boardId));
+    await pumpRoute(
+      tester,
+      AppRoutes.whiteboardCanvasPath(boardId),
+      until: find.text('路由测试板'),
+    );
 
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
     // Loaded from Drift: the full-screen canvas appears (no persistent AppBar).
     expect(find.byType(AppBar), findsNothing);
+    expect(
+        find.byKey(const ValueKey('desktop_immersive_shell')), findsOneWidget);
+    expect(find.byType(DesktopSidebar), findsNothing);
+    expect(find.byKey(const ValueKey('desktop_sidebar_handle')), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('路由测试板'), findsOneWidget);
   });
 
   testWidgets('canvas route for missing board shows error state',
       (tester) async {
-    await pumpRoute(tester, AppRoutes.whiteboardCanvasPath('board_missing'));
+    await pumpRoute(
+      tester,
+      AppRoutes.whiteboardCanvasPath('board_missing'),
+      until: find.text('返回'),
+    );
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
     expect(find.text('返回'), findsOneWidget);
   });
@@ -93,15 +128,16 @@ void main() {
   testWidgets('canvas route saves to Drift when the save button is tapped',
       (tester) async {
     final boardId = await store.createBoard(name: '保存测试板');
-    await pumpRoute(tester, AppRoutes.whiteboardCanvasPath(boardId));
-
-    // Give the loader time to finish (real Drift store, async initState).
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await pumpRoute(
+      tester,
+      AppRoutes.whiteboardCanvasPath(boardId),
+      until: find.text('保存测试板'),
+    );
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
     expect(find.text('保存测试板'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.save_outlined));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
     final saved = await store.load(boardId);
     expect(saved.isSuccess, isTrue);
@@ -109,12 +145,23 @@ void main() {
   });
 
   testWidgets('card library route resolves', (tester) async {
-    await pumpRoute(tester, AppRoutes.cardLibrary);
+    await pumpRoute(
+      tester,
+      AppRoutes.cardLibrary,
+      until: find.text('卡片库还是空的'),
+    );
     expect(find.byType(CardLibraryScreen), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desktop_standard_shell')), findsOneWidget);
+    expect(find.byType(DesktopSidebar), findsOneWidget);
   });
 
   testWidgets('card edit route resolves with cardId parameter', (tester) async {
-    await pumpRoute(tester, AppRoutes.cardEditPath('card_abc'));
+    await pumpRoute(
+      tester,
+      AppRoutes.cardEditPath('card_abc'),
+      until: find.textContaining('card_abc'),
+    );
     expect(find.byType(CardRichTextEditorScreen), findsOneWidget);
     // The real editor screen opens (W2 body) with the card id in its title.
     expect(find.textContaining('card_abc'), findsOneWidget);
@@ -125,10 +172,15 @@ void main() {
     WhiteboardDataBootstrap.setRepositoryForTesting(
       _MissingSourceRepository(db: db, whiteboardRoot: repositoryRoot),
     );
-    router.go(AppRoutes.sourceStudyPath('src_video_1'));
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    await tester.pump();
+    await pumpRoute(
+      tester,
+      AppRoutes.sourceStudyPath('src_video_1'),
+      until: find.text('找不到这个来源'),
+    );
     expect(find.byType(SourceStudyScreen), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desktop_immersive_shell')), findsOneWidget);
+    expect(find.byType(DesktopSidebar), findsNothing);
     expect(
       tester.widget<SourceStudyScreen>(find.byType(SourceStudyScreen)).sourceId,
       'src_video_1',
@@ -136,8 +188,15 @@ void main() {
   });
 
   testWidgets('link import route resolves', (tester) async {
-    await pumpRoute(tester, AppRoutes.linkImport);
+    await pumpRoute(
+      tester,
+      AppRoutes.linkImport,
+      until: find.byType(LinkImportScreen),
+    );
     expect(find.byType(LinkImportScreen), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desktop_standard_shell')), findsOneWidget);
+    expect(find.byType(DesktopSidebar), findsOneWidget);
   });
 }
 

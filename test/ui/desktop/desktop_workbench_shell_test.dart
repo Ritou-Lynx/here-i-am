@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +8,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/routing/router.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
@@ -19,12 +23,22 @@ import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 void main() {
   late AppDatabase db;
   late WhiteboardDriftStore store;
+  late UnifiedCardRepository cardRepository;
   late GoRouter router;
+  late Directory repositoryRoot;
 
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     store = WhiteboardDriftStore(db);
     AppDatabase.setTestInstance(db);
+    repositoryRoot = Directory.systemTemp.createTempSync('workbench_repo_');
+    cardRepository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: repositoryRoot,
+    );
+    WhiteboardDataBootstrap.setRepositoryForTesting(
+      cardRepository,
+    );
     router = createAppRouter(
       GlobalKey<NavigatorState>(),
       () => const DesktopWorkbenchShell(characterId: 'i'),
@@ -32,8 +46,38 @@ void main() {
   });
 
   tearDown(() async {
+    WhiteboardDataBootstrap.setRepositoryForTesting(null);
     await db.close();
+    if (repositoryRoot.existsSync()) {
+      repositoryRoot.deleteSync(recursive: true);
+    }
   });
+
+  Future<void> pumpUntilVisible(
+    WidgetTester tester,
+    Finder finder, {
+    required String failure,
+  }) async {
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (finder.evaluate().isNotEmpty) return;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+    fail(failure);
+  }
+
+  Future<void> pumpUntilNoProgress(WidgetTester tester) async {
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (find.byType(CircularProgressIndicator).evaluate().isEmpty) return;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+    fail('Routed screen did not finish loading');
+  }
 
   Future<void> pumpWorkbench(WidgetTester tester) async {
     // 验收主力窗口：1440×900，4 列 × 2 行一屏读完全部模块。
@@ -43,7 +87,11 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     router.go(AppRoutes.home);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    await tester.pumpAndSettle();
+    await pumpUntilVisible(
+      tester,
+      find.byKey(const ValueKey('workbench_module_grid')),
+      failure: 'Desktop workbench did not become ready',
+    );
   }
 
   Future<void> seedBoardAndTask() async {
@@ -76,6 +124,7 @@ void main() {
           createdAt: now,
           updatedAt: now,
         ));
+    await cardRepository.backfillLegacyMemoryCardExtra(id);
   }
 
   testWidgets('module grid renders all eight spine-contract 3.2 modules',
@@ -108,12 +157,18 @@ void main() {
 
     expect(find.text('白板甲'), findsOneWidget);
     await tester.tap(find.text('白板甲'));
-    await tester.pumpAndSettle();
+    await pumpUntilVisible(
+      tester,
+      find.byType(WhiteboardCanvasRouteScreen),
+      failure: 'Board route did not open',
+    );
+    await pumpUntilNoProgress(tester);
 
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
   });
 
-  testWidgets('待整理卡片 shows real unplaced cards and opens the card '
+  testWidgets(
+      '待整理卡片 shows real unplaced cards and opens the card '
       'library route', (tester) async {
     await seedNoteCard(id: 'card_pending_1', title: '待分类视频笔记');
     await seedNoteCard(id: 'card_placed', title: '已上板卡片');
@@ -130,6 +185,14 @@ void main() {
     await pumpWorkbench(tester);
 
     final pendingModule = find.byKey(const ValueKey('module_pending_cards'));
+    await pumpUntilVisible(
+      tester,
+      find.descendant(
+        of: pendingModule,
+        matching: find.textContaining('待分类视频笔记'),
+      ),
+      failure: 'Pending card data did not become ready',
+    );
     expect(
       find.descendant(
         of: pendingModule,
@@ -149,7 +212,12 @@ void main() {
       of: pendingModule,
       matching: find.textContaining('待分类视频笔记'),
     ));
-    await tester.pumpAndSettle();
+    await pumpUntilVisible(
+      tester,
+      find.byType(CardLibraryScreen),
+      failure: 'Card library route did not open',
+    );
+    await pumpUntilNoProgress(tester);
     expect(find.byType(CardLibraryScreen), findsOneWidget);
   });
 
@@ -161,7 +229,8 @@ void main() {
     expect(find.textContaining('暂无待整理卡片'), findsOneWidget);
   });
 
-  testWidgets('floating Lin Ai chat opens as overlay panel and collapses back '
+  testWidgets(
+      'floating Lin Ai chat opens as overlay panel and collapses back '
       'to the ball', (tester) async {
     var open = false;
     await tester.pumpWidget(
@@ -220,7 +289,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 220));
 
     expect(find.text('卡片库'), findsNothing);
-    expect(find.byKey(const ValueKey('desktop_sidebar_handle')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desktop_sidebar_handle')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('desktop_sidebar_handle')));
     await tester.pump(const Duration(milliseconds: 220));

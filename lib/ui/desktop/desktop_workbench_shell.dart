@@ -13,12 +13,12 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/companion/widgets/companion_life_space_screen.dart';
 import 'package:memex/ui/core/app_startup_visibility.dart';
-import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_shell.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 import 'view_models/desktop_home_view_model.dart';
-import 'widgets/desktop_chat_overlay.dart';
 import 'widgets/desktop_module_grid.dart';
-import 'widgets/desktop_sidebar.dart';
 
 /// Desktop workbench home: the module-grid workbench replacing the mobile
 /// chat page on desktop windows (spine-contract §2.9 桌面与手机同源但改变
@@ -39,7 +39,6 @@ class DesktopWorkbenchShell extends StatefulWidget {
 
 class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
   late final DesktopHomeViewModel _viewModel;
-  bool _sidebarCollapsed = false;
 
   @override
   void initState() {
@@ -81,84 +80,13 @@ class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = SpringRainUiTokens.daylight;
-    return Scaffold(
-      backgroundColor: tokens.canvas,
-      body: ChangeNotifierProvider.value(
-        value: _viewModel,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DesktopSidebar(collapsed: _sidebarCollapsed),
-            _SidebarHandle(
-              collapsed: _sidebarCollapsed,
-              onToggle: () =>
-                  setState(() => _sidebarCollapsed = !_sidebarCollapsed),
-            ),
-            Expanded(child: _buildContent(tokens)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContent(SpringRainUiTokens tokens) {
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-            child: Row(
-              children: [
-                Text(
-                  '首页',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    color: tokens.textPrimary,
-                    height: 1.28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  _todayLabel(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: tokens.textTertiary,
-                    height: 1.4,
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              child: Consumer<DesktopHomeViewModel>(
-                builder: (context, vm, _) {
-                  if (vm.isLoading) return const _WorkbenchLoading();
-                  final error = vm.error;
-                  if (error != null) {
-                    return _WorkbenchError(
-                      error: error,
-                      onRetry: () => vm.load(),
-                    );
-                  }
-                  final data = vm.data;
-                  if (data == null) {
-                    return const _WorkbenchLoading();
-                  }
-                  return WorkbenchModuleGrid(
-                    data: data,
-                    callbacks: _callbacks,
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
+    return ChangeNotifierProvider.value(
+      value: _viewModel,
+      child: DesktopWorkspaceShell(
+        title: '首页',
+        meta: _todayLabel(),
+        activePath: AppRoutes.home,
+        child: _DesktopWorkbenchContent(callbacks: _callbacks),
       ),
     );
   }
@@ -170,32 +98,29 @@ class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
   }
 }
 
-/// 侧栏收回 / 展开把手（收起时 36px，不压旧边界、无绿色残影）。
-class _SidebarHandle extends StatelessWidget {
-  const _SidebarHandle({required this.collapsed, required this.onToggle});
+class _DesktopWorkbenchContent extends StatelessWidget {
+  const _DesktopWorkbenchContent({required this.callbacks});
 
-  final bool collapsed;
-  final VoidCallback onToggle;
+  final WorkbenchModuleCallbacks callbacks;
 
   @override
   Widget build(BuildContext context) {
-    const tokens = SpringRainUiTokens.daylight;
-    return Container(
-      width: 36,
-      color: tokens.canvas,
-      alignment: Alignment.center,
-      child: IconButton(
-        key: const ValueKey('desktop_sidebar_handle'),
-        onPressed: onToggle,
-        icon: Icon(
-          collapsed
-              ? Icons.chevron_right_rounded
-              : Icons.chevron_left_rounded,
-          size: 18,
-        ),
-        color: tokens.textTertiary,
-        tooltip: collapsed ? '展开侧栏' : '收起侧栏',
-        visualDensity: VisualDensity.compact,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: Consumer<DesktopHomeViewModel>(
+        builder: (context, vm, _) {
+          if (vm.isLoading) return const _WorkbenchLoading();
+          final error = vm.error;
+          if (error != null) {
+            return _WorkbenchError(error: error, onRetry: vm.load);
+          }
+          final data = vm.data;
+          if (data == null) return const _WorkbenchLoading();
+          return WorkbenchModuleGrid(
+            data: data,
+            callbacks: callbacks,
+          );
+        },
       ),
     );
   }
@@ -206,7 +131,8 @@ class _WorkbenchLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -215,15 +141,15 @@ class _WorkbenchLoading extends StatelessWidget {
             height: 22,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: SpringRainUiTokens.daylightAccent,
+              color: tokens.action,
             ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             '正在读取工作台…',
-            style: TextStyle(
+            style: whiteboardUiTextStyle(
               fontSize: 14,
-              color: SpringRainUiTokens.daylightTextSecondary,
+              color: tokens.textMuted,
             ),
           ),
         ],
@@ -240,15 +166,16 @@ class _WorkbenchError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             '工作台数据暂时没有读出来，重试即可继续。',
-            style: TextStyle(
+            style: whiteboardUiTextStyle(
               fontSize: 14,
-              color: SpringRainUiTokens.daylightTextSecondary,
+              color: tokens.textMuted,
             ),
           ),
           const SizedBox(height: 4),
@@ -256,19 +183,19 @@ class _WorkbenchError extends StatelessWidget {
             error.toString(),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: whiteboardUiTextStyle(
               fontSize: 11,
-              color: SpringRainUiTokens.daylightTextTertiary,
+              color: tokens.textFaint,
             ),
           ),
           const SizedBox(height: 12),
           OutlinedButton(
             onPressed: onRetry,
             style: OutlinedButton.styleFrom(
-              foregroundColor: SpringRainUiTokens.daylightAccent,
+              foregroundColor: tokens.action,
               minimumSize: const Size(0, 36),
             ),
-            child: const Text('重试', style: TextStyle(fontSize: 14)),
+            child: Text('重试', style: whiteboardUiTextStyle(fontSize: 14)),
           ),
         ],
       ),

@@ -141,6 +141,7 @@ flutter:
     - assets/stickers/
     - assets/stickers/manifest.json
     - assets/stickers/zhedog/
+    - assets/branding/hereiam_v3_logo/
 
   fonts:
     - family: LXGW WenKai

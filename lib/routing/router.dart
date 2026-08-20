@@ -34,6 +34,7 @@ import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_index_screen.dart';
 import 'package:memex/routing/desktop_route_wrapper.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/desktop/desktop_workspace_shell.dart';
 
 /// Creates the app [GoRouter]. Root content is built by [rootBuilder].
 GoRouter createAppRouter(
@@ -144,33 +145,57 @@ GoRouter createAppRouter(
       // video) only replace placeholder screen bodies, never these entries.
       GoRoute(
         path: AppRoutes.whiteboard,
-        builder: (_, __) => const WhiteboardIndexScreen(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '白板',
+          childOwnsPageTitle: true,
+          child: WhiteboardIndexScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.whiteboardCanvas,
-        builder: (context, state) => WhiteboardCanvasRouteScreen(
-          boardId: state.pathParameters['boardId']!,
+        builder: (context, state) => DesktopRouteWrapper(
+          title: '白板',
+          mode: DesktopWorkspaceMode.immersive,
+          child: WhiteboardCanvasRouteScreen(
+            boardId: state.pathParameters['boardId']!,
+          ),
         ),
       ),
       GoRoute(
         path: AppRoutes.cardLibrary,
-        builder: (_, __) => const CardLibraryScreen(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '卡片库',
+          childOwnsPageTitle: true,
+          child: CardLibraryScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.cardEdit,
-        builder: (context, state) => CardRichTextEditorScreen(
-          cardId: state.pathParameters['cardId']!,
+        builder: (context, state) => DesktopRouteWrapper(
+          title: '卡片编辑',
+          childOwnsPageTitle: true,
+          child: CardRichTextEditorScreen(
+            cardId: state.pathParameters['cardId']!,
+          ),
         ),
       ),
       GoRoute(
         path: AppRoutes.sourceStudy,
-        builder: (context, state) => SourceStudyScreen(
-          sourceId: state.pathParameters['sourceId']!,
+        builder: (context, state) => DesktopRouteWrapper(
+          title: '来源研读',
+          mode: DesktopWorkspaceMode.immersive,
+          child: SourceStudyScreen(
+            sourceId: state.pathParameters['sourceId']!,
+          ),
         ),
       ),
       GoRoute(
         path: AppRoutes.linkImport,
-        builder: (_, __) => const LinkImportScreen(),
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '导入链接',
+          childOwnsPageTitle: true,
+          child: LinkImportScreen(),
+        ),
       ),
     ],
   );
