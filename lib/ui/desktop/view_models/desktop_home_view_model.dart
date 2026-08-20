@@ -93,10 +93,13 @@ class DesktopHomeViewModel extends ChangeNotifier {
   DesktopHomeViewModel({
     required this.db,
     UnifiedCardRepository? cardRepository,
-  }) : _cardRepository = cardRepository;
+    Future<DesktopHomeData> Function()? loader,
+  }) : _cardRepository = cardRepository,
+       _loader = loader;
 
   final AppDatabase db;
   final UnifiedCardRepository? _cardRepository;
+  final Future<DesktopHomeData> Function()? _loader;
 
   bool _loading = true;
   Object? _error;
@@ -114,7 +117,7 @@ class DesktopHomeViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _data = await _collect();
+      _data = await (_loader?.call() ?? _collect());
       _loading = false;
       notifyListeners();
     } catch (e, stackTrace) {
@@ -135,10 +138,7 @@ class DesktopHomeViewModel extends ChangeNotifier {
     final boards = await store.listBoards();
 
     final taskRooms = await taskService.listTaskRooms(limit: _taskRoomLimit);
-    final activeTasks = taskRooms
-        .where((t) => !_isTerminal(t.status))
-        .take(_boardLimit)
-        .toList();
+    final activeTasks = taskRooms.where((t) => !_isTerminal(t.status)).toList();
 
     final continueWork = <ContinueWorkItem>[
       for (final board in boards.take(_boardLimit))
@@ -147,7 +147,7 @@ class DesktopHomeViewModel extends ChangeNotifier {
           title: board.name,
           subtitle: _relativeTime(board.updatedAt ?? board.createdAt),
         ),
-      for (final task in activeTasks)
+      for (final task in activeTasks.take(_boardLimit))
         ContinueWorkItem.task(
           boardId: task.boardId ?? '',
           title: task.title,
@@ -159,13 +159,14 @@ class DesktopHomeViewModel extends ChangeNotifier {
     final scheduleOverview = await cardService.getScheduleOverview();
 
     final pendingCards = await _loadPendingCards(cardService, unifiedCards);
-    final recentMemoryCards = (await cardService.listRecentCards(limit: 6))
-        .take(_boardLimit)
-        .toList();
+    final recentMemoryCards = (await cardService.listRecentCards(
+      limit: 6,
+    )).take(_boardLimit).toList();
 
     final todayCount = await _countTodayRecords(cardService);
-    final followUpCount =
-        (await cardService.getFollowUpCards(limit: 50)).length;
+    final followUpCount = (await cardService.getFollowUpCards(
+      limit: 50,
+    )).length;
 
     final statusCounts = <TaskStatus, int>{};
     for (final room in taskRooms) {
@@ -217,8 +218,11 @@ class DesktopHomeViewModel extends ChangeNotifier {
 
   Future<int> _countTodayRecords(MemoryCardQueryService cardService) async {
     final todayStart = DateTime.now();
-    final startMs = DateTime(todayStart.year, todayStart.month, todayStart.day)
-        .millisecondsSinceEpoch;
+    final startMs = DateTime(
+      todayStart.year,
+      todayStart.month,
+      todayStart.day,
+    ).millisecondsSinceEpoch;
     final recent = await cardService.listRecentCards(limit: 150);
     return recent.where((c) => c.createdAt >= startMs).length;
   }

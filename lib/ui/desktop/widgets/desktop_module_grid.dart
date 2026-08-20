@@ -1,7 +1,7 @@
 /// Desktop workbench module grid — spine-contract §3.2 首页模块网格。
 ///
 /// 首屏在一个常见桌面窗口高度内读懂全貌：模块网格（默认 4 列 × 2 行），
-/// 每个模块都提供真实数据或明确标注的演示数据，并有可执行去向，不放
+/// 每个模块都提供真实数据或诚实空态，并有可执行去向，不放
 /// 没有后续行为的装饰按钮（visual-rules §8.1）。
 library;
 
@@ -9,7 +9,8 @@ import 'package:flutter/material.dart';
 
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
 import 'package:memex/data/memory_v3/models/task_room_enums.dart';
-import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 import '../view_models/desktop_home_view_model.dart';
 
@@ -19,8 +20,10 @@ class WorkbenchModuleCallbacks {
     required this.onOpenObservation,
     required this.onOpenSchedule,
     required this.onOpenBoard,
+    required this.onOpenBoards,
     required this.onOpenTaskCenter,
     required this.onOpenCardLibrary,
+    required this.onOpenReading,
     required this.onOpenMemoryCenter,
     required this.onContinueChat,
   });
@@ -34,11 +37,17 @@ class WorkbenchModuleCallbacks {
   /// 继续工作 → 某张白板画布（boardId）。
   final void Function(String boardId) onOpenBoard;
 
+  /// 继续工作空态 → 白板索引。
+  final VoidCallback onOpenBoards;
+
   /// 后台任务 / 活跃任务 → 任务中心。
   final VoidCallback onOpenTaskCenter;
 
   /// 待整理卡片 / 继续阅读 → 卡片库。
   final VoidCallback onOpenCardLibrary;
+
+  /// 继续阅读 → 统一阅读空间。
+  final VoidCallback onOpenReading;
 
   /// 记忆回顾 / 今日总结 → 记忆中心。
   final VoidCallback onOpenMemoryCenter;
@@ -63,18 +72,24 @@ class WorkbenchModuleGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final columns = width >= 1400
+        final primaryDesktop = width >= 920 && constraints.maxHeight >= 560;
+        final columns = primaryDesktop
             ? 4
-            : width >= 1000
-                ? 3
-                : 2;
-        // 1440×900 主力窗口：4 列 × 2 行，一屏读完，不滚动。
-        const gap = 16.0;
+            : width >= 620
+                ? 2
+                : 1;
+        // 1280×720 与 1440×900 都固定为 4 列 × 2 行首屏。
+        const gap = 12.0;
         final moduleWidth = (width - gap * (columns - 1)) / columns;
-        const moduleHeight = 382.0;
+        final rowCount = (8 / columns).ceil();
+        final moduleHeight = primaryDesktop
+            ? (constraints.maxHeight - gap * (rowCount - 1)) / rowCount
+            : 310.0;
         return GridView(
           key: const ValueKey('workbench_module_grid'),
-          physics: const ClampingScrollPhysics(),
+          physics: primaryDesktop
+              ? const NeverScrollableScrollPhysics()
+              : const ClampingScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
             crossAxisSpacing: gap,
@@ -104,6 +119,7 @@ class WorkbenchModuleGrid extends StatelessWidget {
               key: const ValueKey('module_continue_work'),
               items: data.continueWork,
               onOpenBoard: callbacks.onOpenBoard,
+              onOpenBoards: callbacks.onOpenBoards,
               onOpenTaskCenter: callbacks.onOpenTaskCenter,
             ),
             _PendingCardsModule(
@@ -113,7 +129,7 @@ class WorkbenchModuleGrid extends StatelessWidget {
             ),
             _ContinueReadingModule(
               key: const ValueKey('module_continue_reading'),
-              onTap: callbacks.onOpenCardLibrary,
+              onTap: callbacks.onOpenReading,
             ),
             _MemoryReviewModule(
               key: const ValueKey('module_memory_review'),
@@ -152,7 +168,7 @@ class WorkbenchModuleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = SpringRainUiTokens.daylight;
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Material(
       color: tokens.surface,
       borderRadius: BorderRadius.circular(10),
@@ -171,7 +187,7 @@ class WorkbenchModuleCard extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: whiteboardUiTextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: tokens.textPrimary,
@@ -203,11 +219,12 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Text(
       text,
-      style: const TextStyle(
+      style: whiteboardUiTextStyle(
         fontSize: 12,
-        color: SpringRainUiTokens.daylightTextSecondary,
+        color: tokens.textMuted,
         height: 1.4,
       ),
     );
@@ -216,12 +233,7 @@ class _SectionLabel extends StatelessWidget {
 
 /// 模块内的可点击条目行。
 class _ModuleRow extends StatelessWidget {
-  const _ModuleRow({
-    required this.title,
-    this.subtitle,
-    this.tag,
-    this.onTap,
-  });
+  const _ModuleRow({required this.title, this.subtitle, this.tag, this.onTap});
 
   final String title;
   final String? subtitle;
@@ -230,7 +242,7 @@ class _ModuleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = SpringRainUiTokens.daylight;
+    final tokens = DesktopWorkspaceTokens.of(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
@@ -250,7 +262,7 @@ class _ModuleRow extends StatelessWidget {
                           title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: whiteboardUiTextStyle(
                             fontSize: 14,
                             color: tokens.textPrimary,
                             height: 1.4,
@@ -269,9 +281,9 @@ class _ModuleRow extends StatelessWidget {
                       subtitle!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: whiteboardUiTextStyle(
                         fontSize: 12,
-                        color: SpringRainUiTokens.daylightTextTertiary,
+                        color: tokens.textFaint,
                         height: 1.4,
                       ),
                     ),
@@ -280,12 +292,12 @@ class _ModuleRow extends StatelessWidget {
               ),
             ),
             if (onTap != null)
-              const Padding(
-                padding: EdgeInsets.only(left: 4),
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
                 child: Icon(
                   Icons.chevron_right_rounded,
                   size: 16,
-                  color: SpringRainUiTokens.daylightTextTertiary,
+                  color: tokens.textFaint,
                 ),
               ),
           ],
@@ -303,17 +315,18 @@ class _StatusTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: SpringRainUiTokens.daylightSurfaceMuted,
+        color: tokens.divider.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: whiteboardUiTextStyle(
           fontSize: 11,
-          color: SpringRainUiTokens.daylightTextSecondary,
+          color: tokens.textMuted,
           height: 1.35,
         ),
       ),
@@ -329,13 +342,14 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(
         text,
-        style: const TextStyle(
+        style: whiteboardUiTextStyle(
           fontSize: 12,
-          color: SpringRainUiTokens.daylightTextTertiary,
+          color: tokens.textFaint,
           height: 1.4,
         ),
       ),
@@ -359,6 +373,7 @@ class _ObservationModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final overview = data.scheduleOverview;
+    final tokens = DesktopWorkspaceTokens.of(context);
     return WorkbenchModuleCard(
       title: '林埃观察',
       onTap: onTap,
@@ -378,9 +393,9 @@ class _ObservationModule extends StatelessWidget {
           Text(
             '逾期 ${overview['overdue'] ?? 0} · 今日 ${overview['today'] ?? 0} · '
             '未排期 ${overview['unscheduled'] ?? 0}',
-            style: const TextStyle(
+            style: whiteboardUiTextStyle(
               fontSize: 14,
-              color: SpringRainUiTokens.daylightTextPrimary,
+              color: tokens.textPrimary,
               height: 1.4,
             ),
           ),
@@ -400,25 +415,25 @@ class _StatBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '$value',
-            style: const TextStyle(
+            style: whiteboardUiTextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w600,
-              color: SpringRainUiTokens.daylightTextPrimary,
+              color: tokens.textPrimary,
               height: 1.2,
-              fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
           Text(
             label,
-            style: const TextStyle(
+            style: whiteboardUiTextStyle(
               fontSize: 12,
-              color: SpringRainUiTokens.daylightTextSecondary,
+              color: tokens.textMuted,
               height: 1.4,
             ),
           ),
@@ -508,6 +523,7 @@ class _TodaySummaryModule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return WorkbenchModuleCard(
       title: '今日总结',
       onTap: onTap,
@@ -516,9 +532,9 @@ class _TodaySummaryModule extends StatelessWidget {
         children: [
           Text(
             '今天已记录 $todayCount 条，待确认 $followUpCount 条。',
-            style: const TextStyle(
+            style: whiteboardUiTextStyle(
               fontSize: 14,
-              color: SpringRainUiTokens.daylightTextPrimary,
+              color: tokens.textPrimary,
               height: 1.5,
             ),
           ),
@@ -531,16 +547,14 @@ class _TodaySummaryModule extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: onContinueChat,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: SpringRainUiTokens.daylightAccent,
-                    side: const BorderSide(
-                      color: SpringRainUiTokens.daylightDivider,
-                    ),
+                    foregroundColor: tokens.action,
+                    side: BorderSide(color: tokens.divider),
                     minimumSize: const Size(0, 36),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
-                  child: const Text(
+                  child: Text(
                     '继续对话',
-                    style: TextStyle(fontSize: 14),
+                    style: whiteboardUiTextStyle(fontSize: 14),
                   ),
                 ),
               ),
@@ -560,11 +574,13 @@ class _ContinueWorkModule extends StatelessWidget {
     super.key,
     required this.items,
     required this.onOpenBoard,
+    required this.onOpenBoards,
     required this.onOpenTaskCenter,
   });
 
   final List<ContinueWorkItem> items;
   final void Function(String boardId) onOpenBoard;
+  final VoidCallback onOpenBoards;
   final VoidCallback onOpenTaskCenter;
 
   @override
@@ -574,12 +590,13 @@ class _ContinueWorkModule extends StatelessWidget {
     return WorkbenchModuleCard(
       title: '继续工作',
       trailing: const _StatusTag(text: '最近'),
+      onTap: items.isEmpty ? onOpenBoards : null,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           const _SectionLabel('最近白板'),
           if (boards.isEmpty)
-            const _EmptyHint('还没有白板 · 前往白板索引新建')
+            const _EmptyHint('还没有白板 · 点击前往白板索引新建')
           else
             for (final board in boards)
               _ModuleRow(
@@ -605,7 +622,7 @@ class _ContinueWorkModule extends StatelessWidget {
 
 // ── 继续阅读 ─────────────────────────────────────────────────────────────────
 
-/// 继续阅读：真实进度接线中；行内容为明确标注的演示数据，去向卡片库。
+/// 继续阅读：尚未接入统一进度查询时只呈现诚实空态，不造演示内容。
 class _ContinueReadingModule extends StatelessWidget {
   const _ContinueReadingModule({super.key, required this.onTap});
 
@@ -615,25 +632,13 @@ class _ContinueReadingModule extends StatelessWidget {
   Widget build(BuildContext context) {
     return WorkbenchModuleCard(
       title: '继续阅读',
-      trailing: const _StatusTag(text: '演示数据'),
       onTap: onTap,
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ModuleRow(
-            title: '示例 · 视频研读',
-            subtitle: '续看 12:30 · 演示数据',
-            tag: '视频',
-            onTap: onTap,
-          ),
-          _ModuleRow(
-            title: '示例 · 小说阅读',
-            subtitle: '第 8 章 · 演示数据',
-            tag: '小说',
-            onTap: onTap,
-          ),
-          const Spacer(),
-          const _SectionLabel('阅读进度接入中 · 点击前往卡片库'),
+          _EmptyHint('暂无可续接的阅读进度'),
+          Spacer(),
+          _SectionLabel('点击前往统一阅读空间'),
         ],
       ),
     );

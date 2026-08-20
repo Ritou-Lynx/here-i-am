@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -14,7 +15,9 @@ import 'package:memex/routing/router.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/desktop/desktop_workbench_shell.dart';
+import 'package:memex/ui/desktop/view_models/desktop_home_view_model.dart';
 import 'package:memex/ui/desktop/widgets/desktop_chat_overlay.dart';
+import 'package:memex/ui/desktop/widgets/global_desktop_chat_overlay.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 
@@ -36,9 +39,7 @@ void main() {
       db: db,
       whiteboardRoot: repositoryRoot,
     );
-    WhiteboardDataBootstrap.setRepositoryForTesting(
-      cardRepository,
-    );
+    WhiteboardDataBootstrap.setRepositoryForTesting(cardRepository);
     router = createAppRouter(
       GlobalKey<NavigatorState>(),
       () => const DesktopWorkbenchShell(characterId: 'i'),
@@ -79,9 +80,11 @@ void main() {
     fail('Routed screen did not finish loading');
   }
 
-  Future<void> pumpWorkbench(WidgetTester tester) async {
-    // 验收主力窗口：1440×900，4 列 × 2 行一屏读完全部模块。
-    tester.view.physicalSize = const Size(1440, 900);
+  Future<void> pumpWorkbench(
+    WidgetTester tester, {
+    Size size = const Size(1440, 900),
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -98,37 +101,42 @@ void main() {
     await store.createBoard(name: '白板甲');
     await store.createBoard(name: '白板乙');
     final now = DateTime.now().millisecondsSinceEpoch;
-    await db.into(db.taskRooms).insert(TaskRoomsCompanion.insert(
-          id: 'task_room_1',
-          title: '整理本周阅读笔记',
-          goal: '把本周阅读材料整理进白板',
-          taskType: 'whiteboard',
-          status: 'running',
-          createdAt: now,
-          updatedAt: now,
-        ));
+    await db.into(db.taskRooms).insert(
+          TaskRoomsCompanion.insert(
+            id: 'task_room_1',
+            title: '整理本周阅读笔记',
+            goal: '把本周阅读材料整理进白板',
+            taskType: 'whiteboard',
+            status: 'running',
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
   }
 
   Future<void> seedNoteCard({required String id, required String title}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await db.into(db.memoryCards).insert(MemoryCardsCompanion.insert(
-          id: id,
-          memoryScope: const Value('user_truth'),
-          type: 'note',
-          title: title,
-          dropletLabel: '待整理',
-          presentationModule: '[]',
-          retrievalText: title,
-          valence: 0,
-          arousal: 0,
-          createdAt: now,
-          updatedAt: now,
-        ));
+    await db.into(db.memoryCards).insert(
+          MemoryCardsCompanion.insert(
+            id: id,
+            memoryScope: const Value('user_truth'),
+            type: 'note',
+            title: title,
+            dropletLabel: '待整理',
+            presentationModule: '[]',
+            retrievalText: title,
+            valence: 0,
+            arousal: 0,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
     await cardRepository.backfillLegacyMemoryCardExtra(id);
   }
 
-  testWidgets('module grid renders all eight spine-contract 3.2 modules',
-      (tester) async {
+  testWidgets('module grid renders all eight spine-contract 3.2 modules', (
+    tester,
+  ) async {
     await seedBoardAndTask();
     await seedNoteCard(id: 'card_pending_1', title: '待分类视频笔记');
 
@@ -149,8 +157,9 @@ void main() {
     }
   });
 
-  testWidgets('继续工作 opens a real board canvas route on board tap',
-      (tester) async {
+  testWidgets('继续工作 opens a real board canvas route on board tap', (
+    tester,
+  ) async {
     await seedBoardAndTask();
 
     await pumpWorkbench(tester);
@@ -208,10 +217,12 @@ void main() {
       findsNothing,
     );
 
-    await tester.tap(find.descendant(
-      of: pendingModule,
-      matching: find.textContaining('待分类视频笔记'),
-    ));
+    await tester.tap(
+      find.descendant(
+        of: pendingModule,
+        matching: find.textContaining('待分类视频笔记'),
+      ),
+    );
     await pumpUntilVisible(
       tester,
       find.byType(CardLibraryScreen),
@@ -221,12 +232,120 @@ void main() {
     expect(find.byType(CardLibraryScreen), findsOneWidget);
   });
 
-  testWidgets('empty home shows honest empty states, not decorative buttons',
-      (tester) async {
+  testWidgets('empty home shows honest empty states, not decorative buttons', (
+    tester,
+  ) async {
     await pumpWorkbench(tester);
 
     expect(find.textContaining('还没有白板'), findsOneWidget);
     expect(find.textContaining('暂无待整理卡片'), findsOneWidget);
+    expect(find.textContaining('暂无可续接的阅读进度'), findsOneWidget);
+    expect(find.textContaining('演示数据'), findsNothing);
+    expect(find.textContaining('mock'), findsNothing);
+  });
+
+  testWidgets('1280x720 and 1440x900 keep all modules in the first viewport', (
+    tester,
+  ) async {
+    const moduleKeys = [
+      'module_observation',
+      'module_schedule',
+      'module_today_summary',
+      'module_continue_work',
+      'module_pending_cards',
+      'module_continue_reading',
+      'module_memory_review',
+      'module_background_tasks',
+    ];
+    for (final size in const [Size(1280, 720), Size(1440, 900)]) {
+      await pumpWorkbench(tester, size: size);
+      for (final key in moduleKeys) {
+        final rect = tester.getRect(find.byKey(ValueKey(key)));
+        expect(rect.top, greaterThanOrEqualTo(0), reason: '$key at $size');
+        expect(
+          rect.bottom,
+          lessThanOrEqualTo(size.height),
+          reason: '$key at $size',
+        );
+      }
+      expect(tester.takeException(), isNull, reason: 'viewport $size');
+    }
+  });
+
+  testWidgets('loading and error states recover into the empty home', (
+    tester,
+  ) async {
+    final completer = Completer<DesktopHomeData>();
+    final loadingViewModel = DesktopHomeViewModel(
+      db: db,
+      loader: () => completer.future,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DesktopWorkbenchShell(
+          characterId: 'i',
+          viewModel: loadingViewModel,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('正在读取工作台…'), findsOneWidget);
+
+    const emptyData = DesktopHomeData(
+      boards: [],
+      continueWork: [],
+      activeTaskCount: 0,
+      pendingCards: [],
+      scheduleCards: [],
+      scheduleOverview: {},
+      recentMemoryCards: [],
+      todayRecordCount: 0,
+      followUpCount: 0,
+      taskStatusCounts: {},
+    );
+    completer.complete(emptyData);
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('workbench_module_grid')), findsOneWidget);
+
+    var attempts = 0;
+    final retryViewModel = DesktopHomeViewModel(
+      db: db,
+      loader: () async {
+        attempts += 1;
+        if (attempts == 1) throw StateError('offline');
+        return emptyData;
+      },
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DesktopWorkbenchShell(
+          key: const ValueKey('retry_workbench'),
+          characterId: 'i',
+          viewModel: retryViewModel,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('重试'), findsOneWidget);
+    await tester.tap(find.text('重试'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('workbench_module_grid')), findsOneWidget);
+  });
+
+  testWidgets('今日总结的继续对话打开全局林埃面板', (tester) async {
+    final controller = GlobalDesktopChatOverlayController.instance;
+    controller.reset();
+    addTearDown(controller.reset);
+    await pumpWorkbench(tester);
+
+    await tester.tap(find.text('继续对话'));
+
+    expect(controller.isOpen, isTrue);
+    expect(controller.expectedCharacterId, 'i');
+    expect(controller.temporaryContextLabel, '首页');
   });
 
   testWidgets(
@@ -280,8 +399,9 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('sidebar collapses to handle and restores content width',
-      (tester) async {
+  testWidgets('sidebar collapses to handle and restores content width', (
+    tester,
+  ) async {
     await pumpWorkbench(tester);
 
     expect(find.text('卡片库'), findsOneWidget);
@@ -290,7 +410,9 @@ void main() {
 
     expect(find.text('卡片库'), findsNothing);
     expect(
-        find.byKey(const ValueKey('desktop_sidebar_handle')), findsOneWidget);
+      find.byKey(const ValueKey('desktop_sidebar_handle')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const ValueKey('desktop_sidebar_handle')));
     await tester.pump(const Duration(milliseconds: 220));

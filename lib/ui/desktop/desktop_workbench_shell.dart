@@ -18,6 +18,7 @@ import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 
 import 'view_models/desktop_home_view_model.dart';
+import 'widgets/global_desktop_chat_overlay.dart';
 import 'widgets/desktop_module_grid.dart';
 
 /// Desktop workbench home: the module-grid workbench replacing the mobile
@@ -28,10 +29,12 @@ class DesktopWorkbenchShell extends StatefulWidget {
     super.key,
     required this.characterId,
     this.initialVoiceMode = false,
+    this.viewModel,
   });
 
   final String characterId;
   final bool initialVoiceMode;
+  final DesktopHomeViewModel? viewModel;
 
   @override
   State<DesktopWorkbenchShell> createState() => _DesktopWorkbenchShellState();
@@ -39,11 +42,14 @@ class DesktopWorkbenchShell extends StatefulWidget {
 
 class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
   late final DesktopHomeViewModel _viewModel;
+  late final bool _ownsViewModel;
 
   @override
   void initState() {
     super.initState();
-    _viewModel = DesktopHomeViewModel(db: AppDatabase.instance);
+    _ownsViewModel = widget.viewModel == null;
+    _viewModel =
+        widget.viewModel ?? DesktopHomeViewModel(db: AppDatabase.instance);
     _viewModel.load();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) AppStartupVisibilityController.markInteractive();
@@ -52,7 +58,7 @@ class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
 
   @override
   void dispose() {
-    _viewModel.dispose();
+    if (_ownsViewModel) _viewModel.dispose();
     super.dispose();
   }
 
@@ -62,19 +68,22 @@ class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
       onOpenSchedule: () => context.go(AppRoutes.calendar),
       onOpenBoard: (boardId) =>
           context.go(AppRoutes.whiteboardCanvasPath(boardId)),
+      onOpenBoards: () => context.go(AppRoutes.whiteboard),
       onOpenTaskCenter: () => context.go(AppRoutes.devRoom),
       onOpenCardLibrary: () => context.go(AppRoutes.cardLibrary),
+      onOpenReading: () => context.go(AppRoutes.interests),
       onOpenMemoryCenter: () => context.go(AppRoutes.memoryCenter),
-      onContinueChat: () {}, // Global overlay handles chat; no-op here.
+      onContinueChat: () => GlobalDesktopChatOverlayController.instance.open(
+        expectedCharacterId: widget.characterId,
+        temporaryContextLabel: '首页',
+      ),
     );
   }
 
   void _openLifeSpace() {
     Navigator.push(
       context,
-      MaterialPageRoute<void>(
-        builder: (_) => const CompanionLifeSpaceScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const CompanionLifeSpaceScreen()),
     );
   }
 
@@ -116,10 +125,7 @@ class _DesktopWorkbenchContent extends StatelessWidget {
           }
           final data = vm.data;
           if (data == null) return const _WorkbenchLoading();
-          return WorkbenchModuleGrid(
-            data: data,
-            callbacks: callbacks,
-          );
+          return WorkbenchModuleGrid(data: data, callbacks: callbacks);
         },
       ),
     );
@@ -147,10 +153,7 @@ class _WorkbenchLoading extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             '正在读取工作台…',
-            style: whiteboardUiTextStyle(
-              fontSize: 14,
-              color: tokens.textMuted,
-            ),
+            style: whiteboardUiTextStyle(fontSize: 14, color: tokens.textMuted),
           ),
         ],
       ),
@@ -173,20 +176,14 @@ class _WorkbenchError extends StatelessWidget {
         children: [
           Text(
             '工作台数据暂时没有读出来，重试即可继续。',
-            style: whiteboardUiTextStyle(
-              fontSize: 14,
-              color: tokens.textMuted,
-            ),
+            style: whiteboardUiTextStyle(fontSize: 14, color: tokens.textMuted),
           ),
           const SizedBox(height: 4),
           Text(
             error.toString(),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: whiteboardUiTextStyle(
-              fontSize: 11,
-              color: tokens.textFaint,
-            ),
+            style: whiteboardUiTextStyle(fontSize: 11, color: tokens.textFaint),
           ),
           const SizedBox(height: 12),
           OutlinedButton(
