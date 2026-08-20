@@ -16,7 +16,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/player_adapter.dart';
-import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 import '../view_models/video_study_view_model.dart';
 
 class SubtitleListView extends StatefulWidget {
@@ -87,7 +88,8 @@ class _SubtitleListViewState extends State<SubtitleListView> {
   void _scrollToCue(int index) {
     if (!_scrollController.hasClients) return;
     const itemHeight = 64.0;
-    final offset = (index * itemHeight) -
+    final offset =
+        (index * itemHeight) -
         (_scrollController.position.viewportDimension / 3);
     _scrollController.animateTo(
       offset.clamp(0.0, _scrollController.position.maxScrollExtent),
@@ -128,75 +130,84 @@ class _CueItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = Theme.of(context).extension<SpringRainUiTokens>() ??
-        SpringRainUiTokens.daylight;
+    final tokens = DesktopWorkspaceTokens.of(context);
 
-    return InkWell(
-      onTap: canSeek ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? tokens.accentSoft : Colors.transparent,
-          border: Border(
-            left: BorderSide(
-              color: isActive ? tokens.accent : Colors.transparent,
-              width: 3,
-            ),
+    return Semantics(
+      selected: isActive,
+      button: canSeek,
+      label: '字幕 ${VideoStudyViewModel.formatTimecode(cue.startMs)}',
+      child: InkWell(
+        key: ValueKey('subtitle_cue_${cue.cueId}'),
+        onTap: canSeek ? onTap : null,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          decoration: BoxDecoration(
+            color: isActive
+                ? tokens.actionSoft.withValues(alpha: 0.35)
+                : Colors.transparent,
+            border: Border(bottom: BorderSide(color: tokens.divider)),
           ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Time code + annotation button
-            SizedBox(
-              width: 80,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    VideoStudyViewModel.formatTimecode(cue.startMs),
-                    style: TextStyle(
-                      color: isActive
-                          ? const Color(0xFF43593B)
-                          : const Color(0xFF8F8E88),
-                      fontSize: 12,
-                      fontFamily: 'Cascadia Code',
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    key: ValueKey('annotate_${cue.cueId}'),
-                    onTap: onAnnotate,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: hasAnnotation
-                            ? const Color(0xFF43593B)
-                            : const Color(0x6643593B),
-                        borderRadius: BorderRadius.circular(2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 92,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          VideoStudyViewModel.formatTimecode(cue.startMs),
+                          style: richTextCodeTextStyle(
+                            color: isActive ? tokens.action : tokens.textMuted,
+                            fontSize: 12,
+                            fontWeight: isActive
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Cue text
-            Expanded(
-              child: Text(
-                cue.text,
-                style: TextStyle(
-                  color: isActive
-                      ? const Color(0xFF293025)
-                      : const Color(0xFF58402E),
-                  fontSize: 14,
-                  height: 1.65,
+                    SizedBox.square(
+                      dimension: 36,
+                      child: IconButton(
+                        key: ValueKey('annotate_${cue.cueId}'),
+                        tooltip: hasAnnotation ? '再建一条标注' : '创建时间标注',
+                        onPressed: onAnnotate,
+                        padding: EdgeInsets.zero,
+                        icon: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: hasAnnotation
+                                ? tokens.action
+                                : tokens.action.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: Text(
+                    cue.text,
+                    style: whiteboardUiTextStyle(
+                      color: tokens.textPrimary,
+                      fontSize: 14,
+                      height: 1.65,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -216,22 +227,19 @@ class _NeedsSubtitleView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.subtitles_outlined,
-              size: 40,
-              color: SpringRainUiTokens.daylightTextTertiary,
-            ),
+            Icon(Icons.subtitles_outlined, size: 40, color: tokens.textFaint),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               '需要字幕',
-              style: TextStyle(
-                color: SpringRainUiTokens.daylightTextSecondary,
+              style: whiteboardUiTextStyle(
+                color: tokens.textMuted,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
@@ -242,8 +250,8 @@ class _NeedsSubtitleView extends StatelessWidget {
                   ? reason!
                   : '平台未提供可靠字幕\n导入 SRT 或 VTT 文件开始研读',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: SpringRainUiTokens.daylightTextTertiary,
+              style: whiteboardUiTextStyle(
+                color: tokens.textFaint,
                 fontSize: 12,
                 height: 1.6,
               ),
@@ -255,13 +263,14 @@ class _NeedsSubtitleView extends StatelessWidget {
                 icon: const Icon(Icons.file_upload_outlined, size: 16),
                 label: const Text('导入字幕'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: SpringRainUiTokens.daylightAccent,
-                  foregroundColor: SpringRainUiTokens.daylightTextOnAccent,
-                  textStyle: const TextStyle(fontSize: 14),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  backgroundColor: tokens.action,
+                  foregroundColor: tokens.canvas,
+                  minimumSize: const Size(44, 44),
+                  textStyle: whiteboardUiTextStyle(fontSize: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ],
@@ -292,11 +301,16 @@ class _SubtitleImportDialogState extends State<_SubtitleImportDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return AlertDialog(
-      backgroundColor: SpringRainUiTokens.daylightSurfaceRaised,
-      title: const Text(
+      backgroundColor: tokens.surfaceRaised,
+      title: Text(
         '导入字幕',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        style: whiteboardUiTextStyle(
+          color: tokens.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       content: SizedBox(
         width: 480,
@@ -313,10 +327,7 @@ class _SubtitleImportDialogState extends State<_SubtitleImportDialog> {
               const SizedBox(height: 6),
               Text(
                 _fileError!,
-                style: const TextStyle(
-                  color: SpringRainUiTokens.daylightError,
-                  fontSize: 12,
-                ),
+                style: whiteboardUiTextStyle(color: tokens.error, fontSize: 12),
               ),
             ],
             const SizedBox(height: 10),
@@ -326,6 +337,11 @@ class _SubtitleImportDialogState extends State<_SubtitleImportDialog> {
               decoration: const InputDecoration(
                 hintText: '或粘贴 SRT / VTT 内容…',
                 border: OutlineInputBorder(),
+              ),
+              style: whiteboardUiTextStyle(
+                color: tokens.textPrimary,
+                fontSize: 14,
+                height: 1.5,
               ),
             ),
           ],

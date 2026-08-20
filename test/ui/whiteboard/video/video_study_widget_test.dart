@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
 import 'package:memex/domain/whiteboard/video/youtube_adapter_factory_stub.dart';
+import 'package:memex/ui/whiteboard/video/session_store.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
 
 /// Builds a FixturePlayerAdapter + track for widget testing.
@@ -60,6 +61,66 @@ class _FakeTimedTextService extends YouTubeTimedTextService {
   }
 }
 
+class _RecordingSessionStore implements VideoSessionStore {
+  _RecordingSessionStore({this.restored});
+
+  VideoAnnotationSession? restored;
+  VideoAnnotationSession? saved;
+
+  @override
+  Future<void> clear() async {
+    restored = null;
+    saved = null;
+  }
+
+  @override
+  Future<VideoAnnotationSession?> load() async => restored;
+
+  @override
+  Future<void> save(VideoAnnotationSession session) async {
+    saved = session;
+    restored = session;
+  }
+}
+
+class _LinkOnlyAdapter implements PlayerAdapter {
+  _LinkOnlyAdapter(this.providerId);
+
+  @override
+  final String providerId;
+
+  @override
+  PlayerCapability get capability => const PlayerCapability();
+
+  @override
+  Stream<PlayerTimeEvent> get timeEvents => const Stream.empty();
+
+  @override
+  Future<int> currentPositionMs() async => 0;
+
+  @override
+  Future<int?> durationMs() async => null;
+
+  @override
+  Future<void> load(String sourceId, {String? embedUrl}) async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> seekTo(int positionMs) async {}
+}
+
+void _useDesktopSurface(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 void main() {
   testWidgets('VideoStudyScreen shows player and subtitle dock',
       (tester) async {
@@ -93,6 +154,251 @@ void main() {
     expect(find.byIcon(Icons.play_arrow), findsWidgets);
 
     adapter.dispose();
+  });
+
+  testWidgets('dock uses 65:35 right, 70:30 bottom, and fully leaves',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
+    final adapter = _buildFixture();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var playerSize = tester.getSize(
+      find.byKey(const ValueKey('video_player_region')),
+    );
+    var dockSize = tester.getSize(
+      find.byKey(const ValueKey('video_context_dock_region')),
+    );
+    expect(find.byKey(const ValueKey('video_layout_right')), findsOneWidget);
+    expect(
+      playerSize.width / (playerSize.width + dockSize.width),
+      closeTo(0.65, 0.01),
+    );
+    expect(playerSize.width, greaterThanOrEqualTo(420));
+    expect(dockSize.width, greaterThanOrEqualTo(320));
+
+    await tester.tap(find.byTooltip('停靠到底部'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_layout_bottom')), findsOneWidget);
+    playerSize = tester.getSize(
+      find.byKey(const ValueKey('video_player_region')),
+    );
+    dockSize = tester.getSize(
+      find.byKey(const ValueKey('video_context_dock_region')),
+    );
+    expect(
+      playerSize.height / (playerSize.height + dockSize.height),
+      closeTo(0.70, 0.01),
+    );
+    expect(playerSize.height, greaterThanOrEqualTo(300));
+    expect(dockSize.height, greaterThanOrEqualTo(220));
+
+    await tester.tap(find.byKey(const ValueKey('video_close_dock')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_context_dock')), findsNothing);
+    expect(find.byKey(const ValueKey('video_dock_splitter')), findsNothing);
+    playerSize = tester.getSize(
+      find.byKey(const ValueKey('video_player_region')),
+    );
+    expect(playerSize, const Size(1440, 900));
+
+    await tester.tap(find.byKey(const ValueKey('video_open_dock')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_context_dock')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    adapter.dispose();
+  });
+
+  testWidgets('splitter changes real layout and persists the adjusted ratio',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
+    final adapter = _buildFixture();
+    final store = _RecordingSessionStore();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+          sessionStore: store,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final dockBefore = tester.getSize(
+      find.byKey(const ValueKey('video_context_dock_region')),
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('video_dock_splitter')),
+      const Offset(-120, 0),
+    );
+    await tester.pumpAndSettle();
+    final dockAfter = tester.getSize(
+      find.byKey(const ValueKey('video_context_dock_region')),
+    );
+
+    expect(dockAfter.width, greaterThan(dockBefore.width + 80));
+    expect(store.saved, isNotNull);
+    expect(store.saved!.dockOrientation, 'right');
+    expect(store.saved!.dockRatio, greaterThan(0.35));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    adapter.dispose();
+  });
+
+  testWidgets('restored bottom dock ratio controls the restarted layout',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
+    final adapter = _buildFixture();
+    final store = _RecordingSessionStore(
+      restored: VideoAnnotationSession(
+        sourceId: 'src_video_test',
+        sourceVersionId: 'ver_video_test_v1',
+        lastPositionMs: 0,
+        anchors: const [],
+        annotationCards: const [],
+        anchorToCard: const {},
+        dockOrientation: 'bottom',
+        dockRatio: 0.28,
+        savedAt: DateTime.utc(2026, 8, 20),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+          sessionStore: store,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('video_layout_bottom')), findsOneWidget);
+    final playerSize = tester.getSize(
+      find.byKey(const ValueKey('video_player_region')),
+    );
+    final dockSize = tester.getSize(
+      find.byKey(const ValueKey('video_context_dock_region')),
+    );
+    expect(
+      dockSize.height / (playerSize.height + dockSize.height),
+      closeTo(0.28, 0.01),
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    adapter.dispose();
+  });
+
+  testWidgets('narrow desktop automatically moves the dock to the bottom',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(720, 720));
+    final adapter = _buildFixture();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('video_layout_bottom')), findsOneWidget);
+    expect(find.byTooltip('窗口较窄，已自动停靠底部'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    adapter.dispose();
+  });
+
+  testWidgets('player and dock minimum sizes hold at 1024 by 720',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(1024, 720));
+    final adapter = _buildFixture();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var playerSize = tester.getSize(
+      find.byKey(const ValueKey('video_player_region')),
+    );
+    var dockSize = tester.getSize(
+      find.byKey(const ValueKey('video_context_dock_region')),
+    );
+    expect(playerSize.width, greaterThanOrEqualTo(420));
+    expect(dockSize.width, greaterThanOrEqualTo(320));
+
+    await tester.tap(find.byTooltip('停靠到底部'));
+    await tester.pumpAndSettle();
+    playerSize = tester.getSize(
+      find.byKey(const ValueKey('video_player_region')),
+    );
+    dockSize = tester.getSize(
+      find.byKey(const ValueKey('video_context_dock_region')),
+    );
+    expect(playerSize.height, greaterThanOrEqualTo(300));
+    expect(dockSize.height, greaterThanOrEqualTo(220));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    adapter.dispose();
+  });
+
+  testWidgets('Bilibili, Xiaohongshu and unknown providers stay link-only',
+      (tester) async {
+    for (final provider in const ['bilibili', 'xiaohongshu', 'unknown']) {
+      final adapter = _LinkOnlyAdapter(provider);
+      final url = 'https://example.com/$provider/video';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoStudyScreen(
+            adapter: adapter,
+            sourceId: 'src_$provider',
+            sourceVersionId: 'ver_${provider}_v1',
+            providerId: provider,
+            embedUrl: url,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('当前为链接模式'), findsOneWidget);
+      expect(find.text(url), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('open_video_source_link')),
+        findsOneWidget,
+      );
+      expect(find.text('Fixture Player'), findsNothing);
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('Fixture surface icon follows paused and playing state',
@@ -176,6 +482,35 @@ void main() {
     adapter.dispose();
   });
 
+  testWidgets('timeline seek keeps the real player position in sync',
+      (tester) async {
+    final adapter = _buildFixture();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final timeline = find.byKey(
+      const ValueKey('video_timeline_anchor_bar'),
+    );
+    final rect = tester.getRect(timeline);
+    await tester.tapAt(Offset(rect.left + rect.width * 0.5, rect.center.dy));
+    await tester.pumpAndSettle();
+
+    expect(await adapter.currentPositionMs(), closeTo(100000, 1000));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    adapter.dispose();
+  });
+
   testWidgets('Annotation flow creates card and shows confirmation',
       (tester) async {
     final adapter = _buildFixture();
@@ -225,6 +560,13 @@ void main() {
     // Confirmation dismissed, back to subtitle list.
     expect(find.text('标注已保存'), findsNothing);
 
+    await adapter.seekTo(50000);
+    await tester.pump();
+    await tester.tap(find.text('副歌观察'));
+    await tester.pumpAndSettle();
+    expect(await adapter.currentPositionMs(), equals(2000));
+
+    await tester.pumpWidget(const SizedBox.shrink());
     adapter.dispose();
   });
 

@@ -10,7 +10,8 @@ library;
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
-import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 import '../view_models/video_study_view_model.dart';
 import 'subtitle_list_view.dart';
 import 'annotation_editor.dart';
@@ -18,8 +19,15 @@ import 'timeline_anchor_bar.dart';
 
 class ContextDock extends StatefulWidget {
   final VideoStudyViewModel viewModel;
+  final DockOrientation? displayOrientation;
+  final bool orientationLocked;
 
-  const ContextDock({super.key, required this.viewModel});
+  const ContextDock({
+    super.key,
+    required this.viewModel,
+    this.displayOrientation,
+    this.orientationLocked = false,
+  });
 
   @override
   State<ContextDock> createState() => _ContextDockState();
@@ -29,12 +37,12 @@ class _ContextDockState extends State<ContextDock> {
   @override
   Widget build(BuildContext context) {
     final vm = widget.viewModel;
-    final tokens =
-        Theme.of(context).extension<SpringRainUiTokens>() ??
-        SpringRainUiTokens.daylight;
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final orientation = widget.displayOrientation ?? vm.dockOrientation;
 
     return Container(
-      color: tokens.surface,
+      key: const ValueKey('video_context_dock'),
+      color: tokens.canvas,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -42,15 +50,17 @@ class _ContextDockState extends State<ContextDock> {
           _DockHeader(
             title: '字幕 / 时间轴',
             subtitle: _subtitleStatusLabel(vm),
-            orientation: vm.dockOrientation,
-            onToggleOrientation: () => vm.setDockOrientation(
-              vm.dockOrientation == DockOrientation.right
-                  ? DockOrientation.bottom
-                  : DockOrientation.right,
-            ),
+            orientation: orientation,
+            onToggleOrientation: widget.orientationLocked
+                ? null
+                : () => vm.setDockOrientation(
+                    vm.dockOrientation == DockOrientation.right
+                        ? DockOrientation.bottom
+                        : DockOrientation.right,
+                  ),
             onClose: () => vm.setDockVisible(false),
           ),
-          const Divider(height: 1, color: Color(0x1F5B5843)),
+          Divider(height: 1, color: tokens.divider),
           // Study timeline with time anchors — lives in the dock (not overlaid
           // on the player) so it never overlaps a native player's progress bar.
           if (vm.canReadPosition)
@@ -58,8 +68,7 @@ class _ContextDockState extends State<ContextDock> {
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
               child: TimelineAnchorBar(viewModel: vm),
             ),
-          if (vm.canReadPosition)
-            const Divider(height: 1, color: Color(0x1F5B5843)),
+          if (vm.canReadPosition) Divider(height: 1, color: tokens.divider),
           // Body
           Expanded(
             child: vm.showSaveConfirmation
@@ -99,7 +108,7 @@ class _DockHeader extends StatelessWidget {
   final String title;
   final String subtitle;
   final DockOrientation orientation;
-  final VoidCallback onToggleOrientation;
+  final VoidCallback? onToggleOrientation;
   final VoidCallback onClose;
 
   const _DockHeader({
@@ -112,6 +121,7 @@ class _DockHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -122,17 +132,18 @@ class _DockHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    color: SpringRainUiTokens.daylightTextPrimary,
+                  style: whiteboardUiTextStyle(
+                    color: tokens.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
+                  key: const ValueKey('subtitle_status'),
                   subtitle,
-                  style: TextStyle(
-                    color: SpringRainUiTokens.daylightTextTertiary,
+                  style: whiteboardUiTextStyle(
+                    color: tokens.textMuted,
                     fontSize: 11,
                   ),
                 ),
@@ -140,21 +151,31 @@ class _DockHeader extends StatelessWidget {
             ),
           ),
           IconButton(
-            tooltip: orientation == DockOrientation.right ? '停靠到底部' : '停靠到右侧',
+            tooltip: onToggleOrientation == null
+                ? '窗口较窄，已自动停靠底部'
+                : orientation == DockOrientation.right
+                ? '停靠到底部'
+                : '停靠到右侧',
             icon: Icon(
               orientation == DockOrientation.right
                   ? Icons.view_stream_outlined
                   : Icons.view_column_outlined,
               size: 18,
             ),
-            color: SpringRainUiTokens.daylightTextSecondary,
+            color: tokens.textMuted,
+            disabledColor: tokens.textFaint,
             onPressed: onToggleOrientation,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            padding: EdgeInsets.zero,
           ),
           IconButton(
-            tooltip: '收起字幕与标注',
+            key: const ValueKey('video_close_dock'),
+            tooltip: '关闭字幕与标注',
             icon: const Icon(Icons.close, size: 18),
-            color: SpringRainUiTokens.daylightTextSecondary,
+            color: tokens.textMuted,
             onPressed: onClose,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            padding: EdgeInsets.zero,
           ),
         ],
       ),
@@ -168,6 +189,7 @@ class _PendingAnnotationPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final startMs = viewModel.pendingAnnotationStartMs ?? 0;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -176,11 +198,7 @@ class _PendingAnnotationPane extends StatelessWidget {
         children: [
           Text(
             '在 ${VideoStudyViewModel.formatTimecode(startMs)} 创建标注',
-            style: const TextStyle(
-              color: Color(0xFF43593B),
-              fontSize: 13,
-              fontFamily: 'Cascadia Code',
-            ),
+            style: richTextCodeTextStyle(color: tokens.action, fontSize: 13),
           ),
           const SizedBox(height: 12),
           AnnotationEditor(viewModel: viewModel),
@@ -201,6 +219,7 @@ class _SaveConfirmationPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -210,22 +229,18 @@ class _SaveConfirmationPane extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFE3E5C9),
+                color: tokens.actionSoft.withValues(alpha: 0.35),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.check_circle,
-                    size: 18,
-                    color: Color(0xFF43593B),
-                  ),
+                  Icon(Icons.check_circle, size: 18, color: tokens.action),
                   const SizedBox(width: 8),
                   Text(
                     '标注已保存',
-                    style: TextStyle(
-                      color: SpringRainUiTokens.daylightTextPrimary,
+                    style: whiteboardUiTextStyle(
+                      color: tokens.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -238,8 +253,8 @@ class _SaveConfirmationPane extends StatelessWidget {
               onPressed: onDismiss,
               child: Text(
                 '返回字幕',
-                style: TextStyle(
-                  color: SpringRainUiTokens.daylightTextSecondary,
+                style: whiteboardUiTextStyle(
+                  color: tokens.textMuted,
                   fontSize: 12,
                 ),
               ),
@@ -258,12 +273,11 @@ class _AnnotationCardsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final annotations = viewModel.annotations;
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: SpringRainUiTokens.daylightSurfaceMuted,
-        border: Border(
-          top: BorderSide(color: SpringRainUiTokens.daylightDivider, width: 1),
-        ),
+        color: tokens.surface,
+        border: Border(top: BorderSide(color: tokens.divider, width: 1)),
       ),
       child: SizedBox(
         height: 96,
@@ -292,6 +306,7 @@ class _AnnotationCardThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final title = annotation.card.title.isEmpty
         ? '未命名标注'
         : annotation.card.title;
@@ -305,9 +320,9 @@ class _AnnotationCardThumb extends StatelessWidget {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: SpringRainUiTokens.daylightSurfaceRaised,
+          color: tokens.surfaceRaised,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0x1F5B5843), width: 1),
+          border: Border.all(color: tokens.divider, width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,10 +330,9 @@ class _AnnotationCardThumb extends StatelessWidget {
           children: [
             Text(
               timecode,
-              style: const TextStyle(
-                color: Color(0xFF43593B),
+              style: richTextCodeTextStyle(
+                color: tokens.action,
                 fontSize: 11,
-                fontFamily: 'Cascadia Code',
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -327,8 +341,8 @@ class _AnnotationCardThumb extends StatelessWidget {
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: SpringRainUiTokens.daylightTextPrimary,
+              style: whiteboardUiTextStyle(
+                color: tokens.textPrimary,
                 fontSize: 12,
               ),
             ),

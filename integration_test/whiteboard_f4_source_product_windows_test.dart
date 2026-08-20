@@ -11,6 +11,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/video/windows_youtube_player_adapter.dart';
 import 'package:memex/domain/whiteboard/video/youtube_timedtext_service.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/source_study_screen.dart';
 import 'package:memex/ui/whiteboard/video/session_store.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
@@ -94,7 +95,10 @@ void main() {
     await _pumpFor(tester, const Duration(seconds: 1));
     expect(await adapter.currentPositionMs(), inInclusiveRange(8000, 15000));
     final activeCue = tester.widget<Text>(find.text('Windows cue one'));
-    expect(activeCue.style?.color, const Color(0xFF293025));
+    expect(
+      activeCue.style?.color,
+      DesktopWorkspaceTokens.lieflatPalm.textPrimary,
+    );
 
     await tester.tap(
       find.byKey(ValueKey('annotate_cue_${sourceId}_0')),

@@ -11,10 +11,12 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:memex/data/whiteboard/repository_video_annotation_store.dart';
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
-import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 import 'session_store.dart';
 import 'view_models/video_study_view_model.dart';
 import 'widgets/video_player_panel.dart';
@@ -85,6 +87,10 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
 
   @override
   void dispose() {
+    // The save-confirmation timer lives in the view model. Clear the visible
+    // confirmation before disposal so its delayed callback becomes a no-op
+    // when the user leaves or restarts immediately after saving.
+    _viewModel.dismissSaveConfirmation();
     _viewModel.dispose();
     super.dispose();
   }
@@ -93,35 +99,41 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
       value: _viewModel,
-      child: Scaffold(
-        backgroundColor: const Color(0xFF1C1C1A),
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: Consumer<VideoStudyViewModel>(
-                builder: (context, vm, _) {
-                  if (!vm.isLoaded) {
-                    return _LoadingView(errorMessage: vm.errorMessage);
-                  }
-                  return _VideoStudyBody(
-                    viewModel: vm,
-                    embedUrl: widget.embedUrl,
-                  );
-                },
-              ),
-            ),
-            if (widget.onBack != null)
-              Positioned(
-                left: 16,
-                top: 16,
-                child: IconButton.filledTonal(
-                  tooltip: '返回来源',
-                  onPressed: widget.onBack,
-                  icon: const Icon(Icons.arrow_back_rounded),
+      child: Builder(
+        builder: (context) {
+          final tokens = DesktopWorkspaceTokens.of(context);
+          return Scaffold(
+            backgroundColor: tokens.dark,
+            body: Stack(
+              children: [
+                Positioned.fill(
+                  child: Consumer<VideoStudyViewModel>(
+                    builder: (context, vm, _) {
+                      if (!vm.isLoaded) {
+                        return _LoadingView(errorMessage: vm.errorMessage);
+                      }
+                      return _VideoStudyBody(
+                        viewModel: vm,
+                        embedUrl: widget.embedUrl,
+                      );
+                    },
+                  ),
                 ),
-              ),
-          ],
-        ),
+                if (widget.onBack != null)
+                  Positioned(
+                    left: 16,
+                    top: 16,
+                    child: _MediaOverlayButton(
+                      key: const ValueKey('video_back_action'),
+                      tooltip: '返回来源',
+                      onPressed: widget.onBack!,
+                      icon: Icons.chevron_left_rounded,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -133,28 +145,22 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (errorMessage == null)
-            const CircularProgressIndicator(
-              color: SpringRainUiTokens.daylightAccent,
+            CircularProgressIndicator(
+              color: tokens.actionSecondary,
               strokeWidth: 2,
             )
           else
-            const Icon(
-              Icons.cloud_off_outlined,
-              color: SpringRainUiTokens.daylightTextTertiary,
-              size: 36,
-            ),
+            Icon(Icons.cloud_off_outlined, color: tokens.textFaint, size: 36),
           const SizedBox(height: 16),
           Text(
             errorMessage ?? '加载中…',
-            style: const TextStyle(
-              color: SpringRainUiTokens.daylightTextTertiary,
-              fontSize: 14,
-            ),
+            style: whiteboardUiTextStyle(color: tokens.textFaint, fontSize: 14),
           ),
         ],
       ),
@@ -163,6 +169,8 @@ class _LoadingView extends StatelessWidget {
 }
 
 class _VideoStudyBody extends StatelessWidget {
+  static const double _autoBottomBreakpoint = 760;
+
   final VideoStudyViewModel viewModel;
   final String? embedUrl;
 
@@ -171,69 +179,96 @@ class _VideoStudyBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!viewModel.hasRuntimePlaybackSurface) {
-      return _LinkOnlyView(viewModel: viewModel);
+      return _LinkOnlyView(viewModel: viewModel, embedUrl: embedUrl);
     }
 
     if (!viewModel.dockVisible) {
       return Stack(
         children: [
-          Positioned.fill(child: VideoPlayerPanel(viewModel: viewModel)),
+          Positioned.fill(
+            child: SizedBox.expand(
+              key: const ValueKey('video_player_region'),
+              child: VideoPlayerPanel(viewModel: viewModel),
+            ),
+          ),
           Positioned(
             right: 16,
             top: 16,
-            child: IconButton.filledTonal(
+            child: _MediaOverlayButton(
+              key: const ValueKey('video_open_dock'),
               tooltip: '打开字幕与标注',
               onPressed: () => viewModel.setDockVisible(true),
-              icon: const Icon(Icons.subtitles_outlined),
+              icon: Icons.subtitles_outlined,
             ),
           ),
         ],
       );
     }
 
-    if (viewModel.dockOrientation == DockOrientation.right) {
-      return _HorizontalLayout(viewModel: viewModel, embedUrl: embedUrl);
-    } else {
-      return _VerticalLayout(viewModel: viewModel, embedUrl: embedUrl);
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final autoBottom = constraints.maxWidth < _autoBottomBreakpoint;
+        final effectiveOrientation =
+            autoBottom ? DockOrientation.bottom : viewModel.dockOrientation;
+        if (effectiveOrientation == DockOrientation.right) {
+          return _HorizontalLayout(viewModel: viewModel);
+        }
+        return _VerticalLayout(
+          viewModel: viewModel,
+          orientationLocked: autoBottom,
+        );
+      },
+    );
   }
 }
 
 /// Horizontal layout: player left (65%), dock right (35%).
 class _HorizontalLayout extends StatelessWidget {
-  final VideoStudyViewModel viewModel;
-  final String? embedUrl;
+  static const double _splitterExtent = 8;
+  static const double _minimumPlayerWidth = 420;
+  static const double _minimumDockWidth = 320;
 
-  const _HorizontalLayout({required this.viewModel, this.embedUrl});
+  final VideoStudyViewModel viewModel;
+
+  const _HorizontalLayout({required this.viewModel});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const dividerWidth = 4.0;
-        final totalWidth = constraints.maxWidth - dividerWidth;
-        final dockWidth = totalWidth * viewModel.dockRatio;
+        final totalWidth = constraints.maxWidth - _splitterExtent;
+        final dockWidth = _resolveDockExtent(
+          totalExtent: totalWidth,
+          preferredRatio: viewModel.dockRatio,
+          minimumDockExtent: _minimumDockWidth,
+          minimumMainExtent: _minimumPlayerWidth,
+        );
         final playerWidth = totalWidth - dockWidth;
 
-        return Row(
-          children: [
-            SizedBox(
-              width: playerWidth,
-              child: VideoPlayerPanel(viewModel: viewModel),
-            ),
-            _DockDivider(
-              isHorizontal: false,
-              ratio: viewModel.dockRatio,
-              onDrag: (delta) {
-                final newRatio = viewModel.dockRatio + delta / totalWidth;
-                viewModel.setDockRatio(newRatio);
-              },
-            ),
-            SizedBox(
-              width: dockWidth,
-              child: ContextDock(viewModel: viewModel),
-            ),
-          ],
+        return KeyedSubtree(
+          key: const ValueKey('video_layout_right'),
+          child: Row(
+            children: [
+              SizedBox(
+                key: const ValueKey('video_player_region'),
+                width: playerWidth,
+                child: VideoPlayerPanel(viewModel: viewModel),
+              ),
+              _DockDivider(
+                axis: Axis.vertical,
+                extent: _splitterExtent,
+                onDrag: (delta) {
+                  final requestedDockWidth = dockWidth - delta;
+                  viewModel.setDockRatio(requestedDockWidth / totalWidth);
+                },
+              ),
+              SizedBox(
+                key: const ValueKey('video_context_dock_region'),
+                width: dockWidth,
+                child: ContextDock(viewModel: viewModel),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -242,39 +277,63 @@ class _HorizontalLayout extends StatelessWidget {
 
 /// Vertical layout: player top (70%), dock bottom (30%).
 class _VerticalLayout extends StatelessWidget {
-  final VideoStudyViewModel viewModel;
-  final String? embedUrl;
+  static const double _splitterExtent = 8;
+  static const double _minimumPlayerHeight = 300;
+  static const double _minimumDockHeight = 220;
+  static const double _defaultBottomRatio = 0.30;
 
-  const _VerticalLayout({required this.viewModel, this.embedUrl});
+  final VideoStudyViewModel viewModel;
+  final bool orientationLocked;
+
+  const _VerticalLayout({
+    required this.viewModel,
+    required this.orientationLocked,
+  });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const dividerHeight = 4.0;
-        final totalHeight = constraints.maxHeight - dividerHeight;
-        final dockHeight = totalHeight * viewModel.dockRatio;
+        final totalHeight = constraints.maxHeight - _splitterExtent;
+        final preferredRatio = (viewModel.dockRatio - 0.35).abs() < 0.0001
+            ? _defaultBottomRatio
+            : viewModel.dockRatio;
+        final dockHeight = _resolveDockExtent(
+          totalExtent: totalHeight,
+          preferredRatio: preferredRatio,
+          minimumDockExtent: _minimumDockHeight,
+          minimumMainExtent: _minimumPlayerHeight,
+        );
         final playerHeight = totalHeight - dockHeight;
 
-        return Column(
-          children: [
-            SizedBox(
-              height: playerHeight,
-              child: VideoPlayerPanel(viewModel: viewModel),
-            ),
-            _DockDivider(
-              isHorizontal: true,
-              ratio: viewModel.dockRatio,
-              onDrag: (delta) {
-                final newRatio = viewModel.dockRatio + delta / totalHeight;
-                viewModel.setDockRatio(newRatio);
-              },
-            ),
-            SizedBox(
-              height: dockHeight,
-              child: ContextDock(viewModel: viewModel),
-            ),
-          ],
+        return KeyedSubtree(
+          key: const ValueKey('video_layout_bottom'),
+          child: Column(
+            children: [
+              SizedBox(
+                key: const ValueKey('video_player_region'),
+                height: playerHeight,
+                child: VideoPlayerPanel(viewModel: viewModel),
+              ),
+              _DockDivider(
+                axis: Axis.horizontal,
+                extent: _splitterExtent,
+                onDrag: (delta) {
+                  final requestedDockHeight = dockHeight - delta;
+                  viewModel.setDockRatio(requestedDockHeight / totalHeight);
+                },
+              ),
+              SizedBox(
+                key: const ValueKey('video_context_dock_region'),
+                height: dockHeight,
+                child: ContextDock(
+                  viewModel: viewModel,
+                  displayOrientation: DockOrientation.bottom,
+                  orientationLocked: orientationLocked,
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -283,34 +342,46 @@ class _VerticalLayout extends StatelessWidget {
 
 /// Draggable divider between player and dock.
 class _DockDivider extends StatelessWidget {
-  final bool isHorizontal;
-  final double ratio;
+  final Axis axis;
+  final double extent;
   final void Function(double delta) onDrag;
 
   const _DockDivider({
-    required this.isHorizontal,
-    required this.ratio,
+    required this.axis,
+    required this.extent,
     required this.onDrag,
   });
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final horizontal = axis == Axis.horizontal;
     return GestureDetector(
+      key: const ValueKey('video_dock_splitter'),
+      behavior: HitTestBehavior.opaque,
       onPanUpdate: (details) {
-        if (isHorizontal) {
+        if (horizontal) {
           onDrag(details.delta.dy);
         } else {
-          onDrag(-details.delta.dx);
+          onDrag(details.delta.dx);
         }
       },
       child: MouseRegion(
-        cursor: isHorizontal
+        cursor: horizontal
             ? SystemMouseCursors.resizeRow
             : SystemMouseCursors.resizeColumn,
-        child: Container(
-          width: isHorizontal ? double.infinity : 4,
-          height: isHorizontal ? 4 : double.infinity,
-          color: const Color(0x33F0EFEB),
+        child: SizedBox(
+          width: horizontal ? double.infinity : extent,
+          height: horizontal ? extent : double.infinity,
+          child: Center(
+            child: ColoredBox(
+              color: tokens.divider,
+              child: SizedBox(
+                width: horizontal ? double.infinity : 1,
+                height: horizontal ? 1 : double.infinity,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -320,43 +391,146 @@ class _DockDivider extends StatelessWidget {
 /// Link-only view for providers that don't support playback study.
 class _LinkOnlyView extends StatelessWidget {
   final VideoStudyViewModel viewModel;
-  const _LinkOnlyView({required this.viewModel});
+  final String? embedUrl;
+
+  const _LinkOnlyView({required this.viewModel, required this.embedUrl});
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final externalUri = _externalUri(embedUrl);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.link,
-              size: 48,
-              color: SpringRainUiTokens.daylightTextTertiary,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '此平台不支持研读播放',
-              style: TextStyle(
-                color: SpringRainUiTokens.daylightSurfaceRaised,
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.link_rounded, size: 48, color: tokens.textFaint),
+              const SizedBox(height: 16),
+              Text(
+                '当前为链接模式',
+                style: whiteboardUiTextStyle(
+                  color: tokens.canvas,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${viewModel.providerId} 当前为链接模式\n'
-              '请使用 YouTube 播放器进行完整字幕研读与时间标注',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: SpringRainUiTokens.daylightTextTertiary,
-                fontSize: 14,
-                height: 1.6,
+              const SizedBox(height: 8),
+              Text(
+                '${_providerLabel(viewModel.providerId)} 没有稳定的 '
+                'current / duration / seek 接口。\n'
+                '原链接仍然保留；这里不会伪装播放器、时间轴或字幕能力。',
+                textAlign: TextAlign.center,
+                style: whiteboardUiTextStyle(
+                  color: tokens.textFaint,
+                  fontSize: 14,
+                  height: 1.6,
+                ),
               ),
-            ),
-          ],
+              if (embedUrl?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 16),
+                SelectableText(
+                  embedUrl!.trim(),
+                  textAlign: TextAlign.center,
+                  style: whiteboardUiTextStyle(
+                    color: tokens.actionSoft,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+              if (externalUri != null) ...[
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  key: const ValueKey('open_video_source_link'),
+                  onPressed: () => _openExternal(context, externalUri),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  label: const Text('在浏览器打开原链接'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: tokens.action,
+                    foregroundColor: tokens.canvas,
+                    minimumSize: const Size(44, 44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  static Uri? _externalUri(String? value) {
+    final uri = Uri.tryParse(value?.trim() ?? '');
+    if (uri == null || !uri.hasAuthority) return null;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    return uri;
+  }
+
+  static String _providerLabel(String providerId) => switch (providerId) {
+        'bilibili' => '哔哩哔哩',
+        'xiaohongshu' => '小红书',
+        'unknown' => '这个来源',
+        _ => providerId,
+      };
+
+  static Future<void> _openExternal(BuildContext context, Uri uri) async {
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!context.mounted || launched) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('无法打开原链接，请复制链接后重试。')));
+  }
+}
+
+double _resolveDockExtent({
+  required double totalExtent,
+  required double preferredRatio,
+  required double minimumDockExtent,
+  required double minimumMainExtent,
+}) {
+  if (!totalExtent.isFinite || totalExtent <= 0) return 0;
+  final maximumDockExtent = totalExtent - minimumMainExtent;
+  if (maximumDockExtent < minimumDockExtent) {
+    return (totalExtent / 2).clamp(0.0, totalExtent).toDouble();
+  }
+  return (totalExtent * preferredRatio)
+      .clamp(minimumDockExtent, maximumDockExtent)
+      .toDouble();
+}
+
+class _MediaOverlayButton extends StatelessWidget {
+  const _MediaOverlayButton({
+    super.key,
+    required this.tooltip,
+    required this.onPressed,
+    required this.icon,
+  });
+
+  final String tooltip;
+  final VoidCallback onPressed;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.dark.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tokens.canvas.withValues(alpha: 0.18)),
+      ),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon, size: 20),
+        color: tokens.canvas,
+        hoverColor: tokens.canvas.withValues(alpha: 0.10),
       ),
     );
   }

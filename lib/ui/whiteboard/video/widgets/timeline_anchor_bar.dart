@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import '../view_models/video_study_view_model.dart';
 
 class TimelineAnchorBar extends StatelessWidget {
@@ -17,6 +18,7 @@ class TimelineAnchorBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final duration = viewModel.durationMs;
     if (duration <= 0) return const SizedBox(height: 0);
 
@@ -29,15 +31,16 @@ class TimelineAnchorBar extends StatelessWidget {
         const barHeight = 24.0;
 
         return SizedBox(
+          key: const ValueKey('video_timeline_anchor_bar'),
           height: barHeight,
           child: GestureDetector(
             onTapDown: (details) {
-              if (!viewModel.canSeek) return;
-              final ratio = details.localPosition.dx / width;
+              if (!viewModel.canSeek || width <= 0) return;
+              final ratio = (details.localPosition.dx / width).clamp(0.0, 1.0);
               viewModel.seekTo((ratio * duration).toInt());
             },
             onHorizontalDragUpdate: (details) {
-              if (!viewModel.canSeek) return;
+              if (!viewModel.canSeek || width <= 0) return;
               final ratio = (details.localPosition.dx / width).clamp(0.0, 1.0);
               viewModel.seekTo((ratio * duration).toInt());
             },
@@ -50,7 +53,7 @@ class TimelineAnchorBar extends StatelessWidget {
                     child: Container(
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0x55F0EFEB),
+                        color: tokens.divider,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -59,11 +62,14 @@ class TimelineAnchorBar extends StatelessWidget {
                 // Range anchor bands
                 ...viewModel.annotations
                     .where((a) => !a.isPoint)
-                    .map((a) => _RangeBand(
-                          startRatio: a.startMs / duration,
-                          endRatio: a.endMs / duration,
-                          totalWidth: width,
-                        )),
+                    .map(
+                      (a) => _RangeBand(
+                        startRatio: a.startMs / duration,
+                        endRatio: a.endMs / duration,
+                        totalWidth: width,
+                        color: tokens.action.withValues(alpha: 0.28),
+                      ),
+                    ),
                 // Progress
                 Positioned(
                   left: 0,
@@ -72,7 +78,7 @@ class TimelineAnchorBar extends StatelessWidget {
                     height: 4,
                     width: width * progress,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF77835A),
+                      color: tokens.actionSecondary,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -80,11 +86,14 @@ class TimelineAnchorBar extends StatelessWidget {
                 // Point anchor markers
                 ...viewModel.annotations
                     .where((a) => a.isPoint)
-                    .map((a) => _PointMarker(
-                          ratio: a.startMs / duration,
-                          totalWidth: width,
-                          barHeight: barHeight,
-                        )),
+                    .map(
+                      (a) => _PointMarker(
+                        ratio: a.startMs / duration,
+                        totalWidth: width,
+                        barHeight: barHeight,
+                        color: tokens.action,
+                      ),
+                    ),
                 // Playhead
                 Positioned(
                   left: (width * progress - 6).clamp(0.0, width - 12),
@@ -93,10 +102,9 @@ class TimelineAnchorBar extends StatelessWidget {
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD4A017),
+                      color: tokens.focus,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                          color: const Color(0xFFF2D17E), width: 1.5),
+                      border: Border.all(color: tokens.actionSoft, width: 1.5),
                     ),
                   ),
                 ),
@@ -113,11 +121,13 @@ class _RangeBand extends StatelessWidget {
   final double startRatio;
   final double endRatio;
   final double totalWidth;
+  final Color color;
 
   const _RangeBand({
     required this.startRatio,
     required this.endRatio,
     required this.totalWidth,
+    required this.color,
   });
 
   @override
@@ -129,7 +139,7 @@ class _RangeBand extends StatelessWidget {
         width: totalWidth * (endRatio - startRatio),
         height: 12,
         decoration: BoxDecoration(
-          color: const Color(0x4443593B),
+          color: color,
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -141,11 +151,13 @@ class _PointMarker extends StatelessWidget {
   final double ratio;
   final double totalWidth;
   final double barHeight;
+  final Color color;
 
   const _PointMarker({
     required this.ratio,
     required this.totalWidth,
     required this.barHeight,
+    required this.color,
   });
 
   @override
@@ -156,10 +168,7 @@ class _PointMarker extends StatelessWidget {
       child: Container(
         width: 6,
         height: 6,
-        decoration: const BoxDecoration(
-          color: Color(0xFF43593B),
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
   }

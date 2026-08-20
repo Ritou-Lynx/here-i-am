@@ -32,6 +32,10 @@ void main() {
 
   testWidgets('ordinary source renders repository body metadata and version',
       (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     repository = _StaticSourceRepository(
       db: db,
       root: root,
@@ -54,9 +58,23 @@ void main() {
     await _pumpSource(tester);
 
     expect(find.text('真实网页标题'), findsOneWidget);
-    expect(find.textContaining('这是 Repository 对象中的完整正文'), findsOneWidget);
+    expect(
+      find.textContaining('这是 Repository 对象中的完整正文'),
+      findsOneWidget,
+    );
     expect(find.textContaining('正文对象可用'), findsOneWidget);
     expect(find.textContaining('example.com'), findsWidgets);
+    expect(find.byType(AppBar), findsNothing);
+    final readingColumn = tester.getSize(
+      find.byKey(const ValueKey('source_reading_column')),
+    );
+    expect(readingColumn.width, inInclusiveRange(680, 760));
+
+    expect(find.text('来源元数据'), findsNothing);
+    await tester.tap(find.text('来源信息'));
+    await tester.pumpAndSettle();
+    expect(find.text('来源元数据'), findsOneWidget);
+    expect(find.textContaining('canonical_url:'), findsOneWidget);
   });
 
   testWidgets('video source enters real provider path and never Fixture Player',
@@ -86,7 +104,7 @@ void main() {
     expect(find.byType(VideoStudyScreen), findsOneWidget);
     expect(find.text('Fixture Player'), findsNothing);
     expect(timedTextService.calls, 1);
-    expect(find.text('此平台不支持研读播放'), findsOneWidget,
+    expect(find.text('当前为链接模式'), findsOneWidget,
         reason: 'the injected unavailable adapter must degrade honestly');
     await tester.pumpWidget(const SizedBox.shrink());
     debugDefaultTargetPlatformOverride = null;

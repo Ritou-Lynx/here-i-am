@@ -13,6 +13,8 @@ import 'package:webview_flutter_windows/webview_flutter_windows.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
 import 'package:memex/domain/whiteboard/video/windows_youtube_player_adapter.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 import 'web_player_surface.dart'
     if (dart.library.js_interop) 'web_player_surface_web.dart'
     as player_surface;
@@ -41,15 +43,14 @@ class VideoPlayerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final nativeControls = _usesNativeControls;
     return Container(
-      color: const Color(0xFF1C1C1A),
+      color: tokens.dark,
       child: Stack(
         children: [
           // Player surface
-          Positioned.fill(
-            child: _PlayerSurface(viewModel: viewModel),
-          ),
+          Positioned.fill(child: _PlayerSurface(viewModel: viewModel)),
           // Bottom gradient + controls + timeline (only for players WITHOUT
           // native controls, e.g. the fixture simulator / link-only stubs).
           if (!nativeControls)
@@ -71,6 +72,7 @@ class _PlayerSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final adapter = viewModel.adapter;
 
     // Flutter Web — YouTube IFrame embedded via HtmlElementView (conditional)
@@ -101,7 +103,7 @@ class _PlayerSurface extends StatelessWidget {
     // Fixture adapter — simulated dark surface
     if (adapter is FixturePlayerAdapter) {
       return Container(
-        color: const Color(0xFF1C1C1A),
+        color: tokens.dark,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -111,24 +113,22 @@ class _PlayerSurface extends StatelessWidget {
                     ? Icons.pause_circle_outline
                     : Icons.play_circle_outline,
                 size: 64,
-                color: const Color(0xFF8F8E88),
+                color: tokens.canvas.withValues(alpha: 0.56),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Fixture Player',
-                style: TextStyle(
-                  color: Color(0xFF8F8E88),
+                style: richTextCodeTextStyle(
+                  color: tokens.canvas.withValues(alpha: 0.56),
                   fontSize: 12,
-                  fontFamily: 'Cascadia Code',
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 VideoStudyViewModel.formatTimecode(viewModel.positionMs),
-                style: const TextStyle(
-                  color: Color(0xFFB0AFA9),
+                style: richTextCodeTextStyle(
+                  color: tokens.canvas.withValues(alpha: 0.76),
                   fontSize: 20,
-                  fontFamily: 'Cascadia Code',
                 ),
               ),
             ],
@@ -140,29 +140,29 @@ class _PlayerSurface extends StatelessWidget {
     // Link-only providers that expose a (non-controllable) embed surface:
     // show an honest placeholder, not a fake fixture player.
     return Container(
-      color: const Color(0xFF1C1C1A),
+      color: tokens.dark,
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.link,
               size: 48,
-              color: Color(0xFF8F8E88),
+              color: tokens.canvas.withValues(alpha: 0.56),
             ),
             const SizedBox(height: 12),
             Text(
               '${viewModel.providerId} 当前为链接模式',
-              style: const TextStyle(
-                color: Color(0xFF8F8E88),
+              style: whiteboardUiTextStyle(
+                color: tokens.canvas.withValues(alpha: 0.56),
                 fontSize: 14,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               '无可控播放接口，请使用 YouTube 研读播放',
-              style: TextStyle(
-                color: Color(0xFF6A6963),
+              style: whiteboardUiTextStyle(
+                color: tokens.canvas.withValues(alpha: 0.42),
                 fontSize: 12,
               ),
             ),
@@ -179,12 +179,16 @@ class _PlayerControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0x001C1C1A), Color(0xE61C1C1A)],
+          colors: [
+            tokens.dark.withValues(alpha: 0),
+            tokens.dark.withValues(alpha: 0.90),
+          ],
         ),
       ),
       padding: const EdgeInsets.only(top: 8, bottom: 8, left: 16, right: 16),
@@ -204,43 +208,26 @@ class _PlayerControls extends StatelessWidget {
               // Time display
               Text(
                 VideoStudyViewModel.formatTimecode(viewModel.positionMs),
-                style: const TextStyle(
-                  color: Color(0xFFD8D7D1),
+                style: richTextCodeTextStyle(
+                  color: tokens.canvas.withValues(alpha: 0.90),
                   fontSize: 13,
-                  fontFamily: 'Cascadia Code',
                 ),
               ),
-              const Text(
+              Text(
                 ' / ',
-                style: TextStyle(
-                  color: Color(0xFF8F8E88),
+                style: richTextCodeTextStyle(
+                  color: tokens.canvas.withValues(alpha: 0.56),
                   fontSize: 13,
-                  fontFamily: 'Cascadia Code',
                 ),
               ),
               Text(
                 VideoStudyViewModel.formatTimecode(viewModel.durationMs),
-                style: const TextStyle(
-                  color: Color(0xFF8F8E88),
+                style: richTextCodeTextStyle(
+                  color: tokens.canvas.withValues(alpha: 0.56),
                   fontSize: 13,
-                  fontFamily: 'Cascadia Code',
                 ),
               ),
               const Spacer(),
-              // Dock orientation toggle
-              _ControlButton(
-                icon: viewModel.dockOrientation == DockOrientation.right
-                    ? Icons.view_stream
-                    : Icons.view_column,
-                size: 18,
-                onPressed: () {
-                  viewModel.setDockOrientation(
-                    viewModel.dockOrientation == DockOrientation.right
-                        ? DockOrientation.bottom
-                        : DockOrientation.right,
-                  );
-                },
-              ),
             ],
           ),
         ],
@@ -252,23 +239,19 @@ class _PlayerControls extends StatelessWidget {
 class _ControlButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
-  final double size;
 
-  const _ControlButton({
-    required this.icon,
-    this.onPressed,
-    this.size = 22,
-  });
+  const _ControlButton({required this.icon, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     return SizedBox(
       width: 36,
       height: 36,
       child: IconButton(
-        icon: Icon(icon, size: size),
-        color: const Color(0xFFD8D7D1),
-        hoverColor: const Color(0x33F0EFEB),
+        icon: Icon(icon, size: 22),
+        color: tokens.canvas.withValues(alpha: 0.90),
+        hoverColor: tokens.canvas.withValues(alpha: 0.12),
         onPressed: onPressed,
       ),
     );

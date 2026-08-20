@@ -7,7 +7,8 @@ library;
 
 import 'package:flutter/material.dart';
 
-import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 import '../view_models/video_study_view_model.dart';
 
 class AnnotationEditor extends StatefulWidget {
@@ -45,14 +46,16 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
     final startMs = widget.viewModel.pendingAnnotationStartMs ?? 0;
 
     return Container(
+      key: const ValueKey('video_annotation_editor'),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: SpringRainUiTokens.daylightSurfaceRaised,
+        color: tokens.surfaceRaised,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x4043593B), width: 1),
+        border: Border.all(color: tokens.divider, width: 1),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -61,12 +64,12 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
           // Header with time range
           Row(
             children: [
-              const Icon(Icons.bookmark, size: 16, color: Color(0xFF43593B)),
+              Icon(Icons.bookmark_outline, size: 16, color: tokens.action),
               const SizedBox(width: 6),
               Text(
                 '时间标注',
-                style: TextStyle(
-                  color: SpringRainUiTokens.daylightTextPrimary,
+                style: whiteboardUiTextStyle(
+                  color: tokens.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -74,10 +77,9 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
               const Spacer(),
               Text(
                 VideoStudyViewModel.formatTimecode(startMs),
-                style: const TextStyle(
-                  color: Color(0xFF43593B),
+                style: richTextCodeTextStyle(
+                  color: tokens.action,
                   fontSize: 13,
-                  fontFamily: 'Cascadia Code',
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -87,14 +89,10 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
           // Title input
           TextField(
             controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: '标题',
-              isDense: true,
-              border: OutlineInputBorder(),
-            ),
-            style: TextStyle(
+            decoration: _inputDecoration(tokens, '标题'),
+            style: whiteboardUiTextStyle(
               fontSize: 14,
-              color: SpringRainUiTokens.daylightTextPrimary,
+              color: tokens.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -102,15 +100,11 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
           TextField(
             controller: _bodyController,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: '笔记',
-              isDense: true,
-              border: OutlineInputBorder(),
-            ),
-            style: TextStyle(
+            decoration: _inputDecoration(tokens, '笔记'),
+            style: whiteboardUiTextStyle(
               fontSize: 14,
               height: 1.6,
-              color: SpringRainUiTokens.daylightTextPrimary,
+              color: tokens.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -118,15 +112,11 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
           TextField(
             controller: _quoteController,
             maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: '引用原文（可选）',
-              isDense: true,
-              border: OutlineInputBorder(),
-            ),
-            style: TextStyle(
+            decoration: _inputDecoration(tokens, '引用原文（可选）'),
+            style: whiteboardUiTextStyle(
               fontSize: 13,
               height: 1.5,
-              color: SpringRainUiTokens.daylightTextSecondary,
+              color: tokens.textMuted,
             ),
           ),
           const SizedBox(height: 12),
@@ -137,13 +127,10 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
               TextButton(
                 onPressed: () {
                   widget.viewModel.cancelAnnotation();
-                  Navigator.of(context).maybePop();
                 },
                 child: Text(
                   '取消',
-                  style: TextStyle(
-                    color: SpringRainUiTokens.daylightTextSecondary,
-                  ),
+                  style: whiteboardUiTextStyle(color: tokens.textMuted),
                 ),
               ),
               const SizedBox(width: 8),
@@ -159,9 +146,10 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
                   widget.viewModel.isSavingAnnotation ? '保存中…' : '保存标注',
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF43593B),
-                  foregroundColor: const Color(0xFFF0EFEB),
-                  textStyle: const TextStyle(fontSize: 14),
+                  backgroundColor: tokens.action,
+                  foregroundColor: tokens.canvas,
+                  minimumSize: const Size(44, 44),
+                  textStyle: whiteboardUiTextStyle(fontSize: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -181,6 +169,27 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
       quote: _quoteController.text.trim().isEmpty
           ? null
           : _quoteController.text.trim(),
+    );
+  }
+
+  InputDecoration _inputDecoration(
+    DesktopWorkspaceTokens tokens,
+    String label,
+  ) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: tokens.divider),
+    );
+    return InputDecoration(
+      labelText: label,
+      isDense: true,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: tokens.action, width: 1.5),
+      ),
+      labelStyle: whiteboardUiTextStyle(color: tokens.textMuted, fontSize: 12),
     );
   }
 }
