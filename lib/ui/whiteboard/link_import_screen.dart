@@ -76,6 +76,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   bool _fetching = false;
   bool _cardBusy = false;
   String? _inputError;
+  String? _recentError;
 
   LinkIngestionOutcome? _outcome;
   CardContract? _existingCard;
@@ -136,23 +137,34 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   Future<void> _loadRecent() async {
     final service = _service;
     if (service == null) return;
-    final cards = await service.listCards();
-    final recent = <_RecentImport>[];
-    for (final card in cards) {
-      final record = card.sourceId != null
-          ? await service.getSource(card.sourceId!)
-          : null;
-      recent.add(_RecentImport(
-        card: card,
-        canonicalUrl: record?.source.metadata['canonical_url'] as String? ?? '',
-        provider: record?.source.provider,
-        versionCount: record?.versions.length ?? 1,
-        createdAt: card.createdAt,
-      ));
+    try {
+      final cards = await service.listCards();
+      final recent = <_RecentImport>[];
+      for (final card in cards) {
+        final record = card.sourceId != null
+            ? await service.getSource(card.sourceId!)
+            : null;
+        recent.add(_RecentImport(
+          card: card,
+          canonicalUrl:
+              record?.source.metadata['canonical_url'] as String? ?? '',
+          provider: record?.source.provider,
+          versionCount: record?.versions.length ?? 1,
+          createdAt: card.createdAt,
+        ));
+      }
+      recent.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      if (!mounted) return;
+      setState(() {
+        _recent = recent;
+        _recentError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _recentError = '最近列表刷新失败。已保存的卡片与版本不受影响，可稍后重新进入本页刷新。';
+      });
     }
-    recent.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    if (!mounted) return;
-    setState(() => _recent = recent);
   }
 
   // -----------------------------------------------------------------------
@@ -161,7 +173,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
 
   Future<void> _fetch() async {
     final service = _service;
-    if (service == null || _fetching) return;
+    if (service == null || _fetching || _cardBusy) return;
     final url = _urlController.text.trim();
     if (url.isEmpty) {
       setState(() => _inputError = '请输入要导入的链接');
@@ -213,30 +225,33 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
     final outcome = _outcome;
     if (service == null || outcome == null || _cardBusy) return;
     setState(() => _cardBusy = true);
+    late final LinkIngestionOutcome finalOutcome;
     try {
-      final finalOutcome = await service.commitResult(outcome.result);
-      if (!mounted) return;
-      setState(() {
-        _outcome = finalOutcome;
-        _existingCard = null;
-        _matchesExistingVersion = true;
-        _cardSaved = true;
-        _cardBusy = false;
-      });
-      await _loadRecent();
-      final source = finalOutcome.result.source;
-      if (mounted &&
-          source?.sourceId != null &&
-          _isStudyReady(finalOutcome.result)) {
-        context.go(AppRoutes.sourceStudyPath(source!.sourceId));
-      }
+      finalOutcome = await service.commitResult(outcome.result);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _cardBusy = false;
         _inputError = '存入卡片库失败：$e';
       });
+      return;
     }
+    if (!mounted) return;
+    setState(() {
+      _outcome = finalOutcome;
+      _existingCard = null;
+      _matchesExistingVersion = true;
+      _cardSaved = true;
+      _cardBusy = false;
+      _inputError = null;
+    });
+
+    final source = finalOutcome.result.source;
+    if (source?.sourceId != null && _isStudyReady(finalOutcome.result)) {
+      context.go(AppRoutes.sourceStudyPath(source!.sourceId));
+      return;
+    }
+    await _loadRecent();
   }
 
   void _openCardLibrary() {
@@ -253,6 +268,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   }
 
   void _cancelPreview() {
+    if (_cardBusy) return;
     setState(() {
       _outcome = null;
       _existingCard = null;
@@ -314,6 +330,8 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
                             if (_fetching) _buildFetching(),
                             if (_outcome != null) _buildOutcome(_outcome!),
                             const SizedBox(height: 24),
+                            if (_recentError != null)
+                              _buildRecentRefreshError(),
                             _buildRecent(),
                           ],
                         ),
@@ -388,7 +406,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
         key: const ValueKey('link_import_url_input'),
         controller: _urlController,
         focusNode: _urlFocusNode,
-        enabled: _service != null && !_fetching,
+        enabled: _service != null && !_fetching && !_cardBusy,
         onSubmitted: (_) => _fetch(),
         keyboardType: TextInputType.url,
         textInputAction: TextInputAction.go,
@@ -432,7 +450,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       child: FilledButton.icon(
         key: const ValueKey('link_import_fetch_button'),
         focusNode: _fetchFocusNode,
-        onPressed: (_service == null || _fetching) ? null : _fetch,
+        onPressed: (_service == null || _fetching || _cardBusy) ? null : _fetch,
         icon: const Icon(Icons.travel_explore_rounded, size: 17),
         label: const Text('预览'),
         style: FilledButton.styleFrom(
@@ -996,6 +1014,37 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentRefreshError() {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Container(
+      key: const ValueKey('link_import_recent_error'),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tokens.focus.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tokens.focus.withValues(alpha: 0.42)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.sync_problem_rounded, size: 18, color: tokens.focus),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _recentError!,
+              style: whiteboardUiTextStyle(
+                color: tokens.textMuted,
+                fontSize: 12,
+                height: 1.5,
+              ),
             ),
           ),
         ],

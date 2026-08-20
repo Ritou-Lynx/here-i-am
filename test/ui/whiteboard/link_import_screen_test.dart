@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -12,6 +13,9 @@ import 'package:memex/data/whiteboard/ingestion/link_ingestor.dart';
 import 'package:memex/data/whiteboard/ingestion/safe_http_client.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
+import 'package:memex/domain/whiteboard/ingestion_result.dart';
+import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard/link_import_screen.dart';
 
@@ -78,6 +82,72 @@ LinkIngestionService _service(
       ),
     ),
   );
+}
+
+class _ControlledLinkIngestionService extends LinkIngestionService {
+  _ControlledLinkIngestionService({
+    required super.repository,
+    required LinkIngestionService delegate,
+    this.commitGate,
+    this.failRecentAfterCommit = false,
+  }) : _delegate = delegate;
+
+  final LinkIngestionService _delegate;
+  final Completer<void>? commitGate;
+  final bool failRecentAfterCommit;
+
+  int ingestCalls = 0;
+  int commitCalls = 0;
+  bool _commitSucceeded = false;
+
+  @override
+  Future<LinkIngestionOutcome> ingestUrl(
+    String url, {
+    bool createCard = false,
+    CardKind cardKind = CardKind.source,
+    OwnerSpace ownerSpace = OwnerSpace.user,
+    CardCreatedBy createdBy = CardCreatedBy.user,
+  }) {
+    ingestCalls += 1;
+    return _delegate.ingestUrl(
+      url,
+      createCard: createCard,
+      cardKind: cardKind,
+      ownerSpace: ownerSpace,
+      createdBy: createdBy,
+    );
+  }
+
+  @override
+  Future<LinkIngestionOutcome> commitResult(
+    IngestionResult result, {
+    CardKind cardKind = CardKind.source,
+    OwnerSpace ownerSpace = OwnerSpace.user,
+    CardCreatedBy createdBy = CardCreatedBy.user,
+  }) async {
+    commitCalls += 1;
+    await commitGate?.future;
+    final outcome = await _delegate.commitResult(
+      result,
+      cardKind: cardKind,
+      ownerSpace: ownerSpace,
+      createdBy: createdBy,
+    );
+    _commitSucceeded = true;
+    return outcome;
+  }
+
+  @override
+  Future<LinkIngestionRecord?> getSource(String sourceId) =>
+      _delegate.getSource(sourceId);
+
+  @override
+  Future<List<CardContract>> listCards() {
+    if (failRecentAfterCommit && _commitSucceeded) {
+      throw StateError('deterministic recent refresh failure');
+    }
+    return _delegate.listCards();
+  }
 }
 
 void main() {
@@ -280,6 +350,147 @@ void main() {
     // One card in the store, recent list shows it.
     final cards = await tester.runAsync(() => service.listCards());
     expect(cards, hasLength(1));
+  });
+
+  testWidgets(
+      'delayed commit is single-flight and blocks fetch, cancel and resubmit',
+      (tester) async {
+    final delegate = _service(repository, {
+      'https://example.com/doc': _Canned(
+        _fixture('open_graph.html'),
+        200,
+        'text/html',
+      ),
+    });
+    final commitGate = Completer<void>();
+    final service = _ControlledLinkIngestionService(
+      repository: repository,
+      delegate: delegate,
+      commitGate: commitGate,
+    );
+    await pump(tester, service);
+    await fetch(tester, 'https://example.com/doc');
+
+    await tester.tap(
+      find.byKey(const ValueKey('link_import_commit_button')),
+    );
+    await tester.pump();
+
+    expect(service.ingestCalls, 1);
+    expect(service.commitCalls, 1);
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('link_import_url_input')),
+          )
+          .enabled,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.byKey(const ValueKey('link_import_fetch_button')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const ValueKey('link_import_cancel_preview')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.byKey(const ValueKey('link_import_commit_button')),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('link_import_fetch_button')),
+      warnIfMissed: false,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('link_import_cancel_preview')),
+      warnIfMissed: false,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('link_import_commit_button')),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+    expect(service.ingestCalls, 1);
+    expect(service.commitCalls, 1);
+    expect(
+      find.byKey(const ValueKey('link_import_preview_panel')),
+      findsOneWidget,
+    );
+
+    commitGate.complete();
+    await settleFor(tester, find.text('已在卡片库'));
+    await tester.pumpAndSettle();
+
+    expect(service.ingestCalls, 1);
+    expect(service.commitCalls, 1);
+    expect(await tester.runAsync(delegate.listCards), hasLength(1));
+  });
+
+  testWidgets('commit success remains saved when recent-list refresh fails',
+      (tester) async {
+    final delegate = _service(repository, {
+      'https://example.com/doc': _Canned(
+        _fixture('open_graph.html'),
+        200,
+        'text/html',
+      ),
+    });
+    final service = _ControlledLinkIngestionService(
+      repository: repository,
+      delegate: delegate,
+      failRecentAfterCommit: true,
+    );
+    await pump(tester, service);
+    await fetch(tester, 'https://example.com/doc');
+
+    await tester.tap(
+      find.byKey(const ValueKey('link_import_commit_button')),
+    );
+    await settleFor(
+      tester,
+      find.byKey(const ValueKey('link_import_recent_error')),
+    );
+    await tester.pumpAndSettle();
+
+    final cards = (await tester.runAsync(delegate.listCards))!;
+    final record = await tester.runAsync(
+      () => delegate.getSource(cards.single.sourceId!),
+    );
+    expect(cards, hasLength(1));
+    expect(record!.versions, hasLength(1));
+    expect(service.commitCalls, 1);
+    expect(find.text('已在卡片库'), findsOneWidget);
+    expect(find.text(cards.single.cardId), findsOneWidget);
+    expect(find.textContaining('最近列表刷新失败'), findsOneWidget);
+    expect(find.textContaining('存入卡片库失败'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, '打开卡片库'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('link_import_commit_button')),
+      findsNothing,
+    );
+
+    final openLibrary = find.widgetWithText(OutlinedButton, '打开卡片库');
+    await tester.ensureVisible(openLibrary);
+    await tester.pumpAndSettle();
+    await tester.tap(openLibrary);
+    await tester.pumpAndSettle();
+    expect(find.text('卡片库页面'), findsOneWidget);
+    expect(await tester.runAsync(delegate.listCards), hasLength(1));
+    expect(service.commitCalls, 1);
   });
 
   testWidgets('cancel after preview leaves database unchanged', (tester) async {
