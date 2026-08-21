@@ -199,6 +199,8 @@ abstract interface class ThumbnailResolver {
   Future<ResolvedThumbnail> resolve(ThumbnailResolveRequest request);
 }
 
+typedef ThumbnailReferenceProvider = Future<Set<String>> Function();
+
 class SafeThumbnailResolver implements ThumbnailResolver {
   SafeThumbnailResolver({
     required this.whiteboardRoot,
@@ -208,6 +210,8 @@ class SafeThumbnailResolver implements ThumbnailResolver {
     this.maxOutputDimension = 1024,
     this.maxCacheBytes = 128 * 1024 * 1024,
     this.maxConcurrentResolutions = 1,
+    this.orphanGracePeriod = const Duration(hours: 24),
+    this.referencedObjectRefs,
   }) : _httpClient = httpClient ?? SafeHttpClient(config: httpConfig);
 
   static const httpConfig = SafeHttpConfig(
@@ -229,6 +233,8 @@ class SafeThumbnailResolver implements ThumbnailResolver {
   final int maxOutputDimension;
   final int maxCacheBytes;
   final int maxConcurrentResolutions;
+  final Duration orphanGracePeriod;
+  final ThumbnailReferenceProvider? referencedObjectRefs;
   final Map<String, Future<ResolvedThumbnail>> _inFlight = {};
   Future<void> _writeTail = Future<void>.value();
   int _activeResolutions = 0;
@@ -481,7 +487,7 @@ class SafeThumbnailResolver implements ThumbnailResolver {
       // atomically replace it with the freshly decoded bytes below.
       await target.delete();
     }
-    if (!await _hasCapacity(bytes.length)) {
+    if (!await _ensureCapacity(bytes.length)) {
       return const ResolvedThumbnail.failed(
         'Thumbnail cache reached its size limit',
       );
@@ -517,13 +523,83 @@ class SafeThumbnailResolver implements ThumbnailResolver {
     }
   }
 
-  Future<bool> _hasCapacity(int incomingBytes) async {
+  Future<bool> _ensureCapacity(int incomingBytes) async {
     var used = 0;
+    final cacheFiles = <File>[];
+    final reclaimable = <({
+      File file,
+      String objectRef,
+      DateTime modifiedAt,
+    })>[];
     if (await _cacheDirectory.exists()) {
       await for (final entity in _cacheDirectory.list(followLinks: false)) {
         if (entity is! File || !entity.path.endsWith('.png')) continue;
         used += await entity.length();
-        if (used + incomingBytes > maxCacheBytes) return false;
+        cacheFiles.add(entity);
+      }
+    }
+    if (used + incomingBytes <= maxCacheBytes) return true;
+
+    final provider = referencedObjectRefs;
+    if (provider == null || !_cacheNamespaceIsTrusted()) return false;
+    final Set<String> referenced;
+    try {
+      referenced = await provider();
+    } catch (_) {
+      // Reference discovery is the deletion authority. If it is unavailable,
+      // fail closed and retain every cache object.
+      return false;
+    }
+    final cutoff = DateTime.now().subtract(orphanGracePeriod);
+    for (final file in cacheFiles) {
+      if (FileSystemEntity.isLinkSync(file.path)) continue;
+      final fileName = file.uri.pathSegments.last;
+      if (!RegExp(r'^[0-9a-f]{64}\.png$').hasMatch(fileName)) continue;
+      final objectRef = 'objects/thumbnails/$fileName';
+      if (referenced.contains(objectRef)) continue;
+      final modifiedAt = await file.lastModified();
+      // A resolver may have atomically written an object just before its
+      // Repository projection commits. The grace period protects that
+      // bounded hand-off window and recent cross-process writes.
+      if (!modifiedAt.isBefore(cutoff)) continue;
+      reclaimable.add((
+        file: file,
+        objectRef: objectRef,
+        modifiedAt: modifiedAt,
+      ));
+    }
+
+    reclaimable.sort((a, b) => a.modifiedAt.compareTo(b.modifiedAt));
+    for (final candidate in reclaimable) {
+      if (!_cacheNamespaceIsTrusted()) return false;
+      final Set<String> latestReferenced;
+      try {
+        // Re-read immediately before deletion so a reference committed while
+        // the sweep was being prepared cannot be removed from under its Card
+        // or Source projection.
+        latestReferenced = await provider();
+      } catch (_) {
+        return false;
+      }
+      if (latestReferenced.contains(candidate.objectRef)) continue;
+      try {
+        if (!await candidate.file.exists() ||
+            FileSystemEntity.isLinkSync(candidate.file.path)) {
+          continue;
+        }
+        final currentModifiedAt = await candidate.file.lastModified();
+        if (currentModifiedAt != candidate.modifiedAt ||
+            !currentModifiedAt.isBefore(cutoff) ||
+            referenced.contains(candidate.objectRef)) {
+          continue;
+        }
+        final currentLength = await candidate.file.length();
+        await candidate.file.delete();
+        used -= currentLength;
+        if (used + incomingBytes <= maxCacheBytes) return true;
+      } catch (_) {
+        // An object that changed or became unreadable during the sweep is not
+        // safe to delete. Continue with other proven orphan candidates.
       }
     }
     return used + incomingBytes <= maxCacheBytes;

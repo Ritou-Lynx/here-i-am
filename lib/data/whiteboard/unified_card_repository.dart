@@ -388,6 +388,33 @@ class UnifiedCardRepository {
 
   Future<SourceContent?> getSource(String sourceId) => _sourceById(sourceId);
 
+  /// Returns every thumbnail cache object still referenced by a Card or
+  /// Source projection, including soft-deleted rows that may be restored.
+  /// Malformed projection JSON fails closed so cache maintenance never guesses
+  /// whether an object is safe to remove.
+  Future<Set<String>> referencedThumbnailObjectRefs() async {
+    final refs = <String>{};
+    void collect(String? encoded, String owner) {
+      if (encoded == null) return;
+      final decoded = _decodeMap(encoded);
+      if (decoded == null) {
+        throw FormatException('Invalid thumbnail reference projection: $owner');
+      }
+      final ref = decoded['thumbnail_ref'];
+      if (ref is String && ref.trim().isNotEmpty) refs.add(ref.trim());
+    }
+
+    final cardRows = await db.select(db.whiteboardCardExtras).get();
+    for (final row in cardRows) {
+      collect(row.presentationJson, 'card:${row.cardId}');
+    }
+    final sourceRows = await db.select(db.whiteboardSources).get();
+    for (final row in sourceRows) {
+      collect(row.metadataJson, 'source:${row.id}');
+    }
+    return Set.unmodifiable(refs);
+  }
+
   /// Resolves a Source card thumbnail through the injected safe projection.
   /// Raw `thumbnail` / `og_image` values remain untrusted download candidates;
   /// UI only receives [ResolvedThumbnail.file] after the resolver has produced

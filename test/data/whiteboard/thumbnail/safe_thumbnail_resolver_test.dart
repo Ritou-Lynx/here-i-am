@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -85,6 +86,25 @@ Uint8List _png({
   final image = img.Image(width: width, height: height);
   img.fill(image, color: color ?? img.ColorRgb8(67, 89, 59));
   return img.encodePng(image);
+}
+
+Future<({File file, String objectRef})> _cacheObject(
+  Directory root,
+  Uint8List bytes, {
+  required DateTime modifiedAt,
+}) async {
+  final hash = sha256.convert(bytes).toString();
+  final directory = Directory(
+    '${root.path}${Platform.pathSeparator}objects'
+    '${Platform.pathSeparator}thumbnails',
+  );
+  await directory.create(recursive: true);
+  final file = File(
+    '${directory.path}${Platform.pathSeparator}$hash.png',
+  );
+  await file.writeAsBytes(bytes, flush: true);
+  await file.setLastModified(modifiedAt);
+  return (file: file, objectRef: 'objects/thumbnails/$hash.png');
 }
 
 void main() {
@@ -251,6 +271,136 @@ void main() {
       used,
       lessThanOrEqualTo(firstBytes.length + secondBytes.length - 1),
     );
+  });
+
+  test('reclaims the oldest expired orphan and preserves active references',
+      () async {
+    final now = DateTime.now();
+    final active = await _cacheObject(
+      root,
+      Uint8List.fromList(List<int>.filled(1000, 11)),
+      modifiedAt: now.subtract(const Duration(days: 4)),
+    );
+    final oldestOrphan = await _cacheObject(
+      root,
+      Uint8List.fromList(List<int>.filled(6000, 22)),
+      modifiedAt: now.subtract(const Duration(days: 3)),
+    );
+    final newerOrphan = await _cacheObject(
+      root,
+      Uint8List.fromList(List<int>.filled(1000, 33)),
+      modifiedAt: now.subtract(const Duration(days: 2)),
+    );
+    final adapter = _BinaryAdapter({
+      'https://example.com/reclaimed.png': _BinaryResponse(_png()),
+    });
+    final resolver = SafeThumbnailResolver(
+      whiteboardRoot: root,
+      httpClient: _client(adapter),
+      maxCacheBytes: 7000,
+      referencedObjectRefs: () async => {active.objectRef},
+    );
+
+    final resolved = await resolver.resolve(const ThumbnailResolveRequest(
+      sourceId: 'src_reclaimed',
+      sourceVersionId: 'ver_reclaimed_v1',
+      candidateUrl: 'https://example.com/reclaimed.png',
+      canonicalUrl: 'https://example.com/article',
+    ));
+
+    expect(resolved.isAvailable, isTrue);
+    expect(await active.file.exists(), isTrue);
+    expect(await oldestOrphan.file.exists(), isFalse);
+    expect(await newerOrphan.file.exists(), isTrue);
+  });
+
+  test('fresh unreferenced objects keep a projection hand-off grace period',
+      () async {
+    final fresh = await _cacheObject(
+      root,
+      Uint8List.fromList(List<int>.filled(6000, 44)),
+      modifiedAt: DateTime.now(),
+    );
+    final adapter = _BinaryAdapter({
+      'https://example.com/fresh.png': _BinaryResponse(_png()),
+    });
+    final resolver = SafeThumbnailResolver(
+      whiteboardRoot: root,
+      httpClient: _client(adapter),
+      maxCacheBytes: 5000,
+      referencedObjectRefs: () async => const {},
+    );
+
+    final resolved = await resolver.resolve(const ThumbnailResolveRequest(
+      sourceId: 'src_fresh',
+      sourceVersionId: 'ver_fresh_v1',
+      candidateUrl: 'https://example.com/fresh.png',
+      canonicalUrl: 'https://example.com/article',
+    ));
+
+    expect(resolved.status, ThumbnailResolveStatus.failed);
+    expect(resolved.errorMessage, 'Thumbnail cache reached its size limit');
+    expect(await fresh.file.exists(), isTrue);
+  });
+
+  test('reference discovery failure retains every cache object', () async {
+    final orphan = await _cacheObject(
+      root,
+      Uint8List.fromList(List<int>.filled(6000, 55)),
+      modifiedAt: DateTime.now().subtract(const Duration(days: 2)),
+    );
+    final adapter = _BinaryAdapter({
+      'https://example.com/fail-closed.png': _BinaryResponse(_png()),
+    });
+    final resolver = SafeThumbnailResolver(
+      whiteboardRoot: root,
+      httpClient: _client(adapter),
+      maxCacheBytes: 5000,
+      referencedObjectRefs: () => Future.error(StateError('database closed')),
+    );
+
+    final resolved = await resolver.resolve(const ThumbnailResolveRequest(
+      sourceId: 'src_fail_closed',
+      sourceVersionId: 'ver_fail_closed_v1',
+      candidateUrl: 'https://example.com/fail-closed.png',
+      canonicalUrl: 'https://example.com/article',
+    ));
+
+    expect(resolved.status, ThumbnailResolveStatus.failed);
+    expect(await orphan.file.exists(), isTrue);
+  });
+
+  test('a reference committed during a sweep is rechecked before deletion',
+      () async {
+    final object = await _cacheObject(
+      root,
+      Uint8List.fromList(List<int>.filled(6000, 66)),
+      modifiedAt: DateTime.now().subtract(const Duration(days: 2)),
+    );
+    final adapter = _BinaryAdapter({
+      'https://example.com/concurrent-ref.png': _BinaryResponse(_png()),
+    });
+    var referenceReads = 0;
+    final resolver = SafeThumbnailResolver(
+      whiteboardRoot: root,
+      httpClient: _client(adapter),
+      maxCacheBytes: 5000,
+      referencedObjectRefs: () async {
+        referenceReads++;
+        return referenceReads == 1 ? const {} : {object.objectRef};
+      },
+    );
+
+    final resolved = await resolver.resolve(const ThumbnailResolveRequest(
+      sourceId: 'src_concurrent_ref',
+      sourceVersionId: 'ver_concurrent_ref_v1',
+      candidateUrl: 'https://example.com/concurrent-ref.png',
+      canonicalUrl: 'https://example.com/article',
+    ));
+
+    expect(resolved.status, ThumbnailResolveStatus.failed);
+    expect(referenceReads, greaterThanOrEqualTo(2));
+    expect(await object.file.exists(), isTrue);
   });
 
   test('relative candidate resolves against the canonical source URL',

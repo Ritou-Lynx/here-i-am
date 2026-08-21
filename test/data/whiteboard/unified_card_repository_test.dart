@@ -199,6 +199,50 @@ void main() {
     );
   });
 
+  test('thumbnail reference inventory protects Card and Source projections',
+      () async {
+    const cardRef =
+        'objects/thumbnails/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png';
+    const sourceRef =
+        'objects/thumbnails/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.png';
+    final thumbnailFile = File('${tempDir.path}/inventory-thumbnail.png');
+    await thumbnailFile.writeAsBytes([1], flush: true);
+    final candidateHash = SafeThumbnailResolver.candidateHashFor(
+      'https://example.com/cover.png',
+      'https://example.com/f0',
+    )!;
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      thumbnailResolver: _RecordingThumbnailResolver(
+        ResolvedThumbnail.available(
+          file: thumbnailFile,
+          objectRef: cardRef,
+          width: 40,
+          height: 24,
+          candidateHash: candidateHash,
+        ),
+      ),
+    );
+    final committed = await repository.commitIngestion(
+      _ingestion(
+        hash: 'thumbnail_inventory',
+        body: '引用清单',
+        sourceThumbnailRef: sourceRef,
+      ),
+    );
+    final card = await repository.getCard(
+      committed.card.cardId,
+      loadDocument: false,
+    );
+    await repository.resolveThumbnail(card!);
+    await repository.softDeleteCard(committed.card.cardId);
+
+    final refs = await repository.referencedThumbnailObjectRefs();
+
+    expect(refs, containsAll([cardRef, sourceRef]));
+  });
+
   test('background thumbnail projection cannot overwrite a concurrent edit',
       () async {
     final gate = Completer<void>();
@@ -506,6 +550,7 @@ IngestionResult _ingestion({
   required String hash,
   required String body,
   String ogImage = 'https://example.com/cover.png',
+  String? sourceThumbnailRef,
 }) {
   final now = DateTime.utc(2026, 8, 18, 12);
   const sourceId = 'src_web_f0_example';
@@ -522,6 +567,7 @@ IngestionResult _ingestion({
     metadata: {
       'canonical_url': 'https://example.com/f0',
       'og_image': ogImage,
+      if (sourceThumbnailRef != null) 'thumbnail_ref': sourceThumbnailRef,
     },
     createdAt: now,
     updatedAt: now,

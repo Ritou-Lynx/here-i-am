@@ -32,10 +32,15 @@ class WhiteboardDataBootstrap {
   static Future<UnifiedCardRepository> _openProduction() async {
     final support = await getApplicationSupportDirectory();
     final root = Directory(p.join(support.path, 'whiteboard'));
-    final repository = UnifiedCardRepository(
+    late final UnifiedCardRepository repository;
+    final thumbnailResolver = SafeThumbnailResolver(
+      whiteboardRoot: root,
+      referencedObjectRefs: () => repository.referencedThumbnailObjectRefs(),
+    );
+    repository = UnifiedCardRepository(
       db: AppDatabase.instance,
       whiteboardRoot: root,
-      thumbnailResolver: SafeThumbnailResolver(whiteboardRoot: root),
+      thumbnailResolver: thumbnailResolver,
     );
     await repository.recoverFileReplacements();
     await LegacyWhiteboardDataMigrator(
