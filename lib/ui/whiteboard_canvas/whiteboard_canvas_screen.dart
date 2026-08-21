@@ -21,7 +21,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/gestures.dart' as gestures;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show LogicalKeyboardKey;
+import 'package:flutter/services.dart'
+    show HardwareKeyboard, LogicalKeyboardKey;
 
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/domain/whiteboard/board.dart';
@@ -86,6 +87,13 @@ class WhiteboardCardDragData {
   });
 }
 
+class _EdgeDraft {
+  const _EdgeDraft({required this.direction, required this.label});
+
+  final EdgeDirection direction;
+  final String label;
+}
+
 /// The main full-screen whiteboard canvas widget.
 class WhiteboardCanvasScreen extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
@@ -106,8 +114,8 @@ class WhiteboardCanvasScreen extends StatefulWidget {
 }
 
 class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
-  bool _navigationVisible = false;
-  bool _toolsVisible = false;
+  bool _navigationVisible = true;
+  bool _toolsVisible = true;
   bool _showCardLibrary = false;
 
   /// Card currently being placed via the BoardTargetPicker.
@@ -238,6 +246,127 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     );
   }
 
+  void _toggleCardLibrary() {
+    setState(() {
+      _showCardLibrary = !_showCardLibrary;
+      if (!_showCardLibrary) _pickerCardId = null;
+    });
+  }
+
+  Future<void> _createGroupFromSelection() async {
+    final vm = widget.viewModel;
+    if (vm.isReadonly || vm.selection.length < 2) return;
+    var groupName = '';
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const Key('wb_create_group_dialog'),
+        title: const Text('建立分组'),
+        content: TextField(
+          key: const Key('wb_group_name_field'),
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: '分组名称',
+            hintText: '例如：研究线索',
+          ),
+          onChanged: (value) => groupName = value,
+          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            key: const Key('wb_confirm_create_group'),
+            onPressed: () => Navigator.of(dialogContext).pop(groupName),
+            child: const Text('建立分组'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || name == null) return;
+    vm.createGroupFromSelection(name: name.trim());
+  }
+
+  Future<void> _connectSelectedCards() async {
+    final vm = widget.viewModel;
+    if (vm.isReadonly || vm.selection.length != 2) return;
+    final itemIds = vm.selection.selectedItemIds.toList(growable: false);
+    var edgeLabel = '';
+    var direction = EdgeDirection.undirected;
+    final draft = await showDialog<_EdgeDraft>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          key: const Key('wb_create_edge_dialog'),
+          title: const Text('连接两张卡片'),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SegmentedButton<EdgeDirection>(
+                  key: const Key('wb_edge_direction'),
+                  segments: const [
+                    ButtonSegment(
+                      value: EdgeDirection.undirected,
+                      label: Text('无向连线'),
+                      icon: Icon(Icons.horizontal_rule),
+                    ),
+                    ButtonSegment(
+                      value: EdgeDirection.directed,
+                      label: Text('有向连线'),
+                      icon: Icon(Icons.arrow_forward),
+                    ),
+                  ],
+                  selected: {direction},
+                  onSelectionChanged: (selection) => setDialogState(
+                    () => direction = selection.first,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  key: const Key('wb_edge_label_field'),
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: '连线标签（可选）',
+                    hintText: '例如：支持、反驳、来自',
+                  ),
+                  onChanged: (value) => edgeLabel = value,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              key: const Key('wb_confirm_create_edge'),
+              onPressed: () => Navigator.of(dialogContext).pop(
+                _EdgeDraft(
+                  direction: direction,
+                  label: edgeLabel.trim(),
+                ),
+              ),
+              child: const Text('创建连线'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || draft == null) return;
+    vm.createEdge(
+      fromItemId: itemIds.first,
+      toItemId: itemIds.last,
+      direction: draft.direction,
+      label: draft.label.isEmpty ? null : draft.label,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = widget.viewModel;
@@ -272,16 +401,15 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     onToggleTools: () =>
                         setState(() => _toolsVisible = !_toolsVisible),
                     cardLibraryVisible: _showCardLibrary,
-                    onToggleCardLibrary: () {
-                      setState(() {
-                        _showCardLibrary = !_showCardLibrary;
-                        if (!_showCardLibrary) _pickerCardId = null;
-                      });
-                    },
+                    onToggleCardLibrary: _toggleCardLibrary,
                   ),
                 if (_toolsVisible)
                   _FloatingActionTools(
                     viewModel: vm,
+                    cardLibraryVisible: _showCardLibrary,
+                    onToggleCardLibrary: _toggleCardLibrary,
+                    onCreateGroup: _createGroupFromSelection,
+                    onCreateEdge: _connectSelectedCards,
                     onClose: () => setState(() => _toolsVisible = false),
                   ),
                 if (_toolsVisible) _FloatingViewTools(viewModel: vm),
@@ -371,6 +499,18 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
 
   void _handleCardClick(CanvasCardNode node) {
     final now = DateTime.now();
+    final keyboard = HardwareKeyboard.instance;
+    final additiveSelection = keyboard.isControlPressed ||
+        keyboard.isShiftPressed ||
+        keyboard.isMetaPressed;
+    if (additiveSelection) {
+      widget.viewModel.handleIntent(
+        ToggleItemSelectionIntent(itemId: node.itemId),
+      );
+      _lastClickedItemId = null;
+      _lastClickAt = null;
+      return;
+    }
     final isDoubleClick = _lastClickedItemId == node.itemId &&
         _lastClickAt != null &&
         now.difference(_lastClickAt!) <= _doubleClickWindow;
@@ -901,6 +1041,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             onToggle: () => vm.handleIntent(
               ToggleGroupCollapsedIntent(groupId: groupNode.groupId),
             ),
+            onRemove:
+                vm.isReadonly ? null : () => vm.removeGroup(groupNode.groupId),
           ),
         // Cards (culled to viewport, LOD-tiered)
         for (final node in visibleNodes)
@@ -1559,12 +1701,14 @@ class _GroupWidget extends StatelessWidget {
   final Map<String, BoardItem> itemsByItemId;
   final CanvasTransform transform;
   final VoidCallback onToggle;
+  final VoidCallback? onRemove;
 
   const _GroupWidget({
     required this.groupNode,
     required this.itemsByItemId,
     required this.transform,
     required this.onToggle,
+    required this.onRemove,
   });
 
   @override
@@ -1660,6 +1804,25 @@ class _GroupWidget extends StatelessWidget {
                       style: TextStyle(
                         color: colors.actionSecondary,
                         fontSize: WhiteboardCanvasTokens.statusSize,
+                      ),
+                    ),
+                  ],
+                  if (onRemove != null) ...[
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: '解散分组',
+                      child: InkWell(
+                        key: Key('wb_ungroup_${groupNode.groupId}'),
+                        onTap: onRemove,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.all(3),
+                          child: Icon(
+                            Icons.folder_off_outlined,
+                            size: 14,
+                            color: colors.textFaint,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -1927,10 +2090,18 @@ class _CanvasNavigationGroup extends StatelessWidget {
 class _FloatingActionTools extends StatelessWidget {
   const _FloatingActionTools({
     required this.viewModel,
+    required this.cardLibraryVisible,
+    required this.onToggleCardLibrary,
+    required this.onCreateGroup,
+    required this.onCreateEdge,
     required this.onClose,
   });
 
   final WhiteboardCanvasViewModel viewModel;
+  final bool cardLibraryVisible;
+  final VoidCallback onToggleCardLibrary;
+  final VoidCallback onCreateGroup;
+  final VoidCallback onCreateEdge;
   final VoidCallback onClose;
 
   @override
@@ -1938,7 +2109,7 @@ class _FloatingActionTools extends StatelessWidget {
     final vm = viewModel;
     return Positioned(
       key: const Key('wb_action_tools'),
-      top: 12,
+      top: 64,
       left: 0,
       right: 0,
       child: Align(
@@ -1947,6 +2118,49 @@ class _FloatingActionTools extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              _FloatingLabeledButton(
+                key: const Key('wb_open_card_library_tool'),
+                icon: Icons.add_card_outlined,
+                label: cardLibraryVisible ? '收起卡片库' : '添加卡片',
+                tooltip: cardLibraryVisible ? '关闭卡片库' : '从卡片库放入白板',
+                onTap: onToggleCardLibrary,
+              ),
+              const SizedBox(width: 6),
+              _FloatingLabeledButton(
+                key: const Key('wb_create_group_tool'),
+                icon: Icons.create_new_folder_outlined,
+                label: '建组',
+                tooltip: vm.selection.length >= 2
+                    ? '将选中卡片建立分组'
+                    : '先框选或 Shift+点击至少两张卡片',
+                isEnabled: vm.selection.length >= 2 && !vm.isReadonly,
+                onTap: vm.selection.length >= 2 && !vm.isReadonly
+                    ? onCreateGroup
+                    : null,
+              ),
+              const SizedBox(width: 4),
+              _FloatingLabeledButton(
+                key: const Key('wb_create_edge_tool'),
+                icon: Icons.polyline_outlined,
+                label: '连接',
+                tooltip: vm.selection.length == 2
+                    ? '连接选中的两张卡片'
+                    : '先框选或 Shift+点击两张卡片',
+                isEnabled: vm.selection.length == 2 && !vm.isReadonly,
+                onTap: vm.selection.length == 2 && !vm.isReadonly
+                    ? onCreateEdge
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                _selectionHint(vm.selection.length),
+                key: const Key('wb_selection_hint'),
+                style: TextStyle(
+                  color: WhiteboardCanvasTokens.of(context).textSecondary,
+                  fontSize: WhiteboardCanvasTokens.statusSize,
+                ),
+              ),
+              const SizedBox(width: 10),
               _FloatingButton(
                 icon: Icons.undo,
                 tooltip: '撤销 (Ctrl+Z)',
@@ -1964,9 +2178,12 @@ class _FloatingActionTools extends StatelessWidget {
               _FloatingButton(
                 icon: Icons.delete_outline,
                 tooltip: '删除选中 (Del)',
-                isEnabled: vm.selection.isNotEmpty && !vm.isReadonly,
-                onTap: vm.selection.isNotEmpty && !vm.isReadonly
-                    ? vm.removeSelectedItems
+                isEnabled:
+                    (vm.selection.isNotEmpty || vm.selectedEdgeId != null) &&
+                        !vm.isReadonly,
+                onTap: (vm.selection.isNotEmpty || vm.selectedEdgeId != null) &&
+                        !vm.isReadonly
+                    ? () => vm.handleIntent(const DeleteSelectionIntent())
                     : null,
               ),
               const SizedBox(width: 4),
@@ -1976,15 +2193,6 @@ class _FloatingActionTools extends StatelessWidget {
                 isEnabled: vm.selection.isNotEmpty && !vm.isReadonly,
                 onTap: vm.selection.isNotEmpty && !vm.isReadonly
                     ? vm.bringSelectedItemToFront
-                    : null,
-              ),
-              const SizedBox(width: 4),
-              _FloatingButton(
-                icon: Icons.create_new_folder_outlined,
-                tooltip: '选中建组',
-                isEnabled: vm.selection.length >= 2 && !vm.isReadonly,
-                onTap: vm.selection.length >= 2 && !vm.isReadonly
-                    ? vm.createGroupFromSelection
                     : null,
               ),
               const SizedBox(width: 4),
@@ -2006,6 +2214,12 @@ class _FloatingActionTools extends StatelessWidget {
       ),
     );
   }
+}
+
+String _selectionHint(int count) {
+  if (count == 0) return '框选或 Shift+点击多选';
+  if (count == 1) return '已选 1 张 · 再选 1 张可连接/建组';
+  return '已选 $count 张';
 }
 
 /// View controls share the tool visibility lifecycle; there is no permanent
@@ -2452,6 +2666,58 @@ class _DragCardFeedback extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Floating action with a visible label for primary canvas operations.
+class _FloatingLabeledButton extends StatelessWidget {
+  const _FloatingLabeledButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    this.onTap,
+    this.isEnabled = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final bool isEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
+    final foreground = isEnabled ? colors.textPrimary : colors.textFaint;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isEnabled ? onTap : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18, color: foreground),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: WhiteboardCanvasTokens.metaSize,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

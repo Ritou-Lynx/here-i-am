@@ -12,14 +12,7 @@ import 'package:memex/ui/desktop/view_models/desktop_home_view_model.dart';
 const _emptyHomeData = DesktopHomeData(
   boards: [],
   continueWork: [],
-  activeTaskCount: 0,
   pendingCards: [],
-  scheduleCards: [],
-  scheduleOverview: {'overdue': 0, 'today': 0, 'upcoming': 0, 'unscheduled': 0},
-  recentMemoryCards: [],
-  todayRecordCount: 0,
-  followUpCount: 0,
-  taskStatusCounts: {},
 );
 
 void main() {

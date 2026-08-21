@@ -17,7 +17,6 @@ import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/desktop/desktop_workbench_shell.dart';
 import 'package:memex/ui/desktop/view_models/desktop_home_view_model.dart';
 import 'package:memex/ui/desktop/widgets/desktop_chat_overlay.dart';
-import 'package:memex/ui/desktop/widgets/global_desktop_chat_overlay.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 
@@ -134,7 +133,7 @@ void main() {
     await cardRepository.backfillLegacyMemoryCardExtra(id);
   }
 
-  testWidgets('module grid renders all eight spine-contract 3.2 modules', (
+  testWidgets('home only renders desktop whiteboard work loops', (
     tester,
   ) async {
     await seedBoardAndTask();
@@ -143,17 +142,20 @@ void main() {
     await pumpWorkbench(tester);
 
     expect(find.byKey(const ValueKey('workbench_module_grid')), findsOneWidget);
-    for (final title in [
+    for (final title in ['最近白板', '待上板卡片']) {
+      expect(find.text(title), findsOneWidget, reason: 'missing module $title');
+    }
+    for (final removed in [
       '林埃观察',
       '日程与待办',
       '今日总结',
-      '继续工作',
       '继续阅读',
-      '待整理卡片',
       '记忆回顾',
       '后台任务',
+      '任务中心',
     ]) {
-      expect(find.text(title), findsOneWidget, reason: 'missing module $title');
+      expect(find.text(removed), findsNothing,
+          reason: 'desktop leaked $removed');
     }
   });
 
@@ -238,24 +240,18 @@ void main() {
     await pumpWorkbench(tester);
 
     expect(find.textContaining('还没有白板'), findsOneWidget);
-    expect(find.textContaining('暂无待整理卡片'), findsOneWidget);
-    expect(find.textContaining('暂无可续接的阅读进度'), findsOneWidget);
+    expect(find.textContaining('暂无待上板卡片'), findsOneWidget);
     expect(find.textContaining('演示数据'), findsNothing);
     expect(find.textContaining('mock'), findsNothing);
   });
 
-  testWidgets('1280x720 and 1440x900 keep all modules in the first viewport', (
+  testWidgets(
+      '1280x720 and 1440x900 keep desktop modules in the first viewport', (
     tester,
   ) async {
     const moduleKeys = [
-      'module_observation',
-      'module_schedule',
-      'module_today_summary',
       'module_continue_work',
       'module_pending_cards',
-      'module_continue_reading',
-      'module_memory_review',
-      'module_background_tasks',
     ];
     for (final size in const [Size(1280, 720), Size(1440, 900)]) {
       await pumpWorkbench(tester, size: size);
@@ -294,14 +290,7 @@ void main() {
     const emptyData = DesktopHomeData(
       boards: [],
       continueWork: [],
-      activeTaskCount: 0,
       pendingCards: [],
-      scheduleCards: [],
-      scheduleOverview: {},
-      recentMemoryCards: [],
-      todayRecordCount: 0,
-      followUpCount: 0,
-      taskStatusCounts: {},
     );
     completer.complete(emptyData);
     await tester.pump();
@@ -333,19 +322,6 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byKey(const ValueKey('workbench_module_grid')), findsOneWidget);
-  });
-
-  testWidgets('今日总结的继续对话打开全局林埃面板', (tester) async {
-    final controller = GlobalDesktopChatOverlayController.instance;
-    controller.reset();
-    addTearDown(controller.reset);
-    await pumpWorkbench(tester);
-
-    await tester.tap(find.text('继续对话'));
-
-    expect(controller.isOpen, isTrue);
-    expect(controller.expectedCharacterId, 'i');
-    expect(controller.temporaryContextLabel, '首页');
   });
 
   testWidgets(

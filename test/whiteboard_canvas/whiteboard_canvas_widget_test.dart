@@ -12,6 +12,7 @@ import 'dart:ui' as ui show PointerDeviceKind;
 
 import 'package:flutter/gestures.dart' as gestures show PointerScrollEvent;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/domain/whiteboard/board.dart';
@@ -118,6 +119,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_getVm(tester).selection.length, 1);
+    });
+
+    testWidgets('Shift click adds a second card to the selection',
+        (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 720);
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPhysicalSize();
+      });
+      await _pumpCanvas(tester, _singleCardSnapshot());
+
+      await tester.tap(find.text('Card A'));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.tap(find.text('Card B'));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pumpAndSettle();
+
+      expect(_getVm(tester).selection.selectedItemIds, {'item_a', 'item_b'});
     });
 
     testWidgets('drag on card moves it and updates snapshot', (tester) async {
@@ -250,26 +270,71 @@ void main() {
       await tester.pumpAndSettle();
 
       await _openCanvasTools(tester);
-      await tester.tap(find.byIcon(Icons.create_new_folder_outlined));
+      await tester.tap(find.byKey(const Key('wb_create_group_tool')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('wb_group_name_field')),
+        '研究线索',
+      );
+      await tester.tap(find.byKey(const Key('wb_confirm_create_group')));
       await tester.pumpAndSettle();
 
       final vm = _getVm(tester);
       expect(vm.exportForSave().groups.length, equals(1));
+      expect(vm.exportForSave().groups.single.name, '研究线索');
       expect(vm.exportForSave().groupMembers.length, equals(2));
+
+      await tester.tap(find.byTooltip('解散分组'));
+      await tester.pumpAndSettle();
+      expect(vm.exportForSave().groups, isEmpty);
+      expect(vm.exportForSave().groupMembers, isEmpty);
     });
 
-    testWidgets('full-screen canvas has no persistent top bar by default',
+    testWidgets('full-screen canvas exposes real tools without an app bar',
         (tester) async {
       await _pumpCanvas(tester, _singleCardSnapshot());
 
       expect(find.byType(AppBar), findsNothing);
       expect(find.byType(TabBar), findsNothing);
-      expect(find.byKey(const Key('wb_navigation_group')), findsNothing);
-      expect(find.byKey(const Key('wb_action_tools')), findsNothing);
-      expect(find.byKey(const Key('wb_view_tools')), findsNothing);
+      expect(find.byKey(const Key('wb_navigation_group')), findsOneWidget);
+      expect(find.byKey(const Key('wb_action_tools')), findsOneWidget);
+      expect(find.byKey(const Key('wb_view_tools')), findsOneWidget);
       expect(find.byKey(const Key('wb_card_library_panel')), findsNothing);
+      expect(find.byKey(const Key('wb_canvas_chrome_launcher')), findsNothing);
       expect(
-          find.byKey(const Key('wb_canvas_chrome_launcher')), findsOneWidget);
+          find.byKey(const Key('wb_open_card_library_tool')), findsOneWidget);
+      expect(find.byKey(const Key('wb_create_group_tool')), findsOneWidget);
+      expect(find.byKey(const Key('wb_create_edge_tool')), findsOneWidget);
+    });
+
+    testWidgets('two selected cards create a labelled directed edge',
+        (tester) async {
+      await _pumpCanvas(tester, _singleCardSnapshot());
+
+      final a = tester.getRect(find.text('Card A'));
+      final b = tester.getRect(find.text('Card B'));
+      final gesture =
+          await tester.startGesture(a.topLeft - const Offset(20, 20));
+      await gesture.moveTo(b.bottomRight + const Offset(20, 20));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('wb_create_edge_tool')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('有向连线'));
+      await tester.enterText(
+        find.byKey(const Key('wb_edge_label_field')),
+        '支持',
+      );
+      await tester.tap(find.byKey(const Key('wb_confirm_create_edge')));
+      await tester.pumpAndSettle();
+
+      final edge = _getVm(tester).exportForSave().edges.single;
+      expect(edge.fromItemId, 'item_a');
+      expect(edge.toItemId, 'item_b');
+      expect(edge.direction, EdgeDirection.directed);
+      expect(edge.label, '支持');
     });
   });
 

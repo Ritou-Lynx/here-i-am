@@ -1,8 +1,7 @@
-/// 桌面工作台外壳（Task S）— spine-contract §3.2 首页模块网格。
+/// Desktop whiteboard workbench shell.
 ///
-/// 桌面首页不再是手机聊天页套壳：144–148px 可回收侧栏 + 高密度模块网格
-/// 一屏读懂全貌；林埃对话改为按需悬浮、可收起（spine-contract §3.5）。
-/// 数据与手机完全同源：全部来自现有 repository / service，不复制实体。
+/// Desktop and phone are independent app surfaces. This home only exposes
+/// desktop-native whiteboard and card-library work loops.
 library;
 
 import 'package:flutter/material.dart';
@@ -11,19 +10,15 @@ import 'package:provider/provider.dart';
 
 import 'package:memex/db/app_database.dart';
 import 'package:memex/routing/routes.dart';
-import 'package:memex/ui/companion/widgets/companion_life_space_screen.dart';
 import 'package:memex/ui/core/app_startup_visibility.dart';
 import 'package:memex/ui/desktop/desktop_workspace_shell.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 
 import 'view_models/desktop_home_view_model.dart';
-import 'widgets/global_desktop_chat_overlay.dart';
 import 'widgets/desktop_module_grid.dart';
 
-/// Desktop workbench home: the module-grid workbench replacing the mobile
-/// chat page on desktop windows (spine-contract §2.9 桌面与手机同源但改变
-/// 呈现密度).
+/// Desktop workbench home. It never embeds a phone page.
 class DesktopWorkbenchShell extends StatefulWidget {
   const DesktopWorkbenchShell({
     super.key,
@@ -64,26 +59,10 @@ class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
 
   WorkbenchModuleCallbacks get _callbacks {
     return WorkbenchModuleCallbacks(
-      onOpenObservation: _openLifeSpace,
-      onOpenSchedule: () => context.go(AppRoutes.calendar),
       onOpenBoard: (boardId) =>
           context.go(AppRoutes.whiteboardCanvasPath(boardId)),
       onOpenBoards: () => context.go(AppRoutes.whiteboard),
-      onOpenTaskCenter: () => context.go(AppRoutes.devRoom),
       onOpenCardLibrary: () => context.go(AppRoutes.cardLibrary),
-      onOpenReading: () => context.go(AppRoutes.interests),
-      onOpenMemoryCenter: () => context.go(AppRoutes.memoryCenter),
-      onContinueChat: () => GlobalDesktopChatOverlayController.instance.open(
-        expectedCharacterId: widget.characterId,
-        temporaryContextLabel: '首页',
-      ),
-    );
-  }
-
-  void _openLifeSpace() {
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(builder: (_) => const CompanionLifeSpaceScreen()),
     );
   }
 

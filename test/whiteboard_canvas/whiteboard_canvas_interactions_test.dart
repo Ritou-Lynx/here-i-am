@@ -300,13 +300,20 @@ void main() {
       );
     });
 
-    testWidgets('Esc exits the board', (tester) async {
+    testWidgets('Esc retreats visible tools and navigation before exit',
+        (tester) async {
       var exited = false;
       await _pumpCanvas(
         tester,
         _snapshot(),
         onExit: () => exited = true,
       );
+      await _sendShortcut(tester, LogicalKeyboardKey.escape);
+      expect(exited, isFalse);
+      expect(find.byKey(const Key('wb_action_tools')), findsNothing);
+      await _sendShortcut(tester, LogicalKeyboardKey.escape);
+      expect(exited, isFalse);
+      expect(find.byKey(const Key('wb_navigation_group')), findsNothing);
       await _sendShortcut(tester, LogicalKeyboardKey.escape);
       expect(exited, isTrue);
     });

@@ -226,20 +226,25 @@ void main() {
           screenshot: screenshot,
           output: output,
           location: AppRoutes.whiteboardCanvasPath(fixture.boardId),
-          ready: find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
-          name: '${label}_06_canvas_retreat',
+          ready: find.byKey(const ValueKey('wb_navigation_group')),
+          name: '${label}_06_canvas_tools',
         );
-        expect(find.byKey(const ValueKey('wb_navigation_group')), findsNothing);
+        expect(find.byKey(const ValueKey('wb_action_tools')), findsOneWidget);
         await tester.tap(
-          find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+          find.descendant(
+            of: find.byKey(const ValueKey('wb_action_tools')),
+            matching: find.byTooltip('关闭画布工具'),
+          ),
         );
         await tester.pumpAndSettle(const Duration(milliseconds: 100));
-        expect(
-            find.byKey(const ValueKey('wb_navigation_group')), findsOneWidget);
+        await tester.tap(find.byTooltip('收起画布控件'));
+        await tester.pumpAndSettle(const Duration(milliseconds: 100));
+        expect(find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+            findsOneWidget);
         await _capture(
           screenshot,
           output,
-          '${label}_07_canvas_navigation',
+          '${label}_07_canvas_retreat',
         );
 
         await _routeAndCapture(

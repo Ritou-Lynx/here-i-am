@@ -105,7 +105,7 @@ void main() {
     await pumpRoute(
       tester,
       AppRoutes.whiteboardCanvasPath(boardId),
-      until: find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+      until: find.byKey(const ValueKey('wb_navigation_group')),
       andAbsent: find.byType(CircularProgressIndicator),
     );
 
@@ -117,20 +117,12 @@ void main() {
     expect(find.byType(DesktopSidebar), findsNothing);
     expect(find.byKey(const ValueKey('desktop_sidebar_handle')), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('wb_navigation_group')), findsNothing);
-    expect(find.byKey(const ValueKey('wb_action_tools')), findsNothing);
-    expect(find.byKey(const ValueKey('wb_view_tools')), findsNothing);
-    expect(find.byKey(const ValueKey('wb_card_library_panel')), findsNothing);
-    expect(find.text('路由测试板'), findsNothing);
-
-    await tester.tap(
-      find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
-    );
-    await tester.pumpAndSettle();
-
+    expect(
+        find.byKey(const ValueKey('wb_canvas_chrome_launcher')), findsNothing);
     expect(find.byKey(const ValueKey('wb_navigation_group')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_action_tools')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_view_tools')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_card_library_panel')), findsNothing);
     expect(find.text('路由测试板'), findsOneWidget);
   });
 
@@ -151,19 +143,11 @@ void main() {
     await pumpRoute(
       tester,
       AppRoutes.whiteboardCanvasPath(boardId),
-      until: find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
+      until: find.byKey(const ValueKey('wb_navigation_group')),
       andAbsent: find.byType(CircularProgressIndicator),
     );
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
-    expect(find.text('保存测试板'), findsNothing);
-
-    await tester.tap(
-      find.byKey(const ValueKey('wb_canvas_chrome_launcher')),
-    );
-    await tester.pumpAndSettle();
     expect(find.text('保存测试板'), findsOneWidget);
-    await tester.tap(find.byTooltip('画布工具'));
-    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('wb_action_tools')), findsOneWidget);
     expect(find.byKey(const ValueKey('wb_view_tools')), findsOneWidget);
 

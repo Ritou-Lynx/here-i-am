@@ -56,7 +56,7 @@ Future<void> _waitForCanvasReady(WidgetTester tester, String description) =>
       tester,
       () =>
           find
-              .byKey(const ValueKey('wb_canvas_chrome_launcher'))
+              .byKey(const ValueKey('wb_navigation_group'))
               .evaluate()
               .isNotEmpty &&
           find.byType(CircularProgressIndicator).evaluate().isEmpty,
@@ -208,18 +208,20 @@ void main() {
       MaterialApp.router(routerConfig: navigationRouter),
     );
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
-    await _waitForCanvasReady(tester, 'canvas launcher replaces loading state');
-    expect(find.byKey(const ValueKey('wb_navigation_group')), findsNothing);
-    expect(find.byKey(const ValueKey('wb_action_tools')), findsNothing);
-    expect(find.byKey(const ValueKey('wb_view_tools')), findsNothing);
+    await _waitForCanvasReady(tester, 'canvas tools replace loading state');
+    expect(find.byKey(const ValueKey('wb_navigation_group')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_action_tools')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_view_tools')), findsOneWidget);
     expect(find.byKey(const ValueKey('wb_card_library_panel')), findsNothing);
-    expect(find.text('交互验收板'), findsNothing);
-    debugPrint('W1IT: canvas opened with all optional chrome retreated');
+    expect(find.text('交互验收板'), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_create_group_tool')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_create_edge_tool')), findsOneWidget);
+    debugPrint('W1IT: canvas opened with real navigation and tools visible');
 
     await _openCanvasNavigation(tester);
     expect(find.text('交互验收板'), findsOneWidget);
     await _openCanvasTools(tester);
-    debugPrint('W1IT: navigation and tools opened from launcher');
+    debugPrint('W1IT: navigation and tools ready');
 
     // Screen geometry of the real window (logical px).
     final logicalSize = tester.view.physicalSize / tester.view.devicePixelRatio;
@@ -236,7 +238,9 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
-    expect(find.textContaining('已选 3'), findsOneWidget);
+    final selectionHint = find.byKey(const ValueKey('wb_selection_hint'));
+    expect(selectionHint, findsOneWidget);
+    expect(tester.widget<Text>(selectionHint).data, equals('已选 3 张'));
     debugPrint('W1IT: Ctrl+A selected 3');
 
     // ── ② Arrow nudge + save ──
@@ -343,9 +347,10 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
     await _waitForCanvasReady(
       tester,
-      'restarted canvas launcher replaces loading state',
+      'restarted canvas tools replace loading state',
     );
-    expect(find.byKey(const ValueKey('wb_navigation_group')), findsNothing);
+    expect(find.byKey(const ValueKey('wb_navigation_group')), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_action_tools')), findsOneWidget);
     await _openCanvasNavigation(tester);
     expect(find.text('交互验收板'), findsOneWidget);
     expect(find.text('验收卡 A'), findsNothing,
@@ -408,9 +413,10 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
     await _waitForCanvasReady(
       tester,
-      '500-card canvas launcher replaces loading state',
+      '500-card canvas tools replace loading state',
     );
-    expect(find.text('帧率验收板'), findsNothing);
+    expect(find.text('帧率验收板'), findsOneWidget);
+    expect(find.byKey(const ValueKey('wb_action_tools')), findsOneWidget);
     debugPrint('W1IT: 500-card canvas opened');
 
     final timings = <FrameTiming>[];

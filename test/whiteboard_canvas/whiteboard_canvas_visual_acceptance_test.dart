@@ -92,9 +92,9 @@ void main() {
       expect(find.byType(TabBar), findsNothing);
       expect(find.byType(NavigationRail), findsNothing);
       expect(find.byType(Drawer), findsNothing);
-      expect(find.byKey(const Key('wb_navigation_group')), findsNothing);
-      expect(find.byKey(const Key('wb_action_tools')), findsNothing);
-      expect(find.byKey(const Key('wb_view_tools')), findsNothing);
+      expect(find.byKey(const Key('wb_navigation_group')), findsOneWidget);
+      expect(find.byKey(const Key('wb_action_tools')), findsOneWidget);
+      expect(find.byKey(const Key('wb_view_tools')), findsOneWidget);
       expect(find.byKey(const Key('wb_card_library_panel')), findsNothing);
     });
   }
@@ -103,13 +103,8 @@ void main() {
       (tester) async {
     await _pump(tester);
 
-    await tester.tap(find.byKey(const Key('wb_canvas_chrome_launcher')));
-    await tester.pumpAndSettle();
     expect(find.byKey(const Key('wb_navigation_group')), findsOneWidget);
     expect(find.byKey(const Key('wb_canvas_chrome_launcher')), findsNothing);
-
-    await tester.tap(find.byTooltip('画布工具'));
-    await tester.pumpAndSettle();
     expect(find.byKey(const Key('wb_action_tools')), findsOneWidget);
     expect(find.byKey(const Key('wb_view_tools')), findsOneWidget);
 

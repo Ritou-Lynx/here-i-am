@@ -24,9 +24,6 @@ const _navItems = [
   _NavItem(AppRoutes.home, '首页'),
   _NavItem(AppRoutes.cardLibrary, '卡片库'),
   _NavItem(AppRoutes.whiteboard, '白板'),
-  _NavItem(AppRoutes.memoryCenter, '记忆'),
-  _NavItem(AppRoutes.interests, '阅读'),
-  _NavItem(AppRoutes.devRoom, '任务中心'),
 ];
 
 /// 判断当前路由是否命中某个导航项（白板画布 / 卡片编辑等子路径命中父级）。
