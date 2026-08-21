@@ -150,8 +150,13 @@ void _installGlobalErrorLogging() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize flavor from platform (set by --flavor flag)
-  AppFlavor.init(appFlavor);
+  final isDesktop =
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+  // Mobile identity comes from the native flavor. Flutter desktop does not
+  // supply one for a normal build, and this project's desktop app is Here I
+  // am V3, so use that identity only when no explicit flavor was provided.
+  AppFlavor.init(appFlavor, defaultToHereIAm: isDesktop);
 
   await setupLogger();
   _installGlobalErrorLogging();
@@ -161,9 +166,6 @@ void main() async {
 
   // Desktop (whiteboard workbench) has no background-task / notification /
   // call-kit plugins — gate the mobile-only startup wiring behind this flag.
-  final isDesktop =
-      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-
   // Desktop: initialize DB + minimal services before runApp so desktop pages
   // can access AppDatabase.instance in initState without race conditions.
   if (isDesktop) {
@@ -703,7 +705,8 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
             // Off-screen 1x1 WebView for Reading Companion's 灏忕孩涔?
             // background fetch pipeline. Stays mounted for the lifetime of
             // the app so the controller can navigate at any time.
-            if (AppFlavor.isHereIAm)
+            if (AppFlavor.isHereIAm &&
+                (Platform.isAndroid || Platform.isIOS))
               const Positioned(
                 left: 0,
                 bottom: 0,
@@ -728,8 +731,11 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
             // (spine-contract §3.5). Mobile uses the embedded PersonaChatScreen.
             if (shouldShowGlobalDesktopChatOverlay() &&
                 AppFlavor.isHereIAm &&
+                _hasUser &&
                 !_isLocked)
-              const GlobalDesktopChatOverlay(),
+              const Positioned.fill(
+                child: GlobalDesktopChatOverlayHost(),
+              ),
           ],
         );
       },

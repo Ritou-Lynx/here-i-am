@@ -8,15 +8,13 @@
 /// other route (spine-contract §3.5 / visual-rules §8.6).
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:memex/data/memory_v3/models/task_room_enums.dart';
-import 'package:memex/data/memory_v3/services/task_room_service.dart';
 import 'package:memex/data/services/character_service.dart';
-import 'package:memex/db/app_database.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/desktop/widgets/desktop_chat_overlay.dart';
@@ -72,10 +70,39 @@ class GlobalDesktopChatOverlay extends StatefulWidget {
       _GlobalDesktopChatOverlayState();
 }
 
+/// Mounts the global chat entry in its own overlay layer.
+///
+/// [MaterialApp.router.builder] is above the router's Navigator, so widgets
+/// inserted there cannot use that Navigator's [Overlay]. The floating entry
+/// contains tooltips and transient chat controls that require one.
+class GlobalDesktopChatOverlayHost extends StatelessWidget {
+  const GlobalDesktopChatOverlayHost({
+    super.key,
+    this.controller,
+    this.characterIdResolver,
+  });
+
+  final GlobalDesktopChatOverlayController? controller;
+  final Future<String?> Function()? characterIdResolver;
+
+  @override
+  Widget build(BuildContext context) {
+    return Overlay(
+      initialEntries: [
+        OverlayEntry(
+          builder: (_) => GlobalDesktopChatOverlay(
+            controller: controller,
+            characterIdResolver: characterIdResolver,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _GlobalDesktopChatOverlayState extends State<GlobalDesktopChatOverlay> {
   String? _characterId;
-  DesktopTaskStripData? _taskStrip;
-  bool _wasOpen = false;
+  Timer? _characterRetryTimer;
 
   GlobalDesktopChatOverlayController get _controller =>
       widget.controller ?? GlobalDesktopChatOverlayController.instance;
@@ -84,8 +111,8 @@ class _GlobalDesktopChatOverlayState extends State<GlobalDesktopChatOverlay> {
   void initState() {
     super.initState();
     _controller.addListener(_handleControllerChanged);
+    CharacterService.instance.addListener(_handleCharacterChanged);
     _resolveCharacter();
-    _loadTaskStrip();
   }
 
   @override
@@ -93,68 +120,65 @@ class _GlobalDesktopChatOverlayState extends State<GlobalDesktopChatOverlay> {
     super.didUpdateWidget(oldWidget);
     final oldController =
         oldWidget.controller ?? GlobalDesktopChatOverlayController.instance;
-    if (oldController == _controller) return;
-    oldController.removeListener(_handleControllerChanged);
-    _controller.addListener(_handleControllerChanged);
+    if (oldController != _controller) {
+      oldController.removeListener(_handleControllerChanged);
+      _controller.addListener(_handleControllerChanged);
+    }
+    if (oldWidget.characterIdResolver != widget.characterIdResolver) {
+      _characterRetryTimer?.cancel();
+      _characterId = null;
+      _resolveCharacter();
+    }
   }
 
   @override
   void dispose() {
+    _characterRetryTimer?.cancel();
     _controller.removeListener(_handleControllerChanged);
+    CharacterService.instance.removeListener(_handleCharacterChanged);
     super.dispose();
   }
 
   void _handleControllerChanged() {
     if (!mounted) return;
-    final opened = _controller.isOpen && !_wasOpen;
-    _wasOpen = _controller.isOpen;
     setState(() {});
-    if (opened) _loadTaskStrip();
   }
 
-  Future<void> _resolveCharacter() async {
+  void _handleCharacterChanged() {
+    if (_characterId == null) _resolveCharacter();
+  }
+
+  Future<void> _resolveCharacter({int attempt = 0}) async {
+    if (_characterId != null) return;
+    String? resolvedId;
     try {
       final resolver = widget.characterIdResolver;
       if (resolver != null) {
-        final id = await resolver();
-        if (mounted) setState(() => _characterId = id);
-        return;
-      }
-      final userId = await UserStorage.getUserId();
-      if (userId == null) return;
-      final character = await CharacterService.instance.getPrimaryCompanion(
-        userId,
-      );
-      if (mounted && character != null) {
-        setState(() => _characterId = character.id);
+        resolvedId = await resolver();
+      } else {
+        final userId = await UserStorage.getUserId();
+        if (userId != null) {
+          final character =
+              await CharacterService.instance.getPrimaryCompanion(userId);
+          resolvedId = character?.id;
+        }
       }
     } catch (_) {
-      // Silently fail — no floating ball if character can't be resolved.
+      // Startup can race user/character seeding. The bounded retry below keeps
+      // this transient failure from permanently removing the desktop entry.
     }
-  }
-
-  Future<void> _loadTaskStrip() async {
-    if (!AppDatabase.isInitialized) return;
-    try {
-      final rooms = await TaskRoomService(
-        db: AppDatabase.instance,
-      ).listTaskRooms(limit: 50);
-      DesktopTaskStripData? taskStrip;
-      for (final room in rooms) {
-        final status = TaskStatus.fromString(room.status);
-        if (status.isTerminal) continue;
-        taskStrip = DesktopTaskStripData(
-          title: room.title,
-          statusLabel: _taskStatusLabel(status),
-          needsAttention: status == TaskStatus.waitingForUser ||
-              status == TaskStatus.blocked,
-        );
-        break;
-      }
-      if (mounted) setState(() => _taskStrip = taskStrip);
-    } catch (_) {
-      // The task strip is optional; chat remains available if tasks fail.
+    if (!mounted || _characterId != null) return;
+    if (resolvedId != null && resolvedId.isNotEmpty) {
+      _characterRetryTimer?.cancel();
+      setState(() => _characterId = resolvedId);
+      return;
     }
+    if (attempt >= 4) return;
+    _characterRetryTimer?.cancel();
+    _characterRetryTimer = Timer(
+      const Duration(milliseconds: 600),
+      () => unawaited(_resolveCharacter(attempt: attempt + 1)),
+    );
   }
 
   @override
@@ -170,11 +194,6 @@ class _GlobalDesktopChatOverlayState extends State<GlobalDesktopChatOverlay> {
         characterId: characterId,
         initialVoiceMode: false,
         temporaryContextLabel: pageContext,
-        taskStrip: _taskStrip,
-        onOpenTasks: () {
-          _controller.close();
-          context.go(AppRoutes.devRoom);
-        },
         onOpen: () => _controller.open(
           expectedCharacterId: characterId,
           temporaryContextLabel: pageContext,
@@ -183,19 +202,6 @@ class _GlobalDesktopChatOverlayState extends State<GlobalDesktopChatOverlay> {
       ),
     );
   }
-}
-
-String _taskStatusLabel(TaskStatus status) {
-  return switch (status) {
-    TaskStatus.pending => '待开始',
-    TaskStatus.running => '进行中',
-    TaskStatus.blocked => '已阻塞',
-    TaskStatus.waitingForUser => '等待确认',
-    TaskStatus.completed => '已完成',
-    TaskStatus.failed => '失败',
-    TaskStatus.cancelled => '已取消',
-    TaskStatus.archived => '已归档',
-  };
 }
 
 String _desktopPageContextLabel(BuildContext context) {

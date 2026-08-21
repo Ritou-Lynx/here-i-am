@@ -271,17 +271,16 @@ void main() {
       );
       await _pumpUntilPresent(
         tester,
-        find.byKey(const ValueKey('desktop_chat_panel')),
-        'Lin Ai desktop chat panel',
+        find.byKey(const ValueKey('desktop_chat_popover')),
+        'Lin Ai frameless desktop chat popover',
       );
       await _pumpUntilPresent(
         tester,
-        find.descendant(
-          of: find.byKey(const ValueKey('desktop_chat_panel')),
-          matching: find.byType(TextField),
-        ),
+        find.byKey(const ValueKey('desktop_chat_input')),
         'Lin Ai production composer',
       );
+      expect(
+          find.byKey(const ValueKey('desktop_floating_ball')), findsOneWidget);
       for (final viewport in _viewports) {
         await _resizeNativeWindow(tester, viewport);
         final label = '${viewport.width.toInt()}x${viewport.height.toInt()}';

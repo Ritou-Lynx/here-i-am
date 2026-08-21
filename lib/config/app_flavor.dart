@@ -43,8 +43,15 @@ class AppFlavor {
       };
 
   /// Call once at app startup with the flavor string from `appFlavor`.
-  static void init(String? flavor) {
-    final normalized = flavor?.toLowerCase() ?? '';
+  ///
+  /// Flutter desktop builds do not expose a native flavor unless one is
+  /// supplied as a Dart define. Here I am owns the desktop application, so
+  /// its startup path may opt into the V3 identity when that value is absent.
+  /// Explicit flavors always win.
+  static void init(String? flavor, {bool defaultToHereIAm = false}) {
+    final effectiveFlavor =
+        flavor ?? (defaultToHereIAm ? 'hereIAmV3' : '');
+    final normalized = effectiveFlavor.toLowerCase();
     _isHereIAm = normalized == 'hereiamdev' || normalized == 'hereiamv3';
     if (normalized.startsWith('cn')) {
       _current = AppFlavorType.cn;

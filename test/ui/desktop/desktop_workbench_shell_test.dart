@@ -325,8 +325,8 @@ void main() {
   });
 
   testWidgets(
-      'floating Lin Ai chat opens as overlay panel and collapses back '
-      'to the ball', (tester) async {
+      'floating Lin Ai chat opens as frameless popover above the persistent '
+      'ball', (tester) async {
     var open = false;
     await tester.pumpWidget(
       MaterialApp(
@@ -350,7 +350,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('desktop_floating_ball')), findsOneWidget);
-    expect(find.byKey(const ValueKey('desktop_chat_panel')), findsNothing);
+    expect(find.byKey(const ValueKey('desktop_chat_popover')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('desktop_floating_ball')));
     await tester.pump();
@@ -358,17 +358,23 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('desktop_chat_panel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('desktop_chat_popover')), findsOneWidget);
     expect(find.byType(PersonaChatScreen), findsOneWidget);
-    expect(find.byKey(const ValueKey('desktop_floating_ball')), findsNothing);
+    expect(
+      tester
+          .widget<PersonaChatScreen>(find.byType(PersonaChatScreen))
+          .presentation,
+      PersonaChatPresentation.desktopFloating,
+    );
+    expect(find.byKey(const ValueKey('desktop_floating_ball')), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('desktop_chat_close')));
+    await tester.tap(find.byKey(const ValueKey('desktop_floating_ball')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
     await tester.pump();
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('desktop_chat_panel')), findsNothing);
+    expect(find.byKey(const ValueKey('desktop_chat_popover')), findsNothing);
     expect(find.byKey(const ValueKey('desktop_floating_ball')), findsOneWidget);
 
     // 冲掉 PersonaChatScreen 启动期可能残留的定时器。
