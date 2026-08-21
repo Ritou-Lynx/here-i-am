@@ -198,6 +198,91 @@ void main() {
     expect(find.textContaining('card_abc'), findsOneWidget);
   });
 
+  testWidgets('direct card edit back falls back to the card library',
+      (tester) async {
+    await pumpRoute(
+      tester,
+      AppRoutes.cardEditPath('card_direct'),
+      until: find.byType(CardRichTextEditorScreen),
+    );
+
+    await tester.tap(find.byTooltip('返回'));
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (find.byType(CardLibraryScreen).evaluate().isNotEmpty) break;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+
+    expect(find.byType(CardLibraryScreen), findsOneWidget);
+  });
+
+  testWidgets('pushed card edit back restores card library state',
+      (tester) async {
+    await pumpRoute(
+      tester,
+      AppRoutes.cardLibrary,
+      until: find.byType(CardLibraryScreen),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('card-library-search')),
+      '保留筛选',
+    );
+    await tester.pump();
+
+    final pending = router.push(AppRoutes.cardEditPath('card_pushed'));
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (find.byType(CardRichTextEditorScreen).evaluate().isNotEmpty) break;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+    await tester.tap(find.byTooltip('返回'));
+    await pending;
+    await tester.pump();
+
+    expect(find.byType(CardLibraryScreen), findsOneWidget);
+    final search = tester.widget<TextField>(
+      find.byKey(const ValueKey('card-library-search')),
+    );
+    expect(search.controller!.text, '保留筛选');
+  });
+
+  testWidgets('direct dirty card edit confirms before library fallback',
+      (tester) async {
+    await pumpRoute(
+      tester,
+      AppRoutes.cardEditPath('card_dirty_direct'),
+      until: find.byType(CardRichTextEditorScreen),
+    );
+    await tester.enterText(find.byType(TextField).first, '尚未保存的内容');
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('desktop_page_back')));
+    await tester.pumpAndSettle();
+    expect(find.text('尚未保存'), findsOneWidget);
+
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CardRichTextEditorScreen), findsOneWidget);
+    expect(find.text('尚未保存的内容'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('desktop_page_back')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('放弃'));
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (find.byType(CardLibraryScreen).evaluate().isNotEmpty) break;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+
+    expect(find.byType(CardLibraryScreen), findsOneWidget);
+  });
+
   testWidgets('source study route resolves with sourceId parameter',
       (tester) async {
     WhiteboardDataBootstrap.setRepositoryForTesting(

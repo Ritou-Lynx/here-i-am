@@ -103,6 +103,22 @@ void main() {
     expect(home.properties.selected, isFalse);
   });
 
+  testWidgets('link import keeps the card library nav item active',
+      (tester) async {
+    await setViewport(tester, const Size(1280, 720));
+    await tester.pumpWidget(standardShell(activePath: '/import'));
+    await tester.pump();
+
+    final cards = tester.widget<Semantics>(
+      find.byKey(const ValueKey('desktop_sidebar_nav_卡片库')),
+    );
+    expect(cards.properties.selected, isTrue);
+    final home = tester.widget<Semantics>(
+      find.byKey(const ValueKey('desktop_sidebar_nav_首页')),
+    );
+    expect(home.properties.selected, isFalse);
+  });
+
   testWidgets('immersive shell renders no persistent nav, handle, or top bar',
       (tester) async {
     await setViewport(tester, const Size(1280, 720));

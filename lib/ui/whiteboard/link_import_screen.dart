@@ -258,6 +258,13 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
     context.go(AppRoutes.cardLibrary);
   }
 
+  Future<void> _goBack() async {
+    final handled = await Navigator.of(context).maybePop();
+    if (!handled && mounted) {
+      context.go(AppRoutes.cardLibrary);
+    }
+  }
+
   void _openSavedDestination() {
     final source = _outcome?.result.source;
     if (source != null && _outcome != null && _isStudyReady(_outcome!.result)) {
@@ -302,7 +309,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
             DesktopPageTitle(
               title: '导入链接',
               meta: '预览零写入 · 确认后提交当前结果',
-              onBack: () => context.go('/'),
+              onBack: _goBack,
             ),
             Expanded(
               child: LayoutBuilder(

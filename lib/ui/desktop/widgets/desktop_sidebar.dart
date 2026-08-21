@@ -32,6 +32,10 @@ const _navItems = [
 /// 判断当前路由是否命中某个导航项（白板画布 / 卡片编辑等子路径命中父级）。
 bool _matches(String currentPath, String itemPath) {
   if (itemPath == AppRoutes.home) return currentPath == AppRoutes.home;
+  if (itemPath == AppRoutes.cardLibrary &&
+      currentPath == AppRoutes.linkImport) {
+    return true;
+  }
   if (currentPath == itemPath) return true;
   return currentPath.startsWith('$itemPath/');
 }

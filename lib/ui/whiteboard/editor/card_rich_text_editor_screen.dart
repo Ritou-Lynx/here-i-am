@@ -36,6 +36,7 @@ class CardRichTextEditorScreen extends StatefulWidget {
   final Future<void> Function(String cardId, RichTextDocument document)?
       onSaveDocument;
   final String? degradedMessage;
+  final Future<void> Function()? onExit;
 
   /// Optional externally-owned controller. When provided, the screen uses it
   /// instead of creating its own (useful for tests and shell reuse).
@@ -55,6 +56,7 @@ class CardRichTextEditorScreen extends StatefulWidget {
     this.initialDocument,
     this.onSaveDocument,
     this.degradedMessage,
+    this.onExit,
     this.controller,
     this.objectStore,
     this.mediaImporter,
@@ -137,6 +139,24 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
     }
   }
 
+  Future<void> _requestExit() async {
+    final choice = await confirmUnsavedExit(
+      context,
+      hasUnsavedChanges: _controller.isDirty,
+      onSave: _save,
+    );
+    // A failed save deliberately keeps the controller dirty. Do not let the
+    // confirmation path close the editor and lose those changes.
+    if (choice == UnsavedExitChoice.save && _controller.isDirty) return;
+    if (choice == UnsavedExitChoice.cancel || !mounted) return;
+    final onExit = widget.onExit;
+    if (onExit != null) {
+      await onExit();
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<List<RichTextAssetRef>> _defaultMediaImporter(
       MediaImportKind kind) async {
     final result = await FilePicker.platform.pickFiles(
@@ -164,17 +184,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
       canPop: !_controller.isDirty,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        final choice = await confirmUnsavedExit(
-          context,
-          hasUnsavedChanges: _controller.isDirty,
-          onSave: _save,
-        );
-        // A failed save deliberately keeps the controller dirty. Do not let
-        // the confirmation path close the editor and lose those changes.
-        if (choice == UnsavedExitChoice.save && _controller.isDirty) return;
-        if (choice != UnsavedExitChoice.cancel && context.mounted) {
-          Navigator.of(context).pop();
-        }
+        await _requestExit();
       },
       child: Scaffold(
         backgroundColor: tokens.canvas,
@@ -186,7 +196,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
               DesktopPageTitle(
                 title: '编辑卡片',
                 meta: widget.cardId,
-                onBack: () => Navigator.of(context).maybePop(),
+                onBack: _requestExit,
                 actions: [
                   _SaveStateIndicator(
                     isDirty: _controller.isDirty,

@@ -10,6 +10,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -17,6 +18,7 @@ import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor_screen.dart'
@@ -95,6 +97,16 @@ class _EditorLoad {
 class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   late final Future<_EditorLoad> _loadFuture = _load();
 
+  Future<void> _exitEditor() async {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      context.go(AppRoutes.cardLibrary);
+    }
+  }
+
   Future<_EditorLoad> _load() async {
     final testStorage = CardRichTextEditorScreen._storageOverride;
     if (testStorage != null &&
@@ -153,6 +165,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
             cardId: widget.cardId,
             message: '正在加载卡片…',
             loading: true,
+            onBack: _exitEditor,
           );
         }
         final load = snapshot.data!;
@@ -161,6 +174,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
             cardId: widget.cardId,
             message: load.error!,
             isError: true,
+            onBack: _exitEditor,
           );
         }
         return editor.CardRichTextEditorScreen(
@@ -168,6 +182,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
           cardId: widget.cardId,
           initialDocument: load.document,
           degradedMessage: load.message,
+          onExit: _exitEditor,
           onSaveDocument: load.repository == null
               ? null
               : (cardId, document) =>
@@ -182,12 +197,14 @@ class _EditorRouteState extends StatelessWidget {
   const _EditorRouteState({
     required this.cardId,
     required this.message,
+    required this.onBack,
     this.loading = false,
     this.isError = false,
   });
 
   final String cardId;
   final String message;
+  final VoidCallback onBack;
   final bool loading;
   final bool isError;
 
@@ -202,7 +219,7 @@ class _EditorRouteState extends StatelessWidget {
           DesktopPageTitle(
             title: '编辑卡片',
             meta: cardId,
-            onBack: () => Navigator.of(context).maybePop(),
+            onBack: onBack,
           ),
           Expanded(
             child: Center(

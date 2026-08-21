@@ -241,6 +241,34 @@ void main() {
     expect(find.textContaining('还没有导入记录'), findsOneWidget);
   });
 
+  testWidgets('direct route back falls back to the card library',
+      (tester) async {
+    await pump(tester, _service(repository, {}));
+
+    await tester.tap(find.byKey(const ValueKey('desktop_page_back')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('卡片库页面'), findsOneWidget);
+  });
+
+  testWidgets('pushed route back restores its card library origin',
+      (tester) async {
+    final service = _service(repository, {});
+    final router = routerWith(service);
+    addTearDown(router.dispose);
+    router.go(AppRoutes.cardLibrary);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    expect(find.text('卡片库页面'), findsOneWidget);
+
+    unawaited(router.push(AppRoutes.linkImport));
+    await settleFor(tester, find.widgetWithText(FilledButton, '预览'));
+    await tester.tap(find.byKey(const ValueKey('desktop_page_back')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('卡片库页面'), findsOneWidget);
+  });
+
   testWidgets('empty input shows inline error', (tester) async {
     await pump(tester, _service(repository, {}));
 
