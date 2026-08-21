@@ -1,65 +1,48 @@
-# 白板生产字体占位目录（W6 集成基座）
+# 白板生产字体资产
 
-本目录存放白板桌面端生产字体资产。**W6 只占目录与声明约定，实际 TTF/WOFF2
-文件由 W2 富文本窗口放入**；pubspec.yaml 中的字体 family 声明已预留（注释态），
-W2 放文件后取消注释即可，**不需要再改 pubspec 其他部分**。
+本目录保存 Whiteboard Desktop 随应用分发的生产字体。Flutter 注册族名必须与
+`lib/ui/whiteboard/fonts.dart` 完全一致，业务页面只使用集中式字体 token。
 
-## 字体清单与许可证
+## 当前资产
 
-| 字体 | 用途 | 许可证 | 状态 |
+| 字体 | 用途 | 许可证 | 当前状态 |
 |---|---|---|---|
-| 汇文明朝体（Huiwen Mingchao） | 中文正文 / 页面标题 | CC0 1.0（可商用，无需署名） | 待 W2 放入子集化 TTF |
-| Cascadia Code | 英文、数字、时间码、代码 | SIL Open Font License 1.1 | 待 W2 放入 TTF |
+| 汇文明朝体（Huiwen Mingchao） | 中文正文 / 页面标题 | CC0 1.0 | 已接入；当前全量文件 24.9 MB，仍待独立子集化 |
+| Cascadia Code 2407.24 Regular | 英文、数字、时间码、代码 | SIL Open Font License 1.1 | 已接入并由 Flutter / Windows 产物验证 |
 
-来源约定：
-- 汇文明朝体：官方发布渠道（GitHub `Hanayoki/HuiwenMingchao` 或作者指定发布页），
-  以 CC0 许可证文件随包留存。
-- Cascadia Code：微软官方 GitHub 发布页（SIL OFL 1.1）。
+### Cascadia Code 可追溯信息
 
-## 子集化说明（生产资产落地时必须做）
+- 官方项目：`https://github.com/microsoft/cascadia-code`
+- 官方发行：`v2407.24`，下载包 `CascadiaCode-2407.24.zip`
+- ZIP SHA-256：`E67A68EE3386DB63F48B9054BD196EA752BC6A4EBB4DF35ADCE6733DA50C8474`
+- 提取路径：`ttf/static/CascadiaCode-Regular.ttf`
+- TTF SHA-256：`C33EF522CDFEFF99907FB54F3E97152BB18BFB9B56EC2FEF4D4CEEC51C8974A4`
+- TTF 长度：`598060` bytes
+- 字体内部 family：`Cascadia Code`
+- 许可副本：`CascadiaCode-OFL.txt`，来自同一官方 tag 的 `LICENSE`
 
-1. **汇文明朝体必须子集化**：全字体库体积大，桌面包不得直接内嵌全量字体。
-   推荐 `fonttools`（`pyftsubset`）按「产品用字 + 常用 3500 字 + 白板样例内容」
-   生成子集：
-   ```bash
-   pyftsubset HuiwenMingChao-Regular.ttf \
-     --text-file=whitelist.txt \
-     --unicodes=U+0000-00FF,U+2000-206F,U+3000-303F,U+4E00-9FFF \
-     --output-file=HuiwenMingChao-Subset.ttf \
-     --layout-features='*' --flavor=
-   ```
-   `whitelist.txt` 由产品文案、样例卡片、常用词表导出。
-2. **缺字检查**：子集化后必须跑覆盖检查（对全部生产 UI 文案 + 测试 fixture
-   文本做字形覆盖扫描），缺字时扩充子集并重出。
-3. **Cascadia Code 按需选择 weight**：生产只需 Regular（+ 可选的 Bold），
-   不用全套 10 个 weight。
-4. 子集化后每个文件 ≤ ~4MB（中文正文子集通常 2–4MB），并记录
-   源文件 sha256、子集生成命令与日期到本 README。
+只打包静态 Regular，不引入其余字重、Italic、Powerline、Nerd Font、OTF、
+WOFF2 或可变字体。当前文件是 Microsoft 原始发行文件，未修改、未子集化，
+因此可以保留 Reserved Font Name `Cascadia Code`。
 
-## 落盘文件约定（W2 放置）
-
-```
-assets/fonts/whiteboard/HuiwenMingChao-Regular.ttf   （子集化后）
-assets/fonts/whiteboard/CascadiaCode-Regular.ttf
-assets/fonts/whiteboard/whitelist.txt                （子集字表，可追溯）
-assets/fonts/whiteboard/README.md                    （更新：sha256 + 命令）
-```
-
-pubspec.yaml 预留声明（放文件后取消注释）：
+## Flutter 注册
 
 ```yaml
   fonts:
-    # 白板生产字体（W6 占位声明，文件由 W2 落地后启用）
-    # - family: HuiwenMingchao
-    #   fonts:
-    #     - asset: assets/fonts/whiteboard/HuiwenMingChao-Regular.ttf
-    # - family: CascadiaCode
-    #   fonts:
-    #     - asset: assets/fonts/whiteboard/CascadiaCode-Regular.ttf
+    - family: Huiwen-mincho
+      fonts:
+        - asset: assets/fonts/whiteboard/HuiwenMingChao-Regular.ttf
+    - family: Cascadia Code
+      fonts:
+        - asset: assets/fonts/whiteboard/CascadiaCode-Regular.ttf
 ```
 
-## 回退链（W2 实现要求）
+`Cascadia Code` 中的空格不能删除；它必须与字体内部 family 以及
+`richTextCodeFamily` 一致。缺字回退顺序继续由 `fonts.dart` 控制。
 
-缺字回退：HuiwenMingchao → LXGW WenKai（既有资产）→ 系统字体；
-Cascadia Code → 'monospace' → 系统等宽。中英文混排时按
-`docs/design/whiteboard-ui-spine-contract.md` 的字体规则。
+## 汇文明朝体后续子集化边界
+
+汇文明朝体当前文件较大，后续应在独立资产批次中按产品文案、常用 CJK、标点
+和白板 fixture 生成子集，并对全部生产文案做 glyph 覆盖扫描。子集化会修改
+字体数据，必须重新核对其许可证、内部 family、生成命令、文件哈希与 Windows
+真机标点 / 缺字表现；不得用霞鹜文楷等其它字体冒充目标字体。

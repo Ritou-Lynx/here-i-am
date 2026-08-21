@@ -142,6 +142,7 @@ flutter:
     - assets/stickers/manifest.json
     - assets/stickers/zhedog/
     - assets/branding/hereiam_v3_logo/
+    - assets/fonts/whiteboard/CascadiaCode-OFL.txt
 
   fonts:
     - family: LXGW WenKai
@@ -164,7 +165,7 @@ flutter:
     - family: Huiwen-mincho
       fonts:
         - asset: assets/fonts/whiteboard/HuiwenMingChao-Regular.ttf
-    # Cascadia Code（SIL OFL，待放入 TTF 后取消注释）：
-    # - family: CascadiaCode
-    #   fonts:
-    #     - asset: assets/fonts/whiteboard/CascadiaCode-Regular.ttf
+    # Cascadia Code 2407.24（Microsoft 官方发行，SIL OFL 1.1）：
+    - family: Cascadia Code
+      fonts:
+        - asset: assets/fonts/whiteboard/CascadiaCode-Regular.ttf
