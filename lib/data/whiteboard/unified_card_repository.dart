@@ -11,6 +11,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 
+import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
@@ -113,12 +114,14 @@ class UnifiedCardRepository {
     required this.db,
     required this.whiteboardRoot,
     RichTextStorage? richTextStorage,
+    this.thumbnailResolver,
   }) : richTextStorage = richTextStorage ??
             RichTextStorage(Directory(_join(whiteboardRoot.path, 'rich_text')));
 
   final AppDatabase db;
   final Directory whiteboardRoot;
   final RichTextStorage richTextStorage;
+  final ThumbnailResolver? thumbnailResolver;
 
   /// Repairs interrupted rich-text and Source-object exchanges at startup.
   Future<void> recoverFileReplacements() async {
@@ -384,6 +387,113 @@ class UnifiedCardRepository {
   }
 
   Future<SourceContent?> getSource(String sourceId) => _sourceById(sourceId);
+
+  /// Resolves a Source card thumbnail through the injected safe projection.
+  /// Raw `thumbnail` / `og_image` values remain untrusted download candidates;
+  /// UI only receives [ResolvedThumbnail.file] after the resolver has produced
+  /// and integrity-checked a content-addressed `thumbnail_ref`.
+  Future<ResolvedThumbnail> resolveThumbnail(
+    UnifiedCardRecord record,
+  ) async {
+    final resolver = thumbnailResolver;
+    final source = record.source;
+    final versionId =
+        record.currentSourceVersion?.versionId ?? source?.currentVersionId;
+    if (resolver == null || source == null || versionId == null) {
+      return const ResolvedThumbnail.missing();
+    }
+    final presentation = record.card.presentation;
+    final sourceMetadata = source.metadata;
+    final candidate = _firstString([
+      sourceMetadata['og_image'],
+      sourceMetadata['thumbnail_url'],
+      presentation['thumbnail'],
+    ]);
+    final cachedRef = _firstString([
+      presentation['thumbnail_ref'],
+      sourceMetadata['thumbnail_ref'],
+    ]);
+    final cachedVersion = presentation['thumbnail_version_id'] as String? ??
+        sourceMetadata['thumbnail_version_id'] as String?;
+    final resolved = await resolver.resolve(
+      ThumbnailResolveRequest(
+        sourceId: source.sourceId,
+        sourceVersionId: versionId,
+        candidateUrl: candidate,
+        canonicalUrl: sourceMetadata['canonical_url'] as String?,
+        cachedObjectRef: cachedRef,
+        cachedVersionId: cachedVersion,
+        cachedCandidateHash:
+            presentation['thumbnail_candidate_hash'] as String? ??
+                sourceMetadata['thumbnail_candidate_hash'] as String?,
+      ),
+    );
+    if (!resolved.isAvailable ||
+        resolved.objectRef == null ||
+        resolved.candidateHash == null) {
+      return resolved;
+    }
+
+    try {
+      final stillCurrent = await db.transaction<bool>(() async {
+        final current = await getCard(
+          record.card.cardId,
+          loadDocument: false,
+        );
+        if (current == null) return false;
+        final latestVersion = current.currentSourceVersion?.versionId ??
+            current.source?.currentVersionId;
+        if (latestVersion != versionId) return false;
+        final currentPresentation = current.card.presentation;
+        final currentSourceMetadata = current.source?.metadata ?? const {};
+        final currentCandidate = _firstString([
+          currentSourceMetadata['og_image'],
+          currentSourceMetadata['thumbnail_url'],
+          currentPresentation['thumbnail'],
+        ]);
+        final currentCandidateHash = SafeThumbnailResolver.candidateHashFor(
+          currentCandidate,
+          currentSourceMetadata['canonical_url'] as String?,
+        );
+        if (resolved.candidateHash!.isNotEmpty &&
+            currentCandidateHash != resolved.candidateHash) {
+          return false;
+        }
+        final hashIsProjected = resolved.candidateHash!.isEmpty ||
+            currentPresentation['thumbnail_candidate_hash'] ==
+                resolved.candidateHash;
+        if (currentPresentation['thumbnail_ref'] == resolved.objectRef &&
+            currentPresentation['thumbnail_version_id'] == versionId &&
+            hashIsProjected) {
+          return true;
+        }
+        // This is a rebuildable cache projection, not a user edit. Touch only
+        // presentation_json so background work cannot reorder the library or
+        // overwrite a concurrent title/body/tag edit with an older record.
+        final projectedPresentation = {
+          ...currentPresentation,
+          'thumbnail_ref': resolved.objectRef,
+          'thumbnail_version_id': versionId,
+          if (resolved.candidateHash!.isNotEmpty)
+            'thumbnail_candidate_hash': resolved.candidateHash,
+        };
+        await (db.update(db.whiteboardCardExtras)
+              ..where((t) => t.cardId.equals(record.card.cardId)))
+            .write(
+          WhiteboardCardExtrasCompanion(
+            presentationJson: Value(jsonEncode(projectedPresentation)),
+          ),
+        );
+        return true;
+      });
+      if (!stillCurrent) return const ResolvedThumbnail.missing();
+    } catch (_) {
+      // The cache is still a valid rebuildable projection for this process.
+      // A later resolve may retry the metadata projection; Card identity and
+      // the explicit ingestion commit remain successful either way.
+    }
+    return resolved;
+  }
 
   Future<List<SourceVersion>> listSourceVersions(String sourceId) async {
     final rows = await (db.select(db.whiteboardSourceVersions)
@@ -1033,6 +1143,15 @@ class UnifiedCardRepository {
       if (trimmed.isNotEmpty) return trimmed;
     }
     return fallback;
+  }
+
+  static String? _firstString(List<Object?> values) {
+    for (final value in values) {
+      if (value is! String) continue;
+      final trimmed = value.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
   }
 
   static String _dropletLabel(String title) {

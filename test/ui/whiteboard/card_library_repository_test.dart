@@ -1,10 +1,13 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 
+import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
@@ -17,6 +20,16 @@ import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
+
+class _CountingThumbnailResolver implements ThumbnailResolver {
+  final List<ThumbnailResolveRequest> requests = [];
+
+  @override
+  Future<ResolvedThumbnail> resolve(ThumbnailResolveRequest request) async {
+    requests.add(request);
+    return const ResolvedThumbnail.missing();
+  }
+}
 
 void main() {
   late Directory root;
@@ -40,7 +53,10 @@ void main() {
     if (await root.exists()) await root.delete(recursive: true);
   });
 
-  Future<GoRouter> pumpApp(WidgetTester tester) async {
+  Future<GoRouter> pumpApp(
+    WidgetTester tester, {
+    bool settle = true,
+  }) async {
     final router = GoRouter(
       initialLocation: AppRoutes.cardLibrary,
       routes: [
@@ -71,7 +87,11 @@ void main() {
     );
     addTearDown(router.dispose);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
     return router;
   }
 
@@ -226,6 +246,118 @@ void main() {
       },
     );
     expect(createHttpClientCount, 0);
+  });
+
+  testWidgets('only an integrity-checked thumbnail_ref creates a local preview',
+      (tester) async {
+    const candidate = 'https://example.com/cover.png';
+    const sourceId = 'src_safe_cached';
+    const versionId = 'ver_${sourceId}_v1';
+    final image = img.Image(width: 48, height: 32);
+    img.fill(image, color: img.ColorRgb8(67, 89, 59));
+    final bytes = img.encodePng(image);
+    final contentHash = sha256.convert(bytes).toString();
+    final candidateHash = sha256.convert(candidate.codeUnits).toString();
+    final objectRef = 'objects/thumbnails/$contentHash.png';
+    final cacheDir = Directory(
+      '${root.path}${Platform.pathSeparator}objects'
+      '${Platform.pathSeparator}thumbnails',
+    );
+    await tester.runAsync(() async {
+      await cacheDir.create(recursive: true);
+      await File(
+        '${cacheDir.path}${Platform.pathSeparator}$contentHash.png',
+      ).writeAsBytes(bytes, flush: true);
+    });
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: root,
+      thumbnailResolver: SafeThumbnailResolver(whiteboardRoot: root),
+    );
+    CardRichTextEditorScreen.setRepositoryForTesting(repository);
+    await _createSourceCard(
+      repository,
+      sourceId: sourceId,
+      type: SourceMediaType.web,
+      title: '可信缓存网页',
+      metadata: const {
+        'canonical_url': 'https://example.com/article',
+        'og_image': candidate,
+      },
+      presentation: {
+        'thumbnail': candidate,
+        'thumbnail_ref': objectRef,
+        'thumbnail_version_id': versionId,
+        'thumbnail_candidate_hash': candidateHash,
+      },
+    );
+
+    await pumpApp(tester, settle: false);
+    final thumbnail = find
+        .byKey(const ValueKey('card-library-thumbnail-card_src_safe_cached'));
+    await _pumpUntilFound(tester, thumbnail);
+
+    final widget = tester.widget<Image>(thumbnail);
+    expect(widget.image, isA<ResizeImage>());
+    final provider = (widget.image as ResizeImage).imageProvider;
+    expect(provider, isA<FileImage>());
+    final file = (provider as FileImage).file;
+    expect(file.path, startsWith(cacheDir.path));
+    expect(find.text('暂无网页预览'), findsNothing);
+    expect(find.byType(NetworkImage), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('only cards built near the scroll viewport request thumbnails',
+      (tester) async {
+    final resolver = _CountingThumbnailResolver();
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: root,
+      thumbnailResolver: resolver,
+    );
+    CardRichTextEditorScreen.setRepositoryForTesting(repository);
+    for (var index = 0; index < 12; index++) {
+      await _createSourceCard(
+        repository,
+        sourceId: 'src_lazy_$index',
+        type: SourceMediaType.web,
+        title: '惰性缩略图 $index',
+        metadata: {
+          'canonical_url': 'https://example.com/article/$index',
+          'og_image': 'https://example.com/cover/$index.png',
+        },
+      );
+    }
+
+    await pumpApp(tester, settle: false);
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const ValueKey('card-library-mobile-list')),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+    final initialRequests = resolver.requests.length;
+
+    expect(initialRequests, greaterThan(0));
+    expect(initialRequests, lessThan(12),
+        reason: 'off-screen cards must not be fetched eagerly');
+
+    await tester.drag(
+      find.byKey(const ValueKey('card-library-mobile-list')),
+      const Offset(0, -1600),
+    );
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+
+    expect(resolver.requests.length, greaterThan(initialRequests));
+    expect(resolver.requests.length, lessThanOrEqualTo(12));
   });
 
   testWidgets('type, source, tag and keyword filters compose', (tester) async {
@@ -566,6 +698,7 @@ Future<CardContract> _createSourceCard(
   required SourceMediaType type,
   required String title,
   Map<String, dynamic> metadata = const {},
+  Map<String, dynamic> presentation = const {},
 }) async {
   final now = DateTime.utc(2026, 8, 19, 12);
   final versionId = 'ver_${sourceId}_v1';
@@ -597,6 +730,7 @@ Future<CardContract> _createSourceCard(
     sourceId: sourceId,
     title: title,
     body: '$title 摘要',
+    presentation: presentation,
     createdAt: now,
     updatedAt: now,
   );

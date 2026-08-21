@@ -33,6 +33,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+enum _SafeResponseKind { text, bytes }
+
 /// Resolves a hostname to its IP addresses.
 ///
 /// Injectable so tests can control resolution without real DNS. Production
@@ -54,6 +56,7 @@ class SystemDnsResolver implements DnsResolver {
 /// Outcome of a safe HTTP fetch.
 class SafeHttpResult {
   final String? body;
+  final Uint8List? bytes;
   final String? finalUrl;
   final String? mimeType;
   final int? statusCode;
@@ -69,6 +72,7 @@ class SafeHttpResult {
 
   const SafeHttpResult({
     this.body,
+    this.bytes,
     this.finalUrl,
     this.mimeType,
     this.statusCode,
@@ -78,7 +82,8 @@ class SafeHttpResult {
         success = false;
 
   const SafeHttpResult.ok({
-    required this.body,
+    this.body,
+    this.bytes,
     required this.finalUrl,
     required this.mimeType,
     required this.statusCode,
@@ -89,6 +94,7 @@ class SafeHttpResult {
 
   const SafeHttpResult.failure(String message)
       : body = null,
+        bytes = null,
         finalUrl = null,
         mimeType = null,
         statusCode = null,
@@ -99,6 +105,7 @@ class SafeHttpResult {
 
   const SafeHttpResult.authFailure(String message)
       : body = null,
+        bytes = null,
         finalUrl = null,
         mimeType = null,
         statusCode = null,
@@ -108,13 +115,18 @@ class SafeHttpResult {
         success = false;
 
   bool get isRedirect =>
-      success && statusCode != null &&
-      (statusCode == 301 || statusCode == 302 || statusCode == 303 ||
-       statusCode == 307 || statusCode == 308);
+      success &&
+      statusCode != null &&
+      (statusCode == 301 ||
+          statusCode == 302 ||
+          statusCode == 303 ||
+          statusCode == 307 ||
+          statusCode == 308);
 
   @override
-  String toString() =>
-      success ? 'SafeHttpResult($statusCode $finalUrl)' : 'SafeHttpResult(fail: $errorMessage)';
+  String toString() => success
+      ? 'SafeHttpResult($statusCode $finalUrl)'
+      : 'SafeHttpResult(fail: $errorMessage)';
 }
 
 /// Configuration for [SafeHttpClient].
@@ -140,6 +152,10 @@ class SafeHttpConfig {
   /// User-Agent string.
   final String userAgent;
 
+  /// Value for the HTTP `Accept` request header. HTML ingestion keeps its
+  /// browser-like default; binary asset callers provide an image-only value.
+  final String acceptHeader;
+
   /// Whether to resolve and blocklist-check DNS for every host (initial URL
   /// and each redirect hop) before connecting. **Defaults to true** —
   /// production SSRF protection. Setting this to `false` is only allowed for
@@ -160,10 +176,36 @@ class SafeHttpConfig {
     },
     this.userAgent =
         'Mozilla/5.0 (compatible; HereIAmBot/1.0; +https://memexlab.com)',
+    this.acceptHeader =
+        'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     this.enforceDnsCheck = true,
   });
 
   static const SafeHttpConfig defaultConfig = SafeHttpConfig();
+
+  SafeHttpConfig copyWith({
+    int? maxRedirects,
+    Duration? connectTimeout,
+    Duration? receiveTimeout,
+    int? maxBodyBytes,
+    int? maxRetries,
+    Set<String>? allowedMimePrefixes,
+    String? userAgent,
+    String? acceptHeader,
+    bool? enforceDnsCheck,
+  }) {
+    return SafeHttpConfig(
+      maxRedirects: maxRedirects ?? this.maxRedirects,
+      connectTimeout: connectTimeout ?? this.connectTimeout,
+      receiveTimeout: receiveTimeout ?? this.receiveTimeout,
+      maxBodyBytes: maxBodyBytes ?? this.maxBodyBytes,
+      maxRetries: maxRetries ?? this.maxRetries,
+      allowedMimePrefixes: allowedMimePrefixes ?? this.allowedMimePrefixes,
+      userAgent: userAgent ?? this.userAgent,
+      acceptHeader: acceptHeader ?? this.acceptHeader,
+      enforceDnsCheck: enforceDnsCheck ?? this.enforceDnsCheck,
+    );
+  }
 }
 
 /// Connect hook: replaces the real TCP (+TLS for https) connect so tests can
@@ -197,7 +239,8 @@ Future<Socket> _defaultSocketConnect({
       connectTimeout,
       onTimeout: () {
         task.cancel();
-        throw SocketException('HTTP connection timed out after $connectTimeout');
+        throw SocketException(
+            'HTTP connection timed out after $connectTimeout');
       },
     );
   } on SocketException {
@@ -432,7 +475,7 @@ class SafeHttpClient {
       followRedirects: false, // We handle redirects manually.
       headers: {
         'User-Agent': config.userAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': config.acceptHeader,
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.7',
       },
       validateStatus: (s) => s != null && s >= 200 && s < 400,
@@ -485,7 +528,19 @@ class SafeHttpClient {
   /// [SafeHttpResult.authFailure] for any policy violation (SSRF via literal
   /// or DNS, oversized body, wrong MIME, too many redirects, timeout, auth
   /// rejection). Never throws.
-  Future<SafeHttpResult> fetch(String url) async {
+  Future<SafeHttpResult> fetch(String url) =>
+      _fetch(url, responseKind: _SafeResponseKind.text);
+
+  /// Fetches a binary body through exactly the same SSRF, DNS pinning,
+  /// redirect, timeout, MIME and byte-limit policy as [fetch]. Bytes are
+  /// returned verbatim and are never round-tripped through UTF-8.
+  Future<SafeHttpResult> fetchBytes(String url) =>
+      _fetch(url, responseKind: _SafeResponseKind.bytes);
+
+  Future<SafeHttpResult> _fetch(
+    String url, {
+    required _SafeResponseKind responseKind,
+  }) async {
     String currentUrl = url;
     int redirects = 0;
 
@@ -497,7 +552,7 @@ class SafeHttpClient {
 
       SafeHttpResult? result;
       for (int attempt = 0; attempt <= _config.maxRetries; attempt++) {
-        result = await _fetchOnce(currentUrl);
+        result = await _fetchOnce(currentUrl, responseKind: responseKind);
         if (result.success) break;
         // Don't retry on policy errors, only on transient network errors.
         if (_isPolicyError(result.errorMessage)) break;
@@ -514,11 +569,13 @@ class SafeHttpClient {
       if (r.isRedirect) {
         redirects++;
         if (redirects > _config.maxRedirects) {
-          return SafeHttpResult.failure('Too many redirects (>${_config.maxRedirects})');
+          return SafeHttpResult.failure(
+              'Too many redirects (>${_config.maxRedirects})');
         }
         final location = r.redirectLocation;
         if (location == null || location.isEmpty) {
-          return SafeHttpResult.failure('Redirect $status without Location header');
+          return SafeHttpResult.failure(
+              'Redirect $status without Location header');
         }
         // The next loop iteration re-runs _validateHost (literal + DNS +
         // re-pin) on the redirect target before any connection is attempted.
@@ -586,7 +643,10 @@ class SafeHttpClient {
     try {
       addresses = await _resolver.lookup(host);
     } catch (e) {
-      return ('DNS resolution failed for host $host', const <InternetAddress>[]);
+      return (
+        'DNS resolution failed for host $host',
+        const <InternetAddress>[]
+      );
     }
     for (final addr in addresses) {
       if (_isBlockedAddress(addr)) {
@@ -616,13 +676,16 @@ class SafeHttpClient {
 
   bool _isBlockedHostLiteral(String host) {
     // Literal hostnames.
-    if (host == 'localhost' || host == '0.0.0.0' || host == '::1' ||
+    if (host == 'localhost' ||
+        host == '0.0.0.0' ||
+        host == '::1' ||
         host == '[::1]') {
       return true;
     }
     // Cloud metadata endpoints.
     if (host == 'metadata.google.internal' ||
-        host == '169.254.169.254' || host.endsWith('.metadata')) {
+        host == '169.254.169.254' ||
+        host.endsWith('.metadata')) {
       return true;
     }
     // IPv4 literal — check private / loopback / link-local ranges.
@@ -692,7 +755,9 @@ class SafeHttpClient {
     if (b[0] == 100 && (b[1] & 0xC0) == 64) return true; // 192.0.2.1/10 CGNAT
     if (b[0] == 172 && b[1] >= 16 && b[1] <= 31) return true; // 172.16/12
     if (b[0] == 192 && b[1] == 168) return true; // 192.168.0.0/16
-    if (b[0] == 169 && b[1] == 254) return true; // 169.254/16 link-local+metadata
+    if (b[0] == 169 && b[1] == 254) {
+      return true; // 169.254/16 link-local+metadata
+    }
     if (b[0] == 192 && b[1] == 0) return true; // 192.0.0.0/24 + TEST-NET-1
     if (b[0] == 198 && (b[1] == 18 || b[1] == 19)) return true; // 198.18/15
     if (b[0] == 198 && b[1] == 51 && b[2] == 100) return true; // TEST-NET-2
@@ -723,7 +788,10 @@ class SafeHttpClient {
   // Single request with true streaming byte cap
   // -----------------------------------------------------------------------
 
-  Future<SafeHttpResult> _fetchOnce(String url) async {
+  Future<SafeHttpResult> _fetchOnce(
+    String url, {
+    required _SafeResponseKind responseKind,
+  }) async {
     final cancelToken = CancelToken();
     try {
       final response = await _dio.get<ResponseBody>(
@@ -743,7 +811,8 @@ class SafeHttpClient {
             ? Uri.parse(url).resolve(location).toString()
             : null;
         return SafeHttpResult.ok(
-          body: '',
+          body: responseKind == _SafeResponseKind.text ? '' : null,
+          bytes: responseKind == _SafeResponseKind.bytes ? Uint8List(0) : null,
           finalUrl: url,
           mimeType: mime,
           statusCode: status,
@@ -785,11 +854,16 @@ class SafeHttpClient {
             'Response body exceeds max size (${_config.maxBodyBytes} bytes)');
       }
 
-      // Decode only after the body is confirmed within the limit.
-      final body = utf8.decode(builder.takeBytes(), allowMalformed: true);
+      // Decode only for text callers. Binary asset callers receive the exact
+      // bytes so invalid UTF-8 and embedded zeroes cannot be changed.
+      final bytes = builder.takeBytes();
+      final body = responseKind == _SafeResponseKind.text
+          ? utf8.decode(bytes, allowMalformed: true)
+          : null;
 
       return SafeHttpResult.ok(
         body: body,
+        bytes: responseKind == _SafeResponseKind.bytes ? bytes : null,
         finalUrl: response.realUri.toString(),
         mimeType: mime,
         statusCode: status,
@@ -812,7 +886,9 @@ class SafeHttpClient {
               ? Uri.parse(url).resolve(location).toString()
               : null;
           return SafeHttpResult.ok(
-            body: '',
+            body: responseKind == _SafeResponseKind.text ? '' : null,
+            bytes:
+                responseKind == _SafeResponseKind.bytes ? Uint8List(0) : null,
             finalUrl: url,
             mimeType: '',
             statusCode: status,
@@ -834,8 +910,11 @@ class SafeHttpClient {
   }
 
   bool _isRedirect(int status) =>
-      status == 301 || status == 302 || status == 303 ||
-      status == 307 || status == 308;
+      status == 301 ||
+      status == 302 ||
+      status == 303 ||
+      status == 307 ||
+      status == 308;
 
   bool _isPolicyError(String? message) {
     if (message == null) return false;

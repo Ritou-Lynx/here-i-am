@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/rich_text_search.dart';
@@ -64,6 +65,10 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
   bool _creating = false;
   String? _error;
   int _requestId = 0;
+  Map<String, UnifiedCardRecord> _recordsById = const {};
+  final Set<String> _thumbnailRequests = {};
+  final List<String> _thumbnailQueue = [];
+  bool _thumbnailWorkerRunning = false;
 
   @override
   void initState() {
@@ -87,6 +92,9 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     final requestId = ++_requestId;
     if (mounted) {
       setState(() {
+        _recordsById = const {};
+        _thumbnailRequests.clear();
+        _thumbnailQueue.clear();
         _loading = true;
         _error = null;
       });
@@ -100,6 +108,9 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
             : legacyIndex.search(query);
         if (!mounted || requestId != _requestId) return;
         setState(() {
+          _recordsById = const {};
+          _thumbnailRequests.clear();
+          _thumbnailQueue.clear();
           _hits = results
               .map((hit) => _CardLibraryHit.legacy(
                     cardId: hit.cardId,
@@ -126,6 +137,11 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
           : const <UnifiedCardRecord>[];
       if (!mounted || requestId != _requestId) return;
       setState(() {
+        _recordsById = {
+          for (final record in records) record.card.cardId: record,
+        };
+        _thumbnailRequests.clear();
+        _thumbnailQueue.clear();
         _hits = records.map(_CardLibraryHit.fromRecord).toList();
         if (allRecords.isNotEmpty) {
           _knownTags = {
@@ -140,6 +156,50 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         _loading = false;
         _error = '卡片库加载失败：$error';
       });
+    }
+  }
+
+  void _queueThumbnail(String cardId) {
+    if (!mounted) return;
+    final record = _recordsById[cardId];
+    final sourceType = record?.source?.mediaType;
+    if (record == null ||
+        sourceType == null ||
+        sourceType == SourceMediaType.text ||
+        !_thumbnailRequests.add(cardId)) {
+      return;
+    }
+    _thumbnailQueue.add(cardId);
+    unawaited(_drainThumbnailQueue());
+  }
+
+  Future<void> _drainThumbnailQueue() async {
+    if (_thumbnailWorkerRunning) return;
+    _thumbnailWorkerRunning = true;
+    try {
+      final repository = await _repositoryFuture;
+      if (repository == null) return;
+      while (mounted && _thumbnailQueue.isNotEmpty) {
+        final requestId = _requestId;
+        final cardId = _thumbnailQueue.removeAt(0);
+        final record = _recordsById[cardId];
+        if (record == null || requestId != _requestId) continue;
+        final resolved = await repository.resolveThumbnail(record);
+        if (!mounted || requestId != _requestId) continue;
+        if (!resolved.isAvailable || resolved.file == null) continue;
+        final index = _hits.indexWhere((hit) => hit.cardId == cardId);
+        if (index < 0) continue;
+        setState(() {
+          final updated = List<_CardLibraryHit>.of(_hits);
+          updated[index] = updated[index].copyWith(thumbnail: resolved);
+          _hits = updated;
+        });
+      }
+    } finally {
+      _thumbnailWorkerRunning = false;
+      if (mounted && _thumbnailQueue.isNotEmpty) {
+        unawaited(_drainThumbnailQueue());
+      }
     }
   }
 
@@ -562,6 +622,9 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
               onPlace: widget.index == null
                   ? () => _showBoardTargetPicker(hit)
                   : null,
+              onThumbnailNeeded: widget.index == null && hit.isMedia
+                  ? () => _queueThumbnail(hit.cardId)
+                  : null,
               palette: palette,
             ),
           );
@@ -597,6 +660,9 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
               onTap: () => _open(hit),
               onPlace: widget.index == null
                   ? () => _showBoardTargetPicker(hit)
+                  : null,
+              onThumbnailNeeded: widget.index == null && hit.isMedia
+                  ? () => _queueThumbnail(hit.cardId)
                   : null,
               palette: palette,
             );
@@ -761,11 +827,13 @@ class _CardPreview extends StatelessWidget {
     required this.onTap,
     required this.palette,
     this.onPlace,
+    this.onThumbnailNeeded,
   });
 
   final _CardLibraryHit hit;
   final VoidCallback onTap;
   final VoidCallback? onPlace;
+  final VoidCallback? onThumbnailNeeded;
   final _LibraryPalette palette;
 
   @override
@@ -790,7 +858,11 @@ class _CardPreview extends StatelessWidget {
       children: [
         Expanded(
           flex: 7,
-          child: _MediaPreview(hit: hit, palette: palette),
+          child: _MediaPreview(
+            hit: hit,
+            palette: palette,
+            onThumbnailNeeded: onThumbnailNeeded,
+          ),
         ),
         Flexible(
           flex: 3,
@@ -932,19 +1004,37 @@ class _CardPreview extends StatelessWidget {
 }
 
 class _MediaPreview extends StatelessWidget {
-  const _MediaPreview({required this.hit, required this.palette});
+  const _MediaPreview({
+    required this.hit,
+    required this.palette,
+    this.onThumbnailNeeded,
+  });
 
   final _CardLibraryHit hit;
   final _LibraryPalette palette;
+  final VoidCallback? onThumbnailNeeded;
 
   @override
   Widget build(BuildContext context) {
-    // Source metadata is untrusted: URLs must not bypass the shared safe
-    // asset pipeline, and local-looking strings do not grant filesystem
-    // access. Until that pipeline exposes a cached-thumbnail resolver, the
-    // library deliberately renders the typed missing state for every media
-    // card. A future local preview may accept only a stable object_ref
-    // resolved beneath the whiteboard object root.
+    final thumbnail = hit.thumbnail;
+    if (thumbnail?.isAvailable == true && thumbnail?.file != null) {
+      return Image.file(
+        thumbnail!.file!,
+        key: ValueKey('card-library-thumbnail-${hit.cardId}'),
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
+        cacheWidth: 1024,
+        errorBuilder: (_, __, ___) => _missing(),
+      );
+    }
+    final request = onThumbnailNeeded;
+    if (request != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => request());
+    }
+    // Raw metadata URLs and path-looking strings never reach an ImageProvider.
+    // Only the Repository's integrity-checked content-addressed cache result
+    // can take the local FileImage path; every failure remains an honest typed
+    // missing state without changing the media card's 70/30 geometry.
     return _missing();
   }
 
@@ -1079,6 +1169,7 @@ class _CardLibraryHit {
     this.sourceId,
     this.sourceType,
     this.sourceLabel,
+    this.thumbnail,
   });
 
   factory _CardLibraryHit.legacy({
@@ -1107,6 +1198,20 @@ class _CardLibraryHit {
     );
   }
 
+  _CardLibraryHit copyWith({ResolvedThumbnail? thumbnail}) {
+    return _CardLibraryHit(
+      cardId: cardId,
+      title: title,
+      plainText: plainText,
+      cardKind: cardKind,
+      tags: tags,
+      sourceId: sourceId,
+      sourceType: sourceType,
+      sourceLabel: sourceLabel,
+      thumbnail: thumbnail ?? this.thumbnail,
+    );
+  }
+
   final String cardId;
   final String title;
   final String plainText;
@@ -1115,6 +1220,7 @@ class _CardLibraryHit {
   final String? sourceId;
   final SourceMediaType? sourceType;
   final String? sourceLabel;
+  final ResolvedThumbnail? thumbnail;
 
   bool get isMedia => sourceType != null && sourceType != SourceMediaType.text;
   bool get opensSource => cardKind == CardKind.source && sourceId != null;

@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:memex/data/whiteboard/legacy_whiteboard_data_migrator.dart';
+import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
 
@@ -34,6 +35,7 @@ class WhiteboardDataBootstrap {
     final repository = UnifiedCardRepository(
       db: AppDatabase.instance,
       whiteboardRoot: root,
+      thumbnailResolver: SafeThumbnailResolver(whiteboardRoot: root),
     );
     await repository.recoverFileReplacements();
     await LegacyWhiteboardDataMigrator(

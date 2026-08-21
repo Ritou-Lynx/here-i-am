@@ -12,10 +12,12 @@ library;
 import 'dart:ffi' hide Size;
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 import 'package:integration_test/integration_test.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
@@ -36,7 +39,6 @@ import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/desktop/desktop_workbench_shell.dart';
 import 'package:memex/ui/desktop/view_models/desktop_home_view_model.dart';
 import 'package:memex/ui/desktop/widgets/global_desktop_chat_overlay.dart';
-import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
 import 'package:memex/ui/whiteboard/link_import_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_index_screen.dart';
@@ -68,6 +70,7 @@ const _viewports = <Size>[
   Size(1280, 720),
   Size(1024, 768),
 ];
+int _flutterViewHandle = 0;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -92,7 +95,11 @@ void main() {
       final dbFile =
           File('${root.path}${Platform.pathSeparator}whiteboard.sqlite');
       final db = AppDatabase.forTesting(NativeDatabase(dbFile));
-      final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      final repository = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: root,
+        thumbnailResolver: SafeThumbnailResolver(whiteboardRoot: root),
+      );
       final store = WhiteboardDriftStore(db);
       AppDatabase.setTestInstance(db);
       WhiteboardDataBootstrap.setRepositoryForTesting(repository);
@@ -187,7 +194,9 @@ void main() {
           screenshot: screenshot,
           output: output,
           location: AppRoutes.cardLibrary,
-          ready: find.byType(CardLibraryScreen),
+          ready: find.byKey(
+            const ValueKey('card-library-thumbnail-m5b2_source_card'),
+          ),
           name: '${label}_03_card_library',
         );
 
@@ -352,6 +361,38 @@ Future<_Fixture> _seedFixture(
 
   const sourceId = 'm5b2_source_article';
   const versionId = 'm5b2_source_article_v1';
+  const thumbnailCandidate = 'https://example.com/ui0-cover.png';
+  final thumbnail = img.Image(width: 480, height: 320);
+  img.fill(thumbnail, color: img.ColorRgb8(206, 211, 180));
+  img.fillRect(
+    thumbnail,
+    x1: 34,
+    y1: 38,
+    x2: 446,
+    y2: 124,
+    color: img.ColorRgb8(67, 89, 59),
+  );
+  img.fillRect(
+    thumbnail,
+    x1: 34,
+    y1: 156,
+    x2: 300,
+    y2: 282,
+    color: img.ColorRgb8(176, 150, 112),
+  );
+  final thumbnailBytes = img.encodePng(thumbnail);
+  final thumbnailHash = sha256.convert(thumbnailBytes).toString();
+  final thumbnailCandidateHash =
+      sha256.convert(thumbnailCandidate.codeUnits).toString();
+  final thumbnailRef = 'objects/thumbnails/$thumbnailHash.png';
+  final thumbnailDirectory = Directory(
+    '${repository.whiteboardRoot.path}${Platform.pathSeparator}objects'
+    '${Platform.pathSeparator}thumbnails',
+  );
+  await thumbnailDirectory.create(recursive: true);
+  await File(
+    '${thumbnailDirectory.path}${Platform.pathSeparator}$thumbnailHash.png',
+  ).writeAsBytes(thumbnailBytes, flush: true);
   final source = SourceContent(
     sourceId: sourceId,
     mediaType: SourceMediaType.web,
@@ -367,6 +408,7 @@ Future<_Fixture> _seedFixture(
       'site_name': 'Example Research',
       'author': 'Here I am',
       'description': '用于 UI-0 实窗验收的真实 Repository 记录。',
+      'og_image': thumbnailCandidate,
     },
     createdAt: now,
     updatedAt: now,
@@ -388,6 +430,12 @@ Future<_Fixture> _seedFixture(
       sourceId: sourceId,
       title: source.title,
       body: '来源正文投影来自统一卡片仓库；对象缺失时必须诚实降级，并保留完整来源身份。',
+      presentation: {
+        'thumbnail': thumbnailCandidate,
+        'thumbnail_ref': thumbnailRef,
+        'thumbnail_version_id': versionId,
+        'thumbnail_candidate_hash': thumbnailCandidateHash,
+      },
       createdAt: now,
       updatedAt: now,
     ),
@@ -466,7 +514,9 @@ Future<void> _resizeNativeWindow(WidgetTester tester, Size target) async {
       user32.lookupFunction<_GetWindowNative, _GetWindowDart>('GetFocus');
   final setWindowPos = user32
       .lookupFunction<_SetWindowPosNative, _SetWindowPosDart>('SetWindowPos');
-  final flutterView = getFocus();
+  final focusedView = getFocus();
+  if (focusedView != 0) _flutterViewHandle = focusedView;
+  final flutterView = _flutterViewHandle;
   expect(flutterView, isNot(0), reason: 'native Flutter child-window handle');
 
   final pixelRatio = tester.view.devicePixelRatio;

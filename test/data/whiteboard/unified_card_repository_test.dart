@@ -1,15 +1,32 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
+
+class _RecordingThumbnailResolver implements ThumbnailResolver {
+  _RecordingThumbnailResolver(this.result, {this.gate});
+
+  final ResolvedThumbnail result;
+  final Completer<void>? gate;
+  final List<ThumbnailResolveRequest> requests = [];
+
+  @override
+  Future<ResolvedThumbnail> resolve(ThumbnailResolveRequest request) async {
+    requests.add(request);
+    await gate?.future;
+    return result;
+  }
+}
 
 void main() {
   late Directory tempDir;
@@ -118,6 +135,223 @@ void main() {
     expect(
       await repository.listSourceVersions(first.source.sourceId),
       hasLength(2),
+    );
+  });
+
+  test('safe thumbnail projection persists on the existing Source card',
+      () async {
+    final thumbnailFile = File('${tempDir.path}/trusted-thumbnail.png');
+    await thumbnailFile.writeAsBytes([1], flush: true);
+    const objectRef =
+        'objects/thumbnails/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png';
+    final candidateHash = SafeThumbnailResolver.candidateHashFor(
+      'https://example.com/cover.png',
+      'https://example.com/f0',
+    )!;
+    final resolver = _RecordingThumbnailResolver(
+      ResolvedThumbnail.available(
+        file: thumbnailFile,
+        objectRef: objectRef,
+        width: 40,
+        height: 24,
+        candidateHash: candidateHash,
+      ),
+    );
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      thumbnailResolver: resolver,
+    );
+    final committed = await repository.commitIngestion(
+      _ingestion(hash: 'thumbnail_projection', body: '缩略图投影'),
+    );
+    final before = await repository.getCard(
+      committed.card.cardId,
+      loadDocument: false,
+    );
+
+    final resolved = await repository.resolveThumbnail(before!);
+
+    expect(resolved.isAvailable, isTrue);
+    expect(resolver.requests, hasLength(1));
+    expect(
+        resolver.requests.single.candidateUrl, 'https://example.com/cover.png');
+    expect(resolver.requests.single.cachedObjectRef, isNull);
+    final recovered = await repository.getCard(
+      committed.card.cardId,
+      loadDocument: false,
+    );
+    expect(recovered!.card.cardId, committed.card.cardId);
+    expect(recovered.card.sourceId, committed.source.sourceId);
+    expect(
+      recovered.card.updatedAt,
+      before.card.updatedAt,
+      reason: 'a rebuildable thumbnail must not masquerade as a card edit',
+    );
+    expect(recovered.card.presentation['thumbnail_ref'], objectRef);
+    expect(
+      recovered.card.presentation['thumbnail_version_id'],
+      committed.version.versionId,
+    );
+    expect(
+      recovered.card.presentation['thumbnail_candidate_hash'],
+      candidateHash,
+    );
+  });
+
+  test('background thumbnail projection cannot overwrite a concurrent edit',
+      () async {
+    final gate = Completer<void>();
+    final resolver = _RecordingThumbnailResolver(
+      ResolvedThumbnail.available(
+        file: File('${tempDir.path}/trusted-concurrent.png'),
+        objectRef:
+            'objects/thumbnails/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.png',
+        width: 40,
+        height: 24,
+        candidateHash: SafeThumbnailResolver.candidateHashFor(
+          'https://example.com/cover.png',
+          'https://example.com/f0',
+        )!,
+      ),
+      gate: gate,
+    );
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      thumbnailResolver: resolver,
+    );
+    final committed = await repository.commitIngestion(
+      _ingestion(hash: 'thumbnail_concurrent', body: '原正文'),
+    );
+    final before = await repository.getCard(
+      committed.card.cardId,
+      loadDocument: false,
+    );
+    final resolving = repository.resolveThumbnail(before!);
+    expect(resolver.requests, hasLength(1));
+
+    final edited = await repository.updateCardMetadata(
+      committed.card.cardId,
+      title: '用户并发编辑后的标题',
+      body: '用户并发编辑后的正文',
+    );
+    gate.complete();
+    await resolving;
+
+    final recovered = await repository.getCard(
+      committed.card.cardId,
+      loadDocument: false,
+    );
+    expect(recovered!.card.title, edited.title);
+    expect(recovered.card.body, edited.body);
+    expect(
+      recovered.card.updatedAt?.millisecondsSinceEpoch,
+      edited.updatedAt?.millisecondsSinceEpoch,
+    );
+    expect(recovered.card.presentation['thumbnail_ref'], isNotNull);
+  });
+
+  test('stale SourceVersion thumbnail cannot project after a new version',
+      () async {
+    final gate = Completer<void>();
+    final resolver = _RecordingThumbnailResolver(
+      ResolvedThumbnail.available(
+        file: File('${tempDir.path}/stale-version.png'),
+        objectRef:
+            'objects/thumbnails/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png',
+        width: 40,
+        height: 24,
+        candidateHash: SafeThumbnailResolver.candidateHashFor(
+          'https://example.com/cover.png',
+          'https://example.com/f0',
+        )!,
+      ),
+      gate: gate,
+    );
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      thumbnailResolver: resolver,
+    );
+    final first = await repository.commitIngestion(
+      _ingestion(hash: 'thumbnail_version_v1', body: '版本一'),
+    );
+    final before = await repository.getCard(
+      first.card.cardId,
+      loadDocument: false,
+    );
+    final resolving = repository.resolveThumbnail(before!);
+    expect(resolver.requests, hasLength(1));
+
+    final second = await repository.commitIngestion(
+      _ingestion(hash: 'thumbnail_version_v2', body: '版本二'),
+    );
+    gate.complete();
+    final stale = await resolving;
+
+    expect(stale.status, ThumbnailResolveStatus.missing);
+    final recovered = await repository.getCard(
+      first.card.cardId,
+      loadDocument: false,
+    );
+    expect(
+        recovered!.currentSourceVersion?.versionId, second.version.versionId);
+    expect(recovered.card.presentation['thumbnail_ref'], isNull);
+  });
+
+  test('same SourceVersion cannot accept an older thumbnail candidate',
+      () async {
+    final gate = Completer<void>();
+    final resolver = _RecordingThumbnailResolver(
+      ResolvedThumbnail.available(
+        file: File('${tempDir.path}/stale-candidate.png'),
+        objectRef:
+            'objects/thumbnails/9999999999999999999999999999999999999999999999999999999999999999.png',
+        width: 40,
+        height: 24,
+        candidateHash: SafeThumbnailResolver.candidateHashFor(
+          'https://example.com/cover.png',
+          'https://example.com/f0',
+        )!,
+      ),
+      gate: gate,
+    );
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      thumbnailResolver: resolver,
+    );
+    final first = await repository.commitIngestion(
+      _ingestion(hash: 'same_body_hash', body: '相同正文'),
+    );
+    final before = await repository.getCard(
+      first.card.cardId,
+      loadDocument: false,
+    );
+    final resolving = repository.resolveThumbnail(before!);
+    expect(resolver.requests, hasLength(1));
+
+    final second = await repository.commitIngestion(
+      _ingestion(
+        hash: 'same_body_hash',
+        body: '相同正文',
+        ogImage: 'https://example.com/new-cover.png',
+      ),
+    );
+    expect(second.version.versionId, first.version.versionId);
+    gate.complete();
+    final stale = await resolving;
+
+    expect(stale.status, ThumbnailResolveStatus.missing);
+    final recovered = await repository.getCard(
+      first.card.cardId,
+      loadDocument: false,
+    );
+    expect(recovered!.card.presentation['thumbnail_ref'], isNull);
+    expect(
+      recovered.card.presentation['thumbnail'],
+      'https://example.com/new-cover.png',
     );
   });
 
@@ -268,7 +502,11 @@ void main() {
   });
 }
 
-IngestionResult _ingestion({required String hash, required String body}) {
+IngestionResult _ingestion({
+  required String hash,
+  required String body,
+  String ogImage = 'https://example.com/cover.png',
+}) {
   final now = DateTime.utc(2026, 8, 18, 12);
   const sourceId = 'src_web_f0_example';
   final versionId = 'ver_web_f0_example_$hash';
@@ -281,9 +519,9 @@ IngestionResult _ingestion({required String hash, required String body}) {
     currentVersionId: versionId,
     contentHash: hash,
     objectRef: 'ingestion/$sourceId/$versionId.html',
-    metadata: const {
+    metadata: {
       'canonical_url': 'https://example.com/f0',
-      'og_image': 'https://example.com/cover.png',
+      'og_image': ogImage,
     },
     createdAt: now,
     updatedAt: now,

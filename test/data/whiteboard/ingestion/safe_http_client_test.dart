@@ -49,7 +49,8 @@ class _CannedResponse {
   final int statusCode;
   final String contentType;
   final String? location;
-  _CannedResponse(this.body, this.statusCode, this.contentType, {this.location});
+  _CannedResponse(this.body, this.statusCode, this.contentType,
+      {this.location});
 }
 
 /// An adapter that streams raw chunks with a controllable (possibly missing /
@@ -84,7 +85,8 @@ class _CannedStream {
   final int? contentLength;
   final int statusCode;
   final String contentType;
-  _CannedStream(this.chunks, this.contentLength, this.statusCode, this.contentType);
+  _CannedStream(
+      this.chunks, this.contentLength, this.statusCode, this.contentType);
 }
 
 /// An adapter that fails the first [failTimes] calls with a transient network
@@ -111,7 +113,9 @@ class _FlakyAdapter implements HttpClientAdapter {
     return ResponseBody.fromString(
       '<html><body><article><h1>OK</h1></article></body></html>',
       200,
-      headers: {'content-type': ['text/html']},
+      headers: {
+        'content-type': ['text/html']
+      },
     );
   }
 
@@ -141,7 +145,8 @@ Dio _createDio(Map<String, _CannedResponse> responses) {
   return Dio(BaseOptions(
     followRedirects: false,
     validateStatus: (s) => s != null && s >= 200 && s < 400,
-  ))..httpClientAdapter = _FakeAdapter(responses);
+  ))
+    ..httpClientAdapter = _FakeAdapter(responses);
 }
 
 List<Uint8List> _chunksOfTotalBytes(int total, int chunkSize) {
@@ -156,6 +161,70 @@ List<Uint8List> _chunksOfTotalBytes(int total, int chunkSize) {
 }
 
 void main() {
+  group('SafeHttpClient binary response surface', () {
+    test('returns exact image bytes without UTF-8 decoding', () async {
+      final bytes = Uint8List.fromList([
+        0x89,
+        0x50,
+        0x4e,
+        0x47,
+        0x0d,
+        0x0a,
+        0x1a,
+        0x0a,
+        0x00,
+        0xff,
+        0x80,
+      ]);
+      final dio = Dio(BaseOptions(
+        followRedirects: false,
+        validateStatus: (s) => s != null && s >= 200 && s < 400,
+      ))
+        ..httpClientAdapter = _StreamingAdapter(
+          _CannedStream([bytes], bytes.length, 200, 'image/png'),
+        );
+      final client = SafeHttpClient(
+        dio: dio,
+        config: const SafeHttpConfig(
+          enforceDnsCheck: false,
+          allowedMimePrefixes: {'image/png'},
+          acceptHeader: 'image/png',
+        ),
+      );
+
+      final result = await client.fetchBytes('https://example.com/cover.png');
+
+      expect(result.success, isTrue);
+      expect(result.body, isNull);
+      expect(result.bytes, orderedEquals(bytes));
+    });
+
+    test('binary fetch keeps MIME allowlist enforcement', () async {
+      final bytes = Uint8List.fromList([1, 2, 3]);
+      final dio = Dio(BaseOptions(
+        followRedirects: false,
+        validateStatus: (s) => s != null && s >= 200 && s < 400,
+      ))
+        ..httpClientAdapter = _StreamingAdapter(
+          _CannedStream([bytes], bytes.length, 200, 'text/html'),
+        );
+      final client = SafeHttpClient(
+        dio: dio,
+        config: const SafeHttpConfig(
+          enforceDnsCheck: false,
+          allowedMimePrefixes: {'image/png'},
+          acceptHeader: 'image/png',
+        ),
+      );
+
+      final result = await client.fetchBytes('https://example.com/not-image');
+
+      expect(result.success, isFalse);
+      expect(result.errorMessage, contains('Unsupported MIME'));
+      expect(result.bytes, isNull);
+    });
+  });
+
   group('SafeHttpClient SSRF protection — literal hosts', () {
     // These literal hosts are blocked by the synchronous literal check, so
     // they are safe with the production default (enforceDnsCheck=true) and
@@ -228,7 +297,9 @@ void main() {
     test('domain resolving to 127.0.0.1 is blocked', () async {
       final client = SafeHttpClient(
         dio: _createDio({}),
-        resolver: _FakeResolver({'evil.example': [InternetAddress('127.0.0.1')]}),
+        resolver: _FakeResolver({
+          'evil.example': [InternetAddress('127.0.0.1')]
+        }),
       );
       final r = await client.fetch('http://evil.example/');
       expect(r.success, isFalse);
@@ -264,7 +335,9 @@ void main() {
     test('domain resolving to IPv6 loopback ::1 is blocked', () async {
       final client = SafeHttpClient(
         dio: _createDio({}),
-        resolver: _FakeResolver({'v6loop.example': [InternetAddress('::1')]}),
+        resolver: _FakeResolver({
+          'v6loop.example': [InternetAddress('::1')]
+        }),
       );
       final r = await client.fetch('http://v6loop.example/');
       expect(r.success, isFalse);
@@ -274,7 +347,9 @@ void main() {
     test('domain resolving to IPv6 ULA fc00::/7 is blocked', () async {
       final client = SafeHttpClient(
         dio: _createDio({}),
-        resolver: _FakeResolver({'ula.example': [InternetAddress('fd12:3456::1')]}),
+        resolver: _FakeResolver({
+          'ula.example': [InternetAddress('fd12:3456::1')]
+        }),
       );
       final r = await client.fetch('http://ula.example/');
       expect(r.success, isFalse);
@@ -284,7 +359,9 @@ void main() {
     test('domain resolving to IPv6 link-local fe80::/10 is blocked', () async {
       final client = SafeHttpClient(
         dio: _createDio({}),
-        resolver: _FakeResolver({'ll.example': [InternetAddress('fe80::1')]}),
+        resolver: _FakeResolver({
+          'll.example': [InternetAddress('fe80::1')]
+        }),
       );
       final r = await client.fetch('http://ll.example/');
       expect(r.success, isFalse);
@@ -468,20 +545,27 @@ void main() {
     test('enforces max redirects', () async {
       final dio = _createDio({
         'https://example.com/r1': _CannedResponse(
-          '', 302, 'text/html',
+          '',
+          302,
+          'text/html',
           location: 'https://example.com/r2',
         ),
         'https://example.com/r2': _CannedResponse(
-          '', 302, 'text/html',
+          '',
+          302,
+          'text/html',
           location: 'https://example.com/r3',
         ),
         'https://example.com/r3': _CannedResponse(
-          '', 302, 'text/html',
+          '',
+          302,
+          'text/html',
           location: 'https://example.com/r4',
         ),
         'https://example.com/r4': _CannedResponse(
           '<html><body>final</body></html>',
-          200, 'text/html',
+          200,
+          'text/html',
         ),
       });
       final client = SafeHttpClient(
@@ -496,7 +580,9 @@ void main() {
     test('redirect without Location header fails', () async {
       final dio = _createDio({
         'https://example.com/no-loc': _CannedResponse(
-          '', 302, 'text/html',
+          '',
+          302,
+          'text/html',
         ),
       });
       final client = SafeHttpClient(
@@ -575,12 +661,15 @@ void main() {
       final bigBody = 'x' * (1024 * 10);
       final dio = _createDio({
         'https://example.com/big': _CannedResponse(
-          bigBody, 200, 'text/html',
+          bigBody,
+          200,
+          'text/html',
         ),
       });
       final client = SafeHttpClient(
         dio: dio,
-        config: const SafeHttpConfig(maxBodyBytes: 1024, enforceDnsCheck: false),
+        config:
+            const SafeHttpConfig(maxBodyBytes: 1024, enforceDnsCheck: false),
       );
       final r = await client.fetch('https://example.com/big');
       expect(r.success, isFalse);
@@ -609,7 +698,8 @@ void main() {
       expect(r.body, isNull);
     });
 
-    test('rejects a lying small Content-Length whose real stream exceeds the cap',
+    test(
+        'rejects a lying small Content-Length whose real stream exceeds the cap',
         () async {
       // Lying Content-Length of 10 bytes, but the stream actually carries 3 MB.
       final chunks = _chunksOfTotalBytes(3 * 1024 * 1024, 65536);
@@ -633,9 +723,11 @@ void main() {
 
     test('a stream within the cap decodes successfully', () async {
       final chunk1 = Uint8List.fromList(utf8.encode('<html><head><title>'));
-      final chunk2 = Uint8List.fromList(utf8.encode('Small</title></head><body><p>ok</p></body></html>'));
+      final chunk2 = Uint8List.fromList(
+          utf8.encode('Small</title></head><body><p>ok</p></body></html>'));
       final adapter = _StreamingAdapter(
-        _CannedStream([chunk1, chunk2], chunk1.length + chunk2.length, 200, 'text/html'),
+        _CannedStream(
+            [chunk1, chunk2], chunk1.length + chunk2.length, 200, 'text/html'),
       );
       final client = SafeHttpClient(
         dio: Dio(BaseOptions(
@@ -671,7 +763,9 @@ void main() {
     test('policy errors (bad MIME) are never retried', () async {
       final dio = _createDio({
         'https://example.com/image': _CannedResponse(
-          'binary-data', 200, 'image/png',
+          'binary-data',
+          200,
+          'image/png',
         ),
       });
       final adapter = dio.httpClientAdapter as _FakeAdapter;
