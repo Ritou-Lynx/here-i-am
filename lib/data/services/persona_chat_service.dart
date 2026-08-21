@@ -415,6 +415,56 @@ class PersonaChatService {
     return id;
   }
 
+  /// Persists a structured workbench action in the existing chat stream.
+  /// The projection remains product-owned addendum data; it is not User-truth.
+  Future<int> addWorkbenchActionMessage(
+    String characterId,
+    String content,
+    Map<String, dynamic> projection, {
+    bool isRead = true,
+    DateTime? timestamp,
+  }) async {
+    final createdAt = timestamp ?? DateTime.now();
+    final syncId = _uuid.v4();
+    final originDeviceId = await DeviceIdentityService.getOrCreate();
+    final id = await _db.into(_db.personaChatMessages).insert(
+          PersonaChatMessagesCompanion.insert(
+            syncId: Value(syncId),
+            originDeviceId: Value(originDeviceId),
+            characterId: characterId,
+            isFromCharacter: true,
+            content: content,
+            isRead: Value(isRead),
+            timestamp: createdAt,
+            messageType: const Value('action'),
+            attachmentsJson: Value(jsonEncode([
+              {'type': 'workbench_action', 'action': projection},
+            ])),
+          ),
+        );
+    _notifyMessageAdded(characterId);
+    return id;
+  }
+
+  Future<void> updateWorkbenchActionMessage({
+    required int messageId,
+    required String content,
+    required Map<String, dynamic> projection,
+  }) async {
+    await (_db.update(_db.personaChatMessages)
+          ..where((table) => table.id.equals(messageId)))
+        .write(
+      PersonaChatMessagesCompanion(
+        content: Value(content),
+        attachmentsJson: Value(jsonEncode([
+          {'type': 'workbench_action', 'action': projection},
+        ])),
+      ),
+    );
+    final row = await getMessageById(messageId);
+    if (row != null) _notifyMessageAdded(row.characterId);
+  }
+
   void _ignoreLegacyTimelineFlag(bool appendTimeline) {
     if (!appendTimeline) return;
     // Kept for API compatibility with older callers while the old character

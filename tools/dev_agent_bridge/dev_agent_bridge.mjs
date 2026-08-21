@@ -22,6 +22,7 @@ import {
   appendCodexOptionArgs,
   normalizeCodexOptions,
 } from './codex_run_options.mjs';
+import { ExperimentalRuntimeApi } from './experimental_runtime_api.mjs';
 
 const host = process.env.DEV_AGENT_BRIDGE_HOST || '127.0.0.1';
 const port = Number(process.env.DEV_AGENT_BRIDGE_PORT || 47831);
@@ -33,6 +34,7 @@ const statePath = process.env.DEV_AGENT_BRIDGE_STATE ||
   join(scriptDir, '.state', 'runs.json');
 const runs = new Map();
 const iHome = process.env.I_HOME || join(homedir(), '.i');
+const experimentalRuntimeApi = new ExperimentalRuntimeApi();
 
 const terminalStatuses = new Set(['done', 'failed', 'aborted']);
 
@@ -891,13 +893,26 @@ async function handle(req, res) {
   const path = url.pathname;
 
   try {
-if (req.method === 'GET' && path === '/v1/health') {
+    if (await experimentalRuntimeApi.handle(req, res, url)) return;
+
+    if (req.method === 'GET' && path === '/v1/health') {
+      const features = [
+        'git_status',
+        'git_pull',
+        'git_push',
+        'project_memory_projection',
+        'project_memory_auto_closeout',
+        'codex_options_v1',
+        ...(experimentalRuntimeApi.featureEnabled
+          ? ['experimental_runtime_adapter_v1']
+          : []),
+      ];
       json(res, 200, {
         ok: true,
         bridge_id: 'local-dev-agent-bridge',
         version: '0.1.0',
         agents: ['claude_code', 'codex', 'opencode'],
-        features: ['git_status', 'git_pull', 'git_push', 'project_memory_projection', 'project_memory_auto_closeout', 'codex_options_v1'],
+        features,
         transport: certPath && keyPath ? 'https' : 'http-local',
       });
       return;

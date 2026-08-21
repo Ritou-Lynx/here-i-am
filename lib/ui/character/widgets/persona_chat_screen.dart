@@ -59,6 +59,7 @@ import 'package:memex/data/memory_v3/services/topic_thread_backfill_service.dart
 import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/shared_draft_service.dart';
+import 'package:memex/data/workbench_ai/whiteboard_workbench_coordinator.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/data/services/reading/transient_fetch_cache.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
@@ -73,6 +74,7 @@ import 'package:memex/ui/core/widgets/toast.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/widgets/here_iam_rain_layer.dart';
 import 'package:memex/ui/core/widgets/app_opening_splash.dart';
+import 'package:memex/ui/desktop/widgets/desktop_persona_chat_view.dart';
 import 'package:memex/ui/memory/widgets/message_recall_trace_page.dart';
 import 'package:memex/utils/tavern_macro.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -337,11 +339,15 @@ Widget personaChatStartupLoadingView({bool playVideo = true}) =>
 const personaChatMinimumStartupSplashDuration = Duration(milliseconds: 1800);
 
 /// 1-on-1 chat screen with an AI companion character.
+enum PersonaChatPresentation { fullScreen, desktopFloating }
+
 class PersonaChatScreen extends StatefulWidget {
   final String characterId;
   final bool embedded;
   final bool enableRichCapture;
   final bool initialVoiceMode;
+  final PersonaChatPresentation presentation;
+  final String? temporaryContextLabel;
   final VoidCallback? onOpenSpaces;
   final VoidCallback? onReady;
 
@@ -351,6 +357,8 @@ class PersonaChatScreen extends StatefulWidget {
     this.embedded = false,
     this.enableRichCapture = false,
     this.initialVoiceMode = false,
+    this.presentation = PersonaChatPresentation.fullScreen,
+    this.temporaryContextLabel,
     this.onOpenSpaces,
     this.onReady,
   });
@@ -2440,6 +2448,38 @@ only after you have written the goodbye you want the user to hear.''',
       }
       rethrow;
     }
+  }
+
+  Future<void> _sendDesktopMessage() async {
+    final text = _textController.text.trim();
+    final coordinator = WhiteboardWorkbenchCoordinator.instance;
+    if (text.isEmpty ||
+        _selectedImages.isNotEmpty ||
+        _isStreaming ||
+        !coordinator.matches(text)) {
+      await _sendMessage();
+      return;
+    }
+
+    _clearComposerText(staleText: text);
+    final userMessageId = await _chatService.addUserMessage(
+      _currentCharacterId,
+      text,
+      appendTimeline: false,
+    );
+    await _refreshMessagesFromStore(
+      autoRead: false,
+      scrollToBottom: true,
+    );
+    unawaited(
+      coordinator
+          .run(
+            characterId: _currentCharacterId,
+            userText: text,
+            userMessageId: userMessageId,
+          )
+          .catchError((Object _) => false),
+    );
   }
 
   /// Executes a [batch] as a single LLM turn. When the batch has more than one
@@ -5249,6 +5289,22 @@ only after you have written the goodbye you want the user to hear.''',
   Widget build(BuildContext context) {
     if (!_isLoading) {
       _scheduleReadyNotification();
+    }
+    if (widget.presentation == PersonaChatPresentation.desktopFloating) {
+      return DesktopPersonaChatView(
+        loading: _isLoading,
+        messagesNewestFirst: _messages,
+        isStreaming: _isStreamingCurrentCharacter,
+        streamingText: _streamingText,
+        controller: _textController,
+        composerFocusNode: _composerFocus,
+        scrollController: _scrollController,
+        temporaryContextLabel: widget.temporaryContextLabel,
+        onSend: _sendDesktopMessage,
+        canUndoWorkbenchAction:
+            WhiteboardWorkbenchCoordinator.instance.canUndo,
+        onUndoWorkbenchAction: WhiteboardWorkbenchCoordinator.instance.undo,
+      );
     }
     final mediaQuery = MediaQuery.of(context);
     final viewInsetsBottom = mediaQuery.viewInsets.bottom;

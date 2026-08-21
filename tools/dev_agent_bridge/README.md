@@ -15,6 +15,119 @@ Codex on the development machine. The phone remains a controller only.
   - `codex` via `codex exec --json --sandbox read-only`
   - `claude_code` via `claude -p --output-format stream-json`
 
+### Codex App Server Phase A
+
+The Bridge now contains an isolated App Server adapter and probe without yet
+changing the Flutter protocol or replacing `codex exec` runs:
+
+- `codex_app_server_client.mjs` manages the local process, JSON-RPC handshake,
+  account source, thread lifecycle, turns, streamed notifications, approvals,
+  steer / interrupt, and graceful shutdown.
+- `codex_app_server_client.test.mjs` runs against a deterministic local fixture.
+- `codex_app_server_probe.mjs` performs the real Windows ChatGPT-authenticated
+  start → turn → process restart → thread resume → second turn → thread read
+  acceptance path. It never writes to the repository through Codex.
+
+Run the deterministic tests:
+
+```powershell
+node --test tools\dev_agent_bridge\codex_app_server_client.test.mjs
+```
+
+Run the real local probe (creates a named Codex thread for native-client
+visibility verification):
+
+```powershell
+node tools\dev_agent_bridge\codex_app_server_probe.mjs --cwd D:\here-i-am --model gpt-5.5 --exercise-control --exercise-approval
+```
+
+Add `--archive` only after native-client visibility has been checked. The
+generated report is written under ignored `build/` and excludes account email,
+prompts, responses, credentials, and raw reasoning.
+
+`--exercise-control` waits for the first generated-message event before
+steering, then interrupts the same turn. A successful `turn/start` response by
+itself does not prove that the turn is already steerable. `--exercise-approval`
+uses an ephemeral read-only thread, declines the real command approval request,
+and verifies that the probe file was not created.
+
+The explicit model is intentional for the probe: it must be one of the IDs
+returned by the installed App Server's `model/list`. If the computer's config
+points at a model that requires a newer CLI, the report records that failure
+instead of silently changing the user's global Codex configuration.
+
+### Experimental RuntimeAdapter API
+
+W5-R1 adds a provider-neutral JavaScript contract in `runtime_adapter.mjs`, a
+Codex implementation in `codex_app_server_adapter.mjs`, and a loopback-only
+experimental Bridge API. The existing `POST /v1/runs` Codex path remains
+`codex exec --json`; enabling this API does not replace or change it.
+
+The API is disabled by default. Enable it only for local integration work:
+
+```powershell
+$env:DEV_AGENT_EXPERIMENTAL_RUNTIME_ADAPTER="1"
+$env:DEV_AGENT_EXPERIMENTAL_CODEX_MODEL="gpt-5.5"
+powershell -File tools\dev_agent_bridge\start_bridge.ps1
+```
+
+The adapter starts App Server, reads `model/list`, and rejects an unavailable
+requested model before creating or resuming a thread. It never edits the
+global Codex configuration. `DEV_AGENT_EXPERIMENTAL_CODEX_MODEL` is optional;
+when set, it must match an ID returned by the installed App Server.
+
+All routes carry the `/experimental/v1/runtime` prefix and return the
+`x-hereiam-experimental: runtime-adapter-v1` header:
+
+```text
+GET    /experimental/v1/runtime/auth
+GET    /experimental/v1/runtime/capabilities
+POST   /experimental/v1/runtime/sessions
+POST   /experimental/v1/runtime/sessions/resume
+POST   /experimental/v1/runtime/sessions/{session_id}/turns
+GET    /experimental/v1/runtime/sessions/{session_id}/events?after={sequence}
+POST   /experimental/v1/runtime/sessions/{session_id}/turns/{turn_id}/steer
+POST   /experimental/v1/runtime/sessions/{session_id}/turns/{turn_id}/interrupt
+POST   /experimental/v1/runtime/approvals/{request_id}
+POST   /experimental/v1/runtime/tool-calls/{tool_call_id}
+DELETE /experimental/v1/runtime/sessions/{session_id}
+POST   /experimental/v1/runtime/host/stop-app-server
+```
+
+Session start accepts `{ "config": {...}, "context_manifest": {...} }`.
+Turn start and steer accept `{ "input": "..." }`; approval answers accept
+`{ "decision": "approved" }` or `{ "decision": "denied" }`. Event reads
+return stable, cursor-addressable RuntimeAdapter events. Steering waits for an
+item activity notification that proves the turn is active, closing the Phase A
+race where `turn/start` had returned but `turn/steer` was still too early.
+Experimental JSON request bodies are capped at 256 KiB; malformed or oversized
+bodies and invalid steering timeouts return `invalid_request` / HTTP 400.
+
+Session `config.dynamic_tools` contains provider-neutral `{ name,
+description, input_schema }` definitions. Codex dynamic-tool requests are
+projected as cursor-addressable `tool_call` events; the product host answers
+the route above with `{ "success": true|false, "content_items": [{ "type":
+"text", "text": "..." }] }`. The adapter validates definitions and bounded
+text results, rejects duplicate or unknown call IDs, and never executes Here I
+am domain tools inside the Bridge process.
+
+`DELETE .../sessions/{session_id}` is fail-closed: pending approvals are
+declined and removed first, then active turns are interrupted and observed at a
+terminal state before the local binding closes. Closed-session event history
+remains readable for audit. It is not a detach operation.
+
+`host/stop-app-server` is a loopback-only lifecycle endpoint used by
+`stop_bridge.ps1`. It waits for the App Server client to close stdin and for the
+child process to exit before the script force-stops the Bridge parent. If the
+endpoint is unavailable (for example a custom HTTPS binding), the script
+recursively stops Bridge child processes before stopping the parent.
+
+Run all deterministic Bridge tests without contacting a real model:
+
+```powershell
+node --test --test-concurrency=1 tools\dev_agent_bridge\codex_app_server_client.test.mjs tools\dev_agent_bridge\codex_app_server_adapter.test.mjs tools\dev_agent_bridge\experimental_runtime_api.test.mjs tools\dev_agent_bridge\codex_run_options.test.mjs tools\dev_agent_bridge\project_memory_closeout.test.mjs
+```
+
 ### Codex controls
 
 `POST /v1/runs` accepts an optional `codex_options` object for Codex runs:
@@ -56,6 +169,10 @@ Stop a background bridge left from local testing:
 ```powershell
 powershell -File tools\dev_agent_bridge\stop_bridge.ps1
 ```
+
+The stop script does not assume that force-stopping the Node parent will make
+App Server exit. It first requests the explicit local cleanup path described
+above, then performs descendant-process cleanup as a fallback.
 
 Default URL:
 

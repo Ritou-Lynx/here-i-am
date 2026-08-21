@@ -16,6 +16,7 @@ import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'package:memex/data/workbench_ai/whiteboard_workbench_surface.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
@@ -57,6 +58,7 @@ class _WhiteboardCanvasRouteScreenState
   String? _saveError;
   bool _loaded = false;
   bool _saving = false;
+  final Object _workbenchSurfaceOwner = Object();
 
   @override
   void initState() {
@@ -66,6 +68,9 @@ class _WhiteboardCanvasRouteScreenState
 
   @override
   void dispose() {
+    _viewModel?.selection.removeListener(_syncWorkbenchSelection);
+    WhiteboardWorkbenchSurfaceController.instance
+        .detach(_workbenchSurfaceOwner);
     _viewModel?.dispose();
     super.dispose();
   }
@@ -113,6 +118,7 @@ class _WhiteboardCanvasRouteScreenState
         boardId: widget.boardId,
       );
       vm.onSaveRequested = () => unawaited(_save(vm, announce: true));
+      vm.selection.addListener(_syncWorkbenchSelection);
       setState(() {
         _viewModel = vm;
         _cardRepository = repository;
@@ -120,7 +126,9 @@ class _WhiteboardCanvasRouteScreenState
         _saveError = null;
         _loaded = true;
       });
+      oldViewModel?.selection.removeListener(_syncWorkbenchSelection);
       oldViewModel?.dispose();
+      _attachWorkbenchSurface(vm);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -128,6 +136,25 @@ class _WhiteboardCanvasRouteScreenState
         _loaded = true;
       });
     }
+  }
+
+  void _attachWorkbenchSurface(WhiteboardCanvasViewModel vm) {
+    WhiteboardWorkbenchSurfaceController.instance.attach(
+      owner: _workbenchSurfaceOwner,
+      boardId: widget.boardId,
+      selectedItemIds: vm.selection.selectedItemIds,
+      flush: () => _save(vm),
+      reload: _load,
+    );
+  }
+
+  void _syncWorkbenchSelection() {
+    final vm = _viewModel;
+    if (vm == null) return;
+    WhiteboardWorkbenchSurfaceController.instance.updateSelection(
+      _workbenchSurfaceOwner,
+      vm.selection.selectedItemIds,
+    );
   }
 
   Future<WhiteboardSnapshot> _hydrateFromRepository(
