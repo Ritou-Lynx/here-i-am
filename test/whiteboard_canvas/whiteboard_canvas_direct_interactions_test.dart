@@ -211,7 +211,21 @@ void main() {
     final handle = find.byKey(const Key('wb_connect_item_card_a_right'));
     expect(handle, findsOneWidget);
     final create = await tester.startGesture(tester.getCenter(handle));
-    await create.moveTo(tester.getCenter(find.text('Card B')));
+    final targetCard = tester.getRect(
+      find.byKey(const Key('wb_card_item_card_b')),
+    );
+    await create.moveTo(targetCard.centerLeft - const Offset(20, 0));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_b_left')),
+      findsOneWidget,
+    );
+    expect(
+      tester.getCenter(
+        find.byKey(const Key('wb_snap_candidate_item_card_b_left')),
+      ),
+      targetCard.centerLeft,
+    );
     await create.up();
     await tester.pump();
     expect(vm.exportForSave().edges, hasLength(1));
@@ -237,6 +251,42 @@ void main() {
     await tester.pump();
     expect(vm.exportForSave().edges, hasLength(1));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('候选连接点使用屏幕热区，离开后高亮消失且空白松手取消',
+      (tester) async {
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: WhiteboardCanvasArea(viewModel: vm)),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.text('Card A'));
+    await tester.pump();
+    final handle = find.byKey(const Key('wb_connect_item_card_a_right'));
+    final targetCard = tester.getRect(
+      find.byKey(const Key('wb_card_item_card_b')),
+    );
+    final drag = await tester.startGesture(tester.getCenter(handle));
+    await drag.moveTo(targetCard.centerLeft - const Offset(24, 0));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_b_left')),
+      findsOneWidget,
+    );
+
+    await drag.moveTo(targetCard.centerLeft - const Offset(50, 0));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_b_left')),
+      findsNothing,
+    );
+    await drag.up();
+    await tester.pump();
+    expect(vm.exportForSave().edges, isEmpty);
   });
 
   testWidgets('连线创建后轻量修改方向标签并从快照恢复', (tester) async {

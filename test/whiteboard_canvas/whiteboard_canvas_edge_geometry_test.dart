@@ -91,6 +91,97 @@ void main() {
     expect(connection.to.dx, 400);
   });
 
+  group('screen-space anchor snapping', () {
+    Offset screen(Offset canvasPoint, {double zoom = 1}) => canvasPoint * zoom;
+
+    test('includes the 28 px boundary and rejects just outside it', () {
+      final target = item('target', x: 100, y: 100, width: 40, height: 40);
+      final anchor = CanvasEdgeGeometry.pointForSide(
+        target,
+        CanvasAnchorSide.right,
+      );
+
+      final onBoundary = CanvasEdgeGeometry.nearestAnchorWithinScreenRadius(
+        items: [target],
+        pointerScreen: anchor + const Offset(28, 0),
+        canvasToScreen: screen,
+      );
+      final outside = CanvasEdgeGeometry.nearestAnchorWithinScreenRadius(
+        items: [target],
+        pointerScreen: anchor + const Offset(28.01, 0),
+        canvasToScreen: screen,
+      );
+
+      expect(onBoundary?.side, CanvasAnchorSide.right);
+      expect(outside, isNull);
+    });
+
+    test('chooses the nearest legal anchor across small rotated items', () {
+      final near = BoardItem(
+        itemId: 'near',
+        boardId: 'board',
+        cardId: 'near_card',
+        x: 100,
+        y: 100,
+        width: 24,
+        height: 18,
+        rotation: 90,
+      );
+      final farther = item('farther', x: 150, y: 100, width: 24, height: 18);
+      final expected = CanvasEdgeGeometry.pointForSide(
+        near,
+        CanvasAnchorSide.top,
+      );
+
+      final candidate = CanvasEdgeGeometry.nearestAnchorWithinScreenRadius(
+        items: [farther, near],
+        pointerScreen: expected + const Offset(3, 2),
+        canvasToScreen: screen,
+      );
+
+      expect(candidate?.itemId, 'near');
+      expect(candidate?.side, CanvasAnchorSide.top);
+      expect(candidate?.screenPoint, expected);
+    });
+
+    test('radius remains 28 screen px at non-100% zoom', () {
+      final target = item('target', x: 200, y: 100, width: 40, height: 40);
+      final canvasAnchor = CanvasEdgeGeometry.pointForSide(
+        target,
+        CanvasAnchorSide.left,
+      );
+      const zoom = 0.4;
+      final screenAnchor = screen(canvasAnchor, zoom: zoom);
+
+      final candidate = CanvasEdgeGeometry.nearestAnchorWithinScreenRadius(
+        items: [target],
+        pointerScreen: screenAnchor + const Offset(-27, 0),
+        canvasToScreen: (point) => screen(point, zoom: zoom),
+      );
+
+      expect(candidate?.side, CanvasAnchorSide.left);
+      expect(candidate?.distance, closeTo(27, 0.001));
+    });
+
+    test('excluded item cannot become a self-loop target', () {
+      final target = item('target', x: 100, y: 100, width: 40, height: 40);
+      final pointer = CanvasEdgeGeometry.pointForSide(
+        target,
+        CanvasAnchorSide.top,
+      );
+
+      expect(
+        CanvasEdgeGeometry.nearestAnchorWithinScreenRadius(
+          items: [target],
+          pointerScreen: pointer,
+          canvasToScreen: screen,
+          excludedItemIds: const {'target'},
+        ),
+        isNull,
+      );
+    });
+  });
+
   test('anchor sides survive move resize undo redo and JSON restart', () {
     final snapshot = WhiteboardSnapshot(
       boards: [Board(boardId: 'board', name: 'B', createdAt: now)],

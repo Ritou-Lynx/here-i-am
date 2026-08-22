@@ -26,8 +26,30 @@ class CanvasEdgeConnection {
   final CanvasAnchorSide toSide;
 }
 
+/// The closest legal item anchor to a screen-space pointer.
+///
+/// [screenPoint] is deliberately retained in screen coordinates so callers
+/// can snap previews and render feedback without re-applying zoom.
+class CanvasAnchorCandidate {
+  const CanvasAnchorCandidate({
+    required this.itemId,
+    required this.side,
+    required this.screenPoint,
+    required this.distance,
+  });
+
+  final String itemId;
+  final CanvasAnchorSide side;
+  final Offset screenPoint;
+  final double distance;
+}
+
 class CanvasEdgeGeometry {
   CanvasEdgeGeometry._();
+
+  /// A forgiving target around each 14 px anchor handle. This value is in
+  /// screen pixels, so zoom never makes connection creation harder.
+  static const anchorSnapRadius = 28.0;
 
   /// Stable keys in the existing BoardEdge `style` JSON extension point.
   static const fromAnchorStyleKey = 'from_anchor_side';
@@ -86,6 +108,35 @@ class CanvasEdgeGeometry {
       if (candidateDistance < distance) {
         distance = candidateDistance;
         best = side;
+      }
+    }
+    return best;
+  }
+
+  static CanvasAnchorCandidate? nearestAnchorWithinScreenRadius({
+    required Iterable<BoardItem> items,
+    required Offset pointerScreen,
+    required Offset Function(Offset canvasPoint) canvasToScreen,
+    Set<String> excludedItemIds = const {},
+    double radius = anchorSnapRadius,
+  }) {
+    CanvasAnchorCandidate? best;
+    final maxDistanceSquared = radius * radius;
+    for (final item in items) {
+      if (excludedItemIds.contains(item.itemId)) continue;
+      for (final side in CanvasAnchorSide.values) {
+        final screenPoint = canvasToScreen(pointForSide(item, side));
+        final distanceSquared =
+            (screenPoint - pointerScreen).distanceSquared;
+        if (distanceSquared > maxDistanceSquared) continue;
+        if (best == null || distanceSquared < best.distance * best.distance) {
+          best = CanvasAnchorCandidate(
+            itemId: item.itemId,
+            side: side,
+            screenPoint: screenPoint,
+            distance: math.sqrt(distanceSquared),
+          );
+        }
       }
     }
     return best;

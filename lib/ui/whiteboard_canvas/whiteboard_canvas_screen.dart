@@ -1623,12 +1623,17 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     final box = _canvasAreaKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final localPointerPos = box.globalToLocal(globalPointerPos);
+    final candidate = _nearestAnchorCandidate(
+      localPointerPos,
+      excludedItemIds: {state.fromItemId},
+    );
     setState(() {
       _edgeCreateState = _EdgeCreateState(
         fromItemId: state.fromItemId,
         fromSide: state.fromSide,
         startPoint: state.startPoint,
-        currentPoint: localPointerPos,
+        currentPoint: candidate?.screenPoint ?? localPointerPos,
+        candidate: candidate,
       );
     });
   }
@@ -1636,24 +1641,16 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   void _onConnectionHandleEnd() {
     final state = _edgeCreateState;
     if (state == null) return;
-    final transform = _lastTransform;
-    if (transform != null) {
-      final canvasPoint = transform.screenToCanvas(state.currentPoint);
-      final target = _itemAtCanvas(math.Point(canvasPoint.dx, canvasPoint.dy));
-      if (target != null && target.itemId != state.fromItemId) {
-        final targetSide = CanvasEdgeGeometry.nearestSide(
-          target.item,
-          canvasPoint,
-        );
-        widget.viewModel.createEdge(
-          fromItemId: state.fromItemId,
-          toItemId: target.itemId,
-          style: {
-            CanvasEdgeGeometry.fromAnchorStyleKey: state.fromSide.name,
-            CanvasEdgeGeometry.toAnchorStyleKey: targetSide.name,
-          },
-        );
-      }
+    final candidate = state.candidate;
+    if (candidate != null) {
+      widget.viewModel.createEdge(
+        fromItemId: state.fromItemId,
+        toItemId: candidate.itemId,
+        style: {
+          CanvasEdgeGeometry.fromAnchorStyleKey: state.fromSide.name,
+          CanvasEdgeGeometry.toAnchorStyleKey: candidate.side.name,
+        },
+      );
     }
     setState(() => _edgeCreateState = null);
   }
@@ -1667,13 +1664,27 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     Offset pointerPos,
   ) {
     if (widget.viewModel.isReadonly) return;
+    CanvasEdgeNode? edge;
+    for (final node in widget.viewModel.boardState.edges) {
+      if (node.edgeId == edgeId) {
+        edge = node;
+        break;
+      }
+    }
+    final selectedEdge = edge;
+    if (selectedEdge == null) return;
+    final box = _canvasAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
     widget.viewModel.beginLogicalAction();
     setState(() {
       _edgeRetargetState = _EdgeRetargetState(
         edgeId: edgeId,
         isFrom: isFrom,
         fixedPoint: fixedPoint,
-        currentPoint: pointerPos,
+        currentPoint: box.globalToLocal(pointerPos),
+        excludedItemId: isFrom
+            ? selectedEdge.edge.toItemId
+            : selectedEdge.edge.fromItemId,
       );
     });
   }
@@ -1681,12 +1692,21 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   void _onEdgeHandleUpdate(Offset pointerPos) {
     final state = _edgeRetargetState;
     if (state == null) return;
+    final box = _canvasAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final localPointerPos = box.globalToLocal(pointerPos);
+    final candidate = _nearestAnchorCandidate(
+      localPointerPos,
+      excludedItemIds: {state.excludedItemId},
+    );
     setState(() {
       _edgeRetargetState = _EdgeRetargetState(
         edgeId: state.edgeId,
         isFrom: state.isFrom,
         fixedPoint: state.fixedPoint,
-        currentPoint: pointerPos,
+        currentPoint: candidate?.screenPoint ?? localPointerPos,
+        excludedItemId: state.excludedItemId,
+        candidate: candidate,
       );
     });
   }
@@ -1695,37 +1715,44 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     final state = _edgeRetargetState;
     if (state == null) return;
     final vm = widget.viewModel;
-    final transform = _lastTransform;
-    if (transform != null) {
-      final canvasPoint = transform.screenToCanvas(state.currentPoint);
-      final target = _itemAtCanvas(math.Point(canvasPoint.dx, canvasPoint.dy));
-      if (target != null) {
-        final targetSide = CanvasEdgeGeometry.nearestSide(
-          target.item,
-          canvasPoint,
-        );
-        final ok = vm.handleIntent(
-          RetargetEdgeIntent(
-            edgeId: state.edgeId,
-            fromItemId: state.isFrom ? target.itemId : null,
-            toItemId: state.isFrom ? null : target.itemId,
-            stylePatch: {
-              state.isFrom
-                  ? CanvasEdgeGeometry.fromAnchorStyleKey
-                  : CanvasEdgeGeometry.toAnchorStyleKey: targetSide.name,
-            },
-          ),
-        );
-        if (!ok) vm.cancelLogicalAction();
-      } else {
-        // Dropped on empty canvas: no side effects.
-        vm.cancelLogicalAction();
-      }
+    final candidate = state.candidate;
+    if (candidate != null) {
+      final ok = vm.handleIntent(
+        RetargetEdgeIntent(
+          edgeId: state.edgeId,
+          fromItemId: state.isFrom ? candidate.itemId : null,
+          toItemId: state.isFrom ? null : candidate.itemId,
+          stylePatch: {
+            state.isFrom
+                ? CanvasEdgeGeometry.fromAnchorStyleKey
+                : CanvasEdgeGeometry.toAnchorStyleKey: candidate.side.name,
+          },
+        ),
+      );
+      if (!ok) vm.cancelLogicalAction();
     } else {
+      // Dropped outside every screen-space anchor hot zone: no side effects.
       vm.cancelLogicalAction();
     }
     vm.endLogicalAction();
     setState(() => _edgeRetargetState = null);
+  }
+
+  CanvasAnchorCandidate? _nearestAnchorCandidate(
+    Offset pointerScreen, {
+    required Set<String> excludedItemIds,
+  }) {
+    final transform = _lastTransform;
+    if (transform == null) return null;
+    final hidden = _hiddenItemIds(widget.viewModel.boardState);
+    return CanvasEdgeGeometry.nearestAnchorWithinScreenRadius(
+      items: widget.viewModel.boardState.nodes
+          .where((node) => !hidden.contains(node.itemId))
+          .map((node) => node.item),
+      pointerScreen: pointerScreen,
+      canvasToScreen: transform.canvasToScreen,
+      excludedItemIds: excludedItemIds,
+    );
   }
 
   // ── Rendering ───────────────────────────────────────────────────────
@@ -1840,6 +1867,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
                     _hoveredItemId == node.itemId) &&
                 widget.editingItemId != node.itemId)
               ..._buildConnectionHandles(node, transform),
+        if (_activeAnchorCandidate case final candidate?)
+          _AnchorSnapIndicator(candidate: candidate),
         // Selected edge endpoint handles
         if (visibleSelectedEdge != null && !vm.isReadonly)
           ..._buildEdgeHandles(visibleSelectedEdge, itemsByItemId, transform),
@@ -1865,6 +1894,9 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       ],
     );
   }
+
+  CanvasAnchorCandidate? get _activeAnchorCandidate =>
+      _edgeCreateState?.candidate ?? _edgeRetargetState?.candidate;
 
   List<Widget> _buildEdgeHandles(
     CanvasEdgeNode edgeNode,
@@ -2049,11 +2081,15 @@ class _EdgeRetargetState {
   final bool isFrom;
   final Offset fixedPoint;
   final Offset currentPoint;
+  final String excludedItemId;
+  final CanvasAnchorCandidate? candidate;
   const _EdgeRetargetState({
     required this.edgeId,
     required this.isFrom,
     required this.fixedPoint,
     required this.currentPoint,
+    required this.excludedItemId,
+    this.candidate,
   });
 }
 
@@ -2063,12 +2099,14 @@ class _EdgeCreateState {
     required this.fromSide,
     required this.startPoint,
     required this.currentPoint,
+    this.candidate,
   });
 
   final String fromItemId;
   final CanvasAnchorSide fromSide;
   final Offset startPoint;
   final Offset currentPoint;
+  final CanvasAnchorCandidate? candidate;
 }
 
 /// Custom painter for edges and grid.
@@ -2880,6 +2918,44 @@ class _ConnectionHandle extends StatelessWidget {
                 color: colors.action,
                 shape: BoxShape.circle,
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnchorSnapIndicator extends StatelessWidget {
+  const _AnchorSnapIndicator({required this.candidate});
+
+  final CanvasAnchorCandidate candidate;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
+    return Positioned(
+      key: Key(
+        'wb_snap_candidate_${candidate.itemId}_${candidate.side.name}',
+      ),
+      left: candidate.screenPoint.dx - 11,
+      top: candidate.screenPoint.dy - 11,
+      child: IgnorePointer(
+        child: Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: colors.action.withValues(alpha: 0.18),
+            shape: BoxShape.circle,
+            border: Border.all(color: colors.action, width: 2),
+          ),
+          alignment: Alignment.center,
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: colors.action,
+              shape: BoxShape.circle,
             ),
           ),
         ),
