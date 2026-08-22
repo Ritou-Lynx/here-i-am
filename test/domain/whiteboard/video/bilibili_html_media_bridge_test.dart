@@ -94,6 +94,7 @@ void main() {
     expect(bilibiliHtmlMediaBridgeScript, contains('new MutationObserver'));
     expect(bilibiliHtmlMediaBridgeScript, contains('removeEventListener'));
     expect(bilibiliHtmlMediaBridgeScript, contains('generation += 1'));
+    expect(bilibiliHtmlMediaBridgeScript, contains('document_token'));
     expect(bilibiliHtmlMediaBridgeScript, contains('sendCandidate()'));
     expect(bilibiliHtmlMediaBridgeScript, contains('await attached.play()'));
   });
@@ -145,5 +146,33 @@ void main() {
     expect(bridge.isVerified, isFalse);
     expect(settledCalls, 1);
     expect(bridge.failure, isNotNull);
+  });
+
+  test('same-BV refresh resets page generation and requires a new handshake',
+      () async {
+    final bridge = BilibiliHtmlMediaBridge();
+    final coordinator = BilibiliBridgeVerificationCoordinator(
+      bridge: bridge,
+      execute: (script) async => script.contains('seekMs')
+          ? true
+          : {'position_ms': 1200, 'duration_ms': 6400},
+      onSettled: () {},
+    );
+
+    coordinator.candidate(3, documentToken: 'old-document');
+    await coordinator.waitForIdle();
+    expect(bridge.capability.canCreateTimeAnchor, isTrue);
+
+    coordinator.invalidate('same BV navigation must reverify');
+    expect(bridge.capability.canCreateTimeAnchor, isFalse,
+        reason: 'refresh must revoke anchors before the new candidate');
+    expect(coordinator.latestPageGeneration, isNull);
+    expect(coordinator.latestDocumentToken, isNull);
+
+    coordinator.candidate(1, documentToken: 'new-document');
+    await coordinator.waitForIdle();
+    expect(coordinator.latestPageGeneration, 1);
+    expect(coordinator.latestDocumentToken, 'new-document');
+    expect(bridge.capability.canCreateTimeAnchor, isTrue);
   });
 }

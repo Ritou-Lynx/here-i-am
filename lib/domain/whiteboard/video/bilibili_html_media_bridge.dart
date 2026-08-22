@@ -144,6 +144,10 @@ class BilibiliHtmlMediaBridge {
 
   static const String pauseScript = 'window.__hereIamBilibiliMedia && '
       'window.__hereIamBilibiliMedia.pause();';
+
+  static const String announceCandidateScript =
+      'window.__hereIamBilibiliMedia && '
+      'window.__hereIamBilibiliMedia.announceCandidate();';
 }
 
 /// Serializes bridge verification while retaining candidates that arrive
@@ -164,12 +168,21 @@ class BilibiliBridgeVerificationCoordinator {
   bool _queued = false;
   int _latestGeneration = 0;
   int? _latestPageGeneration;
+  String? _latestDocumentToken;
   Completer<void>? _idleCompleter;
 
   bool get isRunning => _running;
   int? get latestPageGeneration => _latestPageGeneration;
+  String? get latestDocumentToken => _latestDocumentToken;
 
-  void candidate(int? pageGeneration) {
+  void candidate(int? pageGeneration, {String? documentToken}) {
+    if (_latestDocumentToken != null &&
+        documentToken != null &&
+        documentToken != _latestDocumentToken) {
+      if (pageGeneration != 1) return;
+      _latestPageGeneration = null;
+    }
+    if (documentToken != null) _latestDocumentToken = documentToken;
     if (pageGeneration != null &&
         _latestPageGeneration != null &&
         pageGeneration < _latestPageGeneration!) {
@@ -189,6 +202,7 @@ class BilibiliBridgeVerificationCoordinator {
   void invalidate(String reason) {
     _latestGeneration++;
     _latestPageGeneration = null;
+    _latestDocumentToken = null;
     _queued = false;
     bridge.invalidate(reason);
     onSettled();
@@ -216,17 +230,20 @@ const String bilibiliHtmlMediaBridgeScript = r'''
 (() => {
   if (location.hostname !== 'www.bilibili.com' ||
       !location.pathname.startsWith('/video/')) return;
+  const documentToken = globalThis.crypto?.randomUUID?.() ??
+      `${Date.now()}-${Math.random()}`;
   const send = (event, video, extra = {}) => {
     if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
     window.chrome.webview.postMessage(JSON.stringify({
-      type: 'hereiam:bilibili-media', event,
+      type: 'hereiam:bilibili-media', event, document_token: documentToken,
       position_ms: Math.max(0, Math.round(video.currentTime * 1000)),
       duration_ms: Math.max(1, Math.round(video.duration * 1000)),
       ...extra
     }));
   };
   const sendCandidate = () => window.chrome.webview.postMessage(JSON.stringify({
-    type: 'hereiam:bilibili-media', event: 'candidate', generation
+    type: 'hereiam:bilibili-media', event: 'candidate', generation,
+    document_token: documentToken
   }));
   const mediaEvents = ['loadedmetadata', 'durationchange', 'timeupdate', 'seeked'];
   let attached = null;
@@ -267,7 +284,8 @@ const String bilibiliHtmlMediaBridgeScript = r'''
       if (!attached) return false;
       try { await attached.play(); return true; } catch (_) { return false; }
     },
-    pause: () => { attach(); return attached ? (attached.pause(), true) : false; }
+    pause: () => { attach(); return attached ? (attached.pause(), true) : false; },
+    announceCandidate: () => { attach(); if (attached) sendCandidate(); }
   };
   const observer = new MutationObserver(() => attach());
   observer.observe(document, { childList: true, subtree: true });

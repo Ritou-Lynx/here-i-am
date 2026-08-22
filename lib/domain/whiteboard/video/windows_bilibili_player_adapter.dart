@@ -103,12 +103,27 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
 
   void _handleUrlChanged(String rawUrl) {
     final failure = navigationFailure(rawUrl, _currentBvid);
-    _sourceNavigationValid = failure == null;
+    _sourceNavigationValid = false;
+    _verifier?.invalidate(
+      failure ?? '页面已导航，正在重新验证视频时间轴',
+    );
     if (failure != null) {
       _lastFailure = failure;
-      _verifier?.invalidate(failure);
     } else {
       _lastFailure = null;
+      _sourceNavigationValid = true;
+      unawaited(_announceCurrentCandidate());
+    }
+  }
+
+  Future<void> _announceCurrentCandidate() async {
+    try {
+      await _controller?.executeScript(
+        BilibiliHtmlMediaBridge.announceCandidateScript,
+      );
+    } catch (_) {
+      // A fresh document may not have installed the bridge yet. Its initial
+      // MutationObserver candidate will perform the handshake instead.
     }
   }
 
@@ -137,14 +152,27 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
     if (message['event'] == 'candidate') {
       final rawGeneration = message['generation'];
       if (message.containsKey('generation') && rawGeneration is! num) return;
+      final rawDocumentToken = message['document_token'];
+      if (message.containsKey('document_token') &&
+          rawDocumentToken is! String) {
+        return;
+      }
       _verifier?.candidate(
         rawGeneration is num ? rawGeneration.toInt() : null,
+        documentToken: rawDocumentToken is String ? rawDocumentToken : null,
       );
       return;
     }
     final rawGeneration = message['generation'];
     if (message.containsKey('generation') && rawGeneration is! num) return;
     final expectedPageGeneration = _verifier?.latestPageGeneration;
+    final expectedDocumentToken = _verifier?.latestDocumentToken;
+    final rawDocumentToken = message['document_token'];
+    if (expectedDocumentToken == null ||
+        rawDocumentToken is! String ||
+        rawDocumentToken != expectedDocumentToken) {
+      return;
+    }
     if (rawGeneration is num &&
         expectedPageGeneration != null &&
         rawGeneration.toInt() != expectedPageGeneration) {
