@@ -5,6 +5,8 @@
 /// persistence. Uses [ChangeNotifier] following the project's MVVM pattern.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:memex/data/whiteboard/repository_video_annotation_store.dart';
@@ -73,6 +75,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   int? _pendingAnnotationEndMs;
   int? _rangeSelectionStartMs;
   bool _showSaveConfirmation = false;
+  Timer? _saveConfirmationTimer;
   bool _isSavingAnnotation = false;
   bool _dockVisible = true;
 
@@ -548,8 +551,12 @@ class VideoStudyViewModel extends ChangeNotifier {
     // Persist the session immediately so the annotation survives a restart.
     saveSession();
 
-    // Auto-dismiss the confirmation after a short delay.
-    Future.delayed(const Duration(milliseconds: 900), () {
+    // Auto-dismiss the confirmation after a short delay. Keep the timer
+    // cancelable so closing the study surface never leaves lifecycle work
+    // behind (and repeated saves cannot stack callbacks).
+    _saveConfirmationTimer?.cancel();
+    _saveConfirmationTimer = Timer(const Duration(milliseconds: 900), () {
+      _saveConfirmationTimer = null;
       if (_showSaveConfirmation) {
         _showSaveConfirmation = false;
         notifyListeners();
@@ -560,6 +567,8 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   /// Dismisses the save confirmation immediately.
   void dismissSaveConfirmation() {
+    _saveConfirmationTimer?.cancel();
+    _saveConfirmationTimer = null;
     _showSaveConfirmation = false;
     notifyListeners();
   }
@@ -708,6 +717,8 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _saveConfirmationTimer?.cancel();
+    _saveConfirmationTimer = null;
     _syncController?.dispose();
     if (_ownsTimedTextService) {
       _timedTextService.dispose();
