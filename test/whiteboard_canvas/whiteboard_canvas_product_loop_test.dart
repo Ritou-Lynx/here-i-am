@@ -70,6 +70,10 @@ void main() {
     expect(find.text('真实文字卡'), findsOneWidget);
 
     await _doubleTap(tester, find.text('真实文字卡'));
+    await _waitForWidget(
+        tester, find.byKey(const Key('wb_compact_editor_expand')));
+    expect(find.text('快捷编辑'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('wb_compact_editor_expand')));
     await _waitForWidget(tester, find.text('文字卡消费页'));
     expect(find.text('文字卡消费页'), findsOneWidget);
     expect(pendingSave, isNotNull);
@@ -214,6 +218,9 @@ void main() {
     ];
     for (final routeCase in cases) {
       await _doubleTap(tester, find.text(routeCase.title));
+      await _waitForWidget(
+          tester, find.byKey(const Key('wb_compact_editor_expand')));
+      await tester.tap(find.byKey(const Key('wb_compact_editor_expand')));
       await _waitForWidget(tester, find.text(routeCase.page));
       expect(find.text(routeCase.marker), findsOneWidget);
       router.pop();
@@ -377,6 +384,9 @@ Future<void> _openCanvasTools(WidgetTester tester) async {
 
 Future<void> _waitForWidget(WidgetTester tester, Finder finder) async {
   for (var i = 0; i < 50 && finder.evaluate().isEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
     await tester.pump(const Duration(milliseconds: 50));
   }
   await _settle(tester);

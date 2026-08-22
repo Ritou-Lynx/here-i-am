@@ -15,6 +15,7 @@
 /// actions so one gesture = one undo step.
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -32,6 +33,7 @@ import 'engine/flutter_canvas_adapter.dart';
 import 'interactions/lod.dart';
 import 'interactions/ui_intent.dart';
 import 'widgets/board_target_picker.dart';
+import 'widgets/compact_card_editor.dart';
 import 'whiteboard_canvas_tokens.dart';
 import 'whiteboard_canvas_view_model.dart';
 
@@ -100,6 +102,7 @@ class WhiteboardCanvasScreen extends StatefulWidget {
   final VoidCallback? onExit;
   final UnifiedCardRepository? cardRepository;
   final void Function(CardContract card)? onOpenCard;
+  final Future<bool> Function()? onPersistSnapshot;
 
   const WhiteboardCanvasScreen({
     super.key,
@@ -107,6 +110,7 @@ class WhiteboardCanvasScreen extends StatefulWidget {
     this.onExit,
     this.cardRepository,
     this.onOpenCard,
+    this.onPersistSnapshot,
   });
 
   @override
@@ -121,6 +125,9 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   /// Card currently being placed via the BoardTargetPicker.
   String? _pickerCardId;
   String _pickerCardTitle = '';
+  String? _editingCardId;
+  Rect? _editorAnchor;
+  bool _creatingCard = false;
 
   @override
   void initState() {
@@ -205,8 +212,9 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true): () =>
           _nudge(32, 0),
       const SingleActivator(LogicalKeyboardKey.escape): _handleEscape,
-      const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
-          vm.onSaveRequested?.call(),
+      if (_editingCardId == null)
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
+            vm.onSaveRequested?.call(),
     };
   }
 
@@ -251,6 +259,66 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       _showCardLibrary = !_showCardLibrary;
       if (!_showCardLibrary) _pickerCardId = null;
     });
+  }
+
+  void _openCompactEditor(CardContract card, Rect anchor) {
+    if (widget.cardRepository == null) {
+      widget.onOpenCard?.call(card);
+      return;
+    }
+    setState(() {
+      _editingCardId = card.cardId;
+      _editorAnchor = anchor;
+    });
+  }
+
+  Future<void> _createNoteAt(Offset canvasPoint, Offset screenPoint) async {
+    final repository = widget.cardRepository;
+    final vm = widget.viewModel;
+    if (repository == null || vm.isReadonly || _creatingCard) return;
+    _creatingCard = true;
+    final before = vm.exportForSave();
+    CardContract? card;
+    try {
+      card = await repository.createTextCard(title: '未命名卡片');
+      vm.upsertCardContent(card);
+      final item = vm.placeCardOnBoard(
+        cardId: card.cardId,
+        boardId: vm.boardId,
+        x: canvasPoint.dx - 130,
+        y: canvasPoint.dy - 100,
+      );
+      if (item == null) throw StateError('无法把卡片放入当前白板');
+      final persisted =
+          await (widget.onPersistSnapshot?.call() ?? Future<bool>.value(true));
+      if (!persisted) throw StateError('白板没有保存成功');
+      if (!mounted) return;
+      setState(() {
+        _editingCardId = card!.cardId;
+        _editorAnchor = Rect.fromCenter(
+          center: screenPoint,
+          width: 1,
+          height: 1,
+        );
+      });
+    } catch (error) {
+      vm.loadFromSnapshot(before);
+      if (card != null) {
+        try {
+          await repository.softDeleteCard(card.cardId);
+        } catch (_) {
+          // The visible board is still rolled back. A later Repository repair
+          // can identify the unplaced Card; do not create a dangling BoardItem.
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('新建卡片失败：$error')),
+        );
+      }
+    } finally {
+      _creatingCard = false;
+    }
   }
 
   Future<void> _createGroupFromSelection() async {
@@ -386,6 +454,10 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                   child: WhiteboardCanvasArea(
                     viewModel: vm,
                     onOpenCard: widget.onOpenCard,
+                    onEditCard: _openCompactEditor,
+                    onCreateCardAt: (canvasPoint, screenPoint) => unawaited(
+                      _createNoteAt(canvasPoint, screenPoint),
+                    ),
                   ),
                 ),
                 if (!_navigationVisible)
@@ -446,8 +518,232 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     ),
                   ),
                 ],
+                if (vm.selectedEdge != null)
+                  _EdgeQuickEditor(
+                    edge: vm.selectedEdge!,
+                    onSave: (direction, label) async {
+                      final changed = vm.updateEdge(
+                        edgeId: vm.selectedEdge!.edgeId,
+                        direction: direction,
+                        label: label,
+                      );
+                      if (!changed) return true;
+                      return widget.onPersistSnapshot?.call() ?? true;
+                    },
+                    onDelete: () {
+                      vm.removeEdge(vm.selectedEdge!.edgeId);
+                      widget.onPersistSnapshot?.call();
+                    },
+                    onClose: () => vm.handleIntent(
+                      const ClearEdgeSelectionIntent(),
+                    ),
+                  ),
+                if (_editingCardId != null && widget.cardRepository != null)
+                  _CompactEditorPositioned(
+                    anchor: _editorAnchor,
+                    child: CompactCardEditor(
+                      cardId: _editingCardId!,
+                      repository: widget.cardRepository!,
+                      onSaved: vm.upsertCardContent,
+                      onClose: () => setState(() {
+                        _editingCardId = null;
+                        _editorAnchor = null;
+                      }),
+                      onExpand: (card) {
+                        setState(() {
+                          _editingCardId = null;
+                          _editorAnchor = null;
+                        });
+                        widget.onOpenCard?.call(card);
+                      },
+                    ),
+                  ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactEditorPositioned extends StatelessWidget {
+  const _CompactEditorPositioned({required this.anchor, required this.child});
+
+  final Rect? anchor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final width = math.min(560.0, math.max(320.0, size.width - 24));
+    final height = math.min(620.0, math.max(360.0, size.height - 92));
+    final target = anchor ??
+        Rect.fromCenter(
+          center: Offset(size.width / 2, size.height / 2),
+          width: 1,
+          height: 1,
+        );
+    var left = target.right + 12;
+    if (left + width > size.width - 12) left = target.left - width - 12;
+    left = left.clamp(12.0, math.max(12.0, size.width - width - 12)).toDouble();
+    final top = target.top
+        .clamp(64.0, math.max(64.0, size.height - height - 12))
+        .toDouble();
+    return Positioned(
+      key: const ValueKey('wb_compact_editor_position'),
+      left: left,
+      top: top,
+      width: width,
+      height: height,
+      child: child,
+    );
+  }
+}
+
+class _EdgeQuickEditor extends StatefulWidget {
+  const _EdgeQuickEditor({
+    required this.edge,
+    required this.onSave,
+    required this.onDelete,
+    required this.onClose,
+  });
+
+  final BoardEdge edge;
+  final Future<bool> Function(EdgeDirection direction, String? label) onSave;
+  final VoidCallback onDelete;
+  final VoidCallback onClose;
+
+  @override
+  State<_EdgeQuickEditor> createState() => _EdgeQuickEditorState();
+}
+
+class _EdgeQuickEditorState extends State<_EdgeQuickEditor> {
+  late TextEditingController _label;
+  late EdgeDirection _direction;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFromEdge();
+  }
+
+  @override
+  void didUpdateWidget(covariant _EdgeQuickEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.edge.edgeId != widget.edge.edgeId) {
+      _label.dispose();
+      _syncFromEdge();
+    }
+  }
+
+  void _syncFromEdge() {
+    _label = TextEditingController(text: widget.edge.label ?? '');
+    _direction = widget.edge.direction;
+  }
+
+  @override
+  void dispose() {
+    _label.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final ok = await widget.onSave(_direction, _label.text);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? '连线已保存' : '连线没有保存成功')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
+    return Positioned(
+      key: const ValueKey('wb_edge_quick_editor'),
+      left: 0,
+      right: 0,
+      bottom: 14,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: _FloatingSurface(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SegmentedButton<EdgeDirection>(
+                key: const ValueKey('wb_edge_quick_direction'),
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: EdgeDirection.undirected,
+                    icon: Icon(Icons.horizontal_rule, size: 16),
+                    tooltip: '无向连线',
+                  ),
+                  ButtonSegment(
+                    value: EdgeDirection.directed,
+                    icon: Icon(Icons.arrow_forward_rounded, size: 16),
+                    tooltip: '有向连线',
+                  ),
+                ],
+                selected: {_direction},
+                onSelectionChanged: _saving
+                    ? null
+                    : (selection) =>
+                        setState(() => _direction = selection.first),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 190,
+                height: 36,
+                child: TextField(
+                  key: const ValueKey('wb_edge_quick_label'),
+                  controller: _label,
+                  enabled: !_saving,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 12),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: '连线标签（可选）',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 9,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: colors.divider),
+                    ),
+                  ),
+                  onSubmitted: (_) => _save(),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                key: const ValueKey('wb_edge_quick_save'),
+                tooltip: '保存连线',
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_rounded, size: 18),
+              ),
+              IconButton(
+                key: const ValueKey('wb_edge_quick_delete'),
+                tooltip: '删除连线',
+                onPressed: _saving ? null : widget.onDelete,
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              ),
+              IconButton(
+                tooltip: '关闭连线编辑',
+                onPressed: _saving ? null : widget.onClose,
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
+            ],
           ),
         ),
       ),
@@ -459,11 +755,15 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
 class WhiteboardCanvasArea extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
   final void Function(CardContract card)? onOpenCard;
+  final void Function(CardContract card, Rect anchor)? onEditCard;
+  final void Function(Offset canvasPoint, Offset screenPoint)? onCreateCardAt;
 
   const WhiteboardCanvasArea({
     super.key,
     required this.viewModel,
     this.onOpenCard,
+    this.onEditCard,
+    this.onCreateCardAt,
   });
 
   @override
@@ -487,6 +787,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   _ResizeState? _resizeState;
   _RotateState? _rotateState;
   _EdgeRetargetState? _edgeRetargetState;
+  _EdgeCreateState? _edgeCreateState;
 
   // LOD tier per item (transient render state, per Huabu §5)
   final Map<String, LodTier> _lodTiers = {};
@@ -496,8 +797,25 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   final GlobalKey _canvasAreaKey = GlobalKey();
   String? _lastClickedItemId;
   DateTime? _lastClickAt;
+  DateTime? _lastBlankClickAt;
+  Offset? _lastBlankClickPosition;
+  Offset? _primaryDownPosition;
+  bool _primaryMoved = false;
+  String? _hoveredItemId;
+  Timer? _hoverExitTimer;
+
+  Offset? _secondaryDownPosition;
+  Offset? _secondaryLastPosition;
+  bool _secondaryDragged = false;
+
+  @override
+  void dispose() {
+    _hoverExitTimer?.cancel();
+    super.dispose();
+  }
 
   void _handleCardClick(CanvasCardNode node) {
+    _clearPendingBlankClick();
     final now = DateTime.now();
     final keyboard = HardwareKeyboard.instance;
     final additiveSelection = keyboard.isControlPressed ||
@@ -515,10 +833,21 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         _lastClickAt != null &&
         now.difference(_lastClickAt!) <= _doubleClickWindow;
     widget.viewModel.handleIntent(SelectItemIntent(itemId: node.itemId));
-    if (isDoubleClick && node.card != null && widget.onOpenCard != null) {
+    if (isDoubleClick && node.card != null) {
       _lastClickedItemId = null;
       _lastClickAt = null;
-      widget.onOpenCard!(node.card!);
+      final transform = _lastTransform;
+      if (transform != null && widget.onEditCard != null) {
+        final item = node.item;
+        widget.onEditCard!(
+          node.card!,
+          transform.canvasToScreenRect(
+            Rect.fromLTWH(item.x, item.y, item.width, item.height),
+          ),
+        );
+      } else {
+        widget.onOpenCard?.call(node.card!);
+      }
       return;
     }
     _lastClickedItemId = node.itemId;
@@ -574,6 +903,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
                   )) {
                     return;
                   }
+                  _primaryDownPosition = event.localPosition;
+                  _primaryMoved = false;
                   setState(() {
                     _isMarqueeing = true;
                     _marqueeStart = event.localPosition;
@@ -584,16 +915,36 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
                   _isPanning = true;
                   _lastPointerPosition = event.localPosition;
                 } else if (buttons & gestures.kSecondaryMouseButton != 0) {
-                  // Right button: pan as well.
-                  _isPanning = true;
-                  _lastPointerPosition = event.localPosition;
+                  // A short right-click opens a context menu. Crossing the
+                  // movement threshold turns the same gesture into panning.
+                  _secondaryDownPosition = event.localPosition;
+                  _secondaryLastPosition = event.localPosition;
+                  _secondaryDragged = false;
                 }
               },
               onPointerMove: (event) {
                 if (_isMarqueeing && _marqueeStart != null) {
+                  if (_primaryDownPosition != null &&
+                      (event.localPosition - _primaryDownPosition!).distance >
+                          4) {
+                    _primaryMoved = true;
+                  }
                   setState(() {
                     _marqueeCurrent = event.localPosition;
                   });
+                } else if (_secondaryDownPosition != null) {
+                  if (!_secondaryDragged &&
+                      (event.localPosition - _secondaryDownPosition!).distance >
+                          5) {
+                    _secondaryDragged = true;
+                    _isPanning = true;
+                  }
+                  if (_secondaryDragged) {
+                    final last = _secondaryLastPosition ?? event.localPosition;
+                    final delta = event.localPosition - last;
+                    vm.panViewport(delta.dx, delta.dy);
+                    _secondaryLastPosition = event.localPosition;
+                  }
                 } else if (_isPanning) {
                   final delta = event.localPosition - _lastPointerPosition;
                   vm.panViewport(delta.dx, delta.dy);
@@ -606,12 +957,41 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
                     _marqueeCurrent != null) {
                   _completeMarquee(transform);
                 }
+                if (_isMarqueeing && !_primaryMoved) {
+                  _handleBlankClick(event.localPosition, transform);
+                }
+                if (_secondaryDownPosition != null && !_secondaryDragged) {
+                  unawaited(
+                    _showContextMenu(
+                      localPosition: event.localPosition,
+                      globalPosition: event.position,
+                      transform: transform,
+                    ),
+                  );
+                }
                 setState(() {
                   _isMarqueeing = false;
                   _marqueeStart = null;
                   _marqueeCurrent = null;
                   _isPanning = false;
                 });
+                _primaryDownPosition = null;
+                _primaryMoved = false;
+                _secondaryDownPosition = null;
+                _secondaryLastPosition = null;
+                _secondaryDragged = false;
+              },
+              onPointerCancel: (_) {
+                setState(() {
+                  _isMarqueeing = false;
+                  _marqueeStart = null;
+                  _marqueeCurrent = null;
+                  _isPanning = false;
+                });
+                _primaryDownPosition = null;
+                _secondaryDownPosition = null;
+                _secondaryLastPosition = null;
+                _secondaryDragged = false;
               },
               child: CustomPaint(
                 size: size,
@@ -630,6 +1010,12 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
                       ? (
                           from: _edgeRetargetState!.fixedPoint,
                           to: _edgeRetargetState!.currentPoint,
+                        )
+                      : null,
+                  createPreview: _edgeCreateState != null
+                      ? (
+                          from: _edgeCreateState!.startPoint,
+                          to: _edgeCreateState!.currentPoint,
                         )
                       : null,
                   hiddenItemIds: _hiddenItemIds(boardState),
@@ -667,6 +1053,34 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         Rect.fromLTWH(item.x, item.y, item.width, item.height),
       );
       if (screenRect.contains(screenPos)) return true;
+      if ((selection.isSelected(item.itemId) ||
+          _hoveredItemId == item.itemId)) {
+        final center = screenRect.center;
+        final rad = item.rotation * math.pi / 180;
+        final sin = math.sin(rad);
+        final cos = math.cos(rad);
+        Offset rotate(Offset local) =>
+            center +
+            Offset(
+              local.dx * cos - local.dy * sin,
+              local.dx * sin + local.dy * cos,
+            );
+        final connectionPoints = [
+          rotate(Offset(0, -screenRect.height / 2)),
+          rotate(Offset(screenRect.width / 2, 0)),
+          rotate(Offset(0, screenRect.height / 2)),
+          rotate(Offset(-screenRect.width / 2, 0)),
+        ];
+        if (connectionPoints.any(
+          (point) => Rect.fromCenter(
+            center: point,
+            width: 20,
+            height: 20,
+          ).contains(screenPos),
+        )) {
+          return true;
+        }
+      }
       if (!selection.isSelected(item.itemId)) continue;
       final rotateRect = Rect.fromCenter(
         center: Offset(screenRect.center.dx, screenRect.top - 17),
@@ -778,6 +1192,110 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     vm.handleIntent(MarqueeSelectIntent(canvasRect: canvasRect));
   }
 
+  void _handleBlankClick(Offset screenPosition, CanvasTransform transform) {
+    final now = DateTime.now();
+    final isDoubleClick = _lastBlankClickAt != null &&
+        _lastBlankClickPosition != null &&
+        now.difference(_lastBlankClickAt!) <= _doubleClickWindow &&
+        (screenPosition - _lastBlankClickPosition!).distance <= 8;
+    widget.viewModel.handleIntent(const ClearEdgeSelectionIntent());
+    if (isDoubleClick) {
+      _lastBlankClickAt = null;
+      _lastBlankClickPosition = null;
+      final canvasPoint = transform.screenToCanvas(screenPosition);
+      widget.onCreateCardAt?.call(canvasPoint, screenPosition);
+      return;
+    }
+    _lastBlankClickAt = now;
+    _lastBlankClickPosition = screenPosition;
+  }
+
+  void _clearPendingBlankClick() {
+    _lastBlankClickAt = null;
+    _lastBlankClickPosition = null;
+  }
+
+  Future<void> _showContextMenu({
+    required Offset localPosition,
+    required Offset globalPosition,
+    required CanvasTransform transform,
+  }) async {
+    if (!mounted) return;
+    final canvasPoint = transform.screenToCanvas(localPosition);
+    final node = _itemAtCanvas(math.Point(canvasPoint.dx, canvasPoint.dy));
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 1, 1),
+      Offset.zero & overlay.size,
+    );
+    if (node != null && node.card != null) {
+      widget.viewModel.handleIntent(SelectItemIntent(itemId: node.itemId));
+      final action = await showMenu<_CardMenuAction>(
+        context: context,
+        position: position,
+        items: const [
+          PopupMenuItem(
+            value: _CardMenuAction.quickEdit,
+            child: Text('快捷编辑'),
+          ),
+          PopupMenuItem(
+            value: _CardMenuAction.open,
+            child: Text('展开查看'),
+          ),
+          PopupMenuDivider(),
+          PopupMenuItem(
+            value: _CardMenuAction.front,
+            child: Text('置于顶层'),
+          ),
+          PopupMenuItem(
+            value: _CardMenuAction.remove,
+            child: Text('从白板移除'),
+          ),
+        ],
+      );
+      if (!mounted || action == null) return;
+      switch (action) {
+        case _CardMenuAction.quickEdit:
+          final item = node.item;
+          widget.onEditCard?.call(
+            node.card!,
+            transform.canvasToScreenRect(
+              Rect.fromLTWH(item.x, item.y, item.width, item.height),
+            ),
+          );
+        case _CardMenuAction.open:
+          widget.onOpenCard?.call(node.card!);
+        case _CardMenuAction.front:
+          widget.viewModel.bringSelectedItemToFront();
+        case _CardMenuAction.remove:
+          widget.viewModel.removeSelectedItems();
+      }
+      return;
+    }
+
+    final action = await showMenu<_CanvasMenuAction>(
+      context: context,
+      position: position,
+      items: const [
+        PopupMenuItem(
+          value: _CanvasMenuAction.newCard,
+          child: Text('新建文字卡片'),
+        ),
+        PopupMenuItem(
+          value: _CanvasMenuAction.resetView,
+          child: Text('重置视图'),
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _CanvasMenuAction.newCard:
+        widget.onCreateCardAt?.call(canvasPoint, localPosition);
+      case _CanvasMenuAction.resetView:
+        widget.viewModel.resetViewport();
+    }
+  }
+
   // ── Card-library drag & drop ────────────────────────────────────────
 
   void _handleCardDrop(WhiteboardCardDragData data, Offset globalPosition) {
@@ -801,6 +1319,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
 
   void _onDragStart(String itemId, Offset position) {
     if (widget.viewModel.isReadonly) return;
+    _clearPendingBlankClick();
     widget.viewModel.beginLogicalAction();
     _isPanning = false;
     _dragState = _CardDragState(itemId: itemId, lastPosition: position);
@@ -906,6 +1425,66 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     if (_rotateState == null) return;
     _rotateState = null;
     widget.viewModel.endLogicalAction();
+  }
+
+  void _onCardEnter(String itemId) {
+    _hoverExitTimer?.cancel();
+    if (_hoveredItemId == itemId) return;
+    setState(() => _hoveredItemId = itemId);
+  }
+
+  void _onCardExit(String itemId) {
+    _hoverExitTimer?.cancel();
+    _hoverExitTimer = Timer(const Duration(milliseconds: 140), () {
+      if (mounted && _hoveredItemId == itemId && _edgeCreateState == null) {
+        setState(() => _hoveredItemId = null);
+      }
+    });
+  }
+
+  void _onConnectionHandleStart(String itemId, Offset startPoint) {
+    if (widget.viewModel.isReadonly) return;
+    _hoverExitTimer?.cancel();
+    setState(() {
+      _hoveredItemId = itemId;
+      _edgeCreateState = _EdgeCreateState(
+        fromItemId: itemId,
+        startPoint: startPoint,
+        currentPoint: startPoint,
+      );
+    });
+  }
+
+  void _onConnectionHandleUpdate(Offset globalPointerPos) {
+    final state = _edgeCreateState;
+    if (state == null) return;
+    final box = _canvasAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final localPointerPos = box.globalToLocal(globalPointerPos);
+    setState(() {
+      _edgeCreateState = _EdgeCreateState(
+        fromItemId: state.fromItemId,
+        startPoint: state.startPoint,
+        currentPoint: localPointerPos,
+      );
+    });
+  }
+
+  void _onConnectionHandleEnd() {
+    final state = _edgeCreateState;
+    if (state == null) return;
+    final transform = _lastTransform;
+    if (transform != null) {
+      final canvasPoint = transform.screenToCanvas(state.currentPoint);
+      final target = _itemAtCanvas(math.Point(canvasPoint.dx, canvasPoint.dy));
+      if (target != null && target.itemId != state.fromItemId) {
+        widget.viewModel.createEdge(
+          fromItemId: state.fromItemId,
+          toItemId: target.itemId,
+        );
+      }
+    }
+    setState(() => _edgeCreateState = null);
   }
 
   // ── Edge endpoint editing ───────────────────────────────────────────
@@ -1038,9 +1617,12 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             groupNode: groupNode,
             itemsByItemId: itemsByItemId,
             transform: transform,
-            onToggle: () => vm.handleIntent(
-              ToggleGroupCollapsedIntent(groupId: groupNode.groupId),
-            ),
+            onToggle: () {
+              _clearPendingBlankClick();
+              vm.handleIntent(
+                ToggleGroupCollapsedIntent(groupId: groupNode.groupId),
+              );
+            },
             onRemove:
                 vm.isReadonly ? null : () => vm.removeGroup(groupNode.groupId),
           ),
@@ -1053,6 +1635,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             isReadonly: vm.isReadonly,
             lodTier: _lodTiers[node.itemId] ?? LodTier.full,
             onTap: () => _handleCardClick(node),
+            onEnter: () => _onCardEnter(node.itemId),
+            onExit: () => _onCardExit(node.itemId),
             onDragStart: (position) => _onDragStart(node.itemId, position),
             onDragUpdate: (position) => _onDragUpdate(node.itemId, position),
             onDragEnd: _onDragEnd,
@@ -1064,6 +1648,11 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
           for (final node in visibleNodes)
             if (vm.selection.isSelected(node.itemId))
               ..._buildSelectionHandles(node, transform),
+        if (!vm.isReadonly)
+          for (final node in visibleNodes)
+            if (vm.selection.isSelected(node.itemId) ||
+                _hoveredItemId == node.itemId)
+              ..._buildConnectionHandles(node, transform),
         // Selected edge endpoint handles
         if (visibleSelectedEdge != null && !vm.isReadonly)
           ..._buildEdgeHandles(visibleSelectedEdge, itemsByItemId, transform),
@@ -1180,6 +1769,47 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       ),
     ];
   }
+
+  List<Widget> _buildConnectionHandles(
+    CanvasCardNode node,
+    CanvasTransform transform,
+  ) {
+    final item = node.item;
+    final screenRect = transform.canvasToScreenRect(
+      Rect.fromLTWH(item.x, item.y, item.width, item.height),
+    );
+    final center = screenRect.center;
+    final rad = item.rotation * math.pi / 180;
+    final sin = math.sin(rad);
+    final cos = math.cos(rad);
+    Offset rotate(Offset local) =>
+        center +
+        Offset(
+          local.dx * cos - local.dy * sin,
+          local.dx * sin + local.dy * cos,
+        );
+    final points = <String, Offset>{
+      'top': rotate(Offset(0, -screenRect.height / 2)),
+      'right': rotate(Offset(screenRect.width / 2, 0)),
+      'bottom': rotate(Offset(0, screenRect.height / 2)),
+      'left': rotate(Offset(-screenRect.width / 2, 0)),
+    };
+    return [
+      for (final entry in points.entries)
+        Positioned(
+          key: Key('wb_connect_${item.itemId}_${entry.key}'),
+          left: entry.value.dx - 7,
+          top: entry.value.dy - 7,
+          child: _ConnectionHandle(
+            onEnter: () => _onCardEnter(item.itemId),
+            onExit: () => _onCardExit(item.itemId),
+            onStart: () => _onConnectionHandleStart(item.itemId, entry.value),
+            onUpdate: _onConnectionHandleUpdate,
+            onEnd: _onConnectionHandleEnd,
+          ),
+        ),
+    ];
+  }
 }
 
 class _CardDragState {
@@ -1187,6 +1817,10 @@ class _CardDragState {
   final Offset lastPosition;
   const _CardDragState({required this.itemId, required this.lastPosition});
 }
+
+enum _CardMenuAction { quickEdit, open, front, remove }
+
+enum _CanvasMenuAction { newCard, resetView }
 
 class _ResizeState {
   final String itemId;
@@ -1229,6 +1863,18 @@ class _EdgeRetargetState {
   });
 }
 
+class _EdgeCreateState {
+  const _EdgeCreateState({
+    required this.fromItemId,
+    required this.startPoint,
+    required this.currentPoint,
+  });
+
+  final String fromItemId;
+  final Offset startPoint;
+  final Offset currentPoint;
+}
+
 /// Custom painter for edges and grid.
 class _CanvasPainter extends CustomPainter {
   final CanvasBoardState boardState;
@@ -1238,6 +1884,7 @@ class _CanvasPainter extends CustomPainter {
   final Rect? marqueeRect;
   final String? selectedEdgeId;
   final ({Offset from, Offset to})? retargetPreview;
+  final ({Offset from, Offset to})? createPreview;
   final Set<String> hiddenItemIds;
 
   _CanvasPainter({
@@ -1248,6 +1895,7 @@ class _CanvasPainter extends CustomPainter {
     this.marqueeRect,
     this.selectedEdgeId,
     this.retargetPreview,
+    this.createPreview,
     this.hiddenItemIds = const {},
   });
 
@@ -1256,6 +1904,7 @@ class _CanvasPainter extends CustomPainter {
     _drawGrid(canvas, size);
     _drawEdges(canvas);
     _drawRetargetPreview(canvas);
+    _drawCreatePreview(canvas);
   }
 
   void _drawGrid(Canvas canvas, Size size) {
@@ -1368,6 +2017,24 @@ class _CanvasPainter extends CustomPainter {
     );
   }
 
+  void _drawCreatePreview(Canvas canvas) {
+    final preview = createPreview;
+    if (preview == null) return;
+    final paint = Paint()
+      ..color = colors.edgeSelected
+      ..strokeWidth = WhiteboardCanvasTokens.edgeWidthSelected
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(preview.from, preview.to, paint);
+    canvas.drawCircle(
+      preview.to,
+      4,
+      Paint()
+        ..color = colors.edgeSelected
+        ..style = PaintingStyle.fill,
+    );
+  }
+
   void _drawArrowHead(Canvas canvas, Offset tip, Offset from, Paint paint) {
     final angle = (tip - from).direction;
     const arrowSize = 8.0;
@@ -1400,6 +2067,7 @@ class _CanvasPainter extends CustomPainter {
         oldDelegate.marqueeRect != marqueeRect ||
         oldDelegate.selectedEdgeId != selectedEdgeId ||
         oldDelegate.retargetPreview != retargetPreview ||
+        oldDelegate.createPreview != createPreview ||
         oldDelegate.colors != colors ||
         !setEquals(oldDelegate.hiddenItemIds, hiddenItemIds);
   }
@@ -1418,6 +2086,8 @@ class _CardWidget extends StatelessWidget {
   final bool isReadonly;
   final LodTier lodTier;
   final VoidCallback onTap;
+  final VoidCallback onEnter;
+  final VoidCallback onExit;
   final void Function(Offset position) onDragStart;
   final void Function(Offset position) onDragUpdate;
   final VoidCallback onDragEnd;
@@ -1429,6 +2099,8 @@ class _CardWidget extends StatelessWidget {
     required this.isReadonly,
     required this.lodTier,
     required this.onTap,
+    required this.onEnter,
+    required this.onExit,
     required this.onDragStart,
     required this.onDragUpdate,
     required this.onDragEnd,
@@ -1447,29 +2119,33 @@ class _CardWidget extends StatelessWidget {
       top: screenRect.top,
       width: screenRect.width,
       height: screenRect.height,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        onPanStart: (details) {
-          if (!isReadonly) onDragStart(details.globalPosition);
-        },
-        onPanUpdate: (details) {
-          if (!isReadonly) onDragUpdate(details.globalPosition);
-        },
-        onPanEnd: (_) {
-          if (!isReadonly) onDragEnd();
-        },
-        onPanCancel: () {
-          if (!isReadonly) onDragEnd();
-        },
-        child: Transform.rotate(
-          angle: item.rotation * math.pi / 180,
-          alignment: Alignment.center,
-          child: _CardContent(
-            key: Key('wb_card_content_${item.itemId}_${lodTier.name}'),
-            node: node,
-            isSelected: isSelected,
-            lodTier: lodTier,
+      child: MouseRegion(
+        onEnter: (_) => onEnter(),
+        onExit: (_) => onExit(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          onPanStart: (details) {
+            if (!isReadonly) onDragStart(details.globalPosition);
+          },
+          onPanUpdate: (details) {
+            if (!isReadonly) onDragUpdate(details.globalPosition);
+          },
+          onPanEnd: (_) {
+            if (!isReadonly) onDragEnd();
+          },
+          onPanCancel: () {
+            if (!isReadonly) onDragEnd();
+          },
+          child: Transform.rotate(
+            angle: item.rotation * math.pi / 180,
+            alignment: Alignment.center,
+            child: _CardContent(
+              key: Key('wb_card_content_${item.itemId}_${lodTier.name}'),
+              node: node,
+              isSelected: isSelected,
+              lodTier: lodTier,
+            ),
           ),
         ),
       ),
@@ -1921,6 +2597,59 @@ class _RotateHandle extends StatelessWidget {
   }
 }
 
+/// Small, transient anchor used to create a new visual BoardEdge directly.
+class _ConnectionHandle extends StatelessWidget {
+  const _ConnectionHandle({
+    required this.onEnter,
+    required this.onExit,
+    required this.onStart,
+    required this.onUpdate,
+    required this.onEnd,
+  });
+
+  final VoidCallback onEnter;
+  final VoidCallback onExit;
+  final VoidCallback onStart;
+  final ValueChanged<Offset> onUpdate;
+  final VoidCallback onEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.precise,
+      onEnter: (_) => onEnter(),
+      onExit: (_) => onExit(),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanStart: (_) => onStart(),
+        onPanUpdate: (details) => onUpdate(details.globalPosition),
+        onPanEnd: (_) => onEnd(),
+        onPanCancel: onEnd,
+        child: Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: colors.canvas,
+            shape: BoxShape.circle,
+            border: Border.all(color: colors.action, width: 1.5),
+          ),
+          child: Center(
+            child: Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.action,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Edge endpoint handle — drag to retarget the edge's endpoint onto another
 /// item.
 class _EdgeEndpointHandle extends StatelessWidget {
@@ -2139,13 +2868,12 @@ class _FloatingActionTools extends StatelessWidget {
                     : null,
               ),
               const SizedBox(width: 4),
-              _FloatingLabeledButton(
+              _FloatingButton(
                 key: const Key('wb_create_edge_tool'),
                 icon: Icons.polyline_outlined,
-                label: '连接',
                 tooltip: vm.selection.length == 2
-                    ? '连接选中的两张卡片'
-                    : '先框选或 Shift+点击两张卡片',
+                    ? '备用：连接选中的两张卡片'
+                    : '拖动卡片边缘连接点可直接连线',
                 isEnabled: vm.selection.length == 2 && !vm.isReadonly,
                 onTap: vm.selection.length == 2 && !vm.isReadonly
                     ? onCreateEdge
@@ -2217,8 +2945,8 @@ class _FloatingActionTools extends StatelessWidget {
 }
 
 String _selectionHint(int count) {
-  if (count == 0) return '框选或 Shift+点击多选';
-  if (count == 1) return '已选 1 张 · 再选 1 张可连接/建组';
+  if (count == 0) return '双击空白新建 · 拖动卡片连接点连线';
+  if (count == 1) return '拖动连接点连线 · Shift+点击多选';
   return '已选 $count 张';
 }
 
@@ -2732,6 +3460,7 @@ class _FloatingButton extends StatelessWidget {
   final bool isEnabled;
 
   const _FloatingButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     this.onTap,

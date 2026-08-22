@@ -10,6 +10,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 
@@ -135,6 +136,15 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   bool get canUndo => _undoStack.length > 1;
   bool get canRedo => _redoStack.isNotEmpty;
   String? get selectedEdgeId => _selectedEdgeId;
+  BoardEdge? get selectedEdge {
+    final id = _selectedEdgeId;
+    if (id == null) return null;
+    return boardState.edges
+        .cast<CanvasEdgeNode?>()
+        .firstWhere((edge) => edge?.edgeId == id, orElse: () => null)
+        ?.edge;
+  }
+
   bool get isInLogicalAction => _logicalActionDepth > 0;
   List<WhiteboardOperation> get operationLog =>
       List.unmodifiable(_operationLog);
@@ -319,7 +329,11 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       case ToggleGroupCollapsedIntent(:final groupId):
         toggleGroupCollapsed(groupId);
         return true;
-      case RetargetEdgeIntent(:final edgeId, :final fromItemId, :final toItemId):
+      case RetargetEdgeIntent(
+          :final edgeId,
+          :final fromItemId,
+          :final toItemId
+        ):
         return retargetEdge(
           edgeId: edgeId,
           fromItemId: fromItemId,
@@ -437,19 +451,44 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void createEdge({
+  bool createEdge({
     required String fromItemId,
     required String toItemId,
     EdgeDirection direction = EdgeDirection.undirected,
     String? label,
   }) {
-    _adapter.createEdge(
+    final edge = _adapter.createEdge(
       boardId: boardId,
       fromItemId: fromItemId,
       toItemId: toItemId,
       direction: direction,
       label: label,
     );
+    if (edge == null) return false;
+    _selectedEdgeId = edge.edgeId;
+    notifyListeners();
+    return true;
+  }
+
+  bool updateEdge({
+    required String edgeId,
+    required EdgeDirection direction,
+    String? label,
+  }) {
+    final updated = _adapter.updateEdge(
+      boardId: boardId,
+      edgeId: edgeId,
+      direction: direction,
+      label: label,
+    );
+    if (updated) notifyListeners();
+    return updated;
+  }
+
+  /// Refreshes Repository-owned Card content in the render snapshot without
+  /// adding it to the board operation/undo stream.
+  void upsertCardContent(CardContract card) {
+    _adapter.upsertCardContent(card);
     notifyListeners();
   }
 
@@ -651,8 +690,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       actor: first.actor,
       operationKind: first.operationKind,
       targetIds: {
-        for (final op in ops)
-          ...op.targetIds,
+        for (final op in ops) ...op.targetIds,
       }.toList(),
       payload: {
         'merged_count': ops.length,
@@ -667,10 +705,8 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   void _pruneEdgeSelection() {
     final id = _selectedEdgeId;
     if (id == null) return;
-    final stillExists = _adapter
-        .exportSnapshot()
-        .edges
-        .any((e) => e.edgeId == id);
+    final stillExists =
+        _adapter.exportSnapshot().edges.any((e) => e.edgeId == id);
     if (!stillExists) _selectedEdgeId = null;
   }
 

@@ -98,7 +98,8 @@ class FlutterCanvasAdapter {
   /// an identity map, but it exists to honor the boundary contract.
   final Map<String, String> _engineToProductId = {};
 
-  FlutterCanvasAdapter([WhiteboardSnapshot? initial]) : _snapshot = initial ?? const WhiteboardSnapshot() {
+  FlutterCanvasAdapter([WhiteboardSnapshot? initial])
+      : _snapshot = initial ?? const WhiteboardSnapshot() {
     _rebuildIdMapping();
   }
 
@@ -111,6 +112,7 @@ class FlutterCanvasAdapter {
   /// Creates a new snapshot with the specified fields replaced.
   /// This avoids modifying the shared contract types.
   WhiteboardSnapshot _cloneSnapshot({
+    List<CardContract>? cards,
     List<Board>? boards,
     List<BoardItem>? boardItems,
     List<BoardGroup>? groups,
@@ -122,7 +124,7 @@ class FlutterCanvasAdapter {
       schemaVersion: _snapshot.schemaVersion,
       sources: _snapshot.sources,
       sourceVersions: _snapshot.sourceVersions,
-      cards: _snapshot.cards,
+      cards: cards ?? _snapshot.cards,
       boards: boards ?? _snapshot.boards,
       boardItems: boardItems ?? _snapshot.boardItems,
       groups: groups ?? _snapshot.groups,
@@ -142,6 +144,21 @@ class FlutterCanvasAdapter {
   }
 
   bool get isReadonly => _readonly;
+
+  /// Refreshes card content used by the renderer without creating a canvas
+  /// operation. Card content is Repository truth, not board-layout truth, so
+  /// this never enters the board undo/audit stream.
+  void upsertCardContent(CardContract card) {
+    final cards = [..._snapshot.cards];
+    final index =
+        cards.indexWhere((candidate) => candidate.cardId == card.cardId);
+    if (index == -1) {
+      cards.add(card);
+    } else {
+      cards[index] = card;
+    }
+    _snapshot = _cloneSnapshot(cards: cards);
+  }
 
   /// Registers a callback for operations produced by this adapter.
   void onOperation(OnOperationCallback callback) {
@@ -418,8 +435,7 @@ class FlutterCanvasAdapter {
           .toList(),
       edges: _snapshot.edges
           .where((e) =>
-              !itemIds.contains(e.fromItemId) &&
-              !itemIds.contains(e.toItemId))
+              !itemIds.contains(e.fromItemId) && !itemIds.contains(e.toItemId))
           .toList(),
     );
 
@@ -588,9 +604,8 @@ class FlutterCanvasAdapter {
     );
 
     _snapshot = _cloneSnapshot(
-      edges: _snapshot.edges
-          .map((e) => e.edgeId == edgeId ? newEdge : e)
-          .toList(),
+      edges:
+          _snapshot.edges.map((e) => e.edgeId == edgeId ? newEdge : e).toList(),
     );
 
     _emitOperation(
@@ -607,6 +622,64 @@ class FlutterCanvasAdapter {
         'kind': 'edge',
         'from_item_id': edge.fromItemId,
         'to_item_id': edge.toItemId,
+      },
+      authorizationId: authorizationId,
+    );
+    return true;
+  }
+
+  /// Updates the editable presentation fields of an existing board edge.
+  /// Endpoint identity is intentionally unchanged here.
+  bool updateEdge({
+    required String boardId,
+    required String edgeId,
+    required EdgeDirection direction,
+    String? label,
+    OperationActor actor = OperationActor.user,
+    String? authorizationId,
+  }) {
+    if (_readonly) return false;
+    final edge = _snapshot.edges.cast<BoardEdge?>().firstWhere(
+        (candidate) => candidate?.edgeId == edgeId,
+        orElse: () => null);
+    if (edge == null || edge.boardId != boardId) return false;
+    final normalizedLabel = label?.trim();
+    final newLabel = normalizedLabel == null || normalizedLabel.isEmpty
+        ? null
+        : normalizedLabel;
+    if (edge.direction == direction && edge.label == newLabel) return false;
+
+    final updated = BoardEdge(
+      edgeId: edge.edgeId,
+      boardId: edge.boardId,
+      fromItemId: edge.fromItemId,
+      toItemId: edge.toItemId,
+      direction: direction,
+      semanticType: edge.semanticType,
+      label: newLabel,
+      style: edge.style,
+      createdBy: edge.createdBy,
+      createdAt: edge.createdAt,
+      deletedAt: edge.deletedAt,
+    );
+    _snapshot = _cloneSnapshot(
+      edges: _snapshot.edges
+          .map((candidate) => candidate.edgeId == edgeId ? updated : candidate)
+          .toList(),
+    );
+    _emitOperation(
+      boardId: boardId,
+      actor: actor,
+      kind: OperationKind.edge,
+      targetIds: [edgeId],
+      payload: {
+        'direction': direction.name,
+        'label': newLabel,
+      },
+      inverse: {
+        'kind': 'edge',
+        'direction': edge.direction.name,
+        'label': edge.label,
       },
       authorizationId: authorizationId,
     );
@@ -735,9 +808,8 @@ class FlutterCanvasAdapter {
         .firstWhere((g) => g?.groupId == groupId, orElse: () => null);
     if (group == null) return;
 
-    final oldMembers = _snapshot.groupMembers
-        .where((m) => m.groupId == groupId)
-        .toList();
+    final oldMembers =
+        _snapshot.groupMembers.where((m) => m.groupId == groupId).toList();
 
     _snapshot = _cloneSnapshot(
       groups: _snapshot.groups.where((g) => g.groupId != groupId).toList(),
@@ -773,6 +845,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly || fromItemId == toItemId) return null;
     final items = _snapshot.boardItems.where((i) => i.boardId == boardId);
     final fromExists = items.any((i) => i.itemId == fromItemId);
     final toExists = items.any((i) => i.itemId == toItemId);
