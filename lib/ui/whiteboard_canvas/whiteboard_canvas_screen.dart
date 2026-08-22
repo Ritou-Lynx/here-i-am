@@ -1586,6 +1586,10 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
 
   void _onCardEnter(String itemId) {
     _hoverExitTimer?.cancel();
+    // Keep the widget subtree that owns the active pan recognizer stable.
+    // Entering another card while an edge endpoint is being dragged must not
+    // replace the source/endpoint handles and cancel the in-flight gesture.
+    if (_edgeCreateState != null || _edgeRetargetState != null) return;
     if (_hoveredItemId == itemId) return;
     setState(() => _hoveredItemId = itemId);
   }
@@ -1593,7 +1597,10 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   void _onCardExit(String itemId) {
     _hoverExitTimer?.cancel();
     _hoverExitTimer = Timer(const Duration(milliseconds: 140), () {
-      if (mounted && _hoveredItemId == itemId && _edgeCreateState == null) {
+      if (mounted &&
+          _hoveredItemId == itemId &&
+          _edgeCreateState == null &&
+          _edgeRetargetState == null) {
         setState(() => _hoveredItemId = null);
       }
     });
@@ -1655,6 +1662,11 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     setState(() => _edgeCreateState = null);
   }
 
+  void _onConnectionHandleCancel() {
+    if (_edgeCreateState == null) return;
+    setState(() => _edgeCreateState = null);
+  }
+
   // ── Edge endpoint editing ───────────────────────────────────────────
 
   void _onEdgeHandleStart(
@@ -1675,6 +1687,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     if (selectedEdge == null) return;
     final box = _canvasAreaKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
+    _hoverExitTimer?.cancel();
     widget.viewModel.beginLogicalAction();
     setState(() {
       _edgeRetargetState = _EdgeRetargetState(
@@ -1734,6 +1747,12 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       vm.cancelLogicalAction();
     }
     vm.endLogicalAction();
+    setState(() => _edgeRetargetState = null);
+  }
+
+  void _onEdgeHandleCancel() {
+    if (_edgeRetargetState == null) return;
+    widget.viewModel.cancelLogicalAction();
     setState(() => _edgeRetargetState = null);
   }
 
@@ -1921,6 +1940,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         onStart: _onEdgeHandleStart,
         onUpdate: _onEdgeHandleUpdate,
         onEnd: _onEdgeHandleEnd,
+        onCancel: _onEdgeHandleCancel,
       ),
       _EdgeEndpointHandle(
         key: Key('wb_edge_${edgeNode.edgeId}_to'),
@@ -1931,6 +1951,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         onStart: _onEdgeHandleStart,
         onUpdate: _onEdgeHandleUpdate,
         onEnd: _onEdgeHandleEnd,
+        onCancel: _onEdgeHandleCancel,
       ),
     ];
   }
@@ -2031,6 +2052,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             ),
             onUpdate: _onConnectionHandleUpdate,
             onEnd: _onConnectionHandleEnd,
+            onCancel: _onConnectionHandleCancel,
           ),
         ),
     ];
@@ -2870,6 +2892,7 @@ class _ConnectionHandle extends StatelessWidget {
     required this.onStart,
     required this.onUpdate,
     required this.onEnd,
+    required this.onCancel,
   });
 
   final VoidCallback onEnter;
@@ -2877,6 +2900,7 @@ class _ConnectionHandle extends StatelessWidget {
   final VoidCallback onStart;
   final ValueChanged<Offset> onUpdate;
   final VoidCallback onEnd;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -2890,22 +2914,28 @@ class _ConnectionHandle extends StatelessWidget {
         onPanStart: (_) => onStart(),
         onPanUpdate: (details) => onUpdate(details.globalPosition),
         onPanEnd: (_) => onEnd(),
-        onPanCancel: onEnd,
-        child: Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: colors.canvas,
-            shape: BoxShape.circle,
-            border: Border.all(color: colors.action, width: 1.5),
-          ),
-          child: Center(
-            child: Container(
-              width: 4,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colors.action,
-                shape: BoxShape.circle,
+        onPanCancel: onCancel,
+        child: Listener(
+          // An accepted Flutter drag reports PointerCancel through onPanEnd.
+          // The inner raw listener runs first, clears transient state, and
+          // makes that subsequent onPanEnd a no-op instead of a commit.
+          onPointerCancel: (_) => onCancel(),
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: colors.canvas,
+              shape: BoxShape.circle,
+              border: Border.all(color: colors.action, width: 1.5),
+            ),
+            child: Center(
+              child: Container(
+                width: 4,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.action,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
           ),
@@ -2968,6 +2998,7 @@ class _EdgeEndpointHandle extends StatelessWidget {
   ) onStart;
   final void Function(Offset pointerPos) onUpdate;
   final VoidCallback onEnd;
+  final VoidCallback onCancel;
 
   const _EdgeEndpointHandle({
     super.key,
@@ -2978,6 +3009,7 @@ class _EdgeEndpointHandle extends StatelessWidget {
     required this.onStart,
     required this.onUpdate,
     required this.onEnd,
+    required this.onCancel,
   });
 
   @override
@@ -2994,17 +3026,20 @@ class _EdgeEndpointHandle extends StatelessWidget {
               onStart(edgeId, isFrom, fixedPoint, details.globalPosition),
           onPanUpdate: (details) => onUpdate(details.globalPosition),
           onPanEnd: (_) => onEnd(),
-          onPanCancel: () => onEnd(),
-          child: Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(
-              color: colors.panelSurface,
-              border: Border.all(
-                color: colors.edgeSelected,
-                width: 2,
+          onPanCancel: onCancel,
+          child: Listener(
+            onPointerCancel: (_) => onCancel(),
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: colors.panelSurface,
+                border: Border.all(
+                  color: colors.edgeSelected,
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(7),
               ),
-              borderRadius: BorderRadius.circular(7),
             ),
           ),
         ),

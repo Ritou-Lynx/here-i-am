@@ -299,6 +299,171 @@ void main() {
     expect(vm.exportForSave().edges, isEmpty);
   });
 
+  testWidgets('悬浮连线先进入目标卡片 body 后仍可继续吸附到 anchor', (tester) async {
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: WhiteboardCanvasArea(viewModel: vm)),
+      ),
+    );
+    await tester.pump();
+
+    final sourceCard = find.byKey(const Key('wb_card_item_card_a'));
+    final targetCard = tester.getRect(
+      find.byKey(const Key('wb_card_item_card_b')),
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(sourceCard));
+    await tester.pump();
+    final handle = find.byKey(const Key('wb_connect_item_card_a_right'));
+    expect(handle, findsOneWidget);
+
+    await mouse.down(tester.getCenter(handle));
+    await mouse.moveTo(targetCard.center);
+    await tester.pump();
+    expect(vm.exportForSave().edges, isEmpty);
+
+    await mouse.moveTo(targetCard.centerLeft + const Offset(20, 0));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_b_left')),
+      findsOneWidget,
+    );
+    await mouse.up();
+    await mouse.removePointer();
+    await tester.pump();
+
+    expect(vm.exportForSave().edges, hasLength(1));
+    expect(vm.exportForSave().edges.single.toItemId, 'item_card_b');
+  });
+
+  testWidgets('retarget 先进入卡片 body 后仍可继续到 anchor', (tester) async {
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    expect(
+      vm.createEdge(fromItemId: 'item_card_a', toItemId: 'item_card_b'),
+      isTrue,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: WhiteboardCanvasArea(viewModel: vm)),
+      ),
+    );
+    await tester.pump();
+
+    final targetCard = tester.getRect(
+      find.byKey(const Key('wb_card_item_card_a')),
+    );
+    final edgeId = vm.exportForSave().edges.single.edgeId;
+    final handle = find.byKey(Key('wb_edge_${edgeId}_from'));
+    final drag = await tester.startGesture(
+      tester.getCenter(handle),
+      kind: PointerDeviceKind.mouse,
+    );
+    await drag.moveTo(targetCard.center);
+    await tester.pump();
+    expect(vm.exportForSave().edges.single.fromItemId, 'item_card_a');
+
+    await drag.moveTo(targetCard.centerRight - const Offset(20, 0));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_a_right')),
+      findsOneWidget,
+    );
+    await drag.up();
+    await tester.pump();
+
+    expect(vm.exportForSave().edges.single.fromItemId, 'item_card_a');
+    expect(vm.exportForSave().edges.single.style['from_anchor_side'], 'right');
+  });
+
+  testWidgets('卡片 body 内松手或 pointer cancel 不留下临时连线', (tester) async {
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: WhiteboardCanvasArea(viewModel: vm)),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Card A'));
+    await tester.pump();
+    final handle = find.byKey(const Key('wb_connect_item_card_a_right'));
+    final targetCard = tester.getRect(
+      find.byKey(const Key('wb_card_item_card_b')),
+    );
+
+    final bodyDrop = await tester.startGesture(tester.getCenter(handle));
+    await bodyDrop.moveTo(targetCard.center);
+    await bodyDrop.up();
+    await tester.pump();
+    expect(vm.exportForSave().edges, isEmpty);
+
+    final cancelled = await tester.startGesture(tester.getCenter(handle));
+    await cancelled.moveTo(targetCard.centerLeft + const Offset(12, 0));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_b_left')),
+      findsOneWidget,
+    );
+    await cancelled.cancel();
+    await tester.pump();
+    expect(vm.exportForSave().edges, isEmpty);
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_b_left')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('retarget pointer cancel 回滚端点候选且原边仍可继续编辑', (tester) async {
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    expect(
+      vm.createEdge(fromItemId: 'item_card_a', toItemId: 'item_card_b'),
+      isTrue,
+    );
+    final original = vm.exportForSave().edges.single;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: WhiteboardCanvasArea(viewModel: vm)),
+      ),
+    );
+    await tester.pump();
+
+    final edgeId = original.edgeId;
+    final handle = find.byKey(Key('wb_edge_${edgeId}_from'));
+    final sourceCard = tester.getRect(
+      find.byKey(const Key('wb_card_item_card_a')),
+    );
+    final drag = await tester.startGesture(tester.getCenter(handle));
+    await drag.moveTo(sourceCard.centerRight - const Offset(12, 0));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_a_right')),
+      findsOneWidget,
+    );
+
+    await drag.cancel();
+    await tester.pump();
+    expect(vm.exportForSave().edges.single.toJson(), original.toJson());
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_a_right')),
+      findsNothing,
+    );
+    expect(find.byKey(Key('wb_edge_${edgeId}_from')), findsOneWidget);
+  });
+
   testWidgets('连线创建后轻量修改方向标签并从快照恢复', (tester) async {
     final vm = WhiteboardCanvasViewModel(
       initialSnapshot: _snapshot(),
