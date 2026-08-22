@@ -55,6 +55,7 @@ List<ArtifactContractIssue> validateContentBundlePlan(
   }
 
   final artifactIds = <String>{};
+  final artifactsById = <String, GeneratedArtifact>{};
   var totalBytes = 0;
   for (final artifact in plan.artifacts) {
     final manifest = artifact.manifest;
@@ -66,6 +67,8 @@ List<ArtifactContractIssue> validateContentBundlePlan(
           ref: manifest.artifactId,
         ),
       );
+    } else {
+      artifactsById[manifest.artifactId] = artifact;
     }
     if (artifact.binding.artifactId != manifest.artifactId) {
       issues.add(
@@ -105,6 +108,10 @@ List<ArtifactContractIssue> validateContentBundlePlan(
   duplicates(plan.groups.map((value) => value.groupId), 'duplicate_group_id');
   duplicates(plan.edges.map((value) => value.edgeId), 'duplicate_edge_id');
   duplicates(
+    plan.promotions.map((value) => value.promotionId),
+    'duplicate_promotion_id',
+  );
+  duplicates(
     plan.batch.operations.map((value) => value.operationId),
     'duplicate_operation_id',
   );
@@ -116,10 +123,12 @@ List<ArtifactContractIssue> validateContentBundlePlan(
   final boardIds = plan.boards.map((value) => value.boardId).toSet();
   final itemIds = plan.boardItems.map((value) => value.itemId).toSet();
   final groupIds = plan.groups.map((value) => value.groupId).toSet();
+  final sourcesById = {for (final value in plan.sources) value.sourceId: value};
   final versionsById = {
     for (final value in plan.sourceVersions) value.versionId: value,
   };
   final itemsById = {for (final value in plan.boardItems) value.itemId: value};
+  final cardsById = {for (final value in plan.cards) value.cardId: value};
 
   for (final artifact in plan.artifacts) {
     final binding = artifact.binding;
@@ -148,6 +157,39 @@ List<ArtifactContractIssue> validateContentBundlePlan(
         ref: artifact.manifest.artifactId,
       ));
     }
+    final boundVersion = binding.sourceVersionId == null
+        ? null
+        : versionsById[binding.sourceVersionId];
+    final boundCard = binding.cardId == null ? null : cardsById[binding.cardId];
+    if (binding.sourceVersionId != null &&
+        (binding.sourceId == null ||
+            boundVersion == null ||
+            boundVersion.sourceId != binding.sourceId)) {
+      issues.add(ArtifactContractIssue(
+        'artifact_binding_source_version_mismatch',
+        ref: artifact.manifest.artifactId,
+      ));
+    }
+    if (binding.cardId != null &&
+        (binding.sourceId == null ||
+            boundCard == null ||
+            boundCard.sourceId != binding.sourceId)) {
+      issues.add(ArtifactContractIssue(
+        'artifact_binding_card_source_mismatch',
+        ref: artifact.manifest.artifactId,
+      ));
+    }
+    if (binding.cardId != null &&
+        binding.boardItemIds.any(
+          (value) =>
+              itemsById[value] != null &&
+              itemsById[value]!.cardId != binding.cardId,
+        )) {
+      issues.add(ArtifactContractIssue(
+        'artifact_binding_item_card_mismatch',
+        ref: artifact.manifest.artifactId,
+      ));
+    }
   }
 
   for (final version in plan.sourceVersions) {
@@ -169,6 +211,16 @@ List<ArtifactContractIssue> validateContentBundlePlan(
             currentVersion.sourceId != source.sourceId)) {
       issues.add(ArtifactContractIssue(
         'source_current_version_missing',
+        ref: source.sourceId,
+      ));
+    }
+    if (currentVersion != null &&
+        ((source.contentHash != null &&
+                source.contentHash != currentVersion.contentHash) ||
+            (source.objectRef != null &&
+                source.objectRef != currentVersion.objectRef))) {
+      issues.add(ArtifactContractIssue(
+        'source_current_version_content_mismatch',
         ref: source.sourceId,
       ));
     }
@@ -255,27 +307,139 @@ List<ArtifactContractIssue> validateContentBundlePlan(
         ),
       );
     }
+    final promotedArtifact = artifactsById[promotion.artifactId];
+    final promotedVersion = versionsById[promotion.sourceVersionId];
+    final promotedCard = cardsById[promotion.cardId];
+    if (promotedVersion != null &&
+        promotedVersion.sourceId != promotion.sourceId) {
+      issues.add(ArtifactContractIssue(
+        'promotion_source_version_mismatch',
+        ref: promotion.promotionId,
+      ));
+    }
+    if (promotedArtifact != null &&
+        promotedVersion != null &&
+        (promotedArtifact.manifest.sha256 != promotedVersion.contentHash ||
+            promotedArtifact.manifest.objectRef != promotedVersion.objectRef)) {
+      issues.add(ArtifactContractIssue(
+        'promotion_manifest_version_mismatch',
+        ref: promotion.promotionId,
+      ));
+    }
+    if (promotedCard != null && promotedCard.sourceId != promotion.sourceId) {
+      issues.add(ArtifactContractIssue(
+        'promotion_card_source_mismatch',
+        ref: promotion.promotionId,
+      ));
+    }
+    final binding = promotedArtifact?.binding;
+    if (binding != null &&
+        (binding.status != ArtifactBindingStatus.promoted ||
+            binding.taskArtifactId != promotion.taskArtifactId ||
+            binding.sourceId != promotion.sourceId ||
+            binding.sourceVersionId != promotion.sourceVersionId ||
+            binding.cardId != promotion.cardId)) {
+      issues.add(ArtifactContractIssue(
+        'promotion_artifact_binding_mismatch',
+        ref: promotion.promotionId,
+      ));
+    }
+  }
+  final promotedArtifactIds =
+      plan.promotions.map((value) => value.artifactId).toSet();
+  for (final artifact in plan.artifacts) {
+    if (artifact.binding.status == ArtifactBindingStatus.promoted &&
+        !promotedArtifactIds.contains(artifact.manifest.artifactId)) {
+      issues.add(ArtifactContractIssue(
+        'promoted_binding_without_promotion',
+        ref: artifact.manifest.artifactId,
+      ));
+    }
   }
   for (final html in plan.htmlRuntimeBundles) {
-    if (!artifactIds.contains(html.rawArtifactId) ||
-        !artifactIds.contains(html.runtimeArtifactId)) {
+    final rawArtifact = artifactsById[html.rawArtifactId];
+    final runtimeArtifact = artifactsById[html.runtimeArtifactId];
+    if (rawArtifact == null || runtimeArtifact == null) {
       issues.add(
         ArtifactContractIssue(
           'html_artifact_reference_missing',
           ref: html.rawArtifactId,
         ),
       );
+    } else {
+      issues.addAll(
+        validateHtmlRuntimeBundleManifests(
+          html,
+          rawManifest: rawArtifact.manifest,
+          runtimeManifest: runtimeArtifact.manifest,
+        ),
+      );
     }
     issues.addAll(validateHtmlRuntimeBundle(html));
   }
+  final entityTargets = <String, Set<String>>{
+    'artifact': artifactIds,
+    'source': sourcesById.keys.toSet(),
+    'source_version': versionIds,
+    'card': cardIds,
+    'board': boardIds,
+    'board_item': itemIds,
+    'group': groupIds,
+    'edge': plan.edges.map((value) => value.edgeId).toSet(),
+    'promotion': plan.promotions.map((value) => value.promotionId).toSet(),
+    'html_runtime_bundle':
+        plan.htmlRuntimeBundles.map((value) => value.runtimeArtifactId).toSet(),
+  };
   for (final operation in plan.batch.operations) {
-    if (operation.inverse == null || operation.inverse!.isEmpty) {
+    final targets = entityTargets[operation.entityType];
+    if (targets == null) {
+      issues.add(ArtifactContractIssue(
+        'operation_entity_type_unsupported',
+        ref: operation.operationId,
+      ));
+    } else if (!targets.contains(operation.entityId)) {
+      issues.add(ArtifactContractIssue(
+        'operation_entity_missing',
+        ref: operation.operationId,
+      ));
+    }
+    final inverse = operation.inverse;
+    if (inverse == null) {
       issues.add(
         ArtifactContractIssue(
           'operation_inverse_required',
           ref: operation.operationId,
         ),
       );
+      continue;
+    }
+    if (inverse.entityType != operation.entityType ||
+        inverse.entityId != operation.entityId) {
+      issues.add(ArtifactContractIssue(
+        'operation_inverse_target_mismatch',
+        ref: operation.operationId,
+      ));
+    }
+    final expectedInverseKind = switch (operation.kind) {
+      DomainOperationKind.create ||
+      DomainOperationKind.bind ||
+      DomainOperationKind.promote =>
+        DomainOperationKind.retract,
+      DomainOperationKind.update ||
+      DomainOperationKind.retract =>
+        DomainOperationKind.update,
+    };
+    if (inverse.kind != expectedInverseKind) {
+      issues.add(ArtifactContractIssue(
+        'operation_inverse_kind_mismatch',
+        ref: operation.operationId,
+      ));
+    }
+    if (inverse.kind == DomainOperationKind.update && inverse.payload.isEmpty) {
+      issues.add(ArtifactContractIssue(
+        'operation_inverse_previous_state_required',
+        ref: operation.operationId,
+      ));
     }
   }
   return issues;
@@ -319,6 +483,17 @@ List<ArtifactContractIssue> validateArtifactManifest(
         ref: manifest.artifactId,
       ),
     );
+  }
+  if (!_isSafeObjectRef(manifest.objectRef)) {
+    issues.add(ArtifactContractIssue(
+      'unsafe_artifact_object_ref',
+      ref: manifest.artifactId,
+    ));
+  } else if (!manifest.objectRef.contains(manifest.sha256)) {
+    issues.add(ArtifactContractIssue(
+      'artifact_object_ref_hash_mismatch',
+      ref: manifest.artifactId,
+    ));
   }
   return issues;
 }
@@ -398,6 +573,7 @@ List<ArtifactContractIssue> validateHtmlRuntimeBundle(
   final rawCsp = policy.csp;
   final csp = rawCsp.toLowerCase();
   final cspDirectives = <String, List<String>>{};
+  final duplicateDirectives = <String>{};
   for (final rawDirective in rawCsp.split(';')) {
     final parts = rawDirective
         .trim()
@@ -405,8 +581,22 @@ List<ArtifactContractIssue> validateHtmlRuntimeBundle(
         .where((value) => value.isNotEmpty)
         .toList();
     if (parts.isNotEmpty) {
-      cspDirectives[parts.first.toLowerCase()] = parts.skip(1).toList();
+      final name = parts.first.toLowerCase();
+      if (cspDirectives.containsKey(name)) {
+        duplicateDirectives.add(name);
+      } else {
+        // Browsers honor the first occurrence. Keep it even though every
+        // duplicate is rejected below, so validation can never observe a
+        // safer last directive than the browser will enforce.
+        cspDirectives[name] = parts.skip(1).toList();
+      }
     }
+  }
+  for (final directive in duplicateDirectives) {
+    issues.add(ArtifactContractIssue(
+      'html_csp_duplicate_directive',
+      ref: directive,
+    ));
   }
   for (final directive in const [
     'default-src',
@@ -493,6 +683,41 @@ List<ArtifactContractIssue> validateHtmlRuntimeBundle(
   return issues;
 }
 
+List<ArtifactContractIssue> validateHtmlRuntimeBundleManifests(
+  HtmlRuntimeBundle bundle, {
+  required ArtifactManifest rawManifest,
+  required ArtifactManifest runtimeManifest,
+}) {
+  final issues = <ArtifactContractIssue>[];
+  if (rawManifest.artifactId != bundle.rawArtifactId ||
+      runtimeManifest.artifactId != bundle.runtimeArtifactId ||
+      rawManifest.artifactId == runtimeManifest.artifactId) {
+    issues.add(const ArtifactContractIssue('html_manifest_identity_mismatch'));
+  }
+  if (rawManifest.kind != GeneratedArtifactKind.html ||
+      rawManifest.mimeType != 'text/html') {
+    issues.add(const ArtifactContractIssue('html_raw_manifest_mismatch'));
+  }
+  if (runtimeManifest.kind != GeneratedArtifactKind.html ||
+      runtimeManifest.mimeType != 'application/vnd.hereiam.html-runtime+zip') {
+    issues.add(const ArtifactContractIssue('html_runtime_manifest_mismatch'));
+  }
+  if (runtimeManifest.objectRef != bundle.runtimeObjectRef) {
+    issues.add(
+      const ArtifactContractIssue('html_runtime_object_ref_mismatch'),
+    );
+  }
+  if (runtimeManifest.sha256 != bundle.runtimeSha256) {
+    issues.add(const ArtifactContractIssue('html_runtime_hash_mismatch'));
+  }
+  if (rawManifest.objectRef == runtimeManifest.objectRef) {
+    issues.add(
+      const ArtifactContractIssue('html_raw_runtime_object_ref_must_differ'),
+    );
+  }
+  return issues;
+}
+
 /// Reports capabilities present in authored HTML. It does not rewrite input.
 Set<String> inspectRawHtmlCapabilities(String html) {
   final lower = html.toLowerCase();
@@ -537,7 +762,7 @@ bool _isSafeObjectRef(String value) {
 }
 
 bool _isPrivateOrLocalHost(String host) {
-  final normalized = host.toLowerCase();
+  final normalized = host.toLowerCase().replaceFirst(RegExp(r'\.$'), '');
   if (normalized == 'localhost' ||
       normalized == '127.0.0.1' ||
       normalized == '::1' ||
@@ -549,7 +774,22 @@ bool _isPrivateOrLocalHost(String host) {
   // broadening this contract.
   if (normalized.contains(':')) return true;
   final parts = normalized.split('.');
-  if (parts.length != 4) return false;
+  final numericLabels = parts.every(
+    (value) => RegExp(r'^(?:0x[0-9a-f]+|[0-9]+)$').hasMatch(value),
+  );
+  if (!numericLabels) return false;
+  // WHATWG / OS URL stacks historically accept a single 32-bit decimal,
+  // shortened dotted IPv4, hexadecimal, octal and mixed-radix forms. Reject
+  // every non-canonical numeric spelling rather than trying to emulate each
+  // platform's conversion rules.
+  if (parts.length != 4 ||
+      parts.any(
+        (value) =>
+            value.startsWith('0x') ||
+            (value.length > 1 && value.startsWith('0')),
+      )) {
+    return true;
+  }
   final bytes = parts.map(int.tryParse).toList();
   if (bytes.any((value) => value == null || value < 0 || value > 255)) {
     return true;

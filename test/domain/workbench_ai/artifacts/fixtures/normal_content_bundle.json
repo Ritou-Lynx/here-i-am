@@ -13,21 +13,21 @@
         "kind": "create",
         "entity_type": "source",
         "entity_id": "source_html_001",
-        "inverse": {"kind": "retract", "entity_id": "source_html_001"}
+        "inverse": {"kind": "retract", "entity_type": "source", "entity_id": "source_html_001"}
       },
       {
         "operation_id": "op_card_001",
         "kind": "promote",
         "entity_type": "card",
         "entity_id": "card_artifact_001",
-        "inverse": {"kind": "retract", "entity_id": "card_artifact_001"}
+        "inverse": {"kind": "retract", "entity_type": "card", "entity_id": "card_artifact_001"}
       },
       {
         "operation_id": "op_board_001",
         "kind": "create",
         "entity_type": "board",
         "entity_id": "board_knowledge_001",
-        "inverse": {"kind": "delete", "entity_id": "board_knowledge_001"}
+        "inverse": {"kind": "retract", "entity_type": "board", "entity_id": "board_knowledge_001"}
       }
     ]
   },
@@ -40,6 +40,7 @@
         "size_bytes": 2048,
         "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "staged_object_ref": "staging/batch_knowledge_001/raw/index.html",
+        "object_ref": "objects/html/raw/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.html",
         "provenance_refs": ["search_hit_001", "search_hit_002"]
       },
       "binding": {
@@ -60,7 +61,8 @@
         "mime_type": "application/vnd.hereiam.html-runtime+zip",
         "size_bytes": 4096,
         "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-        "staged_object_ref": "staging/batch_knowledge_001/runtime/bundle.zip"
+        "staged_object_ref": "staging/batch_knowledge_001/runtime/bundle.zip",
+        "object_ref": "objects/html/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.zip"
       },
       "binding": {
         "artifact_id": "artifact_html_runtime_001",

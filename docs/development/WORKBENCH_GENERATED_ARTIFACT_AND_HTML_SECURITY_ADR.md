@@ -17,10 +17,10 @@
 新增纯领域契约：
 
 - `GeneratedArtifact`：生成结果的逻辑身份；
-- `ArtifactManifest`：MIME、字节数、SHA-256、staging object ref 与 provenance；
+- `ArtifactManifest`：MIME、字节数、SHA-256、staging object ref、内容寻址 final object ref 与 provenance；
 - `ArtifactBinding`：TaskArtifact、Source、SourceVersion、Card、BoardItem 的稳定软引用；
 - `ContentBundlePlan`：一次授权内的 Artifact、Source、Card、Board、Item、Group、Edge 与 promotion；
-- `DomainOperationBatch / OperationReceipt`：授权、runtime turn、幂等键、冲突哈希、逐操作 inverse 与确定性回执；
+- `DomainOperationBatch / OperationReceipt`：授权、runtime turn、幂等键、冲突哈希、逐操作结构化 inverse 与确定性回执；
 - `ArtifactCommitJournal / FailureRecoveryPlan`：记录 staging、hash 验证、原子绑定、回滚或待恢复；
 - `TaskArtifactPromotion`：把任务产物显式提升为 Source / Card 的唯一契约入口；
 - `HtmlRuntimeBundle / HtmlSandboxPolicy`：原始 HTML 与可执行 runtime bundle 的分离及能力清单。
@@ -42,6 +42,8 @@
 7. 对象落盘后产品事务失败：执行 inverse / 软撤销，内容对象进入延迟 GC，不在错误路径直接删除可能已被引用的对象；
 8. 撤销前复核 conflict guard，不覆盖用户在批次之后的编辑。
 
+领域 operation 不提供 `delete`。`create / bind / promote` 只能以同一实体的 `retract` 为 inverse；`update / retract` 只能以携带 previous state 的 `update` 为 inverse。验证器同时核对 entity type / ID 已在 plan 声明，任意非空 map、跨实体 inverse 或硬删除字符串都不能冒充可逆操作。
+
 默认预算提案：单产物 20 MiB、单批 100 MiB、64 个产物、512 个操作。它们是接纳上限，不是 UI 承诺；W0 可在 G3 统一调整。
 
 ## 4. TaskArtifact promotion
@@ -56,11 +58,13 @@ promotion 必须同时具备：
 - 可逆 operation 与 receipt；
 - provenance refs。
 
+promotion 还必须满足关系闭环：SourceVersion 的 `source_id` 属于目标 Source，Card 指向同一 Source，ArtifactBinding 的 TaskArtifact / Source / Version / Card 与 promotion 完全一致，并且 manifest 的 final object ref / SHA-256 与 SourceVersion 一致。验证器不把“这些 ID 分别存在”视作足够条件。
+
 生成 HTML 使用既有 `SourceMediaType.web`，生成图片使用 `SourceMediaType.image`；作为任务产物提升的卡可用 `CardKind.taskArtifact`，综合文字卡继续用 `CardKind.note`。不新增 `htmlCard` / `generatedImageCard` 平行身份。
 
 ## 5. HTML 原件与 runtime bundle
 
-原始 authored HTML 是不可变证据，SourceVersion 的 authoritative `object_ref / content_hash` 指向它。runtime bundle 是经过静态审核、资源归档、CSP 注入和能力收窄后的独立衍生 Artifact；二者 ID 与 hash 必须不同，卡片渲染只消费已 `accepted` 且无未处理 finding 的 runtime bundle。
+原始 authored HTML 是不可变证据，SourceVersion 的 authoritative `object_ref / content_hash` 指向它。runtime bundle 是经过静态审核、资源归档、CSP 注入和能力收窄后的独立衍生 Artifact；二者必须是不同 Artifact 身份与 object ref。`HtmlRuntimeBundle` 必须与引用 manifest 强一致：raw kind / MIME 为 `html` / `text/html`，runtime kind / MIME 为 `html` / `application/vnd.hereiam.html-runtime+zip`，runtime object ref / SHA-256 与 manifest 逐项相等。卡片渲染只消费已 `accepted` 且无未处理 finding 的 runtime bundle，不能交叉替换另一个 bundle 的 manifest。
 
 契约层的 `inspectRawHtmlCapabilities()` 只报告能力，不声称清洗安全。真正的 parser、sanitizer、packager 和 WebView2 host 属 P9。
 
@@ -78,7 +82,9 @@ promotion 必须同时具备：
 | popup / download | 禁止 |
 | JS bridge | 只允许 `report_height`、`open_stable_ref`、`emit_user_intent` 三个窄方法；无任意命令、文件或网络桥 |
 
-最低 CSP 必须包含：`default-src 'none'`、`base-uri 'none'`、`object-src 'none'`、`frame-ancestors 'none'`、`form-action 'none'`。任何 `*`、`file:`、localhost、unsafe-inline 或 unsafe-eval 都拒绝。
+最低 CSP 必须包含：`default-src 'none'`、`base-uri 'none'`、`object-src 'none'`、`frame-ancestors 'none'`、`form-action 'none'`。任何 `*`、`file:`、localhost、unsafe-inline 或 unsafe-eval 都拒绝。任何重复 directive 也直接拒绝并按浏览器 first-wins 保留首项做安全判断，避免“危险第一项 + 安全第二项”被验证器误判为安全。
+
+网络 origin 只接受规范域名或规范四段十进制公网 IPv4。验证器拒绝单整数、缩写点分、十六进制、八进制、前导零与混合进制等数字 host（例如 `2130706433`、`127.1`），避免 URL / OS 栈把它们解析到 loopback 或私网。这个字面量守门不能替代网络层安全：P9 / host 对真实域名的每次请求与重定向仍必须 DNS resolve、验证全部地址为公网，并把连接 pin 到已验证地址，防止 DNS rebinding / TOCTOU。
 
 ## 6. Windows WebView2 宿主约束
 
@@ -88,6 +94,7 @@ P9 renderer 接入时必须：
 - 映射只读、内容寻址 runtime bundle，host resource access 取最小值；
 - 默认 deny popup、context download、权限请求、新窗口和顶层导航；
 - 所有资源请求按 manifest + CSP + exact-origin allowlist 再校验；
+- 对 allowlist 中的真实域名逐跳 DNS resolve、拒绝任一 loopback / private / link-local / reserved 地址，并把实际连接 pin 到同一份已验证地址；
 - bridge 按每张 bundle 的 policy 建立窄路由并校验消息 schema / 大小 / 用户手势；
 - 卡面使用静态可信预览，只有当前聚焦的一张内容创建交互 WebView；退出焦点销毁 runtime；
 - 不复用旧 `HtmlWebViewCard` 的 localhost base URL，也不把 YouTube 专用 bridge 泛化给生成 HTML。

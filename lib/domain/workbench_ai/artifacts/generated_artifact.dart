@@ -45,6 +45,7 @@ class ArtifactManifest {
     required this.sizeBytes,
     required this.sha256,
     required this.stagedObjectRef,
+    required this.objectRef,
     this.provenanceRefs = const [],
   });
 
@@ -54,6 +55,7 @@ class ArtifactManifest {
   final int sizeBytes;
   final String sha256;
   final String stagedObjectRef;
+  final String objectRef;
   final List<String> provenanceRefs;
 
   factory ArtifactManifest.fromJson(Map<String, dynamic> json) =>
@@ -64,6 +66,7 @@ class ArtifactManifest {
         sizeBytes: (json['size_bytes'] as num).toInt(),
         sha256: json['sha256'] as String,
         stagedObjectRef: json['staged_object_ref'] as String,
+        objectRef: json['object_ref'] as String,
         provenanceRefs:
             (json['provenance_refs'] as List<dynamic>? ?? const []).cast(),
       );
@@ -75,6 +78,7 @@ class ArtifactManifest {
         'size_bytes': sizeBytes,
         'sha256': sha256,
         'staged_object_ref': stagedObjectRef,
+        'object_ref': objectRef,
         if (provenanceRefs.isNotEmpty) 'provenance_refs': provenanceRefs,
       };
 }

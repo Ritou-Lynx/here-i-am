@@ -4,5 +4,6 @@
   "mime_type": "image/png",
   "size_bytes": 20971521,
   "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-  "staged_object_ref": "staging/batch_large/image.png"
+  "staged_object_ref": "staging/batch_large/image.png",
+  "object_ref": "objects/images/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.png"
 }

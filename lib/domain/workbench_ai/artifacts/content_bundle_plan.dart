@@ -7,7 +7,54 @@ import '../../whiteboard/whiteboard_ids.dart';
 import 'generated_artifact.dart';
 import 'html_artifact_contract.dart';
 
-enum DomainOperationKind { create, update, bind, promote, retract, delete }
+enum DomainOperationKind {
+  create,
+  update,
+  bind,
+  promote,
+  retract;
+
+  static DomainOperationKind fromWire(String value) => switch (value) {
+        'create' => create,
+        'update' => update,
+        'bind' => bind,
+        'promote' => promote,
+        'retract' => retract,
+        _ => throw ArgumentError(
+            'Unknown or unsafe domain operation kind: $value',
+          ),
+      };
+}
+
+/// Structured, same-target inverse. Hard delete is intentionally absent.
+class DomainOperationInverse {
+  const DomainOperationInverse({
+    required this.kind,
+    required this.entityType,
+    required this.entityId,
+    this.payload = const {},
+  });
+
+  final DomainOperationKind kind;
+  final String entityType;
+  final String entityId;
+  final Map<String, dynamic> payload;
+
+  factory DomainOperationInverse.fromJson(Map<String, dynamic> json) =>
+      DomainOperationInverse(
+        kind: DomainOperationKind.fromWire(json['kind'] as String),
+        entityType: json['entity_type'] as String,
+        entityId: StableId(json['entity_id']).value,
+        payload: Map<String, dynamic>.from(json['payload'] as Map? ?? const {}),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'kind': kind.name,
+        'entity_type': entityType,
+        'entity_id': entityId,
+        if (payload.isNotEmpty) 'payload': payload,
+      };
+}
 
 class DomainOperation {
   const DomainOperation({
@@ -24,18 +71,20 @@ class DomainOperation {
   final String entityType;
   final String entityId;
   final Map<String, dynamic> payload;
-  final Map<String, dynamic>? inverse;
+  final DomainOperationInverse? inverse;
 
   factory DomainOperation.fromJson(Map<String, dynamic> json) =>
       DomainOperation(
         operationId: StableId(json['operation_id']).value,
-        kind: DomainOperationKind.values.byName(json['kind'] as String),
+        kind: DomainOperationKind.fromWire(json['kind'] as String),
         entityType: json['entity_type'] as String,
         entityId: StableId(json['entity_id']).value,
         payload: Map<String, dynamic>.from(json['payload'] as Map? ?? const {}),
         inverse: json['inverse'] == null
             ? null
-            : Map<String, dynamic>.from(json['inverse'] as Map),
+            : DomainOperationInverse.fromJson(
+                Map<String, dynamic>.from(json['inverse'] as Map),
+              ),
       );
 
   Map<String, dynamic> toJson() => {
@@ -44,7 +93,7 @@ class DomainOperation {
         'entity_type': entityType,
         'entity_id': entityId,
         if (payload.isNotEmpty) 'payload': payload,
-        if (inverse != null) 'inverse': inverse,
+        if (inverse != null) 'inverse': inverse!.toJson(),
       };
 }
 
