@@ -10,6 +10,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 
 import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
@@ -130,6 +131,9 @@ class UnifiedCardRepositorySimulatedProcessExit implements Exception {
 }
 
 class _SourceObjectWriteGuard {
+  static const int maxSnapshotFileBytes = 4 * 1024 * 1024;
+  static const int maxSnapshotTotalBytes = 8 * 1024 * 1024;
+
   const _SourceObjectWriteGuard({
     required this.objectRef,
     required this.snapshots,
@@ -150,12 +154,17 @@ class _SourceObjectWriteGuard {
   ) async {
     final temp = RecoverableFileExchange.tempFor(target);
     final backup = RecoverableFileExchange.backupFor(target);
-    return _SourceObjectWriteGuard(
-      objectRef: objectRef,
-      snapshots: await Future.wait(
-        <File>[target, temp, backup].map(_FileSnapshot.capture),
-      ),
+    final snapshots = await Future.wait(
+      <File>[target, temp, backup].map(_FileSnapshot.capture),
     );
+    final totalBytes = snapshots.fold<int>(
+      0,
+      (total, snapshot) => total + (snapshot.contents?.length ?? 0),
+    );
+    if (totalBytes > maxSnapshotTotalBytes) {
+      throw StateError('Source object recovery snapshot exceeds safe limit');
+    }
+    return _SourceObjectWriteGuard(objectRef: objectRef, snapshots: snapshots);
   }
 
   static _SourceObjectWriteGuard? fromIntent(
@@ -163,16 +172,24 @@ class _SourceObjectWriteGuard {
     String objectRef,
     Object? raw,
   ) {
-    if (raw is! Map) return null;
+    if (raw is! Map || raw.length != 3) return null;
     final snapshots = <_FileSnapshot?>[
       _FileSnapshot.fromJson(target, raw['final']),
-      _FileSnapshot.fromJson(RecoverableFileExchange.tempFor(target), raw['temp']),
+      _FileSnapshot.fromJson(
+        RecoverableFileExchange.tempFor(target),
+        raw['temp'],
+      ),
       _FileSnapshot.fromJson(
         RecoverableFileExchange.backupFor(target),
         raw['backup'],
       ),
     ];
     if (snapshots.any((snapshot) => snapshot == null)) return null;
+    final totalBytes = snapshots.fold<int>(
+      0,
+      (total, snapshot) => total + (snapshot?.contents?.length ?? 0),
+    );
+    if (totalBytes > maxSnapshotTotalBytes) return null;
     return _SourceObjectWriteGuard(
       objectRef: objectRef,
       snapshots: snapshots.cast<_FileSnapshot>(),
@@ -209,24 +226,58 @@ class _FileSnapshot {
   final File file;
   final List<int>? contents;
 
-  static Future<_FileSnapshot> capture(File file) async =>
-      _FileSnapshot(file, await file.exists() ? await file.readAsBytes() : null);
-
   Map<String, dynamic> toJson() => {
         'existed': contents != null,
-        if (contents != null) 'bytes_base64': base64Encode(contents!),
+        if (contents != null) ...{
+          'bytes_base64': base64Encode(contents!),
+          'length': contents!.length,
+          'sha256': sha256.convert(contents!).toString(),
+        },
       };
 
   static _FileSnapshot? fromJson(File file, Object? raw) {
     if (raw is! Map || raw['existed'] is! bool) return null;
-    if (raw['existed'] == false) return _FileSnapshot(file, null);
+    if (raw['existed'] == false) {
+      if (raw.length != 1) return null;
+      return _FileSnapshot(file, null);
+    }
     final encoded = raw['bytes_base64'];
-    if (encoded is! String) return null;
+    final length = raw['length'];
+    final expectedHash = raw['sha256'];
+    if (raw.length != 4 ||
+        encoded is! String ||
+        length is! int ||
+        length < 0 ||
+        length > _SourceObjectWriteGuard.maxSnapshotFileBytes ||
+        expectedHash is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(expectedHash)) {
+      return null;
+    }
+    final maxEncodedLength = ((length + 2) ~/ 3) * 4;
+    if (encoded.length != maxEncodedLength) return null;
     try {
-      return _FileSnapshot(file, base64Decode(encoded));
+      final decoded = base64Decode(encoded);
+      if (decoded.length != length ||
+          sha256.convert(decoded).toString() != expectedHash) {
+        return null;
+      }
+      return _FileSnapshot(file, decoded);
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<_FileSnapshot> capture(File file) async {
+    if (!await file.exists()) return _FileSnapshot(file, null);
+    final length = await file.length();
+    if (length > _SourceObjectWriteGuard.maxSnapshotFileBytes) {
+      throw StateError('Source object recovery snapshot exceeds safe limit');
+    }
+    final contents = await file.readAsBytes();
+    if (contents.length > _SourceObjectWriteGuard.maxSnapshotFileBytes) {
+      throw StateError('Source object recovery snapshot exceeds safe limit');
+    }
+    return _FileSnapshot(file, contents);
   }
 }
 
@@ -283,9 +334,9 @@ class UnifiedCardRepository {
   }
 
   Future<Set<String>> _reconcileSourceObjectIntents() async {
-    final restoredSnapshots = <String>{};
+    final protectedObjectPaths = <String>{};
     final intentRoot = _sourceObjectIntentRoot;
-    if (!await intentRoot.exists()) return restoredSnapshots;
+    if (!await intentRoot.exists()) return protectedObjectPaths;
     final targets = <String>{};
     await for (final entity in intentRoot.list(followLinks: false)) {
       if (entity is! File) continue;
@@ -297,62 +348,63 @@ class UnifiedCardRepository {
     }
     for (final path in targets) {
       final intentFile = File(path);
-      final recovered = await RecoverableFileExchange.recover(
-        intentFile,
-        validator: _isValidJsonMap,
-      );
-      if (!recovered || !await intentFile.exists()) {
-        await _deleteFileExchange(intentFile);
-        continue;
-      }
-      Map<String, dynamic>? intent;
       try {
-        final decoded = jsonDecode(await intentFile.readAsString());
-        if (decoded is Map<String, dynamic>) intent = decoded;
-      } catch (_) {
-        // Invalid repository-internal intent cannot prove an object is orphaned.
-      }
-      final objectRef = intent?['object_ref'];
-      final sourceId = intent?['source_id'];
-      final sourceVersionId = intent?['source_version_id'];
-      final isRepositoryIntent = intent?['schema_version'] == 2 &&
-          intent?['kind'] == 'source_object_commit' &&
-          objectRef is String &&
-          sourceId is String &&
-          sourceVersionId is String &&
-          objectRef == 'objects/sources/$sourceId/$sourceVersionId.json';
-      if (isRepositoryIntent) {
-        File? objectFile;
-        try {
-          objectFile = _objectFile(objectRef);
-        } catch (_) {
-          // A path outside the managed object root is never touched.
-        }
-        if (objectFile != null) {
-          final versionReference = await (db.select(
-            db.whiteboardSourceVersions,
-          )..where((row) => row.objectRef.equals(objectRef)))
-              .getSingleOrNull();
-          final sourceReference = await (db.select(
-            db.whiteboardSources,
-          )..where((row) => row.objectRef.equals(objectRef)))
-              .getSingleOrNull();
-          if (versionReference == null && sourceReference == null) {
-            final guard = _SourceObjectWriteGuard.fromIntent(
-              objectFile,
-              objectRef,
-              intent?['pre_write_snapshot'],
-            );
-            if (guard != null) {
-              await guard.restoreSnapshots();
-              restoredSnapshots.add(objectFile.absolute.path);
+        for (final candidate in <File>[
+          intentFile,
+          RecoverableFileExchange.tempFor(intentFile),
+          RecoverableFileExchange.backupFor(intentFile),
+        ]) {
+          if (!await candidate.exists()) continue;
+          try {
+            final envelope = jsonDecode(await candidate.readAsString());
+            if (envelope is Map<String, dynamic>) {
+              final objectRef =
+                  _safeManagedSourceObjectRef(envelope['object_ref']);
+              if (objectRef != null) {
+                protectedObjectPaths.add(_objectFile(objectRef).absolute.path);
+              }
             }
+          } catch (_) {
+            // An unreadable envelope has no trustworthy object path to guard.
           }
         }
+        if (!await intentFile.exists()) {
+          final recovered = await RecoverableFileExchange.recover(
+            intentFile,
+            validator: _isValidSourceObjectIntentJson,
+          );
+          if (!recovered || !await intentFile.exists()) continue;
+        }
+        final decoded = jsonDecode(await intentFile.readAsString());
+        if (decoded is! Map<String, dynamic> ||
+            !_isValidSourceObjectIntentMap(decoded)) {
+          continue;
+        }
+        final objectRef = decoded['object_ref'] as String;
+        final objectFile = _objectFile(objectRef);
+        final guard = _SourceObjectWriteGuard.fromIntent(
+          objectFile,
+          objectRef,
+          decoded['pre_write_snapshot'],
+        )!;
+        final versionReference = await (db.select(
+          db.whiteboardSourceVersions,
+        )..where((row) => row.objectRef.equals(objectRef)))
+            .getSingleOrNull();
+        final sourceReference = await (db.select(
+          db.whiteboardSources,
+        )..where((row) => row.objectRef.equals(objectRef)))
+            .getSingleOrNull();
+        if (versionReference == null && sourceReference == null) {
+          await guard.restoreSnapshots();
+        }
+        await _deleteFileExchange(intentFile);
+      } catch (_) {
+        // Corrupt or unknown intents stay byte-for-byte available for
+        // diagnosis and never block reconciliation of independent intents.
       }
-      await _deleteFileExchange(intentFile);
     }
-    return restoredSnapshots;
+    return protectedObjectPaths;
   }
 
   /// Returns an active card by stable id, or null when it is absent/deleted.
@@ -1529,6 +1581,75 @@ class UnifiedCardRepository {
     } catch (_) {
       return false;
     }
+  }
+
+  static bool _isValidSourceObjectIntentJson(String contents) {
+    try {
+      final decoded = jsonDecode(contents);
+      return decoded is Map<String, dynamic> &&
+          _isValidSourceObjectIntentMap(decoded);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool _isValidSourceObjectIntentMap(Map<String, dynamic> intent) {
+    const keys = {
+      'schema_version',
+      'kind',
+      'object_ref',
+      'source_id',
+      'source_version_id',
+      'pre_write_snapshot',
+    };
+    if (intent.length != keys.length ||
+        !intent.keys.every(keys.contains) ||
+        intent['schema_version'] != 2 ||
+        intent['kind'] != 'source_object_commit') {
+      return false;
+    }
+    final objectRef = _safeSourceObjectIntentRef(intent);
+    if (objectRef == null) return false;
+    return _SourceObjectWriteGuard.fromIntent(
+          File('intent-validation.json'),
+          objectRef,
+          intent['pre_write_snapshot'],
+        ) !=
+        null;
+  }
+
+  static String? _safeSourceObjectIntentRef(Map<String, dynamic> intent) {
+    final objectRef = _safeManagedSourceObjectRef(intent['object_ref']);
+    final sourceId = intent['source_id'];
+    final sourceVersionId = intent['source_version_id'];
+    if (objectRef == null ||
+        sourceId is! String ||
+        sourceVersionId is! String ||
+        sourceId.isEmpty ||
+        sourceVersionId.isEmpty ||
+        objectRef != 'objects/sources/$sourceId/$sourceVersionId.json') {
+      return null;
+    }
+    return objectRef;
+  }
+
+  static String? _safeManagedSourceObjectRef(Object? raw) {
+    if (raw is! String ||
+        raw.contains('..') ||
+        raw.contains('\\') ||
+        raw.contains(':')) {
+      return null;
+    }
+    final segments = raw.split('/');
+    if (segments.length != 4 ||
+        segments[0] != 'objects' ||
+        segments[1] != 'sources' ||
+        segments[2].isEmpty ||
+        segments[3].isEmpty ||
+        !segments[3].endsWith('.json')) {
+      return null;
+    }
+    return raw;
   }
 
   static CardContract _toCard(MemoryCard row, WhiteboardCardExtra extra) =>

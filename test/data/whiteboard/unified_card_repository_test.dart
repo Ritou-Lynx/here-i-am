@@ -721,6 +721,176 @@ void main() {
     expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
   });
 
+  test(
+      'corrupt intents preserve object exchanges while an interrupted valid intent recovers',
+      () async {
+    final invalidCases = <String>[
+      'bit_flip',
+      'invalid_base64',
+      'missing_hash',
+      'unknown_version',
+    ];
+    final invalidIntents = <File>[];
+    final invalidTargets = <File>[];
+    final expectedExchanges = <List<List<int>?>>[];
+
+    for (var index = 0; index < invalidCases.length; index++) {
+      final name = invalidCases[index];
+      final sourceId = 'src_web_intent_$name';
+      final result = _ingestion(
+        hash: name,
+        body: '损坏 journal 不得改写 $name',
+        sourceId: sourceId,
+        canonicalUrl: 'https://example.com/intent/$name',
+      );
+      final target = _sourceObjectFile(tempDir, sourceId, name);
+      await target.parent.create(recursive: true);
+      await target.writeAsString('{"old":"$name"}', flush: true);
+      final crashing = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: tempDir,
+        faultInjector: (point) async {
+          if (point ==
+              UnifiedCardRepositoryFaultPoint
+                  .ingestionAfterObjectWriteBeforeVersionInsert) {
+            throw const UnifiedCardRepositorySimulatedProcessExit();
+          }
+        },
+      );
+
+      await expectLater(
+        crashing.commitIngestion(result),
+        throwsA(isA<UnifiedCardRepositorySimulatedProcessExit>()),
+      );
+      final objectRef =
+          'objects/sources/$sourceId/${sourceId.replaceFirst('src_', 'ver_')}_$name.json';
+      final intent = await _intentFileForObjectRef(tempDir, objectRef);
+      final decoded =
+          jsonDecode(await intent.readAsString()) as Map<String, dynamic>;
+      final rawSnapshots =
+          Map<String, dynamic>.from(decoded['pre_write_snapshot'] as Map);
+      final finalSnapshot =
+          Map<String, dynamic>.from(rawSnapshots['final'] as Map);
+      switch (name) {
+        case 'bit_flip':
+          final encoded = finalSnapshot['bytes_base64'] as String;
+          finalSnapshot['bytes_base64'] =
+              '${encoded[0] == 'A' ? 'B' : 'A'}${encoded.substring(1)}';
+          break;
+        case 'invalid_base64':
+          finalSnapshot['bytes_base64'] = '!!!';
+          break;
+        case 'missing_hash':
+          finalSnapshot.remove('sha256');
+          break;
+        case 'unknown_version':
+          decoded['schema_version'] = 99;
+          break;
+      }
+      rawSnapshots['final'] = finalSnapshot;
+      decoded['pre_write_snapshot'] = rawSnapshots;
+      await intent.writeAsString(jsonEncode(decoded), flush: true);
+
+      final temp = File('${target.path}.tmp');
+      final backup = File('${target.path}.bak');
+      await temp.writeAsBytes(<int>[index, 11, 12], flush: true);
+      await backup.writeAsBytes(<int>[index, 21, 22], flush: true);
+      invalidIntents.add(intent);
+      invalidTargets.add(target);
+      expectedExchanges.add(await _readFileExchange(target));
+    }
+
+    const validSourceId = 'src_web_interrupted_valid_intent';
+    const validHash = 'interrupted_valid_intent';
+    final validResult = _ingestion(
+      hash: validHash,
+      body: '合法 journal 应继续恢复',
+      sourceId: validSourceId,
+      canonicalUrl: 'https://example.com/intent/interrupted-valid',
+    );
+    final validTarget =
+        _sourceObjectFile(tempDir, validSourceId, validHash);
+    final crashing = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .ingestionAfterObjectWriteBeforeVersionInsert) {
+          throw const UnifiedCardRepositorySimulatedProcessExit();
+        }
+      },
+    );
+    await expectLater(
+      crashing.commitIngestion(validResult),
+      throwsA(isA<UnifiedCardRepositorySimulatedProcessExit>()),
+    );
+    final validObjectRef =
+        'objects/sources/$validSourceId/${validSourceId.replaceFirst('src_', 'ver_')}_$validHash.json';
+    final validIntent =
+        await _intentFileForObjectRef(tempDir, validObjectRef);
+    final validJournal = await validIntent.readAsString();
+    final interruptedTemp = File('${validIntent.path}.tmp');
+    final residualBackup = File('${validIntent.path}.bak');
+    await validIntent.rename(interruptedTemp.path);
+    await residualBackup.writeAsString(validJournal, flush: true);
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    await repository.recoverFileReplacements();
+
+    for (var index = 0; index < invalidTargets.length; index++) {
+      expect(await _readFileExchange(invalidTargets[index]),
+          expectedExchanges[index]);
+      expect(await invalidIntents[index].exists(), isTrue);
+    }
+    expect(await validTarget.exists(), isFalse);
+    expect(await validIntent.exists(), isFalse);
+    expect(await interruptedTemp.exists(), isFalse);
+    expect(await residualBackup.exists(), isFalse);
+    expect(await db.select(db.whiteboardSources).get(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+  });
+
+  test('oversize recovery snapshot fails before journal or object mutation',
+      () async {
+    const sourceId = 'src_web_oversize_snapshot';
+    const hash = 'oversize_snapshot';
+    final result = _ingestion(
+      hash: hash,
+      body: '不得写入',
+      sourceId: sourceId,
+      canonicalUrl: 'https://example.com/oversize-snapshot',
+    );
+    final target = _sourceObjectFile(tempDir, sourceId, hash);
+    final temp = File('${target.path}.tmp');
+    final backup = File('${target.path}.bak');
+    final bytes = List<int>.filled(3 * 1024 * 1024, 73);
+    await target.parent.create(recursive: true);
+    await target.writeAsBytes(bytes, flush: true);
+    await temp.writeAsBytes(bytes, flush: true);
+    await backup.writeAsBytes(bytes, flush: true);
+    final before = await _readFileExchange(target);
+
+    await expectLater(
+      repository.commitIngestion(result),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'safe message',
+          'Source object recovery snapshot exceeds safe limit',
+        ),
+      ),
+    );
+
+    expect(await _readFileExchange(target), before);
+    expect(await _intentFiles(tempDir), isEmpty);
+    expect(await db.select(db.whiteboardSources).get(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+    expect(await db.select(db.memoryCards).get(), isEmpty);
+  });
+
   test('startup intent keeps a DB-referenced object and removes only intent',
       () async {
     final result = _ingestion(
@@ -1335,4 +1505,42 @@ Future<List<File>> _intentFiles(Directory root) async {
       .where((entity) => entity is File)
       .cast<File>()
       .toList();
+}
+
+File _sourceObjectFile(Directory root, String sourceId, String hash) {
+  final versionId = '${sourceId.replaceFirst('src_', 'ver_')}_$hash';
+  return File(
+    '${root.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+    'sources${Platform.pathSeparator}$sourceId${Platform.pathSeparator}'
+    '$versionId.json',
+  );
+}
+
+Future<File> _intentFileForObjectRef(Directory root, String objectRef) async {
+  for (final file in await _intentFiles(root)) {
+    if (file.path.endsWith('.tmp') || file.path.endsWith('.bak')) continue;
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is Map<String, dynamic> &&
+          decoded['object_ref'] == objectRef) {
+        return file;
+      }
+    } catch (_) {
+      continue;
+    }
+  }
+  throw StateError('Missing source object intent for $objectRef');
+}
+
+Future<List<List<int>?>> _readFileExchange(File target) async {
+  final files = <File>[
+    target,
+    File('${target.path}.tmp'),
+    File('${target.path}.bak'),
+  ];
+  final result = <List<int>?>[];
+  for (final file in files) {
+    result.add(await file.exists() ? await file.readAsBytes() : null);
+  }
+  return result;
 }
