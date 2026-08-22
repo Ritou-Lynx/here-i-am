@@ -227,6 +227,35 @@ class _SilentTimeEventAdapter implements PlayerAdapter {
   }
 }
 
+class _CountingSessionStore extends _RecordingSessionStore {
+  int loadCalls = 0;
+
+  @override
+  Future<VideoAnnotationSession?> load() async {
+    loadCalls++;
+    return super.load();
+  }
+}
+
+class _DelayedLoadAdapter extends _LinkOnlyAdapter {
+  _DelayedLoadAdapter(super.providerId);
+
+  final loadCompleter = Completer<void>();
+
+  @override
+  Future<void> load(String sourceId, {String? embedUrl}) =>
+      loadCompleter.future;
+
+  void dispose() {}
+}
+
+class _DelayedBiliProbe implements BilibiliSameOriginSubtitleProbe {
+  final completer = Completer<BilibiliSameOriginProbeResult>();
+
+  @override
+  Future<BilibiliSameOriginProbeResult> probe(String bvid) => completer.future;
+}
+
 class _RuntimeNegotiatedAdapter implements PlayerAdapter {
   final _events = StreamController<PlayerTimeEvent>.broadcast();
   PlayerCapability _capability = const PlayerCapability(canEmbedPlayer: true);
@@ -251,6 +280,15 @@ class _RuntimeNegotiatedAdapter implements PlayerAdapter {
       canEmbedPlayer: true,
       canCreateTimeAnchor: true,
     );
+    _events.add(PlayerTimeEvent(
+      positionMs: 12000,
+      durationMs: 60000,
+      at: DateTime.now(),
+    ));
+  }
+
+  void revoke() {
+    _capability = const PlayerCapability(canEmbedPlayer: true);
     _events.add(PlayerTimeEvent(
       positionMs: 12000,
       durationMs: 60000,
@@ -949,6 +987,49 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('runtime downgrade clears range selection and annotation draft',
+      (tester) async {
+    final adapter = _RuntimeNegotiatedAdapter();
+    await tester.pumpWidget(MaterialApp(
+      home: VideoStudyScreen(
+        adapter: adapter,
+        sourceId: 'src_runtime_revoke',
+        sourceVersionId: 'ver_runtime_revoke_v1',
+      ),
+    ));
+    await tester.pumpAndSettle();
+    adapter.promote();
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('video_begin_range_annotation')),
+    );
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('video_finish_range_annotation')),
+      findsOneWidget,
+    );
+    adapter.revoke();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('video_finish_range_annotation')),
+      findsNothing,
+    );
+
+    adapter.promote();
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('video_annotate_current_position')),
+    );
+    await tester.pump();
+    expect(
+        find.byKey(const ValueKey('video_annotation_editor')), findsOneWidget);
+    adapter.revoke();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_annotation_editor')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('failed player load can retry without changing the source', (
     tester,
   ) async {
@@ -1029,6 +1110,60 @@ void main() {
     expect(find.text('无法读取当前播放位置，请稍后重试。'), findsOneWidget);
     expect(find.textContaining('provider-secret-token'), findsNothing);
     expect(find.byKey(const ValueKey('video_annotation_editor')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test('disposed view model discards a late Bilibili resolver result',
+      () async {
+    final probe = _DelayedBiliProbe();
+    final viewModel = VideoStudyViewModel(
+      adapter: _LinkOnlyAdapter('bilibili'),
+      sourceId: 'src_bili_late',
+      sourceVersionId: 'ver_bili_late_v1',
+      providerId: 'bilibili',
+      bilibiliTimedTextResolver: BilibiliPublicTimedTextResolver(probe: probe),
+    );
+    await viewModel.initialize(
+      embedUrl: 'https://www.bilibili.com/video/BV1E8KV6QEu7',
+    );
+    expect(viewModel.subtitleFetchStatus, SubtitleAutoFetchStatus.fetching);
+    viewModel.dispose();
+    probe.completer.complete(const BilibiliSameOriginProbeResult(
+      subtitleText: '1\n00:00:01,000 --> 00:00:02,000\nlate result',
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(viewModel.subtitleFetchStatus, SubtitleAutoFetchStatus.fetching);
+    expect(viewModel.track, isNull);
+  });
+
+  testWidgets('source switch ignores the previous initialize restore callback',
+      (tester) async {
+    final oldAdapter = _DelayedLoadAdapter('fixture');
+    final oldStore = _CountingSessionStore();
+    final newStore = _CountingSessionStore();
+
+    await tester.pumpWidget(MaterialApp(
+      home: VideoStudyScreen(
+        adapter: oldAdapter,
+        sourceId: 'src_old',
+        sourceVersionId: 'ver_old',
+        sessionStore: oldStore,
+      ),
+    ));
+    await tester.pump();
+    await tester.pumpWidget(MaterialApp(
+      home: VideoStudyScreen(
+        adapter: oldAdapter,
+        sourceId: 'src_new',
+        sourceVersionId: 'ver_new',
+        sessionStore: newStore,
+      ),
+    ));
+    oldAdapter.loadCompleter.complete();
+    await tester.pumpAndSettle();
+    expect(oldStore.loadCalls, 0);
+    expect(newStore.loadCalls, 1);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

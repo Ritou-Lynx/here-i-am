@@ -69,4 +69,29 @@ void main() {
       isNull,
     );
   });
+
+  test('navigation accepts same BV parts and rejects a different source', () {
+    const expected = 'BV1E8KV6QEu7';
+    expect(
+      WindowsBilibiliPlayerAdapter.navigationFailure(
+        'https://www.bilibili.com/video/$expected?p=2#reply',
+        expected,
+      ),
+      isNull,
+    );
+    expect(
+      WindowsBilibiliPlayerAdapter.navigationFailure(
+        'https://www.bilibili.com/video/BV1xx411c7mD',
+        expected,
+      ),
+      contains('来源已变化'),
+    );
+    expect(
+      WindowsBilibiliPlayerAdapter.navigationFailure(
+        'https://passport.bilibili.com/login',
+        expected,
+      ),
+      contains('不是可探测'),
+    );
+  });
 }

@@ -86,6 +86,9 @@ class VideoStudyViewModel extends ChangeNotifier {
   String _annotationDraftDocument = '';
   bool _annotationDraftInitialized = false;
   bool _annotationDraftWasFocused = false;
+  bool _disposed = false;
+  bool _hadTimeAnchorCapability = false;
+  int _lifecycleEpoch = 0;
 
   VideoStudyViewModel({
     required this.adapter,
@@ -261,28 +264,34 @@ class VideoStudyViewModel extends ChangeNotifier {
   /// Loads the video and starts the sync controller.
   Future<void> initialize({String? embedUrl}) async {
     _lastEmbedUrl = embedUrl;
+    final epoch = ++_lifecycleEpoch;
     try {
       _syncController?.dispose();
       _syncController = null;
       _errorMessage = null;
       await adapter.load(sourceId, embedUrl: embedUrl);
+      if (!_isCurrentEpoch(epoch)) return;
       _isLoaded = true;
+      _hadTimeAnchorCapability = canCreateTimeAnchorNow;
 
       if (_track != null && _track!.cues.isNotEmpty) {
         _syncController = PlayerSyncController(
           adapter: adapter,
           track: _track!,
           onActiveCueChanged: (idx) {
+            if (!_isCurrentEpoch(epoch)) return;
             _activeCueIndex = idx;
-            notifyListeners();
+            _handleAdapterRuntimeState();
           },
           onPositionChanged: (ms) {
+            if (!_isCurrentEpoch(epoch)) return;
             _positionMs = ms;
-            notifyListeners();
+            _handleAdapterRuntimeState();
           },
           onDurationChanged: (ms) {
+            if (!_isCurrentEpoch(epoch)) return;
             _durationMs = ms;
-            notifyListeners();
+            _handleAdapterRuntimeState();
           },
         );
         _syncController!.start();
@@ -298,19 +307,23 @@ class VideoStudyViewModel extends ChangeNotifier {
             reliability: TimedTextReliability.unavailable,
           ),
           onPositionChanged: (ms) {
+            if (!_isCurrentEpoch(epoch)) return;
             _positionMs = ms;
-            notifyListeners();
+            _handleAdapterRuntimeState();
           },
           onDurationChanged: (ms) {
+            if (!_isCurrentEpoch(epoch)) return;
             _durationMs = ms;
-            notifyListeners();
+            _handleAdapterRuntimeState();
           },
         );
         _syncController!.start();
       }
 
       if (canReadDuration) {
-        _durationMs = await adapter.durationMs() ?? 0;
+        final duration = await adapter.durationMs() ?? 0;
+        if (!_isCurrentEpoch(epoch)) return;
+        _durationMs = duration;
       }
 
       notifyListeners();
@@ -319,8 +332,9 @@ class VideoStudyViewModel extends ChangeNotifier {
       // supports it on this platform and no usable track is loaded yet. The
       // static capability declaration stays conservative; study readiness is
       // decided at runtime after this attempt.
-      _maybeAutoFetchSubtitles(embedUrl);
+      _maybeAutoFetchSubtitles(embedUrl, epoch);
     } catch (_) {
+      if (!_isCurrentEpoch(epoch)) return;
       _errorMessage = '视频加载失败，请检查网络或稍后重试。';
       notifyListeners();
     }
@@ -346,7 +360,7 @@ class VideoStudyViewModel extends ChangeNotifier {
                   defaultTargetPlatform == TargetPlatform.windows))) &&
       (_track?.cues.isEmpty != false);
 
-  void _maybeAutoFetchSubtitles(String? embedUrl) {
+  void _maybeAutoFetchSubtitles(String? embedUrl, int epoch) {
     if (!_canAutoFetchSubtitles) {
       _subtitleFetchStatus = SubtitleAutoFetchStatus.skipped;
       return;
@@ -354,10 +368,10 @@ class VideoStudyViewModel extends ChangeNotifier {
     _subtitleFetchStatus = SubtitleAutoFetchStatus.fetching;
     notifyListeners();
     // Fire and forget — the UI observes subtitleFetchStatus.
-    _fetchPlatformSubtitles(embedUrl);
+    _fetchPlatformSubtitles(embedUrl, epoch);
   }
 
-  Future<void> _fetchPlatformSubtitles(String? embedUrl) async {
+  Future<void> _fetchPlatformSubtitles(String? embedUrl, int epoch) async {
     final videoRef = embedUrl ?? sourceId;
     if (providerId == 'bilibili') {
       final resolution = await _platformTimedTextResolver.resolve(
@@ -368,6 +382,7 @@ class VideoStudyViewModel extends ChangeNotifier {
           sourceVersionId: sourceVersionId,
         ),
       );
+      if (!_isCurrentEpoch(epoch)) return;
       _availableCaptionTracks = const [];
       _selectedCaptionTrack = null;
       _subtitleFailureKind = null;
@@ -390,6 +405,7 @@ class VideoStudyViewModel extends ChangeNotifier {
       sourceId: sourceId,
       sourceVersionId: sourceVersionId,
     );
+    if (!_isCurrentEpoch(epoch)) return;
     _availableCaptionTracks = result.availableTracks;
     _selectedCaptionTrack = result.selectedTrack;
     _platformSubtitleFailureKind = null;
@@ -450,15 +466,15 @@ class VideoStudyViewModel extends ChangeNotifier {
         track: track,
         onActiveCueChanged: (idx) {
           _activeCueIndex = idx;
-          notifyListeners();
+          _handleAdapterRuntimeState();
         },
         onPositionChanged: (ms) {
           _positionMs = ms;
-          notifyListeners();
+          _handleAdapterRuntimeState();
         },
         onDurationChanged: (ms) {
           _durationMs = ms;
-          notifyListeners();
+          _handleAdapterRuntimeState();
         },
       );
       _syncController!.start();
@@ -543,12 +559,14 @@ class VideoStudyViewModel extends ChangeNotifier {
     _selectedCaptionTrack = selected;
     _subtitleFetchMessage = '正在加载 ${selected.label}…';
     notifyListeners();
+    final epoch = _lifecycleEpoch;
     final result = await _timedTextService.fetchTrack(
       selected,
       sourceId: sourceId,
       sourceVersionId: sourceVersionId,
       availableTracks: _availableCaptionTracks,
     );
+    if (!_isCurrentEpoch(epoch)) return;
     if (result.isSuccess && result.track != null) {
       _setTrack(result.track!);
       _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
@@ -578,6 +596,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     if (!canCreateTimeAnchorNow || hasPendingAnnotation) return;
     final current = await _captureCurrentPosition();
     if (current == null) return;
+    if (!canCreateTimeAnchorNow || _disposed) return;
     _rangeSelectionStartMs = current;
     notifyListeners();
   }
@@ -588,6 +607,10 @@ class VideoStudyViewModel extends ChangeNotifier {
     if (!canCreateTimeAnchorNow || first == null) return;
     final second = await _captureCurrentPosition();
     if (second == null) return;
+    if (!canCreateTimeAnchorNow || _disposed) {
+      _rangeSelectionStartMs = null;
+      return;
+    }
     if (second == first) {
       _errorMessage = '区间终点仍与起点相同，请先移动播放位置再结束区间。';
       notifyListeners();
@@ -712,12 +735,7 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   /// Cancels a pending annotation.
   void cancelAnnotation() {
-    _pendingAnnotationCueId = null;
-    _pendingAnnotationStartMs = null;
-    _pendingAnnotationEndMs = null;
-    _pendingAnnotationIsPoint = true;
-    _pendingAnnotationSuggestedQuote = null;
-    _resetAnnotationDraft();
+    _clearTransientAnnotationState(clearRange: false);
     notifyListeners();
   }
 
@@ -769,8 +787,10 @@ class VideoStudyViewModel extends ChangeNotifier {
   Future<void> restoreSession({String? currentVersionId}) async {
     final store = sessionStore;
     if (store == null) return;
+    final epoch = _lifecycleEpoch;
     try {
       final saved = await store.load();
+      if (!_isCurrentEpoch(epoch)) return;
       if (saved != null) {
         restoreFromSession(saved, currentVersionId: currentVersionId);
       }
@@ -779,6 +799,7 @@ class VideoStudyViewModel extends ChangeNotifier {
         currentVersionId: currentVersionId ?? sourceVersionId,
         currentDurationMs: _durationMs > 0 ? _durationMs : null,
       );
+      if (!_isCurrentEpoch(epoch)) return;
       if (persisted != null) {
         _annotations
           ..clear()
@@ -798,6 +819,7 @@ class VideoStudyViewModel extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {
+      if (!_isCurrentEpoch(epoch)) return;
       _errorMessage = '研读进度恢复失败，请稍后重试。';
       notifyListeners();
     }
@@ -865,8 +887,33 @@ class VideoStudyViewModel extends ChangeNotifier {
         '${seconds.toString().padLeft(2, '0')}';
   }
 
+  bool _isCurrentEpoch(int epoch) => !_disposed && epoch == _lifecycleEpoch;
+
+  void _handleAdapterRuntimeState() {
+    if (_disposed) return;
+    final hasCapability = canCreateTimeAnchorNow;
+    if (_hadTimeAnchorCapability && !hasCapability) {
+      _clearTransientAnnotationState(clearRange: true);
+    }
+    _hadTimeAnchorCapability = hasCapability;
+    notifyListeners();
+  }
+
+  void _clearTransientAnnotationState({required bool clearRange}) {
+    _pendingAnnotationCueId = null;
+    _pendingAnnotationStartMs = null;
+    _pendingAnnotationEndMs = null;
+    _pendingAnnotationIsPoint = true;
+    _pendingAnnotationSuggestedQuote = null;
+    _resetAnnotationDraft();
+    if (clearRange) _rangeSelectionStartMs = null;
+  }
+
   @override
-  void dispose() {
+  void dispose({bool disposeAdapter = true}) {
+    if (_disposed) return;
+    _disposed = true;
+    _lifecycleEpoch++;
     _saveConfirmationTimer?.cancel();
     _saveConfirmationTimer = null;
     _syncController?.dispose();
@@ -877,17 +924,19 @@ class VideoStudyViewModel extends ChangeNotifier {
     // YouTubePlayerAdapter, and WebYouTubePlayerAdapter all do). Using dynamic
     // avoids importing the Web adapter (which depends on dart:js_interop and
     // is not available in the VM test environment).
-    final a = adapter;
-    if (a is FixturePlayerAdapter) {
-      a.dispose();
-    } else if (a is YouTubePlayerAdapter) {
-      a.dispose();
-    } else {
-      // WebYouTubePlayerAdapter or any other adapter with a dispose method.
-      try {
-        (a as dynamic).dispose();
-      } catch (_) {
-        // Adapter has no dispose() — nothing to clean up.
+    if (disposeAdapter) {
+      final a = adapter;
+      if (a is FixturePlayerAdapter) {
+        a.dispose();
+      } else if (a is YouTubePlayerAdapter) {
+        a.dispose();
+      } else {
+        // WebYouTubePlayerAdapter or any other adapter with a dispose method.
+        try {
+          (a as dynamic).dispose();
+        } catch (_) {
+          // Adapter has no dispose() — nothing to clean up.
+        }
       }
     }
     super.dispose();

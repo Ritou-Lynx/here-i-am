@@ -22,10 +22,11 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   final BilibiliHtmlMediaBridge _bridge = BilibiliHtmlMediaBridge();
 
   WebviewController? _controller;
-  bool _bridgeVerificationRunning = false;
+  BilibiliBridgeVerificationCoordinator? _verifier;
   bool _initialized = false;
   bool _disposed = false;
   bool _showingLoginPage = false;
+  bool _sourceNavigationValid = false;
   String? _currentBvid;
   String? _lastFailure;
 
@@ -56,8 +57,9 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
     await _ensureInitialized();
     _currentBvid = bvid;
     _showingLoginPage = false;
+    _sourceNavigationValid = false;
     _lastFailure = null;
-    _bridge.downgrade('正在探测标准视频时间轴');
+    _verifier!.invalidate('正在探测标准视频时间轴');
     try {
       await _controller!.loadUrl(buildVideoPageUrl(bvid));
     } catch (error) {
@@ -75,6 +77,11 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
       }
       final controller = WebviewController();
       _controller = controller;
+      _verifier = BilibiliBridgeVerificationCoordinator(
+        bridge: _bridge,
+        execute: controller.executeScript,
+        onSettled: _emitCurrentSnapshot,
+      );
       _subscriptions
         ..add(controller.webMessage.listen(_handleMessage))
         ..add(controller.url.listen(_handleUrlChanged))
@@ -95,20 +102,52 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   }
 
   void _handleUrlChanged(String rawUrl) {
-    final uri = Uri.tryParse(rawUrl);
-    final isVideoPage = uri?.host == 'www.bilibili.com' &&
-        uri!.path.startsWith('/video/');
-    if (!isVideoPage) {
-      _bridge.downgrade('当前页面不是可探测的视频页');
-      _emitCurrentSnapshot();
+    final failure = navigationFailure(rawUrl, _currentBvid);
+    _sourceNavigationValid = failure == null;
+    if (failure != null) {
+      _lastFailure = failure;
+      _verifier?.invalidate(failure);
+    } else {
+      _lastFailure = null;
     }
+  }
+
+  /// Returns null only when [rawUrl] is the expected top-level BV page.
+  /// Query/hash changes (including `?p=`) remain valid; another BV never does.
+  static String? navigationFailure(String rawUrl, String? expectedBvid) {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || uri.host != 'www.bilibili.com') {
+      return '当前页面不是可探测的 Bilibili 视频页';
+    }
+    final segments = uri.pathSegments;
+    final navigatedBvid = segments.length >= 2 && segments.first == 'video'
+        ? RegExp(r'^BV[0-9A-Za-z]{10}$').firstMatch(segments[1])?.group(0)
+        : null;
+    if (navigatedBvid == null) return '当前页面不是可探测的 Bilibili 视频页';
+    if (expectedBvid == null || navigatedBvid != expectedBvid) {
+      return '视频来源已变化，时间研读已停止';
+    }
+    return null;
   }
 
   void _handleMessage(dynamic raw) {
     final message = decodeWebMessage(raw);
     if (message == null || message['type'] != 'hereiam:bilibili-media') return;
+    if (!_sourceNavigationValid) return;
     if (message['event'] == 'candidate') {
-      unawaited(_verifyBridge());
+      final rawGeneration = message['generation'];
+      if (message.containsKey('generation') && rawGeneration is! num) return;
+      _verifier?.candidate(
+        rawGeneration is num ? rawGeneration.toInt() : null,
+      );
+      return;
+    }
+    final rawGeneration = message['generation'];
+    if (message.containsKey('generation') && rawGeneration is! num) return;
+    final expectedPageGeneration = _verifier?.latestPageGeneration;
+    if (rawGeneration is num &&
+        expectedPageGeneration != null &&
+        rawGeneration.toInt() != expectedPageGeneration) {
       return;
     }
     final snapshot = _bridge.acceptEvent(message);
@@ -136,18 +175,8 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   void _handlePageLoadError() {
     const failure = 'Bilibili 页面加载失败，请检查网络或页面可用性';
     _lastFailure = failure;
-    _bridge.downgrade(failure);
-    _emitCurrentSnapshot();
-  }
-
-  Future<void> _verifyBridge() async {
-    if (_bridgeVerificationRunning || _controller == null) return;
-    _bridgeVerificationRunning = true;
-    final verified = await _bridge.verify(_controller!.executeScript);
-    _bridgeVerificationRunning = false;
-    if (verified && !_timeController.isClosed) {
-      _emitCurrentSnapshot();
-    }
+    _sourceNavigationValid = false;
+    _verifier?.invalidate(failure);
   }
 
   /// Opens Bilibili's own login page in the plugin's existing default session.
@@ -155,7 +184,8 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   Future<void> openLoginPage() async {
     await _ensureInitialized();
     _showingLoginPage = true;
-    _bridge.downgrade('登录页不提供视频时间轴');
+    _sourceNavigationValid = false;
+    _verifier!.invalidate('登录页不提供视频时间轴');
     await _controller!.loadUrl('https://passport.bilibili.com/login');
   }
 
@@ -175,10 +205,13 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   }
 
   @override
-  Future<void> play() async => _executeVerified(
-        BilibiliHtmlMediaBridge.playScript,
-        action: '播放',
-      );
+  Future<void> play() async {
+    final accepted = await _executeVerified(
+      BilibiliHtmlMediaBridge.playScript,
+      action: '播放',
+    );
+    if (accepted != true) _downgradeAndThrow('播放器拒绝播放');
+  }
 
   @override
   Future<void> pause() async => _executeVerified(

@@ -6,6 +6,8 @@
 /// requests, media URLs, DRM state, or Bilibili private player objects.
 library;
 
+import 'dart:async';
+
 import '../player_adapter.dart';
 
 typedef BilibiliBridgeScriptExecutor = Future<dynamic> Function(String script);
@@ -38,6 +40,7 @@ class BilibiliBridgeSnapshot {
 
 class BilibiliHtmlMediaBridge {
   bool _verified = false;
+  int _generation = 0;
   int _positionMs = 0;
   int _durationMs = 0;
   String? _failure;
@@ -46,6 +49,7 @@ class BilibiliHtmlMediaBridge {
   int get positionMs => _positionMs;
   int get durationMs => _durationMs;
   String? get failure => _failure;
+  int get generation => _generation;
 
   PlayerCapability get capability => _verified
       ? const PlayerCapability(
@@ -60,19 +64,37 @@ class BilibiliHtmlMediaBridge {
       : const PlayerCapability(canEmbedPlayer: true);
 
   /// Verifies both readback and a no-op seek before exposing time capability.
-  Future<bool> verify(BilibiliBridgeScriptExecutor execute) async {
+  void noteCandidate(int generation) {
+    if (generation < _generation) return;
+    _generation = generation;
+    downgrade('正在验证新的视频元素');
+  }
+
+  void invalidate(String reason) {
+    _generation++;
+    downgrade(reason);
+  }
+
+  Future<bool> verify(
+    BilibiliBridgeScriptExecutor execute, {
+    int? generation,
+  }) async {
+    final expectedGeneration = generation ?? _generation;
     try {
       final first = BilibiliBridgeSnapshot.fromValue(
         await execute(readSnapshotScript),
       );
+      if (expectedGeneration != _generation) return false;
       if (first == null) return _reject('未找到可验证的标准视频时间轴');
 
       final writeAccepted = await execute(seekScript(first.positionMs));
+      if (expectedGeneration != _generation) return false;
       if (writeAccepted != true) return _reject('播放器拒绝时间写入验证');
 
       final second = BilibiliBridgeSnapshot.fromValue(
         await execute(readSnapshotScript),
       );
+      if (expectedGeneration != _generation) return false;
       if (second == null ||
           (second.positionMs - first.positionMs).abs() > 2000) {
         return _reject('播放器时间读写验证不一致');
@@ -110,21 +132,82 @@ class BilibiliHtmlMediaBridge {
     return false;
   }
 
-  static const String readSnapshotScript =
-      'window.__hereIamBilibiliMedia && '
+  static const String readSnapshotScript = 'window.__hereIamBilibiliMedia && '
       'window.__hereIamBilibiliMedia.read();';
 
   static String seekScript(int positionMs) =>
       'window.__hereIamBilibiliMedia && '
       'window.__hereIamBilibiliMedia.seekMs($positionMs);';
 
-  static const String playScript =
-      'window.__hereIamBilibiliMedia && '
+  static const String playScript = 'window.__hereIamBilibiliMedia && '
       'window.__hereIamBilibiliMedia.play();';
 
-  static const String pauseScript =
-      'window.__hereIamBilibiliMedia && '
+  static const String pauseScript = 'window.__hereIamBilibiliMedia && '
       'window.__hereIamBilibiliMedia.pause();';
+}
+
+/// Serializes bridge verification while retaining candidates that arrive
+/// during an in-flight read/write handshake (for example after SPA quality
+/// switches replace the `<video>` element).
+class BilibiliBridgeVerificationCoordinator {
+  BilibiliBridgeVerificationCoordinator({
+    required this.bridge,
+    required this.execute,
+    required this.onSettled,
+  });
+
+  final BilibiliHtmlMediaBridge bridge;
+  final BilibiliBridgeScriptExecutor execute;
+  final void Function() onSettled;
+
+  bool _running = false;
+  bool _queued = false;
+  int _latestGeneration = 0;
+  int? _latestPageGeneration;
+  Completer<void>? _idleCompleter;
+
+  bool get isRunning => _running;
+  int? get latestPageGeneration => _latestPageGeneration;
+
+  void candidate(int? pageGeneration) {
+    if (pageGeneration != null &&
+        _latestPageGeneration != null &&
+        pageGeneration < _latestPageGeneration!) {
+      return;
+    }
+    _latestPageGeneration = pageGeneration;
+    _latestGeneration++;
+    bridge.noteCandidate(_latestGeneration);
+    if (_running) {
+      _queued = true;
+      return;
+    }
+    _idleCompleter = Completer<void>();
+    unawaited(_drain());
+  }
+
+  void invalidate(String reason) {
+    _latestGeneration++;
+    _latestPageGeneration = null;
+    _queued = false;
+    bridge.invalidate(reason);
+    onSettled();
+  }
+
+  Future<void> waitForIdle() => _idleCompleter?.future ?? Future<void>.value();
+
+  Future<void> _drain() async {
+    _running = true;
+    do {
+      _queued = false;
+      final generation = _latestGeneration;
+      await bridge.verify(execute, generation: generation);
+      onSettled();
+    } while (_queued);
+    _running = false;
+    final idle = _idleCompleter;
+    if (idle != null && !idle.isCompleted) idle.complete();
+  }
 }
 
 /// Injected before document parsing. It is inert outside a top-level
@@ -142,15 +225,26 @@ const String bilibiliHtmlMediaBridgeScript = r'''
       ...extra
     }));
   };
+  const sendCandidate = () => window.chrome.webview.postMessage(JSON.stringify({
+    type: 'hereiam:bilibili-media', event: 'candidate', generation
+  }));
+  const mediaEvents = ['loadedmetadata', 'durationchange', 'timeupdate', 'seeked'];
   let attached = null;
+  let generation = 0;
+  const onMediaEvent = () => send('time', attached, { generation });
+  const detach = () => {
+    if (!attached) return;
+    for (const event of mediaEvents) attached.removeEventListener(event, onMediaEvent);
+    attached = null;
+  };
   const attach = () => {
     const video = document.querySelector('video');
     if (!video || video === attached) return false;
+    detach();
     attached = video;
-    for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'seeked']) {
-      video.addEventListener(event, () => send('time', video));
-    }
-    send('candidate', video);
+    generation += 1;
+    for (const event of mediaEvents) video.addEventListener(event, onMediaEvent);
+    sendCandidate();
     return true;
   };
   window.__hereIamBilibiliMedia = {
@@ -168,10 +262,15 @@ const String bilibiliHtmlMediaBridgeScript = r'''
       attached.currentTime = Math.max(0, Math.min(attached.duration || Infinity, ms / 1000));
       return true;
     },
-    play: () => { attach(); return attached ? (attached.play(), true) : false; },
+    play: async () => {
+      attach();
+      if (!attached) return false;
+      try { await attached.play(); return true; } catch (_) { return false; }
+    },
     pause: () => { attach(); return attached ? (attached.pause(), true) : false; }
   };
-  const timer = setInterval(() => attach() && clearInterval(timer), 250);
-  setTimeout(() => clearInterval(timer), 15000);
+  const observer = new MutationObserver(() => attach());
+  observer.observe(document, { childList: true, subtree: true });
+  attach();
 })();
 ''';

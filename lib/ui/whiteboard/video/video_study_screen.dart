@@ -9,6 +9,8 @@
 /// (monospace). No permanent top bar or side bar.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -67,10 +69,16 @@ class VideoStudyScreen extends StatefulWidget {
 
 class _VideoStudyScreenState extends State<VideoStudyScreen> {
   late VideoStudyViewModel _viewModel;
+  int _sourceEpoch = 0;
 
   @override
   void initState() {
     super.initState();
+    _createViewModel();
+  }
+
+  void _createViewModel() {
+    final epoch = ++_sourceEpoch;
     _viewModel = VideoStudyViewModel(
       adapter: widget.adapter,
       sourceId: widget.sourceId,
@@ -83,13 +91,37 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
       annotationStore: widget.annotationStore,
       runtimePlayerAvailable: widget.runtimePlayerAvailable,
     );
-    _viewModel.initialize(embedUrl: widget.embedUrl).then((_) {
-      _viewModel.restoreSession(currentVersionId: widget.sourceVersionId);
-    });
+    final viewModel = _viewModel;
+    unawaited(viewModel.initialize(embedUrl: widget.embedUrl).then((_) async {
+      if (!mounted ||
+          epoch != _sourceEpoch ||
+          !identical(viewModel, _viewModel)) {
+        return;
+      }
+      await viewModel.restoreSession(currentVersionId: widget.sourceVersionId);
+    }));
+  }
+
+  @override
+  void didUpdateWidget(covariant VideoStudyScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final sourceChanged = oldWidget.sourceId != widget.sourceId ||
+        oldWidget.sourceVersionId != widget.sourceVersionId ||
+        oldWidget.embedUrl != widget.embedUrl ||
+        oldWidget.providerId != widget.providerId ||
+        !identical(oldWidget.adapter, widget.adapter);
+    if (!sourceChanged) return;
+    _sourceEpoch++;
+    _viewModel.dismissSaveConfirmation();
+    _viewModel.dispose(
+      disposeAdapter: !identical(oldWidget.adapter, widget.adapter),
+    );
+    _createViewModel();
   }
 
   @override
   void dispose() {
+    _sourceEpoch++;
     // The save-confirmation timer lives in the view model. Clear the visible
     // confirmation before disposal so its delayed callback becomes a no-op
     // when the user leaves or restarts immediately after saving.
