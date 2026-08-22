@@ -56,7 +56,7 @@ void main() {
     expect(scaffold.backgroundColor, const Color(0xFFF0EFEB));
   });
 
-  testWidgets('sidebar content fully exits while the 34px handle remains',
+  testWidgets('sidebar handle stays shadow-free while content exits',
       (tester) async {
     await setViewport(tester, const Size(1280, 720));
     await tester.pumpWidget(standardShell());
@@ -67,7 +67,7 @@ void main() {
         .width;
     expect(
       find.byKey(const ValueKey('desktop_sidebar_paper_seam')),
-      findsOneWidget,
+      findsNothing,
     );
     await tester.tap(find.byKey(const ValueKey('desktop_sidebar_toggle')));
     await tester.pump();
@@ -99,7 +99,7 @@ void main() {
     expect(find.byKey(const ValueKey('desktop_sidebar')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('desktop_sidebar_paper_seam')),
-      findsOneWidget,
+      findsNothing,
     );
   });
 

@@ -157,66 +157,24 @@ class _DesktopSidebarHandle extends StatelessWidget {
       width: DesktopWorkspaceTokens.sidebarHandleWidth,
       child: ColoredBox(
         color: tokens.canvas,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (!collapsed)
-              CustomPaint(
-                key: const ValueKey('desktop_sidebar_paper_seam'),
-                painter: _PaperSeamPainter(tokens.divider),
-              ),
-            Center(
-              child: IconButton(
-                key: const ValueKey('desktop_sidebar_toggle'),
-                onPressed: onToggle,
-                icon: Icon(
-                  collapsed
-                      ? Icons.chevron_right_rounded
-                      : Icons.chevron_left_rounded,
-                  size: 18,
-                ),
-                color: tokens.textFaint,
-                tooltip: collapsed ? '展开侧栏' : '收起侧栏',
-                visualDensity: VisualDensity.compact,
-              ),
+        // The shared canvas and this narrow strip are the seam. Do not paint a
+        // full-height divider or a rectangular shadow behind the toggle.
+        child: Center(
+          child: IconButton(
+            key: const ValueKey('desktop_sidebar_toggle'),
+            onPressed: onToggle,
+            icon: Icon(
+              collapsed
+                  ? Icons.chevron_right_rounded
+                  : Icons.chevron_left_rounded,
+              size: 18,
             ),
-          ],
+            color: tokens.textFaint,
+            tooltip: collapsed ? '展开侧栏' : '收起侧栏',
+            visualDensity: VisualDensity.compact,
+          ),
         ),
       ),
     );
   }
-}
-
-/// A two-dimensional paper seam: it fades horizontally into the canvas and
-/// vertically before reaching either window edge. Unlike the previous
-/// rectangular gradient, it has no clipped top/bottom endpoints.
-class _PaperSeamPainter extends CustomPainter {
-  const _PaperSeamPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final seamRect = Rect.fromCenter(
-      center: Offset(0, size.height / 2),
-      width: size.width * 1.7,
-      height: size.height * 0.78,
-    );
-    final paint = Paint()
-      ..shader = RadialGradient(
-        center: Alignment.center,
-        radius: 1,
-        colors: [
-          color.withValues(alpha: 0.22),
-          color.withValues(alpha: 0.08),
-          color.withValues(alpha: 0),
-        ],
-        stops: const [0, 0.42, 1],
-      ).createShader(seamRect);
-    canvas.drawRect(Offset.zero & size, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PaperSeamPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
