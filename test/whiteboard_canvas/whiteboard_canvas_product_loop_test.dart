@@ -75,12 +75,14 @@ void main() {
     await _waitForWidget(
         tester, find.byKey(const Key('wb_compact_card_editor')));
     final embeddedEditor = find.byKey(const Key('wb_compact_card_editor'));
+    final embeddedRichText = find.descendant(
+      of: embeddedEditor,
+      matching: find.byType(CardRichTextEditor),
+    );
+    await _waitForWidget(tester, embeddedRichText);
     expect(embeddedEditor, findsOneWidget);
     final richTextEditor = tester.widget<CardRichTextEditor>(
-      find.descendant(
-        of: embeddedEditor,
-        matching: find.byType(CardRichTextEditor),
-      ),
+      embeddedRichText,
     );
     expect(richTextEditor.compact, isTrue);
     expect(richTextEditor.showToolbar, isFalse);

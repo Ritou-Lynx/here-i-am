@@ -9,7 +9,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
@@ -20,6 +20,26 @@ import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 
+class CompactCardEditorController {
+  Object? _owner;
+  Future<void> Function()? _saveAndClose;
+
+  bool get isAttached => _saveAndClose != null;
+
+  Future<void> saveAndClose() => _saveAndClose?.call() ?? Future<void>.value();
+
+  void _attach(Object owner, Future<void> Function() saveAndClose) {
+    _owner = owner;
+    _saveAndClose = saveAndClose;
+  }
+
+  void _detach(Object owner) {
+    if (!identical(_owner, owner)) return;
+    _owner = null;
+    _saveAndClose = null;
+  }
+}
+
 class CompactCardEditor extends StatefulWidget {
   const CompactCardEditor({
     super.key,
@@ -28,6 +48,7 @@ class CompactCardEditor extends StatefulWidget {
     required this.onSaved,
     required this.onClose,
     required this.onExpand,
+    this.controller,
     this.isReadonly = false,
     this.embedded = false,
   });
@@ -37,6 +58,7 @@ class CompactCardEditor extends StatefulWidget {
   final ValueChanged<CardContract> onSaved;
   final VoidCallback onClose;
   final ValueChanged<CardContract> onExpand;
+  final CompactCardEditorController? controller;
   final bool isReadonly;
   final bool embedded;
 
@@ -45,6 +67,9 @@ class CompactCardEditor extends StatefulWidget {
 }
 
 class _CompactCardEditorState extends State<CompactCardEditor> {
+  final FocusNode _surfaceFocusNode = FocusNode(
+    debugLabel: 'whiteboard inline card editor',
+  );
   RichTextEditingController? _richText;
   TextEditingController? _title;
   CardContract? _card;
@@ -60,12 +85,27 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
   @override
   void initState() {
     super.initState();
+    widget.controller?._attach(this, _saveAndClose);
+    if (widget.embedded) {
+      FocusManager.instance.addEarlyKeyEventHandler(_onEarlyKeyEvent);
+    }
     _load();
   }
 
   @override
   void didUpdateWidget(covariant CompactCardEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.embedded != widget.embedded) {
+      if (widget.embedded) {
+        FocusManager.instance.addEarlyKeyEventHandler(_onEarlyKeyEvent);
+      } else {
+        FocusManager.instance.removeEarlyKeyEventHandler(_onEarlyKeyEvent);
+      }
+    }
+    if (!identical(oldWidget.controller, widget.controller)) {
+      oldWidget.controller?._detach(this);
+      widget.controller?._attach(this, _saveAndClose);
+    }
     if (oldWidget.cardId != widget.cardId ||
         !identical(oldWidget.repository, widget.repository)) {
       _disposeControllers();
@@ -126,7 +166,10 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
   @override
   void dispose() {
     _loadGeneration++;
+    FocusManager.instance.removeEarlyKeyEventHandler(_onEarlyKeyEvent);
+    widget.controller?._detach(this);
     _disposeControllers();
+    _surfaceFocusNode.dispose();
     super.dispose();
   }
 
@@ -210,6 +253,16 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     widget.onExpand(card);
   }
 
+  KeyEventResult _onEarlyKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        _surfaceFocusNode.hasFocus) {
+      unawaited(_saveAndClose());
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
@@ -234,13 +287,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     if (!widget.embedded) return surface;
     return TapRegion(
       onTapOutside: (_) => unawaited(_saveAndClose()),
-      child: CallbackShortcuts(
-        bindings: <ShortcutActivator, VoidCallback>{
-          const SingleActivator(LogicalKeyboardKey.escape):
-              () => unawaited(_saveAndClose()),
-        },
-        child: Focus(child: surface),
-      ),
+      child: Focus(focusNode: _surfaceFocusNode, child: surface),
     );
   }
 

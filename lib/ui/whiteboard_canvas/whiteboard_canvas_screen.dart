@@ -132,6 +132,8 @@ class WhiteboardCanvasScreen extends StatefulWidget {
 }
 
 class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
+  final CompactCardEditorController _compactEditorController =
+      CompactCardEditorController();
   bool _navigationVisible = true;
   bool _toolsVisible = true;
   bool _showCardLibrary = false;
@@ -186,6 +188,14 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   // ── Keyboard shortcuts ─────────────────────────────────────────────
 
   void _handleEscape() {
+    if (_editingItemId != null) {
+      if (_compactEditorController.isAttached) {
+        unawaited(_compactEditorController.saveAndClose());
+      } else {
+        setState(() => _editingItemId = null);
+      }
+      return;
+    }
     if (_pickerCardId != null) {
       setState(() => _pickerCardId = null);
       return;
@@ -585,6 +595,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                       final repository = widget.cardRepository;
                       if (repository == null) return const SizedBox.shrink();
                       return CompactCardEditor(
+                        controller: _compactEditorController,
                         cardId: request.cardId,
                         repository: repository,
                         isReadonly: request.isReadonly,

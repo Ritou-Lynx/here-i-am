@@ -82,6 +82,16 @@ Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
   expect(finder, findsWidgets);
 }
 
+Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
+  for (var i = 0; i < 40 && finder.evaluate().isNotEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  expect(finder, findsNothing);
+}
+
 Future<void> _doubleTapAt(WidgetTester tester, Offset point) async {
   await tester.tapAt(point);
   await tester.pump(const Duration(milliseconds: 70));
@@ -513,7 +523,7 @@ void main() {
     expect(after.height, before.height);
   });
 
-  testWidgets('原位编辑 Esc 保存退出且不改变 BoardItem 几何', (tester) async {
+  testWidgets('原位编辑正文或标题聚焦时 Esc 都保存退出且不改变几何', (tester) async {
     final harness = _RepoHarness.create();
     addTearDown(harness.dispose);
     final original = (await tester.runAsync(
@@ -547,9 +557,11 @@ void main() {
     await tester.pump();
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
+    await _pumpUntilGone(
+      tester,
+      find.byKey(const Key('wb_compact_card_editor')),
+    );
 
-    expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
     final itemAfter = vm.exportForSave().boardItems.single;
     expect(itemAfter.x, itemBefore.x);
     expect(itemAfter.y, itemBefore.y);
@@ -559,6 +571,21 @@ void main() {
       () => harness.repository.getCard('card_escape_inline'),
     ))!;
     expect(stored.card.body, '编辑后正文');
+
+    await _doubleTapAt(tester, tester.getCenter(find.text('原位卡片')));
+    final title = find.byKey(const Key('wb_compact_title'));
+    await _pumpUntil(tester, title);
+    await tester.enterText(title, '编辑后标题');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpUntilGone(
+      tester,
+      find.byKey(const Key('wb_compact_card_editor')),
+    );
+
+    final titleStored = (await tester.runAsync(
+      () => harness.repository.getCard('card_escape_inline'),
+    ))!;
+    expect(titleStored.card.title, '编辑后标题');
   });
 
   testWidgets('同一 Card 的两个 BoardItem 只编辑被双击的摆放', (tester) async {
