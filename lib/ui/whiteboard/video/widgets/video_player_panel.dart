@@ -37,6 +37,9 @@ class VideoPlayerPanel extends StatelessWidget {
     if (adapter is WindowsYouTubePlayerAdapter && adapter.isAvailable) {
       return true;
     }
+    if (adapter is WindowsBilibiliPlayerAdapter && adapter.isAvailable) {
+      return true;
+    }
     if (adapter is YouTubePlayerAdapter && adapter.isAvailable) return true;
     return false;
   }
@@ -51,6 +54,12 @@ class VideoPlayerPanel extends StatelessWidget {
         children: [
           // Player surface
           Positioned.fill(child: _PlayerSurface(viewModel: viewModel)),
+          if (viewModel.adapter is WindowsBilibiliPlayerAdapter)
+            const Positioned(
+              top: 16,
+              right: 16,
+              child: _PlaybackLevelBadge(),
+            ),
           // Bottom gradient + controls + timeline (only for players WITHOUT
           // native controls, e.g. the fixture simulator / link-only stubs).
           if (!nativeControls)
@@ -83,6 +92,19 @@ class _PlayerSurface extends StatelessWidget {
 
     // Windows Desktop — native Edge WebView2 hosting the YouTube IFrame API.
     if (adapter is WindowsYouTubePlayerAdapter && adapter.isAvailable) {
+      final controller = adapter.webviewController;
+      if (controller != null && controller.value.isInitialized) {
+        return Webview(
+          controller,
+          permissionRequested: (_, __, ___) => WebviewPermissionDecision.deny,
+        );
+      }
+    }
+
+    // Windows Desktop — Bilibili's platform-allowed external player. It is
+    // genuinely playable in-app but has no supported current/duration/seek
+    // bridge, so the surrounding UI labels it as time-study limited.
+    if (adapter is WindowsBilibiliPlayerAdapter && adapter.isAvailable) {
       final controller = adapter.webviewController;
       if (controller != null && controller.value.isInitialized) {
         return Webview(
@@ -167,6 +189,34 @@ class _PlayerSurface extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaybackLevelBadge extends StatelessWidget {
+  const _PlaybackLevelBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.dark.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tokens.canvas.withValues(alpha: 0.18)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          '可播放 · 时间研读受限',
+          key: const ValueKey('video_playback_level_limited'),
+          style: whiteboardUiTextStyle(
+            color: tokens.canvas,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

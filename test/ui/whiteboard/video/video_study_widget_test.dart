@@ -114,6 +114,11 @@ class _LinkOnlyAdapter implements PlayerAdapter {
   Future<void> seekTo(int positionMs) async {}
 }
 
+class _FakeWindowsBilibiliAdapter extends WindowsBilibiliPlayerAdapter {
+  @override
+  Future<void> load(String sourceId, {String? embedUrl}) async {}
+}
+
 void _useDesktopSurface(WidgetTester tester, Size size) {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -455,6 +460,109 @@ void main() {
     adapter.dispose();
   });
 
+  testWidgets('Windows Bilibili is playable in-app but time-study limited',
+      (tester) async {
+    final adapter = _FakeWindowsBilibiliAdapter();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_bilibili_acceptance',
+          sourceVersionId: 'ver_bilibili_acceptance_v1',
+          providerId: 'bilibili',
+          embedUrl: 'https://www.bilibili.com/video/BV1E8KV6QEu7',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('当前为链接模式'), findsNothing);
+    expect(find.text('可播放 · 时间研读受限'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('video_playback_level_limited')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('video_annotate_current_position')),
+      findsNothing,
+      reason: 'without readable current time the UI must not forge anchors',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('point annotation at current time does not depend on subtitles',
+      (tester) async {
+    final adapter = _buildFixture();
+    final store = _RecordingSessionStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          sessionStore: store,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await adapter.seekTo(7000);
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const ValueKey('video_annotate_current_position')),
+    );
+    await tester.pump();
+    expect(find.byKey(const ValueKey('video_annotation_editor')),
+        findsOneWidget);
+    expect(find.text('在 00:07 创建标注'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, '无字幕点标注');
+    await tester.tap(find.text('保存标注'));
+    await tester.pumpAndSettle();
+    final anchor = store.saved!.anchors.single;
+    expect(anchor.positionSpec['start_ms'], 7000);
+    expect(anchor.positionSpec['end_ms'], 7000);
+    expect(anchor.positionSpec['is_point'], isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('range annotation captures two player positions without cues',
+      (tester) async {
+    final adapter = _buildFixture();
+    final store = _RecordingSessionStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          sessionStore: store,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await adapter.seekTo(10000);
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('video_begin_range_annotation')));
+    await tester.pump();
+    expect(find.text('起点 00:10'), findsOneWidget);
+
+    await adapter.seekTo(14000);
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('video_finish_range_annotation')),
+    );
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).first, '无字幕区间标注');
+    await tester.tap(find.text('保存标注'));
+    await tester.pumpAndSettle();
+    final anchor = store.saved!.anchors.single;
+    expect(anchor.positionSpec['start_ms'], 10000);
+    expect(anchor.positionSpec['end_ms'], 14000);
+    expect(anchor.positionSpec['is_point'], isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('Clicking a subtitle cue triggers seek', (tester) async {
     final adapter = _buildFixture();
     final track = _buildTrack();
@@ -617,7 +725,26 @@ void main() {
         (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       final service = _FakeTimedTextService(
-        YouTubeTimedTextResult(track: platformTrack()),
+        YouTubeTimedTextResult(
+          track: platformTrack(),
+          availableTracks: const [
+            YouTubeCaptionTrack(
+              languageCode: 'zh-Hans',
+              displayName: '中文（简体）',
+              baseUrl: 'https://captions.test/zh',
+            ),
+            YouTubeCaptionTrack(
+              languageCode: 'en',
+              displayName: 'English',
+              baseUrl: 'https://captions.test/en',
+            ),
+          ],
+          selectedTrack: const YouTubeCaptionTrack(
+            languageCode: 'en',
+            displayName: 'English',
+            baseUrl: 'https://captions.test/en',
+          ),
+        ),
       );
 
       await tester.pumpWidget(buildYoutubeScreen(service: service));
@@ -629,6 +756,10 @@ void main() {
       expect(find.text('Light switch, night begins'), findsOneWidget);
       expect(find.text('Smoke rises on stage'), findsOneWidget);
       expect(find.textContaining('平台字幕'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('youtube_caption_track_picker')),
+        findsOneWidget,
+      );
       await tester.pumpWidget(const SizedBox.shrink());
       debugDefaultTargetPlatformOverride = null;
     });
@@ -638,7 +769,8 @@ void main() {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       final service = _FakeTimedTextService(
         const YouTubeTimedTextResult(
-          error: 'YouTube 未返回可用字幕轨（该视频可能没有字幕，或自动获取被网络/跨域限制）',
+          error: '无字幕轨：该视频没有向平台播放器公开 CC 字幕',
+          failureKind: YouTubeTimedTextFailureKind.noTrack,
         ),
       );
 
@@ -649,9 +781,10 @@ void main() {
       expect(find.text('需要字幕'), findsWidgets);
       expect(find.text('导入字幕'), findsOneWidget);
       expect(
-        find.text('YouTube 未返回可用字幕轨（该视频可能没有字幕，或自动获取被网络/跨域限制）'),
+        find.text('无字幕轨：该视频没有向平台播放器公开 CC 字幕'),
         findsOneWidget,
       );
+      expect(find.text('失败分类：无字幕轨'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       debugDefaultTargetPlatformOverride = null;
     });

@@ -16,5 +16,6 @@ export 'video_availability.dart';
 export 'youtube_timedtext_service.dart';
 export 'fixture_player_adapter.dart';
 export 'youtube_player_adapter.dart';
+export 'windows_bilibili_player_adapter.dart';
 export 'platform_player_adapters.dart';
 export 'provider_capability_matrix.dart';

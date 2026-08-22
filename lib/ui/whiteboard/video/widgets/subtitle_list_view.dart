@@ -16,6 +16,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/player_adapter.dart';
+import 'package:memex/domain/whiteboard/video/youtube_timedtext_service.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 import '../view_models/video_study_view_model.dart';
@@ -45,12 +46,21 @@ class _SubtitleListViewState extends State<SubtitleListView> {
     final track = vm.track;
 
     if (vm.needsSubtitle || track == null || track.cues.isEmpty) {
-      return _NeedsSubtitleView(
-        hasImportCapability: true,
-        reason: vm.subtitleFetchStatus == SubtitleAutoFetchStatus.failed
-            ? vm.subtitleFetchMessage
-            : null,
-        onImport: () => _showImportDialog(context),
+      return Column(
+        children: [
+          if (vm.availableCaptionTracks.length > 1)
+            _CaptionTrackPicker(viewModel: vm),
+          Expanded(
+            child: _NeedsSubtitleView(
+              hasImportCapability: true,
+              reason: vm.subtitleFetchStatus == SubtitleAutoFetchStatus.failed
+                  ? vm.subtitleFetchMessage
+                  : null,
+              failureKind: vm.subtitleFailureKind,
+              onImport: () => _showImportDialog(context),
+            ),
+          ),
+        ],
       );
     }
 
@@ -63,25 +73,35 @@ class _SubtitleListViewState extends State<SubtitleListView> {
       });
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.only(top: 8, bottom: 80),
-      itemCount: track.cues.length,
-      itemBuilder: (context, index) {
-        final cue = track.cues[index];
-        final isActive = index == activeIdx;
+    return Column(
+      children: [
+        if (vm.availableCaptionTracks.length > 1)
+          _CaptionTrackPicker(viewModel: vm),
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.only(top: 8, bottom: 80),
+            itemCount: track.cues.length,
+            itemBuilder: (context, index) {
+              final cue = track.cues[index];
+              final isActive = index == activeIdx;
 
-        return _CueItem(
-          cue: cue,
-          isActive: isActive,
-          canSeek: vm.canSeek,
-          onTap: () => vm.seekToCue(index),
-          onAnnotate: () => vm.beginAnnotation(cueIndex: index),
-          hasAnnotation: vm.annotations.any(
-            (a) => a.startMs == cue.startMs && a.endMs == cue.endMs,
+              return _CueItem(
+                cue: cue,
+                isActive: isActive,
+                canSeek: vm.canSeek,
+                onTap: () => vm.seekToCue(index),
+                onAnnotate: vm.canCreateTimeAnchorNow
+                    ? () => vm.beginAnnotation(cueIndex: index)
+                    : null,
+                hasAnnotation: vm.annotations.any(
+                  (a) => a.startMs == cue.startMs && a.endMs == cue.endMs,
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -111,12 +131,96 @@ class _SubtitleListViewState extends State<SubtitleListView> {
   }
 }
 
+class _CaptionTrackPicker extends StatelessWidget {
+  const _CaptionTrackPicker({required this.viewModel});
+
+  final VideoStudyViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final selected = viewModel.selectedCaptionTrack;
+    return Container(
+      key: const ValueKey('youtube_caption_track_picker'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        border: Border(bottom: BorderSide(color: tokens.divider)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'CC 轨道',
+                style: whiteboardUiTextStyle(
+                  color: tokens.textMuted,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    key: const ValueKey('youtube_caption_track_dropdown'),
+                    isExpanded: true,
+                    value: selected?.selectionKey,
+                    hint: const Text('选择字幕轨'),
+                    items: [
+                      for (final candidate in viewModel.availableCaptionTracks)
+                        DropdownMenuItem(
+                          value: candidate.selectionKey,
+                          child: Text(
+                            candidate.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: viewModel.subtitleFetchStatus ==
+                            SubtitleAutoFetchStatus.fetching
+                        ? null
+                        : (key) {
+                            if (key == null) return;
+                            for (final candidate
+                                in viewModel.availableCaptionTracks) {
+                              if (candidate.selectionKey == key) {
+                                viewModel.selectPlatformSubtitleTrack(candidate);
+                                break;
+                              }
+                            }
+                          },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (viewModel.subtitleFetchStatus == SubtitleAutoFetchStatus.failed &&
+              viewModel.subtitleFetchMessage != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${viewModel.subtitleFailureKind == null ? '' : '${_NeedsSubtitleView._failureLabel(viewModel.subtitleFailureKind!)}：'}'
+              '${viewModel.subtitleFetchMessage}',
+              key: const ValueKey('youtube_caption_track_error'),
+              style: whiteboardUiTextStyle(
+                color: tokens.error,
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _CueItem extends StatelessWidget {
   final TimedTextCue cue;
   final bool isActive;
   final bool canSeek;
   final VoidCallback onTap;
-  final VoidCallback onAnnotate;
+  final VoidCallback? onAnnotate;
   final bool hasAnnotation;
 
   const _CueItem({
@@ -218,11 +322,13 @@ class _NeedsSubtitleView extends StatelessWidget {
   final bool hasImportCapability;
   final VoidCallback onImport;
   final String? reason;
+  final YouTubeTimedTextFailureKind? failureKind;
 
   const _NeedsSubtitleView({
     required this.hasImportCapability,
     required this.onImport,
     this.reason,
+    this.failureKind,
   });
 
   @override
@@ -245,6 +351,18 @@ class _NeedsSubtitleView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
+            if (failureKind != null) ...[
+              Text(
+                '失败分类：${_failureLabel(failureKind!)}',
+                key: const ValueKey('subtitle_failure_category'),
+                style: whiteboardUiTextStyle(
+                  color: tokens.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             Text(
               reason != null && reason!.isNotEmpty
                   ? reason!
@@ -279,6 +397,15 @@ class _NeedsSubtitleView extends StatelessWidget {
       ),
     );
   }
+
+  static String _failureLabel(YouTubeTimedTextFailureKind kind) =>
+      switch (kind) {
+        YouTubeTimedTextFailureKind.invalidVideo => '来源无效',
+        YouTubeTimedTextFailureKind.noTrack => '无字幕轨',
+        YouTubeTimedTextFailureKind.accessRestricted => '地区 / 权限限制',
+        YouTubeTimedTextFailureKind.network => '网络失败',
+        YouTubeTimedTextFailureKind.parserFailure => '解析器失效',
+      };
 }
 
 class _SubtitleImportDialog extends StatefulWidget {

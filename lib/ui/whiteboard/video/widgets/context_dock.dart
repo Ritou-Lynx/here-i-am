@@ -68,6 +68,8 @@ class _ContextDockState extends State<ContextDock> {
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
               child: TimelineAnchorBar(viewModel: vm),
             ),
+          if (vm.canCreateTimeAnchorNow)
+            _CurrentTimeAnnotationBar(viewModel: vm),
           if (vm.canReadPosition) Divider(height: 1, color: tokens.divider),
           // Body
           Expanded(
@@ -88,6 +90,9 @@ class _ContextDockState extends State<ContextDock> {
   }
 
   String _subtitleStatusLabel(VideoStudyViewModel vm) {
+    if (vm.hasRuntimePlaybackSurface && !vm.canReadPosition) {
+      return '可播放 · 时间研读受限';
+    }
     if (vm.subtitleFetchStatus == SubtitleAutoFetchStatus.fetching) {
       return '自动获取字幕中…';
     }
@@ -101,6 +106,73 @@ class _ContextDockState extends State<ContextDock> {
       TimedTextSourceKind.asr => '本机转写',
     };
     return '$source · ${track.cues.length} 条';
+  }
+}
+
+class _CurrentTimeAnnotationBar extends StatelessWidget {
+  const _CurrentTimeAnnotationBar({required this.viewModel});
+
+  final VideoStudyViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final rangeStart = viewModel.rangeSelectionStartMs;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            '当前位置 ${VideoStudyViewModel.formatTimecode(viewModel.positionMs)}',
+            key: const ValueKey('video_current_position_label'),
+            style: richTextCodeTextStyle(
+              color: tokens.textMuted,
+              fontSize: 11,
+            ),
+          ),
+          OutlinedButton.icon(
+            key: const ValueKey('video_annotate_current_position'),
+            onPressed: viewModel.hasPendingAnnotation
+                ? null
+                : viewModel.beginPointAnnotationAtCurrent,
+            icon: const Icon(Icons.add_comment_outlined, size: 15),
+            label: const Text('在当前位置添加标注'),
+          ),
+          if (rangeStart == null)
+            TextButton.icon(
+              key: const ValueKey('video_begin_range_annotation'),
+              onPressed: viewModel.hasPendingAnnotation
+                  ? null
+                  : viewModel.beginRangeSelectionAtCurrent,
+              icon: const Icon(Icons.first_page_rounded, size: 15),
+              label: const Text('开始区间'),
+            )
+          else ...[
+            Text(
+              '起点 ${VideoStudyViewModel.formatTimecode(rangeStart)}',
+              style: richTextCodeTextStyle(
+                color: tokens.action,
+                fontSize: 11,
+              ),
+            ),
+            TextButton.icon(
+              key: const ValueKey('video_finish_range_annotation'),
+              onPressed: viewModel.finishRangeSelectionAtCurrent,
+              icon: const Icon(Icons.last_page_rounded, size: 15),
+              label: const Text('以当前位置结束并标注'),
+            ),
+            IconButton(
+              tooltip: '取消区间',
+              onPressed: viewModel.cancelRangeSelection,
+              icon: const Icon(Icons.close_rounded, size: 16),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 

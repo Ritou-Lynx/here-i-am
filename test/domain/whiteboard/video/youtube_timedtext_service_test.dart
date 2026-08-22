@@ -170,6 +170,8 @@ void main() {
         sourceVersionId: 'ver_yt_v1',
       );
       expect(result.isSuccess, isTrue);
+      expect(result.availableTracks, hasLength(2));
+      expect(result.selectedTrack?.languageCode, 'zh-Hans');
       final track = result.track!;
       expect(track.sourceId, equals('src_yt_test'));
       expect(track.sourceKind, equals(TimedTextSourceKind.platform));
@@ -229,8 +231,8 @@ void main() {
       );
       expect(result.isSuccess, isFalse);
       expect(result.track, isNull);
-      expect(result.error, isNotNull);
-      expect(result.error, contains('未返回可用字幕轨'));
+      expect(result.failureKind, YouTubeTimedTextFailureKind.noTrack);
+      expect(result.error, contains('无字幕轨'));
     });
 
     test('honest failure: transport blocked (network / CORS) → error result',
@@ -244,7 +246,8 @@ void main() {
       );
       expect(result.isSuccess, isFalse);
       expect(result.track, isNull);
-      expect(result.error, isNotNull);
+      expect(result.failureKind, YouTubeTimedTextFailureKind.network);
+      expect(result.error, contains('网络失败'));
     });
 
     test('honest failure: unrecognizable video reference', () async {
@@ -255,6 +258,7 @@ void main() {
       );
       expect(result.isSuccess, isFalse);
       expect(result.error, contains('无法识别'));
+      expect(result.failureKind, YouTubeTimedTextFailureKind.invalidVideo);
     });
 
     test('honest failure: empty track content', () async {
@@ -270,7 +274,61 @@ void main() {
       );
       expect(result.isSuccess, isFalse);
       expect(result.track, isNull);
-      expect(result.error, contains('内容为空'));
+      expect(result.failureKind, YouTubeTimedTextFailureKind.parserFailure);
+      expect(result.error, contains('解析器失效'));
+    });
+
+    test('discovers multiple CC tracks and loads an explicit selection',
+        () async {
+      final transport = _FakeTransport(responses: {
+        watchUrl: _watchPageWithCaptions,
+        'https://www.youtube.com/api/timedtext?v=dQw4w9WgXcQ'
+            '&lang=zh-Hans&signature=abc123&fmt=json3': _json3Payload,
+        'https://www.youtube.com/api/timedtext?v=dQw4w9WgXcQ'
+            '&lang=en&signature=def456&fmt=json3': _json3Payload,
+      });
+      final service = YouTubeTimedTextService(transport: transport);
+      final initial = await service.fetchForVideo(
+        'dQw4w9WgXcQ',
+        sourceId: 'src_yt_test',
+      );
+      expect(initial.availableTracks.map((track) => track.languageCode),
+          ['zh-Hans', 'en']);
+
+      final english = initial.availableTracks.last;
+      final switched = await service.fetchTrack(
+        english,
+        sourceId: 'src_yt_test',
+        availableTracks: initial.availableTracks,
+      );
+      expect(switched.isSuccess, isTrue);
+      expect(switched.track!.language, 'en');
+      expect(switched.track!.reliability, TimedTextReliability.partial);
+      expect(switched.selectedTrack, same(english));
+    });
+
+    test('classifies region or permission restrictions separately', () async {
+      const restricted = '''
+        <script>var ytInitialPlayerResponse = {
+          "playabilityStatus":{"status":"LOGIN_REQUIRED",
+          "reason":"Sign in to confirm your age"}
+        };</script>
+      ''';
+      final service = YouTubeTimedTextService(
+        transport: _FakeTransport(responses: {
+          watchUrl: restricted,
+          embedUrl: restricted,
+        }),
+      );
+      final result = await service.fetchForVideo(
+        'dQw4w9WgXcQ',
+        sourceId: 'src_yt_test',
+      );
+      expect(
+        result.failureKind,
+        YouTubeTimedTextFailureKind.accessRestricted,
+      );
+      expect(result.error, contains('地区或权限限制'));
     });
   });
 

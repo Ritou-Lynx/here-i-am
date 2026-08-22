@@ -16,6 +16,7 @@ import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/player_adapter.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/video/platform_player_adapters.dart';
+import 'package:memex/domain/whiteboard/video/windows_bilibili_player_adapter.dart';
 import 'package:memex/domain/whiteboard/video/windows_youtube_player_adapter.dart';
 import 'package:memex/domain/whiteboard/video/youtube_adapter_factory.dart';
 import 'package:memex/domain/whiteboard/video/youtube_player_adapter.dart';
@@ -201,7 +202,9 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
 
   static PlayerAdapter _adapterFor(String provider) => switch (provider) {
     'youtube' => createYouTubeAdapter(),
-    'bilibili' => BilibiliPlayerAdapter(),
+    'bilibili' => defaultTargetPlatform == TargetPlatform.windows && !kIsWeb
+        ? WindowsBilibiliPlayerAdapter()
+        : BilibiliPlayerAdapter(),
     'xiaohongshu' => XiaohongshuPlayerAdapter(),
     _ => _UnsupportedVideoPlayerAdapter(provider),
   };
@@ -209,6 +212,7 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
   static bool _runtimePlayerAvailable(PlayerAdapter adapter) {
     if (kIsWeb) return adapter.providerId == 'youtube';
     if (adapter is WindowsYouTubePlayerAdapter) return adapter.isAvailable;
+    if (adapter is WindowsBilibiliPlayerAdapter) return adapter.isAvailable;
     if (adapter is YouTubePlayerAdapter) return adapter.isAvailable;
     return false;
   }
