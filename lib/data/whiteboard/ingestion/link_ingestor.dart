@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'package:memex/data/whiteboard/ingestion/html_page_parser.dart';
 import 'package:memex/data/whiteboard/ingestion/safe_http_client.dart';
 import 'package:memex/data/whiteboard/ingestion/url_canonicalizer.dart';
+import 'package:memex/data/whiteboard/ingestion/xiaohongshu_public_evidence.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
@@ -24,7 +25,7 @@ import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 /// Orchestrates link ingestion into [IngestionResult].
 class LinkIngestor {
   LinkIngestor({SafeHttpClient? httpClient})
-      : _httpClient = httpClient ?? SafeHttpClient();
+    : _httpClient = httpClient ?? SafeHttpClient();
 
   final SafeHttpClient _httpClient;
 
@@ -86,6 +87,13 @@ class LinkIngestor {
     // 4. Parse HTML.
     final html = httpResult.body ?? '';
     final parsed = parseHtmlPage(html, sourceUrl: finalUrl);
+    final xhsEvidence = finalCanonical.provider == 'xiaohongshu'
+        ? parseXiaohongshuPublicEvidence(
+            html,
+            sourceUrl: finalUrl,
+            parsedPage: parsed,
+          )
+        : null;
 
     if (parsed.isEmpty) {
       return IngestionResult(
@@ -101,13 +109,17 @@ class LinkIngestor {
 
     // 5. Build SourceContent + SourceVersion.
     final sourceId = _deriveSourceId(finalCanonical);
-    final contentHash = _computeContentHash(html, parsed);
+    final contentHash = _computeContentHash(html, parsed, xhsEvidence);
     final versionId = _deriveVersionId(sourceId, contentHash);
     final objectRef = 'ingestion/$sourceId/$versionId.html';
 
     final source = SourceContent(
       sourceId: sourceId,
-      mediaType: SourceMediaType.web,
+      mediaType: xhsEvidence?.noteKind == XiaohongshuNoteKind.video
+          ? SourceMediaType.video
+          : xhsEvidence?.noteKind == XiaohongshuNoteKind.image
+          ? SourceMediaType.image
+          : SourceMediaType.web,
       title: parsed.title ?? finalCanonical.host,
       ownerSpace: OwnerSpace.user,
       origin: SourceOrigin.externalLink,
@@ -125,6 +137,17 @@ class LinkIngestor {
         'canonical_url': finalCanonical.normalized,
         'original_url': canonical.original,
         if (parsed.imageUrls.isNotEmpty) 'images': parsed.imageUrls,
+        if (xhsEvidence != null) ...{
+          'xhs_note_kind': xhsEvidence.noteKind.name,
+          'xhs_parser_version': xhsEvidence.parserVersion,
+          'xhs_public_access': 'anonymous',
+          'xhs_public_comments': xhsEvidence.comments
+              .map((comment) => comment.toJson())
+              .toList(),
+          'xhs_media_candidates': xhsEvidence.mediaCandidates
+              .map((candidate) => candidate.toJson())
+              .toList(),
+        },
       },
       createdAt: resolvedAt,
       updatedAt: resolvedAt,
@@ -148,7 +171,13 @@ class LinkIngestor {
       source: source,
       sourceVersion: sourceVersion.toJson(),
       hasBody: parsed.bodyText != null && parsed.bodyText!.isNotEmpty,
-      hasMedia: parsed.imageUrls.isNotEmpty || parsed.ogImage != null,
+      hasMedia:
+          parsed.imageUrls.isNotEmpty ||
+          parsed.ogImage != null ||
+          xhsEvidence?.noteKind == XiaohongshuNoteKind.video,
+      videoCapability: xhsEvidence?.noteKind == XiaohongshuNoteKind.video
+          ? VideoCapabilityLevel.linkOnly
+          : null,
       metadata: {
         if (parsed.title != null) 'title': parsed.title,
         if (parsed.description != null) 'description': parsed.description,
@@ -156,6 +185,19 @@ class LinkIngestor {
         if (parsed.bodyText != null) 'body_text': parsed.bodyText,
         if (parsed.bodyExcerpt != null) 'body_excerpt': parsed.bodyExcerpt,
         if (parsed.imageUrls.isNotEmpty) 'image_urls': parsed.imageUrls,
+        if (xhsEvidence != null) ...{
+          'xhs_note_kind': xhsEvidence.noteKind.name,
+          'xhs_parser_version': xhsEvidence.parserVersion,
+          'xhs_public_access': 'anonymous',
+          'xhs_public_comments': xhsEvidence.comments
+              .map((comment) => comment.toJson())
+              .toList(),
+          'xhs_media_candidates': xhsEvidence.mediaCandidates
+              .map((candidate) => candidate.toJson())
+              .toList(),
+          if (xhsEvidence.noteKind == XiaohongshuNoteKind.video)
+            'playback_capability': 'link_only',
+        },
         'http_status': httpResult.statusCode,
         'mime_type': httpResult.mimeType,
       },
@@ -163,10 +205,7 @@ class LinkIngestor {
     );
   }
 
-  IngestionResult _youtubePreview(
-    CanonicalUrl canonical,
-    DateTime resolvedAt,
-  ) {
+  IngestionResult _youtubePreview(CanonicalUrl canonical, DateTime resolvedAt) {
     final videoId = canonical.canonicalId;
     if (videoId == null) {
       return IngestionResult(
@@ -316,11 +355,23 @@ class LinkIngestor {
     return 'src_web_$hash';
   }
 
-  String _computeContentHash(String html, ParsedPageContent parsed) {
+  String _computeContentHash(
+    String html,
+    ParsedPageContent parsed,
+    XiaohongshuPublicEvidence? xhsEvidence,
+  ) {
     final basis = <String>[
       parsed.title ?? '',
       parsed.bodyText ?? '',
       parsed.ogImage ?? '',
+      ...parsed.imageUrls,
+      if (xhsEvidence != null)
+        jsonEncode({
+          'kind': xhsEvidence.noteKind.name,
+          'comments': xhsEvidence.comments
+              .map((comment) => comment.toJson())
+              .toList(),
+        }),
     ].join('\n');
     return sha256.convert(utf8.encode(basis)).toString().substring(0, 32);
   }

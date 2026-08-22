@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/reading/ocr_recognizer.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -17,6 +17,10 @@ class ImageOcrResult {
     required this.url,
     required this.localPath,
     required this.recognisedText,
+    this.ocrAvailability = OcrAvailability.available,
+    this.confidence,
+    this.ocrReason,
+    this.recognizerVersion,
   });
 
   /// Position in the original image list (1-based, since this is what
@@ -34,6 +38,12 @@ class ImageOcrResult {
   /// Never null: a recognised-but-empty image is "no text in this photo"
   /// which is different from "OCR failed".
   final String recognisedText;
+
+  /// Explicitly distinguishes successful empty OCR from unavailable/failed.
+  final OcrAvailability ocrAvailability;
+  final double? confidence;
+  final String? ocrReason;
+  final String? recognizerVersion;
 }
 
 /// Downloads a reading_item's images concurrently and runs Chinese OCR
@@ -46,22 +56,26 @@ class ImageOcrResult {
 /// via ML Kit is free, fast enough, and stays local (no token cost, no
 /// data leaves the device).
 class ReadingImageProcessor {
-  ReadingImageProcessor({Dio? dio})
-      : _dio = dio ??
-            Dio(BaseOptions(
-              connectTimeout: const Duration(seconds: 10),
-              receiveTimeout: const Duration(seconds: 20),
-              headers: {
-                // XHS image CDN requires a referrer matching the platform
-                // domain. Wechat CDN doesn't check, so this is safe to
-                // send to both.
-                'Referer': 'https://www.xiaohongshu.com/',
-              },
-              validateStatus: (status) =>
-                  status != null && status >= 200 && status < 400,
-            ));
+  ReadingImageProcessor({Dio? dio, OcrRecognizer? recognizer})
+      : _recognizer = recognizer ?? const MlKitChineseOcrRecognizer(),
+        _dio = dio ??
+            Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 10),
+                receiveTimeout: const Duration(seconds: 20),
+                headers: {
+                  // XHS image CDN requires a referrer matching the platform
+                  // domain. Wechat CDN doesn't check, so this is safe to
+                  // send to both.
+                  'Referer': 'https://www.xiaohongshu.com/',
+                },
+                validateStatus: (status) =>
+                    status != null && status >= 200 && status < 400,
+              ),
+            );
 
   final Dio _dio;
+  final OcrRecognizer _recognizer;
   final Logger _logger = getLogger('ReadingImageProcessor');
 
   /// Concurrency cap — downloading 12 images at once over mobile would
@@ -140,14 +154,20 @@ class ReadingImageProcessor {
         url: url,
         localPath: null,
         recognisedText: '',
+        ocrAvailability: OcrAvailability.failed,
+        ocrReason: e.toString(),
       );
     }
-    final text = await _ocr(localFile.path);
+    final recognition = await _recognizer.recognize(localFile.path);
     return ImageOcrResult(
       index: index,
       url: url,
       localPath: relPath,
-      recognisedText: text,
+      recognisedText: recognition.text,
+      ocrAvailability: recognition.availability,
+      confidence: recognition.confidence,
+      ocrReason: recognition.reason,
+      recognizerVersion: recognition.recognizerVersion,
     );
   }
 
@@ -161,25 +181,6 @@ class ReadingImageProcessor {
       throw StateError('Empty image body for $url');
     }
     await destination.writeAsBytes(bytes, flush: true);
-  }
-
-  Future<String> _ocr(String imagePath) async {
-    final recognizer =
-        TextRecognizer(script: TextRecognitionScript.chinese);
-    try {
-      final input = InputImage.fromFilePath(imagePath);
-      final recognised = await recognizer.processImage(input);
-      if (recognised.blocks.isEmpty) return '';
-      return recognised.blocks
-          .map((b) => b.text.trim())
-          .where((t) => t.isNotEmpty)
-          .join('\n');
-    } catch (e) {
-      _logger.warning('OCR failed for $imagePath: $e');
-      return '';
-    } finally {
-      await recognizer.close();
-    }
   }
 
   String _guessExtension(String url) {

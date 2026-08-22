@@ -6,6 +6,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/domain/whiteboard/rich_text_asset_ref.dart';
@@ -67,6 +68,21 @@ void main() {
       final file = restarted.resolveFile(ref);
       expect(file, isNotNull);
       expect(file!.readAsStringSync(), equals('hello'));
+    });
+
+    test('identical bytes reuse one content-addressed object', () async {
+      final first = await store.importBytes(
+        Uint8List.fromList([1, 2, 3]),
+        mimeType: 'image/png',
+      );
+      final second = await store.importBytes(
+        Uint8List.fromList([1, 2, 3]),
+        mimeType: 'image/png',
+      );
+
+      expect(first.objectRef, second.objectRef);
+      expect(first.refId, matches(RegExp(r'^[0-9a-f]{64}$')));
+      expect(store.objectsDirectory.listSync().whereType<File>(), hasLength(1));
     });
 
     test('infers mime type by extension', () async {

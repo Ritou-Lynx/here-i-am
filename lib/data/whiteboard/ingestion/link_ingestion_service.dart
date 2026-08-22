@@ -5,10 +5,12 @@
 library;
 
 import 'package:memex/data/whiteboard/ingestion/link_ingestor.dart';
+import 'package:memex/data/whiteboard/ingestion/xiaohongshu_evidence_processor.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
+import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 
 class LinkIngestionRecord {
   const LinkIngestionRecord({
@@ -44,11 +46,18 @@ class LinkIngestionService {
   LinkIngestionService({
     required UnifiedCardRepository repository,
     LinkIngestor? ingestor,
-  })  : _repository = repository,
-        _ingestor = ingestor ?? LinkIngestor();
+    XiaohongshuEvidenceProcessor? xiaohongshuEvidenceProcessor,
+  }) : _repository = repository,
+       _ingestor = ingestor ?? LinkIngestor(),
+       _xiaohongshuEvidenceProcessor =
+           xiaohongshuEvidenceProcessor ??
+           XiaohongshuEvidenceProcessor(
+             objectStore: RichTextObjectStore(repository.whiteboardRoot),
+           );
 
   final UnifiedCardRepository _repository;
   final LinkIngestor _ingestor;
+  final XiaohongshuEvidenceProcessor _xiaohongshuEvidenceProcessor;
 
   /// Fetches [url] without persistence by default.
   ///
@@ -84,14 +93,17 @@ class LinkIngestionService {
     if (result.status != IngestionStatus.ok) {
       return LinkIngestionOutcome(result: result);
     }
+    final committedResult = result.provider == 'xiaohongshu'
+        ? await _xiaohongshuEvidenceProcessor.process(result)
+        : result;
     final committed = await _repository.commitIngestion(
-      result,
+      committedResult,
       cardKind: cardKind,
       ownerSpace: ownerSpace,
       createdBy: createdBy,
     );
     return LinkIngestionOutcome(
-      result: result,
+      result: committedResult,
       upsert: committed,
       card: committed.card,
       cardCreated: committed.cardCreated,
@@ -112,9 +124,10 @@ class LinkIngestionService {
   /// Cards created by the ingestion flow, for the import screen's recent
   /// history. Ordinary notes, annotations and task artifacts must never leak
   /// into this projection merely because they share the unified repository.
-  Future<List<CardContract>> listCards() async => (await _repository.listCards(
-        const CardLibraryQuery(kinds: {CardKind.source}),
-      ))
+  Future<List<CardContract>> listCards() async =>
+      (await _repository.listCards(
+            const CardLibraryQuery(kinds: {CardKind.source}),
+          ))
           .map((record) => record.card)
           .where((card) => card.sourceId?.trim().isNotEmpty == true)
           .toList();

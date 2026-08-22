@@ -15,6 +15,9 @@ library;
 
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
 
 import 'rich_text_asset_ref.dart';
 
@@ -51,21 +54,83 @@ class RichTextObjectStore {
     final ext = _extensionOf(sourcePath);
     final refId = _newRefId();
     final objectRef = 'objects/$refId${ext.isNotEmpty ? '.$ext' : ''}';
-    if (!_objectsDir.existsSync()) {
-      await _objectsDir.create(recursive: true);
-    }
-    final dest = File('${_objectsDir.path}${Platform.pathSeparator}$refId'
-        '${ext.isNotEmpty ? '.$ext' : ''}');
+    await _objectsDir.create(recursive: true);
+    final dest = File(
+      '${_objectsDir.path}${Platform.pathSeparator}$refId'
+      '${ext.isNotEmpty ? '.$ext' : ''}',
+    );
     await source.copy(dest.path);
     return RichTextAssetRef(
       refId: refId,
       objectRef: objectRef,
       mimeType: mimeType ?? mimeTypeForPath(sourcePath),
+      alt: alt,
+      caption: caption,
+      width: width,
+      height: height,
+    );
+  }
+
+  /// Stores [bytes] under their SHA-256 digest and returns a stable ref.
+  ///
+  /// Re-importing identical bytes is idempotent: it resolves to the same
+  /// object path and does not create a second copy. Callers must already have
+  /// applied their transport, MIME and size policy before invoking this
+  /// storage-only method.
+  Future<RichTextAssetRef> importBytes(
+    Uint8List bytes, {
+    required String mimeType,
+    String? extension,
+    String? alt,
+    String? caption,
+    int? width,
+    int? height,
+  }) async {
+    if (bytes.isEmpty) throw StateError('Cannot import an empty object');
+    final digest = sha256.convert(bytes).toString();
+    final safeExtension = _safeExtension(
+      extension ?? extensionForMime(mimeType),
+    );
+    final objectRef =
+        'objects/$digest${safeExtension.isEmpty ? '' : '.$safeExtension'}';
+    await _objectsDir.create(recursive: true);
+    final dest = File(
+      '${_objectsDir.path}${Platform.pathSeparator}$digest'
+      '${safeExtension.isEmpty ? '' : '.$safeExtension'}',
+    );
+    if (!await dest.exists()) {
+      final temporary = File(
+        '${dest.path}.${DateTime.now().microsecondsSinceEpoch}'
+        '.${_random.nextInt(1 << 32)}.tmp',
+      );
+      await temporary.writeAsBytes(bytes, flush: true);
+      try {
+        await temporary.rename(dest.path);
+      } on FileSystemException {
+        // Another concurrent importer may have won the same digest. The
+        // existing content-addressed object is already the desired result.
+        if (!await dest.exists()) rethrow;
+        if (await temporary.exists()) await temporary.delete();
+      }
+    }
+    return RichTextAssetRef(
+      refId: digest,
+      objectRef: objectRef,
+      mimeType: mimeType,
       width: width,
       height: height,
       alt: alt,
       caption: caption,
     );
+  }
+
+  static final Random _random = Random.secure();
+
+  static String _newRefId() {
+    final ts = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
+    final rand =
+        List.generate(8, (_) => _random.nextInt(16).toRadixString(16)).join();
+    return 'obj_${ts}_$rand';
   }
 
   /// Resolves an asset ref's [RichTextAssetRef.objectRef] to a [File] under
@@ -104,20 +169,31 @@ class RichTextObjectStore {
     return raw;
   }
 
-  static final Random _random = Random.secure();
-
-  static String _newRefId() {
-    final ts = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
-    final rand =
-        List.generate(8, (_) => _random.nextInt(16).toRadixString(16)).join();
-    return 'obj_${ts}_$rand';
-  }
-
   static String _extensionOf(String path) {
     final name = path.split(Platform.pathSeparator).last;
     final dot = name.lastIndexOf('.');
     if (dot <= 0 || dot == name.length - 1) return '';
     return name.substring(dot + 1).toLowerCase();
+  }
+
+  static String _safeExtension(String value) {
+    final normalized = value.trim().toLowerCase().replaceFirst('.', '');
+    return RegExp(r'^[a-z0-9]{1,8}$').hasMatch(normalized) ? normalized : '';
+  }
+
+  static String extensionForMime(String mimeType) {
+    switch (mimeType.toLowerCase().split(';').first.trim()) {
+      case 'image/png':
+        return 'png';
+      case 'image/jpeg':
+        return 'jpg';
+      case 'image/gif':
+        return 'gif';
+      case 'image/webp':
+        return 'webp';
+      default:
+        return '';
+    }
   }
 
   /// Best-effort mime type from a file path's extension.
