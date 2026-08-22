@@ -1,0 +1,16 @@
+{
+  "raw_artifact_id": "artifact_html_raw_bad",
+  "runtime_artifact_id": "artifact_html_runtime_bad",
+  "runtime_object_ref": "file://C:/Users/USER/index.html",
+  "runtime_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "audit_status": "accepted",
+  "policy": {
+    "policy_version": 1,
+    "csp": "default-src * 'unsafe-inline'; connect-src http://127.0.0.1:*; object-src *",
+    "capabilities": ["network", "forms", "navigation", "downloads", "popups", "file_access", "localhost_access", "broad_bridge", "scripts"],
+    "allowed_network_origins": ["http://127.0.0.1:8080", "https://*.example.com"],
+    "allowed_bridge_methods": ["execute_anything"],
+    "script_hashes": []
+  },
+  "audit_findings": []
+}

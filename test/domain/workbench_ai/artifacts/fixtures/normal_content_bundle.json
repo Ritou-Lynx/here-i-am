@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "bundle_id": "bundle_knowledge_001",
+  "batch": {
+    "batch_id": "batch_knowledge_001",
+    "authorization_id": "auth_user_001",
+    "runtime_turn_id": "turn_001",
+    "idempotency_key": "conversation_1:turn_1:bundle_1",
+    "expected_state_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "operations": [
+      {
+        "operation_id": "op_source_001",
+        "kind": "create",
+        "entity_type": "source",
+        "entity_id": "source_html_001",
+        "inverse": {"kind": "retract", "entity_id": "source_html_001"}
+      },
+      {
+        "operation_id": "op_card_001",
+        "kind": "promote",
+        "entity_type": "card",
+        "entity_id": "card_artifact_001",
+        "inverse": {"kind": "retract", "entity_id": "card_artifact_001"}
+      },
+      {
+        "operation_id": "op_board_001",
+        "kind": "create",
+        "entity_type": "board",
+        "entity_id": "board_knowledge_001",
+        "inverse": {"kind": "delete", "entity_id": "board_knowledge_001"}
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "manifest": {
+        "artifact_id": "artifact_html_raw_001",
+        "kind": "html",
+        "mime_type": "text/html",
+        "size_bytes": 2048,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "staged_object_ref": "staging/batch_knowledge_001/raw/index.html",
+        "provenance_refs": ["search_hit_001", "search_hit_002"]
+      },
+      "binding": {
+        "artifact_id": "artifact_html_raw_001",
+        "status": "promoted",
+        "task_artifact_id": "task_artifact_001",
+        "source_id": "source_html_001",
+        "source_version_id": "version_html_001",
+        "card_id": "card_artifact_001",
+        "board_item_ids": ["item_artifact_001"]
+      },
+      "created_at": "2026-08-22T12:00:00Z"
+    },
+    {
+      "manifest": {
+        "artifact_id": "artifact_html_runtime_001",
+        "kind": "html",
+        "mime_type": "application/vnd.hereiam.html-runtime+zip",
+        "size_bytes": 4096,
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "staged_object_ref": "staging/batch_knowledge_001/runtime/bundle.zip"
+      },
+      "binding": {
+        "artifact_id": "artifact_html_runtime_001",
+        "status": "bound",
+        "source_id": "source_html_001",
+        "source_version_id": "version_html_001",
+        "card_id": "card_artifact_001",
+        "board_item_ids": ["item_artifact_001"]
+      },
+      "created_at": "2026-08-22T12:00:01Z"
+    }
+  ],
+  "html_runtime_bundles": [
+    {
+      "raw_artifact_id": "artifact_html_raw_001",
+      "runtime_artifact_id": "artifact_html_runtime_001",
+      "runtime_object_ref": "objects/html/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.zip",
+      "runtime_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "audit_status": "accepted",
+      "policy": {
+        "policy_version": 1,
+        "csp": "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data:; style-src 'self'; script-src 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='; connect-src 'none'",
+        "capabilities": ["inline_styles", "images", "scripts"],
+        "allowed_bridge_methods": ["report_height"],
+        "script_hashes": ["'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='"]
+      },
+      "audit_findings": []
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "source_html_001",
+      "media_type": "web",
+      "title": "Generated research map",
+      "owner_space": "user",
+      "origin": "generate",
+      "mime_type": "text/html",
+      "current_version_id": "version_html_001",
+      "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "object_ref": "objects/html/raw/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.html",
+      "created_at": "2026-08-22T12:00:00Z"
+    }
+  ],
+  "source_versions": [
+    {
+      "version_id": "version_html_001",
+      "source_id": "source_html_001",
+      "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "object_ref": "objects/html/raw/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.html",
+      "parser_version": "generated-html-raw-v1",
+      "created_at": "2026-08-22T12:00:00Z"
+    }
+  ],
+  "cards": [
+    {
+      "card_id": "card_artifact_001",
+      "card_kind": "task_artifact",
+      "source_id": "source_html_001",
+      "owner_space": "user",
+      "title": "Interactive research map",
+      "body": "Promoted from task artifact with explicit authorization.",
+      "tags": ["research"],
+      "created_by": "i",
+      "created_at": "2026-08-22T12:00:00Z"
+    },
+    {
+      "card_id": "card_summary_001",
+      "card_kind": "note",
+      "source_id": "source_html_001",
+      "owner_space": "user",
+      "title": "Research summary",
+      "body": "A source-backed summary card.",
+      "created_by": "i",
+      "created_at": "2026-08-22T12:00:00Z"
+    }
+  ],
+  "boards": [
+    {
+      "board_id": "board_knowledge_001",
+      "name": "Generated knowledge base",
+      "owner_space": "user",
+      "created_by": "i",
+      "created_at": "2026-08-22T12:00:00Z"
+    }
+  ],
+  "board_items": [
+    {"item_id": "item_artifact_001", "board_id": "board_knowledge_001", "card_id": "card_artifact_001", "x": 0, "y": 0},
+    {"item_id": "item_summary_001", "board_id": "board_knowledge_001", "card_id": "card_summary_001", "x": 320, "y": 0}
+  ],
+  "groups": [
+    {"group_id": "group_generated_001", "board_id": "board_knowledge_001", "name": "Generated bundle"}
+  ],
+  "group_members": [
+    {"group_id": "group_generated_001", "item_id": "item_artifact_001", "order": 0},
+    {"group_id": "group_generated_001", "item_id": "item_summary_001", "order": 1}
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_summary_artifact_001",
+      "board_id": "board_knowledge_001",
+      "from_item_id": "item_summary_001",
+      "to_item_id": "item_artifact_001",
+      "direction": "directed",
+      "semantic_type": "summarizes",
+      "created_by": "i",
+      "created_at": "2026-08-22T12:00:00Z"
+    }
+  ],
+  "promotions": [
+    {
+      "promotion_id": "promotion_001",
+      "task_artifact_id": "task_artifact_001",
+      "artifact_id": "artifact_html_raw_001",
+      "authorization_id": "auth_user_001",
+      "source_id": "source_html_001",
+      "source_version_id": "version_html_001",
+      "card_id": "card_artifact_001"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "artifact_id": "artifact_too_large",
+  "kind": "image",
+  "mime_type": "image/png",
+  "size_bytes": 20971521,
+  "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "staged_object_ref": "staging/batch_large/image.png"
+}

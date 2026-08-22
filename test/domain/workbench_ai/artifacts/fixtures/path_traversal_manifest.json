@@ -1,0 +1,8 @@
+{
+  "artifact_id": "artifact_escape",
+  "kind": "file",
+  "mime_type": "application/octet-stream",
+  "size_bytes": 10,
+  "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "staged_object_ref": "staging/batch_escape/../../private.txt"
+}

@@ -1,0 +1,13 @@
+{
+  "batch_id": "batch_partial_001",
+  "phase": "recovery_required",
+  "staged_artifact_ids": ["artifact_a", "artifact_b"],
+  "verified_artifact_ids": ["artifact_a"],
+  "bound_artifact_ids": [],
+  "failure_code": "hash_mismatch",
+  "recovery": {
+    "staged_object_refs_to_delete": ["staging/batch_partial_001/a.bin", "staging/batch_partial_001/b.bin"],
+    "inverse_operations": [],
+    "retryable": false
+  }
+}
