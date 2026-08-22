@@ -92,12 +92,16 @@ class WhiteboardWorkbenchCoordinator {
 
   bool matches(String text) {
     final normalized = text.trim();
+    final directAction = RegExp(
+      r'^(请|麻烦|帮我)?按主题分组并连线[。！!]?$',
+    ).hasMatch(normalized);
     final explicitTarget = RegExp(
       r'(所选|选中|这些卡片|这几张|帮我把|请把|把这些|将这些)',
     ).hasMatch(normalized);
-    return explicitTarget &&
-        normalized.contains('分组') &&
-        normalized.contains('连线');
+    return directAction ||
+        (explicitTarget &&
+            normalized.contains('分组') &&
+            normalized.contains('连线'));
   }
 
   bool canUndo(String actionId) => _undoBindings.containsKey(actionId);
@@ -335,7 +339,11 @@ class WhiteboardWorkbenchCoordinator {
   }) async {
     var cursor = 0;
     WhiteboardAiWriteReceipt? receipt;
-    final deadline = _clock().toUtc().add(const Duration(minutes: 2));
+    // Codex may need to exhaust its WebSocket retries before automatically
+    // falling back to HTTPS. On affected Windows networks that transition is
+    // observed at roughly 112 seconds, so a two-minute deadline interrupts
+    // the first useful provider response before either dynamic tool can run.
+    final deadline = _clock().toUtc().add(const Duration(minutes: 3));
     while (_clock().toUtc().isBefore(deadline)) {
       final batch = await _runtime.readEvents(
         sessionId,
@@ -449,6 +457,19 @@ class WhiteboardWorkbenchCoordinator {
   Future<void> undo(String actionId) async {
     final binding = _undoBindings[actionId];
     if (binding == null) return;
+    final activeSurface = _surfaceController.current;
+    final activeBoardSurface = activeSurface != null &&
+            activeSurface.boardId == binding.projection.boardId
+        ? activeSurface
+        : null;
+    if (activeBoardSurface != null && !await activeBoardSurface.flush()) {
+      final updated = binding.projection.copyWith(
+        summary: '当前白板还没有保存成功，暂时不能安全撤销。',
+        errorCode: 'undo_flush_failed',
+      );
+      await _updateProjection(binding.messageId, updated);
+      return;
+    }
     final receipt = await binding.host.undo(
       WhiteboardAiUndoRequest(
         undoToken: binding.undoToken,
@@ -456,13 +477,30 @@ class WhiteboardWorkbenchCoordinator {
       ),
     );
     if (receipt.status == WhiteboardAiWriteStatus.undone) {
+      final currentSurface = _surfaceController.current;
+      if (currentSurface != null &&
+          currentSurface.boardId == binding.projection.boardId) {
+        await currentSurface.reload();
+      } else {
+        await binding.reload();
+      }
+      final restoredSurface = _surfaceController.current;
+      if (restoredSurface != null &&
+          restoredSurface.boardId == binding.projection.boardId &&
+          !await restoredSurface.flush()) {
+        final updated = binding.projection.copyWith(
+          summary: '撤销结果没有保存成功，请保持白板打开并重试。',
+          errorCode: 'undo_restore_flush_failed',
+        );
+        await _updateProjection(binding.messageId, updated);
+        return;
+      }
       final updated = binding.projection.copyWith(
         status: WorkbenchActionStatus.undone,
         summary: '已撤销这次分组和连线，白板恢复到执行前。',
       );
       _undoBindings.remove(actionId);
       await _updateProjection(binding.messageId, updated);
-      await binding.reload();
       return;
     }
     final updated = binding.projection.copyWith(
@@ -523,7 +561,8 @@ class WhiteboardWorkbenchCoordinator {
 
 必须先调用 $readToolName 获取受限快照，再调用 $writeToolName 一次。
 写工具只接受 groups 和 edges。不要猜测、改写或提交 board_id、授权、批次号；这些由产品宿主管理。
-每个组至少两个所选 item；连线端点只能来自以上 item_id。''';
+groups 必须完整划分以上选择：每个所选 item_id 必须且只能出现一次，不能遗漏，也不能加入选择之外的 item_id。
+每个组至少两个所选 item；若无法把全部选择拆成多个各含至少两个 item 的主题组，就把全部所选 item 放进一个较宽泛的组。连线端点只能来自以上 item_id。''';
   }
 
   static const List<Map<String, dynamic>> _dynamicTools = [
@@ -538,7 +577,8 @@ class WhiteboardWorkbenchCoordinator {
     },
     {
       'name': writeToolName,
-      'description': '对当前选择创建分组和连线；范围和授权由产品宿主管理。',
+      'description':
+          '对当前选择创建分组和连线；groups 必须完整划分选择，每个所选 item_id 恰好出现一次。范围和授权由产品宿主管理。',
       'input_schema': {
         'type': 'object',
         'additionalProperties': false,

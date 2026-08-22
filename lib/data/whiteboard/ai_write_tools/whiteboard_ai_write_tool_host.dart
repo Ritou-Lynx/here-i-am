@@ -615,7 +615,51 @@ class WhiteboardAiWriteToolHost {
       StableId.generate(prefix).value;
 
   static String _snapshotHash(WhiteboardSnapshot snapshot) =>
-      _hashJson(snapshot.toJson());
+      _hashJson(_snapshotConflictJson(snapshot));
+
+  /// Persistence may refresh revision timestamps while reopening an otherwise
+  /// unchanged board. Those fields are not user edits and must not make a
+  /// reversible batch look unsafe. All semantic board content remains in the
+  /// conflict hash, including viewport, item geometry, groups, membership,
+  /// edges, and card/source state.
+  static Map<String, dynamic> _snapshotConflictJson(
+    WhiteboardSnapshot snapshot,
+  ) {
+    final value = Map<String, dynamic>.from(snapshot.toJson())
+      ..remove('updated_at');
+    final boards = value['boards'];
+    if (boards is List) {
+      value['boards'] = [
+        for (final raw in boards)
+          if (raw is Map)
+            (Map<String, dynamic>.from(raw)..remove('updated_at'))
+          else
+            raw,
+      ];
+    }
+    const sortFields = <String, List<String>>{
+      'sources': ['source_id'],
+      'source_versions': ['version_id'],
+      'cards': ['card_id'],
+      'boards': ['board_id'],
+      'board_items': ['item_id'],
+      'groups': ['group_id'],
+      'group_members': ['group_id', 'order', 'item_id'],
+      'edges': ['edge_id'],
+    };
+    for (final entry in sortFields.entries) {
+      final raw = value[entry.key];
+      if (raw is! List) continue;
+      raw.sort((a, b) => _entitySortKey(a, entry.value)
+          .compareTo(_entitySortKey(b, entry.value)));
+    }
+    return value;
+  }
+
+  static String _entitySortKey(Object? raw, List<String> fields) {
+    if (raw is! Map) return jsonEncode(raw);
+    return fields.map((field) => '${raw[field] ?? ''}').join('\u0000');
+  }
 
   static DateTime _millisecondUtc(DateTime value) =>
       DateTime.fromMillisecondsSinceEpoch(

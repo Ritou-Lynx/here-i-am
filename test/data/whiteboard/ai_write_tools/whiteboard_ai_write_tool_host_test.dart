@@ -99,6 +99,82 @@ void main() {
     expect(identical(repeated, undone), isTrue);
   });
 
+  test('undo tolerates timestamp-only refresh after reopening a board',
+      () async {
+    var snapshot = _snapshot();
+    final fixture = _fixture(
+      now: now,
+      load: (_) async => snapshot,
+      save: (_, value) async {
+        snapshot = value;
+        return true;
+      },
+    );
+    final applied = await fixture.host.groupAndConnect(fixture.request);
+    final refreshedAt = now.add(const Duration(minutes: 1));
+    snapshot = _copySnapshot(
+      snapshot,
+      boards: [
+        for (final board in snapshot.boards)
+          Board(
+            boardId: board.boardId,
+            name: board.name,
+            ownerSpace: board.ownerSpace,
+            createdBy: board.createdBy,
+            createdAt: board.createdAt,
+            updatedAt: refreshedAt,
+            deletedAt: board.deletedAt,
+          ),
+      ],
+      updatedAt: refreshedAt,
+    );
+
+    final undone = await fixture.host.undo(
+      WhiteboardAiUndoRequest(
+        undoToken: applied.undoToken!,
+        runtimeTurnId: 'turn_1',
+      ),
+    );
+
+    expect(undone.status, WhiteboardAiWriteStatus.undone);
+    expect(snapshot.groups, isEmpty);
+    expect(snapshot.edges, isEmpty);
+  });
+
+  test('undo tolerates entity list reordering after reopening a board',
+      () async {
+    var snapshot = _snapshot();
+    final fixture = _fixture(
+      now: now,
+      load: (_) async => snapshot,
+      save: (_, value) async {
+        snapshot = value;
+        return true;
+      },
+    );
+    final applied = await fixture.host.groupAndConnect(fixture.request);
+    snapshot = _copySnapshot(
+      snapshot,
+      boards: snapshot.boards.reversed.toList(),
+      boardItems: snapshot.boardItems.reversed.toList(),
+      groups: snapshot.groups.reversed.toList(),
+      groupMembers: snapshot.groupMembers.reversed.toList(),
+      edges: snapshot.edges.reversed.toList(),
+      updatedAt: now.add(const Duration(minutes: 1)),
+    );
+
+    final undone = await fixture.host.undo(
+      WhiteboardAiUndoRequest(
+        undoToken: applied.undoToken!,
+        runtimeTurnId: 'turn_1',
+      ),
+    );
+
+    expect(undone.status, WhiteboardAiWriteStatus.undone);
+    expect(snapshot.groups, isEmpty);
+    expect(snapshot.edges, isEmpty);
+  });
+
   test('undo refuses to overwrite a later user snapshot change', () async {
     var snapshot = _snapshot();
     var saves = 0;
@@ -421,6 +497,7 @@ WhiteboardSnapshot _snapshot() {
 
 WhiteboardSnapshot _copySnapshot(
   WhiteboardSnapshot source, {
+  List<Board>? boards,
   List<BoardItem>? boardItems,
   List<BoardGroup>? groups,
   List<GroupMember>? groupMembers,
@@ -432,7 +509,7 @@ WhiteboardSnapshot _copySnapshot(
     sources: source.sources,
     sourceVersions: source.sourceVersions,
     cards: source.cards,
-    boards: source.boards,
+    boards: boards ?? source.boards,
     boardItems: boardItems ?? source.boardItems,
     groups: groups ?? source.groups,
     groupMembers: groupMembers ?? source.groupMembers,
