@@ -82,6 +82,125 @@ void main() {
     expect(restoredUser.anchor.positionSpec['is_point'], isFalse);
   });
 
+  for (final failurePoint in const [
+    UnifiedCardRepositoryFaultPoint.annotationAfterMemoryCardInsert,
+    UnifiedCardRepositoryFaultPoint.annotationAfterExtrasInsert,
+  ]) {
+    test('annotation transaction rolls back at ${failurePoint.name}', () async {
+      var failOnce = true;
+      final faultingRepository = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: root,
+        faultInjector: (point) async {
+          if (failOnce && point == failurePoint) {
+            failOnce = false;
+            throw StateError('injected annotation transaction failure');
+          }
+        },
+      );
+      final store = RepositoryVideoAnnotationStore(faultingRepository);
+      const request = AnnotationCreationRequest(
+        spec: TimeRangeAnchorSpec(startMs: 30000, endMs: 36000),
+        title: '原子标注',
+        body: '失败不应留卡',
+      );
+
+      await expectLater(
+        store.createAnnotation(
+          sourceId: 'src_youtube_demo',
+          sourceVersionId: 'ver_youtube_demo_v1',
+          request: request,
+        ),
+        throwsStateError,
+      );
+      expect(
+        await faultingRepository.listCards(
+          const CardLibraryQuery(kinds: {CardKind.annotation}),
+        ),
+        isEmpty,
+      );
+      expect(
+        await faultingRepository.listCards(
+          const CardLibraryQuery(
+            kinds: {CardKind.annotation},
+            includeDeleted: true,
+          ),
+        ),
+        isEmpty,
+      );
+
+      await store.createAnnotation(
+        sourceId: 'src_youtube_demo',
+        sourceVersionId: 'ver_youtube_demo_v1',
+        request: request,
+      );
+      final afterRetry = await faultingRepository.listCards(
+        const CardLibraryQuery(
+          kinds: {CardKind.annotation},
+          includeDeleted: true,
+        ),
+      );
+      expect(afterRetry, hasLength(1));
+      expect(afterRetry.single.card.title, '原子标注');
+    });
+  }
+
+  test('annotation entry rejects a mismatched summary', () async {
+    final draft = VideoAnnotationService().createAnnotation(
+      sourceId: 'src_youtube_demo',
+      sourceVersionId: 'ver_youtube_demo_v1',
+      request: const AnnotationCreationRequest(
+        spec: TimeRangeAnchorSpec(startMs: 10000, endMs: 14000),
+        title: '矛盾摘要',
+      ),
+    );
+    await expectLater(
+      repository.createAnnotationCard(
+        _completeAnnotationCard(draft, startMs: 10001),
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      await repository.listCards(
+        const CardLibraryQuery(
+          kinds: {CardKind.annotation},
+          includeDeleted: true,
+        ),
+      ),
+      isEmpty,
+    );
+  });
+
+  test('annotation entry rejects an unknown SourceVersion', () async {
+    final draft = VideoAnnotationService().createAnnotation(
+      sourceId: 'src_youtube_demo',
+      sourceVersionId: 'ver_youtube_demo_v1',
+      request: const AnnotationCreationRequest(
+        spec: TimeRangeAnchorSpec(startMs: 10000, endMs: 14000),
+        title: '无效版本',
+      ),
+    );
+    final invalidAnchor = AnchorContract.fromJson({
+      ...draft.anchor.toJson(),
+      'source_version_id': 'ver_missing',
+    });
+    await expectLater(
+      repository.createAnnotationCard(
+        _completeAnnotationCard(draft, anchor: invalidAnchor),
+      ),
+      throwsStateError,
+    );
+    expect(
+      await repository.listCards(
+        const CardLibraryQuery(
+          kinds: {CardKind.annotation},
+          includeDeleted: true,
+        ),
+      ),
+      isEmpty,
+    );
+  });
+
   test('version changes orphan every range and preserve old version identity',
       () async {
     final store = RepositoryVideoAnnotationStore(repository);
@@ -122,6 +241,33 @@ void main() {
       isTrue,
     );
   });
+}
+
+CardContract _completeAnnotationCard(
+  VideoAnnotationResult draft, {
+  AnchorContract? anchor,
+  int? startMs,
+}) {
+  final effectiveAnchor = anchor ?? draft.anchor;
+  return CardContract(
+    cardId: draft.card.cardId,
+    cardKind: CardKind.annotation,
+    sourceId: draft.card.sourceId,
+    ownerSpace: draft.card.ownerSpace,
+    title: draft.card.title,
+    body: draft.card.body,
+    tags: draft.card.tags,
+    presentation: {
+      ...draft.card.presentation,
+      'start_ms': startMs ?? effectiveAnchor.positionSpec['start_ms'],
+      'end_ms': effectiveAnchor.positionSpec['end_ms'],
+      'is_point': effectiveAnchor.positionSpec['is_point'],
+      'anchor_id': effectiveAnchor.anchorId,
+      'anchor': effectiveAnchor.toJson(),
+    },
+    createdBy: draft.card.createdBy,
+    createdAt: draft.card.createdAt,
+  );
 }
 
 IngestionResult _videoIngestion({required String hash}) {

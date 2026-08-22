@@ -90,7 +90,7 @@ class _SubtitleListViewState extends State<SubtitleListView> {
                 isActive: isActive,
                 canSeek: vm.canSeek,
                 onTap: () => vm.seekToCue(index),
-                onAnnotate: vm.canCreateTimeAnchorNow
+                onAnnotate: vm.canCreateTimeAnchorNow && !vm.hasPendingAnnotation
                     ? () => vm.beginAnnotation(cueIndex: index)
                     : null,
                 hasAnnotation: vm.annotations.any(

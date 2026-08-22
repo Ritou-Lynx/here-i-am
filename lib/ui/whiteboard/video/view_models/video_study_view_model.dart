@@ -31,6 +31,8 @@ class UIAnnotation {
   bool get isPoint => anchor.positionSpec['is_point'] as bool? ?? false;
 }
 
+enum AnnotationDraftField { title, body, quote }
+
 /// ViewModel for video study — the complete playback → annotation pipeline.
 class VideoStudyViewModel extends ChangeNotifier {
   final PlayerAdapter adapter;
@@ -84,6 +86,11 @@ class VideoStudyViewModel extends ChangeNotifier {
   Timer? _saveConfirmationTimer;
   bool _isSavingAnnotation = false;
   bool _dockVisible = true;
+  String _annotationDraftTitle = '';
+  String _annotationDraftBody = '';
+  String _annotationDraftQuote = '';
+  bool _annotationDraftInitialized = false;
+  AnnotationDraftField? _annotationDraftFocusedField;
 
   VideoStudyViewModel({
     required this.adapter,
@@ -98,8 +105,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     BilibiliTimedTextService? bilibiliTimedTextService,
   }) {
     _track = initialTrack;
-    _needsSubtitle =
-        initialTrack == null ||
+    _needsSubtitle = initialTrack == null ||
         initialTrack.reliability == TimedTextReliability.unavailable ||
         initialTrack.cues.isEmpty;
     _ownsTimedTextService = timedTextService == null;
@@ -193,8 +199,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   bool get hasAnyPlaybackSurface => _availability.hasAnyPlaybackSurface;
 
   void _updateAvailability() {
-    final hasUsable =
-        _track != null &&
+    final hasUsable = _track != null &&
         _track!.reliability != TimedTextReliability.unavailable &&
         _track!.cues.isNotEmpty;
     _availability = VideoStudyAvailability(
@@ -218,6 +223,32 @@ class VideoStudyViewModel extends ChangeNotifier {
   bool get dockVisible => _dockVisible;
   bool get isSavingAnnotation => _isSavingAnnotation;
   bool get isCapturingTimeBoundary => _isCapturingTimeBoundary;
+  String get annotationDraftTitle => _annotationDraftTitle;
+  String get annotationDraftBody => _annotationDraftBody;
+  String get annotationDraftQuote => _annotationDraftQuote;
+  bool get annotationDraftInitialized => _annotationDraftInitialized;
+  AnnotationDraftField? get annotationDraftFocusedField =>
+      _annotationDraftFocusedField;
+
+  void updateAnnotationDraft({
+    String? title,
+    String? body,
+    String? quote,
+  }) {
+    if (title != null) _annotationDraftTitle = title;
+    if (body != null) _annotationDraftBody = body;
+    if (quote != null) _annotationDraftQuote = quote;
+  }
+
+  void initializeAnnotationDraft({required String quote}) {
+    if (_annotationDraftInitialized) return;
+    _annotationDraftQuote = quote;
+    _annotationDraftInitialized = true;
+  }
+
+  void rememberAnnotationDraftFocus(AnnotationDraftField field) {
+    _annotationDraftFocusedField = field;
+  }
 
   bool get hasRuntimePlaybackSurface =>
       runtimePlayerAvailable && hasAnyPlaybackSurface;
@@ -414,8 +445,7 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   void _setTrack(TimedTextTrack track) {
     _track = track;
-    _needsSubtitle =
-        track.reliability == TimedTextReliability.unavailable ||
+    _needsSubtitle = track.reliability == TimedTextReliability.unavailable ||
         track.cues.isEmpty;
     _errorMessage = null;
     if (track.sourceKind == TimedTextSourceKind.platform &&
@@ -681,6 +711,14 @@ class VideoStudyViewModel extends ChangeNotifier {
     _pendingAnnotationIsPoint = true;
     _pendingAnnotationSuggestedQuote = null;
     notifyListeners();
+  }
+
+  void _resetAnnotationDraft() {
+    _annotationDraftTitle = '';
+    _annotationDraftBody = '';
+    _annotationDraftQuote = '';
+    _annotationDraftInitialized = false;
+    _annotationDraftFocusedField = null;
   }
 
   bool get hasPendingAnnotation => _pendingAnnotationStartMs != null;

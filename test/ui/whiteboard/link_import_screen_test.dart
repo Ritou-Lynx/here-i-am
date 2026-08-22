@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -664,6 +665,7 @@ void main() {
 
   testWidgets('bilibili is saved honestly as a link-only video source',
       (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final service = _service(repository, {});
     await pump(tester, service);
 
@@ -679,8 +681,34 @@ void main() {
     expect(find.widgetWithText(FilledButton, '存入卡片库'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
-    await settleFor(tester, find.text('已在卡片库'));
+    await settleFor(
+      tester,
+      find.text('打开视频播放（时间研读受限）'),
+    );
     expect(await tester.runAsync(service.listCards), hasLength(1));
+    await tester.tap(find.text('打开视频播放（时间研读受限）'));
+    await settleFor(
+      tester,
+      find.text('视频研读:src_bilibili_BV1xx411c7mD'),
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('bilibili stays card-library-only on unsupported platforms',
+      (tester) async {
+    final service = _service(repository, {});
+    await pump(tester, service);
+
+    await fetch(
+      tester,
+      'https://www.bilibili.com/video/BV1xx411c7mD',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await settleFor(tester, find.text('打开卡片库'));
+    expect(find.textContaining('时间研读受限'), findsNothing);
+
+    await tester.tap(find.text('打开卡片库'));
+    await settleFor(tester, find.text('卡片库页面'));
   });
 
   testWidgets(

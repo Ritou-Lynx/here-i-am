@@ -256,6 +256,13 @@ class _LaggingTimeAdapter implements PlayerAdapter {
   }
 }
 
+class _ThrowingTimeAdapter extends _LaggingTimeAdapter {
+  @override
+  Future<int> currentPositionMs() async {
+    throw StateError('provider-secret-token=do-not-render');
+  }
+}
+
 void _useDesktopSurface(WidgetTester tester, Size size) {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -820,6 +827,150 @@ void main() {
     expect(adapter.loadCalls, 2);
     expect(find.byKey(const ValueKey('video_retry_load')), findsNothing);
     expect(find.byKey(const ValueKey('video_player_region')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('current-position failure never exposes provider internals', (
+    tester,
+  ) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
+    final adapter = _ThrowingTimeAdapter();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_safe_error',
+          sourceVersionId: 'ver_safe_error_v1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('video_annotate_current_position')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('无法读取当前播放位置，请稍后重试。'), findsOneWidget);
+    expect(find.textContaining('provider-secret-token'), findsNothing);
+    expect(find.byKey(const ValueKey('video_annotation_editor')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('annotation draft and focus survive responsive rebuilds', (
+    tester,
+  ) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
+    final adapter = _buildFixture();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_draft_resize',
+          sourceVersionId: 'ver_draft_resize_v1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await adapter.seekTo(22000);
+    await tester.tap(
+      find.byKey(const ValueKey('video_annotate_current_position')),
+    );
+    await tester.pumpAndSettle();
+
+    final titleFinder = find.byKey(
+      const ValueKey('video_annotation_title_field'),
+    );
+    final bodyFinder = find.byKey(
+      const ValueKey('video_annotation_body_field'),
+    );
+    await tester.enterText(titleFinder, '跨尺寸标题');
+    await tester.enterText(bodyFinder, '跨尺寸正文草稿');
+    expect(tester.widget<TextField>(bodyFinder).focusNode!.hasFocus, isTrue);
+
+    tester.view.physicalSize = const Size(900, 900);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_notes_tab')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('video_annotation_editor')), findsOneWidget);
+    expect(tester.widget<TextField>(titleFinder).controller!.text, '跨尺寸标题');
+    expect(tester.widget<TextField>(bodyFinder).controller!.text, '跨尺寸正文草稿');
+    expect(tester.widget<TextField>(bodyFinder).focusNode!.hasFocus, isTrue);
+
+    tester.view.physicalSize = const Size(720, 720);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_layout_bottom')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('video_annotation_editor')), findsOneWidget);
+    expect(tester.widget<TextField>(bodyFinder).controller!.text, '跨尺寸正文草稿');
+    expect(tester.widget<TextField>(bodyFinder).focusNode!.hasFocus, isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('video_close_dock')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_annotation_editor')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('video_open_dock')));
+    await tester.pumpAndSettle();
+    expect(
+        find.byKey(const ValueKey('video_annotation_editor')), findsOneWidget);
+    expect(tester.widget<TextField>(titleFinder).controller!.text, '跨尺寸标题');
+    expect(tester.widget<TextField>(bodyFinder).controller!.text, '跨尺寸正文草稿');
+    expect(tester.widget<TextField>(bodyFinder).focusNode!.hasFocus, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('pending draft cannot be replaced by another subtitle cue', (
+    tester,
+  ) async {
+    _useDesktopSurface(tester, const Size(900, 900));
+    final adapter = _buildFixture();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_pending_guard',
+          sourceVersionId: 'ver_pending_guard_v1',
+          initialTrack: _buildTrack(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('annotate_cue_1')));
+    await tester.pumpAndSettle();
+    expect(find.text('在 00:02–00:05 创建标注'), findsOneWidget);
+    final titleFinder = find.byKey(
+      const ValueKey('video_annotation_title_field'),
+    );
+    final bodyFinder = find.byKey(
+      const ValueKey('video_annotation_body_field'),
+    );
+    await tester.enterText(titleFinder, '不可覆盖标题');
+    await tester.enterText(bodyFinder, '不可覆盖正文');
+    final quoteFinder = find.byKey(
+      const ValueKey('video_annotation_quote_field'),
+    );
+    expect(tester.widget<TextField>(quoteFinder).controller!.text, '灯光切换');
+    await tester.enterText(quoteFinder, '');
+
+    tester.view.physicalSize = const Size(720, 720);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(quoteFinder).controller!.text, isEmpty);
+
+    tester.view.physicalSize = const Size(900, 900);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(quoteFinder).controller!.text, isEmpty);
+    await tester.tap(find.byKey(const ValueKey('video_transcript_tab')));
+    await tester.pumpAndSettle();
+    final secondAnnotate = find.byKey(const ValueKey('annotate_cue_2'));
+    expect(tester.widget<IconButton>(secondAnnotate).onPressed, isNull);
+    await tester.tap(secondAnnotate, warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('video_notes_tab')));
+    await tester.pumpAndSettle();
+    expect(find.text('在 00:02–00:05 创建标注'), findsOneWidget);
+    expect(tester.widget<TextField>(titleFinder).controller!.text, '不可覆盖标题');
+    expect(tester.widget<TextField>(bodyFinder).controller!.text, '不可覆盖正文');
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

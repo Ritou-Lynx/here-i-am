@@ -153,6 +153,118 @@ void main() {
     expect(await repository.getSource(result.source!.sourceId), isNotNull);
   });
 
+  test('failed ingestion transaction removes its new object and sidecars',
+      () async {
+    var failOnce = true;
+    final faulting = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (failOnce &&
+            point ==
+                UnifiedCardRepositoryFaultPoint.ingestionAfterVersionInsert) {
+          failOnce = false;
+          throw StateError('injected transaction failure after object write');
+        }
+      },
+    );
+    final result = _ingestion(hash: 'object_rollback', body: '不留半成品');
+    final target = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}src_web_f0_example${Platform.pathSeparator}'
+      'ver_web_f0_example_object_rollback.json',
+    );
+
+    await expectLater(faulting.commitIngestion(result), throwsStateError);
+    expect(await faulting.listCards(), isEmpty);
+    expect(await faulting.getSource(result.source!.sourceId), isNull);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+    expect(await target.exists(), isFalse);
+    expect(await File('${target.path}.tmp').exists(), isFalse);
+    expect(await File('${target.path}.bak').exists(), isFalse);
+
+    final retried = await faulting.commitIngestion(result);
+    expect(retried.cardCreated, isTrue);
+    expect(await faulting.listCards(), hasLength(1));
+    expect(await target.exists(), isTrue);
+  });
+
+  test('failed ingestion restores pre-existing sidecars but removes new final',
+      () async {
+    final faulting = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint.ingestionAfterVersionInsert) {
+          throw StateError('transaction fails after sidecar recovery');
+        }
+      },
+    );
+    final result = _ingestion(hash: 'sidecar_rollback', body: '不覆盖恢复现场');
+    final target = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}src_web_f0_example${Platform.pathSeparator}'
+      'ver_web_f0_example_sidecar_rollback.json',
+    );
+    final temp = File('${target.path}.tmp');
+    final backup = File('${target.path}.bak');
+    await target.parent.create(recursive: true);
+    await temp.writeAsString('{"preexisting":"temp"}');
+    await backup.writeAsString('{"preexisting":"backup"}');
+
+    await expectLater(faulting.commitIngestion(result), throwsStateError);
+
+    expect(await faulting.listCards(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+    expect(await target.exists(), isFalse);
+    expect(await temp.readAsString(), '{"preexisting":"temp"}');
+    expect(await backup.readAsString(), '{"preexisting":"backup"}');
+  });
+
+  test('same object ref commits serialize across one failure', () async {
+    var failOnce = true;
+    final faulting = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (failOnce &&
+            point ==
+                UnifiedCardRepositoryFaultPoint.ingestionAfterVersionInsert) {
+          failOnce = false;
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          throw StateError('first concurrent commit fails');
+        }
+      },
+    );
+    final result = _ingestion(hash: 'concurrent_ref', body: '并发对象');
+
+    Future<Object> capture(Future<IngestionCommitResult> future) async {
+      try {
+        return await future;
+      } catch (error) {
+        return error;
+      }
+    }
+
+    final first = capture(faulting.commitIngestion(result));
+    await Future<void>.delayed(Duration.zero);
+    final second = capture(faulting.commitIngestion(result));
+    final outcomes = await Future.wait([first, second]);
+    expect(outcomes.whereType<StateError>(), hasLength(1));
+    expect(outcomes.whereType<IngestionCommitResult>(), hasLength(1));
+    expect(await faulting.listCards(), hasLength(1));
+    expect(
+      await faulting.listSourceVersions(result.source!.sourceId),
+      hasLength(1),
+    );
+
+    final idempotent = await faulting.commitIngestion(result);
+    expect(idempotent.versionIsNew, isFalse);
+    expect(idempotent.cardCreated, isFalse);
+    expect(await faulting.listCards(), hasLength(1));
+  });
+
   test('same canonical content is idempotent', () async {
     final first = await repository.commitIngestion(
       _ingestion(hash: 'same_hash', body: '相同内容'),

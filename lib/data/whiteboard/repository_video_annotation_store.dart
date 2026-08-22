@@ -15,8 +15,7 @@ class RepositoryVideoAnnotationStore {
 
   final UnifiedCardRepository repository;
 
-  /// Creates the Card first, then links Source and installs annotation kind +
-  /// the complete Anchor presentation, matching the F4 write-order contract.
+  /// Persists the complete Source-bound Annotation Card atomically.
   Future<VideoAnnotationResult> createAnnotation({
     required String sourceId,
     required String sourceVersionId,
@@ -27,23 +26,23 @@ class RepositoryVideoAnnotationStore {
       sourceVersionId: sourceVersionId,
       request: request,
     );
-    await repository.createTextCard(
-      cardId: draft.card.cardId,
-      title: draft.card.title,
-      body: draft.card.body,
-      tags: draft.card.tags,
-      ownerSpace: draft.card.ownerSpace,
-      createdBy: draft.card.createdBy,
-      createdAt: draft.card.createdAt,
-    );
-    await repository.linkSourceToCard(draft.card.cardId, sourceId);
-    final persisted = await repository.updateCardMetadata(
-      draft.card.cardId,
-      cardKind: CardKind.annotation,
-      presentation: {
-        ...draft.card.presentation,
-        'anchor': draft.anchor.toJson(),
-      },
+    final persisted = await repository.createAnnotationCard(
+      CardContract(
+        cardId: draft.card.cardId,
+        cardKind: CardKind.annotation,
+        sourceId: sourceId,
+        ownerSpace: draft.card.ownerSpace,
+        title: draft.card.title,
+        body: draft.card.body,
+        tags: draft.card.tags,
+        presentation: {
+          ...draft.card.presentation,
+          'anchor': draft.anchor.toJson(),
+        },
+        createdBy: draft.card.createdBy,
+        createdAt: draft.card.createdAt,
+        updatedAt: draft.card.updatedAt,
+      ),
     );
     return VideoAnnotationResult(anchor: draft.anchor, card: persisted);
   }

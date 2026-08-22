@@ -6,6 +6,7 @@
 /// MemoryCards directly or treating a JSON directory as a card library.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,6 +14,7 @@ import 'package:drift/drift.dart';
 
 import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/whiteboard/anchor_contract.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/recoverable_file_exchange.dart';
@@ -105,16 +107,81 @@ class IngestionCommitResult {
   final bool cardRestored;
 }
 
+/// Deterministic transaction boundaries used only by repository fault tests.
+enum UnifiedCardRepositoryFaultPoint {
+  annotationAfterMemoryCardInsert,
+  annotationAfterExtrasInsert,
+  ingestionAfterVersionInsert,
+}
+
+typedef UnifiedCardRepositoryFaultInjector =
+    Future<void> Function(UnifiedCardRepositoryFaultPoint point);
+
+class _SourceObjectWriteGuard {
+  const _SourceObjectWriteGuard({
+    required this.objectRef,
+    required this.snapshots,
+  });
+
+  final String objectRef;
+  final List<_FileSnapshot> snapshots;
+
+  static Future<_SourceObjectWriteGuard> capture(
+    File target,
+    String objectRef,
+  ) async {
+    final temp = RecoverableFileExchange.tempFor(target);
+    final backup = RecoverableFileExchange.backupFor(target);
+    return _SourceObjectWriteGuard(
+      objectRef: objectRef,
+      snapshots: await Future.wait(
+        <File>[target, temp, backup].map(_FileSnapshot.capture),
+      ),
+    );
+  }
+
+  Future<void> removeCreatedFilesIfUnreferenced(AppDatabase db) async {
+    final versionReference = await (db.select(
+      db.whiteboardSourceVersions,
+    )..where((row) => row.objectRef.equals(objectRef))).getSingleOrNull();
+    final sourceReference = await (db.select(
+      db.whiteboardSources,
+    )..where((row) => row.objectRef.equals(objectRef))).getSingleOrNull();
+    final isReferenced = versionReference != null || sourceReference != null;
+    for (final snapshot in snapshots) {
+      if (snapshot.contents != null) {
+        await snapshot.file.parent.create(recursive: true);
+        await snapshot.file.writeAsBytes(snapshot.contents!, flush: true);
+      } else if (!isReferenced && await snapshot.file.exists()) {
+        await snapshot.file.delete();
+      }
+    }
+  }
+}
+
+class _FileSnapshot {
+  const _FileSnapshot(this.file, this.contents);
+
+  final File file;
+  final List<int>? contents;
+
+  static Future<_FileSnapshot> capture(File file) async =>
+      _FileSnapshot(file, await file.exists() ? await file.readAsBytes() : null);
+}
+
 /// Repository for the single production Card / Source data truth.
 ///
 /// The database is constructor-injected. This file intentionally has no
 /// dependency on MemexRouter or AppDatabase.instance.
 class UnifiedCardRepository {
+  static final Map<String, Future<void>> _sourceObjectCommitLocks = {};
+
   UnifiedCardRepository({
     required this.db,
     required this.whiteboardRoot,
     RichTextStorage? richTextStorage,
     this.thumbnailResolver,
+    this.faultInjector,
   }) : richTextStorage =
            richTextStorage ??
            RichTextStorage(Directory(_join(whiteboardRoot.path, 'rich_text')));
@@ -123,6 +190,7 @@ class UnifiedCardRepository {
   final Directory whiteboardRoot;
   final RichTextStorage richTextStorage;
   final ThumbnailResolver? thumbnailResolver;
+  final UnifiedCardRepositoryFaultInjector? faultInjector;
 
   /// Repairs interrupted rich-text and Source-object exchanges at startup.
   Future<void> recoverFileReplacements() async {
@@ -358,6 +426,55 @@ class UnifiedCardRepository {
     );
     await db.transaction(() => _insertNewCard(card));
     return card;
+  }
+
+  /// Inserts a complete Source-bound Annotation Card in one transaction.
+  Future<CardContract> createAnnotationCard(CardContract card) async {
+    if (card.cardKind != CardKind.annotation || card.sourceId == null) {
+      throw ArgumentError('Annotation Card requires kind and sourceId');
+    }
+    final rawAnchor = card.presentation['anchor'];
+    if (rawAnchor is! Map) {
+      throw ArgumentError('Annotation Card requires an Anchor projection');
+    }
+    final anchor = AnchorContract.fromJson(
+      Map<String, dynamic>.from(rawAnchor),
+    );
+    if (anchor.sourceId != card.sourceId) {
+      throw ArgumentError('Annotation Card Source and Anchor disagree');
+    }
+    if (card.presentation['anchor_id'] != anchor.anchorId ||
+        card.presentation['start_ms'] != anchor.positionSpec['start_ms'] ||
+        card.presentation['end_ms'] != anchor.positionSpec['end_ms'] ||
+        card.presentation['is_point'] != anchor.positionSpec['is_point']) {
+      throw ArgumentError('Annotation Card summary and Anchor disagree');
+    }
+    return db.transaction(() async {
+      if (await _sourceById(card.sourceId!) == null) {
+        throw StateError('Source not found: ${card.sourceId}');
+      }
+      final sourceVersion = await _versionById(anchor.sourceVersionId);
+      if (sourceVersion == null || sourceVersion.sourceId != card.sourceId) {
+        throw StateError(
+          'SourceVersion does not belong to Source: ${anchor.sourceVersionId}',
+        );
+      }
+      final existing = await (db.select(
+        db.memoryCards,
+      )..where((t) => t.id.equals(card.cardId))).getSingleOrNull();
+      if (existing != null) {
+        throw StateError('Card already exists: ${card.cardId}');
+      }
+      await _insertMemoryCardRow(card);
+      await _injectFault(
+        UnifiedCardRepositoryFaultPoint.annotationAfterMemoryCardInsert,
+      );
+      await _insertCardExtraRow(card);
+      await _injectFault(
+        UnifiedCardRepositoryFaultPoint.annotationAfterExtrasInsert,
+      );
+      return card;
+    });
   }
 
   /// Updates card metadata and its searchable projection in one transaction.
@@ -621,6 +738,31 @@ class UnifiedCardRepository {
     }
     final incomingSource = result.source!;
     final incomingVersion = SourceVersion.fromJson(result.sourceVersion!);
+    final initialExisting = await _findCanonicalSource(result, incomingSource);
+    final initialSourceId = initialExisting?.sourceId ?? incomingSource.sourceId;
+    final lockRef = _sourceObjectRef(
+      initialSourceId,
+      incomingVersion.contentHash,
+    );
+    return _withSourceObjectCommitLock(
+      _objectFile(lockRef).absolute.path,
+      () => _commitIngestionLocked(
+        result,
+        cardKind: cardKind,
+        ownerSpace: ownerSpace,
+        createdBy: createdBy,
+      ),
+    );
+  }
+
+  Future<IngestionCommitResult> _commitIngestionLocked(
+    IngestionResult result, {
+    required CardKind cardKind,
+    required OwnerSpace ownerSpace,
+    required CardCreatedBy createdBy,
+  }) async {
+    final incomingSource = result.source!;
+    final incomingVersion = SourceVersion.fromJson(result.sourceVersion!);
     final existingSource = await _findCanonicalSource(result, incomingSource);
     final sourceId = existingSource?.sourceId ?? incomingSource.sourceId;
     final sameHash = await _versionByHash(
@@ -637,26 +779,36 @@ class UnifiedCardRepository {
           parserVersion: incomingVersion.parserVersion,
           createdAt: incomingVersion.createdAt.toUtc(),
         );
+    _SourceObjectWriteGuard? objectWriteGuard;
     if (sameHash == null) {
+      final target = _objectFile(version.objectRef);
+      objectWriteGuard = await _SourceObjectWriteGuard.capture(
+        target,
+        version.objectRef,
+      );
       await _writeSourceObject(version, result);
     }
 
     late IngestionCommitResult committed;
-    await db.transaction(() async {
-      if (sameHash == null) {
-        await db
-            .into(db.whiteboardSourceVersions)
-            .insert(
-              WhiteboardSourceVersionsCompanion.insert(
-                id: version.versionId,
-                sourceId: version.sourceId,
-                contentHash: version.contentHash,
-                objectRef: version.objectRef,
-                parserVersion: Value(version.parserVersion),
-                createdAt: _millis(version.createdAt),
-              ),
-            );
-      }
+    try {
+      await db.transaction(() async {
+        if (sameHash == null) {
+          await db
+              .into(db.whiteboardSourceVersions)
+              .insert(
+                WhiteboardSourceVersionsCompanion.insert(
+                  id: version.versionId,
+                  sourceId: version.sourceId,
+                  contentHash: version.contentHash,
+                  objectRef: version.objectRef,
+                  parserVersion: Value(version.parserVersion),
+                  createdAt: _millis(version.createdAt),
+                ),
+              );
+          await _injectFault(
+            UnifiedCardRepositoryFaultPoint.ingestionAfterVersionInsert,
+          );
+        }
       final now = result.resolvedAt.toUtc();
       final source = SourceContent(
         sourceId: sourceId,
@@ -734,15 +886,19 @@ class UnifiedCardRepository {
       } else {
         await _updateExistingCard(card);
       }
-      committed = IngestionCommitResult(
-        source: source,
-        version: version,
-        versionIsNew: sameHash == null,
-        card: card,
-        cardCreated: cardCreated,
-        cardRestored: wasDeleted,
-      );
-    });
+        committed = IngestionCommitResult(
+          source: source,
+          version: version,
+          versionIsNew: sameHash == null,
+          card: card,
+          cardCreated: cardCreated,
+          cardRestored: wasDeleted,
+        );
+      });
+    } catch (_) {
+      await objectWriteGuard?.removeCreatedFilesIfUnreferenced(db);
+      rethrow;
+    }
     return committed;
   }
 
@@ -891,6 +1047,11 @@ class UnifiedCardRepository {
   // Internal mapping / persistence ----------------------------------------
 
   Future<void> _insertNewCard(CardContract card) async {
+    await _insertMemoryCardRow(card);
+    await _insertCardExtraRow(card);
+  }
+
+  Future<void> _insertMemoryCardRow(CardContract card) async {
     await db
         .into(db.memoryCards)
         .insert(
@@ -908,6 +1069,9 @@ class UnifiedCardRepository {
             updatedAt: _millis(card.updatedAt ?? card.createdAt),
           ),
         );
+  }
+
+  Future<void> _insertCardExtraRow(CardContract card) async {
     await db
         .into(db.whiteboardCardExtras)
         .insert(
@@ -930,6 +1094,29 @@ class UnifiedCardRepository {
             ),
           ),
         );
+  }
+
+  Future<void> _injectFault(UnifiedCardRepositoryFaultPoint point) async {
+    await faultInjector?.call(point);
+  }
+
+  Future<T> _withSourceObjectCommitLock<T>(
+    String key,
+    Future<T> Function() action,
+  ) async {
+    final previous = _sourceObjectCommitLocks[key] ?? Future<void>.value();
+    final gate = Completer<void>();
+    final current = gate.future;
+    _sourceObjectCommitLocks[key] = current;
+    try {
+      await previous.catchError((_) {});
+      return await action();
+    } finally {
+      gate.complete();
+      if (identical(_sourceObjectCommitLocks[key], current)) {
+        _sourceObjectCommitLocks.remove(key);
+      }
+    }
   }
 
   Future<void> _updateExistingCard(CardContract card) async {

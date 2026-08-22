@@ -17,6 +17,7 @@ library;
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -322,7 +323,10 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
 
   void _openSavedDestination() {
     final source = _outcome?.result.source;
-    if (source != null && _outcome != null && _isStudyReady(_outcome!.result)) {
+    if (source != null &&
+        _outcome != null &&
+        (_isStudyReady(_outcome!.result) ||
+            _canOpenLimitedBilibiliPlayback(_outcome!.result))) {
       context.go(AppRoutes.sourceStudyPath(source.sourceId));
       return;
     }
@@ -346,6 +350,15 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
     return result.source?.mediaType == SourceMediaType.video &&
         (result.videoCapability == VideoCapabilityLevel.playbackStudy ||
             result.videoCapability == VideoCapabilityLevel.localized);
+  }
+
+  bool _canOpenLimitedBilibiliPlayback(IngestionResult result) {
+    final source = result.source;
+    return !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.windows &&
+        source?.mediaType == SourceMediaType.video &&
+        source?.provider == 'bilibili' &&
+        result.videoCapability == VideoCapabilityLevel.linkOnly;
   }
 
   String _friendlyPreviewFailure(Object error) {
@@ -676,6 +689,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
         savedCard != null && _matchesExistingVersion && !_cardSaved;
     final updateAvailable = savedCard != null && !_matchesExistingVersion;
     final studyReady = _isStudyReady(result);
+    final limitedBilibiliPlayback = _canOpenLimitedBilibiliPlayback(result);
     final linkOnlyVideo = source.mediaType == SourceMediaType.video &&
         result.videoCapability == VideoCapabilityLevel.linkOnly;
     final capabilityLabel = studyReady
@@ -711,12 +725,18 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
           OutlinedButton.icon(
             onPressed: _openSavedDestination,
             icon: Icon(
-              studyReady
+              studyReady || limitedBilibiliPlayback
                   ? Icons.play_circle_outline
                   : Icons.library_books_outlined,
               size: 16,
             ),
-            label: Text(studyReady ? '打开视频研读' : '打开卡片库'),
+            label: Text(
+              studyReady
+                  ? '打开视频研读'
+                  : limitedBilibiliPlayback
+                  ? '打开视频播放（时间研读受限）'
+                  : '打开卡片库',
+            ),
             style: OutlinedButton.styleFrom(
               foregroundColor: DesktopWorkspaceTokens.of(context).action,
               side: BorderSide(
