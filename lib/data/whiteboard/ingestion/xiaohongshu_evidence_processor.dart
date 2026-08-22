@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -28,7 +29,7 @@ class XiaohongshuEvidenceProcessor {
                   'image/gif',
                 },
                 acceptHeader:
-                    'image/avif,image/webp,image/png,image/jpeg,*/*;q=0.1',
+                    'image/webp,image/png,image/jpeg,image/gif,*/*;q=0.1',
               ),
             ),
         _recognizer = recognizer ?? const MlKitChineseOcrRecognizer(),
@@ -59,7 +60,7 @@ class XiaohongshuEvidenceProcessor {
       };
       metadata['xhs_media_evidence'] = evidence;
       sourceMetadata['xhs_media_evidence'] = evidence;
-      return _copyResult(
+      return _versionedResult(_copyResult(
         input,
         source: _copySource(
           input.source!,
@@ -69,13 +70,20 @@ class XiaohongshuEvidenceProcessor {
         metadata: metadata,
         hasMedia: true,
         videoCapability: VideoCapabilityLevel.linkOnly,
-      );
+      ));
     }
 
+    // Low-confidence OG fallback is retained for provenance but never
+    // downloaded or used to classify a note by itself.
+    if (kind != 'image') return _versionedResult(input);
+
     final rawCandidates = metadata['xhs_media_candidates'];
-    if (rawCandidates is! List || rawCandidates.isEmpty) return input;
+    if (rawCandidates is! List || rawCandidates.isEmpty) {
+      return _versionedResult(input);
+    }
     final evidence = <Map<String, dynamic>>[];
     for (final raw in rawCandidates.whereType<Map>()) {
+      if (raw['confidence'] == 'low') continue;
       final url = raw['original_url'] as String?;
       final order = raw['order'] as int?;
       if (url == null || order == null) continue;
@@ -85,7 +93,7 @@ class XiaohongshuEvidenceProcessor {
             url: url,
             order: order,
             parserVersion: metadata['xhs_parser_version'] as String? ??
-                'xhs-public-evidence-v1',
+                'xhs-public-evidence-v2',
           ),
         );
       } catch (error) {
@@ -93,17 +101,18 @@ class XiaohongshuEvidenceProcessor {
           'original_url': url,
           'order': order,
           'status': 'failed',
-          'failure': error.toString(),
+          'failure_code': 'processing_failed',
+          'failure': _sanitizeFailure(error.toString()),
           'fetched_at': _clock().toUtc().toIso8601String(),
           'parser_version': metadata['xhs_parser_version'] as String? ??
-              'xhs-public-evidence-v1',
+              'xhs-public-evidence-v2',
         });
       }
     }
     metadata['xhs_image_evidence'] = evidence;
     sourceMetadata['xhs_image_evidence'] = evidence;
     final stored = evidence.any((item) => item['status'] == 'stored');
-    return _copyResult(
+    return _versionedResult(_copyResult(
       input,
       source: _copySource(
         input.source!,
@@ -114,7 +123,7 @@ class XiaohongshuEvidenceProcessor {
       hasMedia: stored || input.hasMedia,
       status: input.status,
       errorMessage: input.errorMessage,
-    );
+    ));
   }
 
   Future<Map<String, dynamic>> _processCandidate({
@@ -129,7 +138,10 @@ class XiaohongshuEvidenceProcessor {
         'original_url': url,
         'order': order,
         'status': 'rejected',
-        'failure': fetched.errorMessage ?? 'empty image response',
+        'failure_code': 'transport_rejected',
+        'failure': _sanitizeFailure(
+          fetched.errorMessage ?? 'empty image response',
+        ),
         'fetched_at': fetchedAt.toIso8601String(),
         'parser_version': parserVersion,
       };
@@ -144,6 +156,7 @@ class XiaohongshuEvidenceProcessor {
         'mime_type': mime,
         'order': order,
         'status': 'rejected',
+        'failure_code': 'malformed_image',
         'failure': 'Image dimensions unavailable or malformed',
         'fetched_at': fetchedAt.toIso8601String(),
         'parser_version': parserVersion,
@@ -158,6 +171,7 @@ class XiaohongshuEvidenceProcessor {
         'mime_type': mime,
         'order': order,
         'status': 'rejected',
+        'failure_code': 'pixel_limit',
         'failure': 'Image pixel limit exceeded',
         'width': dimensions.width,
         'height': dimensions.height,
@@ -194,12 +208,110 @@ class XiaohongshuEvidenceProcessor {
         'text': recognition.text,
         if (recognition.confidence != null)
           'confidence': recognition.confidence,
-        if (recognition.reason != null) 'reason': recognition.reason,
+        if (recognition.reason != null)
+          'reason': _sanitizeFailure(recognition.reason!),
         'recognizer_version': recognition.recognizerVersion,
         'derived_from_object_ref': ref.objectRef,
       },
     };
   }
+
+  IngestionResult _versionedResult(IngestionResult result) {
+    final source = result.source;
+    final sourceVersion = result.sourceVersion;
+    if (source == null || sourceVersion == null) return result;
+    final manifest = <String, dynamic>{
+      'schema_version': 1,
+      'provider': 'xiaohongshu',
+      'kind': result.metadata['xhs_note_kind'],
+      'comments': result.metadata['xhs_public_comments'] ?? const [],
+      if (result.metadata['xhs_image_evidence'] case final List evidence)
+        'images': [
+          for (final raw in evidence.whereType<Map>())
+            {
+              'order': raw['order'],
+              'original_url': raw['original_url'],
+              'final_url': raw['final_url'],
+              'status': raw['status'],
+              'sha256': raw['sha256'],
+              'mime_type': raw['mime_type'],
+              'width': raw['width'],
+              'height': raw['height'],
+              'failure_code': raw['failure_code'],
+              if (raw['ocr'] case final Map ocr)
+                'ocr': {
+                  'status': ocr['status'],
+                  'text': ocr['text'],
+                  'confidence': ocr['confidence'],
+                  'recognizer_version': ocr['recognizer_version'],
+                },
+            },
+        ],
+      if (result.metadata['xhs_media_evidence'] case final Map media)
+        'media': {
+          'kind': media['kind'],
+          'capability': media['capability'],
+          'stream_extraction': media['stream_extraction'],
+          'source_url': media['source_url'],
+          'parser_version': media['parser_version'],
+        },
+    };
+    final manifestJson = jsonEncode(manifest);
+    final evidenceHash = sha256.convert(utf8.encode(manifestJson)).toString();
+    final baseHash = result.metadata['xhs_base_content_hash'] as String? ??
+        source.metadata['xhs_base_content_hash'] as String? ??
+        sourceVersion['content_hash'] as String? ??
+        source.contentHash ??
+        '';
+    final contentHash = sha256
+        .convert(utf8.encode('$baseHash\n$evidenceHash'))
+        .toString()
+        .substring(0, 32);
+    final versionId =
+        '${source.sourceId.replaceFirst(RegExp(r'^src_'), 'ver_')}_$contentHash';
+    final metadata = Map<String, dynamic>.from(result.metadata)
+      ..['xhs_base_content_hash'] = baseHash
+      ..['xhs_evidence_manifest'] = manifest
+      ..['xhs_evidence_hash'] = evidenceHash;
+    final sourceMetadata = Map<String, dynamic>.from(source.metadata)
+      ..['xhs_base_content_hash'] = baseHash
+      ..['xhs_evidence_manifest'] = manifest
+      ..['xhs_evidence_hash'] = evidenceHash;
+    return _copyResult(
+      result,
+      source: SourceContent(
+        sourceId: source.sourceId,
+        mediaType: source.mediaType,
+        title: source.title,
+        ownerSpace: source.ownerSpace,
+        origin: source.origin,
+        provider: source.provider,
+        canonicalId: source.canonicalId,
+        mimeType: source.mimeType,
+        currentVersionId: versionId,
+        contentHash: contentHash,
+        objectRef: source.objectRef,
+        metadata: sourceMetadata,
+        createdAt: source.createdAt,
+        updatedAt: source.updatedAt,
+        deletedAt: source.deletedAt,
+      ),
+      sourceVersion: {
+        ...sourceVersion,
+        'version_id': versionId,
+        'content_hash': contentHash,
+      },
+      metadata: metadata,
+    );
+  }
+}
+
+String _sanitizeFailure(String value) {
+  var sanitized = value
+      .replaceAll(RegExp(r'file:\/\/\S+', caseSensitive: false), '[local-path]')
+      .replaceAll(RegExp(r'[A-Za-z]:[\\/][^\s,;]+'), '[local-path]');
+  if (sanitized.length > 240) sanitized = '${sanitized.substring(0, 240)}…';
+  return sanitized;
 }
 
 class ImageDimensions {
@@ -214,16 +326,26 @@ class ImageDimensions {
       switch (mimeType.toLowerCase().split(';').first.trim()) {
         case 'image/png':
           if (bytes.length < 24 ||
-              bytes[0] != 0x89 ||
-              bytes[1] != 0x50 ||
-              bytes[2] != 0x4e ||
-              bytes[3] != 0x47) {
+              !_matches(bytes, 0, const [
+                0x89,
+                0x50,
+                0x4e,
+                0x47,
+                0x0d,
+                0x0a,
+                0x1a,
+                0x0a,
+              ]) ||
+              _u32be(bytes, 8) != 13 ||
+              String.fromCharCodes(bytes.sublist(12, 16)) != 'IHDR') {
             return null;
           }
-          return ImageDimensions(_u32be(bytes, 16), _u32be(bytes, 20));
+          return _positive(_u32be(bytes, 16), _u32be(bytes, 20));
         case 'image/gif':
           if (bytes.length < 10) return null;
-          return ImageDimensions(_u16le(bytes, 6), _u16le(bytes, 8));
+          final signature = String.fromCharCodes(bytes.sublist(0, 6));
+          if (signature != 'GIF87a' && signature != 'GIF89a') return null;
+          return _positive(_u16le(bytes, 6), _u16le(bytes, 8));
         case 'image/jpeg':
           return _jpeg(bytes);
         case 'image/webp':
@@ -261,7 +383,7 @@ class ImageDimensions {
       }
       final marker = bytes[offset + 1];
       if (sof.contains(marker)) {
-        return ImageDimensions(
+        return _positive(
           _u16be(bytes, offset + 7),
           _u16be(bytes, offset + 5),
         );
@@ -285,14 +407,14 @@ class ImageDimensions {
     }
     final type = String.fromCharCodes(bytes.sublist(12, 16));
     if (type == 'VP8X') {
-      return ImageDimensions(_u24le(bytes, 24) + 1, _u24le(bytes, 27) + 1);
+      return _positive(_u24le(bytes, 24) + 1, _u24le(bytes, 27) + 1);
     }
     if (type == 'VP8 ' &&
         bytes.length >= 30 &&
         bytes[23] == 0x9d &&
         bytes[24] == 0x01 &&
         bytes[25] == 0x2a) {
-      return ImageDimensions(
+      return _positive(
         _u16le(bytes, 26) & 0x3fff,
         _u16le(bytes, 28) & 0x3fff,
       );
@@ -300,7 +422,7 @@ class ImageDimensions {
     if (type == 'VP8L' && bytes.length >= 25 && bytes[20] == 0x2f) {
       final bits =
           bytes[21] | (bytes[22] << 8) | (bytes[23] << 16) | (bytes[24] << 24);
-      return ImageDimensions((bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1);
+      return _positive((bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1);
     }
     return null;
   }
@@ -311,6 +433,16 @@ class ImageDimensions {
       b[o] | (b[o + 1] << 8) | (b[o + 2] << 16);
   static int _u32be(Uint8List b, int o) =>
       (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
+  static bool _matches(Uint8List bytes, int offset, List<int> expected) {
+    if (bytes.length < offset + expected.length) return false;
+    for (var i = 0; i < expected.length; i++) {
+      if (bytes[offset + i] != expected[i]) return false;
+    }
+    return true;
+  }
+
+  static ImageDimensions? _positive(int width, int height) =>
+      width > 0 && height > 0 ? ImageDimensions(width, height) : null;
 }
 
 SourceContent _copySource(
@@ -344,6 +476,7 @@ IngestionResult _copyResult(
   IngestionStatus? status,
   String? errorMessage,
   VideoCapabilityLevel? videoCapability,
+  Map<String, dynamic>? sourceVersion,
 }) =>
     IngestionResult(
       resultId: input.resultId,
@@ -353,7 +486,7 @@ IngestionResult _copyResult(
       status: status ?? input.status,
       errorMessage: errorMessage,
       source: source,
-      sourceVersion: input.sourceVersion,
+      sourceVersion: sourceVersion ?? input.sourceVersion,
       hasBody: input.hasBody,
       hasMedia: hasMedia ?? input.hasMedia,
       hasTranscript: input.hasTranscript,

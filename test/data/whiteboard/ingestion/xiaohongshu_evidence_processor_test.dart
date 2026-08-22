@@ -83,6 +83,8 @@ SafeHttpClient _client(
 Uint8List _png({int width = 2, int height = 3, int trailingBytes = 0}) {
   final bytes = Uint8List(24 + trailingBytes);
   bytes.setAll(0, const [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  bytes[11] = 13;
+  bytes.setAll(12, const [0x49, 0x48, 0x44, 0x52]);
   bytes[16] = (width >> 24) & 0xff;
   bytes[17] = (width >> 16) & 0xff;
   bytes[18] = (width >> 8) & 0xff;
@@ -126,7 +128,7 @@ IngestionResult _imageResult(String url) {
     hasMedia: true,
     metadata: {
       'xhs_note_kind': 'image',
-      'xhs_parser_version': 'xhs-public-evidence-v1',
+      'xhs_parser_version': 'xhs-public-evidence-v2',
       'xhs_media_candidates': [
         {'original_url': url, 'order': 0, 'source': 'image_urls'},
       ],
@@ -175,7 +177,7 @@ void main() {
     expect(evidence['order'], 0);
     expect(evidence['width'], 2);
     expect(evidence['height'], 3);
-    expect(evidence['parser_version'], 'xhs-public-evidence-v1');
+    expect(evidence['parser_version'], 'xhs-public-evidence-v2');
     final ocr = evidence['ocr'] as Map;
     expect(ocr['status'], 'available');
     expect(ocr['text'], '图中文字');
@@ -222,6 +224,29 @@ void main() {
       expect((evidence['ocr'] as Map)['text'], '');
     },
   );
+
+  test('persisted OCR failures redact local paths', () async {
+    final processor = XiaohongshuEvidenceProcessor(
+      objectStore: RichTextObjectStore(tempDir),
+      imageClient: _client({
+        'https://sns-img.example/1.png': _Response(_png(), 'image/png'),
+      }),
+      recognizer: const _FixtureRecognizer(
+        OcrRecognition.unavailable(
+          reason: r'failed at C:/Users/USER',
+          recognizerVersion: 'fixture-none',
+        ),
+      ),
+    );
+    final result = await processor.process(
+      _imageResult('https://sns-img.example/1.png'),
+    );
+    final evidence =
+        (result.metadata['xhs_image_evidence'] as List).single as Map;
+    final reason = ((evidence['ocr'] as Map)['reason'] as String);
+    expect(reason, contains('[local-path]'));
+    expect(reason, isNot(contains(r'C:\Users')));
+  });
 
   test(
     'SSRF, MIME, byte and pixel policies fail closed with evidence',
@@ -294,6 +319,97 @@ void main() {
       expect(Directory('${tempDir.path}/objects').existsSync(), isFalse);
     },
   );
+
+  test('rejects forged PNG/GIF headers and zero dimensions', () {
+    final forgedPng = Uint8List(24)..setAll(0, const [0x89, 0x50, 0x4e, 0x47]);
+    final forgedGif = Uint8List(10)
+      ..[6] = 2
+      ..[8] = 3;
+    expect(ImageDimensions.tryRead(forgedPng, 'image/png'), isNull);
+    expect(ImageDimensions.tryRead(forgedGif, 'image/gif'), isNull);
+    expect(ImageDimensions.tryRead(_png(width: 0), 'image/png'), isNull);
+  });
+
+  test('same URL with changed bytes creates a new immutable version', () async {
+    const url = 'https://sns-img.example/mutable.png';
+    final adapter = _Adapter({url: _Response(_png(), 'image/png')});
+    final dbFile = File('${tempDir.path}/mutable.sqlite');
+    final db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    addTearDown(db.close);
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    final service = LinkIngestionService(
+      repository: repository,
+      xiaohongshuEvidenceProcessor: XiaohongshuEvidenceProcessor(
+        objectStore: RichTextObjectStore(tempDir),
+        imageClient: _client(const {}, adapter: adapter),
+        recognizer: const _FixtureRecognizer(OcrRecognition.unavailable()),
+      ),
+    );
+    final preview = _imageResult(url);
+
+    final first = await service.commitResult(preview);
+    adapter.responses[url] =
+        _Response(_png(trailingBytes: 1)..last = 7, 'image/png');
+    final second = await service.commitResult(preview);
+
+    expect(second.upsert!.version.versionId,
+        isNot(first.upsert!.version.versionId));
+    final versions =
+        await repository.listSourceVersions(preview.source!.sourceId);
+    expect(versions, hasLength(2));
+    for (final version in versions) {
+      expect(
+        (await repository.getSourceObject(version)).state,
+        SourceObjectState.available,
+      );
+    }
+  });
+
+  test('reprocessing an enriched result does not chain evidence hashes',
+      () async {
+    const url = 'https://sns-img.example/stable.png';
+    final processor = XiaohongshuEvidenceProcessor(
+      objectStore: RichTextObjectStore(tempDir),
+      imageClient: _client({url: _Response(_png(), 'image/png')}),
+      recognizer: const _FixtureRecognizer(OcrRecognition.unavailable()),
+      clock: () => DateTime.utc(2026, 8, 23, 8),
+    );
+
+    final first = await processor.process(_imageResult(url));
+    final second = await processor.process(first);
+
+    expect(second.source!.contentHash, first.source!.contentHash);
+    expect(
+      second.metadata['xhs_evidence_hash'],
+      first.metadata['xhs_evidence_hash'],
+    );
+  });
+
+  test('concurrent duplicate commits serialize to one version', () async {
+    const url = 'https://sns-img.example/same.png';
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    final service = LinkIngestionService(
+      repository: repository,
+      xiaohongshuEvidenceProcessor: XiaohongshuEvidenceProcessor(
+        objectStore: RichTextObjectStore(tempDir),
+        imageClient: _client({url: _Response(_png(), 'image/png')}),
+        recognizer: const _FixtureRecognizer(OcrRecognition.unavailable()),
+      ),
+    );
+
+    final outcomes = await Future.wait([
+      service.commitResult(_imageResult(url)),
+      service.commitResult(_imageResult(url)),
+    ]);
+
+    expect(outcomes.where((item) => item.cardCreated), hasLength(1));
+    expect(
+      await repository.listSourceVersions(_imageResult(url).source!.sourceId),
+      hasLength(1),
+    );
+  });
 
   test(
     'commit persists public comments, image and OCR evidence across restart',

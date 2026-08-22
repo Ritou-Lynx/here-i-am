@@ -87,21 +87,22 @@ void main() {
 
     test('infers mime type by extension', () async {
       writeSource('doc.pdf');
-      final ref = await store.importFile(
-          '${sourceDir.path}${Platform.pathSeparator}doc.pdf');
+      final ref = await store
+          .importFile('${sourceDir.path}${Platform.pathSeparator}doc.pdf');
       expect(ref.mimeType, equals('application/pdf'));
     });
 
     test('unknown extensions default to octet-stream', () async {
       writeSource('blob.xyz');
-      final ref = await store.importFile(
-          '${sourceDir.path}${Platform.pathSeparator}blob.xyz');
+      final ref = await store
+          .importFile('${sourceDir.path}${Platform.pathSeparator}blob.xyz');
       expect(ref.mimeType, equals('application/octet-stream'));
     });
 
     test('import of a missing file throws', () async {
       expect(
-        () => store.importFile('${sourceDir.path}${Platform.pathSeparator}nope'),
+        () =>
+            store.importFile('${sourceDir.path}${Platform.pathSeparator}nope'),
         throwsA(isA<StateError>()),
       );
     });
@@ -145,13 +146,38 @@ void main() {
       );
       expect(store.resolveFile(ref), isNull);
     });
+
+    test('symlink object cannot read or delete an external target', () async {
+      final external = writeSource('outside.png', 'must survive');
+      await store.objectsDirectory.create(recursive: true);
+      final link = Link(
+        '${store.objectsDirectory.path}${Platform.pathSeparator}linked.png',
+      );
+      try {
+        await link.create(external.path);
+      } on FileSystemException {
+        // Windows can forbid symlink creation without Developer Mode. The
+        // production guard rejects every non-regular leaf via typeSync.
+        return;
+      }
+      const ref = RichTextAssetRef(
+        refId: 'linked',
+        objectRef: 'objects/linked.png',
+        mimeType: 'image/png',
+      );
+
+      expect(store.resolveFile(ref), isNull);
+      await store.deleteRef(ref);
+      expect(external.readAsStringSync(), 'must survive');
+      expect(link.existsSync(), isTrue);
+    });
   });
 
   group('delete', () {
     test('deleteRef removes the object file', () async {
       writeSource('gone.png');
-      final ref = await store.importFile(
-          '${sourceDir.path}${Platform.pathSeparator}gone.png');
+      final ref = await store
+          .importFile('${sourceDir.path}${Platform.pathSeparator}gone.png');
       expect(store.resolveFile(ref), isNotNull);
       await store.deleteRef(ref);
       expect(store.resolveFile(ref), isNull);
@@ -164,6 +190,22 @@ void main() {
         mimeType: 'image/png',
       );
       await store.deleteRef(ref); // must not throw
+    });
+
+    test('deleteRef conservatively retains shared digest objects', () async {
+      final first = await store.importBytes(
+        Uint8List.fromList([1, 2, 3]),
+        mimeType: 'image/png',
+      );
+      final second = await store.importBytes(
+        Uint8List.fromList([1, 2, 3]),
+        mimeType: 'image/png',
+      );
+      expect(first.objectRef, second.objectRef);
+
+      await store.deleteRef(first);
+
+      expect(store.resolveFile(second), isNotNull);
     });
   });
 

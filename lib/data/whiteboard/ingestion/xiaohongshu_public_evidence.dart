@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
@@ -10,16 +12,19 @@ class XiaohongshuMediaCandidate {
     required this.originalUrl,
     required this.order,
     required this.source,
+    this.confidence = 'high',
   });
 
   final String originalUrl;
   final int order;
   final String source;
+  final String confidence;
 
   Map<String, dynamic> toJson() => {
         'original_url': originalUrl,
         'order': order,
         'source': source,
+        'confidence': confidence,
       };
 }
 
@@ -63,7 +68,7 @@ class XiaohongshuPublicEvidence {
     required this.parserVersion,
   });
 
-  static const currentParserVersion = 'xhs-public-evidence-v1';
+  static const currentParserVersion = 'xhs-public-evidence-v2';
 
   final XiaohongshuNoteKind noteKind;
   final List<XiaohongshuMediaCandidate> mediaCandidates;
@@ -79,13 +84,20 @@ XiaohongshuPublicEvidence parseXiaohongshuPublicEvidence(
   required ParsedPageContent parsedPage,
 }) {
   final document = html_parser.parse(html);
-  final hasVideo = _hasVideoEvidence(document);
-  final candidates = _collectCandidates(parsedPage, sourceUrl);
+  final noteRoot = _noteRoot(document);
+  final structured = _structuredNoteMedia(document);
+  final hasVideo = structured.hasVideo || _hasVideoEvidence(noteRoot);
+  final candidates = _collectCandidates(
+    noteRoot,
+    structured.imageUrls,
+    parsedPage,
+    sourceUrl,
+  );
   final comments = _collectComments(document, sourceUrl);
   return XiaohongshuPublicEvidence(
     noteKind: hasVideo
         ? XiaohongshuNoteKind.video
-        : candidates.isNotEmpty
+        : candidates.any((candidate) => candidate.confidence == 'high')
             ? XiaohongshuNoteKind.image
             : XiaohongshuNoteKind.text,
     mediaCandidates: candidates,
@@ -94,30 +106,34 @@ XiaohongshuPublicEvidence parseXiaohongshuPublicEvidence(
   );
 }
 
-bool _hasVideoEvidence(dom.Document document) {
-  if (document.querySelector('video, video source') != null) return true;
-  for (final meta in document.querySelectorAll('meta')) {
-    final key = (meta.attributes['property'] ?? meta.attributes['name'] ?? '')
-        .trim()
-        .toLowerCase();
-    final value = (meta.attributes['content'] ?? '').trim().toLowerCase();
-    if ((key == 'og:type' && value.contains('video')) ||
-        key == 'og:video' ||
-        key.startsWith('og:video:') ||
-        key == 'twitter:player') {
-      return true;
-    }
+dom.Element? _noteRoot(dom.Document document) {
+  for (final selector in const [
+    '[data-testid="note-content"]',
+    '[data-note-id]',
+    'article.note',
+    '.note-content',
+    '.note-container',
+  ]) {
+    final root = document.querySelector(selector);
+    if (root != null) return root;
   }
-  return false;
+  return null;
 }
 
+bool _hasVideoEvidence(dom.Element? noteRoot) =>
+    noteRoot?.querySelector('video, video source') != null;
+
 List<XiaohongshuMediaCandidate> _collectCandidates(
+  dom.Element? noteRoot,
+  List<String> structuredUrls,
   ParsedPageContent parsed,
   String sourceUrl,
 ) {
   final ordered = <(String, String)>[
-    for (final url in parsed.imageUrls) (url, 'image_urls'),
-    if (parsed.ogImage != null) (parsed.ogImage!, 'og_image'),
+    for (final url in structuredUrls) (url, 'structured_note_state'),
+    if (noteRoot != null)
+      for (final image in noteRoot.querySelectorAll('img'))
+        if (_imageUrl(image) case final String url) (url, 'note_root'),
   ];
   final seen = <String>{};
   final result = <XiaohongshuMediaCandidate>[];
@@ -137,24 +153,101 @@ List<XiaohongshuMediaCandidate> _collectCandidates(
       ),
     );
   }
+  // Preserve OG as explicitly low-confidence fallback evidence. It is not
+  // sufficient to classify or download a note because many pages use a
+  // site-wide sharing image.
+  if (parsed.ogImage != null) {
+    final resolved = Uri.tryParse(sourceUrl)?.resolve(parsed.ogImage!);
+    if (resolved != null &&
+        (resolved.scheme == 'https' || resolved.scheme == 'http')) {
+      final url = resolved.toString().split('#').first;
+      if (seen.add(url)) {
+        result.add(XiaohongshuMediaCandidate(
+          originalUrl: url,
+          order: result.length,
+          source: 'og_image',
+          confidence: 'low',
+        ));
+      }
+    }
+  }
   return result;
+}
+
+class _StructuredNoteMedia {
+  const _StructuredNoteMedia(
+      {this.imageUrls = const [], this.hasVideo = false});
+
+  final List<String> imageUrls;
+  final bool hasVideo;
+}
+
+_StructuredNoteMedia _structuredNoteMedia(dom.Document document) {
+  final images = <String>[];
+  var hasVideo = false;
+  for (final script in document.querySelectorAll(
+    'script[data-xhs-note-state], script#xhs-note-state',
+  )) {
+    try {
+      final decoded = jsonDecode(script.text);
+      if (decoded is! Map) continue;
+      // Only explicitly scoped note payloads are inspected. We deliberately
+      // do not recursively scan the complete app state, which also contains
+      // recommendations, avatars and unrelated feed videos.
+      final note = decoded['note'] ?? decoded['noteDetail'];
+      if (note is! Map) continue;
+      final rawImages = note['imageList'] ?? note['images'];
+      if (rawImages is List) {
+        for (final raw in rawImages) {
+          final value = raw is String
+              ? raw
+              : raw is Map
+                  ? raw['urlDefault'] ?? raw['originalUrl'] ?? raw['url']
+                  : null;
+          if (value is String && value.trim().isNotEmpty) {
+            images.add(value.trim());
+          }
+        }
+      }
+      final video = note['video'];
+      hasVideo = hasVideo ||
+          (video is Map && video.isNotEmpty) ||
+          (video is String && video.trim().isNotEmpty);
+    } catch (_) {
+      // Malformed/unexpected state is ignored rather than broadening the DOM
+      // fallback to unrelated whole-page media.
+    }
+  }
+  return _StructuredNoteMedia(imageUrls: images, hasVideo: hasVideo);
+}
+
+String? _imageUrl(dom.Element image) {
+  for (final key in const ['data-src', 'data-original-src', 'src']) {
+    final value = _clean(image.attributes[key]);
+    if (value != null) return value;
+  }
+  return null;
 }
 
 List<XiaohongshuPublicComment> _collectComments(
   dom.Document document,
   String sourceUrl,
 ) {
-  const selectors = <String>[
-    '.comments-container .comment-item',
-    '[class*="comments-container"] [class*="comment-item"]',
-    '[data-testid="comment"]',
-    'article.comment',
+  const containerSelectors = <String>[
+    '.comments-container',
+    '[data-testid="comments-container"]',
   ];
   final nodes = <(dom.Element, String)>[];
   final seenNodes = <dom.Element>{};
-  for (final selector in selectors) {
-    for (final node in document.querySelectorAll(selector)) {
-      if (seenNodes.add(node)) nodes.add((node, selector));
+  for (final containerSelector in containerSelectors) {
+    for (final container in document.querySelectorAll(containerSelector)) {
+      for (final node in container.querySelectorAll(
+        '.comment-item, [data-testid="comment"]',
+      )) {
+        if (seenNodes.add(node)) {
+          nodes.add((node, '$containerSelector > comment'));
+        }
+      }
     }
     if (nodes.isNotEmpty) break;
   }
@@ -174,8 +267,6 @@ List<XiaohongshuPublicComment> _collectComments(
         _clean(node.attributes['data-user-name']);
     final text = _firstText(node, const [
       '.comment-content',
-      '.content',
-      '.note-text',
       '[data-comment-text]',
     ]);
     if (author == null || text == null) continue;

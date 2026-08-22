@@ -142,9 +142,7 @@ class RichTextObjectStore {
   File? resolveFile(RichTextAssetRef ref) {
     final normalized = _normalizeObjectRef(ref.objectRef);
     if (normalized == null) return null;
-    final file = File('${baseDir.path}${Platform.pathSeparator}$normalized');
-    if (!file.existsSync()) return null;
-    return file;
+    return _resolvedRegularFile(normalized);
   }
 
   /// Deletes the object file backing [ref] (if any). No-op for refs that
@@ -152,11 +150,51 @@ class RichTextObjectStore {
   Future<void> deleteRef(RichTextAssetRef ref) async {
     final normalized = _normalizeObjectRef(ref.objectRef);
     if (normalized == null) return;
+    // Digest-addressed objects may be shared by several Cards or ingestion
+    // evidence manifests. Without a reference index it is unsafe to delete
+    // the physical file for one caller. Keep it for a future mark/sweep GC.
+    if (RegExp(r'^objects/[0-9a-f]{64}\.[a-z0-9]{1,8}$').hasMatch(normalized)) {
+      return;
+    }
+    final file = _resolvedRegularFile(normalized);
+    if (file != null) await file.delete();
+  }
+
+  /// Resolves only a real regular file whose canonical target remains under
+  /// this store's real `objects/` directory. Symlink/reparse-point leaves and
+  /// directories are rejected before Image.file or delete can follow them.
+  File? _resolvedRegularFile(String normalized) {
+    final segments = normalized.split('/');
+    var current = baseDir.path;
+    for (var i = 0; i < segments.length - 1; i++) {
+      current = '$current${Platform.pathSeparator}${segments[i]}';
+      if (FileSystemEntity.typeSync(current, followLinks: false) !=
+          FileSystemEntityType.directory) {
+        return null;
+      }
+    }
     final file = File('${baseDir.path}${Platform.pathSeparator}$normalized');
-    if (await file.exists()) {
-      await file.delete();
+    if (FileSystemEntity.typeSync(file.path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      return null;
+    }
+    try {
+      final root = _canonicalForComparison(
+        _objectsDir.resolveSymbolicLinksSync(),
+      );
+      final target = _canonicalForComparison(file.resolveSymbolicLinksSync());
+      final prefix = root.endsWith(Platform.pathSeparator)
+          ? root
+          : '$root${Platform.pathSeparator}';
+      if (!target.startsWith(prefix)) return null;
+      return file;
+    } on FileSystemException {
+      return null;
     }
   }
+
+  static String _canonicalForComparison(String path) =>
+      Platform.isWindows ? path.toLowerCase() : path;
 
   /// Strips unsafe object refs. Only relative refs inside `objects/` are
   /// accepted: no absolute paths, no `..` traversal, no backslashes.
