@@ -877,15 +877,23 @@ class _QuickSaveSheetState extends State<_QuickSaveSheet> {
         inputMedia: inputMedia,
       );
 
-      messenger?.showToast(
-        result.isEmpty ? '未能提取有效记录' : '已记录 ${result.cardIds.length} 张卡片',
-        duration: const Duration(seconds: 2),
-      );
+      try {
+        messenger?.showToast(
+          result.isEmpty ? '未能提取有效记录' : '已记录 ${result.cardIds.length} 张卡片',
+          duration: const Duration(seconds: 2),
+        );
+      } catch (_) {
+        // ScaffoldMessenger may be detached after long awaits.
+      }
     } catch (e) {
-      messenger?.showToast(
-        '记录失败：$e',
-        duration: const Duration(seconds: 3),
-      );
+      try {
+        messenger?.showToast(
+          '记录失败：模型不可用或超时，请检查模型设置',
+          duration: const Duration(seconds: 3),
+        );
+      } catch (_) {
+        // ScaffoldMessenger may be detached after long awaits.
+      }
     }
   }
 

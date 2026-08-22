@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:memex/data/services/model_test_service.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
@@ -7,6 +8,33 @@ import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
 
 enum ModelAssignmentMode { tasks, agents }
+
+/// Connectivity status for a single LLM config.
+enum _ConnectivityStatus { idle, testing, ok, fail }
+
+class _ConnectivityState {
+  final _ConnectivityStatus status;
+  final String? error;
+  final Duration? responseTime;
+
+  const _ConnectivityState({
+    this.status = _ConnectivityStatus.idle,
+    this.error,
+    this.responseTime,
+  });
+
+  _ConnectivityState copyWith({
+    _ConnectivityStatus? status,
+    String? error,
+    Duration? responseTime,
+  }) {
+    return _ConnectivityState(
+      status: status ?? this.status,
+      error: error,
+      responseTime: responseTime ?? this.responseTime,
+    );
+  }
+}
 
 /// High-frequency model switcher.
 ///
@@ -161,6 +189,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   String _defaultKey = LLMConfig.defaultClientKey;
   bool _loading = true;
   String? _savingId;
+  Map<String, _ConnectivityState> _connectivity = const {};
 
   Iterable<_AgentModelDefinition> get _agents sync* {
     for (final group in _agentGroups) {
@@ -203,6 +232,49 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
       _taskSelectedKeys = taskState.selected;
       _mixedTaskIds = taskState.mixed;
       _loading = false;
+    });
+    // Kick off connectivity tests for all configured models after the
+    // page is interactive. Staggered to avoid overwhelming the network.
+    _testAllConnectivity();
+  }
+
+  Future<void> _testAllConnectivity() async {
+    for (var i = 0; i < _configs.length; i++) {
+      final config = _configs[i];
+      if (!config.isValid) continue;
+      // Stagger tests so they don't all hit the network at once.
+      await Future.delayed(Duration(milliseconds: i * 200));
+      if (!mounted) return;
+      _testConnectivity(config.key);
+    }
+  }
+
+  Future<void> _testConnectivity(String configKey) async {
+    final config =
+        _configs.where((c) => c.key == configKey).firstOrNull;
+    if (config == null || !config.isValid) return;
+
+    if (!mounted) return;
+    setState(() {
+      _connectivity = {
+        ..._connectivity,
+        configKey: const _ConnectivityState(
+            status: _ConnectivityStatus.testing),
+      };
+    });
+
+    final result = await ModelTestService.testConfig(config);
+
+    if (!mounted) return;
+    setState(() {
+      _connectivity = {
+        ..._connectivity,
+        configKey: _ConnectivityState(
+          status: result.success ? _ConnectivityStatus.ok : _ConnectivityStatus.fail,
+          error: result.error,
+          responseTime: result.responseTime,
+        ),
+      };
     });
   }
 
@@ -506,6 +578,9 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     required bool enabled,
     required ValueChanged<String> onChanged,
   }) {
+    final effectiveKey = selected ?? _defaultKey;
+    final currentStatus = _connectivity[effectiveKey]?.status ??
+        _ConnectivityStatus.idle;
     return DropdownButtonFormField<String>(
       key: key,
       initialValue: _dropdownValue(selected),
@@ -519,18 +594,27 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        suffixIcon: _ConnectivityDot(
+          status: currentStatus,
+          onTap: () => _testConnectivity(effectiveKey),
+        ),
       ),
       items: [
         DropdownMenuItem(
           value: _inheritDefault,
-          child: Text('继承默认 · ${_effectiveModelLabel(null)}'),
+          child: _DropdownItem(
+            text: '继承默认 · ${_effectiveModelLabel(null)}',
+            status: _connectivity[_defaultKey]?.status ??
+                _ConnectivityStatus.idle,
+          ),
         ),
         for (final config in _configs)
           DropdownMenuItem(
             value: config.key,
-            child: Text(
-              _configLabel(config),
-              overflow: TextOverflow.ellipsis,
+            child: _DropdownItem(
+              text: _configLabel(config),
+              status:
+                  _connectivity[config.key]?.status ?? _ConnectivityStatus.idle,
             ),
           ),
       ],
@@ -723,4 +807,90 @@ class _AgentModelDefinition {
   final String title;
   final String description;
   final String? followsAgentId;
+}
+
+/// Small colored dot showing model connectivity status. Tappable to retest.
+class _ConnectivityDot extends StatelessWidget {
+  const _ConnectivityDot({required this.status, this.onTap});
+
+  final _ConnectivityStatus status;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      _ConnectivityStatus.ok => const Color(0xFF5B8C5A),
+      _ConnectivityStatus.fail => const Color(0xFFC46B5A),
+      _ConnectivityStatus.testing => _TaskModelAssignmentPageState._accent,
+      _ConnectivityStatus.idle => _TaskModelAssignmentPageState._secondary,
+    };
+    final child = status == _ConnectivityStatus.testing
+        ? SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.8,
+              color: color,
+            ),
+          )
+        : Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.3),
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+          );
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Center(child: child),
+      ),
+    );
+  }
+}
+
+/// Dropdown menu item with a connectivity dot beside the model label.
+class _DropdownItem extends StatelessWidget {
+  const _DropdownItem({required this.text, required this.status});
+
+  final String text;
+  final _ConnectivityStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final dotColor = switch (status) {
+      _ConnectivityStatus.ok => const Color(0xFF5B8C5A),
+      _ConnectivityStatus.fail => const Color(0xFFC46B5A),
+      _ConnectivityStatus.testing => _TaskModelAssignmentPageState._accent,
+      _ConnectivityStatus.idle => _TaskModelAssignmentPageState._secondary,
+    };
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            text,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: dotColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ],
+    );
+  }
 }

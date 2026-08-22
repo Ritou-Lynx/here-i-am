@@ -18,7 +18,13 @@ extension ShowToast on ScaffoldMessengerState {
   }) {
     final tokens = HereIamThemeRuntime.current;
     final hasAction = actionLabel != null && onAction != null;
-    hideCurrentSnackBar();
+    try {
+      hideCurrentSnackBar();
+    } catch (_) {
+      // ScaffoldMessenger may throw "Bad state: No element" when its
+      // internal queue is empty (happens after widget tree rebuilds across
+      // long awaits). Swallow so the new toast still shows.
+    }
     return showSnackBar(
       SnackBar(
         content: Builder(

@@ -3964,13 +3964,21 @@ only after you have written the goodbye you want the user to hear.''',
         );
       }
     } catch (e, stack) {
-      progress.close();
+      try {
+        progress.close();
+      } catch (_) {}
       debugPrint('[Record] msg#${message.id} failed: $e\n$stack');
       if (mounted) {
-        messenger.showToast(
-          _chatUiText(zh: '记录失败：$e', en: 'Record failed: $e'),
-          duration: const Duration(seconds: 3),
-        );
+        try {
+          messenger.showToast(
+            _chatUiText(
+                zh: '记录失败：模型不可用或超时，请检查模型设置',
+                en: 'Record failed: model unavailable or timed out'),
+            duration: const Duration(seconds: 3),
+          );
+        } catch (_) {
+          // ScaffoldMessenger may be detached after long awaits.
+        }
       }
     } finally {
       _recordingMessageIds.remove(message.id);
