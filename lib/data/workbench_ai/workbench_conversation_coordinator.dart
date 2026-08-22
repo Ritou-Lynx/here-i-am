@@ -82,7 +82,6 @@ class WorkbenchConversationCoordinator {
     required String conversationId,
     required String characterId,
     required String userText,
-    required int userMessageId,
     WorkbenchReplyDelta? onDelta,
   }) async {
     final text = userText.trim();
@@ -90,18 +89,28 @@ class WorkbenchConversationCoordinator {
       throw ArgumentError.value(userText, 'userText', 'must not be blank');
     }
     if (_activeTurns.containsKey(conversationId)) {
-      return _persistTerminal(
-        characterId: characterId,
+      const busy = WorkbenchConversationResult(
         outcome: WorkbenchConversationOutcome.failed,
         message: '上一条电脑回复还在进行，请先停止或等待完成。',
         errorCode: 'conversation_busy',
       );
+      try {
+        await _addReply(characterId, busy.message);
+      } catch (_) {
+        // The original active turn remains authoritative. A failed secondary
+        // notice must neither interrupt it nor invoke a mobile fallback.
+      }
+      return busy;
     }
 
     final activeTurn = _ActiveConversationTurn.pending();
     _activeTurns[conversationId] = activeTurn;
+    _ConversationRuntime? runtime;
+    String? turnId;
+    _DrivenConversationTurn? driven;
+    late WorkbenchConversationResult result;
     try {
-      var runtime = await _ensureRuntime(conversationId);
+      runtime = await _ensureRuntime(conversationId);
       WorkbenchRuntimeTurn turn;
       try {
         turn = await _runtime.startTurn(
@@ -120,6 +129,7 @@ class WorkbenchConversationCoordinator {
         sessionId: runtime.localSessionId,
         turnId: turn.turnId,
       );
+      turnId = turn.turnId;
       _markActive(conversationId);
       if (activeTurn.stopRequested) {
         await _runtime.interruptTurn(
@@ -127,33 +137,59 @@ class WorkbenchConversationCoordinator {
           turnId: turn.turnId,
         );
       }
-      return await _driveTurn(
-        conversationId: conversationId,
-        characterId: characterId,
-        userMessageId: userMessageId,
+      driven = await _driveTurn(
         runtime: runtime,
         turnId: turn.turnId,
         onDelta: onDelta,
       );
+      result = driven.result;
     } on WorkbenchRuntimeException catch (error) {
-      _markUnavailable(conversationId);
-      return _persistTerminal(
-        characterId: characterId,
+      result = WorkbenchConversationResult(
         outcome: WorkbenchConversationOutcome.failed,
         message: _runtimeFailureMessage(error.code),
         errorCode: _portableErrorCode(error.code),
       );
     } catch (_) {
-      _markUnavailable(conversationId);
-      return _persistTerminal(
-        characterId: characterId,
+      result = const WorkbenchConversationResult(
         outcome: WorkbenchConversationOutcome.failed,
         message: '这次电脑回复没有完成。你可以稍后重试。',
         errorCode: 'workbench_conversation_failed',
       );
-    } finally {
-      _activeTurns.remove(conversationId);
     }
+
+    var persisted = false;
+    try {
+      await _addReply(characterId, result.message);
+      persisted = true;
+    } catch (_) {
+      if (result.outcome == WorkbenchConversationOutcome.completed) {
+        result = const WorkbenchConversationResult(
+          outcome: WorkbenchConversationOutcome.failed,
+          message: '电脑回复已经结束，但没有成功保存到对话。',
+          errorCode: 'chat_persistence_failed',
+        );
+      }
+    }
+
+    final safeTerminal = persisted &&
+        (result.outcome == WorkbenchConversationOutcome.completed ||
+            result.outcome == WorkbenchConversationOutcome.interrupted) &&
+        driven?.providerSettled == true;
+    if (runtime != null && turnId != null && !safeTerminal) {
+      await _cleanupAbandonedTurn(
+        conversationId: conversationId,
+        runtime: runtime,
+        turnId: turnId,
+      );
+    } else if (safeTerminal) {
+      if (result.outcome == WorkbenchConversationOutcome.completed) {
+        _markIdle(conversationId);
+      } else {
+        _markInterrupted(conversationId);
+      }
+    }
+    _activeTurns.remove(conversationId);
+    return result;
   }
 
   Future<bool> stop(String conversationId) async {
@@ -241,10 +277,7 @@ class WorkbenchConversationCoordinator {
     return resumed;
   }
 
-  Future<WorkbenchConversationResult> _driveTurn({
-    required String conversationId,
-    required String characterId,
-    required int userMessageId,
+  Future<_DrivenConversationTurn> _driveTurn({
     required _ConversationRuntime runtime,
     required String turnId,
     WorkbenchReplyDelta? onDelta,
@@ -277,55 +310,68 @@ class WorkbenchConversationCoordinator {
           continue;
         }
         if (status == 'completed' && reply.trim().isNotEmpty) {
-          _markIdle(conversationId);
-          return _persistTerminal(
-            characterId: characterId,
-            outcome: WorkbenchConversationOutcome.completed,
-            message: reply.trim(),
+          return _DrivenConversationTurn(
+            providerSettled: true,
+            result: WorkbenchConversationResult(
+              outcome: WorkbenchConversationOutcome.completed,
+              message: reply.trim(),
+            ),
           );
         }
         if (status == 'interrupted') {
-          _markInterrupted(conversationId);
-          return _persistTerminal(
-            characterId: characterId,
-            outcome: WorkbenchConversationOutcome.interrupted,
-            message: '已停止这次电脑回复。',
-            errorCode: 'runtime_interrupted',
+          return const _DrivenConversationTurn(
+            providerSettled: true,
+            result: WorkbenchConversationResult(
+              outcome: WorkbenchConversationOutcome.interrupted,
+              message: '已停止这次电脑回复。',
+              errorCode: 'runtime_interrupted',
+            ),
           );
         }
-        _markUnavailable(conversationId);
-        return _persistTerminal(
-          characterId: characterId,
-          outcome: WorkbenchConversationOutcome.failed,
-          message: '这次电脑回复没有正常完成。你可以稍后重试。',
-          errorCode: _portableErrorCode(
-            providerErrorCode ?? 'runtime_${status ?? 'failed'}',
+        return _DrivenConversationTurn(
+          providerSettled: false,
+          result: WorkbenchConversationResult(
+            outcome: WorkbenchConversationOutcome.failed,
+            message: '这次电脑回复没有正常完成。你可以稍后重试。',
+            errorCode: _portableErrorCode(
+              providerErrorCode ?? 'runtime_${status ?? 'failed'}',
+            ),
           ),
         );
       }
       await Future<void>.delayed(_pollInterval);
     }
-    _markUnavailable(conversationId);
-    return _persistTerminal(
-      characterId: characterId,
-      outcome: WorkbenchConversationOutcome.failed,
-      message: '电脑回复等待超时。你可以稍后重试。',
-      errorCode: 'runtime_timeout',
+    return const _DrivenConversationTurn(
+      providerSettled: false,
+      result: WorkbenchConversationResult(
+        outcome: WorkbenchConversationOutcome.failed,
+        message: '电脑回复等待超时。你可以稍后重试。',
+        errorCode: 'runtime_timeout',
+      ),
     );
   }
 
-  Future<WorkbenchConversationResult> _persistTerminal({
-    required String characterId,
-    required WorkbenchConversationOutcome outcome,
-    required String message,
-    String? errorCode,
+  Future<void> _cleanupAbandonedTurn({
+    required String conversationId,
+    required _ConversationRuntime runtime,
+    required String turnId,
   }) async {
-    await _addReply(characterId, message);
-    return WorkbenchConversationResult(
-      outcome: outcome,
-      message: message,
-      errorCode: errorCode,
-    );
+    _markUnavailable(conversationId);
+    try {
+      await _runtime.interruptTurn(
+        sessionId: runtime.localSessionId,
+        turnId: turnId,
+      );
+    } catch (_) {
+      // Preserve the original product error. Closing the session is still
+      // attempted so a rejected interrupt cannot leave a reusable local turn.
+    }
+    try {
+      await _runtime.closeSession(runtime.localSessionId);
+    } catch (_) {
+      // The binding remains unavailable and must resume through the opaque
+      // provider id on a later user turn.
+    }
   }
 
   void _markIdle(String conversationId) =>
@@ -361,6 +407,16 @@ class _ConversationRuntime {
 
   final String localSessionId;
   final RuntimeSessionBinding binding;
+}
+
+class _DrivenConversationTurn {
+  const _DrivenConversationTurn({
+    required this.result,
+    required this.providerSettled,
+  });
+
+  final WorkbenchConversationResult result;
+  final bool providerSettled;
 }
 
 class _ActiveConversationTurn {

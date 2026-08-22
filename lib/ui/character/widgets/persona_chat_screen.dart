@@ -2454,7 +2454,15 @@ only after you have written the goodbye you want the user to hear.''',
 
   Future<void> _sendDesktopMessage() async {
     final text = _textController.text.trim();
-    if (text.isEmpty || _isStreaming) return;
+    if (_isStreaming) return;
+    if (_selectedImages.isNotEmpty) {
+      ScaffoldMessenger.of(context).showToast(
+        '桌面 Codex 对话暂不支持图片；草稿和图片已保留。',
+        duration: const Duration(seconds: 2),
+      );
+      return;
+    }
+    if (text.isEmpty) return;
 
     final actionCoordinator = WhiteboardWorkbenchCoordinator.instance;
     _clearComposerText(staleText: text);
@@ -2492,7 +2500,6 @@ only after you have written the goodbye you want the user to hear.''',
         conversationId: conversationId,
         characterId: _currentCharacterId,
         userText: text,
-        userMessageId: userMessageId,
         onDelta: (accumulatedText) {
           if (!mounted || _currentCharacterId != _activeStreamingCharacterId) {
             return;

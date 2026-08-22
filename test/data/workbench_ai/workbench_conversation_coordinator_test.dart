@@ -6,7 +6,8 @@ import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
 import 'package:memex/domain/workbench_ai/runtime/runtime_session_binding.dart';
 
 void main() {
-  test('reuses one product conversation binding across ordinary turns', () async {
+  test('reuses one product conversation binding across ordinary turns',
+      () async {
     final runtime = _FakeConversationRuntime()
       ..enqueueCompletedReply('第一条回复')
       ..enqueueCompletedReply('第二条回复');
@@ -17,13 +18,11 @@ void main() {
       conversationId: 'persona-i',
       characterId: 'i',
       userText: '你好',
-      userMessageId: 1,
     );
     final second = await coordinator.send(
       conversationId: 'persona-i',
       characterId: 'i',
       userText: '继续说',
-      userMessageId: 2,
     );
 
     expect(first.outcome, WorkbenchConversationOutcome.completed);
@@ -31,6 +30,8 @@ void main() {
     expect(replies, ['第一条回复', '第二条回复']);
     expect(runtime.startSessionCalls, 1);
     expect(runtime.resumeSessionCalls, 0);
+    expect(runtime.interruptCalls, 0);
+    expect(runtime.closeSessionCalls, 0);
     expect(runtime.startedTurnSessionIds, ['local-1', 'local-1']);
     expect(
       coordinator.bindingFor('persona-i')?.status,
@@ -38,7 +39,8 @@ void main() {
     );
   });
 
-  test('resumes provider thread when Bridge forgets the local session', () async {
+  test('resumes provider thread when Bridge forgets the local session',
+      () async {
     final runtime = _FakeConversationRuntime()
       ..enqueueCompletedReply('初次回复')
       ..enqueueCompletedReply('恢复后的回复');
@@ -49,14 +51,12 @@ void main() {
       conversationId: 'persona-i',
       characterId: 'i',
       userText: '第一轮',
-      userMessageId: 1,
     );
     runtime.failNextStartTurn = true;
     await coordinator.send(
       conversationId: 'persona-i',
       characterId: 'i',
       userText: 'Bridge 重启后的第二轮',
-      userMessageId: 2,
     );
 
     expect(runtime.startSessionCalls, 1);
@@ -70,7 +70,8 @@ void main() {
     );
   });
 
-  test('interrupts an active turn and persists an honest stopped reply', () async {
+  test('interrupts an active turn and persists an honest stopped reply',
+      () async {
     final runtime = _FakeConversationRuntime()..blockUntilInterrupted();
     final replies = <String>[];
     final coordinator = _coordinator(runtime, replies);
@@ -79,7 +80,6 @@ void main() {
       conversationId: 'persona-i',
       characterId: 'i',
       userText: '慢慢回答',
-      userMessageId: 1,
     );
     await runtime.turnStarted.future;
 
@@ -90,13 +90,15 @@ void main() {
     expect(result.errorCode, 'runtime_interrupted');
     expect(replies.single, '已停止这次电脑回复。');
     expect(runtime.interruptCalls, 1);
+    expect(runtime.closeSessionCalls, 0);
     expect(
       coordinator.bindingFor('persona-i')?.status,
       RuntimeSessionStatus.interrupted,
     );
   });
 
-  test('runtime failure never falls through to mobile model configuration', () async {
+  test('runtime failure never falls through to mobile model configuration',
+      () async {
     final runtime = _FakeConversationRuntime(
       startFailure: const WorkbenchRuntimeException(
         'experimental_runtime_disabled',
@@ -110,7 +112,6 @@ void main() {
       conversationId: 'persona-i',
       characterId: 'i',
       userText: '普通对话',
-      userMessageId: 1,
     );
 
     expect(result.outcome, WorkbenchConversationOutcome.failed);
@@ -118,29 +119,139 @@ void main() {
     expect(replies.single, contains('没有发送到手机模型'));
     expect(runtime.startSessionCalls, 1);
   });
+
+  test('timeout interrupts and closes the abandoned local turn', () async {
+    final runtime = _FakeConversationRuntime()..enqueueSilentTurn();
+    final replies = <String>[];
+    final coordinator = _coordinator(
+      runtime,
+      replies,
+      turnTimeout: const Duration(milliseconds: 5),
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '不要永远等下去',
+    );
+
+    expect(result.errorCode, 'runtime_timeout');
+    expect(replies.single, contains('等待超时'));
+    expect(runtime.interruptCalls, 1);
+    expect(runtime.closeSessionCalls, 1);
+    expect(
+      coordinator.bindingFor('persona-i')?.status,
+      RuntimeSessionStatus.unavailable,
+    );
+
+    runtime.enqueueCompletedReply('清理后恢复');
+    final resumed = await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '下一轮',
+    );
+    expect(resumed.outcome, WorkbenchConversationOutcome.completed);
+    expect(runtime.resumeSessionCalls, 1);
+    expect(runtime.startedTurnSessionIds.last, 'local-2');
+  });
+
+  test('readEvents failure cleans up and preserves the provider error',
+      () async {
+    final runtime = _FakeConversationRuntime()..enqueueReadFailure();
+    final replies = <String>[];
+    final coordinator = _coordinator(runtime, replies);
+
+    final result = await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '读取事件失败',
+    );
+
+    expect(result.errorCode, 'provider_error');
+    expect(runtime.interruptCalls, 1);
+    expect(runtime.closeSessionCalls, 1);
+    expect(
+      coordinator.bindingFor('persona-i')?.status,
+      RuntimeSessionStatus.unavailable,
+    );
+  });
+
+  test('cleanup interrupt failure does not replace the timeout result',
+      () async {
+    final runtime = _FakeConversationRuntime(interruptFailure: true)
+      ..enqueueSilentTurn();
+    final replies = <String>[];
+    final coordinator = _coordinator(
+      runtime,
+      replies,
+      turnTimeout: const Duration(milliseconds: 5),
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '清理失败也要保留原错误',
+    );
+
+    expect(result.errorCode, 'runtime_timeout');
+    expect(runtime.interruptCalls, 1);
+    expect(runtime.closeSessionCalls, 1);
+  });
+
+  test('terminal persistence failure cleans up instead of reusing session',
+      () async {
+    final runtime = _FakeConversationRuntime()
+      ..enqueueCompletedReply('无法落库的回复');
+    final coordinator = _coordinator(
+      runtime,
+      <String>[],
+      failPersistence: true,
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '请回复',
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.failed);
+    expect(result.errorCode, 'chat_persistence_failed');
+    expect(runtime.interruptCalls, 1);
+    expect(runtime.closeSessionCalls, 1);
+    expect(
+      coordinator.bindingFor('persona-i')?.status,
+      RuntimeSessionStatus.unavailable,
+    );
+  });
 }
 
 WorkbenchConversationCoordinator _coordinator(
   _FakeConversationRuntime runtime,
-  List<String> replies,
-) {
+  List<String> replies, {
+  Duration turnTimeout = const Duration(seconds: 2),
+  bool failPersistence = false,
+}) {
   return WorkbenchConversationCoordinator(
     runtime: runtime,
     addReply: (characterId, content) async {
       expect(characterId, 'i');
+      if (failPersistence) throw StateError('persistence unavailable');
       replies.add(content);
       return replies.length;
     },
     pollInterval: Duration.zero,
-    turnTimeout: const Duration(seconds: 2),
+    turnTimeout: turnTimeout,
   );
 }
 
-class _FakeConversationRuntime
-    implements WorkbenchConversationRuntimeGateway {
-  _FakeConversationRuntime({this.startFailure});
+class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
+  _FakeConversationRuntime({
+    this.startFailure,
+    this.interruptFailure = false,
+  });
 
   final WorkbenchRuntimeException? startFailure;
+  final bool interruptFailure;
   final List<_TurnScript> _scripts = [];
   final Completer<void> turnStarted = Completer<void>();
   final List<String> startedTurnSessionIds = [];
@@ -148,6 +259,7 @@ class _FakeConversationRuntime
   int startSessionCalls = 0;
   int resumeSessionCalls = 0;
   int interruptCalls = 0;
+  int closeSessionCalls = 0;
   int _sessionSerial = 0;
   int _turnSerial = 0;
   bool failNextStartTurn = false;
@@ -159,6 +271,14 @@ class _FakeConversationRuntime
 
   void blockUntilInterrupted() {
     _scripts.add(_TurnScript.blocking());
+  }
+
+  void enqueueSilentTurn() {
+    _scripts.add(_TurnScript.silent());
+  }
+
+  void enqueueReadFailure() {
+    _scripts.add(_TurnScript.readFailure());
   }
 
   @override
@@ -218,6 +338,19 @@ class _FakeConversationRuntime
   }) async {
     final running = _running!;
     expect(sessionId, running.sessionId);
+    if (running.script.readFailure) {
+      throw const WorkbenchRuntimeException(
+        'provider_error',
+        'event stream failed',
+      );
+    }
+    if (running.script.silent) {
+      return WorkbenchRuntimeEvents(
+        status: 'running',
+        events: const [],
+        nextSequence: afterSequence,
+      );
+    }
     if (running.script.blocking) {
       await running.script.release.future;
       return _events(running.turnId, '', 'interrupted');
@@ -270,6 +403,12 @@ class _FakeConversationRuntime
     final running = _running!;
     expect(sessionId, running.sessionId);
     expect(turnId, running.turnId);
+    if (interruptFailure) {
+      throw const WorkbenchRuntimeException(
+        'runtime_unavailable',
+        'interrupt failed',
+      );
+    }
     if (!running.script.release.isCompleted) running.script.release.complete();
   }
 
@@ -283,21 +422,43 @@ class _FakeConversationRuntime
   }
 
   @override
-  Future<void> closeSession(String sessionId) async {}
+  Future<void> closeSession(String sessionId) async {
+    closeSessionCalls++;
+  }
 }
 
 class _TurnScript {
   _TurnScript.completed(this.reply)
       : blocking = false,
+        silent = false,
+        readFailure = false,
         release = Completer<void>();
 
   _TurnScript.blocking()
       : reply = null,
         blocking = true,
+        silent = false,
+        readFailure = false,
+        release = Completer<void>();
+
+  _TurnScript.silent()
+      : reply = null,
+        blocking = false,
+        silent = true,
+        readFailure = false,
+        release = Completer<void>();
+
+  _TurnScript.readFailure()
+      : reply = null,
+        blocking = false,
+        silent = false,
+        readFailure = true,
         release = Completer<void>();
 
   final String? reply;
   final bool blocking;
+  final bool silent;
+  final bool readFailure;
   final Completer<void> release;
 }
 
