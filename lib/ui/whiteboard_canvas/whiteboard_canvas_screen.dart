@@ -3094,7 +3094,7 @@ class _CanvasNavigationGroup extends StatelessWidget {
                 boardName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: whiteboardUiTextStyle(
                   color: colors.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
@@ -3197,7 +3197,7 @@ class _FloatingActionTools extends StatelessWidget {
               Text(
                 _selectionHint(vm.selection.length),
                 key: const Key('wb_selection_hint'),
-                style: TextStyle(
+                style: whiteboardUiTextStyle(
                   color: WhiteboardCanvasTokens.of(context).textSecondary,
                   fontSize: WhiteboardCanvasTokens.statusSize,
                 ),
@@ -3290,7 +3290,7 @@ class _FloatingViewTools extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '${(viewModel.viewport.zoom * 100).round()}%',
-              style: TextStyle(
+              style: richTextCodeTextStyle(
                 color: colors.textSecondary,
                 fontSize: WhiteboardCanvasTokens.metaSize,
               ),
@@ -3311,7 +3311,7 @@ class _FloatingViewTools extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 '已选 ${viewModel.selection.length} 项',
-                style: TextStyle(
+                style: whiteboardUiTextStyle(
                   color: colors.textSecondary,
                   fontSize: WhiteboardCanvasTokens.metaSize,
                 ),
@@ -3468,7 +3468,7 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                 children: [
                   Text(
                     '卡片库',
-                    style: TextStyle(
+                    style: whiteboardUiTextStyle(
                       color: colors.textPrimary,
                       fontSize: WhiteboardCanvasTokens.titleSize,
                       fontWeight: FontWeight.w500,
@@ -3757,7 +3757,7 @@ class _FloatingLabeledButton extends StatelessWidget {
                 const SizedBox(width: 5),
                 Text(
                   label,
-                  style: TextStyle(
+                  style: whiteboardUiTextStyle(
                     color: foreground,
                     fontSize: WhiteboardCanvasTokens.metaSize,
                     fontWeight: FontWeight.w500,

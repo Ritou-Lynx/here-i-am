@@ -39,6 +39,18 @@ const List<String> richTextCodeFallback = [
   'monospace',
 ];
 
+/// 白板 UI 回退链：中文目标字体缺字时先走系统宋体；拉丁、数字、时间码
+/// 明确保留 Cascadia Code 与系统等宽回退，不依赖上层应用主题的字体。
+const List<String> whiteboardUiFontFallback = [
+  ...richTextCjkFallback,
+  richTextCodeFamily,
+  'Cascadia Mono',
+  'Consolas',
+  'Courier New',
+  'Menlo',
+  'monospace',
+];
+
 /// 正文混排完整回退链：具体系统等宽（拉丁/数字）→ 汇文明朝体与系统
 /// 衬线（CJK）→ 通用 `monospace`。把汇文明朝体放通用 `monospace` 之前，
 /// 避免通用等宽字体提前接管 CJK 字形。`TextStyle.fontFamilyFallback` 是
@@ -94,7 +106,7 @@ TextStyle whiteboardUiTextStyle({
 }) =>
     TextStyle(
       fontFamily: richTextCjkFamily,
-      fontFamilyFallback: richTextCjkFallback,
+      fontFamilyFallback: whiteboardUiFontFallback,
       fontSize: fontSize,
       height: height,
       color: color,

@@ -8,6 +8,7 @@ import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
@@ -16,7 +17,7 @@ WhiteboardSnapshot _snapshot() {
   final now = DateTime.utc(2026, 8, 20);
   return WhiteboardSnapshot(
     boards: [
-      Board(boardId: 'board_m3', name: 'M3 全屏画布', createdAt: now),
+      Board(boardId: 'board_m3', name: '交互验收版', createdAt: now),
     ],
     cards: [
       CardContract(
@@ -135,6 +136,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('wb_navigation_group')), findsNothing);
     expect(find.byKey(const Key('wb_canvas_chrome_launcher')), findsOneWidget);
+  });
+
+  testWidgets('canvas title and tools keep the whiteboard font contract',
+      (tester) async {
+    await _pump(tester);
+
+    final title = tester.widget<Text>(find.text('交互验收版'));
+    final tool = tester.widget<Text>(find.text('添加卡片'));
+    final hint = tester.widget<Text>(
+      find.text('双击空白新建 · 拖动卡片连接点连线'),
+    );
+    for (final text in [title, tool, hint]) {
+      expect(text.style?.fontFamily, richTextCjkFamily);
+      expect(text.style?.fontFamilyFallback, contains(richTextCodeFamily));
+    }
+
+    final zoom = tester.widget<Text>(find.text('100%'));
+    expect(zoom.style?.fontFamily, richTextCodeFamily);
+    expect(zoom.style?.fontFamilyFallback, contains(richTextCjkFamily));
   });
 
   testWidgets('M0 desktop semantic theme drives the canvas surface',
