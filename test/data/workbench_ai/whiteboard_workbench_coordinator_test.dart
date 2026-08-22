@@ -128,6 +128,23 @@ void main() {
     expect(applied.edges, hasLength(1));
     expect(reloads, 1);
 
+    var reopenedFlushes = 0;
+    var reopenedReloads = 0;
+    surfaceController.detach(surfaceOwner);
+    surfaceOwner = Object();
+    surfaceController.attach(
+      owner: surfaceOwner,
+      boardId: 'board_1',
+      selectedItemIds: {'item_1', 'item_2', 'item_3'},
+      flush: () async {
+        reopenedFlushes += 1;
+        return true;
+      },
+      reload: () async {
+        reopenedReloads += 1;
+      },
+    );
+
     expect(coordinator.canUndo(completed.actionId), isTrue);
     await coordinator.undo(completed.actionId);
     expect(
@@ -138,7 +155,10 @@ void main() {
     final restored = (await store.load('board_1')).snapshot!;
     expect(restored.groups, isEmpty);
     expect(restored.edges, isEmpty);
-    expect(reloads, 2);
+    expect(reloads, 1, reason: 'the disposed page must not be reloaded');
+    expect(reopenedFlushes, 2,
+        reason: 'flushes once before undo and once after current-page reload');
+    expect(reopenedReloads, 1);
   });
 
   test('does not intercept an ordinary discussion of grouping and links',
@@ -153,6 +173,7 @@ void main() {
     );
 
     expect(coordinator.matches('我们讨论一下分组和连线的设计'), isFalse);
+    expect(coordinator.matches('按主题分组并连线'), isTrue);
     expect(coordinator.matches('请把所选卡片分组并连线'), isTrue);
   });
 }
@@ -169,6 +190,10 @@ class _FakeRuntime implements WorkbenchRuntimeGateway {
     Map<String, dynamic> contextManifest = const {},
   }) async {
     expect(contextManifest['board_id'], 'board_1');
+    final writeTool = dynamicTools.singleWhere(
+      (tool) => tool['name'] == WhiteboardWorkbenchCoordinator.writeToolName,
+    );
+    expect(writeTool['description'], contains('每个所选 item_id 恰好出现一次'));
     return const WorkbenchRuntimeSession(
       sessionId: 'session_1',
       providerSessionId: 'provider_1',
@@ -178,6 +203,8 @@ class _FakeRuntime implements WorkbenchRuntimeGateway {
   @override
   Future<WorkbenchRuntimeTurn> startTurn(String sessionId, String input) async {
     expect(input, contains('不要猜测'));
+    expect(input, contains('每个所选 item_id 必须且只能出现一次'));
+    expect(input, contains('就把全部所选 item 放进一个较宽泛的组'));
     return const WorkbenchRuntimeTurn(turnId: 'turn_1');
   }
 
