@@ -218,6 +218,9 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   final FocusNode _continuousFocusNode = FocusNode();
   var _syncingContinuous = false;
   late List<RichTextBlock> _continuousBlocks;
+  TextSelection _lastContinuousSelection = const TextSelection.collapsed(
+    offset: 0,
+  );
 
   @override
   void initState() {
@@ -251,6 +254,9 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   }
 
   void _onGlobalFocusChanged() {
+    if (_continuousFocusNode.hasFocus) {
+      _lastContinuousSelection = _continuousController.selection;
+    }
     final path = _focusedPath(widget.controller);
     if (path != null) _lastFocusedPath = path;
   }
@@ -447,6 +453,9 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   void _onContinuousTextChanged() {
     if (_syncingContinuous || !_usesContinuousSurface(widget.controller)) {
       return;
+    }
+    if (_continuousFocusNode.hasFocus) {
+      _lastContinuousSelection = _continuousController.selection;
     }
     final nextText = _continuousController.text;
     final oldText = _joinLinearBlocks(_continuousBlocks);
@@ -1091,7 +1100,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
 
   void _toggleMarkOnFocused(RichTextEditingController c, MarkType type) {
     if (_usesContinuousSurface(c)) {
-      final selection = _continuousController.selection;
+      final selection = _continuousSelectionForAction();
       if (selection.isCollapsed) return;
       final startBlock = _continuousBlockAt(selection.start);
       final endBlock = _continuousBlockAt(selection.end - 1);
@@ -1128,7 +1137,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   void _setBlockTypeFocused(RichTextEditingController c, BlockType type,
       {Map<String, dynamic> attrs = const {}}) {
     if (_usesContinuousSurface(c)) {
-      final selection = _continuousController.selection;
+      final selection = _continuousSelectionForAction();
       final start = _continuousBlockAt(selection.start);
       final end = _continuousBlockAt(
         selection.isCollapsed ? selection.end : selection.end - 1,
@@ -1145,7 +1154,11 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       _syncingContinuous = true;
       c.replaceContinuousBlocks(next);
       _syncingContinuous = false;
-      _restoreContinuousFocus(selection);
+      if (_usesContinuousSurface(c)) {
+        _restoreContinuousFocus(selection);
+      } else {
+        _restoreFieldFocus((block: start, child: null));
+      }
       return;
     }
     final path = _actionPath(c);
@@ -1195,6 +1208,15 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     return 0;
   }
 
+  TextSelection _continuousSelectionForAction() {
+    final current = _continuousController.selection;
+    if (_continuousFocusNode.hasFocus) {
+      _lastContinuousSelection = current;
+      return current;
+    }
+    return _lastContinuousSelection;
+  }
+
   int _localOffset(int blockIndex, int documentOffset) {
     var start = 0;
     for (var index = 0; index < blockIndex; index++) {
@@ -1228,7 +1250,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     final path = continuous ? null : _actionPath(c);
     if (!continuous && path == null) return;
     final sel = continuous
-        ? _continuousController.selection
+        ? _continuousSelectionForAction()
         : (path!.child == null
             ? c.controllerFor(path.block)
             : c.childControllerFor(path.block, path.child!))

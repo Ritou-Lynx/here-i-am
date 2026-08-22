@@ -247,7 +247,14 @@ void main() {
           .controller!;
       tc.selection = const TextSelection(baseOffset: 0, extentOffset: 4);
       // Confirm the field is focused so the toolbar targets the right block.
-      expect(controller.focusNodeFor(0).hasFocus, isTrue);
+      expect(
+        tester
+            .widget<TextField>(
+                find.byKey(const ValueKey('rich_text_continuous_document')))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
 
       // Open the link dialog and enter a URL.
       await tester.tap(find.byTooltip('插入链接'));

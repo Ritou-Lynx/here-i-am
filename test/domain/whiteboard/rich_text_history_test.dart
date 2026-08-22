@@ -75,6 +75,29 @@ void main() {
       expect(undone!.blocks.first.text, equals('start'));
     });
 
+    test('identical explicit checkpoint does not create a no-op undo', () {
+      const initial = RichTextDocument(
+        blocks: [RichTextBlock(type: BlockType.paragraph, text: '初始')],
+      );
+      const edited = RichTextDocument(
+        blocks: [RichTextBlock(type: BlockType.paragraph, text: '编辑后')],
+      );
+      const second = RichTextDocument(
+        blocks: [RichTextBlock(type: BlockType.paragraph, text: '第二版')],
+      );
+      final h = RichTextDocumentHistory(initial);
+
+      h.commit(edited);
+      h.commit(edited, coalesce: false);
+      h.commit(second);
+
+      expect(h.undo()!.blocks.single.text, '编辑后');
+      expect(h.undo()!.blocks.single.text, '初始');
+      expect(h.undo(), isNull);
+      expect(h.redo()!.blocks.single.text, '编辑后');
+      expect(h.redo()!.blocks.single.text, '第二版');
+    });
+
     test('reset clears stacks', () {
       final h = RichTextDocumentHistory(
         const RichTextDocument(blocks: [RichTextBlock(type: BlockType.paragraph, text: 'a')]),
