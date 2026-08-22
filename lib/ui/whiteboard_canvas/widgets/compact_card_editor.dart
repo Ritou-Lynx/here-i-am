@@ -6,7 +6,10 @@
 /// Card on the canvas cannot flatten headings, marks, media, or attachments.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
@@ -48,6 +51,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
   String? _error;
   String _savedTitle = '';
   bool _saving = false;
+  bool _closing = false;
   int _loadGeneration = 0;
 
   bool get _dirty =>
@@ -188,6 +192,17 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     widget.onClose();
   }
 
+  Future<void> _saveAndClose() async {
+    if (_closing) return;
+    _closing = true;
+    try {
+      if (!widget.isReadonly && _dirty && await _save() == null) return;
+      if (mounted) widget.onClose();
+    } finally {
+      _closing = false;
+    }
+  }
+
   Future<void> _expand() async {
     CardContract? card = _card;
     if (_dirty) card = await _save();
@@ -198,19 +213,33 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
   @override
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
-    return Material(
+    final surface = Material(
       key: const ValueKey('wb_compact_card_editor'),
-      color: tokens.surfaceRaised,
+      type: widget.embedded ? MaterialType.transparency : MaterialType.canvas,
+      color: widget.embedded ? null : tokens.surfaceRaised,
       elevation: widget.embedded ? 0 : 10,
       shadowColor: tokens.textPrimary.withValues(alpha: 0.14),
       borderRadius: BorderRadius.circular(widget.embedded ? 0 : 10),
       clipBehavior: Clip.antiAlias,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: tokens.divider),
-          borderRadius: BorderRadius.circular(widget.embedded ? 0 : 10),
-        ),
-        child: _buildBody(tokens),
+      child: widget.embedded
+          ? _buildBody(tokens)
+          : DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: tokens.divider),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: _buildBody(tokens),
+            ),
+    );
+    if (!widget.embedded) return surface;
+    return TapRegion(
+      onTapOutside: (_) => unawaited(_saveAndClose()),
+      child: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.escape):
+              () => unawaited(_saveAndClose()),
+        },
+        child: Focus(child: surface),
       ),
     );
   }
@@ -248,7 +277,6 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
         card: card,
         richText: richText,
         title: title,
-        sourceCard: sourceCard,
       );
     }
     return Column(
@@ -364,84 +392,55 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     required CardContract card,
     required RichTextEditingController richText,
     required TextEditingController title,
-    required bool sourceCard,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: 42,
-          child: Row(
-            children: [
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  key: const ValueKey('wb_compact_title'),
-                  controller: title,
-                  readOnly: widget.isReadonly,
-                  autofocus: !widget.isReadonly,
-                  style: whiteboardUiTextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: tokens.textPrimary,
-                  ),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    hintText: '卡片标题',
-                    border: InputBorder.none,
-                  ),
-                ),
-              ),
-              if (_dirty)
-                IconButton(
-                  key: const ValueKey('wb_compact_editor_save'),
-                  tooltip: _saving ? '保存中' : '保存',
-                  onPressed: widget.isReadonly || _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox.square(
-                          dimension: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.check_rounded, size: 17),
-                ),
-              IconButton(
-                key: const ValueKey('wb_compact_editor_expand'),
-                tooltip: sourceCard ? '打开来源' : '全屏编辑',
-                onPressed: _saving ? null : _expand,
-                icon: Icon(
-                  sourceCard ? Icons.open_in_new_rounded : Icons.fullscreen,
-                  size: 17,
-                ),
-              ),
-              IconButton(
-                key: const ValueKey('wb_compact_editor_close'),
-                tooltip: '关闭原位编辑',
-                onPressed: _saving ? null : _requestClose,
-                icon: const Icon(Icons.close_rounded, size: 17),
-              ),
-            ],
-          ),
-        ),
-        Divider(height: 1, color: tokens.divider),
-        Expanded(
-          child: AbsorbPointer(
-            absorbing: widget.isReadonly,
-            child: CardRichTextEditor(
-              controller: richText,
-              cardId: card.cardId,
-              objectStore: RichTextObjectStore(
-                widget.repository.richTextStorage.baseDir,
-              ),
-              onSave: (_) => _save(),
-              showToolbar: false,
-              compact: true,
-              readOnly: widget.isReadonly,
-              showSaveInToolbar: false,
-              markSavedAfterCallback: false,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            key: const ValueKey('wb_compact_title'),
+            controller: title,
+            readOnly: widget.isReadonly,
+            autofocus: !widget.isReadonly,
+            maxLines: 2,
+            minLines: 1,
+            style: whiteboardUiTextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: tokens.textPrimary,
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+              hintText: '卡片标题',
+              border: InputBorder.none,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 6),
+          Expanded(
+            child: ClipRect(
+              child: AbsorbPointer(
+                absorbing: widget.isReadonly,
+                child: CardRichTextEditor(
+                  controller: richText,
+                  cardId: card.cardId,
+                  objectStore: RichTextObjectStore(
+                    widget.repository.richTextStorage.baseDir,
+                  ),
+                  onSave: (_) => _save(),
+                  showToolbar: false,
+                  compact: true,
+                  readOnly: widget.isReadonly,
+                  inlineSurface: true,
+                  showSaveInToolbar: false,
+                  markSavedAfterCallback: false,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

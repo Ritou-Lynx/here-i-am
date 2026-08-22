@@ -352,7 +352,7 @@ void main() {
     await _doubleTapAt(tester, const Offset(650, 470));
     await _pumpUntil(
       tester,
-      find.byKey(const Key('wb_compact_editor_close')),
+      find.byKey(const Key('rich_text_continuous_document')),
     );
 
     final createdItemId = vm.exportForSave().boardItems.single.itemId;
@@ -364,6 +364,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(Dialog), findsNothing);
+    expect(find.byKey(const Key('wb_compact_editor_close')), findsNothing);
+    expect(find.byKey(const Key('wb_compact_editor_expand')), findsNothing);
+    expect(find.byKey(const Key('wb_compact_editor_save')), findsNothing);
 
     final records = await tester.runAsync(harness.repository.listCards);
     expect(records, hasLength(1));
@@ -371,8 +374,9 @@ void main() {
     expect(persisted?.boardItems, hasLength(1));
     expect(vm.exportForSave().boardItems.single.x, closeTo(-880, 0.01));
     expect(vm.exportForSave().boardItems.single.y, closeTo(70, 0.01));
-    await tester.tap(find.byKey(const Key('wb_compact_editor_close')));
-    await tester.pump();
+    await tester.tapAt(const Offset(30, 560));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
     vm.handleIntent(
       SelectItemIntent(itemId: vm.exportForSave().boardItems.single.itemId),
     );
@@ -408,6 +412,7 @@ void main() {
     await tester.pump();
 
     final card = find.byKey(const Key('wb_card_item_card_a'));
+    final beforeRect = tester.getRect(card);
     final before = vm
         .exportForSave()
         .boardItems
@@ -419,6 +424,13 @@ void main() {
     expect(surface, findsOneWidget);
     expect(find.descendant(of: card, matching: surface), findsOneWidget);
     expect(find.byType(Dialog), findsNothing);
+    expect(tester.getRect(card), beforeRect);
+    expect(tester.getRect(surface), beforeRect);
+    for (final side in ['top', 'right', 'bottom', 'left']) {
+      expect(find.byKey(Key('wb_connect_item_card_a_$side')), findsNothing);
+    }
+    expect(find.byKey(const Key('wb_resize_item_card_a')), findsNothing);
+    expect(find.byKey(const Key('wb_rotate_item_card_a')), findsNothing);
 
     await tester.drag(surface, const Offset(90, 60));
     await tester.pump();
@@ -428,6 +440,56 @@ void main() {
         .firstWhere((item) => item.itemId == 'item_card_a');
     expect(after.x, before.x);
     expect(after.y, before.y);
+    expect(after.width, before.width);
+    expect(after.height, before.height);
+  });
+
+  testWidgets('原位编辑 Esc 保存退出且不改变 BoardItem 几何', (tester) async {
+    final harness = _RepoHarness.create();
+    addTearDown(harness.dispose);
+    final original = (await tester.runAsync(
+      () => harness.repository.createTextCard(
+        cardId: 'card_escape_inline',
+        title: '原位卡片',
+        body: '编辑前',
+      ),
+    ))!;
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(cards: [original]),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        cardRepository: harness.repository,
+      ),
+    ));
+    await tester.pump();
+    final itemBefore = vm.exportForSave().boardItems.single;
+
+    await _doubleTapAt(tester, tester.getCenter(find.text('原位卡片')));
+    final field = find.byKey(const Key('rich_text_continuous_document'));
+    await _pumpUntil(tester, field);
+    await tester.tap(field);
+    tester.testTextInput.updateEditingValue(const TextEditingValue(
+      text: '编辑后正文',
+      selection: TextSelection.collapsed(offset: 5),
+    ));
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
+    final itemAfter = vm.exportForSave().boardItems.single;
+    expect(itemAfter.x, itemBefore.x);
+    expect(itemAfter.y, itemBefore.y);
+    expect(itemAfter.width, itemBefore.width);
+    expect(itemAfter.height, itemBefore.height);
+    final stored = (await tester.runAsync(
+      () => harness.repository.getCard('card_escape_inline'),
+    ))!;
+    expect(stored.card.body, '编辑后正文');
   });
 
   testWidgets('同一 Card 的两个 BoardItem 只编辑被双击的摆放', (tester) async {

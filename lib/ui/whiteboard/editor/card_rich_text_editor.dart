@@ -63,6 +63,7 @@ class CardRichTextEditor extends StatefulWidget {
   final bool showToolbar;
   final bool compact;
   final bool readOnly;
+  final bool inlineSurface;
   final String cardId;
   final VoidCallback? onDirty;
 
@@ -84,6 +85,7 @@ class CardRichTextEditor extends StatefulWidget {
     this.showToolbar = true,
     this.compact = false,
     this.readOnly = false,
+    this.inlineSurface = false,
     this.onDirty,
     this.objectStore,
     this.mediaImporter,
@@ -428,7 +430,9 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       decoration: InputDecoration(
         isDense: true,
         alignLabelWithHint: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        contentPadding: widget.inlineSurface
+            ? EdgeInsets.zero
+            : const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         hintText: '在此输入…',
         hintStyle: richTextBodyTextStyle(fontSize: 14).copyWith(
           color: tokens.textFaint,
@@ -437,10 +441,12 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         enabledBorder: const OutlineInputBorder(
           borderSide: BorderSide(color: Colors.transparent),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(4),
-          borderSide: BorderSide(color: tokens.divider, width: 1),
-        ),
+        focusedBorder: widget.inlineSurface
+            ? InputBorder.none
+            : OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(color: tokens.divider, width: 1),
+              ),
       ),
       onChanged: (_) {
         // [_onContinuousTextChanged] mirrors content without touching the
@@ -843,7 +849,9 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
         isDense: true,
         filled: block.type == BlockType.code,
         fillColor: block.type == BlockType.code ? tokens.surface : null,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        contentPadding: widget.inlineSurface
+            ? EdgeInsets.zero
+            : const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
           borderSide: BorderSide.none,
@@ -852,10 +860,12 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
           borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: Colors.transparent),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: BorderSide(color: tokens.action, width: 1.5),
-        ),
+        focusedBorder: widget.inlineSurface
+            ? InputBorder.none
+            : OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: BorderSide(color: tokens.action, width: 1.5),
+              ),
         hintText: block.type == BlockType.paragraph && block.text.isEmpty
             ? '在此输入…'
             : null,

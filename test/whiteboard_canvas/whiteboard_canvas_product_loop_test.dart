@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,7 +73,7 @@ void main() {
 
     await _doubleTap(tester, find.text('真实文字卡'));
     await _waitForWidget(
-        tester, find.byKey(const Key('wb_compact_editor_expand')));
+        tester, find.byKey(const Key('wb_compact_card_editor')));
     final embeddedEditor = find.byKey(const Key('wb_compact_card_editor'));
     expect(embeddedEditor, findsOneWidget);
     final richTextEditor = tester.widget<CardRichTextEditor>(
@@ -84,6 +85,7 @@ void main() {
     expect(richTextEditor.compact, isTrue);
     expect(richTextEditor.showToolbar, isFalse);
     expect(richTextEditor.readOnly, isFalse);
+    expect(richTextEditor.inlineSurface, isTrue);
     expect(
       find.ancestor(
         of: embeddedEditor,
@@ -97,7 +99,10 @@ void main() {
     );
     expect(find.byKey(const Key('wb_compact_editor_position')), findsNothing);
     expect(find.byType(Dialog), findsNothing);
-    await tester.tap(find.byKey(const Key('wb_compact_editor_expand')));
+    expect(find.byKey(const Key('wb_compact_editor_expand')), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _settle(tester);
+    await _openCardContextAction(tester, find.text('真实文字卡'), '展开查看');
     await _waitForWidget(tester, find.text('文字卡消费页'));
     expect(find.text('文字卡消费页'), findsOneWidget);
     expect(pendingSave, isNotNull);
@@ -245,14 +250,12 @@ void main() {
       ),
     ];
     for (final routeCase in cases) {
-      await _doubleTap(tester, find.text(routeCase.title));
-      if (routeCase.compact) {
-        await _waitForWidget(
-            tester, find.byKey(const Key('wb_compact_editor_expand')));
-        await tester.tap(find.byKey(const Key('wb_compact_editor_expand')));
-      } else {
-        expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
-      }
+      await _openCardContextAction(
+        tester,
+        find.text(routeCase.title),
+        routeCase.compact ? '展开查看' : '打开来源',
+      );
+      expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
       await _waitForWidget(tester, find.text(routeCase.page));
       expect(find.text(routeCase.marker), findsOneWidget);
       router.pop();
@@ -428,6 +431,22 @@ Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
   await tester.tap(finder, kind: ui.PointerDeviceKind.mouse);
   await tester.pump(const Duration(milliseconds: 50));
   await tester.tap(finder, kind: ui.PointerDeviceKind.mouse);
+}
+
+Future<void> _openCardContextAction(
+  WidgetTester tester,
+  Finder card,
+  String action,
+) async {
+  final click = await tester.startGesture(
+    tester.getCenter(card),
+    kind: PointerDeviceKind.mouse,
+    buttons: kSecondaryMouseButton,
+  );
+  await click.up();
+  await _settle(tester);
+  await tester.tap(find.text(action));
+  await _settle(tester);
 }
 
 GoRouter _router({

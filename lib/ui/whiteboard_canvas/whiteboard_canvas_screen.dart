@@ -108,25 +108,6 @@ bool _supportsCompactEdit(CardKind kind) => switch (kind) {
       CardKind.source => false,
     };
 
-const double _editingSurfaceMinWidth = 420;
-const double _editingSurfaceMinHeight = 360;
-
-Rect _editingSurfaceRect(Rect cardRect, Size canvasSize) {
-  final width = math.min(
-    canvasSize.width,
-    math.max(cardRect.width, _editingSurfaceMinWidth),
-  );
-  final height = math.min(
-    canvasSize.height,
-    math.max(cardRect.height, _editingSurfaceMinHeight),
-  );
-  final left =
-      cardRect.left.clamp(0.0, math.max(0.0, canvasSize.width - width));
-  final top =
-      cardRect.top.clamp(0.0, math.max(0.0, canvasSize.height - height));
-  return Rect.fromLTWH(left.toDouble(), top.toDouble(), width, height);
-}
-
 /// The main full-screen whiteboard canvas widget.
 class WhiteboardCanvasScreen extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
@@ -1218,15 +1199,6 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       final screenRect = transform.canvasToScreenRect(
         Rect.fromLTWH(item.x, item.y, item.width, item.height),
       );
-      if (widget.editingItemId == node.itemId &&
-          _editingSurfaceRect(
-            screenRect,
-            (_canvasAreaKey.currentContext?.findRenderObject() as RenderBox?)
-                    ?.size ??
-                Size.zero,
-          ).contains(screenPos)) {
-        return true;
-      }
       if (screenRect.contains(screenPos)) return true;
       if ((selection.isSelected(item.itemId) ||
           _hoveredItemId == item.itemId)) {
@@ -1842,7 +1814,6 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             isSelected: vm.selection.isSelected(node.itemId),
             isReadonly: vm.isReadonly,
             lodTier: _lodTiers[node.itemId] ?? LodTier.full,
-            canvasSize: size,
             editSurface: widget.editingItemId == node.itemId &&
                     node.card != null &&
                     widget.editSurfaceBuilder != null
@@ -1860,12 +1831,14 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         // follow the card's rotation).
         if (!vm.isReadonly)
           for (final node in visibleNodes)
-            if (vm.selection.isSelected(node.itemId))
+            if (vm.selection.isSelected(node.itemId) &&
+                widget.editingItemId != node.itemId)
               ..._buildSelectionHandles(node, transform),
         if (!vm.isReadonly)
           for (final node in visibleNodes)
-            if (vm.selection.isSelected(node.itemId) ||
-                _hoveredItemId == node.itemId)
+            if ((vm.selection.isSelected(node.itemId) ||
+                    _hoveredItemId == node.itemId) &&
+                widget.editingItemId != node.itemId)
               ..._buildConnectionHandles(node, transform),
         // Selected edge endpoint handles
         if (visibleSelectedEdge != null && !vm.isReadonly)
@@ -2308,7 +2281,6 @@ class _CardWidget extends StatelessWidget {
   final bool isSelected;
   final bool isReadonly;
   final LodTier lodTier;
-  final Size canvasSize;
   final Widget? editSurface;
   final VoidCallback onTap;
   final VoidCallback onEnter;
@@ -2323,7 +2295,6 @@ class _CardWidget extends StatelessWidget {
     required this.isSelected,
     required this.isReadonly,
     required this.lodTier,
-    required this.canvasSize,
     this.editSurface,
     required this.onTap,
     required this.onEnter,
@@ -2336,30 +2307,56 @@ class _CardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final item = node.item;
+    final colors = WhiteboardCanvasTokens.of(context);
     final screenRect = transform.canvasToScreenRect(
       Rect.fromLTWH(item.x, item.y, item.width, item.height),
     );
-    final displayRect = editSurface == null
-        ? screenRect
-        : _editingSurfaceRect(screenRect, canvasSize);
-
     return Positioned(
       key: Key('wb_card_${item.itemId}'),
-      left: displayRect.left,
-      top: displayRect.top,
-      width: displayRect.width,
-      height: displayRect.height,
+      left: screenRect.left,
+      top: screenRect.top,
+      width: screenRect.width,
+      height: screenRect.height,
       child: MouseRegion(
         onEnter: (_) => onEnter(),
         onExit: (_) => onExit(),
         child: editSurface != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(
-                  WhiteboardCanvasTokens.cardRadius,
-                ),
-                child: KeyedSubtree(
-                  key: Key('wb_card_edit_surface_${item.itemId}'),
-                  child: editSurface!,
+            ? Transform.rotate(
+                angle: item.rotation * math.pi / 180,
+                alignment: Alignment.center,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.cardSurface,
+                    borderRadius: BorderRadius.circular(
+                      WhiteboardCanvasTokens.cardRadius,
+                    ),
+                    border: Border.all(
+                      color: isSelected
+                          ? colors.cardBorderSelected
+                          : colors.cardBorder,
+                      width: isSelected
+                          ? WhiteboardCanvasTokens.cardBorderWidthSelected
+                          : WhiteboardCanvasTokens.cardBorderWidth,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: colors.selectionFocus,
+                              blurRadius: 0,
+                              spreadRadius: 3,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(
+                      WhiteboardCanvasTokens.cardRadius,
+                    ),
+                    child: KeyedSubtree(
+                      key: Key('wb_card_edit_surface_${item.itemId}'),
+                      child: editSurface!,
+                    ),
+                  ),
                 ),
               )
             : GestureDetector(
