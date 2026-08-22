@@ -27,4 +27,46 @@ void main() {
     expect(uri.queryParameters, isNot(contains('download')));
     expect(uri.queryParameters, isNot(contains('token')));
   });
+
+  test('decodes candidate and time messages emitted as JSON strings', () {
+    expect(
+      WindowsBilibiliPlayerAdapter.decodeWebMessage(
+        '{"type":"hereiam:bilibili-media","event":"candidate"}',
+      ),
+      <String, dynamic>{
+        'type': 'hereiam:bilibili-media',
+        'event': 'candidate',
+      },
+    );
+    expect(
+      WindowsBilibiliPlayerAdapter.decodeWebMessage(
+        '{"type":"hereiam:bilibili-media","event":"time",'
+        '"position_ms":1200,"duration_ms":6400}',
+      ),
+      <String, dynamic>{
+        'type': 'hereiam:bilibili-media',
+        'event': 'time',
+        'position_ms': 1200,
+        'duration_ms': 6400,
+      },
+    );
+  });
+
+  test('malformed WebView messages fail closed', () {
+    expect(
+      WindowsBilibiliPlayerAdapter.decodeWebMessage('{not-json'),
+      isNull,
+    );
+    expect(
+      WindowsBilibiliPlayerAdapter.decodeWebMessage('["candidate"]'),
+      isNull,
+    );
+    expect(
+      WindowsBilibiliPlayerAdapter.decodeWebMessage(<Object?, Object?>{
+        'type': 'hereiam:bilibili-media',
+        1: 'non-string-key',
+      }),
+      isNull,
+    );
+  });
 }

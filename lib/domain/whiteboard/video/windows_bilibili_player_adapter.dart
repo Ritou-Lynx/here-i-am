@@ -7,6 +7,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:webview_flutter_windows/webview_flutter_windows.dart';
@@ -76,7 +77,10 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
       _controller = controller;
       _subscriptions
         ..add(controller.webMessage.listen(_handleMessage))
-        ..add(controller.url.listen(_handleUrlChanged));
+        ..add(controller.url.listen(_handleUrlChanged))
+        ..add(controller.onLoadError.listen((_) {
+          _handlePageLoadError();
+        }));
       await controller.initialize();
       await controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
       await controller.setDefaultContextMenusEnabled(false);
@@ -101,12 +105,13 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   }
 
   void _handleMessage(dynamic raw) {
-    if (raw is! Map || raw['type'] != 'hereiam:bilibili-media') return;
-    if (raw['event'] == 'candidate') {
+    final message = decodeWebMessage(raw);
+    if (message == null || message['type'] != 'hereiam:bilibili-media') return;
+    if (message['event'] == 'candidate') {
       unawaited(_verifyBridge());
       return;
     }
-    final snapshot = _bridge.acceptEvent(raw);
+    final snapshot = _bridge.acceptEvent(message);
     if (snapshot != null && !_timeController.isClosed) {
       _timeController.add(PlayerTimeEvent(
         positionMs: snapshot.positionMs,
@@ -114,6 +119,25 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
         at: DateTime.now(),
       ));
     }
+  }
+
+  /// WebView2 emits JSON messages as strings. Malformed or non-object values
+  /// are ignored so page content cannot infer or promote player capability.
+  static Map<String, dynamic>? decodeWebMessage(dynamic raw) {
+    try {
+      final dynamic decoded = raw is String ? jsonDecode(raw) : raw;
+      if (decoded is! Map) return null;
+      return Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _handlePageLoadError() {
+    const failure = 'Bilibili 页面加载失败，请检查网络或页面可用性';
+    _lastFailure = failure;
+    _bridge.downgrade(failure);
+    _emitCurrentSnapshot();
   }
 
   Future<void> _verifyBridge() async {
