@@ -45,10 +45,10 @@ void main() {
         ),
       ));
 
-      // Heading text is visible.
-      expect(find.text('标题'), findsOneWidget);
-      // Paragraph text is visible.
-      expect(find.text('正文'), findsOneWidget);
+      final documentField = tester.widget<TextField>(
+        find.byKey(const ValueKey('rich_text_continuous_document')),
+      );
+      expect(documentField.controller!.text, equals('标题\n正文'));
       // Toolbar buttons present.
       expect(find.text('B'), findsOneWidget);
       expect(find.text('H1'), findsOneWidget);
@@ -94,7 +94,7 @@ void main() {
       await tester.pump();
 
       // Simulate IME composition: set a composing region.
-      final tc = controller.controllerFor(0);
+      final tc = tester.widget<TextField>(textField).controller!;
       tc.value = const TextEditingValue(
         text: '你好',
         composing: TextRange(start: 0, end: 2),
@@ -179,8 +179,10 @@ void main() {
         ),
       ));
 
-      expect(find.text('恢复标题'), findsOneWidget);
-      expect(find.text('恢复正文'), findsOneWidget);
+      final documentField = tester.widget<TextField>(
+        find.byKey(const ValueKey('rich_text_continuous_document')),
+      );
+      expect(documentField.controller!.text, equals('恢复标题\n恢复正文'));
     });
 
     testWidgets('undo and redo toolbar buttons work', (tester) async {
@@ -200,7 +202,10 @@ void main() {
       controller.commitHistory(coalesce: false);
 
       // Type more and commit.
-      final tc = controller.controllerFor(0);
+      final tc = tester
+          .widget<TextField>(
+              find.byKey(const ValueKey('rich_text_continuous_document')))
+          .controller!;
       tc.value = const TextEditingValue(
         text: '第二版',
         selection: TextSelection.collapsed(offset: 3),
@@ -236,7 +241,10 @@ void main() {
       // Type text and select a range.
       await tester.enterText(find.byType(TextField).first, '访问示例网站');
       await tester.pump();
-      final tc = controller.controllerFor(0);
+      final tc = tester
+          .widget<TextField>(
+              find.byKey(const ValueKey('rich_text_continuous_document')))
+          .controller!;
       tc.selection = const TextSelection(baseOffset: 0, extentOffset: 4);
       // Confirm the field is focused so the toolbar targets the right block.
       expect(controller.focusNodeFor(0).hasFocus, isTrue);
@@ -272,7 +280,10 @@ void main() {
 
       await tester.enterText(find.byType(TextField).first, '危险链接');
       await tester.pump();
-      final tc = controller.controllerFor(0);
+      final tc = tester
+          .widget<TextField>(
+              find.byKey(const ValueKey('rich_text_continuous_document')))
+          .controller!;
       tc.selection = const TextSelection(baseOffset: 0, extentOffset: 4);
 
       await tester.tap(find.byTooltip('插入链接'));
@@ -771,7 +782,7 @@ void main() {
 
     testWidgets('inline code mark uses the Cascadia Code token',
         (tester) async {
-      final controller = await pumpMixed(tester, blocks: const [
+      await pumpMixed(tester, blocks: const [
         RichTextBlock(
           type: BlockType.paragraph,
           text: '运行 flutter test 即可',
@@ -781,8 +792,10 @@ void main() {
         ),
       ]);
 
-      final blockController =
-          controller.controllerFor(0) as RichTextBlockController;
+      final blockController = tester
+          .widget<TextField>(
+              find.byKey(const ValueKey('rich_text_continuous_document')))
+          .controller!;
       // Build the text span the field renders and inspect the code segment.
       final span = blockController.buildTextSpan(
         context: tester.element(find.byType(TextField).first),
@@ -810,8 +823,11 @@ void main() {
         ),
       ]);
       // Both fields rendered (no layout exception).
-      expect(find.byType(TextField), findsNWidgets(2));
-      expect(find.textContaining('混排测试'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        contains('混排测试'),
+      );
     });
   });
 }

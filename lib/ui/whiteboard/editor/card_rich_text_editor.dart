@@ -60,6 +60,9 @@ class CardRichTextEditor extends StatefulWidget {
   final RichTextSaveCallback? onSave;
   final bool markSavedAfterCallback;
   final bool showSaveInToolbar;
+  final bool showToolbar;
+  final bool compact;
+  final bool readOnly;
   final String cardId;
   final VoidCallback? onDirty;
 
@@ -78,6 +81,9 @@ class CardRichTextEditor extends StatefulWidget {
     this.onSave,
     this.markSavedAfterCallback = true,
     this.showSaveInToolbar = true,
+    this.showToolbar = true,
+    this.compact = false,
+    this.readOnly = false,
     this.onDirty,
     this.objectStore,
     this.mediaImporter,
@@ -87,16 +93,139 @@ class CardRichTextEditor extends StatefulWidget {
   State<CardRichTextEditor> createState() => _CardRichTextEditorState();
 }
 
+/// One native editable value for the whole linear document. Block boundaries
+/// remain serializable metadata, but selection, drag-selection, Ctrl+A and
+/// IME composition are handled by a single Flutter [EditableText].
+class _ContinuousDocumentController extends TextEditingController {
+  List<RichTextBlock> _blocks;
+
+  _ContinuousDocumentController({required List<RichTextBlock> blocks})
+      : _blocks = List<RichTextBlock>.from(blocks),
+        super(text: _CardRichTextEditorState._joinLinearBlocks(blocks));
+
+  void updateBlocks(
+    List<RichTextBlock> blocks, {
+    required bool preserveSelection,
+  }) {
+    _blocks = List<RichTextBlock>.from(blocks);
+    final nextText = _CardRichTextEditorState._joinLinearBlocks(blocks);
+    final oldSelection = selection;
+    value = TextEditingValue(
+      text: nextText,
+      selection: preserveSelection
+          ? TextSelection(
+              baseOffset: oldSelection.baseOffset.clamp(0, nextText.length),
+              extentOffset:
+                  oldSelection.extentOffset.clamp(0, nextText.length),
+            )
+          : TextSelection.collapsed(offset: nextText.length),
+    );
+  }
+
+  void updateBlockStyles(List<RichTextBlock> blocks) {
+    _blocks = List<RichTextBlock>.from(blocks);
+    notifyListeners();
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final base = style ?? richTextBodyTextStyle(fontSize: 14);
+    final children = <InlineSpan>[];
+    for (var blockIndex = 0; blockIndex < _blocks.length; blockIndex++) {
+      final block = _blocks[blockIndex];
+      final blockStyle = block.type == BlockType.heading
+          ? _headingStyle(base, block.headingLevel)
+          : base;
+      children.addAll(_markedSpans(block, blockStyle));
+      if (blockIndex < _blocks.length - 1) {
+        children.add(TextSpan(text: '\n', style: blockStyle));
+      }
+    }
+    return TextSpan(style: base, children: children);
+  }
+
+  TextStyle _headingStyle(TextStyle base, int level) {
+    final sizes = <double>[28, 24, 21, 18, 16, 15];
+    return base.copyWith(
+      fontSize: sizes[(level - 1).clamp(0, 5)],
+      fontWeight: level <= 2 ? FontWeight.w700 : FontWeight.w600,
+      height: 1.35,
+    );
+  }
+
+  List<TextSpan> _markedSpans(RichTextBlock block, TextStyle base) {
+    if (block.text.isEmpty) return [TextSpan(text: '', style: base)];
+    final boundaries = <int>{0, block.text.length};
+    for (final mark in block.marks) {
+      boundaries
+        ..add(mark.start.clamp(0, block.text.length))
+        ..add(mark.end.clamp(0, block.text.length));
+    }
+    final points = boundaries.toList()..sort();
+    return [
+      for (var i = 0; i < points.length - 1; i++)
+        if (points[i] < points[i + 1])
+          TextSpan(
+            text: block.text.substring(points[i], points[i + 1]),
+            style: _markStyle(
+              base,
+              block.marks.where((mark) =>
+                  mark.start < points[i + 1] && mark.end > points[i]),
+            ),
+          ),
+    ];
+  }
+
+  TextStyle _markStyle(TextStyle base, Iterable<RichTextMark> marks) {
+    var result = base;
+    for (final mark in marks) {
+      switch (mark.type) {
+        case MarkType.bold:
+          result = result.copyWith(fontWeight: FontWeight.bold);
+        case MarkType.italic:
+          result = result.copyWith(fontStyle: FontStyle.italic);
+        case MarkType.underline:
+          result = result.copyWith(decoration: TextDecoration.underline);
+        case MarkType.strikethrough:
+          result = result.copyWith(decoration: TextDecoration.lineThrough);
+        case MarkType.code:
+          result = result.copyWith(
+            fontFamily: richTextCodeFamily,
+            fontFamilyFallback: richTextCodeFallback,
+          );
+        case MarkType.link:
+          result = result.copyWith(
+            color: const Color(0xFF6E7541),
+            decoration: TextDecoration.underline,
+          );
+      }
+    }
+    return result;
+  }
+}
+
 class _CardRichTextEditorState extends State<CardRichTextEditor> {
   /// The most recently focused edit path. Desktop toolbars steal focus on
   /// tap (InkWell requests focus on tap-down), so toolbar handlers use this
   /// as a fallback when [_focusedPath] is already empty by the time the
   /// button's onTap runs.
   RichTextEditPath? _lastFocusedPath;
+  late final _ContinuousDocumentController _continuousController;
+  final FocusNode _continuousFocusNode = FocusNode();
+  var _syncingContinuous = false;
+  late List<RichTextBlock> _continuousBlocks;
 
   @override
   void initState() {
     super.initState();
+    _continuousBlocks = List<RichTextBlock>.from(widget.controller.document.blocks);
+    _continuousController = _ContinuousDocumentController(
+      blocks: _continuousBlocks,
+    )..addListener(_onContinuousTextChanged);
     widget.controller.addListener(_onControllerChanged);
     // Track the last focused edit path across pure focus changes (taps
     // without typing), so desktop toolbar taps can target the right field.
@@ -114,6 +243,10 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     FocusManager.instance.removeEarlyKeyEventHandler(_onEarlyKeyEvent);
     FocusManager.instance.removeListener(_onGlobalFocusChanged);
     widget.controller.removeListener(_onControllerChanged);
+    _continuousController
+      ..removeListener(_onContinuousTextChanged)
+      ..dispose();
+    _continuousFocusNode.dispose();
     super.dispose();
   }
 
@@ -158,6 +291,22 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     // Track the last focused edit path (typing implies a focused field).
     final focused = _focusedPath(widget.controller);
     if (focused != null) _lastFocusedPath = focused;
+    if (!_syncingContinuous && _usesContinuousSurface(widget.controller)) {
+      final next = widget.controller.document.blocks;
+      final nextText = _joinLinearBlocks(next);
+      if (_continuousController.text != nextText) {
+        _syncingContinuous = true;
+        _continuousBlocks = List<RichTextBlock>.from(next);
+        _continuousController.updateBlocks(
+          _continuousBlocks,
+          preserveSelection: true,
+        );
+        _syncingContinuous = false;
+      } else {
+        _continuousBlocks = List<RichTextBlock>.from(next);
+        _continuousController.updateBlockStyles(_continuousBlocks);
+      }
+    }
     // Rebuild so toolbar enable states (undo / redo / save) stay in sync.
     if (mounted) setState(() {});
   }
@@ -199,19 +348,189 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildToolbar(context, controller),
-          const SizedBox(height: 8),
+          if (widget.showToolbar) ...[
+            _buildToolbar(context, controller),
+            SizedBox(height: widget.compact ? 4 : 8),
+          ],
           Expanded(
-            child: ListView.builder(
-              itemCount: controller.blockCount,
-              itemBuilder: (context, index) =>
-                  _buildBlockItem(context, controller, index),
-            ),
+            child: _usesContinuousSurface(controller)
+                ? _buildContinuousSurface(context, controller)
+                : ListView.builder(
+                    itemCount: controller.blockCount,
+                    itemBuilder: (context, index) =>
+                        _buildBlockItem(context, controller, index),
+                  ),
           ),
         ],
       ),
     );
   }
+
+  bool _usesContinuousSurface(RichTextEditingController controller) {
+    final blocks = controller.document.blocks;
+    return blocks.isNotEmpty &&
+        blocks.every((block) =>
+            block.children.isEmpty &&
+            (block.type == BlockType.paragraph ||
+                block.type == BlockType.heading));
+  }
+
+  static String _joinLinearBlocks(List<RichTextBlock> blocks) =>
+      blocks.map((block) => block.text).join('\n');
+
+  Widget _buildContinuousSurface(
+    BuildContext context,
+    RichTextEditingController controller,
+  ) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return TextField(
+      key: const ValueKey('rich_text_continuous_document'),
+      controller: _continuousController,
+      focusNode: _continuousFocusNode,
+      style: richTextBodyTextStyle(fontSize: 14).copyWith(
+        color: tokens.textPrimary,
+        height: 1.55,
+      ),
+      cursorColor: tokens.action,
+      maxLines: null,
+      minLines: widget.compact ? 1 : 8,
+      expands: false,
+      readOnly: widget.readOnly,
+      keyboardType: TextInputType.multiline,
+      textInputAction: TextInputAction.newline,
+      decoration: InputDecoration(
+        isDense: true,
+        alignLabelWithHint: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        hintText: '在此输入…',
+        hintStyle: richTextBodyTextStyle(fontSize: 14).copyWith(
+          color: tokens.textFaint,
+        ),
+        border: const OutlineInputBorder(borderSide: BorderSide.none),
+        enabledBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: Colors.transparent),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+          borderSide: BorderSide(color: tokens.divider, width: 1),
+        ),
+      ),
+      onChanged: (_) {
+        // [_onContinuousTextChanged] mirrors content without touching the
+        // TextEditingValue, so Flutter retains its native composing range.
+        controller.markDirty();
+      },
+    );
+  }
+
+  void _onContinuousTextChanged() {
+    if (_syncingContinuous || !_usesContinuousSurface(widget.controller)) {
+      return;
+    }
+    final nextText = _continuousController.text;
+    final oldText = _joinLinearBlocks(_continuousBlocks);
+    if (oldText == nextText) return;
+
+    _continuousBlocks = _applyLinearTextEdit(
+      _continuousBlocks,
+      oldText,
+      nextText,
+    );
+    _continuousController.updateBlockStyles(_continuousBlocks);
+    _syncingContinuous = true;
+    widget.controller.replaceContinuousBlocks(_continuousBlocks);
+    _syncingContinuous = false;
+  }
+
+  List<RichTextBlock> _applyLinearTextEdit(
+    List<RichTextBlock> oldBlocks,
+    String oldText,
+    String nextText,
+  ) {
+    var prefix = 0;
+    final sharedLength = oldText.length < nextText.length
+        ? oldText.length
+        : nextText.length;
+    while (prefix < sharedLength &&
+        oldText.codeUnitAt(prefix) == nextText.codeUnitAt(prefix)) {
+      prefix++;
+    }
+    var oldSuffix = oldText.length;
+    var nextSuffix = nextText.length;
+    while (oldSuffix > prefix &&
+        nextSuffix > prefix &&
+        oldText.codeUnitAt(oldSuffix - 1) ==
+            nextText.codeUnitAt(nextSuffix - 1)) {
+      oldSuffix--;
+      nextSuffix--;
+    }
+
+    int lineAt(String text, int offset) {
+      var line = 0;
+      for (var i = 0; i < offset.clamp(0, text.length); i++) {
+        if (text.codeUnitAt(i) == 10) line++;
+      }
+      return line;
+    }
+
+    final startLine = lineAt(oldText, prefix)
+        .clamp(0, oldBlocks.isEmpty ? 0 : oldBlocks.length - 1);
+    final endLine = lineAt(oldText, oldSuffix)
+        .clamp(startLine, oldBlocks.isEmpty ? startLine : oldBlocks.length - 1);
+    final insertedLineCount =
+        '\n'.allMatches(nextText.substring(prefix, nextSuffix)).length + 1;
+    final retainedBefore = oldBlocks.take(startLine).toList();
+    final retainedAfter = oldBlocks.skip(endLine + 1).toList();
+    final seed = oldBlocks.isEmpty
+        ? const RichTextBlock(type: BlockType.paragraph)
+        : oldBlocks[startLine];
+
+    final nextLines = nextText.split('\n');
+    final replacement = <RichTextBlock>[];
+    for (var i = 0; i < insertedLineCount; i++) {
+      final lineIndex = startLine + i;
+      if (lineIndex >= nextLines.length) break;
+      replacement.add(
+        i == 0
+            ? seed.copyWith(
+                text: nextLines[lineIndex],
+                marks: _clampMarks(seed.marks, nextLines[lineIndex].length),
+              )
+            : RichTextBlock(
+                type: BlockType.paragraph,
+                text: nextLines[lineIndex],
+              ),
+      );
+    }
+    // A boundary deletion/replacement always leaves one resulting line.
+    if (replacement.isEmpty && nextLines.isNotEmpty) {
+      replacement.add(seed.copyWith(text: nextLines[startLine]));
+    }
+    final result = <RichTextBlock>[
+      ...retainedBefore,
+      ...replacement,
+      ...retainedAfter,
+    ];
+    // Re-apply the exact visible lines while retaining the metadata mapping
+    // calculated above. This also covers same-line edits before later blocks.
+    return [
+      for (var i = 0; i < nextLines.length; i++)
+        (i < result.length
+                ? result[i]
+                : const RichTextBlock(type: BlockType.paragraph))
+            .copyWith(
+          text: nextLines[i],
+          marks: i < result.length
+              ? _clampMarks(result[i].marks, nextLines[i].length)
+              : const <RichTextMark>[],
+        ),
+    ];
+  }
+
+  List<RichTextMark> _clampMarks(List<RichTextMark> marks, int length) => [
+        for (final mark in marks)
+          if (mark.clamp(length) case final clamped?) clamped,
+      ];
 
   Widget _buildToolbar(BuildContext context, RichTextEditingController c) {
     final tokens = DesktopWorkspaceTokens.of(context);
@@ -253,16 +572,17 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
           const SizedBox(width: 4),
           _toolbarButton(
               tokens,
-              'H1',
-              '一级标题',
-              () => _setBlockTypeFocused(c, BlockType.heading,
-                  attrs: const {'level': 1})),
-          _toolbarButton(
+              '正文',
+              '正文段落',
+              () => _setBlockTypeFocused(c, BlockType.paragraph)),
+          for (var level = 1; level <= 6; level++)
+            _toolbarButton(
               tokens,
-              'H2',
-              '二级标题',
+              'H$level',
+              '$level 级标题',
               () => _setBlockTypeFocused(c, BlockType.heading,
-                  attrs: const {'level': 2})),
+                  attrs: {'level': level}),
+            ),
           _toolbarButton(
               tokens,
               '•',
@@ -488,6 +808,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       cursorColor: tokens.action,
       maxLines: null,
       minLines: 1,
+      readOnly: widget.readOnly,
       decoration: InputDecoration(
         isDense: true,
         filled: block.type == BlockType.code,
@@ -748,6 +1069,24 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   }
 
   void _toggleMarkOnFocused(RichTextEditingController c, MarkType type) {
+    if (_usesContinuousSurface(c)) {
+      final selection = _continuousController.selection;
+      if (selection.isCollapsed) return;
+      final startBlock = _continuousBlockAt(selection.start);
+      final endBlock = _continuousBlockAt(selection.end - 1);
+      for (var index = startBlock; index <= endBlock; index++) {
+        final start = index == startBlock
+            ? _localOffset(index, selection.start)
+            : 0;
+        final end = index == endBlock
+            ? _localOffset(index, selection.end)
+            : _continuousBlocks[index].text.length;
+        if (start < end) c.applyMarkToBlock(index, type, start, end);
+      }
+      _refreshContinuousFromController(c);
+      _restoreContinuousFocus(selection);
+      return;
+    }
     final path = _actionPath(c);
     if (path == null) return;
     final tc = path.child == null
@@ -767,6 +1106,27 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
 
   void _setBlockTypeFocused(RichTextEditingController c, BlockType type,
       {Map<String, dynamic> attrs = const {}}) {
+    if (_usesContinuousSurface(c)) {
+      final selection = _continuousController.selection;
+      final start = _continuousBlockAt(selection.start);
+      final end = _continuousBlockAt(
+        selection.isCollapsed ? selection.end : selection.end - 1,
+      );
+      final next = List<RichTextBlock>.from(_continuousBlocks);
+      for (var index = start; index <= end; index++) {
+        next[index] = next[index].copyWith(
+          type: type,
+          attrs: type == BlockType.paragraph ? const {} : attrs,
+        );
+      }
+      _continuousBlocks = next;
+      _continuousController.updateBlockStyles(next);
+      _syncingContinuous = true;
+      c.replaceContinuousBlocks(next);
+      _syncingContinuous = false;
+      _restoreContinuousFocus(selection);
+      return;
+    }
     final path = _actionPath(c);
     if (path == null) return;
     if (path.child == null) {
@@ -804,15 +1164,54 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     });
   }
 
+  int _continuousBlockAt(int offset) {
+    var cursor = 0;
+    for (var index = 0; index < _continuousBlocks.length; index++) {
+      final end = cursor + _continuousBlocks[index].text.length;
+      if (offset <= end || index == _continuousBlocks.length - 1) return index;
+      cursor = end + 1;
+    }
+    return 0;
+  }
+
+  int _localOffset(int blockIndex, int documentOffset) {
+    var start = 0;
+    for (var index = 0; index < blockIndex; index++) {
+      start += _continuousBlocks[index].text.length + 1;
+    }
+    return (documentOffset - start)
+        .clamp(0, _continuousBlocks[blockIndex].text.length);
+  }
+
+  void _restoreContinuousFocus(TextSelection selection) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _continuousFocusNode.requestFocus();
+      _continuousController.selection = TextSelection(
+        baseOffset: selection.baseOffset.clamp(0, _continuousController.text.length),
+        extentOffset:
+            selection.extentOffset.clamp(0, _continuousController.text.length),
+      );
+    });
+  }
+
+  void _refreshContinuousFromController(RichTextEditingController controller) {
+    _continuousBlocks =
+        List<RichTextBlock>.from(controller.flushToDocument().blocks);
+    _continuousController.updateBlockStyles(_continuousBlocks);
+  }
+
   Future<void> _addLinkOnFocused(
       BuildContext context, RichTextEditingController c) async {
     final tokens = DesktopWorkspaceTokens.of(context);
-    final path = _actionPath(c);
-    if (path == null) return;
-    final tc = path.child == null
-        ? c.controllerFor(path.block)
-        : c.childControllerFor(path.block, path.child!);
-    final sel = tc.selection;
+    final continuous = _usesContinuousSurface(c);
+    final path = continuous ? null : _actionPath(c);
+    if (!continuous && path == null) return;
+    final sel = continuous
+        ? _continuousController.selection
+        : (path!.child == null
+            ? c.controllerFor(path.block)
+            : c.childControllerFor(path.block, path.child!))
+            .selection;
     if (sel.start == sel.end) return;
     final linkController = TextEditingController();
     final href = await showDialog<String>(
@@ -882,7 +1281,22 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       );
       return;
     }
-    if (path.child == null) {
+    if (continuous) {
+      final startBlock = _continuousBlockAt(sel.start);
+      final endBlock = _continuousBlockAt(sel.end - 1);
+      for (var index = startBlock; index <= endBlock; index++) {
+        final start = index == startBlock ? _localOffset(index, sel.start) : 0;
+        final end = index == endBlock
+            ? _localOffset(index, sel.end)
+            : _continuousBlocks[index].text.length;
+        if (start < end) {
+          c.applyMarkToBlock(index, MarkType.link, start, end,
+              attrs: {'href': trimmed});
+        }
+      }
+      _refreshContinuousFromController(c);
+      _restoreContinuousFocus(sel);
+    } else if (path!.child == null) {
       c.applyMarkToBlock(
         path.block,
         MarkType.link,
@@ -967,6 +1381,12 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
           return KeyEventResult.handled;
         }
         if (key == LogicalKeyboardKey.keyV) {
+          if (_usesContinuousSurface(widget.controller)) {
+            // Let the single native EditableText paste into the global
+            // selection. Its formatter-free text path preserves IME and
+            // cross-block replacement semantics.
+            return KeyEventResult.ignored;
+          }
           _handlePaste(widget.controller);
           return KeyEventResult.handled;
         }
