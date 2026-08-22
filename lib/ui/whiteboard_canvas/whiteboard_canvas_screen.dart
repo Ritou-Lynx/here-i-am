@@ -158,7 +158,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   /// Card currently being placed via the BoardTargetPicker.
   String? _pickerCardId;
   String _pickerCardTitle = '';
-  String? _editingCardId;
+  String? _editingItemId;
   bool _creatingCard = false;
   int _createGeneration = 0;
   String? _pendingCompensationCardId;
@@ -196,7 +196,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     if (!mounted) return;
     setState(() {
       if (widget.viewModel.isReadonly) {
-        _editingCardId = null;
+        _editingItemId = null;
         _pickerCardId = null;
       }
     });
@@ -273,7 +273,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true): () =>
           _nudge(32, 0),
       const SingleActivator(LogicalKeyboardKey.escape): _handleEscape,
-      if (_editingCardId == null)
+      if (_editingItemId == null)
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
             vm.onSaveRequested?.call(),
     };
@@ -323,7 +323,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     });
   }
 
-  void _openCompactEditor(CardContract card) {
+  void _openCompactEditor(String itemId, CardContract card) {
     if (widget.viewModel.isReadonly) {
       widget.onOpenCard?.call(card);
       return;
@@ -335,7 +335,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       return;
     }
     setState(() {
-      _editingCardId = card.cardId;
+      _editingItemId = itemId;
     });
   }
 
@@ -374,7 +374,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       transactionStarted = false;
       if (!mounted || generation != _createGeneration) return;
       setState(() {
-        _editingCardId = card!.cardId;
+        _editingItemId = item.itemId;
       });
     } catch (error) {
       if (transactionStarted) {
@@ -587,15 +587,15 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     viewModel: vm,
                     onOpenCard: widget.onOpenCard,
                     onEditCard: _openCompactEditor,
-                    editingCardId: _editingCardId,
+                    editingItemId: _editingItemId,
                     editSurfaceBuilder: (context, card) {
                       final request = BoardItemEditRequest(
                         cardId: card.cardId,
                         isReadonly: vm.isReadonly,
                         onSaved: vm.upsertCardContent,
-                        onClose: () => setState(() => _editingCardId = null),
+                        onClose: () => setState(() => _editingItemId = null),
                         onExpand: (updated) {
-                          setState(() => _editingCardId = null);
+                          setState(() => _editingItemId = null);
                           widget.onOpenCard?.call(updated);
                         },
                       );
@@ -918,8 +918,8 @@ class _EdgeQuickEditorState extends State<_EdgeQuickEditor> {
 class WhiteboardCanvasArea extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
   final void Function(CardContract card)? onOpenCard;
-  final ValueChanged<CardContract>? onEditCard;
-  final String? editingCardId;
+  final void Function(String itemId, CardContract card)? onEditCard;
+  final String? editingItemId;
   final Widget Function(BuildContext context, CardContract card)?
       editSurfaceBuilder;
   final void Function(Offset canvasPoint, Offset screenPoint)? onCreateCardAt;
@@ -929,7 +929,7 @@ class WhiteboardCanvasArea extends StatefulWidget {
     required this.viewModel,
     this.onOpenCard,
     this.onEditCard,
-    this.editingCardId,
+    this.editingItemId,
     this.editSurfaceBuilder,
     this.onCreateCardAt,
   });
@@ -1009,7 +1009,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
           transform != null &&
           widget.onEditCard != null &&
           _supportsCompactEdit(node.card!.cardKind)) {
-        widget.onEditCard!(node.card!);
+        widget.onEditCard!(node.itemId, node.card!);
       } else {
         widget.onOpenCard?.call(node.card!);
       }
@@ -1218,7 +1218,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       final screenRect = transform.canvasToScreenRect(
         Rect.fromLTWH(item.x, item.y, item.width, item.height),
       );
-      if (widget.editingCardId == node.cardId &&
+      if (widget.editingItemId == node.itemId &&
           _editingSurfaceRect(
             screenRect,
             (_canvasAreaKey.currentContext?.findRenderObject() as RenderBox?)
@@ -1441,7 +1441,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       switch (action) {
         case _CardMenuAction.quickEdit:
           if (compactEdit) {
-            widget.onEditCard?.call(card);
+            widget.onEditCard?.call(node.itemId, card);
           } else {
             widget.onOpenCard?.call(card);
           }
@@ -1843,7 +1843,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             isReadonly: vm.isReadonly,
             lodTier: _lodTiers[node.itemId] ?? LodTier.full,
             canvasSize: size,
-            editSurface: widget.editingCardId == node.cardId &&
+            editSurface: widget.editingItemId == node.itemId &&
                     node.card != null &&
                     widget.editSurfaceBuilder != null
                 ? widget.editSurfaceBuilder!(context, node.card!)

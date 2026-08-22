@@ -430,6 +430,76 @@ void main() {
     expect(after.y, before.y);
   });
 
+  testWidgets('同一 Card 的两个 BoardItem 只编辑被双击的摆放', (tester) async {
+    final now = DateTime.utc(2026, 8, 22);
+    final sharedCard = CardContract(
+      cardId: 'card_shared',
+      cardKind: CardKind.note,
+      title: '共享内容',
+      body: '同一张 Card',
+      createdAt: now,
+    );
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: WhiteboardSnapshot(
+        boards: [
+          Board(boardId: 'board_direct', name: '双摆放', createdAt: now),
+        ],
+        cards: [sharedCard],
+        boardItems: const [
+          BoardItem(
+            itemId: 'item_shared_left',
+            boardId: 'board_direct',
+            cardId: 'card_shared',
+            x: -260,
+            y: -80,
+            width: 180,
+            height: 140,
+          ),
+          BoardItem(
+            itemId: 'item_shared_right',
+            boardId: 'board_direct',
+            cardId: 'card_shared',
+            x: 80,
+            y: -80,
+            width: 180,
+            height: 140,
+          ),
+        ],
+      ),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        cardEditSurfaceBuilder: (context, request) => ColoredBox(
+          key: const ValueKey('test_shared_card_edit_surface'),
+          color: Colors.amber,
+          child: Text('editing ${request.cardId}'),
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    final left = find.byKey(const Key('wb_card_item_shared_left'));
+    final right = find.byKey(const Key('wb_card_item_shared_right'));
+    await _doubleTapAt(
+      tester,
+      tester.getCenter(
+        find.descendant(of: right, matching: find.text('共享内容')),
+      ),
+    );
+    await tester.pump();
+
+    final surface = find.byKey(const ValueKey('test_shared_card_edit_surface'));
+    expect(surface, findsOneWidget);
+    expect(find.descendant(of: right, matching: surface), findsOneWidget);
+    expect(find.descendant(of: left, matching: surface), findsNothing);
+    expect(
+      find.descendant(of: left, matching: find.text('共享内容')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('白板卡片标题和正文复用全局混排字体 Token', (tester) async {
     final vm = WhiteboardCanvasViewModel(
       initialSnapshot: _snapshot(),
