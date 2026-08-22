@@ -1,0 +1,502 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
+import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
+import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
+import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
+import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
+import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
+
+const _png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+class _Harness {
+  _Harness(this.root, this.db, this.repository);
+
+  final Directory root;
+  final AppDatabase db;
+  final UnifiedCardRepository repository;
+
+  static _Harness create() {
+    final root = Directory.systemTemp.createTempSync('wb_media_cards_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    return _Harness(
+      root,
+      db,
+      UnifiedCardRepository(db: db, whiteboardRoot: root),
+    );
+  }
+
+  Future<File> sourceImage(String name) async {
+    final file = File('${root.path}${Platform.pathSeparator}$name');
+    await file.writeAsBytes(base64Decode(_png), flush: true);
+    return file;
+  }
+
+  Future<CardContract> imageCard(String id, File source) async {
+    final objectStore = RichTextObjectStore(repository.richTextStorage.baseDir);
+    final ref = await objectStore.importFile(
+      source.path,
+      alt: source.uri.pathSegments.last,
+    );
+    final card = await repository.createTextCard(cardId: id, title: '本地图片');
+    return repository.saveRichText(
+      card.cardId,
+      RichTextDocument(
+        blocks: [
+          RichTextBlock(
+            type: BlockType.image,
+            attrs: {'asset_ref_id': ref.refId, 'alt': '本地图片'},
+          ),
+        ],
+        assetRefs: [ref],
+      ),
+      title: '本地图片',
+    );
+  }
+
+  Future<void> dispose() async {
+    await db.close();
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
+    if (root.existsSync()) root.deleteSync(recursive: true);
+  }
+}
+
+class _FailingCleanupRepository extends UnifiedCardRepository {
+  _FailingCleanupRepository({required super.db, required super.whiteboardRoot});
+
+  int failures = 1;
+
+  @override
+  Future<bool> softDeleteCard(String cardId, {DateTime? at}) {
+    if (failures > 0) {
+      failures--;
+      throw StateError('scripted cleanup failure');
+    }
+    return super.softDeleteCard(cardId, at: at);
+  }
+}
+
+WhiteboardSnapshot _snapshot(CardContract card, {bool duplicate = false}) {
+  final now = DateTime.utc(2026, 8, 23);
+  return WhiteboardSnapshot(
+    boards: [Board(boardId: 'board_media', name: '媒体卡', createdAt: now)],
+    cards: [card],
+    boardItems: [
+      const BoardItem(
+        itemId: 'item_media_a',
+        boardId: 'board_media',
+        cardId: 'card_media',
+        x: -280,
+        y: -100,
+        width: 240,
+        height: 220,
+      ),
+      if (duplicate)
+        const BoardItem(
+          itemId: 'item_media_b',
+          boardId: 'board_media',
+          cardId: 'card_media',
+          x: 40,
+          y: -100,
+          width: 240,
+          height: 220,
+        ),
+    ],
+  );
+}
+
+Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
+  for (var i = 0; i < 50 && finder.evaluate().isEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 15)),
+    );
+    await tester.pump(const Duration(milliseconds: 30));
+  }
+  expect(finder, findsWidgets);
+}
+
+Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
+  for (var i = 0; i < 50 && finder.evaluate().isNotEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 15)),
+    );
+    await tester.pump(const Duration(milliseconds: 30));
+  }
+  expect(finder, findsNothing);
+}
+
+void _disposeHarnessAfterTest(WidgetTester tester, _Harness harness) {
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.runAsync(harness.dispose);
+  });
+}
+
+void main() {
+  testWidgets('已有 RichText 图片在多个 BoardItem 直接预览且重建后恢复', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    late final CardContract card;
+    await tester.runAsync(() async {
+      final source = await harness.sourceImage('camera.png');
+      card = await harness.imageCard('card_media', source);
+    });
+
+    Future<void> pump(UnifiedCardRepository repository) async {
+      final vm = WhiteboardCanvasViewModel(
+        initialSnapshot: _snapshot(card, duplicate: true),
+        boardId: 'board_media',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WhiteboardCanvasScreen(
+            key: ValueKey(repository),
+            viewModel: vm,
+            cardRepository: repository,
+          ),
+        ),
+      );
+      await _pumpUntil(
+        tester,
+        find.byKey(const ValueKey('wb_local_media_item_media_a')),
+      );
+      expect(
+        find.byKey(const ValueKey('wb_local_media_item_media_b')),
+        findsOneWidget,
+      );
+      expect(find.byType(Image), findsNWidgets(2));
+      final libraryButton = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byKey(const Key('wb_open_card_library_tool')),
+          matching: find.byType(InkWell),
+        ),
+      );
+      libraryButton.onTap!();
+      await tester.pump();
+      await _pumpUntil(
+        tester,
+        find.byKey(const ValueKey('wb_local_media_library_card_media')),
+      );
+      expect(find.byType(Image), findsNWidgets(3));
+    }
+
+    await pump(harness.repository);
+    final restarted = UnifiedCardRepository(
+      db: harness.db,
+      whiteboardRoot: harness.root,
+    );
+    await pump(restarted);
+  });
+
+  testWidgets('本地图片对象缺失时诚实占位，不把文件名冒充预览', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    late final CardContract card;
+    await tester.runAsync(() async {
+      final source = await harness.sourceImage('missing.png');
+      card = await harness.imageCard('card_media', source);
+      final record = await harness.repository.getCard(card.cardId);
+      final ref = record!.document!.assetRefs.single;
+      final object = RichTextObjectStore(
+        harness.repository.richTextStorage.baseDir,
+      ).resolveFile(ref)!;
+      await object.delete();
+    });
+
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(card),
+      boardId: 'board_media',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WhiteboardCanvasScreen(
+          viewModel: vm,
+          cardRepository: harness.repository,
+        ),
+      ),
+    );
+    await _pumpUntil(tester, find.text('图片对象缺失'));
+    expect(find.text('missing.png'), findsNothing);
+    expect(find.byType(Image), findsNothing);
+  });
+
+  testWidgets('Source 缓存证据只读本地哈希对象且渲染不触网', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    late final CardContract card;
+    await tester.runAsync(() async {
+      final bytes = base64Decode(_png);
+      final hash = sha256.convert(bytes).toString();
+      final cache = Directory(
+        '${harness.root.path}${Platform.pathSeparator}objects'
+        '${Platform.pathSeparator}thumbnails',
+      );
+      await cache.create(recursive: true);
+      await File(
+        '${cache.path}${Platform.pathSeparator}$hash.png',
+      ).writeAsBytes(bytes, flush: true);
+      final created = await harness.repository.createTextCard(
+        cardId: 'card_media',
+        title: '缓存图片来源',
+      );
+      card = await harness.repository.updateCardMetadata(
+        created.cardId,
+        cardKind: CardKind.source,
+        presentation: {'thumbnail_ref': 'objects/thumbnails/$hash.png'},
+      );
+    });
+    final repository = UnifiedCardRepository(
+      db: harness.db,
+      whiteboardRoot: harness.root,
+      thumbnailResolver: SafeThumbnailResolver(
+        whiteboardRoot: harness.root,
+      ),
+    );
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(card),
+      boardId: 'board_media',
+    );
+    var httpClients = 0;
+    await HttpOverrides.runZoned(
+      () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: WhiteboardCanvasScreen(
+              viewModel: vm,
+              cardRepository: repository,
+            ),
+          ),
+        );
+        await _pumpUntil(
+          tester,
+          find.byKey(const ValueKey('wb_local_media_item_media_a')),
+        );
+      },
+      createHttpClient: (_) {
+        httpClients++;
+        throw StateError('viewport rendering must stay offline');
+      },
+    );
+    expect(httpClients, 0);
+    expect(find.byType(Image), findsOneWidget);
+  });
+
+  testWidgets('导入图片建立真实 Card、保存布局并在双击时打开完整编辑', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    late final File source;
+    await tester.runAsync(() async {
+      source = await harness.sourceImage('morning.png');
+    });
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: WhiteboardSnapshot(
+        boards: [
+          Board(
+            boardId: 'board_media',
+            name: '媒体卡',
+            createdAt: DateTime.utc(2026, 8, 23),
+          ),
+        ],
+        viewport: const BoardViewport(centerX: 900, centerY: 700),
+      ),
+      boardId: 'board_media',
+    );
+    var persisted = 0;
+    CardContract? opened;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WhiteboardCanvasScreen(
+          viewModel: vm,
+          cardRepository: harness.repository,
+          imagePathPicker: () async => [source.path],
+          onPersistSnapshot: () async {
+            persisted++;
+            return true;
+          },
+          onOpenCard: (card) => opened = card,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('wb_import_image_tool')));
+    final importedPreview = find.byWidgetPredicate((widget) {
+      final key = widget.key;
+      return key is ValueKey<String> &&
+          key.value.startsWith('wb_local_media_item_');
+    });
+    await _pumpUntil(tester, importedPreview);
+    final records = (await tester.runAsync(
+      () => harness.repository.listCards(
+        const CardLibraryQuery(loadDocuments: true),
+      ),
+    ))!;
+    expect(records, hasLength(1));
+    expect(records.single.document!.blocks.single.type, BlockType.image);
+    expect(vm.exportForSave().boardItems, hasLength(1));
+    expect(vm.exportForSave().boardItems.single.x, closeTo(770, .01));
+    expect(vm.exportForSave().boardItems.single.y, closeTo(600, .01));
+    expect(persisted, 1);
+
+    final cardFinder = find.byKey(
+      Key('wb_card_${vm.exportForSave().boardItems.single.itemId}'),
+    );
+    await tester.tap(cardFinder);
+    await tester.pump(const Duration(milliseconds: 70));
+    await tester.tap(cardFinder);
+    for (var i = 0; i < 50 && opened == null; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 15)),
+      );
+      await tester.pump(const Duration(milliseconds: 30));
+    }
+    expect(opened?.cardId, records.single.card.cardId);
+    expect(find.byKey(const ValueKey('wb_compact_card_editor')), findsNothing);
+  });
+
+  testWidgets('只读白板拒绝图片导入且不会调用 picker', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: WhiteboardSnapshot(
+        boards: [
+          Board(
+            boardId: 'board_media',
+            name: '只读媒体卡',
+            createdAt: DateTime.utc(2026, 8, 23),
+          ),
+        ],
+      ),
+      boardId: 'board_media',
+    )..setReadonly(true);
+    var pickerCalls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WhiteboardCanvasScreen(
+          viewModel: vm,
+          cardRepository: harness.repository,
+          imagePathPicker: () async {
+            pickerCalls++;
+            return const [];
+          },
+        ),
+      ),
+    );
+    final button = tester.widget<InkWell>(
+      find.descendant(
+        of: find.byKey(const ValueKey('wb_import_image_tool')),
+        matching: find.byType(InkWell),
+      ),
+    );
+    expect(button.onTap, isNull);
+    expect(pickerCalls, 0);
+  });
+
+  testWidgets('图片布局保存失败回滚 BoardItem、Card 与对象文件', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    late final File source;
+    await tester.runAsync(() async {
+      source = await harness.sourceImage('rollback.png');
+    });
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: WhiteboardSnapshot(
+        boards: [
+          Board(
+            boardId: 'board_media',
+            name: '媒体回滚',
+            createdAt: DateTime.utc(2026, 8, 23),
+          ),
+        ],
+      ),
+      boardId: 'board_media',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WhiteboardCanvasScreen(
+          viewModel: vm,
+          cardRepository: harness.repository,
+          imagePathPicker: () async => [source.path],
+          onPersistSnapshot: () async => false,
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('wb_import_image_tool')));
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(vm.exportForSave().boardItems, isEmpty);
+    expect(await tester.runAsync(harness.repository.listCards), isEmpty);
+    final objects = RichTextObjectStore(
+      harness.repository.richTextStorage.baseDir,
+    ).objectsDirectory;
+    expect(objects.existsSync() ? objects.listSync() : const [], isEmpty);
+  });
+
+  testWidgets('图片 Card 补偿失败保持可见重试，成功后再删除对象', (tester) async {
+    final root = Directory.systemTemp.createTempSync('wb_media_retry_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = _FailingCleanupRepository(
+      db: db,
+      whiteboardRoot: root,
+    );
+    final harness = _Harness(root, db, repository);
+    _disposeHarnessAfterTest(tester, harness);
+    late final File source;
+    await tester.runAsync(() async {
+      source = await harness.sourceImage('retry.png');
+    });
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: WhiteboardSnapshot(
+        boards: [
+          Board(
+            boardId: 'board_media',
+            name: '媒体补偿',
+            createdAt: DateTime.utc(2026, 8, 23),
+          ),
+        ],
+      ),
+      boardId: 'board_media',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WhiteboardCanvasScreen(
+          viewModel: vm,
+          cardRepository: repository,
+          imagePathPicker: () async => [source.path],
+          onPersistSnapshot: () async => false,
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('wb_import_image_tool')));
+    await _pumpUntil(
+      tester,
+      find.byKey(const ValueKey('wb_pending_card_compensation')),
+    );
+    expect(await tester.runAsync(repository.listCards), hasLength(1));
+
+    await tester.tap(
+      find.byKey(const ValueKey('wb_retry_card_compensation')),
+    );
+    await _pumpUntilGone(
+      tester,
+      find.byKey(const ValueKey('wb_pending_card_compensation')),
+    );
+    expect(await tester.runAsync(repository.listCards), isEmpty);
+    final objects = RichTextObjectStore(
+      repository.richTextStorage.baseDir,
+    ).objectsDirectory;
+    expect(objects.existsSync() ? objects.listSync() : const [], isEmpty);
+  });
+}

@@ -6,6 +6,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +18,8 @@ import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/rich_text_search.dart';
+import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
@@ -49,10 +52,10 @@ class CardLibraryScreen extends StatefulWidget {
 class _CardLibraryScreenState extends State<CardLibraryScreen> {
   late final Future<UnifiedCardRepository?> _repositoryFuture =
       widget.repository != null
-      ? Future.value(widget.repository)
-      : widget.index != null
-      ? Future.value(null)
-      : CardLibraryScreen.resolveRepository();
+          ? Future.value(widget.repository)
+          : widget.index != null
+              ? Future.value(null)
+              : CardLibraryScreen.resolveRepository();
   final _queryController = TextEditingController();
   Timer? _debounce;
   List<_CardLibraryHit> _hits = const [];
@@ -148,7 +151,9 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         };
         _thumbnailRequests.clear();
         _thumbnailQueue.clear();
-        _hits = records.map(_CardLibraryHit.fromRecord).toList();
+        _hits = records
+            .map((record) => _CardLibraryHit.fromRecord(record, repository))
+            .toList();
         _knownTags = knownTags.toSet();
         _loading = false;
       });
@@ -186,7 +191,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         final cardId = _thumbnailQueue.removeAt(0);
         final record = _recordsById[cardId];
         if (record == null || requestId != _requestId) continue;
-        final resolved = await repository.resolveThumbnail(record);
+        final resolved = await repository.resolveCachedThumbnail(record);
         if (!mounted || requestId != _requestId) continue;
         if (!resolved.isAvailable || resolved.file == null) continue;
         final index = _hits.indexWhere((hit) => hit.cardId == cardId);
@@ -308,8 +313,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     if (!snapshot.cards.any((card) => card.cardId == cardId)) {
       throw StateError('卡片不存在或尚未完成保存');
     }
-    final nextZ =
-        snapshot.boardItems
+    final nextZ = snapshot.boardItems
             .where((item) => item.boardId == board.boardId)
             .fold<int>(
               0,
@@ -577,8 +581,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
       );
     }
     if (_hits.isEmpty) {
-      final narrowed =
-          _kind != null ||
+      final narrowed = _kind != null ||
           _sourceType != null ||
           _tag != null ||
           _placed != null ||
@@ -624,10 +627,10 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         final columns = width >= 1180
             ? 4
             : width >= 820
-            ? 3
-            : width >= 540
-            ? 2
-            : 1;
+                ? 3
+                : width >= 540
+                    ? 2
+                    : 1;
         return GridView.builder(
           key: const ValueKey('card-library-grid'),
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -662,10 +665,11 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     _LibraryPalette palette, {
     Color? color,
     double width = 1,
-  }) => OutlineInputBorder(
-    borderRadius: BorderRadius.circular(10),
-    borderSide: BorderSide(color: color ?? palette.border, width: width),
-  );
+  }) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: color ?? palette.border, width: width),
+      );
 
   ButtonStyle _secondaryButtonStyle(_LibraryPalette palette) =>
       OutlinedButton.styleFrom(
@@ -706,17 +710,17 @@ class _LibraryPalette {
       );
 
   factory _LibraryPalette.mobile(SpringRainUiTokens tokens) => _LibraryPalette(
-    canvas: tokens.canvas,
-    surface: tokens.surface,
-    surfaceSelected: tokens.surfaceSelected,
-    surfaceRaised: tokens.surfaceRaised,
-    border: tokens.divider,
-    textPrimary: tokens.textPrimary,
-    textSecondary: tokens.textSecondary,
-    textFaint: tokens.textTertiary,
-    action: tokens.accent,
-    dark: tokens.textPrimary,
-  );
+        canvas: tokens.canvas,
+        surface: tokens.surface,
+        surfaceSelected: tokens.surfaceSelected,
+        surfaceRaised: tokens.surfaceRaised,
+        border: tokens.divider,
+        textPrimary: tokens.textPrimary,
+        textSecondary: tokens.textSecondary,
+        textFaint: tokens.textTertiary,
+        action: tokens.accent,
+        dark: tokens.textPrimary,
+      );
 
   final Color canvas;
   final Color surface;
@@ -1012,6 +1016,17 @@ class _MediaPreview extends StatelessWidget {
         errorBuilder: (_, __, ___) => _missing(),
       );
     }
+    final localImage = hit.localImageFile;
+    if (localImage != null) {
+      return Image.file(
+        localImage,
+        key: ValueKey('card-library-local-image-${hit.cardId}'),
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
+        cacheWidth: 1024,
+        errorBuilder: (_, __, ___) => _missing(),
+      );
+    }
     final request = onThumbnailNeeded;
     if (request != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => request());
@@ -1032,14 +1047,16 @@ class _MediaPreview extends StatelessWidget {
       SourceMediaType.book => Icons.menu_book_outlined,
       SourceMediaType.audio => Icons.graphic_eq_rounded,
       SourceMediaType.pdf => Icons.picture_as_pdf_outlined,
-      _ => Icons.insert_drive_file_outlined,
+      _ => hit.hasLocalImage
+          ? Icons.broken_image_outlined
+          : Icons.insert_drive_file_outlined,
     };
     final label = switch (type) {
       SourceMediaType.video => '暂无视频封面',
       SourceMediaType.web => '暂无网页预览',
       SourceMediaType.image => '暂无图片预览',
       SourceMediaType.book => '暂无书籍封面',
-      _ => '暂无媒体预览',
+      _ => hit.hasLocalImage ? '图片对象缺失' : '暂无媒体预览',
     };
     return ColoredBox(
       color: palette.dark,
@@ -1152,21 +1169,40 @@ class _CardLibraryHit {
     this.sourceType,
     this.sourceLabel,
     this.thumbnail,
+    this.hasLocalImage = false,
+    this.localImageFile,
   });
 
   factory _CardLibraryHit.legacy({
     required String cardId,
     required String title,
     required String plainText,
-  }) => _CardLibraryHit(
-    cardId: cardId,
-    title: title,
-    plainText: plainText,
-    cardKind: CardKind.note,
-    tags: const [],
-  );
+  }) =>
+      _CardLibraryHit(
+        cardId: cardId,
+        title: title,
+        plainText: plainText,
+        cardKind: CardKind.note,
+        tags: const [],
+      );
 
-  factory _CardLibraryHit.fromRecord(UnifiedCardRecord record) {
+  factory _CardLibraryHit.fromRecord(
+    UnifiedCardRecord record,
+    UnifiedCardRepository repository,
+  ) {
+    final document = record.document ??
+        repository.richTextStorage
+            .loadWithStatusSync(record.card.cardId)
+            .document;
+    final imageBlock = _firstImageBlock(document?.blocks ?? const []);
+    final imageRef = imageBlock == null
+        ? null
+        : document?.assetRefById(imageBlock.assetRefId ?? '');
+    final localImageFile = imageRef == null
+        ? null
+        : RichTextObjectStore(repository.richTextStorage.baseDir).resolveFile(
+            imageRef,
+          );
     return _CardLibraryHit(
       cardId: record.card.cardId,
       title: record.card.title,
@@ -1176,6 +1212,8 @@ class _CardLibraryHit {
       sourceId: record.card.sourceId,
       sourceType: record.source?.mediaType,
       sourceLabel: record.source?.provider,
+      hasLocalImage: imageBlock != null,
+      localImageFile: localImageFile,
     );
   }
 
@@ -1190,6 +1228,8 @@ class _CardLibraryHit {
       sourceType: sourceType,
       sourceLabel: sourceLabel,
       thumbnail: thumbnail ?? this.thumbnail,
+      hasLocalImage: hasLocalImage,
+      localImageFile: localImageFile,
     );
   }
 
@@ -1202,8 +1242,12 @@ class _CardLibraryHit {
   final SourceMediaType? sourceType;
   final String? sourceLabel;
   final ResolvedThumbnail? thumbnail;
+  final bool hasLocalImage;
+  final File? localImageFile;
 
-  bool get isMedia => sourceType != null && sourceType != SourceMediaType.text;
+  bool get isMedia =>
+      hasLocalImage ||
+      (sourceType != null && sourceType != SourceMediaType.text);
   bool get opensSource => cardKind == CardKind.source && sourceId != null;
 
   String get previewText {
@@ -1218,21 +1262,30 @@ class _CardLibraryHit {
   }
 }
 
+RichTextBlock? _firstImageBlock(List<RichTextBlock> blocks) {
+  for (final block in blocks) {
+    if (block.type == BlockType.image) return block;
+    final nested = _firstImageBlock(block.children);
+    if (nested != null) return nested;
+  }
+  return null;
+}
+
 String _cardKindLabel(CardKind kind) => switch (kind) {
-  CardKind.source => '原件卡',
-  CardKind.note => '文字',
-  CardKind.annotation => '批注',
-  CardKind.taskArtifact => '任务产物',
-  CardKind.reference => '引用',
-};
+      CardKind.source => '原件卡',
+      CardKind.note => '文字',
+      CardKind.annotation => '批注',
+      CardKind.taskArtifact => '任务产物',
+      CardKind.reference => '引用',
+    };
 
 String _sourceTypeLabel(SourceMediaType type) => switch (type) {
-  SourceMediaType.text => '文本',
-  SourceMediaType.book => '书籍',
-  SourceMediaType.pdf => 'PDF',
-  SourceMediaType.image => '图片',
-  SourceMediaType.web => '网页',
-  SourceMediaType.video => '视频',
-  SourceMediaType.audio => '音频',
-  SourceMediaType.file => '文件',
-};
+      SourceMediaType.text => '文本',
+      SourceMediaType.book => '书籍',
+      SourceMediaType.pdf => 'PDF',
+      SourceMediaType.image => '图片',
+      SourceMediaType.web => '网页',
+      SourceMediaType.video => '视频',
+      SourceMediaType.audio => '音频',
+      SourceMediaType.file => '文件',
+    };

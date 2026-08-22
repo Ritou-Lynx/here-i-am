@@ -341,7 +341,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
           :final edgeId,
           :final fromItemId,
           :final toItemId,
-          :final stylePatch
+          :final stylePatch,
         ):
         return retargetEdge(
           edgeId: edgeId,
@@ -532,10 +532,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   /// Rotates an item to an absolute rotation (degrees).
-  void rotateItem({
-    required String itemId,
-    required double rotationDegrees,
-  }) {
+  void rotateItem({required String itemId, required double rotationDegrees}) {
     if (_readonly) return;
     _adapter.rotateItem(
       boardId: boardId,
@@ -620,6 +617,8 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     required String boardId,
     required double x,
     required double y,
+    double width = 260,
+    double height = 200,
   }) {
     if (_readonly) return null;
     final item = _adapter.placeCard(
@@ -627,6 +626,8 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       cardId: cardId,
       x: x,
       y: y,
+      width: width,
+      height: height,
     );
     if (item != null && boardId == this.boardId) {
       _selection.select(item.itemId);
@@ -682,9 +683,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     _adapter.load(snapshot);
     _currentCards
       ..clear()
-      ..addEntries(
-        snapshot.cards.map((card) => MapEntry(card.cardId, card)),
-      );
+      ..addEntries(snapshot.cards.map((card) => MapEntry(card.cardId, card)));
     _viewport = snapshot.viewport;
     _undoStack
       ..clear()
@@ -735,10 +734,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
         : _bufferedOperations.length == 1
             ? _bufferedOperations.first
             : _mergeOperations(_bufferedOperations);
-    _undoStack.add(UndoRedoEntry(
-      snapshot: currentSnapshot,
-      operation: op,
-    ));
+    _undoStack.add(UndoRedoEntry(snapshot: currentSnapshot, operation: op));
     _redoStack.clear();
   }
 
@@ -753,9 +749,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       boardId: boardIds.length == 1 ? first.boardId : boardId,
       actor: first.actor,
       operationKind: first.operationKind,
-      targetIds: {
-        for (final op in ops) ...op.targetIds,
-      }.toList(),
+      targetIds: {for (final op in ops) ...op.targetIds}.toList(),
       payload: {
         'merged_count': ops.length,
         'kinds': [for (final op in ops) op.operationKind.name],
@@ -769,8 +763,9 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   void _pruneEdgeSelection() {
     final id = _selectedEdgeId;
     if (id == null) return;
-    final stillExists =
-        _adapter.exportSnapshot().edges.any((e) => e.edgeId == id);
+    final stillExists = _adapter.exportSnapshot().edges.any(
+          (e) => e.edgeId == id,
+        );
     if (!stillExists) _selectedEdgeId = null;
   }
 
