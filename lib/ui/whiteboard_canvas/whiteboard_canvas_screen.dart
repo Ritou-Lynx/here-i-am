@@ -137,6 +137,9 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   String? _editingCardId;
   Rect? _editorAnchor;
   bool _creatingCard = false;
+  int _createGeneration = 0;
+  String? _pendingCompensationCardId;
+  Object? _pendingCompensationError;
 
   @override
   void initState() {
@@ -146,12 +149,35 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
 
   @override
   void dispose() {
+    _createGeneration++;
     widget.viewModel.removeListener(_onVmChanged);
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant WhiteboardCanvasScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.viewModel, widget.viewModel)) {
+      oldWidget.viewModel.removeListener(_onVmChanged);
+      widget.viewModel.addListener(_onVmChanged);
+      _createGeneration++;
+      _creatingCard = false;
+    }
+    if (!identical(oldWidget.cardRepository, widget.cardRepository)) {
+      _createGeneration++;
+      _creatingCard = false;
+    }
+  }
+
   void _onVmChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      if (widget.viewModel.isReadonly) {
+        _editingCardId = null;
+        _editorAnchor = null;
+        _pickerCardId = null;
+      }
+    });
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────
@@ -193,15 +219,19 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     final vm = widget.viewModel;
     final hidden = _hiddenItemIds(vm.boardState);
     return {
-      const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () =>
-          vm.undo(),
+      const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () {
+        if (!vm.isReadonly) vm.undo();
+      },
       const SingleActivator(
         LogicalKeyboardKey.keyZ,
         control: true,
         shift: true,
-      ): () => vm.redo(),
-      const SingleActivator(LogicalKeyboardKey.keyY, control: true): () =>
-          vm.redo(),
+      ): () {
+        if (!vm.isReadonly) vm.redo();
+      },
+      const SingleActivator(LogicalKeyboardKey.keyY, control: true): () {
+        if (!vm.isReadonly) vm.redo();
+      },
       const SingleActivator(LogicalKeyboardKey.keyA, control: true): () =>
           vm.handleIntent(SelectAllIntent(exclude: hidden)),
       const SingleActivator(LogicalKeyboardKey.delete): () =>
@@ -239,6 +269,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   }
 
   void _openBoardPicker(String cardId, String cardTitle) {
+    if (widget.viewModel.isReadonly) return;
     setState(() {
       _pickerCardId = cardId;
       _pickerCardTitle = cardTitle;
@@ -271,6 +302,10 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   }
 
   void _openCompactEditor(CardContract card, Rect anchor) {
+    if (widget.viewModel.isReadonly) {
+      widget.onOpenCard?.call(card);
+      return;
+    }
     if (!_supportsCompactEdit(card.cardKind) || widget.cardRepository == null) {
       widget.onOpenCard?.call(card);
       return;
@@ -286,10 +321,21 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     final vm = widget.viewModel;
     if (repository == null || vm.isReadonly || _creatingCard) return;
     _creatingCard = true;
-    final before = vm.exportForSave();
+    final generation = ++_createGeneration;
     CardContract? card;
+    var transactionStarted = false;
     try {
       card = await repository.createTextCard(title: '未命名卡片');
+      if (!mounted ||
+          generation != _createGeneration ||
+          vm.isReadonly ||
+          !identical(vm, widget.viewModel) ||
+          !identical(repository, widget.cardRepository)) {
+        await _compensateCreatedCard(repository, card.cardId);
+        return;
+      }
+      vm.beginLogicalAction();
+      transactionStarted = vm.isInLogicalAction;
       vm.upsertCardContent(card);
       final item = vm.placeCardOnBoard(
         cardId: card.cardId,
@@ -301,7 +347,9 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       final persisted =
           await (widget.onPersistSnapshot?.call() ?? Future<bool>.value(true));
       if (!persisted) throw StateError('白板没有保存成功');
-      if (!mounted) return;
+      vm.endLogicalAction();
+      transactionStarted = false;
+      if (!mounted || generation != _createGeneration) return;
       setState(() {
         _editingCardId = card!.cardId;
         _editorAnchor = Rect.fromCenter(
@@ -311,14 +359,13 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
         );
       });
     } catch (error) {
-      vm.loadFromSnapshot(before);
+      if (transactionStarted) {
+        if (card != null) vm.removeCardContent(card.cardId);
+        vm.cancelLogicalAction();
+        transactionStarted = false;
+      }
       if (card != null) {
-        try {
-          await repository.softDeleteCard(card.cardId);
-        } catch (_) {
-          // The visible board is still rolled back. A later Repository repair
-          // can identify the unplaced Card; do not create a dangling BoardItem.
-        }
+        await _compensateCreatedCard(repository, card.cardId);
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -326,7 +373,65 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
         );
       }
     } finally {
-      _creatingCard = false;
+      if (generation == _createGeneration) _creatingCard = false;
+    }
+  }
+
+  Future<bool> _compensateCreatedCard(
+    UnifiedCardRepository repository,
+    String cardId,
+  ) async {
+    try {
+      final deleted = await repository.softDeleteCard(cardId);
+      if (!deleted) {
+        throw StateError('临时卡片没有被清理');
+      }
+      if (mounted && _pendingCompensationCardId == cardId) {
+        setState(() {
+          _pendingCompensationCardId = null;
+          _pendingCompensationError = null;
+        });
+      }
+      return true;
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _pendingCompensationCardId = cardId;
+          _pendingCompensationError = error;
+        });
+      }
+      return false;
+    }
+  }
+
+  Future<void> _retryPendingCompensation() async {
+    final repository = widget.cardRepository;
+    final cardId = _pendingCompensationCardId;
+    if (repository == null || cardId == null) return;
+    await _compensateCreatedCard(repository, cardId);
+  }
+
+  Future<bool> _persistEdgeMutation(bool Function() mutate) async {
+    final vm = widget.viewModel;
+    if (vm.isReadonly) return false;
+    vm.beginLogicalAction();
+    try {
+      final changed = mutate();
+      if (!changed) {
+        vm.cancelLogicalAction();
+        return true;
+      }
+      final persisted =
+          await (widget.onPersistSnapshot?.call() ?? Future.value(true));
+      if (!persisted) {
+        vm.cancelLogicalAction();
+        return false;
+      }
+      vm.endLogicalAction();
+      return true;
+    } catch (_) {
+      vm.cancelLogicalAction();
+      return false;
     }
   }
 
@@ -527,21 +632,34 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     ),
                   ),
                 ],
-                if (vm.selectedEdge != null)
+                if (!vm.isReadonly && vm.selectedEdge != null)
                   _EdgeQuickEditor(
                     edge: vm.selectedEdge!,
                     onSave: (direction, label) async {
-                      final changed = vm.updateEdge(
-                        edgeId: vm.selectedEdge!.edgeId,
-                        direction: direction,
-                        label: label,
+                      final edgeId = vm.selectedEdge!.edgeId;
+                      return _persistEdgeMutation(
+                        () => vm.updateEdge(
+                          edgeId: edgeId,
+                          direction: direction,
+                          label: label,
+                        ),
                       );
-                      if (!changed) return true;
-                      return widget.onPersistSnapshot?.call() ?? true;
                     },
-                    onDelete: () {
-                      vm.removeEdge(vm.selectedEdge!.edgeId);
-                      widget.onPersistSnapshot?.call();
+                    onDelete: () async {
+                      final edgeId = vm.selectedEdge!.edgeId;
+                      final ok = await _persistEdgeMutation(() {
+                        vm.removeEdge(edgeId);
+                        return vm.exportForSave().edges.every(
+                              (edge) => edge.edgeId != edgeId,
+                            );
+                      });
+                      if (!ok && context.mounted) {
+                        vm.handleIntent(SelectEdgeIntent(edgeId: edgeId));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('连线没有删除成功')),
+                        );
+                      }
+                      return ok;
                     },
                     onClose: () => vm.handleIntent(
                       const ClearEdgeSelectionIntent(),
@@ -553,6 +671,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     child: CompactCardEditor(
                       cardId: _editingCardId!,
                       repository: widget.cardRepository!,
+                      isReadonly: vm.isReadonly,
                       onSaved: vm.upsertCardContent,
                       onClose: () => setState(() {
                         _editingCardId = null;
@@ -565,6 +684,41 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                         });
                         widget.onOpenCard?.call(card);
                       },
+                    ),
+                  ),
+                if (_pendingCompensationCardId != null)
+                  Positioned(
+                    key: const ValueKey('wb_pending_card_compensation'),
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: Material(
+                      color: colors.panelSurface,
+                      elevation: 8,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '白板创建已回滚，但临时卡片清理失败：'
+                                '$_pendingCompensationError',
+                              ),
+                            ),
+                            TextButton(
+                              key: const ValueKey(
+                                'wb_retry_card_compensation',
+                              ),
+                              onPressed: _retryPendingCompensation,
+                              child: const Text('重试清理'),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -620,7 +774,7 @@ class _EdgeQuickEditor extends StatefulWidget {
 
   final BoardEdge edge;
   final Future<bool> Function(EdgeDirection direction, String? label) onSave;
-  final VoidCallback onDelete;
+  final Future<bool> Function() onDelete;
   final VoidCallback onClose;
 
   @override
@@ -666,6 +820,17 @@ class _EdgeQuickEditorState extends State<_EdgeQuickEditor> {
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(ok ? '连线已保存' : '连线没有保存成功')),
+    );
+  }
+
+  Future<void> _delete() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final ok = await widget.onDelete();
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? '连线已删除' : '连线没有删除成功')),
     );
   }
 
@@ -744,7 +909,7 @@ class _EdgeQuickEditorState extends State<_EdgeQuickEditor> {
               IconButton(
                 key: const ValueKey('wb_edge_quick_delete'),
                 tooltip: '删除连线',
-                onPressed: _saving ? null : widget.onDelete,
+                onPressed: _saving ? null : _delete,
                 icon: const Icon(Icons.delete_outline_rounded, size: 18),
               ),
               IconButton(
@@ -846,7 +1011,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       _lastClickedItemId = null;
       _lastClickAt = null;
       final transform = _lastTransform;
-      if (transform != null &&
+      if (!widget.viewModel.isReadonly &&
+          transform != null &&
           widget.onEditCard != null &&
           _supportsCompactEdit(node.card!.cardKind)) {
         final item = node.item;
@@ -882,6 +1048,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         _lastTransform = transform;
 
         return DragTarget<WhiteboardCardDragData>(
+          onWillAcceptWithDetails: (_) => !vm.isReadonly,
           onAcceptWithDetails: (details) =>
               _handleCardDrop(details.data, details.offset),
           builder: (context, candidates, rejected) {
@@ -1213,8 +1380,10 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     if (isDoubleClick) {
       _lastBlankClickAt = null;
       _lastBlankClickPosition = null;
-      final canvasPoint = transform.screenToCanvas(screenPosition);
-      widget.onCreateCardAt?.call(canvasPoint, screenPosition);
+      if (!widget.viewModel.isReadonly) {
+        final canvasPoint = transform.screenToCanvas(screenPosition);
+        widget.onCreateCardAt?.call(canvasPoint, screenPosition);
+      }
       return;
     }
     _lastBlankClickAt = now;
@@ -1241,7 +1410,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     );
     if (node != null && node.card != null) {
       final card = node.card!;
-      final compactEdit = _supportsCompactEdit(card.cardKind);
+      final readonly = widget.viewModel.isReadonly;
+      final compactEdit = !readonly && _supportsCompactEdit(card.cardKind);
       widget.viewModel.handleIntent(SelectItemIntent(itemId: node.itemId));
       final action = await showMenu<_CardMenuAction>(
         context: context,
@@ -1256,15 +1426,17 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             value: _CardMenuAction.open,
             child: Text(compactEdit ? '展开查看' : '打开来源'),
           ),
-          const PopupMenuDivider(),
-          const PopupMenuItem(
-            value: _CardMenuAction.front,
-            child: Text('置于顶层'),
-          ),
-          const PopupMenuItem(
-            value: _CardMenuAction.remove,
-            child: Text('从白板移除'),
-          ),
+          if (!readonly) ...[
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: _CardMenuAction.front,
+              child: Text('置于顶层'),
+            ),
+            const PopupMenuItem(
+              value: _CardMenuAction.remove,
+              child: Text('从白板移除'),
+            ),
+          ],
         ],
       );
       if (!mounted || action == null) return;
@@ -1291,15 +1463,17 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       return;
     }
 
+    final readonly = widget.viewModel.isReadonly;
     final action = await showMenu<_CanvasMenuAction>(
       context: context,
       position: position,
-      items: const [
-        PopupMenuItem(
-          value: _CanvasMenuAction.newCard,
-          child: Text('新建文字卡片'),
-        ),
-        PopupMenuItem(
+      items: [
+        if (!readonly)
+          const PopupMenuItem(
+            value: _CanvasMenuAction.newCard,
+            child: Text('新建文字卡片'),
+          ),
+        const PopupMenuItem(
           value: _CanvasMenuAction.resetView,
           child: Text('重置视图'),
         ),
@@ -1318,6 +1492,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
 
   void _handleCardDrop(WhiteboardCardDragData data, Offset globalPosition) {
     final vm = widget.viewModel;
+    if (vm.isReadonly) return;
     final box = _canvasAreaKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final transform = _lastTransform;
@@ -3246,6 +3421,8 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                                       _grabOffset = event.localPosition;
                                     },
                                     child: Draggable<WhiteboardCardDragData>(
+                                      maxSimultaneousDrags:
+                                          widget.viewModel.isReadonly ? 0 : 1,
                                       data: WhiteboardCardDragData(
                                         cardId: card.cardId,
                                         title: card.title,
@@ -3295,14 +3472,16 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () {
-          final vp = vm.viewport;
-          vm.placeCard(
-            cardId: cardId,
-            x: vp.centerX - 130,
-            y: vp.centerY - 100,
-          );
-        },
+        onTap: vm.isReadonly
+            ? null
+            : () {
+                final vp = vm.viewport;
+                vm.placeCard(
+                  cardId: cardId,
+                  x: vp.centerX - 130,
+                  y: vp.centerY - 100,
+                );
+              },
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Column(
@@ -3337,7 +3516,9 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                     ),
                     tooltip: '放入白板…',
                     visualDensity: VisualDensity.compact,
-                    onPressed: () => widget.onOpenBoardPicker(cardId, title),
+                    onPressed: vm.isReadonly
+                        ? null
+                        : () => widget.onOpenBoardPicker(cardId, title),
                   ),
                 ],
               ),

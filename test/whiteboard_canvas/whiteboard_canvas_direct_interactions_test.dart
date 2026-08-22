@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show Point;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:drift/native.dart';
@@ -13,8 +14,10 @@ import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/rich_text_asset_ref.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/ui/whiteboard_canvas/interactions/ui_intent.dart';
+import 'package:memex/ui/whiteboard_canvas/engine/flutter_canvas_adapter.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
 
@@ -113,6 +116,44 @@ class _TrackingRepository extends UnifiedCardRepository {
   Completer<void>? _nextSave;
   CardContract? _nextSaveResult;
   RichTextDocument? capturedDocument;
+  Completer<void>? createRelease;
+  Completer<CardContract>? created;
+  int softDeleteFailures = 0;
+  int softDeleteCalls = 0;
+
+  @override
+  Future<CardContract> createTextCard({
+    String? cardId,
+    String title = '',
+    String body = '',
+    List<String> tags = const [],
+    OwnerSpace ownerSpace = OwnerSpace.user,
+    CardCreatedBy createdBy = CardCreatedBy.user,
+    DateTime? createdAt,
+  }) async {
+    final card = await super.createTextCard(
+      cardId: cardId,
+      title: title,
+      body: body,
+      tags: tags,
+      ownerSpace: ownerSpace,
+      createdBy: createdBy,
+      createdAt: createdAt,
+    );
+    created?.complete(card);
+    await createRelease?.future;
+    return card;
+  }
+
+  @override
+  Future<bool> softDeleteCard(String cardId, {DateTime? at}) async {
+    softDeleteCalls++;
+    if (softDeleteFailures > 0) {
+      softDeleteFailures--;
+      throw StateError('scripted compensation failure');
+    }
+    return super.softDeleteCard(cardId, at: at);
+  }
 
   Future<void> expectNextSave(CardContract result) {
     _nextSave = Completer<void>();
@@ -233,6 +274,53 @@ void main() {
     expect(restarted.exportForSave().edges.single.toJson(), edge.toJson());
   });
 
+  testWidgets('连线更新与删除持久化失败均回滚且不污染后续快照', (tester) async {
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    expect(
+      vm.createEdge(
+        fromItemId: 'item_card_a',
+        toItemId: 'item_card_b',
+      ),
+      isTrue,
+    );
+    final original = vm.exportForSave().edges.single;
+    final logLength = vm.operationLog.length;
+    var persistCalls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        onPersistSnapshot: () async {
+          persistCalls++;
+          return false;
+        },
+      ),
+    ));
+    await tester.pump();
+
+    await tester.enterText(
+        find.byKey(const Key('wb_edge_quick_label')), '失败标签');
+    await tester.tap(find.byKey(const Key('wb_edge_quick_save')));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(vm.exportForSave().edges.single.toJson(), original.toJson());
+    expect(vm.operationLog, hasLength(logLength));
+    expect(find.text('连线没有保存成功'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('wb_edge_quick_delete')));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(vm.exportForSave().edges.single.toJson(), original.toJson());
+    expect(vm.operationLog, hasLength(logLength));
+    expect(vm.selectedEdge?.edgeId, original.edgeId);
+    expect(find.byKey(const Key('wb_edge_quick_editor')), findsOneWidget);
+    expect(persistCalls, 2);
+
+    final laterSave = vm.exportForSave();
+    expect(laterSave.edges.single.direction, EdgeDirection.undirected);
+    expect(laterSave.edges.single.label, isNull);
+  });
+
   testWidgets('空白双击建真实 Card，移除 BoardItem 不删 Card', (tester) async {
     final harness = _RepoHarness.create();
     addTearDown(harness.dispose);
@@ -305,6 +393,102 @@ void main() {
     expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
   });
 
+  testWidgets('建卡保存失败只局部回滚，保留既有 undo/redo 和操作日志', (tester) async {
+    final harness = _RepoHarness.create();
+    addTearDown(harness.dispose);
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    vm.selectItem('item_card_a');
+    vm.moveSelectedItems(24, 0);
+    vm.undo();
+    final before = vm.exportForSave();
+    final logLength = vm.operationLog.length;
+    expect(vm.canRedo, isTrue);
+
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        cardRepository: harness.repository,
+        onPersistSnapshot: () async => false,
+      ),
+    ));
+    await _doubleTapAt(tester, const Offset(650, 470));
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(vm.exportForSave().boardItems.map((item) => item.toJson()),
+        before.boardItems.map((item) => item.toJson()));
+    expect(vm.operationLog, hasLength(logLength));
+    expect(vm.canRedo, isTrue);
+    vm.redo();
+    expect(vm.exportForSave().boardItems.first.x, -206);
+  });
+
+  testWidgets('软删补偿失败可见且可重试，不留下 BoardItem', (tester) async {
+    final harness = _RepoHarness.create();
+    addTearDown(harness.dispose);
+    harness.repository.softDeleteFailures = 1;
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _emptySnapshot(),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        cardRepository: harness.repository,
+        onPersistSnapshot: () async => false,
+      ),
+    ));
+    await _doubleTapAt(tester, const Offset(650, 470));
+    await _pumpUntil(
+      tester,
+      find.byKey(const Key('wb_pending_card_compensation')),
+    );
+    expect(vm.exportForSave().boardItems, isEmpty);
+    expect(await tester.runAsync(harness.repository.listCards), hasLength(1));
+
+    await tester.tap(find.byKey(const Key('wb_retry_card_compensation')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const Key('wb_pending_card_compensation')), findsNothing);
+    expect(await tester.runAsync(harness.repository.listCards), isEmpty);
+    expect(harness.repository.softDeleteCalls, 2);
+  });
+
+  testWidgets('createTextCard 返回时页面已销毁则补偿 Card 且不操作旧 VM', (tester) async {
+    final harness = _RepoHarness.create();
+    addTearDown(harness.dispose);
+    final release = Completer<void>();
+    final created = Completer<CardContract>();
+    harness.repository
+      ..createRelease = release
+      ..created = created;
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _emptySnapshot(),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        cardRepository: harness.repository,
+      ),
+    ));
+    await _doubleTapAt(tester, const Offset(650, 470));
+    await tester
+        .runAsync(() => created.future.timeout(const Duration(seconds: 3)));
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    release.complete();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+
+    expect(vm.exportForSave().boardItems, isEmpty);
+    expect(vm.operationLog, isEmpty);
+    expect(await tester.runAsync(harness.repository.listCards), isEmpty);
+    expect(harness.repository.softDeleteCalls, 1);
+  });
+
   testWidgets('compact editor 保留复杂文档且 Ctrl+S 保存中文 IME', (tester) async {
     final harness = _RepoHarness.create();
     addTearDown(harness.dispose);
@@ -372,7 +556,15 @@ void main() {
       selection: TextSelection.collapsed(offset: 4),
     ));
     await tester.pump();
-    final saveDone = harness.repository.expectNextSave(updated);
+    final savedProjection = CardContract(
+      cardId: updated.cardId,
+      cardKind: updated.cardKind,
+      title: updated.title,
+      body: '你好世界',
+      createdAt: updated.createdAt,
+      updatedAt: DateTime.utc(2026, 8, 22, 1),
+    );
+    final saveDone = harness.repository.expectNextSave(savedProjection);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
@@ -386,6 +578,14 @@ void main() {
     expect(saved?.blocks[1].marks.single.type, MarkType.bold);
     expect(saved?.blocks[2].type, BlockType.image);
     expect(saved?.assetRefs.single.objectRef, 'objects/sha256-keep');
+    expect(vm.exportForSave().cards.single.body, '你好世界');
+
+    vm.selectItem('item_card_complex');
+    vm.moveSelectedItems(40, 0);
+    vm.undo();
+    expect(vm.exportForSave().cards.single.body, '你好世界');
+    vm.redo();
+    expect(vm.exportForSave().cards.single.body, '你好世界');
   });
 
   testWidgets('右键短按开菜单，超过阈值拖动只平移', (tester) async {
@@ -478,5 +678,64 @@ void main() {
       isFalse,
     );
     expect(vm.exportForSave().edges, isEmpty);
+  });
+
+  testWidgets('readonly UI 与 VM/adapter 双层拒绝编辑、放置及撤销重做', (tester) async {
+    final snapshot = _snapshot();
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: snapshot,
+      boardId: 'board_direct',
+    );
+    vm.selectItem('item_card_a');
+    vm.moveSelectedItems(20, 0);
+    vm.undo();
+    vm.setReadonly(true);
+    final before = vm.exportForSave().toJson();
+    final logLength = vm.operationLog.length;
+
+    vm.placeCard(cardId: 'card_a');
+    vm.placeCardOnBoard(
+      cardId: 'card_a',
+      boardId: 'board_direct',
+      x: 0,
+      y: 0,
+    );
+    vm.moveItems({'item_card_a': const Point(20, 20)});
+    vm.resizeItem(itemId: 'item_card_a', width: 500, height: 500);
+    vm.removeItems(['item_card_a']);
+    vm.createEdge(fromItemId: 'item_card_a', toItemId: 'item_card_b');
+    vm.undo();
+    vm.redo();
+    expect(vm.exportForSave().toJson(), before);
+    expect(vm.operationLog, hasLength(logLength));
+
+    final adapter = FlutterCanvasAdapter(snapshot)..setReadonly(true);
+    final adapterBefore = adapter.exportSnapshot().toJson();
+    adapter.placeCard(boardId: 'board_direct', cardId: 'card_a');
+    adapter.moveItems(
+      boardId: 'board_direct',
+      deltas: {'item_card_a': const Point(5, 5)},
+    );
+    adapter.removeItems(
+      boardId: 'board_direct',
+      itemIds: ['item_card_a'],
+    );
+    expect(adapter.exportSnapshot().toJson(), adapterBefore);
+
+    var opened = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        onOpenCard: (_) => opened++,
+      ),
+    ));
+    await tester.pump();
+    await _doubleTapAt(tester, tester.getCenter(find.text('Card A')));
+    expect(opened, 1);
+    expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyY);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(vm.exportForSave().toJson(), before);
   });
 }

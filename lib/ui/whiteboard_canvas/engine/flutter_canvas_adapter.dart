@@ -160,6 +160,16 @@ class FlutterCanvasAdapter {
     _snapshot = _cloneSnapshot(cards: cards);
   }
 
+  /// Removes renderer-only Card content without creating a board operation.
+  /// Used only when a just-created Repository Card is compensated after its
+  /// BoardItem failed to persist.
+  void removeCardContent(String cardId) {
+    if (!_snapshot.cards.any((card) => card.cardId == cardId)) return;
+    _snapshot = _cloneSnapshot(
+      cards: _snapshot.cards.where((card) => card.cardId != cardId).toList(),
+    );
+  }
+
   /// Registers a callback for operations produced by this adapter.
   void onOperation(OnOperationCallback callback) {
     _onOperation = callback;
@@ -247,6 +257,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return null;
     final boardExists = _snapshot.boards.any((b) => b.boardId == boardId);
     if (!boardExists) return null;
     final cardExists = _snapshot.cards.any((c) => c.cardId == cardId);
@@ -302,6 +313,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final items = _snapshot.boardItems
         .where((i) => i.boardId == boardId && deltas.containsKey(i.itemId))
         .toList();
@@ -359,6 +371,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final item = _snapshot.boardItems
         .cast<BoardItem?>()
         .firstWhere((i) => i?.itemId == itemId, orElse: () => null);
@@ -416,6 +429,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final removed = _snapshot.boardItems
         .where((i) => i.boardId == boardId && itemIds.contains(i.itemId))
         .toList();
@@ -693,6 +707,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final item = _snapshot.boardItems
         .cast<BoardItem?>()
         .firstWhere((i) => i?.itemId == itemId, orElse: () => null);
@@ -761,6 +776,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return null;
     final boardExists = _snapshot.boards.any((b) => b.boardId == boardId);
     if (!boardExists) return null;
 
@@ -803,6 +819,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final group = _snapshot.groups
         .cast<BoardGroup?>()
         .firstWhere((g) => g?.groupId == groupId, orElse: () => null);
@@ -890,6 +907,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final edge = _snapshot.edges
         .cast<BoardEdge?>()
         .firstWhere((e) => e?.edgeId == edgeId, orElse: () => null);

@@ -25,6 +25,7 @@ class CompactCardEditor extends StatefulWidget {
     required this.onSaved,
     required this.onClose,
     required this.onExpand,
+    this.isReadonly = false,
   });
 
   final String cardId;
@@ -32,6 +33,7 @@ class CompactCardEditor extends StatefulWidget {
   final ValueChanged<CardContract> onSaved;
   final VoidCallback onClose;
   final ValueChanged<CardContract> onExpand;
+  final bool isReadonly;
 
   @override
   State<CompactCardEditor> createState() => _CompactCardEditorState();
@@ -123,6 +125,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
   }
 
   Future<CardContract?> _save() async {
+    if (widget.isReadonly) return null;
     final controller = _richText;
     final title = _title;
     if (controller == null || title == null || _saving) return _card;
@@ -276,6 +279,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
           child: TextField(
             key: const ValueKey('wb_compact_title'),
             controller: title,
+            readOnly: widget.isReadonly,
             style: whiteboardUiTextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -296,14 +300,17 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-            child: CardRichTextEditor(
-              controller: richText,
-              cardId: card.cardId,
-              objectStore: RichTextObjectStore(
-                  widget.repository.richTextStorage.baseDir),
-              onSave: (_) => _save(),
-              showSaveInToolbar: false,
-              markSavedAfterCallback: false,
+            child: AbsorbPointer(
+              absorbing: widget.isReadonly,
+              child: CardRichTextEditor(
+                controller: richText,
+                cardId: card.cardId,
+                objectStore: RichTextObjectStore(
+                    widget.repository.richTextStorage.baseDir),
+                onSave: (_) => _save(),
+                showSaveInToolbar: false,
+                markSavedAfterCallback: false,
+              ),
             ),
           ),
         ),
@@ -325,7 +332,8 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
               const SizedBox(width: 8),
               FilledButton.icon(
                 key: const ValueKey('wb_compact_editor_save'),
-                onPressed: _saving || !_dirty ? null : _save,
+                onPressed:
+                    widget.isReadonly || _saving || !_dirty ? null : _save,
                 icon: const Icon(Icons.check_rounded, size: 16),
                 label: Text(_saving ? '保存中' : '保存'),
               ),
