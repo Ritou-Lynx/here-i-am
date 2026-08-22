@@ -258,6 +258,64 @@ void main() {
     );
   });
 
+  test('fractional time range is rejected with zero card writes', () async {
+    final memoryCountBefore = (await db.select(db.memoryCards).get()).length;
+    final extrasCountBefore =
+        (await db.select(db.whiteboardCardExtras).get()).length;
+    final draft = VideoAnnotationService().createAnnotation(
+      sourceId: 'src_youtube_demo',
+      sourceVersionId: 'ver_youtube_demo_v1',
+      request: const AnnotationCreationRequest(
+        spec: TimeRangeAnchorSpec(startMs: 1, endMs: 2),
+        title: '不得截断',
+      ),
+    );
+    final fractionalAnchor = AnchorContract.fromJson({
+      ...draft.anchor.toJson(),
+      'position_spec': {
+        'start_ms': 1.2,
+        'end_ms': 1.8,
+        'is_point': false,
+      },
+    });
+    final card = CardContract(
+      cardId: draft.card.cardId,
+      cardKind: CardKind.annotation,
+      sourceId: 'src_youtube_demo',
+      ownerSpace: draft.card.ownerSpace,
+      title: draft.card.title,
+      body: draft.card.body,
+      presentation: {
+        'anchor': fractionalAnchor.toJson(),
+        'anchor_id': fractionalAnchor.anchorId,
+        'start_ms': 1.2,
+        'end_ms': 1.8,
+        'is_point': false,
+      },
+      createdBy: draft.card.createdBy,
+      createdAt: draft.card.createdAt,
+    );
+
+    await expectLater(
+      repository.createVideoAnnotationCard(card),
+      throwsArgumentError,
+    );
+    expect(
+      await repository.listCards(
+        const CardLibraryQuery(
+          kinds: {CardKind.annotation},
+          includeDeleted: true,
+        ),
+      ),
+      isEmpty,
+    );
+    expect(await db.select(db.memoryCards).get(), hasLength(memoryCountBefore));
+    expect(
+      await db.select(db.whiteboardCardExtras).get(),
+      hasLength(extrasCountBefore),
+    );
+  });
+
   test('version changes orphan every range and preserve old version identity',
       () async {
     final store = RepositoryVideoAnnotationStore(repository);

@@ -10,12 +10,27 @@ import 'package:memex/domain/whiteboard/anchor_contract.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/video/video_annotation_service.dart';
 
-class RepositoryVideoAnnotationStore {
+abstract interface class VideoAnnotationStore {
+  Future<VideoAnnotationResult> createAnnotation({
+    required String sourceId,
+    required String sourceVersionId,
+    required AnnotationCreationRequest request,
+  });
+
+  Future<List<VideoAnnotationResult>> listAnnotations({
+    required String sourceId,
+    required String currentVersionId,
+    int? currentDurationMs,
+  });
+}
+
+class RepositoryVideoAnnotationStore implements VideoAnnotationStore {
   const RepositoryVideoAnnotationStore(this.repository);
 
   final UnifiedCardRepository repository;
 
   /// Persists the complete Source-bound Annotation Card atomically.
+  @override
   Future<VideoAnnotationResult> createAnnotation({
     required String sourceId,
     required String sourceVersionId,
@@ -50,6 +65,7 @@ class RepositoryVideoAnnotationStore {
   /// Restores annotation cards for one Source from the unified repository.
   /// A changed version preserves the old identity and is always exposed as
   /// orphaned. Duration overlap alone is not valid re-anchor evidence.
+  @override
   Future<List<VideoAnnotationResult>> listAnnotations({
     required String sourceId,
     required String currentVersionId,

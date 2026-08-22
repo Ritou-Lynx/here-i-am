@@ -2,10 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:memex/data/whiteboard/repository_video_annotation_store.dart';
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
 import 'package:memex/domain/whiteboard/video/youtube_adapter_factory_stub.dart';
 import 'package:memex/ui/whiteboard/video/session_store.dart';
 import 'package:memex/ui/whiteboard/video/video_study_screen.dart';
+import 'package:memex/ui/whiteboard/video/view_models/video_study_view_model.dart';
+import 'package:memex/ui/whiteboard/video/widgets/annotation_editor.dart';
+import 'package:memex/ui/whiteboard/video/widgets/subtitle_list_view.dart';
 
 /// Builds a FixturePlayerAdapter + track for widget testing.
 FixturePlayerAdapter _buildFixture() {
@@ -30,11 +34,12 @@ TimedTextTrack _buildTrack() {
 
 VideoAnnotationSession _sessionWithVideoNotes() {
   final createdAt = DateTime.utc(2026, 8, 23, 9);
-  final specs = [
-    TimeRangeAnchorSpec.point(2000),
-    TimeRangeAnchorSpec.range(6000, 9500),
-    TimeRangeAnchorSpec.point(12000),
-  ];
+  final specs = List<TimeRangeAnchorSpec>.generate(
+    12,
+    (index) => index == 1
+        ? TimeRangeAnchorSpec.range(6000, 9500)
+        : TimeRangeAnchorSpec.point(2000 + index * 4000),
+  );
   final anchors = <AnchorContract>[];
   final cards = <CardContract>[];
   final bindings = <String, String>{};
@@ -109,6 +114,27 @@ class _RecordingSessionStore implements VideoSessionStore {
     saved = session;
     restored = session;
   }
+}
+
+class _ThrowingAnnotationStore implements VideoAnnotationStore {
+  const _ThrowingAnnotationStore();
+
+  @override
+  Future<VideoAnnotationResult> createAnnotation({
+    required String sourceId,
+    required String sourceVersionId,
+    required AnnotationCreationRequest request,
+  }) {
+    throw StateError('annotation-store-secret-token');
+  }
+
+  @override
+  Future<List<VideoAnnotationResult>> listAnnotations({
+    required String sourceId,
+    required String currentVersionId,
+    int? currentDurationMs,
+  }) async =>
+      const [];
 }
 
 class _ThrowingSessionStore implements VideoSessionStore {
@@ -397,15 +423,29 @@ void main() {
     expect(secondRect.left, closeTo(firstRect.left, 0.1));
 
     final list = find.byKey(const ValueKey('video_notes_list'));
-    final scrollable = tester.widget<Scrollable>(
-      find.descendant(of: list, matching: find.byType(Scrollable)),
-    );
+    final scrollableFinder =
+        find.descendant(of: list, matching: find.byType(Scrollable)).first;
+    final scrollable = tester.widget<Scrollable>(scrollableFinder);
+    final scrollableState = tester.state<ScrollableState>(scrollableFinder);
     expect(scrollable.axisDirection, AxisDirection.down);
+    expect(scrollableState.position.maxScrollExtent, greaterThan(0));
 
-    await adapter.seekTo(50000);
-    await tester.tap(second);
+    final last = find.byKey(const ValueKey('video_note_card_card_note_11'));
+    await tester.scrollUntilVisible(
+      last,
+      280,
+      scrollable: scrollableFinder,
+    );
     await tester.pumpAndSettle();
-    expect(await adapter.currentPositionMs(), 6000);
+    expect(last, findsOneWidget);
+    expect(
+      scrollableState.position.pixels,
+      greaterThan(scrollableState.position.minScrollExtent),
+    );
+    await adapter.seekTo(50000);
+    await tester.tap(last);
+    await tester.pumpAndSettle();
+    expect(await adapter.currentPositionMs(), 46000);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -973,6 +1013,137 @@ void main() {
     expect(
       tester.widget<TextField>(documentFinder).focusNode!.hasFocus,
       isTrue,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('recorded draft focus gates focus restoration', (tester) async {
+    final vm = VideoStudyViewModel(
+      adapter: _buildFixture(),
+      sourceId: 'src_focus_gate',
+      sourceVersionId: 'ver_focus_gate_v1',
+      providerId: 'fixture',
+      initialTrack: _buildTrack(),
+    );
+    vm.beginAnnotation(cueIndex: 0);
+    vm.initializeAnnotationDraft(quote: '灯光切换');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 600,
+            height: 700,
+            child: AnnotationEditor(
+              key: const ValueKey('unfocused_editor'),
+              viewModel: vm,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    var field = tester.widget<TextField>(
+      find.byKey(const ValueKey('video_annotation_document')),
+    );
+    expect(field.focusNode!.hasFocus, isFalse);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    vm.rememberAnnotationDraftFocus();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 600,
+            height: 700,
+            child: AnnotationEditor(
+              key: const ValueKey('focused_editor'),
+              viewModel: vm,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    field = tester.widget<TextField>(
+      find.byKey(const ValueKey('video_annotation_document')),
+    );
+    expect(field.focusNode!.hasFocus, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    vm.dispose();
+  });
+
+  testWidgets('subtitle picker failure uses fixed safe copy', (tester) async {
+    final vm = VideoStudyViewModel(
+      adapter: _buildFixture(),
+      sourceId: 'src_subtitle_error',
+      sourceVersionId: 'ver_subtitle_error_v1',
+      providerId: 'fixture',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 700,
+            height: 600,
+            child: SubtitleListView(
+              viewModel: vm,
+              fileBytesPicker: () async {
+                throw StateError('subtitle-provider-secret-token');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('导入字幕'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('选择 SRT / VTT 文件'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('字幕文件读取失败，请确认文件仍可访问后重试。'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('subtitle-provider-secret-token'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    vm.dispose();
+  });
+
+  testWidgets('annotation store failure uses fixed safe copy', (tester) async {
+    final adapter = _buildFixture();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_widget_source',
+          sourceVersionId: 'ver_widget_source_v1',
+          initialTrack: _buildTrack(),
+          annotationStore: const _ThrowingAnnotationStore(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('annotate_cue_1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('video_annotation_document')),
+      '保存失败仍保留的草稿',
+    );
+    await tester.ensureVisible(find.text('保存标注'));
+    await tester.tap(find.text('保存标注'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('标注保存失败，请稍后重试。'), findsOneWidget);
+    expect(find.textContaining('annotation-store-secret-token'), findsNothing);
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('video_annotation_document')),
+          )
+          .controller!
+          .text,
+      '保存失败仍保留的草稿',
     );
     await tester.pumpWidget(const SizedBox.shrink());
   });

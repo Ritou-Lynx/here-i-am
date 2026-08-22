@@ -35,6 +35,8 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
   void initState() {
     super.initState();
     final vm = widget.viewModel;
+    final draftWasInitialized = vm.annotationDraftInitialized;
+    final shouldRestoreFocus = vm.annotationDraftWasFocused;
     vm.initializeAnnotationDraft(quote: widget.initialQuote ?? '');
     _documentController = TextEditingController(
       text: vm.annotationDraftDocument,
@@ -43,7 +45,9 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
     _documentFocusNode = FocusNode(debugLabel: 'video annotation document')
       ..addListener(_rememberFocus);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_documentFocusNode.hasFocus) {
+      if (mounted &&
+          (!draftWasInitialized || shouldRestoreFocus) &&
+          !_documentFocusNode.hasFocus) {
         _documentFocusNode.requestFocus();
       }
     });

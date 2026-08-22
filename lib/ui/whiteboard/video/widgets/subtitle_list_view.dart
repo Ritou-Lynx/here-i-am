@@ -11,6 +11,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -20,10 +21,17 @@ import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 import '../view_models/video_study_view_model.dart';
 
+typedef SubtitleFileBytesPicker = Future<Uint8List?> Function();
+
 class SubtitleListView extends StatefulWidget {
   final VideoStudyViewModel viewModel;
+  final SubtitleFileBytesPicker? fileBytesPicker;
 
-  const SubtitleListView({super.key, required this.viewModel});
+  const SubtitleListView({
+    super.key,
+    required this.viewModel,
+    this.fileBytesPicker,
+  });
 
   @override
   State<SubtitleListView> createState() => _SubtitleListViewState();
@@ -90,9 +98,10 @@ class _SubtitleListViewState extends State<SubtitleListView> {
                 isActive: isActive,
                 canSeek: vm.canSeek,
                 onTap: () => vm.seekToCue(index),
-                onAnnotate: vm.canCreateTimeAnchorNow && !vm.hasPendingAnnotation
-                    ? () => vm.beginAnnotation(cueIndex: index)
-                    : null,
+                onAnnotate:
+                    vm.canCreateTimeAnchorNow && !vm.hasPendingAnnotation
+                        ? () => vm.beginAnnotation(cueIndex: index)
+                        : null,
                 hasAnnotation: vm.annotations.any(
                   (a) => a.startMs == cue.startMs && a.endMs == cue.endMs,
                 ),
@@ -120,6 +129,7 @@ class _SubtitleListViewState extends State<SubtitleListView> {
     showDialog(
       context: context,
       builder: (context) => _SubtitleImportDialog(
+        fileBytesPicker: widget.fileBytesPicker,
         onImport: (text) {
           widget.viewModel.loadSubtitleFromText(text);
           Navigator.of(context).pop();
@@ -400,7 +410,11 @@ class _NeedsSubtitleView extends StatelessWidget {
 
 class _SubtitleImportDialog extends StatefulWidget {
   final void Function(String text) onImport;
-  const _SubtitleImportDialog({required this.onImport});
+  final SubtitleFileBytesPicker? fileBytesPicker;
+  const _SubtitleImportDialog({
+    required this.onImport,
+    this.fileBytesPicker,
+  });
 
   @override
   State<_SubtitleImportDialog> createState() => _SubtitleImportDialogState();
@@ -483,15 +497,10 @@ class _SubtitleImportDialogState extends State<_SubtitleImportDialog> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['srt', 'vtt'],
-        withData: true,
-      );
-      if (result == null) return;
-      final bytes = result.files.single.bytes;
+      final bytes = widget.fileBytesPicker == null
+          ? await _pickSubtitleFileBytes()
+          : await widget.fileBytesPicker!();
       if (bytes == null) {
-        setState(() => _fileError = '无法读取字幕文件。');
         return;
       }
       final text = utf8.decode(bytes, allowMalformed: true);
@@ -503,8 +512,22 @@ class _SubtitleImportDialogState extends State<_SubtitleImportDialog> {
         _fileError = null;
         _controller.text = text;
       });
-    } catch (error) {
-      setState(() => _fileError = '字幕文件读取失败：$error');
+    } catch (_) {
+      setState(
+        () => _fileError = '字幕文件读取失败，请确认文件仍可访问后重试。',
+      );
     }
+  }
+
+  Future<Uint8List?> _pickSubtitleFileBytes() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['srt', 'vtt'],
+      withData: true,
+    );
+    if (result == null) return null;
+    final bytes = result.files.single.bytes;
+    if (bytes == null) throw const FormatException('unreadable subtitle file');
+    return bytes;
   }
 }

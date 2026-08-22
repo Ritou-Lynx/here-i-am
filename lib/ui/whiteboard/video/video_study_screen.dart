@@ -41,7 +41,7 @@ class VideoStudyScreen extends StatefulWidget {
   final VideoSessionStore? sessionStore;
   final YouTubeTimedTextService? timedTextService;
   final BilibiliTimedTextService? bilibiliTimedTextService;
-  final RepositoryVideoAnnotationStore? annotationStore;
+  final VideoAnnotationStore? annotationStore;
   final bool runtimePlayerAvailable;
   final VoidCallback? onBack;
 

@@ -37,7 +37,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   final String sourceId;
   final String sourceVersionId;
   final String providerId;
-  final RepositoryVideoAnnotationStore? annotationStore;
+  final VideoAnnotationStore? annotationStore;
   final bool runtimePlayerAvailable;
 
   /// Optional session persistence for restart recovery. When null, session

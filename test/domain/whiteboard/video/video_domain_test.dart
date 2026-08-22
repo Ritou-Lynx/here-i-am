@@ -141,6 +141,19 @@ void main() {
       );
     });
 
+    test('fractional milliseconds are rejected instead of truncated', () {
+      final fractional = {
+        'start_ms': 1.2,
+        'end_ms': 1.8,
+        'is_point': false,
+      };
+      expect(TimeRangeAnchorSpec.validate(fractional), isNotNull);
+      expect(
+        () => TimeRangeAnchorSpec.fromMap(fractional),
+        throwsArgumentError,
+      );
+    });
+
     test('buildAnchor creates valid AnchorContract', () {
       final spec = TimeRangeAnchorSpec.range(10000, 15000, cueId: 'cue_3');
       final anchor = TimeRangeAnchorSpec.buildAnchor(

@@ -344,6 +344,181 @@ void main() {
     expect(await faulting.listCards(), hasLength(1));
   });
 
+  test(
+      'same canonical identity serializes different incoming source ids into one truth',
+      () async {
+    final objectWritten = Completer<void>();
+    final releaseFirst = Completer<void>();
+    final firstRepository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .ingestionAfterObjectWriteBeforeVersionInsert) {
+          if (!objectWritten.isCompleted) objectWritten.complete();
+          await releaseFirst.future;
+        }
+      },
+    );
+    final secondRepository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+    );
+    final firstFuture = firstRepository.commitIngestion(
+      _ingestion(
+        hash: 'canonical_concurrent',
+        body: '第一份来料',
+        sourceId: 'src_canonical_first',
+        canonicalId: 'shared-video-42',
+      ),
+    );
+    await objectWritten.future;
+    final secondFuture = secondRepository.commitIngestion(
+      _ingestion(
+        hash: 'canonical_concurrent',
+        body: '第二份来料',
+        sourceId: 'src_canonical_second',
+        canonicalId: 'shared-video-42',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    releaseFirst.complete();
+
+    final results = await Future.wait([firstFuture, secondFuture]);
+    expect(results.map((item) => item.source.sourceId).toSet(), {
+      'src_canonical_first',
+    });
+    expect(await db.select(db.whiteboardSources).get(), hasLength(1));
+    expect(await db.select(db.whiteboardSourceVersions).get(), hasLength(1));
+    expect(await repository.listCards(), hasLength(1));
+    final objectRoot = Directory(
+      '${tempDir.path}${Platform.pathSeparator}objects'
+      '${Platform.pathSeparator}sources',
+    );
+    final files = await objectRoot
+        .list(recursive: true)
+        .where((entity) => entity is File)
+        .cast<File>()
+        .toList();
+    expect(files.where((file) => file.path.endsWith('.json')), hasLength(1));
+    expect(
+      files.where(
+        (file) => file.path.endsWith('.tmp') || file.path.endsWith('.bak'),
+      ),
+      isEmpty,
+    );
+  });
+
+  test('startup intent removes a crash orphan and retry creates one truth',
+      () async {
+    final result = _ingestion(
+      hash: 'crash_orphan',
+      body: '进程退出前已写对象',
+    );
+    final crashing = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .ingestionAfterObjectWriteBeforeVersionInsert) {
+          throw const UnifiedCardRepositorySimulatedProcessExit();
+        }
+      },
+    );
+    final target = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}src_web_f0_example${Platform.pathSeparator}'
+      'ver_web_f0_example_crash_orphan.json',
+    );
+
+    await expectLater(
+      crashing.commitIngestion(result),
+      throwsA(isA<UnifiedCardRepositorySimulatedProcessExit>()),
+    );
+    expect(await target.exists(), isTrue);
+    expect(await db.select(db.whiteboardSources).get(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+    expect(await _intentFiles(tempDir), isNotEmpty);
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    await repository.recoverFileReplacements();
+
+    expect(await target.exists(), isFalse);
+    expect(await File('${target.path}.tmp').exists(), isFalse);
+    expect(await File('${target.path}.bak').exists(), isFalse);
+    expect(await _intentFiles(tempDir), isEmpty);
+    expect(await db.select(db.whiteboardSources).get(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+
+    final retried = await repository.commitIngestion(result);
+    expect(retried.cardCreated, isTrue);
+    expect(await repository.listCards(), hasLength(1));
+    expect(await db.select(db.whiteboardSourceVersions).get(), hasLength(1));
+  });
+
+  test('startup intent keeps a DB-referenced object and removes only intent',
+      () async {
+    final result = _ingestion(
+      hash: 'crash_after_commit',
+      body: '数据库已提交',
+    );
+    final crashing = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .ingestionAfterTransactionCommitBeforeIntentCleanup) {
+          throw const UnifiedCardRepositorySimulatedProcessExit();
+        }
+      },
+    );
+    final target = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}src_web_f0_example${Platform.pathSeparator}'
+      'ver_web_f0_example_crash_after_commit.json',
+    );
+
+    await expectLater(
+      crashing.commitIngestion(result),
+      throwsA(isA<UnifiedCardRepositorySimulatedProcessExit>()),
+    );
+    expect(await target.exists(), isTrue);
+    expect(await db.select(db.whiteboardSourceVersions).get(), hasLength(1));
+    expect(await _intentFiles(tempDir), isNotEmpty);
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    await repository.recoverFileReplacements();
+
+    expect(await target.exists(), isTrue);
+    expect(await _intentFiles(tempDir), isEmpty);
+    final committed = await repository.commitIngestion(result);
+    expect(committed.versionIsNew, isFalse);
+    expect(await repository.listCards(), hasLength(1));
+  });
+
+  test('startup reconciliation never deletes an unjournaled managed object',
+      () async {
+    final existing = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}legacy${Platform.pathSeparator}'
+      'legal-unreferenced.json',
+    );
+    await existing.parent.create(recursive: true);
+    await existing.writeAsString('{"legacy":"keep"}');
+
+    await repository.recoverFileReplacements();
+
+    expect(await existing.exists(), isTrue);
+    expect(await existing.readAsString(), '{"legacy":"keep"}');
+  });
+
   test('same canonical content is idempotent', () async {
     final first = await repository.commitIngestion(
       _ingestion(hash: 'same_hash', body: '相同内容'),
@@ -792,21 +967,25 @@ IngestionResult _ingestion({
   required String body,
   String ogImage = 'https://example.com/cover.png',
   String? sourceThumbnailRef,
+  String sourceId = 'src_web_f0_example',
+  String provider = 'web',
+  String canonicalUrl = 'https://example.com/f0',
+  String? canonicalId,
 }) {
   final now = DateTime.utc(2026, 8, 18, 12);
-  const sourceId = 'src_web_f0_example';
-  final versionId = 'ver_web_f0_example_$hash';
+  final versionId = '${sourceId.replaceFirst(RegExp(r'^src_'), 'ver_')}_$hash';
   final source = SourceContent(
     sourceId: sourceId,
     mediaType: SourceMediaType.web,
     title: 'F0 网页',
     origin: SourceOrigin.externalLink,
-    provider: 'web',
+    provider: provider,
+    canonicalId: canonicalId,
     currentVersionId: versionId,
     contentHash: hash,
     objectRef: 'ingestion/$sourceId/$versionId.html',
     metadata: {
-      'canonical_url': 'https://example.com/f0',
+      'canonical_url': canonicalUrl,
       'og_image': ogImage,
       if (sourceThumbnailRef != null) 'thumbnail_ref': sourceThumbnailRef,
     },
@@ -822,9 +1001,9 @@ IngestionResult _ingestion({
     createdAt: now,
   );
   return IngestionResult(
-    canonicalUrl: 'https://example.com/f0',
-    originalUrl: 'https://example.com/f0?utm_source=test',
-    provider: 'web',
+    canonicalUrl: canonicalUrl,
+    originalUrl: '$canonicalUrl?utm_source=test',
+    provider: provider,
     status: IngestionStatus.ok,
     source: source,
     sourceVersion: version.toJson(),
@@ -835,4 +1014,17 @@ IngestionResult _ingestion({
     },
     resolvedAt: now,
   );
+}
+
+Future<List<File>> _intentFiles(Directory root) async {
+  final directory = Directory(
+    '${root.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+    'source_object_intents',
+  );
+  if (!await directory.exists()) return const [];
+  return directory
+      .list()
+      .where((entity) => entity is File)
+      .cast<File>()
+      .toList();
 }
