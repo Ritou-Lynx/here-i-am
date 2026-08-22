@@ -66,6 +66,7 @@ import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dar
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
+import 'package:memex/ui/core/themes/chat_view_mode_controller.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_tokens.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
@@ -5544,6 +5545,25 @@ only after you have written the goodbye you want the user to hear.''',
   Widget _buildHeaderActionsOverlay() {
     final top = MediaQuery.paddingOf(context).top + 58;
     final actions = <Widget>[
+      Builder(
+        builder: (context) {
+          final isBubbleMode =
+              context.watch<ChatViewModeController>().isBubbleMode;
+          return _HeaderActionButton(
+            icon: isBubbleMode
+                ? Icons.view_agenda_outlined
+                : Icons.chat_bubble_outline_rounded,
+            label: isBubbleMode
+                ? _chatUiText(zh: '切到文本模式', en: 'Text mode')
+                : _chatUiText(zh: '切到气泡模式', en: 'Bubble mode'),
+            active: isBubbleMode,
+            onTap: () {
+              setState(() => _isHeaderActionsOpen = false);
+              unawaited(context.read<ChatViewModeController>().toggle());
+            },
+          );
+        },
+      ),
       _HeaderActionButton(
         icon: Icons.search_rounded,
         label: _chatUiText(zh: '搜索', en: 'Search'),
@@ -6224,6 +6244,58 @@ only after you have written the goodbye you want the user to hear.''',
     const c = SpringRainChatTokens.springRainDaydream;
     final hasActions = messageId != null && !_isSelecting;
     final bubbleKey = GlobalKey();
+    if (context.read<ChatViewModeController>().isBubbleMode) {
+      // 气泡模式：动作/神态不做成对话泡，用一根低调的斜体 pill 呈现，
+      // 金黄字 + 透明金底，仍靠左落在林埃一侧。
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Flexible(
+              child: GestureDetector(
+                key: bubbleKey,
+                behavior: HitTestBehavior.translucent,
+                onLongPress: hasActions
+                    ? () {
+                        HapticFeedback.mediumImpact();
+                        _showBubbleActionPopup(
+                          messageId: messageId,
+                          text: fullMessageText ?? text,
+                          bubbleKey: bubbleKey,
+                        );
+                      }
+                    : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.actionColor.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: c.actionColor.withValues(alpha: 0.16),
+                    ),
+                  ),
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: c.actionSize,
+                      height: c.lineHeight,
+                      fontStyle: FontStyle.italic,
+                      color: c.actionColor.withValues(alpha: 0.92),
+                      fontFamily: c.fontFamily,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: EdgeInsets.symmetric(vertical: c.blockGap / 2),
       child: Padding(
@@ -6279,6 +6351,8 @@ only after you have written the goodbye you want the user to hear.''',
     String? fullMessageText,
   }) {
     final userColor = context.watch<SpringRainChatColorController>().userColor;
+    final isBubbleMode =
+        context.watch<ChatViewModeController>().isBubbleMode;
     if (isCharacter) {
       return _buildCharacterBubble(
         text: text,
@@ -6306,6 +6380,91 @@ only after you have written the goodbye you want the user to hear.''',
     final hasActions = userMessage != null && !_isSelecting;
 
     const c = SpringRainChatTokens.springRainDaydream;
+    if (isBubbleMode) {
+      // 气泡模式：用户消息靠右。泡体用 user 字色的实色玻璃变体（44% 底 +
+      // 75% 边），与林埃的雾白玻璃形成明确的明暗+色相向双重对比。
+      // 双击「记录」、长按弹菜单的手势与文本模式完全一致。
+      final maxWidth = MediaQuery.of(context).size.width * 0.78;
+      return Padding(
+        padding: EdgeInsets.only(bottom: c.turnGap),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              child: GestureDetector(
+                key: userBubbleKey,
+                behavior: HitTestBehavior.translucent,
+                onLongPress: hasActions
+                    ? () {
+                        HapticFeedback.mediumImpact();
+                        _showUserBubbleActionPopup(
+                          messageId: messageId ?? '',
+                          text: text,
+                          bubbleKey: userBubbleKey,
+                          userMessage: userMessage,
+                        );
+                      }
+                    : null,
+                onDoubleTap: userMessage != null && !_isSelecting
+                    ? () => _recordMessage(userMessage)
+                    : null,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 13,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: userColor.withValues(alpha: 0.44),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                        bottomLeft: Radius.circular(16),
+                        bottomRight: Radius.circular(5),
+                      ),
+                      border: Border.all(
+                        color: userColor.withValues(alpha: 0.75),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.30),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (text.isNotEmpty)
+                          Text(
+                            text,
+                            style: TextStyle(
+                              fontSize: c.userSize,
+                              height: c.lineHeight,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: c.userLetterSpacing,
+                              color: c.iColor,
+                              fontFamily: c.fontFamily,
+                            ),
+                          ),
+                        if (attachmentWidgets.isNotEmpty) ...[
+                          if (text.isNotEmpty) const SizedBox(height: 8),
+                          ...attachmentWidgets,
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: EdgeInsets.only(bottom: c.turnGap),
       child: Row(
@@ -6432,6 +6591,12 @@ only after you have written the goodbye you want the user to hear.''',
     var chatBubbleIndex = 0;
     final useSplitMessageIds =
         messageId != null && (segments.length > 1 || chatBubbleCount > 1);
+    // 气泡模式下同一轮发言的句子气泡之间用更紧凑的间距，读起来像
+    // 「先发一句、再发一句」的连续发言，而不是每句都隔一个换人空档。
+    final isBubbleMode =
+        context.watch<ChatViewModeController>().isBubbleMode;
+    final clusterTailSpacing = isBubbleMode ? 14.0 : 22.0;
+    final clusterInnerSpacing = isBubbleMode ? 4.0 : 8.0;
 
     String? nextChatMessageId() {
       if (messageId == null) return null;
@@ -6444,7 +6609,16 @@ only after you have written the goodbye you want the user to hear.''',
       required bool hasVisibleAfter,
       String? blockAttachmentsJson,
     }) {
-      final bubbles = PersonaReplySanitizer.splitChatIntoBubbles(chatText);
+      final bubbles = PersonaReplySanitizer.splitChatIntoBubbles(
+        chatText,
+        // Bubble mode renders each sentence as its own visible bubble (the
+        // "send one line, then the next" IM rhythm), so the cap must not
+        // merge sentences back together. Waterfall mode keeps the existing
+        // 2-bubble cap to avoid a wall of tiny blocks.
+        maxBubbles: isBubbleMode
+            ? PersonaReplySanitizer.bubbleModeMaxChatBubbles
+            : PersonaReplySanitizer.defaultMaxChatBubbles,
+      );
       for (var i = 0; i < bubbles.length; i++) {
         final isLastBubbleInBlock = i == bubbles.length - 1;
         final isLastVisibleBubble = isLastBubbleInBlock && !hasVisibleAfter;
@@ -6455,7 +6629,8 @@ only after you have written the goodbye you want the user to hear.''',
             isStreaming: isStreaming,
             messageId: nextChatMessageId(),
             attachmentsJson: isLastBubbleInBlock ? blockAttachmentsJson : null,
-            characterBottomSpacing: isLastVisibleBubble ? 22 : 8,
+            characterBottomSpacing:
+                isLastVisibleBubble ? clusterTailSpacing : clusterInnerSpacing,
             fullMessageText: text,
           ),
         );
@@ -6880,6 +7055,112 @@ only after you have written the goodbye you want the user to hear.''',
     final bubbleKey = GlobalKey();
 
     const c = SpringRainChatTokens.springRainDaydream;
+    if (context.watch<ChatViewModeController>().isBubbleMode) {
+      // 气泡模式：林埃的消息靠左，暗绿玻璃泡 + 1px 象牙细边。
+      // 文字仍是 Markdown 渲染，与文本模式同一套语料管线（拆句在上层完成）。
+      final maxWidth = MediaQuery.of(context).size.width * 0.78;
+      return Padding(
+        padding: EdgeInsets.only(bottom: bottomSpacing),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              child: GestureDetector(
+                key: bubbleKey,
+                onLongPress: hasActions
+                    ? () {
+                        HapticFeedback.mediumImpact();
+                        _showBubbleActionPopup(
+                          messageId: messageId,
+                          text: fullMessageText ?? text,
+                          bubbleKey: bubbleKey,
+                        );
+                      }
+                    : null,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 13,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.055),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                        bottomLeft: Radius.circular(5),
+                        bottomRight: Radius.circular(16),
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.10),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.20),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Flexible(
+                              child: MarkdownBody(
+                                data: text,
+                                softLineBreak: true,
+                                styleSheet: _messageMarkdownStyle,
+                                onTapLink: (text, href, title) {
+                                  if (href == null) return;
+                                  final uri = Uri.tryParse(href);
+                                  if (uri == null ||
+                                      (!uri.isScheme('http') &&
+                                          !uri.isScheme('https'))) {
+                                    return;
+                                  }
+                                  unawaited(launchUrl(uri,
+                                      mode: LaunchMode.externalApplication));
+                                },
+                              ),
+                            ),
+                            if (isStreaming) ...[
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 8,
+                                height: 8,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: _personaAccent,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (hasAddenda) ...[
+                          const SizedBox(height: 10),
+                          MessageAddendumRenderer(
+                            attachmentsJson: attachmentsJson,
+                            isCharacterBubble: true,
+                            messageId: int.tryParse(messageId ?? ''),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: EdgeInsets.only(bottom: bottomSpacing),
       child: Padding(
@@ -6963,6 +7244,33 @@ only after you have written the goodbye you want the user to hear.''',
 
   Widget _buildTypingIndicator() {
     const c = SpringRainChatTokens.springRainDaydream;
+    if (context.read<ChatViewModeController>().isBubbleMode) {
+      // 气泡模式：呼吸点也落在一个小玻璃泡里，位置与林埃气泡一致。
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.055),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                  bottomLeft: Radius.circular(5),
+                  bottomRight: Radius.circular(16),
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.10),
+                ),
+              ),
+              child: const _RainBreathIndicator(),
+            ),
+          ],
+        ),
+      );
+    }
     // Sit on i's axis: same right indent + gold anchor bar as a real i turn
     // (spec §3.2 / §22.8). No avatar, no bubble (spec §2.1 / §18) — just a
     // breathing droplet on the speaking point, so the first line of text
@@ -8507,11 +8815,19 @@ class PersonaChatInputBar extends StatelessWidget {
                                   fontFamily: c.fontFamily,
                                 ),
                                 isDense: true,
+                                // Theme-level inputDecorationTheme (SpringRain
+                                // daylight) defaults to filled+surfaceRaised,
+                                // which would paint a white box inside the
+                                // glass capsule. The capsule itself is the
+                                // visual container, so disable fill here.
+                                filled: false,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 2,
                                   vertical: 10,
                                 ),
                                 border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
                               ),
                               style: TextStyle(
                                 fontSize: 15,

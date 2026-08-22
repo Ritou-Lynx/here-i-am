@@ -12,6 +12,11 @@ class PersonaReplySegment {
 
 class PersonaReplySanitizer {
   static const int defaultMaxChatBubbles = 6;
+
+  /// Bubble-mode cap: generous enough that natural sentence splitting is
+  /// never crushed back into merges (waterfall keeps the tighter default).
+  static const int bubbleModeMaxChatBubbles = 24;
+
   static const int _targetBubbleRunes = 46;
   static const int _tinyBubbleRunes = 5;
 

@@ -11,6 +11,7 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/game/game_definition_import_service.dart';
 import 'package:memex/data/services/game/game_session_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/core/themes/chat_view_mode_controller.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_controller.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 
@@ -47,5 +48,8 @@ List<SingleChildWidget> get dependencyProviders => [
       ),
       ChangeNotifierProvider<SpringRainChatColorController>(
         create: (_) => SpringRainChatColorController()..load(),
+      ),
+      ChangeNotifierProvider<ChatViewModeController>(
+        create: (_) => ChatViewModeController()..load(),
       ),
     ];
