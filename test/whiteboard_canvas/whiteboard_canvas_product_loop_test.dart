@@ -16,6 +16,7 @@ import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 
 void main() {
@@ -74,6 +75,15 @@ void main() {
         tester, find.byKey(const Key('wb_compact_editor_expand')));
     final embeddedEditor = find.byKey(const Key('wb_compact_card_editor'));
     expect(embeddedEditor, findsOneWidget);
+    final richTextEditor = tester.widget<CardRichTextEditor>(
+      find.descendant(
+        of: embeddedEditor,
+        matching: find.byType(CardRichTextEditor),
+      ),
+    );
+    expect(richTextEditor.compact, isTrue);
+    expect(richTextEditor.showToolbar, isFalse);
+    expect(richTextEditor.readOnly, isFalse);
     expect(
       find.ancestor(
         of: embeddedEditor,
