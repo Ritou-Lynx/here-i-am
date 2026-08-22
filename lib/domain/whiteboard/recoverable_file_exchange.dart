@@ -6,6 +6,7 @@
 /// interrupted exchange on the next startup/read.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 typedef FileContentsValidator = bool Function(String contents);
@@ -68,22 +69,30 @@ class RecoverableFileExchange {
   ///
   /// Preference order encodes the exchange phases: valid target (completed),
   /// valid temp (new write prepared), then valid backup (old write preserved).
+  /// When [maxBytes] is set, candidates larger than the bound are rejected
+  /// without loading their contents.
   static Future<bool> recover(
     File target, {
     required FileContentsValidator validator,
+    int? maxBytes,
   }) async {
+    assert(maxBytes == null || maxBytes >= 0);
     final temp = tempFor(target);
     final backup = backupFor(target);
-    if (await _isValid(target, validator)) {
+    if (await _isValid(target, validator, maxBytes: maxBytes)) {
       await _deleteIfExists(temp);
       await _deleteIfExists(backup);
       return true;
     }
-    if (await _isValid(temp, validator)) {
-      await _installTemp(target, validator: validator);
+    if (await _isValid(temp, validator, maxBytes: maxBytes)) {
+      await _installTemp(
+        target,
+        validator: validator,
+        maxBytes: maxBytes,
+      );
       return true;
     }
-    if (await _isValid(backup, validator)) {
+    if (await _isValid(backup, validator, maxBytes: maxBytes)) {
       if (await target.exists()) await target.delete();
       await backup.rename(target.path);
       await _deleteIfExists(temp);
@@ -119,6 +128,7 @@ class RecoverableFileExchange {
   static Future<void> _installTemp(
     File target, {
     required FileContentsValidator validator,
+    int? maxBytes,
   }) async {
     final temp = tempFor(target);
     final backup = backupFor(target);
@@ -132,13 +142,17 @@ class RecoverableFileExchange {
     }
     try {
       await temp.rename(target.path);
-      if (!await _isValid(target, validator)) {
+      if (!await _isValid(target, validator, maxBytes: maxBytes)) {
         throw const FormatException('installed replacement is invalid');
       }
       await _deleteIfExists(backup);
     } catch (_) {
       if (await backup.exists()) {
-        final targetIsValid = await _isValid(target, validator);
+        final targetIsValid = await _isValid(
+          target,
+          validator,
+          maxBytes: maxBytes,
+        );
         if (!targetIsValid) {
           if (await target.exists()) await target.delete();
           await backup.rename(target.path);
@@ -178,10 +192,25 @@ class RecoverableFileExchange {
 
   static Future<bool> _isValid(
     File file,
-    FileContentsValidator validator,
-  ) async {
+    FileContentsValidator validator, {
+    int? maxBytes,
+  }) async {
     if (!await file.exists()) return false;
     try {
+      if (maxBytes != null) {
+        final beforeLength = await file.length();
+        if (beforeLength > maxBytes) return false;
+        final reader = await file.open();
+        try {
+          final bytes = await reader.read(maxBytes + 1);
+          if (bytes.length > maxBytes || await file.length() != bytes.length) {
+            return false;
+          }
+          return validator(utf8.decode(bytes, allowMalformed: false));
+        } finally {
+          await reader.close();
+        }
+      }
       return validator(await file.readAsString());
     } catch (_) {
       return false;

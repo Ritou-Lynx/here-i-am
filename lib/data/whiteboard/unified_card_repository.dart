@@ -12,6 +12,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
+import 'package:path/path.dart' as path_api;
 
 import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/db/app_database.dart';
@@ -281,12 +282,23 @@ class _FileSnapshot {
   }
 }
 
+class _SourceObjectIntentReconciliation {
+  const _SourceObjectIntentReconciliation({
+    required this.protectedObjectPaths,
+    required this.hasUnresolvedIntent,
+  });
+
+  final Set<String> protectedObjectPaths;
+  final bool hasUnresolvedIntent;
+}
+
 /// Repository for the single production Card / Source data truth.
 ///
 /// The database is constructor-injected. This file intentionally has no
 /// dependency on MemexRouter or AppDatabase.instance.
 class UnifiedCardRepository {
   static final Map<String, Future<void>> _sourceObjectCommitLocks = {};
+  static const int _maxSourceObjectIntentBytes = 12 * 1024 * 1024;
 
   UnifiedCardRepository({
     required this.db,
@@ -294,6 +306,7 @@ class UnifiedCardRepository {
     RichTextStorage? richTextStorage,
     this.thumbnailResolver,
     this.faultInjector,
+    this.sourceObjectPathCanonicalizer,
   }) : richTextStorage =
            richTextStorage ??
            RichTextStorage(Directory(_join(whiteboardRoot.path, 'rich_text')));
@@ -303,15 +316,21 @@ class UnifiedCardRepository {
   final RichTextStorage richTextStorage;
   final ThumbnailResolver? thumbnailResolver;
   final UnifiedCardRepositoryFaultInjector? faultInjector;
+  final Future<String> Function(String path)? sourceObjectPathCanonicalizer;
 
   /// Repairs interrupted rich-text and Source-object exchanges at startup.
   Future<void> recoverFileReplacements() async {
     await richTextStorage.recoverAll();
-    final restoredSnapshots = await _reconcileSourceObjectIntents();
-    final sourceRoot = Directory(
-      _join(_join(whiteboardRoot.path, 'objects'), 'sources'),
-    );
+    final reconciliation = await _reconcileSourceObjectIntents();
+    final sourceRoot = _sourceObjectRoot;
     if (!await sourceRoot.exists()) return;
+    if (reconciliation.hasUnresolvedIntent ||
+        !await _isDirectoryContained(
+          root: whiteboardRoot,
+          child: sourceRoot,
+        )) {
+      return;
+    }
     final targets = <String>{};
     await for (final entity in sourceRoot.list(
       recursive: true,
@@ -325,21 +344,41 @@ class UnifiedCardRepository {
       if (path.endsWith('.json')) targets.add(path);
     }
     for (final path in targets) {
-      if (restoredSnapshots.contains(File(path).absolute.path)) continue;
+      final target = File(path);
+      if (reconciliation.protectedObjectPaths.contains(target.absolute.path)) {
+        continue;
+      }
+      if (!await _isSafeContainedSourceObjectFile(target)) continue;
       await RecoverableFileExchange.recover(
-        File(path),
+        target,
         validator: _isValidJsonMap,
       );
     }
   }
 
-  Future<Set<String>> _reconcileSourceObjectIntents() async {
+  Future<_SourceObjectIntentReconciliation>
+      _reconcileSourceObjectIntents() async {
     final protectedObjectPaths = <String>{};
+    var hasUnresolvedIntent = false;
     final intentRoot = _sourceObjectIntentRoot;
-    if (!await intentRoot.exists()) return protectedObjectPaths;
+    if (!await intentRoot.exists()) {
+      return _SourceObjectIntentReconciliation(
+        protectedObjectPaths: protectedObjectPaths,
+        hasUnresolvedIntent: false,
+      );
+    }
+    if (!await _isDirectoryContained(
+      root: whiteboardRoot,
+      child: intentRoot,
+    )) {
+      return _SourceObjectIntentReconciliation(
+        protectedObjectPaths: protectedObjectPaths,
+        hasUnresolvedIntent: true,
+      );
+    }
     final targets = <String>{};
     await for (final entity in intentRoot.list(followLinks: false)) {
-      if (entity is! File) continue;
+      if (entity is! File && entity is! Link) continue;
       var path = entity.path;
       if (path.endsWith('.tmp') || path.endsWith('.bak')) {
         path = path.substring(0, path.length - 4);
@@ -348,40 +387,99 @@ class UnifiedCardRepository {
     }
     for (final path in targets) {
       final intentFile = File(path);
+      final candidates = <File>[
+        intentFile,
+        RecoverableFileExchange.tempFor(intentFile),
+        RecoverableFileExchange.backupFor(intentFile),
+      ];
       try {
-        for (final candidate in <File>[
-          intentFile,
-          RecoverableFileExchange.tempFor(intentFile),
-          RecoverableFileExchange.backupFor(intentFile),
-        ]) {
-          if (!await candidate.exists()) continue;
-          try {
-            final envelope = jsonDecode(await candidate.readAsString());
-            if (envelope is Map<String, dynamic>) {
-              final objectRef =
-                  _safeManagedSourceObjectRef(envelope['object_ref']);
-              if (objectRef != null) {
-                protectedObjectPaths.add(_objectFile(objectRef).absolute.path);
-              }
-            }
-          } catch (_) {
-            // An unreadable envelope has no trustworthy object path to guard.
-          }
-        }
-        if (!await intentFile.exists()) {
-          final recovered = await RecoverableFileExchange.recover(
-            intentFile,
-            validator: _isValidSourceObjectIntentJson,
+        final candidateContents = <File, String>{};
+        var candidateBoundaryUnknown = false;
+        for (final candidate in candidates) {
+          final type = await FileSystemEntity.type(
+            candidate.path,
+            followLinks: false,
           );
-          if (!recovered || !await intentFile.exists()) continue;
+          if (type == FileSystemEntityType.notFound) continue;
+          if (type != FileSystemEntityType.file) {
+            candidateBoundaryUnknown = true;
+            continue;
+          }
+          final contents = await _readBoundedIntentCandidate(candidate);
+          if (contents == null) {
+            candidateBoundaryUnknown = true;
+            continue;
+          }
+          candidateContents[candidate] = contents;
         }
-        final decoded = jsonDecode(await intentFile.readAsString());
-        if (decoded is! Map<String, dynamic> ||
-            !_isValidSourceObjectIntentMap(decoded)) {
+
+        if (candidateBoundaryUnknown) {
+          hasUnresolvedIntent = true;
           continue;
         }
-        final objectRef = decoded['object_ref'] as String;
+
+        final validObjectRefs = <String>{};
+        for (final contents in candidateContents.values) {
+          if (!_isValidSourceObjectIntentJson(contents)) continue;
+          final decoded = jsonDecode(contents) as Map<String, dynamic>;
+          validObjectRefs.add(decoded['object_ref'] as String);
+        }
+
+        if (validObjectRefs.length > 1) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+
+        if (validObjectRefs.isEmpty) {
+          var allCandidatesIdentifyManagedObjects =
+              candidateContents.isNotEmpty;
+          for (final contents in candidateContents.values) {
+            try {
+              final decoded = jsonDecode(contents);
+              final objectRef = decoded is Map<String, dynamic>
+                  ? _safeManagedSourceObjectRef(decoded['object_ref'])
+                  : null;
+              if (objectRef == null) {
+                allCandidatesIdentifyManagedObjects = false;
+              } else {
+                protectedObjectPaths.add(_objectFile(objectRef).absolute.path);
+              }
+            } catch (_) {
+              allCandidatesIdentifyManagedObjects = false;
+            }
+          }
+          if (!allCandidatesIdentifyManagedObjects) {
+            hasUnresolvedIntent = true;
+          }
+          continue;
+        }
+
+        final objectRef = validObjectRefs.single;
         final objectFile = _objectFile(objectRef);
+        protectedObjectPaths.add(objectFile.absolute.path);
+        if (!await _isSafeContainedSourceObjectFile(objectFile)) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+
+        final recovered = await RecoverableFileExchange.recover(
+          intentFile,
+          validator: _isValidSourceObjectIntentJson,
+          maxBytes: _maxSourceObjectIntentBytes,
+        );
+        if (!recovered || !await intentFile.exists()) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+        final recoveredContents =
+            await _readBoundedIntentCandidate(intentFile);
+        if (recoveredContents == null ||
+            !_isValidSourceObjectIntentJson(recoveredContents)) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+        final decoded =
+            jsonDecode(recoveredContents) as Map<String, dynamic>;
         final guard = _SourceObjectWriteGuard.fromIntent(
           objectFile,
           objectRef,
@@ -402,9 +500,13 @@ class UnifiedCardRepository {
       } catch (_) {
         // Corrupt or unknown intents stay byte-for-byte available for
         // diagnosis and never block reconciliation of independent intents.
+        hasUnresolvedIntent = true;
       }
     }
-    return protectedObjectPaths;
+    return _SourceObjectIntentReconciliation(
+      protectedObjectPaths: protectedObjectPaths,
+      hasUnresolvedIntent: hasUnresolvedIntent,
+    );
   }
 
   /// Returns an active card by stable id, or null when it is absent/deleted.
@@ -1528,6 +1630,10 @@ class UnifiedCardRepository {
         _join(_join(whiteboardRoot.path, 'objects'), 'source_object_intents'),
       );
 
+  Directory get _sourceObjectRoot => Directory(
+        _join(_join(whiteboardRoot.path, 'objects'), 'sources'),
+      );
+
   File _sourceObjectIntentFile(SourceVersion version) {
     final name =
         base64Url.encode(utf8.encode(version.objectRef)).replaceAll('=', '');
@@ -1550,9 +1656,93 @@ class UnifiedCardRepository {
         'source_version_id': version.versionId,
         'pre_write_snapshot': guard.intentSnapshot,
       }),
-      validator: _isValidJsonMap,
+      validator: _isValidSourceObjectIntentJson,
     );
   }
+
+  Future<String?> _readBoundedIntentCandidate(File file) async {
+    try {
+      final beforeLength = await file.length();
+      if (beforeLength > _maxSourceObjectIntentBytes) return null;
+      final reader = await file.open();
+      try {
+        final bytes = await reader.read(_maxSourceObjectIntentBytes + 1);
+        if (bytes.length > _maxSourceObjectIntentBytes ||
+            await file.length() != bytes.length) {
+          return null;
+        }
+        return utf8.decode(bytes, allowMalformed: false);
+      } finally {
+        await reader.close();
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> _isSafeContainedSourceObjectFile(File target) async {
+    final sourceRoot = _sourceObjectRoot;
+    if (!await _isDirectoryContained(
+      root: whiteboardRoot,
+      child: sourceRoot,
+    )) {
+      return false;
+    }
+    if (!await _isDirectoryContained(
+      root: sourceRoot,
+      child: target.parent,
+    )) {
+      return false;
+    }
+    for (final candidate in <File>[
+      target,
+      RecoverableFileExchange.tempFor(target),
+      RecoverableFileExchange.backupFor(target),
+    ]) {
+      final type = await FileSystemEntity.type(
+        candidate.path,
+        followLinks: false,
+      );
+      if (type != FileSystemEntityType.file &&
+          type != FileSystemEntityType.notFound) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<bool> _isDirectoryContained({
+    required Directory root,
+    required Directory child,
+  }) async {
+    try {
+      final rootType = await FileSystemEntity.type(
+        root.path,
+        followLinks: false,
+      );
+      final childType = await FileSystemEntity.type(
+        child.path,
+        followLinks: false,
+      );
+      if (rootType != FileSystemEntityType.directory ||
+          childType != FileSystemEntityType.directory) {
+        return false;
+      }
+      final rootPath = path_api.normalize(
+        path_api.absolute(await _canonicalizeDirectory(root.path)),
+      );
+      final childPath = path_api.normalize(
+        path_api.absolute(await _canonicalizeDirectory(child.path)),
+      );
+      return path_api.isWithin(rootPath, childPath);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String> _canonicalizeDirectory(String path) =>
+      sourceObjectPathCanonicalizer?.call(path) ??
+      Directory(path).resolveSymbolicLinks();
 
   static Future<void> _deleteFileExchange(File file) async {
     for (final candidate in <File>[

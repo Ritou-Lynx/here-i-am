@@ -853,6 +853,201 @@ void main() {
     expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
   });
 
+  test(
+      'semantic tmp and backup recover while an opaque intent freezes generic object repair',
+      () async {
+    Future<({File intent, File target, String journal})> leaveCrash({
+      required String sourceId,
+      required String hash,
+    }) async {
+      final result = _ingestion(
+        hash: hash,
+        body: '合法候选 $hash',
+        sourceId: sourceId,
+        canonicalUrl: 'https://example.com/intent-candidate/$hash',
+      );
+      final crashing = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: tempDir,
+        faultInjector: (point) async {
+          if (point ==
+              UnifiedCardRepositoryFaultPoint
+                  .ingestionAfterObjectWriteBeforeVersionInsert) {
+            throw const UnifiedCardRepositorySimulatedProcessExit();
+          }
+        },
+      );
+      await expectLater(
+        crashing.commitIngestion(result),
+        throwsA(isA<UnifiedCardRepositorySimulatedProcessExit>()),
+      );
+      final objectRef =
+          'objects/sources/$sourceId/${sourceId.replaceFirst('src_', 'ver_')}_$hash.json';
+      final intent = await _intentFileForObjectRef(tempDir, objectRef);
+      return (
+        intent: intent,
+        target: _sourceObjectFile(tempDir, sourceId, hash),
+        journal: await intent.readAsString(),
+      );
+    }
+
+    final tempRecovery = await leaveCrash(
+      sourceId: 'src_web_semantic_temp',
+      hash: 'semantic_temp',
+    );
+    await tempRecovery.intent.writeAsString('not-json', flush: true);
+    await File('${tempRecovery.intent.path}.tmp')
+        .writeAsString(tempRecovery.journal, flush: true);
+
+    final backupRecovery = await leaveCrash(
+      sourceId: 'src_web_semantic_backup',
+      hash: 'semantic_backup',
+    );
+    await backupRecovery.intent.writeAsString('{"truncated":', flush: true);
+    await File('${backupRecovery.intent.path}.bak')
+        .writeAsString(backupRecovery.journal, flush: true);
+
+    final intentRoot = Directory(
+      '${tempDir.path}${Platform.pathSeparator}objects'
+      '${Platform.pathSeparator}source_object_intents',
+    );
+    await intentRoot.create(recursive: true);
+    final opaqueIntent = File(
+      '${intentRoot.path}${Platform.pathSeparator}opaque.json',
+    );
+    await opaqueIntent.writeAsString('{"cut":', flush: true);
+    await File('${opaqueIntent.path}.tmp')
+        .writeAsString('not-json', flush: true);
+    await File('${opaqueIntent.path}.bak')
+        .writeAsString('{"also":"cut"', flush: true);
+    final opaqueIntentBefore = await _readFileExchange(opaqueIntent);
+
+    final unrelatedTarget = _sourceObjectFile(
+      tempDir,
+      'src_web_unresolved_freeze',
+      'unresolved_freeze',
+    );
+    await unrelatedTarget.parent.create(recursive: true);
+    await unrelatedTarget.writeAsString('{"valid":"final"}', flush: true);
+    await File('${unrelatedTarget.path}.tmp')
+        .writeAsBytes(const <int>[1, 2, 3], flush: true);
+    await File('${unrelatedTarget.path}.bak')
+        .writeAsBytes(const <int>[4, 5, 6], flush: true);
+    final unrelatedBefore = await _readFileExchange(unrelatedTarget);
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    await repository.recoverFileReplacements();
+
+    expect(await tempRecovery.target.exists(), isFalse);
+    expect(await _readFileExchange(tempRecovery.intent),
+        const <List<int>?>[null, null, null]);
+    expect(await backupRecovery.target.exists(), isFalse);
+    expect(await _readFileExchange(backupRecovery.intent),
+        const <List<int>?>[null, null, null]);
+    expect(await _readFileExchange(opaqueIntent), opaqueIntentBefore);
+    expect(await _readFileExchange(unrelatedTarget), unrelatedBefore);
+    expect(await db.select(db.whiteboardSources).get(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+  });
+
+  test('oversized opaque intent is not loaded and freezes generic repair',
+      () async {
+    final intentRoot = Directory(
+      '${tempDir.path}${Platform.pathSeparator}objects'
+      '${Platform.pathSeparator}source_object_intents',
+    );
+    await intentRoot.create(recursive: true);
+    final oversizedIntent = File(
+      '${intentRoot.path}${Platform.pathSeparator}oversized.json',
+    );
+    const oversizedLength = 13 * 1024 * 1024;
+    await oversizedIntent.writeAsBytes(
+      List<int>.filled(oversizedLength, 65),
+      flush: true,
+    );
+
+    final target = _sourceObjectFile(
+      tempDir,
+      'src_web_oversized_intent',
+      'oversized_intent',
+    );
+    await target.parent.create(recursive: true);
+    await target.writeAsString('{"valid":"final"}', flush: true);
+    await File('${target.path}.tmp')
+        .writeAsBytes(const <int>[7, 8], flush: true);
+    await File('${target.path}.bak')
+        .writeAsBytes(const <int>[9, 10], flush: true);
+    final targetBefore = await _readFileExchange(target);
+
+    await repository.recoverFileReplacements();
+
+    expect(await oversizedIntent.length(), oversizedLength);
+    expect(await _readFileExchange(target), targetBefore);
+  });
+
+  test('unprovable real-path containment preserves intent and object peers',
+      () async {
+    const sourceId = 'src_web_containment_escape';
+    const hash = 'containment_escape';
+    final result = _ingestion(
+      hash: hash,
+      body: '路径无法证明时不得恢复',
+      sourceId: sourceId,
+      canonicalUrl: 'https://example.com/containment-escape',
+    );
+    final crashing = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .ingestionAfterObjectWriteBeforeVersionInsert) {
+          throw const UnifiedCardRepositorySimulatedProcessExit();
+        }
+      },
+    );
+    await expectLater(
+      crashing.commitIngestion(result),
+      throwsA(isA<UnifiedCardRepositorySimulatedProcessExit>()),
+    );
+    final objectRef =
+        'objects/sources/$sourceId/${sourceId.replaceFirst('src_', 'ver_')}_$hash.json';
+    final intent = await _intentFileForObjectRef(tempDir, objectRef);
+    final target = _sourceObjectFile(tempDir, sourceId, hash);
+    await File('${target.path}.tmp')
+        .writeAsBytes(const <int>[31, 32], flush: true);
+    await File('${target.path}.bak')
+        .writeAsBytes(const <int>[41, 42], flush: true);
+    final intentBefore = await _readFileExchange(intent);
+    final targetBefore = await _readFileExchange(target);
+    final outside = await Directory.systemTemp.createTemp('source_escape_');
+    addTearDown(() async {
+      if (await outside.exists()) await outside.delete(recursive: true);
+    });
+    final targetParent = target.parent.absolute.path.toLowerCase();
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      sourceObjectPathCanonicalizer: (path) async {
+        if (Directory(path).absolute.path.toLowerCase() == targetParent) {
+          return outside.resolveSymbolicLinks();
+        }
+        return Directory(path).resolveSymbolicLinks();
+      },
+    );
+    await repository.recoverFileReplacements();
+
+    expect(await _readFileExchange(intent), intentBefore);
+    expect(await _readFileExchange(target), targetBefore);
+    expect(await db.select(db.whiteboardSources).get(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+  });
+
   test('oversize recovery snapshot fails before journal or object mutation',
       () async {
     const sourceId = 'src_web_oversize_snapshot';
