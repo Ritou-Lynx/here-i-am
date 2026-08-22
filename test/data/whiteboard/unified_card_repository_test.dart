@@ -410,6 +410,214 @@ void main() {
     );
   });
 
+  test('canonical URL and id equivalence classes serialize without divergence',
+      () async {
+    Future<List<IngestionCommitResult>> commitPair(
+      String caseName,
+      IngestionResult first,
+      IngestionResult second,
+    ) async {
+      final objectWritten = Completer<void>();
+      final release = Completer<void>();
+      final firstRepository = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: tempDir,
+        faultInjector: (point) async {
+          if (point ==
+              UnifiedCardRepositoryFaultPoint
+                  .ingestionAfterObjectWriteBeforeVersionInsert) {
+            if (!objectWritten.isCompleted) objectWritten.complete();
+            await release.future;
+          }
+        },
+      );
+      final firstFuture = firstRepository.commitIngestion(first);
+      await objectWritten.future;
+      final secondFuture = repository.commitIngestion(second);
+      await Future<void>.delayed(Duration.zero);
+      release.complete();
+      final results = await Future.wait([firstFuture, secondFuture]);
+      expect(
+        results.map((item) => item.source.sourceId).toSet(),
+        hasLength(1),
+        reason: caseName,
+      );
+      return results;
+    }
+
+    await commitPair(
+      'id versus url-only',
+      _ingestion(
+        hash: 'equivalence_id_url',
+        body: '有 ID',
+        sourceId: 'src_equivalence_id',
+        provider: 'video',
+        canonicalUrl: 'https://example.com/equivalence/id-url',
+        canonicalId: 'equivalence-1',
+      ),
+      _ingestion(
+        hash: 'equivalence_id_url',
+        body: '只有 URL',
+        sourceId: 'src_equivalence_url',
+        provider: 'video',
+        canonicalUrl: 'https://example.com/equivalence/id-url',
+      ),
+    );
+    await commitPair(
+      'different ids but same url',
+      _ingestion(
+        hash: 'equivalence_diff_ids',
+        body: 'ID A',
+        sourceId: 'src_equivalence_diff_a',
+        provider: 'video',
+        canonicalUrl: 'https://example.com/equivalence/diff-ids',
+        canonicalId: 'different-a',
+      ),
+      _ingestion(
+        hash: 'equivalence_diff_ids',
+        body: 'ID B',
+        sourceId: 'src_equivalence_diff_b',
+        provider: 'video',
+        canonicalUrl: 'https://example.com/equivalence/diff-ids',
+        canonicalId: 'different-b',
+      ),
+    );
+    await commitPair(
+      'same id but different urls',
+      _ingestion(
+        hash: 'equivalence_same_id',
+        body: 'URL A',
+        sourceId: 'src_equivalence_same_a',
+        provider: 'video',
+        canonicalUrl: 'https://example.com/equivalence/url-a',
+        canonicalId: 'same-id',
+      ),
+      _ingestion(
+        hash: 'equivalence_same_id',
+        body: 'URL B',
+        sourceId: 'src_equivalence_same_b',
+        provider: 'video',
+        canonicalUrl: 'https://example.com/equivalence/url-b',
+        canonicalId: 'same-id',
+      ),
+    );
+
+    expect(await db.select(db.whiteboardSources).get(), hasLength(3));
+    expect(await db.select(db.whiteboardSourceVersions).get(), hasLength(3));
+    expect(await repository.listCards(), hasLength(3));
+  });
+
+  test('same object ref with different canonical identities survives one failure',
+      () async {
+    var failFirst = true;
+    final firstRepository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (failFirst &&
+            point ==
+                UnifiedCardRepositoryFaultPoint.ingestionAfterVersionInsert) {
+          failFirst = false;
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          throw StateError('first object-ref writer fails');
+        }
+      },
+    );
+    final firstResult = _ingestion(
+      hash: 'shared_object_identity_failure',
+      body: '失败来料',
+      sourceId: 'src_shared_object_identity',
+      provider: 'provider-a',
+      canonicalUrl: 'https://example.com/object/a',
+      canonicalId: 'object-a',
+    );
+    final winningResult = _ingestion(
+      hash: 'shared_object_identity_failure',
+      body: '胜出来料',
+      sourceId: 'src_shared_object_identity',
+      provider: 'provider-b',
+      canonicalUrl: 'https://example.com/object/b',
+      canonicalId: 'object-b',
+    );
+
+    Future<Object> capture(Future<IngestionCommitResult> future) async {
+      try {
+        return await future;
+      } catch (error) {
+        return error;
+      }
+    }
+
+    final first = capture(firstRepository.commitIngestion(firstResult));
+    await Future<void>.delayed(Duration.zero);
+    final second = capture(repository.commitIngestion(winningResult));
+    final outcomes = await Future.wait([first, second]);
+    expect(outcomes.whereType<StateError>(), hasLength(1));
+    expect(outcomes.whereType<IngestionCommitResult>(), hasLength(1));
+
+    final source = await repository.getSource('src_shared_object_identity');
+    expect(source!.provider, 'provider-b');
+    expect(source.canonicalId, 'object-b');
+    expect(source.metadata['canonical_url'], 'https://example.com/object/b');
+    final version = (await repository.listSourceVersions(source.sourceId)).single;
+    final object = await repository.getSourceObject(version);
+    expect(object.bodyText, '胜出来料');
+    expect(object.payload!['canonical_url'], 'https://example.com/object/b');
+  });
+
+  test('same object ref with two successes preserves the first committed bytes',
+      () async {
+    final objectWritten = Completer<void>();
+    final release = Completer<void>();
+    final firstRepository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .ingestionAfterObjectWriteBeforeVersionInsert) {
+          if (!objectWritten.isCompleted) objectWritten.complete();
+          await release.future;
+        }
+      },
+    );
+    final firstResult = _ingestion(
+      hash: 'shared_object_two_successes',
+      body: '第一胜者',
+      sourceId: 'src_shared_object_two_successes',
+      provider: 'provider-first',
+      canonicalUrl: 'https://example.com/object/first',
+      canonicalId: 'object-first',
+    );
+    final secondResult = _ingestion(
+      hash: 'shared_object_two_successes',
+      body: '第二来料',
+      sourceId: 'src_shared_object_two_successes',
+      provider: 'provider-second',
+      canonicalUrl: 'https://example.com/object/second',
+      canonicalId: 'object-second',
+    );
+
+    final first = firstRepository.commitIngestion(firstResult);
+    await objectWritten.future;
+    final second = repository.commitIngestion(secondResult);
+    await Future<void>.delayed(Duration.zero);
+    release.complete();
+    final results = await Future.wait([first, second]);
+    expect(results.where((item) => item.versionIsNew), hasLength(1));
+
+    final source = await repository.getSource('src_shared_object_two_successes');
+    expect(source!.provider, 'provider-first');
+    expect(source.canonicalId, 'object-first');
+    expect(source.metadata['canonical_url'], 'https://example.com/object/first');
+    final version = (await repository.listSourceVersions(source.sourceId)).single;
+    final object = await repository.getSourceObject(version);
+    expect(object.bodyText, '第一胜者');
+    expect(object.payload!['canonical_url'], 'https://example.com/object/first');
+    final card = await repository.getCardForSource(source.sourceId);
+    expect(card!.body, '第一胜者');
+  });
+
   test('startup intent removes a crash orphan and retry creates one truth',
       () async {
     final result = _ingestion(
@@ -460,6 +668,59 @@ void main() {
     expect(await db.select(db.whiteboardSourceVersions).get(), hasLength(1));
   });
 
+  test('startup intent restores exact pre-write final and sidecar snapshots',
+      () async {
+    final result = _ingestion(
+      hash: 'crash_snapshot_restore',
+      body: '不应覆盖旧现场',
+    );
+    final target = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}src_web_f0_example${Platform.pathSeparator}'
+      'ver_web_f0_example_crash_snapshot_restore.json',
+    );
+    final temp = File('${target.path}.tmp');
+    final backup = File('${target.path}.bak');
+    const oldFinal = <int>[123, 34, 111, 108, 100, 34, 58, 49, 125];
+    const oldTemp = <int>[1, 3, 5, 7, 9];
+    const oldBackup = <int>[2, 4, 6, 8];
+    await target.parent.create(recursive: true);
+    await target.writeAsBytes(oldFinal, flush: true);
+    await temp.writeAsBytes(oldTemp, flush: true);
+    await backup.writeAsBytes(oldBackup, flush: true);
+    final crashing = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .ingestionAfterObjectWriteBeforeVersionInsert) {
+          throw const UnifiedCardRepositorySimulatedProcessExit();
+        }
+      },
+    );
+
+    await expectLater(
+      crashing.commitIngestion(result),
+      throwsA(isA<UnifiedCardRepositorySimulatedProcessExit>()),
+    );
+    expect(await target.readAsBytes(), isNot(oldFinal));
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+    expect(await _intentFiles(tempDir), isNotEmpty);
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    await repository.recoverFileReplacements();
+
+    expect(await target.readAsBytes(), oldFinal);
+    expect(await temp.readAsBytes(), oldTemp);
+    expect(await backup.readAsBytes(), oldBackup);
+    expect(await _intentFiles(tempDir), isEmpty);
+    expect(await db.select(db.whiteboardSources).get(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+  });
+
   test('startup intent keeps a DB-referenced object and removes only intent',
       () async {
     final result = _ingestion(
@@ -501,6 +762,53 @@ void main() {
     final committed = await repository.commitIngestion(result);
     expect(committed.versionIsNew, isFalse);
     expect(await repository.listCards(), hasLength(1));
+  });
+
+  test('ordinary post-commit cleanup failure never compensates committed bytes',
+      () async {
+    final result = _ingestion(
+      hash: 'cleanup_failure_after_commit',
+      body: '数据库与新对象必须一致',
+    );
+    final target = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}src_web_f0_example${Platform.pathSeparator}'
+      'ver_web_f0_example_cleanup_failure_after_commit.json',
+    );
+    await target.parent.create(recursive: true);
+    await target.writeAsString('{"old":"must-not-return"}', flush: true);
+    final cleanupFailing = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .ingestionAfterTransactionCommitBeforeIntentCleanup) {
+          throw StateError('ordinary cleanup I/O failure');
+        }
+      },
+    );
+
+    final committed = await cleanupFailing.commitIngestion(result);
+    expect(committed.cardCreated, isTrue);
+    expect(await db.select(db.whiteboardSourceVersions).get(), hasLength(1));
+    expect(await _intentFiles(tempDir), isNotEmpty);
+    var payload = jsonDecode(await target.readAsString()) as Map<String, dynamic>;
+    expect(payload['body_text'], '数据库与新对象必须一致');
+    expect(payload.containsKey('old'), isFalse);
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    await repository.recoverFileReplacements();
+
+    expect(await _intentFiles(tempDir), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), hasLength(1));
+    payload = jsonDecode(await target.readAsString()) as Map<String, dynamic>;
+    expect(payload['body_text'], '数据库与新对象必须一致');
+    expect(payload.containsKey('old'), isFalse);
+    final object = await repository.getSourceObject(committed.version);
+    expect(object.bodyText, '数据库与新对象必须一致');
   });
 
   test('startup reconciliation never deletes an unjournaled managed object',
