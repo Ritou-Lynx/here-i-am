@@ -72,7 +72,21 @@ void main() {
     await _doubleTap(tester, find.text('真实文字卡'));
     await _waitForWidget(
         tester, find.byKey(const Key('wb_compact_editor_expand')));
-    expect(find.text('快捷编辑'), findsOneWidget);
+    final embeddedEditor = find.byKey(const Key('wb_compact_card_editor'));
+    expect(embeddedEditor, findsOneWidget);
+    expect(
+      find.ancestor(
+        of: embeddedEditor,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget.key is Key &&
+              widget.key.toString().contains('wb_card_item_'),
+        ),
+      ),
+      findsWidgets,
+    );
+    expect(find.byKey(const Key('wb_compact_editor_position')), findsNothing);
+    expect(find.byType(Dialog), findsNothing);
     await tester.tap(find.byKey(const Key('wb_compact_editor_expand')));
     await _waitForWidget(tester, find.text('文字卡消费页'));
     expect(find.text('文字卡消费页'), findsOneWidget);

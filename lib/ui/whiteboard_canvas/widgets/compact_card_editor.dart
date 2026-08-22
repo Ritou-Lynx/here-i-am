@@ -26,6 +26,7 @@ class CompactCardEditor extends StatefulWidget {
     required this.onClose,
     required this.onExpand,
     this.isReadonly = false,
+    this.embedded = false,
   });
 
   final String cardId;
@@ -34,6 +35,7 @@ class CompactCardEditor extends StatefulWidget {
   final VoidCallback onClose;
   final ValueChanged<CardContract> onExpand;
   final bool isReadonly;
+  final bool embedded;
 
   @override
   State<CompactCardEditor> createState() => _CompactCardEditorState();
@@ -199,14 +201,14 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     return Material(
       key: const ValueKey('wb_compact_card_editor'),
       color: tokens.surfaceRaised,
-      elevation: 10,
+      elevation: widget.embedded ? 0 : 10,
       shadowColor: tokens.textPrimary.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(widget.embedded ? 0 : 10),
       clipBehavior: Clip.antiAlias,
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: tokens.divider),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(widget.embedded ? 0 : 10),
         ),
         child: _buildBody(tokens),
       ),
@@ -240,6 +242,15 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
       );
     }
     final sourceCard = card.cardKind == CardKind.source;
+    if (widget.embedded) {
+      return _buildEmbeddedBody(
+        tokens: tokens,
+        card: card,
+        richText: richText,
+        title: title,
+        sourceCard: sourceCard,
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -280,6 +291,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
             key: const ValueKey('wb_compact_title'),
             controller: title,
             readOnly: widget.isReadonly,
+            autofocus: !widget.isReadonly,
             style: whiteboardUiTextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -338,6 +350,89 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
                 label: Text(_saving ? '保存中' : '保存'),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmbeddedBody({
+    required DesktopWorkspaceTokens tokens,
+    required CardContract card,
+    required RichTextEditingController richText,
+    required TextEditingController title,
+    required bool sourceCard,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 42,
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('wb_compact_title'),
+                  controller: title,
+                  readOnly: widget.isReadonly,
+                  autofocus: !widget.isReadonly,
+                  style: whiteboardUiTextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: tokens.textPrimary,
+                  ),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: '卡片标题',
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              if (_dirty)
+                IconButton(
+                  key: const ValueKey('wb_compact_editor_save'),
+                  tooltip: _saving ? '保存中' : '保存',
+                  onPressed: widget.isReadonly || _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox.square(
+                          dimension: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check_rounded, size: 17),
+                ),
+              IconButton(
+                key: const ValueKey('wb_compact_editor_expand'),
+                tooltip: sourceCard ? '打开来源' : '全屏编辑',
+                onPressed: _saving ? null : _expand,
+                icon: Icon(
+                  sourceCard ? Icons.open_in_new_rounded : Icons.fullscreen,
+                  size: 17,
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('wb_compact_editor_close'),
+                tooltip: '关闭原位编辑',
+                onPressed: _saving ? null : _requestClose,
+                icon: const Icon(Icons.close_rounded, size: 17),
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: tokens.divider),
+        Expanded(
+          child: AbsorbPointer(
+            absorbing: widget.isReadonly,
+            child: CardRichTextEditor(
+              controller: richText,
+              cardId: card.cardId,
+              objectStore: RichTextObjectStore(
+                widget.repository.richTextStorage.baseDir,
+              ),
+              onSave: (_) => _save(),
+              showSaveInToolbar: false,
+              markSavedAfterCallback: false,
+            ),
           ),
         ),
       ],

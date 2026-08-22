@@ -17,6 +17,10 @@ import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 
+bool _mapsEqual(Map<String, dynamic> a, Map<String, dynamic> b) =>
+    a.length == b.length &&
+    a.entries.every((entry) => b[entry.key] == entry.value);
+
 /// Callback emitted when the adapter produces a [WhiteboardOperation].
 typedef OnOperationCallback = void Function(WhiteboardOperation operation);
 
@@ -583,6 +587,7 @@ class FlutterCanvasAdapter {
     required String edgeId,
     String? fromItemId,
     String? toItemId,
+    Map<String, dynamic> stylePatch = const {},
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
@@ -595,7 +600,12 @@ class FlutterCanvasAdapter {
     final newFrom = fromItemId ?? edge.fromItemId;
     final newTo = toItemId ?? edge.toItemId;
     if (newFrom == newTo) return false;
-    if (newFrom == edge.fromItemId && newTo == edge.toItemId) return false;
+    final newStyle = {...edge.style, ...stylePatch};
+    if (newFrom == edge.fromItemId &&
+        newTo == edge.toItemId &&
+        _mapsEqual(newStyle, edge.style)) {
+      return false;
+    }
 
     final itemIds = _snapshot.boardItems
         .where((i) => i.boardId == boardId)
@@ -611,7 +621,7 @@ class FlutterCanvasAdapter {
       direction: edge.direction,
       semanticType: edge.semanticType,
       label: edge.label,
-      style: edge.style,
+      style: newStyle,
       createdBy: edge.createdBy,
       createdAt: edge.createdAt,
       deletedAt: edge.deletedAt,
@@ -631,11 +641,13 @@ class FlutterCanvasAdapter {
         'from_item_id': newFrom,
         'to_item_id': newTo,
         'direction': edge.direction.name,
+        if (newStyle.isNotEmpty) 'style': newStyle,
       },
       inverse: {
         'kind': 'edge',
         'from_item_id': edge.fromItemId,
         'to_item_id': edge.toItemId,
+        if (edge.style.isNotEmpty) 'style': edge.style,
       },
       authorizationId: authorizationId,
     );
@@ -859,6 +871,7 @@ class FlutterCanvasAdapter {
     String? semanticType,
     String? label,
     String? edgeId,
+    Map<String, dynamic> style = const {},
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
@@ -877,6 +890,7 @@ class FlutterCanvasAdapter {
       direction: direction,
       semanticType: semanticType,
       label: label,
+      style: style,
       createdAt: DateTime.now(),
     );
 
@@ -892,6 +906,7 @@ class FlutterCanvasAdapter {
         'from_item_id': fromItemId,
         'to_item_id': toItemId,
         'direction': direction.name,
+        if (style.isNotEmpty) 'style': style,
       },
       inverse: {'kind': 'remove_edge', 'edge_id': id},
       authorizationId: authorizationId,

@@ -20,6 +20,7 @@ import 'package:memex/ui/whiteboard_canvas/interactions/ui_intent.dart';
 import 'package:memex/ui/whiteboard_canvas/engine/flutter_canvas_adapter.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 WhiteboardSnapshot _snapshot({List<CardContract>? cards}) {
   final now = DateTime.utc(2026, 8, 22);
@@ -216,6 +217,14 @@ void main() {
     expect(vm.exportForSave().edges, hasLength(1));
     expect(vm.exportForSave().edges.single.direction, EdgeDirection.undirected);
     expect(vm.exportForSave().edges.single.label, isNull);
+    expect(
+      vm.exportForSave().edges.single.style['from_anchor_side'],
+      'right',
+    );
+    expect(
+      vm.exportForSave().edges.single.style['to_anchor_side'],
+      isIn(<String>['top', 'right', 'bottom', 'left']),
+    );
 
     await tester.tap(find.text('Card A'));
     await tester.pump();
@@ -346,6 +355,16 @@ void main() {
       find.byKey(const Key('wb_compact_editor_close')),
     );
 
+    final createdItemId = vm.exportForSave().boardItems.single.itemId;
+    expect(
+      find.descendant(
+        of: find.byKey(Key('wb_card_$createdItemId')),
+        matching: find.byKey(const Key('wb_compact_card_editor')),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(Dialog), findsNothing);
+
     final records = await tester.runAsync(harness.repository.listCards);
     expect(records, hasLength(1));
     expect(vm.exportForSave().boardItems, hasLength(1));
@@ -369,6 +388,64 @@ void main() {
       boardId: 'board_direct',
     );
     expect(restarted.exportForSave().boardItems, hasLength(1));
+  });
+
+  testWidgets('普通卡双击把编辑 surface 嵌入 BoardItem 且隔离拖动', (tester) async {
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        cardEditSurfaceBuilder: (context, request) => ColoredBox(
+          key: const ValueKey('test_embedded_edit_surface'),
+          color: Colors.amber,
+          child: Text('editing ${request.cardId}'),
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    final card = find.byKey(const Key('wb_card_item_card_a'));
+    final before = vm
+        .exportForSave()
+        .boardItems
+        .firstWhere((item) => item.itemId == 'item_card_a');
+    await _doubleTapAt(tester, tester.getCenter(find.text('Card A')));
+    await tester.pump();
+
+    final surface = find.byKey(const ValueKey('test_embedded_edit_surface'));
+    expect(surface, findsOneWidget);
+    expect(find.descendant(of: card, matching: surface), findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
+
+    await tester.drag(surface, const Offset(90, 60));
+    await tester.pump();
+    final after = vm
+        .exportForSave()
+        .boardItems
+        .firstWhere((item) => item.itemId == 'item_card_a');
+    expect(after.x, before.x);
+    expect(after.y, before.y);
+  });
+
+  testWidgets('白板卡片标题和正文复用全局混排字体 Token', (tester) async {
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(viewModel: vm),
+    ));
+    await tester.pump();
+
+    final title = tester.widget<Text>(find.text('Card A'));
+    final body = tester.widget<Text>(find.text('A body'));
+    for (final text in [title, body]) {
+      expect(text.style?.fontFamily, richTextCodeFamily);
+      expect(text.style?.fontFamilyFallback, contains(richTextCjkFamily));
+    }
   });
 
   testWidgets('布局保存失败回滚 BoardItem 并软删新 Card', (tester) async {

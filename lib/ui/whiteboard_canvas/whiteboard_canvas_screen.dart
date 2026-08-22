@@ -28,11 +28,14 @@ import 'package:flutter/services.dart'
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 
 import 'engine/flutter_canvas_adapter.dart';
+import 'edge_geometry.dart';
 import 'interactions/lod.dart';
 import 'interactions/ui_intent.dart';
 import 'widgets/board_target_picker.dart';
+import 'widgets/board_item_edit_surface.dart';
 import 'widgets/compact_card_editor.dart';
 import 'whiteboard_canvas_tokens.dart';
 import 'whiteboard_canvas_view_model.dart';
@@ -105,6 +108,25 @@ bool _supportsCompactEdit(CardKind kind) => switch (kind) {
       CardKind.source => false,
     };
 
+const double _editingSurfaceMinWidth = 420;
+const double _editingSurfaceMinHeight = 360;
+
+Rect _editingSurfaceRect(Rect cardRect, Size canvasSize) {
+  final width = math.min(
+    canvasSize.width,
+    math.max(cardRect.width, _editingSurfaceMinWidth),
+  );
+  final height = math.min(
+    canvasSize.height,
+    math.max(cardRect.height, _editingSurfaceMinHeight),
+  );
+  final left =
+      cardRect.left.clamp(0.0, math.max(0.0, canvasSize.width - width));
+  final top =
+      cardRect.top.clamp(0.0, math.max(0.0, canvasSize.height - height));
+  return Rect.fromLTWH(left.toDouble(), top.toDouble(), width, height);
+}
+
 /// The main full-screen whiteboard canvas widget.
 class WhiteboardCanvasScreen extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
@@ -112,6 +134,7 @@ class WhiteboardCanvasScreen extends StatefulWidget {
   final UnifiedCardRepository? cardRepository;
   final void Function(CardContract card)? onOpenCard;
   final Future<bool> Function()? onPersistSnapshot;
+  final BoardItemEditSurfaceBuilder? cardEditSurfaceBuilder;
 
   const WhiteboardCanvasScreen({
     super.key,
@@ -120,6 +143,7 @@ class WhiteboardCanvasScreen extends StatefulWidget {
     this.cardRepository,
     this.onOpenCard,
     this.onPersistSnapshot,
+    this.cardEditSurfaceBuilder,
   });
 
   @override
@@ -135,7 +159,6 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   String? _pickerCardId;
   String _pickerCardTitle = '';
   String? _editingCardId;
-  Rect? _editorAnchor;
   bool _creatingCard = false;
   int _createGeneration = 0;
   String? _pendingCompensationCardId;
@@ -174,7 +197,6 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     setState(() {
       if (widget.viewModel.isReadonly) {
         _editingCardId = null;
-        _editorAnchor = null;
         _pickerCardId = null;
       }
     });
@@ -301,18 +323,19 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     });
   }
 
-  void _openCompactEditor(CardContract card, Rect anchor) {
+  void _openCompactEditor(CardContract card) {
     if (widget.viewModel.isReadonly) {
       widget.onOpenCard?.call(card);
       return;
     }
-    if (!_supportsCompactEdit(card.cardKind) || widget.cardRepository == null) {
+    if (!_supportsCompactEdit(card.cardKind) ||
+        (widget.cardRepository == null &&
+            widget.cardEditSurfaceBuilder == null)) {
       widget.onOpenCard?.call(card);
       return;
     }
     setState(() {
       _editingCardId = card.cardId;
-      _editorAnchor = anchor;
     });
   }
 
@@ -352,11 +375,6 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       if (!mounted || generation != _createGeneration) return;
       setState(() {
         _editingCardId = card!.cardId;
-        _editorAnchor = Rect.fromCenter(
-          center: screenPoint,
-          width: 1,
-          height: 1,
-        );
       });
     } catch (error) {
       if (transactionStarted) {
@@ -569,6 +587,32 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     viewModel: vm,
                     onOpenCard: widget.onOpenCard,
                     onEditCard: _openCompactEditor,
+                    editingCardId: _editingCardId,
+                    editSurfaceBuilder: (context, card) {
+                      final request = BoardItemEditRequest(
+                        cardId: card.cardId,
+                        isReadonly: vm.isReadonly,
+                        onSaved: vm.upsertCardContent,
+                        onClose: () => setState(() => _editingCardId = null),
+                        onExpand: (updated) {
+                          setState(() => _editingCardId = null);
+                          widget.onOpenCard?.call(updated);
+                        },
+                      );
+                      final injected = widget.cardEditSurfaceBuilder;
+                      if (injected != null) return injected(context, request);
+                      final repository = widget.cardRepository;
+                      if (repository == null) return const SizedBox.shrink();
+                      return CompactCardEditor(
+                        cardId: request.cardId,
+                        repository: repository,
+                        isReadonly: request.isReadonly,
+                        embedded: true,
+                        onSaved: request.onSaved,
+                        onClose: request.onClose,
+                        onExpand: request.onExpand,
+                      );
+                    },
                     onCreateCardAt: (canvasPoint, screenPoint) => unawaited(
                       _createNoteAt(canvasPoint, screenPoint),
                     ),
@@ -665,27 +709,6 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                       const ClearEdgeSelectionIntent(),
                     ),
                   ),
-                if (_editingCardId != null && widget.cardRepository != null)
-                  _CompactEditorPositioned(
-                    anchor: _editorAnchor,
-                    child: CompactCardEditor(
-                      cardId: _editingCardId!,
-                      repository: widget.cardRepository!,
-                      isReadonly: vm.isReadonly,
-                      onSaved: vm.upsertCardContent,
-                      onClose: () => setState(() {
-                        _editingCardId = null;
-                        _editorAnchor = null;
-                      }),
-                      onExpand: (card) {
-                        setState(() {
-                          _editingCardId = null;
-                          _editorAnchor = null;
-                        });
-                        widget.onOpenCard?.call(card);
-                      },
-                    ),
-                  ),
                 if (_pendingCompensationCardId != null)
                   Positioned(
                     key: const ValueKey('wb_pending_card_compensation'),
@@ -726,40 +749,6 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _CompactEditorPositioned extends StatelessWidget {
-  const _CompactEditorPositioned({required this.anchor, required this.child});
-
-  final Rect? anchor;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final width = math.min(560.0, math.max(320.0, size.width - 24));
-    final height = math.min(620.0, math.max(360.0, size.height - 92));
-    final target = anchor ??
-        Rect.fromCenter(
-          center: Offset(size.width / 2, size.height / 2),
-          width: 1,
-          height: 1,
-        );
-    var left = target.right + 12;
-    if (left + width > size.width - 12) left = target.left - width - 12;
-    left = left.clamp(12.0, math.max(12.0, size.width - width - 12)).toDouble();
-    final top = target.top
-        .clamp(64.0, math.max(64.0, size.height - height - 12))
-        .toDouble();
-    return Positioned(
-      key: const ValueKey('wb_compact_editor_position'),
-      left: left,
-      top: top,
-      width: width,
-      height: height,
-      child: child,
     );
   }
 }
@@ -929,7 +918,10 @@ class _EdgeQuickEditorState extends State<_EdgeQuickEditor> {
 class WhiteboardCanvasArea extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
   final void Function(CardContract card)? onOpenCard;
-  final void Function(CardContract card, Rect anchor)? onEditCard;
+  final ValueChanged<CardContract>? onEditCard;
+  final String? editingCardId;
+  final Widget Function(BuildContext context, CardContract card)?
+      editSurfaceBuilder;
   final void Function(Offset canvasPoint, Offset screenPoint)? onCreateCardAt;
 
   const WhiteboardCanvasArea({
@@ -937,6 +929,8 @@ class WhiteboardCanvasArea extends StatefulWidget {
     required this.viewModel,
     this.onOpenCard,
     this.onEditCard,
+    this.editingCardId,
+    this.editSurfaceBuilder,
     this.onCreateCardAt,
   });
 
@@ -1015,13 +1009,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
           transform != null &&
           widget.onEditCard != null &&
           _supportsCompactEdit(node.card!.cardKind)) {
-        final item = node.item;
-        widget.onEditCard!(
-          node.card!,
-          transform.canvasToScreenRect(
-            Rect.fromLTWH(item.x, item.y, item.width, item.height),
-          ),
-        );
+        widget.onEditCard!(node.card!);
       } else {
         widget.onOpenCard?.call(node.card!);
       }
@@ -1230,6 +1218,15 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       final screenRect = transform.canvasToScreenRect(
         Rect.fromLTWH(item.x, item.y, item.width, item.height),
       );
+      if (widget.editingCardId == node.cardId &&
+          _editingSurfaceRect(
+            screenRect,
+            (_canvasAreaKey.currentContext?.findRenderObject() as RenderBox?)
+                    ?.size ??
+                Size.zero,
+          ).contains(screenPos)) {
+        return true;
+      }
       if (screenRect.contains(screenPos)) return true;
       if ((selection.isSelected(item.itemId) ||
           _hoveredItemId == item.itemId)) {
@@ -1305,12 +1302,13 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       final from = itemMap[edgeNode.edge.fromItemId];
       final to = itemMap[edgeNode.edge.toItemId];
       if (from == null || to == null) continue;
-      final a = transform.canvasToScreen(
-        Offset(from.x + from.width / 2, from.y + from.height / 2),
+      final connection = CanvasEdgeGeometry.resolve(
+        edge: edgeNode.edge,
+        from: from,
+        to: to,
       );
-      final b = transform.canvasToScreen(
-        Offset(to.x + to.width / 2, to.y + to.height / 2),
-      );
+      final a = transform.canvasToScreen(connection.from);
+      final b = transform.canvasToScreen(connection.to);
       final d = _distanceToSegment(screenPos, a, b);
       if (d < bestDist) {
         bestDist = d;
@@ -1442,14 +1440,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       if (!mounted || action == null) return;
       switch (action) {
         case _CardMenuAction.quickEdit:
-          final item = node.item;
           if (compactEdit) {
-            widget.onEditCard?.call(
-              card,
-              transform.canvasToScreenRect(
-                Rect.fromLTWH(item.x, item.y, item.width, item.height),
-              ),
-            );
+            widget.onEditCard?.call(card);
           } else {
             widget.onOpenCard?.call(card);
           }
@@ -1635,13 +1627,18 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     });
   }
 
-  void _onConnectionHandleStart(String itemId, Offset startPoint) {
+  void _onConnectionHandleStart(
+    String itemId,
+    CanvasAnchorSide side,
+    Offset startPoint,
+  ) {
     if (widget.viewModel.isReadonly) return;
     _hoverExitTimer?.cancel();
     setState(() {
       _hoveredItemId = itemId;
       _edgeCreateState = _EdgeCreateState(
         fromItemId: itemId,
+        fromSide: side,
         startPoint: startPoint,
         currentPoint: startPoint,
       );
@@ -1657,6 +1654,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     setState(() {
       _edgeCreateState = _EdgeCreateState(
         fromItemId: state.fromItemId,
+        fromSide: state.fromSide,
         startPoint: state.startPoint,
         currentPoint: localPointerPos,
       );
@@ -1671,9 +1669,17 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       final canvasPoint = transform.screenToCanvas(state.currentPoint);
       final target = _itemAtCanvas(math.Point(canvasPoint.dx, canvasPoint.dy));
       if (target != null && target.itemId != state.fromItemId) {
+        final targetSide = CanvasEdgeGeometry.nearestSide(
+          target.item,
+          canvasPoint,
+        );
         widget.viewModel.createEdge(
           fromItemId: state.fromItemId,
           toItemId: target.itemId,
+          style: {
+            CanvasEdgeGeometry.fromAnchorStyleKey: state.fromSide.name,
+            CanvasEdgeGeometry.toAnchorStyleKey: targetSide.name,
+          },
         );
       }
     }
@@ -1722,11 +1728,20 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       final canvasPoint = transform.screenToCanvas(state.currentPoint);
       final target = _itemAtCanvas(math.Point(canvasPoint.dx, canvasPoint.dy));
       if (target != null) {
+        final targetSide = CanvasEdgeGeometry.nearestSide(
+          target.item,
+          canvasPoint,
+        );
         final ok = vm.handleIntent(
           RetargetEdgeIntent(
             edgeId: state.edgeId,
             fromItemId: state.isFrom ? target.itemId : null,
             toItemId: state.isFrom ? null : target.itemId,
+            stylePatch: {
+              state.isFrom
+                  ? CanvasEdgeGeometry.fromAnchorStyleKey
+                  : CanvasEdgeGeometry.toAnchorStyleKey: targetSide.name,
+            },
           ),
         );
         if (!ok) vm.cancelLogicalAction();
@@ -1827,6 +1842,12 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             isSelected: vm.selection.isSelected(node.itemId),
             isReadonly: vm.isReadonly,
             lodTier: _lodTiers[node.itemId] ?? LodTier.full,
+            canvasSize: size,
+            editSurface: widget.editingCardId == node.cardId &&
+                    node.card != null &&
+                    widget.editSurfaceBuilder != null
+                ? widget.editSurfaceBuilder!(context, node.card!)
+                : null,
             onTap: () => _handleCardClick(node),
             onEnter: () => _onCardEnter(node.itemId),
             onExit: () => _onCardExit(node.itemId),
@@ -1879,12 +1900,13 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   ) {
     final from = itemsByItemId[edgeNode.edge.fromItemId]!;
     final to = itemsByItemId[edgeNode.edge.toItemId]!;
-    final fromScreen = transform.canvasToScreen(
-      Offset(from.x + from.width / 2, from.y + from.height / 2),
+    final connection = CanvasEdgeGeometry.resolve(
+      edge: edgeNode.edge,
+      from: from,
+      to: to,
     );
-    final toScreen = transform.canvasToScreen(
-      Offset(to.x + to.width / 2, to.y + to.height / 2),
-    );
+    final fromScreen = transform.canvasToScreen(connection.from);
+    final toScreen = transform.canvasToScreen(connection.to);
     return [
       _EdgeEndpointHandle(
         key: Key('wb_edge_${edgeNode.edgeId}_from'),
@@ -1996,7 +2018,13 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
           child: _ConnectionHandle(
             onEnter: () => _onCardEnter(item.itemId),
             onExit: () => _onCardExit(item.itemId),
-            onStart: () => _onConnectionHandleStart(item.itemId, entry.value),
+            onStart: () => _onConnectionHandleStart(
+              item.itemId,
+              CanvasAnchorSide.values.firstWhere(
+                (side) => side.name == entry.key,
+              ),
+              entry.value,
+            ),
             onUpdate: _onConnectionHandleUpdate,
             onEnd: _onConnectionHandleEnd,
           ),
@@ -2059,11 +2087,13 @@ class _EdgeRetargetState {
 class _EdgeCreateState {
   const _EdgeCreateState({
     required this.fromItemId,
+    required this.fromSide,
     required this.startPoint,
     required this.currentPoint,
   });
 
   final String fromItemId;
+  final CanvasAnchorSide fromSide;
   final Offset startPoint;
   final Offset currentPoint;
 }
@@ -2133,13 +2163,13 @@ class _CanvasPainter extends CustomPainter {
       if (from == null || to == null) continue;
 
       final isSelected = edgeNode.edgeId == selectedEdgeId;
-      final fromCenter = Offset(
-        from.x + from.width / 2,
-        from.y + from.height / 2,
+      final connection = CanvasEdgeGeometry.resolve(
+        edge: edgeNode.edge,
+        from: from,
+        to: to,
       );
-      final toCenter = Offset(to.x + to.width / 2, to.y + to.height / 2);
-      final fromScreen = transform.canvasToScreen(fromCenter);
-      final toScreen = transform.canvasToScreen(toCenter);
+      final fromScreen = transform.canvasToScreen(connection.from);
+      final toScreen = transform.canvasToScreen(connection.to);
 
       final paint = Paint()
         ..color = isSelected ? colors.edgeSelected : colors.edge
@@ -2170,7 +2200,7 @@ class _CanvasPainter extends CustomPainter {
         final labelPainter = TextPainter(
           text: TextSpan(
             text: label,
-            style: TextStyle(
+            style: richTextBodyTextStyle(
               color: colors.edgeLabel,
               fontSize: WhiteboardCanvasTokens.metaSize,
             ),
@@ -2278,6 +2308,8 @@ class _CardWidget extends StatelessWidget {
   final bool isSelected;
   final bool isReadonly;
   final LodTier lodTier;
+  final Size canvasSize;
+  final Widget? editSurface;
   final VoidCallback onTap;
   final VoidCallback onEnter;
   final VoidCallback onExit;
@@ -2291,6 +2323,8 @@ class _CardWidget extends StatelessWidget {
     required this.isSelected,
     required this.isReadonly,
     required this.lodTier,
+    required this.canvasSize,
+    this.editSurface,
     required this.onTap,
     required this.onEnter,
     required this.onExit,
@@ -2305,42 +2339,57 @@ class _CardWidget extends StatelessWidget {
     final screenRect = transform.canvasToScreenRect(
       Rect.fromLTWH(item.x, item.y, item.width, item.height),
     );
+    final displayRect = editSurface == null
+        ? screenRect
+        : _editingSurfaceRect(screenRect, canvasSize);
 
     return Positioned(
       key: Key('wb_card_${item.itemId}'),
-      left: screenRect.left,
-      top: screenRect.top,
-      width: screenRect.width,
-      height: screenRect.height,
+      left: displayRect.left,
+      top: displayRect.top,
+      width: displayRect.width,
+      height: displayRect.height,
       child: MouseRegion(
         onEnter: (_) => onEnter(),
         onExit: (_) => onExit(),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          onPanStart: (details) {
-            if (!isReadonly) onDragStart(details.globalPosition);
-          },
-          onPanUpdate: (details) {
-            if (!isReadonly) onDragUpdate(details.globalPosition);
-          },
-          onPanEnd: (_) {
-            if (!isReadonly) onDragEnd();
-          },
-          onPanCancel: () {
-            if (!isReadonly) onDragEnd();
-          },
-          child: Transform.rotate(
-            angle: item.rotation * math.pi / 180,
-            alignment: Alignment.center,
-            child: _CardContent(
-              key: Key('wb_card_content_${item.itemId}_${lodTier.name}'),
-              node: node,
-              isSelected: isSelected,
-              lodTier: lodTier,
-            ),
-          ),
-        ),
+        child: editSurface != null
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(
+                  WhiteboardCanvasTokens.cardRadius,
+                ),
+                child: KeyedSubtree(
+                  key: Key('wb_card_edit_surface_${item.itemId}'),
+                  child: editSurface!,
+                ),
+              )
+            : GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onTap,
+                onPanStart: (details) {
+                  if (!isReadonly) onDragStart(details.globalPosition);
+                },
+                onPanUpdate: (details) {
+                  if (!isReadonly) onDragUpdate(details.globalPosition);
+                },
+                onPanEnd: (_) {
+                  if (!isReadonly) onDragEnd();
+                },
+                onPanCancel: () {
+                  if (!isReadonly) onDragEnd();
+                },
+                child: Transform.rotate(
+                  angle: item.rotation * math.pi / 180,
+                  alignment: Alignment.center,
+                  child: _CardContent(
+                    key: Key(
+                      'wb_card_content_${item.itemId}_${lodTier.name}',
+                    ),
+                    node: node,
+                    isSelected: isSelected,
+                    lodTier: lodTier,
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -2396,7 +2445,7 @@ class _CardContent extends StatelessWidget {
               Expanded(
                 child: Text(
                   '失效引用',
-                  style: TextStyle(
+                  style: whiteboardUiTextStyle(
                     color: colors.orphanedBorder,
                     fontSize: WhiteboardCanvasTokens.statusSize,
                   ),
@@ -2408,7 +2457,7 @@ class _CardContent extends StatelessWidget {
               Expanded(
                 child: Text(
                   card!.title,
-                  style: TextStyle(
+                  style: richTextBodyTextStyle(
                     color: colors.textPrimary,
                     fontSize: WhiteboardCanvasTokens.metaSize,
                     fontWeight: FontWeight.w500,
@@ -2461,7 +2510,7 @@ class _CardContent extends StatelessWidget {
           else ...[
             Text(
               card!.title,
-              style: TextStyle(
+              style: richTextBodyTextStyle(
                 color: colors.textPrimary,
                 fontSize: WhiteboardCanvasTokens.titleSize,
                 fontWeight: FontWeight.w600,
@@ -2473,7 +2522,7 @@ class _CardContent extends StatelessWidget {
             Expanded(
               child: Text(
                 card.body,
-                style: TextStyle(
+                style: richTextBodyTextStyle(
                   color: colors.textSecondary,
                   fontSize: WhiteboardCanvasTokens.bodySize,
                 ),
@@ -2503,7 +2552,7 @@ class _CardContent extends StatelessWidget {
                       ),
                       child: Text(
                         tag,
-                        style: TextStyle(
+                        style: whiteboardUiTextStyle(
                           color: colors.textFaint,
                           fontSize: WhiteboardCanvasTokens.statusSize,
                         ),
@@ -2541,7 +2590,7 @@ class _OrphanedCardContent extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '失效卡片引用',
-            style: TextStyle(
+            style: whiteboardUiTextStyle(
               color: colors.orphanedBorder,
               fontSize: WhiteboardCanvasTokens.metaSize,
             ),
@@ -2549,10 +2598,9 @@ class _OrphanedCardContent extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             cardId,
-            style: TextStyle(
+            style: richTextCodeTextStyle(
               color: colors.textFaint,
               fontSize: WhiteboardCanvasTokens.statusSize,
-              fontFamily: 'monospace',
             ),
           ),
         ],

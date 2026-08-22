@@ -340,12 +340,14 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       case RetargetEdgeIntent(
           :final edgeId,
           :final fromItemId,
-          :final toItemId
+          :final toItemId,
+          :final stylePatch
         ):
         return retargetEdge(
           edgeId: edgeId,
           fromItemId: fromItemId,
           toItemId: toItemId,
+          stylePatch: stylePatch,
         );
       case SelectEdgeIntent(:final edgeId):
         _selectedEdgeId = edgeId;
@@ -473,6 +475,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     required String toItemId,
     EdgeDirection direction = EdgeDirection.undirected,
     String? label,
+    Map<String, dynamic> style = const {},
   }) {
     if (_readonly) return false;
     final edge = _adapter.createEdge(
@@ -481,6 +484,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       toItemId: toItemId,
       direction: direction,
       label: label,
+      style: style,
     );
     if (edge == null) return false;
     _selectedEdgeId = edge.edgeId;
@@ -579,6 +583,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     required String edgeId,
     String? fromItemId,
     String? toItemId,
+    Map<String, dynamic> stylePatch = const {},
   }) {
     if (_readonly) return false;
     final ok = _adapter.retargetEdge(
@@ -586,6 +591,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       edgeId: edgeId,
       fromItemId: fromItemId,
       toItemId: toItemId,
+      stylePatch: stylePatch,
     );
     if (ok) notifyListeners();
     return ok;
