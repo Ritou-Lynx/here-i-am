@@ -1004,22 +1004,7 @@ class UnifiedCardRepository {
       final resolved = await resolver.resolveCached(cachedRef);
       return resolved ?? const ResolvedThumbnail.missing();
     }
-    final source = record.source;
-    final versionId = record.currentSourceVersion?.versionId ??
-        source?.currentVersionId ??
-        '';
-    // Third-party/test resolvers still receive a request, but all remote
-    // candidates are deliberately stripped so this remains local-only.
-    return resolver.resolve(
-      ThumbnailResolveRequest(
-        sourceId: source?.sourceId ?? record.card.cardId,
-        sourceVersionId: versionId,
-        candidateUrl: null,
-        canonicalUrl: null,
-        cachedObjectRef: cachedRef,
-        cachedVersionId: versionId,
-      ),
-    );
+    return const ResolvedThumbnail.missing();
   }
 
   Future<List<SourceVersion>> listSourceVersions(String sourceId) async {

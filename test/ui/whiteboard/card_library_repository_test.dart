@@ -310,7 +310,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('only cards built near the scroll viewport request thumbnails',
+  testWidgets('untrusted thumbnail resolver is never called by render paths',
       (tester) async {
     final resolver = _CountingThumbnailResolver();
     repository = UnifiedCardRepository(
@@ -341,24 +341,20 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
     await tester.pump();
-    final initialRequests = resolver.requests.length;
-
-    expect(initialRequests, greaterThan(0));
-    expect(initialRequests, lessThan(12),
-        reason: 'off-screen cards must not be fetched eagerly');
+    expect(resolver.requests, isEmpty);
 
     await tester.drag(
       find.byKey(const ValueKey('card-library-mobile-list')),
       const Offset(0, -1600),
     );
     await tester.pump();
+    expect(resolver.requests, isEmpty);
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
     await tester.pump();
 
-    expect(resolver.requests.length, greaterThan(initialRequests));
-    expect(resolver.requests.length, lessThanOrEqualTo(12));
+    expect(resolver.requests, isEmpty);
   });
 
   testWidgets('type, source, tag and keyword filters compose', (tester) async {

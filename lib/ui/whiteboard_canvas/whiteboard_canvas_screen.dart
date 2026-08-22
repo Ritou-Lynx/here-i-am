@@ -398,8 +398,11 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
           );
           created.add((card: saved, ref: ref));
         } catch (_) {
-          if (card != null) await repository.softDeleteCard(card.cardId);
-          await objectStore.deleteRef(ref);
+          if (card != null) {
+            created.add((card: card, ref: ref));
+          } else {
+            await objectStore.deleteRef(ref);
+          }
           rethrow;
         }
       }
@@ -439,7 +442,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('导入图片失败：$error')));
+        ).showSnackBar(const SnackBar(content: Text('导入图片失败，请重试')));
       }
     } finally {
       if (mounted) setState(() => _importingImages = false);
@@ -453,18 +456,26 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   ) async {
     for (final draft in created.reversed) {
       _pendingMediaCleanup[draft.card.cardId] = draft.ref;
-      final cleaned = await _compensateCreatedCard(
-        repository,
-        draft.card.cardId,
-      );
-      if (cleaned) {
-        await _deleteImportedMediaArtifacts(
-          repository,
-          objectStore,
-          draft.card.cardId,
-          draft.ref,
-        );
+      try {
+        final cleaned = await _compensateCreatedCard(repository, draft.card.cardId);
+        if (cleaned) {
+          await _deleteImportedMediaArtifacts(repository, objectStore,
+              draft.card.cardId, draft.ref);
+        }
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _pendingCompensationCardId = draft.card.cardId;
+            _pendingCompensationError = StateError('临时图片卡片清理失败');
+          });
+        }
       }
+    }
+    if (mounted && _pendingMediaCleanup.isNotEmpty) {
+      setState(() {
+        _pendingCompensationCardId = _pendingMediaCleanup.keys.first;
+        _pendingCompensationError ??= StateError('还有临时图片卡片需要清理');
+      });
     }
   }
 
@@ -542,7 +553,14 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     try {
       final deleted = await repository.softDeleteCard(cardId);
       if (!deleted) {
-        throw StateError('临时卡片没有被清理');
+        final current = await repository.getCard(
+          cardId,
+          includeDeleted: true,
+          loadDocument: false,
+        );
+        if (current?.card.deletedAt == null) {
+          throw StateError('临时卡片没有被清理');
+        }
       }
       return true;
     } catch (error) {
@@ -558,39 +576,32 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
 
   Future<void> _retryPendingCompensation() async {
     final repository = widget.cardRepository;
-    final cardId = _pendingCompensationCardId;
-    if (repository == null || cardId == null) return;
-    final cleaned = await _compensateCreatedCard(repository, cardId);
-    if (!cleaned) return;
-    try {
-      final mediaRef = _pendingMediaCleanup[cardId];
-      if (mediaRef != null) {
-        await _deleteImportedMediaArtifacts(
-          repository,
-          RichTextObjectStore(repository.richTextStorage.baseDir),
-          cardId,
-          mediaRef,
-        );
+    if (repository == null || _pendingCompensationCardId == null) return;
+    final pending = _pendingMediaCleanup.keys.toList();
+    if (pending.isEmpty) pending.add(_pendingCompensationCardId!);
+    Object? lastError;
+    for (final cardId in pending) {
+      final cleaned = await _compensateCreatedCard(repository, cardId);
+      if (!cleaned) {
+        lastError = _pendingCompensationError;
+        continue;
       }
-      if (mounted && _pendingCompensationCardId == cardId) {
-        setState(() {
-          _pendingCompensationCardId = null;
-          _pendingCompensationError = null;
-        });
+      try {
+        final mediaRef = _pendingMediaCleanup[cardId];
+        if (mediaRef != null) {
+          await _deleteImportedMediaArtifacts(repository,
+              RichTextObjectStore(repository.richTextStorage.baseDir), cardId, mediaRef);
+        }
+      } catch (error) {
+        lastError = error;
       }
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _pendingCompensationCardId = cardId;
-          _pendingCompensationError = error;
-        });
-      }
-      return;
     }
-    if (!mounted || _pendingMediaCleanup.isEmpty) return;
+    if (!mounted) return;
     setState(() {
-      _pendingCompensationCardId = _pendingMediaCleanup.keys.first;
-      _pendingCompensationError = StateError('还有临时图片卡片需要清理');
+      _pendingCompensationCardId = _pendingMediaCleanup.isEmpty
+          ? null
+          : _pendingMediaCleanup.keys.first;
+      _pendingCompensationError = _pendingMediaCleanup.isEmpty ? null : lastError;
     });
   }
 

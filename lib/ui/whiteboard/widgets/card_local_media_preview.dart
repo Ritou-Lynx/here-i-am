@@ -186,6 +186,10 @@ class CardLocalMediaPreview extends StatefulWidget {
 class _CardLocalMediaPreviewState extends State<CardLocalMediaPreview> {
   late Future<CardLocalMediaProjection> _projection = _load();
 
+  String _projectionKey(CardLocalMediaPreview value) =>
+      '${value.cardId}|${value.card?.updatedAt?.toIso8601String()}|'
+      '${value.card?.presentation['thumbnail_ref']}|${value.card?.sourceId}';
+
   Future<CardLocalMediaProjection> _load() => CardLocalMediaResolver(
         widget.repository,
       ).resolve(widget.cardId, card: widget.card);
@@ -194,7 +198,8 @@ class _CardLocalMediaPreviewState extends State<CardLocalMediaPreview> {
   void didUpdateWidget(covariant CardLocalMediaPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.repository, widget.repository) ||
-        oldWidget.cardId != widget.cardId) {
+        oldWidget.cardId != widget.cardId ||
+        _projectionKey(oldWidget) != _projectionKey(widget)) {
       _projection = _load();
     }
   }

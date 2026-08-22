@@ -15,6 +15,7 @@ import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
+import 'package:memex/ui/whiteboard/widgets/card_local_media_preview.dart';
 
 const _png =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -85,6 +86,39 @@ class _FailingCleanupRepository extends UnifiedCardRepository {
       throw StateError('scripted cleanup failure');
     }
     return super.softDeleteCard(cardId, at: at);
+  }
+}
+
+class _MidImportFailureRepository extends UnifiedCardRepository {
+  _MidImportFailureRepository({required super.db, required super.whiteboardRoot});
+
+  int saves = 0;
+  int cleanupFailures = 1;
+
+  @override
+  Future<CardContract> saveRichText(String cardId, RichTextDocument document,
+      {String? title}) {
+    if (++saves == 2) throw StateError(r'C:\private\should-not-leak.png');
+    return super.saveRichText(cardId, document, title: title);
+  }
+
+  @override
+  Future<bool> softDeleteCard(String cardId, {DateTime? at}) {
+    if (cleanupFailures-- > 0) throw StateError('scripted cleanup failure');
+    return super.softDeleteCard(cardId, at: at);
+  }
+}
+
+class _CountingCardRepository extends UnifiedCardRepository {
+  _CountingCardRepository({required super.db, required super.whiteboardRoot});
+  int reads = 0;
+
+  @override
+  Future<UnifiedCardRecord?> getCard(String cardId,
+      {bool includeDeleted = false, bool loadDocument = true}) {
+    reads++;
+    return super.getCard(cardId,
+        includeDeleted: includeDeleted, loadDocument: loadDocument);
   }
 }
 
@@ -498,5 +532,57 @@ void main() {
       repository.richTextStorage.baseDir,
     ).objectsDirectory;
     expect(objects.existsSync() ? objects.listSync() : const [], isEmpty);
+  });
+
+  testWidgets('单项中途失败登记补偿且继续清理其余项', (tester) async {
+    final root = Directory.systemTemp.createTempSync('wb_media_mid_fail_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = _MidImportFailureRepository(db: db, whiteboardRoot: root);
+    final harness = _Harness(root, db, repository);
+    _disposeHarnessAfterTest(tester, harness);
+    late final List<String> paths;
+    await tester.runAsync(() async => paths = [
+      (await harness.sourceImage('first.png')).path,
+      (await harness.sourceImage('second.png')).path,
+    ]);
+    final vm = WhiteboardCanvasViewModel(initialSnapshot: WhiteboardSnapshot(
+      boards: [Board(boardId: 'board_media', name: '补偿', createdAt: DateTime.utc(2026, 8, 23))],
+    ), boardId: 'board_media');
+    await tester.pumpWidget(MaterialApp(home: WhiteboardCanvasScreen(
+      viewModel: vm, cardRepository: repository, imagePathPicker: () async => paths,
+    )));
+    await tester.tap(find.byKey(const ValueKey('wb_import_image_tool')));
+    await _pumpUntil(tester, find.byKey(const ValueKey('wb_pending_card_compensation')));
+    expect(find.textContaining('private'), findsNothing);
+    expect(await tester.runAsync(repository.listCards), hasLength(1));
+    await tester.tap(find.byKey(const ValueKey('wb_retry_card_compensation')));
+    await _pumpUntilGone(tester, find.byKey(const ValueKey('wb_pending_card_compensation')));
+    expect(await tester.runAsync(repository.listCards), isEmpty);
+    final objects = RichTextObjectStore(repository.richTextStorage.baseDir).objectsDirectory;
+    expect(objects.existsSync() ? objects.listSync() : const [], isEmpty);
+  });
+
+  testWidgets('projection key 变化会重新解析预览', (tester) async {
+    final root = Directory.systemTemp.createTempSync('wb_media_refresh_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = _CountingCardRepository(db: db, whiteboardRoot: root);
+    final harness = _Harness(root, db, repository);
+    _disposeHarnessAfterTest(tester, harness);
+    final created = DateTime.utc(2026, 8, 23);
+    CardContract card(DateTime updated, String ref) => CardContract(
+      cardId: 'card_refresh', cardKind: CardKind.source, createdAt: created,
+      updatedAt: updated, presentation: {'thumbnail_ref': ref},
+    );
+    Widget app(CardContract value) => MaterialApp(home: CardLocalMediaPreview(
+      repository: repository, cardId: value.cardId, card: value,
+      placementKey: 'refresh', maxHeight: 80,
+      surfaceColor: Colors.white, foregroundColor: Colors.black,
+    ));
+    await tester.pumpWidget(app(card(created, 'objects/a.png')));
+    await tester.pump();
+    final reads = repository.reads;
+    await tester.pumpWidget(app(card(created.add(const Duration(seconds: 1)), 'objects/b.png')));
+    await tester.pump();
+    expect(repository.reads, greaterThan(reads));
   });
 }
