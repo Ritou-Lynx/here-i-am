@@ -16,29 +16,53 @@ class WhiteboardDataBootstrap {
   WhiteboardDataBootstrap._();
 
   static Future<UnifiedCardRepository>? _productionRepository;
+  static AppDatabase? _productionDatabase;
+  static UnifiedCardRepository? _repositoryForTesting;
+  static Directory? _productionRootForTesting;
 
   /// Returns one production Repository and completes the idempotent F0
   /// legacy import before exposing it to UI consumers.
   static Future<UnifiedCardRepository> productionRepository() {
-    return _productionRepository ??= _openProduction();
+    final testingRepository = _repositoryForTesting;
+    if (testingRepository != null) return Future.value(testingRepository);
+
+    final database = AppDatabase.instance;
+    if (!identical(_productionDatabase, database)) {
+      _productionDatabase = database;
+      _productionRepository = _openProduction(database);
+    }
+    return _productionRepository!;
   }
 
   @visibleForTesting
   static void setRepositoryForTesting(UnifiedCardRepository? repository) {
-    _productionRepository =
-        repository == null ? null : Future.value(repository);
+    _repositoryForTesting = repository;
+    _productionRepository = null;
+    _productionDatabase = null;
   }
 
-  static Future<UnifiedCardRepository> _openProduction() async {
-    final support = await getApplicationSupportDirectory();
-    final root = Directory(p.join(support.path, 'whiteboard'));
+  @visibleForTesting
+  static void setProductionRootForTesting(Directory? root) {
+    _productionRootForTesting = root;
+    _productionRepository = null;
+    _productionDatabase = null;
+  }
+
+  static Future<UnifiedCardRepository> _openProduction(
+    AppDatabase database,
+  ) async {
+    final testingRoot = _productionRootForTesting;
+    final root = testingRoot ??
+        Directory(
+          p.join((await getApplicationSupportDirectory()).path, 'whiteboard'),
+        );
     late final UnifiedCardRepository repository;
     final thumbnailResolver = SafeThumbnailResolver(
       whiteboardRoot: root,
       referencedObjectRefs: () => repository.referencedThumbnailObjectRefs(),
     );
     repository = UnifiedCardRepository(
-      db: AppDatabase.instance,
+      db: database,
       whiteboardRoot: root,
       thumbnailResolver: thumbnailResolver,
     );

@@ -144,39 +144,64 @@ class AppDatabase extends _$AppDatabase {
 
   static bool get isInitialized => _instance != null;
 
+  /// User whose connection is currently owned by the process singleton.
+  ///
+  /// Callers must not cache this value as authorization state. It only exists
+  /// to make repeated lifecycle initialization idempotent and to distinguish a
+  /// real account switch from the many same-user init calls made by foreground
+  /// and router services.
+  static String? get activeUserId => _activeUserId;
+
   /// Initialize the database for a specific user
   static Future<void> init(String userId) async {
-    // Serialize concurrent inits for the same user. Startup calls this from
-    // both MemexRouter._init and MainScreen's deferred block; without this
-    // guard the two would close each other's half-open database mid-migration
-    // and can leave the schema in a partial state (see v58 idempotent fix).
-    if (_initInFlightUserId == userId && _initInFlight != null) {
-      return _initInFlight!;
-    }
-    final future = _openForUser(userId);
-    _initInFlightUserId = userId;
-    _initInFlight = future;
-    try {
-      await future;
-    } finally {
-      if (identical(_initInFlight, future)) {
-        _initInFlight = null;
-        _initInFlightUserId = null;
+    while (true) {
+      final inFlight = _initInFlight;
+      if (inFlight != null) {
+        // All user switches share one queue. Waiting only for same-user calls
+        // lets two different users close each other's half-open connections.
+        await inFlight;
+        if (_instance != null && _activeUserId == userId) return;
+        continue;
+      }
+
+      // The app legitimately calls init from main, MemexRouter and background
+      // entry points. A completed same-user init is a no-op: replacing it here
+      // closes every repository that still owns the process-wide connection.
+      if (_instance != null && _activeUserId == userId) return;
+
+      final future = _openForUser(userId);
+      _initInFlight = future;
+      try {
+        await future;
+        return;
+      } finally {
+        if (identical(_initInFlight, future)) {
+          _initInFlight = null;
+        }
       }
     }
   }
 
   static Future<void>? _initInFlight;
-  static String? _initInFlightUserId;
+  static String? _activeUserId;
+
+  static AppDatabase Function(String userId)? _databaseFactoryForTesting;
 
   static Future<void> _openForUser(String userId) async {
     if (_instance != null) {
       await _instance!.close();
-      _instance = null;
     }
 
-    _instance = AppDatabase._(userId);
-    await _instance!._configureConnection();
+    final database =
+        _databaseFactoryForTesting?.call(userId) ?? AppDatabase._(userId);
+    try {
+      await database._configureConnection();
+    } catch (_) {
+      await database.close();
+      rethrow;
+    }
+    _instance = database;
+    _activeUserId = userId;
   }
 
   /// Private constructor
@@ -185,8 +210,19 @@ class AppDatabase extends _$AppDatabase {
         super(_openConnection(userId));
 
   @visibleForTesting
-  static void setTestInstance(AppDatabase database) {
+  static void setTestInstance(
+    AppDatabase database, {
+    String userId = '__test__',
+  }) {
     _instance = database;
+    _activeUserId = userId;
+  }
+
+  @visibleForTesting
+  static void setDatabaseFactoryForTesting(
+    AppDatabase Function(String userId)? factory,
+  ) {
+    _databaseFactoryForTesting = factory;
   }
 
   @visibleForTesting
@@ -198,6 +234,22 @@ class AppDatabase extends _$AppDatabase {
       : _testSchemaVersion = schemaVersion;
 
   final int? _testSchemaVersion;
+
+  bool _closeStarted = false;
+
+  @override
+  Future<void> close() async {
+    if (_closeStarted) return;
+    _closeStarted = true;
+    try {
+      await super.close();
+    } finally {
+      if (identical(_instance, this)) {
+        _instance = null;
+        _activeUserId = null;
+      }
+    }
+  }
 
   @override
   int get schemaVersion => _testSchemaVersion ?? 60;
