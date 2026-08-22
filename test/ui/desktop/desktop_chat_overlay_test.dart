@@ -289,4 +289,42 @@ void main() {
       expect(sends, 1);
     },
   );
+
+  testWidgets('desktop streaming state exposes stop without requiring text',
+      (tester) async {
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    final scrollController = ScrollController();
+    var stops = 0;
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+    addTearDown(scrollController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 350,
+          height: 480,
+          child: DesktopPersonaChatView(
+            loading: false,
+            messagesNewestFirst: const [],
+            isStreaming: true,
+            streamingText: '正在回复',
+            controller: controller,
+            composerFocusNode: focusNode,
+            scrollController: scrollController,
+            onSend: () async {},
+            onStop: () async {
+              stops += 1;
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('desktop_chat_send')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('desktop_chat_stop')));
+    await tester.pump();
+    expect(stops, 1);
+  });
 }

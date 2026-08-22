@@ -61,7 +61,24 @@ abstract interface class WorkbenchRuntimeGateway {
   Future<void> closeSession(String sessionId);
 }
 
-class WorkbenchRuntimeClient implements WorkbenchRuntimeGateway {
+/// Runtime controls needed by a product-owned, continuing conversation.
+///
+/// The narrower [WorkbenchRuntimeGateway] remains sufficient for isolated
+/// action turns. Keeping the continuity controls separate avoids forcing
+/// short-lived tool coordinators to pretend that they support resume/stop.
+abstract interface class WorkbenchConversationRuntimeGateway
+    implements WorkbenchRuntimeGateway {
+  Future<WorkbenchRuntimeSession> resumeSession({
+    required String providerSessionId,
+  });
+
+  Future<void> interruptTurn({
+    required String sessionId,
+    required String turnId,
+  });
+}
+
+class WorkbenchRuntimeClient implements WorkbenchConversationRuntimeGateway {
   WorkbenchRuntimeClient({
     String bridgeUrl = 'http://127.0.0.1:47831',
     Dio? dio,
@@ -86,18 +103,37 @@ class WorkbenchRuntimeClient implements WorkbenchRuntimeGateway {
     required List<Map<String, dynamic>> dynamicTools,
     Map<String, dynamic> contextManifest = const {},
   }) async {
-    final data = await _post('$prefix/sessions', {
-      'config': {
+    final config = <String, dynamic>{
         'ephemeral': false,
         'service_name': 'here_i_am_workbench',
-        'dynamic_tools': dynamicTools,
-      },
+      if (dynamicTools.isNotEmpty) 'dynamic_tools': dynamicTools,
+    };
+    final data = await _post('$prefix/sessions', {
+      'config': config,
       'context_manifest': contextManifest,
     });
     final sessionId = _requiredString(data, 'session_id');
     final metadata = _map(data['provider_metadata']);
     return WorkbenchRuntimeSession(
       sessionId: sessionId,
+      providerSessionId: _requiredString(metadata, 'provider_session_id'),
+    );
+  }
+
+  @override
+  Future<WorkbenchRuntimeSession> resumeSession({
+    required String providerSessionId,
+  }) async {
+    final data = await _post('$prefix/sessions/resume', {
+      'provider_session_id': providerSessionId,
+      'config': {
+        'ephemeral': false,
+        'service_name': 'here_i_am_workbench',
+      },
+    });
+    final metadata = _map(data['provider_metadata']);
+    return WorkbenchRuntimeSession(
+      sessionId: _requiredString(data, 'session_id'),
       providerSessionId: _requiredString(metadata, 'provider_session_id'),
     );
   }
@@ -156,6 +192,18 @@ class WorkbenchRuntimeClient implements WorkbenchRuntimeGateway {
         {'type': 'text', 'text': text},
       ],
     });
+  }
+
+  @override
+  Future<void> interruptTurn({
+    required String sessionId,
+    required String turnId,
+  }) async {
+    await _post(
+      '$prefix/sessions/${Uri.encodeComponent(sessionId)}'
+      '/turns/${Uri.encodeComponent(turnId)}/interrupt',
+      const {},
+    );
   }
 
   @override

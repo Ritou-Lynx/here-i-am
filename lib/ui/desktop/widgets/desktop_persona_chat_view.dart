@@ -29,6 +29,7 @@ class DesktopPersonaChatView extends StatelessWidget {
     required this.composerFocusNode,
     required this.scrollController,
     required this.onSend,
+    this.onStop,
     this.temporaryContextLabel,
     this.canUndoWorkbenchAction,
     this.onUndoWorkbenchAction,
@@ -42,6 +43,7 @@ class DesktopPersonaChatView extends StatelessWidget {
   final FocusNode composerFocusNode;
   final ScrollController scrollController;
   final Future<void> Function() onSend;
+  final Future<void> Function()? onStop;
   final String? temporaryContextLabel;
   final bool Function(String actionId)? canUndoWorkbenchAction;
   final WorkbenchActionUndo? onUndoWorkbenchAction;
@@ -89,7 +91,9 @@ class DesktopPersonaChatView extends StatelessWidget {
               controller: controller,
               focusNode: composerFocusNode,
               enabled: !loading,
+              isStreaming: isStreaming,
               onSend: onSend,
+              onStop: onStop,
             ),
           ],
         ),
@@ -421,13 +425,17 @@ class _DesktopComposer extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.enabled,
+    required this.isStreaming,
     required this.onSend,
+    this.onStop,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool enabled;
+  final bool isStreaming;
   final Future<void> Function() onSend;
+  final Future<void> Function()? onStop;
 
   @override
   Widget build(BuildContext context) {
@@ -435,7 +443,9 @@ class _DesktopComposer extends StatelessWidget {
     return AnimatedBuilder(
       animation: Listenable.merge([controller, focusNode]),
       builder: (context, _) {
-        final canSend = enabled && controller.text.trim().isNotEmpty;
+        final canSend =
+            enabled && !isStreaming && controller.text.trim().isNotEmpty;
+        final canStop = enabled && isStreaming && onStop != null;
         return AnimatedContainer(
           key: const ValueKey('desktop_chat_input_surface'),
           duration: const Duration(milliseconds: 120),
@@ -466,7 +476,7 @@ class _DesktopComposer extends StatelessWidget {
                   controller: controller,
                   focusNode: focusNode,
                   autofocus: true,
-                  enabled: enabled,
+                  enabled: enabled && !isStreaming,
                   textInputAction: TextInputAction.send,
                   onSubmitted: canSend ? (_) => onSend() : null,
                   cursorColor: tokens.action,
@@ -479,7 +489,11 @@ class _DesktopComposer extends StatelessWidget {
                     isDense: true,
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                    hintText: enabled ? '输入要求…' : '正在连接…',
+                    hintText: !enabled
+                        ? '正在连接…'
+                        : isStreaming
+                            ? '林埃正在回复…'
+                            : '输入要求…',
                     hintStyle: whiteboardUiTextStyle(
                       fontSize: 13,
                       color: tokens.textFaint,
@@ -489,19 +503,27 @@ class _DesktopComposer extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Tooltip(
-                message: '发送',
+                message: isStreaming ? '停止' : '发送',
                 child: Material(
-                  color: canSend ? tokens.action : tokens.actionSoft,
+                  color: canSend || canStop
+                      ? tokens.action
+                      : tokens.actionSoft,
                   borderRadius: BorderRadius.circular(9),
                   child: InkWell(
-                    key: const ValueKey('desktop_chat_send'),
-                    onTap: canSend ? () => onSend() : null,
+                    key: ValueKey(
+                      isStreaming ? 'desktop_chat_stop' : 'desktop_chat_send',
+                    ),
+                    onTap: canStop
+                        ? () => onStop!()
+                        : canSend
+                            ? () => onSend()
+                            : null,
                     borderRadius: BorderRadius.circular(9),
                     child: SizedBox(
                       width: 36,
                       height: 36,
                       child: Icon(
-                        Icons.send_rounded,
+                        isStreaming ? Icons.stop_rounded : Icons.send_rounded,
                         size: 18,
                         color: tokens.canvas,
                       ),

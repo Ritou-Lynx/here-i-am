@@ -59,6 +59,7 @@ import 'package:memex/data/memory_v3/services/topic_thread_backfill_service.dart
 import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/shared_draft_service.dart';
+import 'package:memex/data/workbench_ai/workbench_conversation_coordinator.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_coordinator.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/data/services/reading/transient_fetch_cache.dart';
@@ -2453,15 +2454,9 @@ only after you have written the goodbye you want the user to hear.''',
 
   Future<void> _sendDesktopMessage() async {
     final text = _textController.text.trim();
-    final coordinator = WhiteboardWorkbenchCoordinator.instance;
-    if (text.isEmpty ||
-        _selectedImages.isNotEmpty ||
-        _isStreaming ||
-        !coordinator.matches(text)) {
-      await _sendMessage();
-      return;
-    }
+    if (text.isEmpty || _isStreaming) return;
 
+    final actionCoordinator = WhiteboardWorkbenchCoordinator.instance;
     _clearComposerText(staleText: text);
     final userMessageId = await _chatService.addUserMessage(
       _currentCharacterId,
@@ -2472,14 +2467,59 @@ only after you have written the goodbye you want the user to hear.''',
       autoRead: false,
       scrollToBottom: true,
     );
-    unawaited(
-      coordinator
+    if (actionCoordinator.matches(text)) {
+      unawaited(
+        actionCoordinator
           .run(
             characterId: _currentCharacterId,
             userText: text,
             userMessageId: userMessageId,
           )
           .catchError((Object _) => false),
+      );
+      return;
+    }
+
+    final conversationId = 'persona:$_currentCharacterId';
+    setState(() {
+      _isStreaming = true;
+      _activeStreamingCharacterId = _currentCharacterId;
+      _streamingText = '';
+    });
+    final coordinator = WorkbenchConversationCoordinator.instance;
+    try {
+      await coordinator.send(
+        conversationId: conversationId,
+        characterId: _currentCharacterId,
+        userText: text,
+        userMessageId: userMessageId,
+        onDelta: (accumulatedText) {
+          if (!mounted || _currentCharacterId != _activeStreamingCharacterId) {
+            return;
+          }
+          setState(() => _streamingText = accumulatedText);
+        },
+      );
+      if (mounted) {
+        await _refreshMessagesFromStore(
+          autoRead: false,
+          scrollToBottom: true,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isStreaming = false;
+          _activeStreamingCharacterId = null;
+          _streamingText = '';
+        });
+      }
+    }
+  }
+
+  Future<void> _stopDesktopConversation() async {
+    await WorkbenchConversationCoordinator.instance.stop(
+      'persona:$_currentCharacterId',
     );
   }
 
@@ -5332,6 +5372,7 @@ only after you have written the goodbye you want the user to hear.''',
         scrollController: _scrollController,
         temporaryContextLabel: widget.temporaryContextLabel,
         onSend: _sendDesktopMessage,
+        onStop: _stopDesktopConversation,
         canUndoWorkbenchAction:
             WhiteboardWorkbenchCoordinator.instance.canUndo,
         onUndoWorkbenchAction: WhiteboardWorkbenchCoordinator.instance.undo,
