@@ -235,12 +235,12 @@ class AppDatabase extends _$AppDatabase {
 
   final int? _testSchemaVersion;
 
-  bool _closeStarted = false;
+  Future<void>? _closeInFlight;
 
   @override
-  Future<void> close() async {
-    if (_closeStarted) return;
-    _closeStarted = true;
+  Future<void> close() => _closeInFlight ??= _closeOnce();
+
+  Future<void> _closeOnce() async {
     try {
       await super.close();
     } finally {

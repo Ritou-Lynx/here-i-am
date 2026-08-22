@@ -32,6 +32,7 @@ void main() {
     router = createAppRouter(
       GlobalKey<NavigatorState>(),
       () => const Scaffold(body: SizedBox()),
+      desktopPlatformOverride: true,
     );
   });
 
@@ -160,6 +161,7 @@ void main() {
     router = createAppRouter(
       GlobalKey<NavigatorState>(),
       () => const Scaffold(body: SizedBox()),
+      desktopPlatformOverride: true,
     );
 
     await pumpIndex(tester);

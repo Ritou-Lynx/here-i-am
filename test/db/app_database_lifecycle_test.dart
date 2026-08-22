@@ -104,4 +104,19 @@ void main() {
     expect(AppDatabase.instance, isNot(same(first)));
     expect(AppDatabase.activeUserId, 'desktop_local');
   });
+
+  test('concurrent close callers await the same completed shutdown', () async {
+    await AppDatabase.init('desktop_local');
+    final database = AppDatabase.instance;
+
+    final closes = [database.close(), database.close(), database.close()];
+    await Future.wait(closes);
+
+    expect(AppDatabase.isInitialized, isFalse);
+    expect(AppDatabase.activeUserId, isNull);
+    await expectLater(
+      database.customSelect('SELECT 1').get(),
+      throwsStateError,
+    );
+  });
 }
