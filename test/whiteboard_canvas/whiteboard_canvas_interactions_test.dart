@@ -18,6 +18,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
+import 'package:memex/ui/whiteboard/fonts.dart';
 import 'package:memex/ui/whiteboard_canvas/interactions/ui_intent.dart';
 import 'package:memex/ui/whiteboard_canvas/widgets/board_target_picker.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
@@ -394,6 +395,15 @@ void main() {
       await _openCardLibrary(tester);
 
       expect(find.text('Card C'), findsOneWidget);
+      final libraryTitle = tester.widget<Text>(find.descendant(
+        of: find.byKey(const Key('wb_lib_row_card_c')),
+        matching: find.text('Card C'),
+      ));
+      expect(libraryTitle.style?.fontFamily, richTextCjkFamily);
+      expect(
+        libraryTitle.style?.fontFamilyFallback,
+        contains(richTextCodeFamily),
+      );
       final rowRect =
           tester.getRect(find.byKey(const Key('wb_lib_row_card_c')));
 

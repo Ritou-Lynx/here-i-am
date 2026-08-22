@@ -339,7 +339,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     CardContract? card;
     var transactionStarted = false;
     try {
-      card = await repository.createTextCard(title: '未命名卡片');
+      card = await repository.createTextCard();
       if (!mounted ||
           generation != _createGeneration ||
           vm.isReadonly ||
@@ -3602,7 +3602,7 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                   Expanded(
                     child: Text(
                       title,
-                      style: TextStyle(
+                      style: whiteboardUiTextStyle(
                         color: colors.textPrimary,
                         fontSize: WhiteboardCanvasTokens.metaSize,
                         fontWeight: FontWeight.w500,
@@ -3688,7 +3688,7 @@ class _DragCardFeedback extends StatelessWidget {
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: whiteboardUiTextStyle(
                 color: colors.textPrimary,
                 fontSize: WhiteboardCanvasTokens.titleSize,
                 fontWeight: FontWeight.w600,

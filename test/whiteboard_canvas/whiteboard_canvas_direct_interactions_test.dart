@@ -431,7 +431,7 @@ void main() {
     await _doubleTapAt(tester, const Offset(650, 470));
     await _pumpUntil(
       tester,
-      find.byKey(const Key('rich_text_continuous_document')),
+      find.byKey(const Key('wb_inline_card_document')),
     );
 
     final createdItemId = vm.exportForSave().boardItems.single.itemId;
@@ -446,6 +446,31 @@ void main() {
     expect(find.byKey(const Key('wb_compact_editor_close')), findsNothing);
     expect(find.byKey(const Key('wb_compact_editor_expand')), findsNothing);
     expect(find.byKey(const Key('wb_compact_editor_save')), findsNothing);
+    expect(find.byKey(const Key('wb_compact_title')), findsNothing);
+    final editor = find.byKey(const Key('wb_compact_card_editor'));
+    final documentField = find.descendant(
+      of: editor,
+      matching: find.byKey(const Key('wb_inline_card_document')),
+    );
+    expect(find.descendant(of: editor, matching: find.byType(TextField)),
+        findsOneWidget);
+    expect(tester.widget<TextField>(documentField).decoration, isNull);
+    expect(tester.testTextInput.hasAnyClients, isTrue);
+    tester.testTextInput.updateEditingValue(const TextEditingValue(
+      text: '新标题\n第一段',
+      selection: TextSelection.collapsed(offset: 7),
+      composing: TextRange(start: 4, end: 7),
+    ));
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(documentField).controller!.value.composing,
+      const TextRange(start: 4, end: 7),
+    );
+    tester.testTextInput.updateEditingValue(const TextEditingValue(
+      text: '新标题\n第一段\n第二段',
+      selection: TextSelection.collapsed(offset: 11),
+    ));
+    await tester.pump();
 
     final records = await tester.runAsync(harness.repository.listCards);
     expect(records, hasLength(1));
@@ -454,8 +479,15 @@ void main() {
     expect(vm.exportForSave().boardItems.single.x, closeTo(-880, 0.01));
     expect(vm.exportForSave().boardItems.single.y, closeTo(70, 0.01));
     await tester.tapAt(const Offset(30, 560));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
+    await _pumpUntilGone(
+      tester,
+      find.byKey(const Key('wb_compact_card_editor')),
+    );
+    final createdStored = (await tester.runAsync(
+      () => harness.repository.getCard(records!.single.card.cardId),
+    ))!;
+    expect(createdStored.card.title, '新标题');
+    expect(createdStored.card.body, '第一段\n第二段');
     vm.handleIntent(
       SelectItemIntent(itemId: vm.exportForSave().boardItems.single.itemId),
     );
@@ -523,7 +555,7 @@ void main() {
     expect(after.height, before.height);
   });
 
-  testWidgets('原位编辑正文或标题聚焦时 Esc 都保存退出且不改变几何', (tester) async {
+  testWidgets('原位连续卡面首行投影标题、其余投影正文且 Esc 保存', (tester) async {
     final harness = _RepoHarness.create();
     addTearDown(harness.dispose);
     final original = (await tester.runAsync(
@@ -547,12 +579,12 @@ void main() {
     final itemBefore = vm.exportForSave().boardItems.single;
 
     await _doubleTapAt(tester, tester.getCenter(find.text('原位卡片')));
-    final field = find.byKey(const Key('rich_text_continuous_document'));
+    final field = find.byKey(const Key('wb_inline_card_document'));
     await _pumpUntil(tester, field);
     await tester.tap(field);
     tester.testTextInput.updateEditingValue(const TextEditingValue(
-      text: '编辑后正文',
-      selection: TextSelection.collapsed(offset: 5),
+      text: '编辑后标题\n编辑后正文',
+      selection: TextSelection.collapsed(offset: 11),
     ));
     await tester.pump();
 
@@ -570,22 +602,8 @@ void main() {
     final stored = (await tester.runAsync(
       () => harness.repository.getCard('card_escape_inline'),
     ))!;
+    expect(stored.card.title, '编辑后标题');
     expect(stored.card.body, '编辑后正文');
-
-    await _doubleTapAt(tester, tester.getCenter(find.text('原位卡片')));
-    final title = find.byKey(const Key('wb_compact_title'));
-    await _pumpUntil(tester, title);
-    await tester.enterText(title, '编辑后标题');
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await _pumpUntilGone(
-      tester,
-      find.byKey(const Key('wb_compact_card_editor')),
-    );
-
-    final titleStored = (await tester.runAsync(
-      () => harness.repository.getCard('card_escape_inline'),
-    ))!;
-    expect(titleStored.card.title, '编辑后标题');
   });
 
   testWidgets('同一 Card 的两个 BoardItem 只编辑被双击的摆放', (tester) async {

@@ -75,19 +75,22 @@ void main() {
     await _waitForWidget(
         tester, find.byKey(const Key('wb_compact_card_editor')));
     final embeddedEditor = find.byKey(const Key('wb_compact_card_editor'));
-    final embeddedRichText = find.descendant(
+    final inlineDocument = find.descendant(
       of: embeddedEditor,
-      matching: find.byType(CardRichTextEditor),
+      matching: find.byKey(const Key('wb_inline_card_document')),
     );
-    await _waitForWidget(tester, embeddedRichText);
+    await _waitForWidget(tester, inlineDocument);
     expect(embeddedEditor, findsOneWidget);
-    final richTextEditor = tester.widget<CardRichTextEditor>(
-      embeddedRichText,
-    );
-    expect(richTextEditor.compact, isTrue);
-    expect(richTextEditor.showToolbar, isFalse);
-    expect(richTextEditor.readOnly, isFalse);
-    expect(richTextEditor.inlineSurface, isTrue);
+    expect(
+        find.descendant(of: embeddedEditor, matching: find.byType(TextField)),
+        findsOneWidget);
+    expect(tester.widget<TextField>(inlineDocument).decoration, isNull);
+    expect(
+        find.descendant(
+          of: embeddedEditor,
+          matching: find.byType(CardRichTextEditor),
+        ),
+        findsNothing);
     expect(
       find.ancestor(
         of: embeddedEditor,
