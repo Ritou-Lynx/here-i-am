@@ -1,9 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/workbench_ai/search/context_search_projection.dart';
+import 'package:memex/data/workbench_ai/search/existing_search_adapters.dart';
 import 'package:memex/data/workbench_ai/search/workbench_search_facade.dart';
 import 'package:memex/data/workbench_ai/search/workbench_search_tool_host.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/workbench_ai/context/context_envelope.dart';
 import 'package:memex/domain/workbench_ai/context/context_envelope_codec.dart';
 import 'package:memex/domain/workbench_ai/runtime/runtime_session_binding.dart';
@@ -25,14 +30,14 @@ void main() {
       permissionLane: scope.permissionLane,
       objectType: _objectType(scope),
       objectId: id,
-      stableRef: '${scope.wireName}:$id',
+      stableRef: _stableRef(scope, id),
       title: 'Title $id',
       snippet: snippet ?? 'Snippet $id',
       relevance: relevance,
       provenance: SearchProvenance(
         adapterId: adapterId,
         sourceKind: '${scope.wireName}_projection',
-        sourceRef: 'source:$id',
+        sourceRef: _stableRef(scope, id),
         containerRef: container,
         queryStrategy: 'fake_match',
         retrievedAt: retrievedAt,
@@ -80,10 +85,10 @@ void main() {
       expect(response.status, WorkbenchSearchStatus.ok);
       expect(response.hits, hasLength(5));
       expect(response.hits.map((entry) => entry.stableRef), [
-        'card_source:id-0',
-        'memory_v3:id-1',
+        'card:id-0',
+        'memory_card:id-1',
         'project_memory:id-2',
-        'conversation:id-3',
+        'chat_message:id-3',
         'task_artifact:id-4',
       ]);
       expect(response.trace.traceId, 'trace-all-scopes');
@@ -156,6 +161,130 @@ void main() {
       );
     },
   );
+
+  test('production card-library adapter returns only card hits', () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final root = await Directory.systemTemp.createTemp('p2-card-search-');
+    addTearDown(() async {
+      await db.close();
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    await repository.createTextCard(
+      cardId: 'card-alpha',
+      title: 'Alpha card',
+      body: 'search needle',
+    );
+    final result = await CardLibraryWorkbenchSearchAdapter(repository).search(
+      SearchAdapterRequest(
+        requestId: 'trace-card-library',
+        query: 'needle',
+        scope: SearchScope.cardLibrary,
+        limit: 4,
+        permissionGrant: SearchPermissionGrant(
+          lane: SearchPermissionLane.contentLibrary,
+          allContainers: true,
+        ),
+      ),
+    );
+
+    expect(SearchScope.cardLibrary.wireName, 'card_library');
+    expect(
+      SearchScope.values.map((scope) => scope.wireName),
+      isNot(contains('card_source')),
+    );
+    expect(result.hits.single.scope, SearchScope.cardLibrary);
+    expect(result.hits.single.objectType, 'card');
+    expect(result.hits.single.stableRef, 'card:card-alpha');
+    expect(result.hits.single.provenance.sourceRef, 'card:card-alpha');
+  });
+
+  test('restricted Memory V3 searches evidence before the result limit',
+      () async {
+    final reader = _FakeMemoryV3Reader(
+      candidates: List.generate(
+        6,
+        (index) => MemoryV3SearchCandidate(
+          cardId: 'memory-$index',
+          rank: -1 + index / 10,
+          queryStrategy: 'fake_fts',
+        ),
+      ),
+    );
+    final adapter = MemoryV3WorkbenchSearchAdapter.withReader(reader);
+    final response = await WorkbenchSearchFacade(adapters: [adapter]).search(
+      request: WorkbenchSearchRequest(
+        requestId: 'trace-memory-allow-list',
+        query: 'needle',
+        scopes: {SearchScope.memoryV3},
+        budget: WorkbenchSearchBudget(maxResults: 1, maxResultsPerScope: 1),
+      ),
+      authorization: SearchAuthorization(
+        profileId: 'one-memory-card',
+        grants: [
+          SearchPermissionGrant(
+            lane: SearchPermissionLane.userTruth,
+            allowedContainerRefs: {'memory-5'},
+          ),
+        ],
+      ),
+    );
+
+    expect(
+      reader.requestedLimits,
+      [MemoryV3WorkbenchSearchAdapter.restrictedEvidenceWindow],
+    );
+    expect(response.hits.single.objectId, 'memory-5');
+    expect(response.trace.candidateCount, 6);
+    expect(
+      response.trace.truncationReasons,
+      isNot(contains('memory_permission_evidence_window')),
+    );
+
+    final exhaustedReader = _FakeMemoryV3Reader(
+      candidates: List.generate(
+        MemoryV3WorkbenchSearchAdapter.restrictedEvidenceWindow + 1,
+        (index) => MemoryV3SearchCandidate(
+          cardId: 'blocked-$index',
+          rank: -1,
+          queryStrategy: 'fake_fts',
+        ),
+      )..last = const MemoryV3SearchCandidate(
+          cardId: 'allowed-beyond-window',
+          rank: -0.1,
+          queryStrategy: 'fake_fts',
+        ),
+    );
+    final exhausted = await WorkbenchSearchFacade(
+      adapters: [MemoryV3WorkbenchSearchAdapter.withReader(exhaustedReader)],
+    ).search(
+      request: WorkbenchSearchRequest(
+        requestId: 'trace-memory-window-exhausted',
+        query: 'needle',
+        scopes: {SearchScope.memoryV3},
+        budget: WorkbenchSearchBudget(maxResults: 1, maxResultsPerScope: 1),
+      ),
+      authorization: SearchAuthorization(
+        profileId: 'beyond-window',
+        grants: [
+          SearchPermissionGrant(
+            lane: SearchPermissionLane.userTruth,
+            allowedContainerRefs: {'allowed-beyond-window'},
+          ),
+        ],
+      ),
+    );
+    expect(exhausted.hits, isEmpty);
+    expect(exhausted.status, WorkbenchSearchStatus.partial);
+    expect(
+      exhausted.trace.candidateCount,
+      MemoryV3WorkbenchSearchAdapter.restrictedEvidenceWindow,
+    );
+    expect(
+      exhausted.trace.truncationReasons,
+      contains('memory_permission_evidence_window'),
+    );
+  });
 
   test('enforces total results and exact UTF-8 response budget', () async {
     final adapter = _FakeAdapter(
@@ -236,11 +365,11 @@ void main() {
         adapters: [
           _FakeAdapter(
             adapterId: 'cards',
-            scopes: {SearchScope.cardSource},
+            scopes: {SearchScope.cardLibrary},
             hits: {
-              SearchScope.cardSource: [
+              SearchScope.cardLibrary: [
                 hit(
-                  scope: SearchScope.cardSource,
+                  scope: SearchScope.cardLibrary,
                   id: 'card-1',
                   adapterId: 'cards',
                   relevance: 1,
@@ -253,14 +382,14 @@ void main() {
         request: WorkbenchSearchRequest(
           requestId: 'trace-context',
           query: 'whiteboard',
-          scopes: {SearchScope.cardSource},
+          scopes: {SearchScope.cardLibrary},
         ),
         authorization: allLanes(),
       );
       final first = ContextSearchProjection.toRecallSnippets(response);
       final second = ContextSearchProjection.toRecallSnippets(response);
       expect(first.single.recallId, second.single.recallId);
-      expect(first.single.sourceId, 'card_source:card-1');
+      expect(first.single.sourceId, 'card:card-1');
       expect(first.single.content.trust, ContextTrust.untrustedContent);
       final unicodeResponse = response.copyWith(
         hits: [
@@ -294,7 +423,7 @@ void main() {
       final restored = ContextEnvelopeCodec.decode(
         ContextEnvelopeCodec.encode(envelope),
       );
-      expect(restored.recallSnippets.single.sourceId, 'card_source:card-1');
+      expect(restored.recallSnippets.single.sourceId, 'card:card-1');
     },
   );
 
@@ -353,17 +482,56 @@ class _FakeAdapter implements WorkbenchSearchAdapter {
   final List<SearchAdapterRequest> requests = [];
 
   @override
-  Future<List<SearchHitRef>> search(SearchAdapterRequest request) async {
+  Future<SearchAdapterResult> search(SearchAdapterRequest request) async {
     requests.add(request);
     if (error != null) throw error!;
-    return hits[request.scope] ?? const [];
+    final results = hits[request.scope] ?? const [];
+    return SearchAdapterResult(hits: results);
+  }
+}
+
+class _FakeMemoryV3Reader implements MemoryV3SearchReader {
+  _FakeMemoryV3Reader({required this.candidates});
+
+  final List<MemoryV3SearchCandidate> candidates;
+  final List<int> requestedLimits = [];
+
+  @override
+  Future<List<MemoryV3SearchCandidate>> search(
+    String query, {
+    required int limit,
+  }) async {
+    requestedLimits.add(limit);
+    return candidates.take(limit).toList(growable: false);
+  }
+
+  @override
+  Future<List<MemoryV3SearchDocument>> readByIds(List<String> cardIds) async {
+    return cardIds
+        .map(
+          (id) => MemoryV3SearchDocument(
+            cardId: id,
+            title: 'Title $id',
+            dropletLabel: '记忆',
+            retrievalText: 'Snippet $id',
+          ),
+        )
+        .toList(growable: false);
   }
 }
 
 String _objectType(SearchScope scope) => switch (scope) {
-      SearchScope.cardSource => 'card',
+      SearchScope.cardLibrary => 'card',
       SearchScope.memoryV3 => 'memory_card',
       SearchScope.projectMemory => 'project_memory_item',
       SearchScope.conversation => 'chat_message',
       SearchScope.taskArtifact => 'task_artifact',
+    };
+
+String _stableRef(SearchScope scope, String id) => switch (scope) {
+      SearchScope.cardLibrary => 'card:$id',
+      SearchScope.memoryV3 => 'memory_card:$id',
+      SearchScope.projectMemory => 'project_memory:$id',
+      SearchScope.conversation => 'chat_message:$id',
+      SearchScope.taskArtifact => 'task_artifact:$id',
     };

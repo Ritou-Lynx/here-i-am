@@ -5,22 +5,25 @@ import 'package:memex/data/memory_v3/services/project_memory_service.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/domain/workbench_ai/search/workbench_search_contract.dart';
 
-/// Safe adapter over the production Card/Source projection. Rich-text and
-/// Source object files are deliberately not loaded.
-class CardSourceWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
-  CardSourceWorkbenchSearchAdapter(this._repository);
+/// Safe adapter over the production card-library projection. Linked Source
+/// metadata is not searched or returned as a Source hit; a dedicated Source
+/// adapter needs its own bounded repository query.
+class CardLibraryWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
+  CardLibraryWorkbenchSearchAdapter(this._repository);
 
   final UnifiedCardRepository _repository;
 
   @override
-  String get adapterId => 'here_i_am_card_source_v1';
+  String get adapterId => 'here_i_am_card_library_v1';
 
   @override
-  Set<SearchScope> get supportedScopes => const {SearchScope.cardSource};
+  Set<SearchScope> get supportedScopes => const {SearchScope.cardLibrary};
 
   @override
-  Future<List<SearchHitRef>> search(SearchAdapterRequest request) async {
-    if (request.scope != SearchScope.cardSource) return const [];
+  Future<SearchAdapterResult> search(SearchAdapterRequest request) async {
+    if (request.scope != SearchScope.cardLibrary) {
+      return SearchAdapterResult(hits: const []);
+    }
     final grant = request.permissionGrant;
     final records = grant.allContainers
         ? (await _repository.listCards(
@@ -34,7 +37,7 @@ class CardSourceWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
             .toList(growable: false)
         : await _searchAllowedBoards(request);
     final retrievedAt = DateTime.now().toUtc();
-    return records.take(request.limit).map((entry) {
+    final hits = records.take(request.limit).map((entry) {
       final record = entry.record;
       final card = record.card;
       final title = card.title.trim().isEmpty ? '无标题卡片' : card.title.trim();
@@ -44,9 +47,8 @@ class CardSourceWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
           : card.tags.isNotEmpty
               ? card.tags.join(' · ')
               : title;
-      final sourceId = record.source?.sourceId;
       return SearchHitRef(
-        scope: SearchScope.cardSource,
+        scope: SearchScope.cardLibrary,
         permissionLane: SearchPermissionLane.contentLibrary,
         objectType: 'card',
         objectId: card.cardId,
@@ -56,10 +58,8 @@ class CardSourceWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
         relevance: _containsScore(request.query, title, snippet),
         provenance: SearchProvenance(
           adapterId: adapterId,
-          sourceKind:
-              sourceId == null ? 'card_projection' : 'source_projection',
-          sourceRef:
-              sourceId == null ? 'card:${card.cardId}' : 'source:$sourceId',
+          sourceKind: 'card_library_projection',
+          sourceRef: 'card:${card.cardId}',
           // A restricted search gets one allowed board at a time. The facade
           // rechecks this ref before returning the hit.
           containerRef: entry.containerRef,
@@ -68,6 +68,7 @@ class CardSourceWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
         ),
       );
     }).toList(growable: false);
+    return SearchAdapterResult(hits: hits);
   }
 
   Future<List<({UnifiedCardRecord record, String containerRef})>>
@@ -103,10 +104,84 @@ class CardSourceWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
 /// Uses the Memory V3 FTS read API without the higher-level recall method that
 /// appends query-tuning logs. Restricted grants are treated as explicit card
 /// ids and filtered after a bounded FTS evidence window.
-class MemoryV3WorkbenchSearchAdapter implements WorkbenchSearchAdapter {
-  MemoryV3WorkbenchSearchAdapter(this._service);
+class MemoryV3SearchCandidate {
+  const MemoryV3SearchCandidate({
+    required this.cardId,
+    required this.rank,
+    this.queryStrategy,
+  });
+
+  final String cardId;
+  final double rank;
+  final String? queryStrategy;
+}
+
+class MemoryV3SearchDocument {
+  const MemoryV3SearchDocument({
+    required this.cardId,
+    required this.title,
+    required this.dropletLabel,
+    required this.retrievalText,
+  });
+
+  final String cardId;
+  final String title;
+  final String dropletLabel;
+  final String retrievalText;
+}
+
+abstract interface class MemoryV3SearchReader {
+  Future<List<MemoryV3SearchCandidate>> search(
+    String query, {
+    required int limit,
+  });
+
+  Future<List<MemoryV3SearchDocument>> readByIds(List<String> cardIds);
+}
+
+class MemoryCardQuerySearchReader implements MemoryV3SearchReader {
+  MemoryCardQuerySearchReader(this._service);
 
   final MemoryCardQueryService _service;
+
+  @override
+  Future<List<MemoryV3SearchCandidate>> search(
+    String query, {
+    required int limit,
+  }) async {
+    final raw = await _service.searchCards(query, limit: limit);
+    return raw.map((entry) {
+      return MemoryV3SearchCandidate(
+        cardId: entry['card_id']!.toString(),
+        rank: (entry['rank'] as num?)?.toDouble() ?? 0,
+        queryStrategy: entry['query_strategy']?.toString(),
+      );
+    }).toList(growable: false);
+  }
+
+  @override
+  Future<List<MemoryV3SearchDocument>> readByIds(List<String> cardIds) async {
+    final cards = await _service.getCardsByIds(cardIds);
+    return cards.map((card) {
+      return MemoryV3SearchDocument(
+        cardId: card.id,
+        title: card.title,
+        dropletLabel: card.dropletLabel,
+        retrievalText: card.retrievalText,
+      );
+    }).toList(growable: false);
+  }
+}
+
+class MemoryV3WorkbenchSearchAdapter implements WorkbenchSearchAdapter {
+  MemoryV3WorkbenchSearchAdapter(MemoryCardQueryService service)
+      : this.withReader(MemoryCardQuerySearchReader(service));
+
+  MemoryV3WorkbenchSearchAdapter.withReader(this._reader);
+
+  static const restrictedEvidenceWindow = 128;
+
+  final MemoryV3SearchReader _reader;
 
   @override
   String get adapterId => 'here_i_am_memory_v3_v1';
@@ -115,21 +190,25 @@ class MemoryV3WorkbenchSearchAdapter implements WorkbenchSearchAdapter {
   Set<SearchScope> get supportedScopes => const {SearchScope.memoryV3};
 
   @override
-  Future<List<SearchHitRef>> search(SearchAdapterRequest request) async {
-    if (request.scope != SearchScope.memoryV3) return const [];
-    final raw = await _service.searchCards(request.query, limit: request.limit);
+  Future<SearchAdapterResult> search(SearchAdapterRequest request) async {
+    if (request.scope != SearchScope.memoryV3) {
+      return SearchAdapterResult(hits: const []);
+    }
     final allowed = request.permissionGrant;
+    final evidenceLimit =
+        allowed.allContainers ? request.limit : restrictedEvidenceWindow;
+    final raw = await _reader.search(request.query, limit: evidenceLimit);
     final filtered = raw.where((entry) {
-      final id = entry['card_id']?.toString();
-      return id != null && (allowed.allContainers || allowed.allows(id));
+      return allowed.allContainers || allowed.allows(entry.cardId);
     }).toList(growable: false);
-    final ids = filtered.map((entry) => entry['card_id']!.toString()).toList();
-    final cards = await _service.getCardsByIds(ids);
-    final byId = {for (final card in cards) card.id: card};
+    final selected = filtered.take(request.limit).toList(growable: false);
+    final ids = selected.map((entry) => entry.cardId).toList(growable: false);
+    final cards = await _reader.readByIds(ids);
+    final byId = {for (final card in cards) card.cardId: card};
     final retrievedAt = DateTime.now().toUtc();
     final results = <SearchHitRef>[];
-    for (final entry in filtered) {
-      final id = entry['card_id']!.toString();
+    for (final entry in selected) {
+      final id = entry.cardId;
       final card = byId[id];
       if (card == null) continue;
       final title = card.title.trim().isEmpty
@@ -139,7 +218,6 @@ class MemoryV3WorkbenchSearchAdapter implements WorkbenchSearchAdapter {
           : card.title.trim();
       final snippet =
           card.retrievalText.trim().isEmpty ? title : card.retrievalText.trim();
-      final rank = (entry['rank'] as num?)?.toDouble() ?? 0;
       results.add(
         SearchHitRef(
           scope: SearchScope.memoryV3,
@@ -149,19 +227,30 @@ class MemoryV3WorkbenchSearchAdapter implements WorkbenchSearchAdapter {
           stableRef: 'memory_card:$id',
           title: title,
           snippet: snippet,
-          relevance: _ftsRelevance(rank),
+          relevance: _ftsRelevance(entry.rank),
           provenance: SearchProvenance(
             adapterId: adapterId,
             sourceKind: 'memory_v3_card',
             sourceRef: 'memory_card:$id',
             containerRef: id,
-            queryStrategy: entry['query_strategy']?.toString(),
+            queryStrategy: entry.queryStrategy,
             retrievedAt: retrievedAt,
           ),
         ),
       );
     }
-    return results;
+    final reasons = <String>[];
+    if (!allowed.allContainers && raw.length >= restrictedEvidenceWindow) {
+      reasons.add('memory_permission_evidence_window');
+    }
+    if (filtered.length > request.limit) {
+      reasons.add('memory_authorized_result_limit');
+    }
+    return SearchAdapterResult(
+      hits: results,
+      examinedCandidateCount: raw.length,
+      truncationReasons: reasons,
+    );
   }
 }
 
@@ -179,8 +268,10 @@ class ProjectMemoryWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
   Set<SearchScope> get supportedScopes => const {SearchScope.projectMemory};
 
   @override
-  Future<List<SearchHitRef>> search(SearchAdapterRequest request) async {
-    if (request.scope != SearchScope.projectMemory) return const [];
+  Future<SearchAdapterResult> search(SearchAdapterRequest request) async {
+    if (request.scope != SearchScope.projectMemory) {
+      return SearchAdapterResult(hits: const []);
+    }
     final grant = request.permissionGrant;
     final projectIds = grant.allContainers
         ? await _service.projectedProjectIds()
@@ -193,7 +284,7 @@ class ProjectMemoryWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
       ),
       limit: request.limit,
     );
-    return hits.map((hit) {
+    final results = hits.map((hit) {
       final details = <String>[
         hit.summary,
         ...hit.decisions.map((value) => '决定：$value'),
@@ -218,6 +309,7 @@ class ProjectMemoryWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
         ),
       );
     }).toList(growable: false);
+    return SearchAdapterResult(hits: results);
   }
 }
 

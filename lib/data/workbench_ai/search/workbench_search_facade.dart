@@ -42,6 +42,7 @@ class WorkbenchSearchFacade {
     final failedScopes = <SearchScope>[];
     final executedAdapters = <String>{};
     final candidates = <SearchHitRef>[];
+    var examinedCandidateCount = 0;
     final reasons = <String>{};
 
     for (final scope in requestedScopes) {
@@ -62,7 +63,7 @@ class WorkbenchSearchFacade {
       for (final adapter in adapters) {
         executedAdapters.add(adapter.adapterId);
         try {
-          final hits = await adapter.search(
+          final adapterResult = await adapter.search(
             SearchAdapterRequest(
               requestId: request.requestId,
               query: request.query,
@@ -71,6 +72,9 @@ class WorkbenchSearchFacade {
               permissionGrant: grant,
             ),
           );
+          examinedCandidateCount += adapterResult.examinedCandidateCount;
+          reasons.addAll(adapterResult.truncationReasons);
+          final hits = adapterResult.hits;
           if (hits.length > request.budget.maxResultsPerScope) {
             reasons.add('adapter_result_limit');
           }
@@ -119,7 +123,7 @@ class WorkbenchSearchFacade {
       deniedScopes: List.unmodifiable(deniedScopes),
       unsupportedScopes: List.unmodifiable(unsupportedScopes),
       failedScopes: List.unmodifiable(failedScopes),
-      candidateCount: candidates.length,
+      candidateCount: examinedCandidateCount,
       returnedCount: hits.length,
       truncationReasons: const [],
       serializedUtf8Bytes: 0,

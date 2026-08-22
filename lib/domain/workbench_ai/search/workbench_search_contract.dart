@@ -3,7 +3,7 @@ library;
 import 'dart:convert';
 
 enum SearchScope {
-  cardSource('card_source', SearchPermissionLane.contentLibrary),
+  cardLibrary('card_library', SearchPermissionLane.contentLibrary),
   memoryV3('memory_v3', SearchPermissionLane.userTruth),
   projectMemory('project_memory', SearchPermissionLane.projectMemory),
   conversation('conversation', SearchPermissionLane.conversation),
@@ -279,7 +279,33 @@ class SearchAdapterRequest {
 abstract interface class WorkbenchSearchAdapter {
   String get adapterId;
   Set<SearchScope> get supportedScopes;
-  Future<List<SearchHitRef>> search(SearchAdapterRequest request);
+  Future<SearchAdapterResult> search(SearchAdapterRequest request);
+}
+
+/// Adapter-local evidence receipt. A bounded adapter may inspect more
+/// candidates than it returns (for example, to apply an allow-list). If its
+/// evidence window is exhausted, it must report a stable truncation reason.
+class SearchAdapterResult {
+  SearchAdapterResult({
+    required List<SearchHitRef> hits,
+    int? examinedCandidateCount,
+    List<String> truncationReasons = const [],
+  })  : hits = List.unmodifiable(hits),
+        examinedCandidateCount = examinedCandidateCount ?? hits.length,
+        truncationReasons = List.unmodifiable(truncationReasons) {
+    if (this.examinedCandidateCount < hits.length) {
+      throw ArgumentError('examinedCandidateCount cannot be below hit count');
+    }
+    for (final reason in truncationReasons) {
+      if (!RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(reason)) {
+        throw ArgumentError('Invalid adapter truncation reason');
+      }
+    }
+  }
+
+  final List<SearchHitRef> hits;
+  final int examinedCandidateCount;
+  final List<String> truncationReasons;
 }
 
 enum WorkbenchSearchStatus {
