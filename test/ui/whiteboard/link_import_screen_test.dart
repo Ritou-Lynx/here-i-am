@@ -624,20 +624,66 @@ void main() {
     expect(find.widgetWithText(FilledButton, '存入卡片库'), findsNothing);
   });
 
-  testWidgets('unsupported state shown honestly (video platform)',
+  testWidgets('bilibili is saved honestly as a link-only video source',
       (tester) async {
-    await pump(tester, _service(repository, {}));
+    final service = _service(repository, {});
+    await pump(tester, service);
 
     await tester.enterText(
       find.byType(TextField),
       'https://www.bilibili.com/video/BV1xx411c7mD',
     );
     await tester.tap(find.widgetWithText(FilledButton, '预览'));
-    await settleFor(tester, find.text('暂不支持此链接'));
+    await settleFor(tester, find.text('视频链接级保存'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('研读模块'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '存入卡片库'), findsNothing);
+    expect(find.text('哔哩哔哩视频 · BV1xx411c7mD'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '存入卡片库'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await settleFor(tester, find.text('已在卡片库'));
+    expect(await tester.runAsync(service.listCards), hasLength(1));
+  });
+
+  testWidgets('full share prose extracts its URL before previewing',
+      (tester) async {
+    const url = 'https://example.com/shared-note';
+    final service = _service(repository, {
+      url: _Canned(_fixture('open_graph.html'), 200, 'text/html'),
+    });
+    await pump(tester, service);
+
+    await tester.enterText(
+      find.byType(TextField),
+      '分享标题和口令都在前面，最后才是链接：$url。',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await settleFor(tester, find.text('春雨昼眠主题设计文档'));
+
+    expect(find.text('链接级保存'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '存入卡片库'), findsOneWidget);
+    expect(find.text(url), findsWidgets);
+  });
+
+  testWidgets('multiple links require an explicit candidate choice',
+      (tester) async {
+    const selected = 'https://example.com/second';
+    final service = _service(repository, {
+      selected: _Canned(_fixture('open_graph.html'), 200, 'text/html'),
+    });
+    await pump(tester, service);
+
+    await tester.enterText(
+      find.byType(TextField),
+      '第一个 https://example.com/first 第二个 $selected',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('选择要导入的链接'), findsOneWidget);
+    await tester.tap(find.text(selected));
+    await settleFor(tester, find.text('春雨昼眠主题设计文档'));
+    expect(find.text(selected), findsWidgets);
   });
 
   testWidgets(

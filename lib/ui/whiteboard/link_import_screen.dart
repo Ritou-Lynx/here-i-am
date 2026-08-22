@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:memex/data/whiteboard/ingestion/link_ingestion_service.dart';
+import 'package:memex/data/whiteboard/ingestion/shared_link_input_parser.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
@@ -174,11 +175,19 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   Future<void> _fetch() async {
     final service = _service;
     if (service == null || _fetching || _cardBusy) return;
-    final url = _urlController.text.trim();
-    if (url.isEmpty) {
+    if (_urlController.text.trim().isEmpty) {
       setState(() => _inputError = '请输入要导入的链接');
       return;
     }
+    final parsedInput = parseSharedLinkInput(_urlController.text);
+    if (parsedInput == null) {
+      setState(() => _inputError = '没有找到可导入的 http(s) 链接');
+      return;
+    }
+    final url = await _chooseUrl(parsedInput);
+    if (url == null || !mounted) return;
+    _urlController.text = url;
+    _urlController.selection = TextSelection.collapsed(offset: url.length);
     setState(() {
       _fetching = true;
       _inputError = null;
@@ -218,6 +227,44 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
         _inputError = '抓取失败：$e';
       });
     }
+  }
+
+  Future<String?> _chooseUrl(SharedLinkInput input) async {
+    if (input.urls.length == 1) return input.urls.single;
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const ValueKey('link_import_url_picker'),
+        title: const Text('选择要导入的链接'),
+        content: SizedBox(
+          width: 520,
+          height: input.urls.length < 5 ? input.urls.length * 64.0 : 320,
+          child: ListView.separated(
+            itemCount: input.urls.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final candidate = input.urls[index];
+              return ListTile(
+                key: ValueKey('link_import_url_candidate_$index'),
+                title: Text(
+                  candidate,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: richTextCodeTextStyle(fontSize: 12),
+                ),
+                onTap: () => Navigator.of(dialogContext).pop(candidate),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveCard() async {
@@ -307,7 +354,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DesktopPageTitle(
-              title: '导入链接',
+              title: '导入链接 / 视频',
               meta: '预览零写入 · 确认后提交当前结果',
               onBack: _goBack,
             ),
@@ -363,7 +410,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            '先安全预览，再由你明确保存。确认时提交当前展示的结果，不会重新抓取。',
+            '可直接粘贴分享文案或链接。先安全预览，再由你明确保存；确认时不会重新抓取。',
             style: whiteboardUiTextStyle(
               fontSize: 12,
               height: 1.5,
@@ -424,7 +471,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
           fontSize: 13,
         ),
         decoration: InputDecoration(
-          hintText: '粘贴 http(s) 链接',
+          hintText: '粘贴分享文案、网页或视频链接',
           hintStyle: whiteboardUiTextStyle(
             color: tokens.textFaint,
             fontSize: 13,
@@ -598,7 +645,13 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
         savedCard != null && _matchesExistingVersion && !_cardSaved;
     final updateAvailable = savedCard != null && !_matchesExistingVersion;
     final studyReady = _isStudyReady(result);
-    final capabilityLabel = studyReady ? '研读级就绪' : '链接级保存';
+    final linkOnlyVideo = source.mediaType == SourceMediaType.video &&
+        result.videoCapability == VideoCapabilityLevel.linkOnly;
+    final capabilityLabel = studyReady
+        ? '研读级就绪'
+        : linkOnlyVideo
+            ? '视频链接级保存'
+            : '链接级保存';
 
     final Widget actionArea;
     if (alreadyImported || _cardSaved) {

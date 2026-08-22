@@ -94,9 +94,12 @@ void main() {
     }
   });
 
-  LinkIngestionService buildService(Map<String, _Canned> responses) {
+  LinkIngestionService buildService(
+    Map<String, _Canned> responses, {
+    _FakeAdapter? adapter,
+  }) {
     final client = SafeHttpClient(
-      dio: _dio(responses),
+      dio: _dio(responses, adapter: adapter),
       config: const SafeHttpConfig(enforceDnsCheck: false),
     );
     final ingestor = LinkIngestor(httpClient: client);
@@ -444,20 +447,33 @@ void main() {
     });
   });
 
-  group('Four ingestion states (ok / failed / needsAuth / unsupported)', () {
-    test('video platform URL → unsupported (W4 scope), no fetch attempted',
+  group('Ingestion states and video capability', () {
+    test('bilibili previews link-only without fetching, then commits once',
         () async {
-      final svc = buildService({});
+      final adapter = _FakeAdapter({});
+      final svc = buildService({}, adapter: adapter);
 
-      final outcome =
-          await svc.ingestUrl('https://www.bilibili.com/video/BV1xx411c7mD');
+      final outcome = await svc.ingestUrl(
+        'https://www.bilibili.com/video/BV1xx411c7mD',
+        createCard: false,
+      );
 
-      expect(outcome.succeeded, isFalse);
-      expect(outcome.result.status, IngestionStatus.unsupported);
-      expect(outcome.result.errorMessage, contains('研读模块'));
+      expect(outcome.succeeded, isTrue);
+      expect(outcome.result.status, IngestionStatus.ok);
       expect(outcome.result.provider, 'bilibili');
-      expect(outcome.result.source, isNull);
+      expect(outcome.result.source!.mediaType, SourceMediaType.video);
+      expect(
+        outcome.result.videoCapability,
+        VideoCapabilityLevel.linkOnly,
+      );
       expect(outcome.card, isNull);
+      expect(adapter.fetchCount, 0);
+      expect(await svc.listCards(), isEmpty);
+
+      final committed = await svc.commitResult(outcome.result);
+      expect(committed.cardCreated, isTrue);
+      expect(committed.card!.sourceId, outcome.result.source!.sourceId);
+      expect(await svc.listCards(), hasLength(1));
     });
 
     test('youtube URL previews without writes, then commits unified identity',
