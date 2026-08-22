@@ -594,7 +594,7 @@ void main() {
     );
   });
 
-  testWidgets('YouTube preview is zero-write then confirms into source route',
+  testWidgets('YouTube save stays put and open is a separate explicit action',
       (tester) async {
     final service = _service(repository, {});
     await pump(tester, service);
@@ -614,15 +614,23 @@ void main() {
       isNull,
     );
 
-    await tester.tap(find.widgetWithText(FilledButton, '保存并进入研读'));
-    await settleFor(
-      tester,
-      find.text('视频研读:src_youtube_M7lc1UVf-VE'),
-    );
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await settleFor(tester, find.text('已在卡片库'));
+    expect(find.text('视频研读:src_youtube_M7lc1UVf-VE'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, '打开视频研读'), findsOneWidget);
 
     final cards = await tester.runAsync(service.listCards);
     expect(cards, hasLength(1));
     expect(cards!.single.sourceId, 'src_youtube_M7lc1UVf-VE');
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, '打开视频研读'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('视频研读:src_youtube_M7lc1UVf-VE'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('failed state shown honestly with error message', (tester) async {

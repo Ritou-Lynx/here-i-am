@@ -114,6 +114,48 @@ class _LinkOnlyAdapter implements PlayerAdapter {
   Future<void> seekTo(int positionMs) async {}
 }
 
+/// Player whose authoritative current position changes but whose event stream
+/// stays silent. This reproduces native-player event lag: range boundaries
+/// must be captured by reading the adapter, not from a stale UI cache.
+class _SilentTimeEventAdapter implements PlayerAdapter {
+  int _positionMs = 0;
+
+  @override
+  String get providerId => 'fixture';
+
+  @override
+  PlayerCapability get capability => const PlayerCapability(
+        canSeek: true,
+        canReadDuration: true,
+        canReadPosition: true,
+        canEmbedPlayer: true,
+        canCreateTimeAnchor: true,
+      );
+
+  @override
+  Stream<PlayerTimeEvent> get timeEvents => const Stream.empty();
+
+  @override
+  Future<int> currentPositionMs() async => _positionMs;
+
+  @override
+  Future<int?> durationMs() async => 200000;
+
+  @override
+  Future<void> load(String sourceId, {String? embedUrl}) async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> seekTo(int positionMs) async {
+    _positionMs = positionMs;
+  }
+}
+
 class _FakeWindowsBilibiliAdapter extends WindowsBilibiliPlayerAdapter {
   @override
   Future<void> load(String sourceId, {String? embedUrl}) async {}
@@ -426,12 +468,12 @@ void main() {
     expect(find.byIcon(Icons.pause_circle_outline), findsNothing);
 
     await tester.tap(find.byIcon(Icons.play_arrow).first);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byIcon(Icons.pause_circle_outline), findsOneWidget);
     expect(find.byIcon(Icons.play_circle_outline), findsNothing);
 
     await tester.tap(find.byIcon(Icons.pause).first);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
     expect(find.byIcon(Icons.pause_circle_outline), findsNothing);
 
@@ -528,7 +570,7 @@ void main() {
 
   testWidgets('range annotation captures two player positions without cues',
       (tester) async {
-    final adapter = _buildFixture();
+    final adapter = _SilentTimeEventAdapter();
     final store = _RecordingSessionStore();
     await tester.pumpWidget(
       MaterialApp(
@@ -552,7 +594,8 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey('video_finish_range_annotation')),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('00:10–00:14'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, '无字幕区间标注');
     await tester.tap(find.text('保存标注'));
     await tester.pumpAndSettle();
@@ -560,6 +603,29 @@ void main() {
     expect(anchor.positionSpec['start_ms'], 10000);
     expect(anchor.positionSpec['end_ms'], 14000);
     expect(anchor.positionSpec['is_point'], isFalse);
+
+    // A fresh study surface restores the full range and clicking the saved
+    // card returns to its start boundary, without requiring subtitles.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    final restartedAdapter = _SilentTimeEventAdapter();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: restartedAdapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          sessionStore: store,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('无字幕区间标注'), findsOneWidget);
+    await restartedAdapter.seekTo(50000);
+    await tester.pump();
+    await tester.tap(find.text('无字幕区间标注'));
+    await tester.pumpAndSettle();
+    expect(await restartedAdapter.currentPositionMs(), 10000);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -623,6 +689,7 @@ void main() {
       (tester) async {
     final adapter = _buildFixture();
     final track = _buildTrack();
+    final store = _RecordingSessionStore();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -631,6 +698,7 @@ void main() {
           sourceId: 'src_video_test',
           sourceVersionId: 'ver_video_test_v1',
           initialTrack: track,
+          sessionStore: store,
         ),
       ),
     );
@@ -647,10 +715,20 @@ void main() {
     // Pending annotation should show the editor.
     expect(find.text('时间标注'), findsOneWidget);
     expect(find.text('保存标注'), findsOneWidget);
+    final editor = find.byKey(const ValueKey('video_annotation_editor'));
+    expect(find.descendant(of: editor, matching: find.byType(TextField)),
+        findsOneWidget);
+    final documentField = tester.widget<TextField>(
+      find.byKey(const ValueKey('video_annotation_document')),
+    );
+    expect(documentField.controller!.text, contains('原文引用'));
+    expect(documentField.controller!.text, contains('灯光切换'));
 
-    // Enter title and body.
-    await tester.enterText(find.byType(TextField).first, '副歌观察');
-    await tester.enterText(find.byType(TextField).at(1), '这段副歌很有记忆点');
+    // Title, body and editable quote stay in one continuous document.
+    await tester.enterText(
+      find.byKey(const ValueKey('video_annotation_document')),
+      '副歌观察\n这段副歌很有记忆点\n\n原文引用\n编辑后的灯光切换',
+    );
 
     // Save.
     await tester.ensureVisible(find.text('保存标注'));
@@ -660,6 +738,12 @@ void main() {
 
     // Confirmation shown.
     expect(find.text('标注已保存'), findsOneWidget);
+    expect(store.saved!.annotationCards.single.title, '副歌观察');
+    expect(
+      store.saved!.annotationCards.single.body,
+      '这段副歌很有记忆点\n\n原文引用\n编辑后的灯光切换',
+    );
+    expect(store.saved!.anchors.single.quote, '编辑后的灯光切换');
 
     // Let the auto-dismiss timer fire so no timers are pending at teardown.
     await tester.pump(const Duration(milliseconds: 1000));
@@ -676,6 +760,47 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     adapter.dispose();
+  });
+
+  testWidgets('automatically inserted cue quote can be deleted from document',
+      (tester) async {
+    final adapter = _buildFixture();
+    final store = _RecordingSessionStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+          sessionStore: store,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('annotate_cue_1')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey('video_annotation_document')),
+          )
+          .controller!
+          .text,
+      contains('灯光切换'),
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('video_annotation_document')),
+      '只保留笔记\n引用已由用户删除',
+    );
+    await tester.tap(find.text('保存标注'));
+    await tester.pumpAndSettle();
+    expect(store.saved!.annotationCards.single.title, '只保留笔记');
+    expect(store.saved!.annotationCards.single.body, '引用已由用户删除');
+    expect(store.saved!.anchors.single.quote, isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   group('YouTube platform subtitle auto-fetch', () {

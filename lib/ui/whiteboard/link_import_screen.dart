@@ -306,11 +306,6 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       _sourceLookupWarning = null;
     });
 
-    final source = finalOutcome.result.source;
-    if (source?.sourceId != null && _isStudyReady(finalOutcome.result)) {
-      context.go(AppRoutes.sourceStudyPath(source!.sourceId));
-      return;
-    }
     await _loadRecent();
   }
 
@@ -768,7 +763,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
                     : updateAvailable
                         ? '确认内容更新'
                         : studyReady
-                            ? '保存并进入研读'
+                            ? '保存'
                             : '存入卡片库',
               ),
               style: _primaryButtonStyle(),

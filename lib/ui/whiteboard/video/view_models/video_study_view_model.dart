@@ -73,6 +73,8 @@ class VideoStudyViewModel extends ChangeNotifier {
   String? _pendingAnnotationCueId;
   int? _pendingAnnotationStartMs;
   int? _pendingAnnotationEndMs;
+  bool _pendingAnnotationIsPoint = true;
+  String? _pendingAnnotationSuggestedQuote;
   int? _rangeSelectionStartMs;
   bool _showSaveConfirmation = false;
   Timer? _saveConfirmationTimer;
@@ -410,16 +412,26 @@ class VideoStudyViewModel extends ChangeNotifier {
   // ─── Annotations ───
 
   /// Starts creating an annotation at the current position or a specific cue.
-  void beginAnnotation({int? cueIndex, int? startMs, int? endMs}) {
+  void beginAnnotation({
+    int? cueIndex,
+    int? startMs,
+    int? endMs,
+    bool? isPoint,
+  }) {
     if (!canCreateTimeAnchorNow) return;
     if (cueIndex != null && _track != null && cueIndex < _track!.cues.length) {
       final cue = _track!.cues[cueIndex];
       _pendingAnnotationCueId = cue.cueId;
       _pendingAnnotationStartMs = cue.startMs;
       _pendingAnnotationEndMs = cue.endMs;
+      _pendingAnnotationIsPoint = false;
+      _pendingAnnotationSuggestedQuote = cue.text;
     } else {
       _pendingAnnotationStartMs = startMs ?? _positionMs;
       _pendingAnnotationEndMs = endMs ?? _positionMs;
+      _pendingAnnotationIsPoint = isPoint ??
+          _pendingAnnotationStartMs == _pendingAnnotationEndMs;
+      _pendingAnnotationSuggestedQuote = null;
     }
     notifyListeners();
   }
@@ -459,28 +471,39 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   /// Opens a point-annotation draft at the player's readable current time.
   /// This path never depends on a subtitle cue being present.
-  void beginPointAnnotationAtCurrent() {
+  Future<void> beginPointAnnotationAtCurrent() async {
     if (!canCreateTimeAnchorNow) return;
     _rangeSelectionStartMs = null;
-    beginAnnotation(startMs: _positionMs, endMs: _positionMs);
+    final current = await _captureCurrentPosition();
+    beginAnnotation(startMs: current, endMs: current, isPoint: true);
   }
 
   /// Captures the first boundary of a subtitle-independent time range.
-  void beginRangeSelectionAtCurrent() {
+  Future<void> beginRangeSelectionAtCurrent() async {
     if (!canCreateTimeAnchorNow) return;
-    _rangeSelectionStartMs = _positionMs;
+    _rangeSelectionStartMs = await _captureCurrentPosition();
     notifyListeners();
   }
 
   /// Captures the second boundary and opens an annotation draft.
-  void finishRangeSelectionAtCurrent() {
+  Future<void> finishRangeSelectionAtCurrent() async {
     final first = _rangeSelectionStartMs;
     if (!canCreateTimeAnchorNow || first == null) return;
-    final second = _positionMs;
+    final second = await _captureCurrentPosition();
     _rangeSelectionStartMs = null;
     final start = first <= second ? first : second;
     final end = first <= second ? second : first;
-    beginAnnotation(startMs: start, endMs: end);
+    beginAnnotation(startMs: start, endMs: end, isPoint: false);
+  }
+
+  Future<int> _captureCurrentPosition() async {
+    try {
+      final current = await adapter.currentPositionMs();
+      _positionMs = current;
+      return current;
+    } catch (_) {
+      return _positionMs;
+    }
   }
 
   void cancelRangeSelection() {
@@ -498,7 +521,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   }) async {
     if (_pendingAnnotationStartMs == null || _isSavingAnnotation) return false;
 
-    final spec = _pendingAnnotationStartMs == _pendingAnnotationEndMs
+    final spec = _pendingAnnotationIsPoint
         ? TimeRangeAnchorSpec.point(
             _pendingAnnotationStartMs!,
             cueId: _pendingAnnotationCueId,
@@ -544,6 +567,8 @@ class VideoStudyViewModel extends ChangeNotifier {
     _pendingAnnotationCueId = null;
     _pendingAnnotationStartMs = null;
     _pendingAnnotationEndMs = null;
+    _pendingAnnotationIsPoint = true;
+    _pendingAnnotationSuggestedQuote = null;
     _showSaveConfirmation = true;
     _isSavingAnnotation = false;
     notifyListeners();
@@ -578,11 +603,17 @@ class VideoStudyViewModel extends ChangeNotifier {
     _pendingAnnotationCueId = null;
     _pendingAnnotationStartMs = null;
     _pendingAnnotationEndMs = null;
+    _pendingAnnotationIsPoint = true;
+    _pendingAnnotationSuggestedQuote = null;
     notifyListeners();
   }
 
   bool get hasPendingAnnotation => _pendingAnnotationStartMs != null;
   int? get pendingAnnotationStartMs => _pendingAnnotationStartMs;
+  int? get pendingAnnotationEndMs => _pendingAnnotationEndMs;
+  bool get pendingAnnotationIsPoint => _pendingAnnotationIsPoint;
+  String? get pendingAnnotationSuggestedQuote =>
+      _pendingAnnotationSuggestedQuote;
   int? get rangeSelectionStartMs => _rangeSelectionStartMs;
   bool get hasRangeSelectionStart => _rangeSelectionStartMs != null;
 

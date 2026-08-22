@@ -273,7 +273,10 @@ class _PendingAnnotationPane extends StatelessWidget {
             style: richTextCodeTextStyle(color: tokens.action, fontSize: 13),
           ),
           const SizedBox(height: 12),
-          AnnotationEditor(viewModel: viewModel),
+          AnnotationEditor(
+            viewModel: viewModel,
+            initialQuote: viewModel.pendingAnnotationSuggestedQuote,
+          ),
         ],
       ),
     );

@@ -74,6 +74,12 @@ void main() {
     expect(restored, hasLength(2));
     expect(restored.every((item) => item.anchor.status == AnchorStatus.exact),
         isTrue);
+    final restoredUser = restored.singleWhere(
+      (item) => item.card.cardId == user.card.cardId,
+    );
+    expect(restoredUser.anchor.positionSpec['start_ms'], 10000);
+    expect(restoredUser.anchor.positionSpec['end_ms'], 14000);
+    expect(restoredUser.anchor.positionSpec['is_point'], isFalse);
   });
 
   test('version changes orphan every range and preserve old version identity',
