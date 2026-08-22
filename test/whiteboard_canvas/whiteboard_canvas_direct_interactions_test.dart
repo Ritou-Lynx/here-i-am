@@ -423,6 +423,47 @@ void main() {
     expect(find.text('快捷编辑'), findsNothing);
   });
 
+  testWidgets('Source Card 双击和右键主动作直接打开来源', (tester) async {
+    final source = CardContract(
+      cardId: 'card_source',
+      cardKind: CardKind.source,
+      sourceId: 'src_source',
+      title: '来源卡',
+      body: '来源摘要不允许在画布冒充备注编辑',
+      createdAt: DateTime.utc(2026, 8, 22),
+    );
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(cards: [source]),
+      boardId: 'board_direct',
+    );
+    var openCount = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        onOpenCard: (_) => openCount++,
+      ),
+    ));
+    await tester.pump();
+
+    await _doubleTapAt(tester, tester.getCenter(find.text('来源卡')));
+    expect(openCount, 1);
+    expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
+
+    final rightClick = await tester.startGesture(
+      tester.getCenter(find.text('来源卡')),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await rightClick.up();
+    await tester.pumpAndSettle();
+    expect(find.text('打开来源'), findsOneWidget);
+    expect(find.text('快捷编辑'), findsNothing);
+    await tester.tap(find.text('打开来源'));
+    await tester.pump();
+    expect(openCount, 2);
+    expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
+  });
+
   test('createEdge 拒绝自环和未知端点', () {
     final vm = WhiteboardCanvasViewModel(
       initialSnapshot: _snapshot(),

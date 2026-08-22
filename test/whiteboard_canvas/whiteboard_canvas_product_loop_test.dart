@@ -199,28 +199,36 @@ void main() {
         title: 'F1 来源卡',
         page: '来源消费页',
         marker: 'source:${committed.source.sourceId}',
+        compact: false,
       ),
       (
         title: '带来源批注卡',
         page: '文字卡消费页',
         marker: 'card:card_annotation_source',
+        compact: true,
       ),
       (
         title: '缺少来源的来源卡',
         page: '文字卡消费页',
         marker: 'card:card_source_missing',
+        compact: false,
       ),
       (
         title: '普通文字卡',
         page: '文字卡消费页',
         marker: 'card:card_plain_note',
+        compact: true,
       ),
     ];
     for (final routeCase in cases) {
       await _doubleTap(tester, find.text(routeCase.title));
-      await _waitForWidget(
-          tester, find.byKey(const Key('wb_compact_editor_expand')));
-      await tester.tap(find.byKey(const Key('wb_compact_editor_expand')));
+      if (routeCase.compact) {
+        await _waitForWidget(
+            tester, find.byKey(const Key('wb_compact_editor_expand')));
+        await tester.tap(find.byKey(const Key('wb_compact_editor_expand')));
+      } else {
+        expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
+      }
       await _waitForWidget(tester, find.text(routeCase.page));
       expect(find.text(routeCase.marker), findsOneWidget);
       router.pop();

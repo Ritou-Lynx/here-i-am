@@ -96,6 +96,15 @@ class _EdgeDraft {
   final String label;
 }
 
+bool _supportsCompactEdit(CardKind kind) => switch (kind) {
+      CardKind.note ||
+      CardKind.annotation ||
+      CardKind.reference ||
+      CardKind.taskArtifact =>
+        true,
+      CardKind.source => false,
+    };
+
 /// The main full-screen whiteboard canvas widget.
 class WhiteboardCanvasScreen extends StatefulWidget {
   final WhiteboardCanvasViewModel viewModel;
@@ -262,7 +271,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   }
 
   void _openCompactEditor(CardContract card, Rect anchor) {
-    if (widget.cardRepository == null) {
+    if (!_supportsCompactEdit(card.cardKind) || widget.cardRepository == null) {
       widget.onOpenCard?.call(card);
       return;
     }
@@ -837,7 +846,9 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       _lastClickedItemId = null;
       _lastClickAt = null;
       final transform = _lastTransform;
-      if (transform != null && widget.onEditCard != null) {
+      if (transform != null &&
+          widget.onEditCard != null &&
+          _supportsCompactEdit(node.card!.cardKind)) {
         final item = node.item;
         widget.onEditCard!(
           node.card!,
@@ -1229,25 +1240,28 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       Offset.zero & overlay.size,
     );
     if (node != null && node.card != null) {
+      final card = node.card!;
+      final compactEdit = _supportsCompactEdit(card.cardKind);
       widget.viewModel.handleIntent(SelectItemIntent(itemId: node.itemId));
       final action = await showMenu<_CardMenuAction>(
         context: context,
         position: position,
-        items: const [
-          PopupMenuItem(
-            value: _CardMenuAction.quickEdit,
-            child: Text('快捷编辑'),
-          ),
+        items: [
+          if (compactEdit)
+            const PopupMenuItem(
+              value: _CardMenuAction.quickEdit,
+              child: Text('快捷编辑'),
+            ),
           PopupMenuItem(
             value: _CardMenuAction.open,
-            child: Text('展开查看'),
+            child: Text(compactEdit ? '展开查看' : '打开来源'),
           ),
-          PopupMenuDivider(),
-          PopupMenuItem(
+          const PopupMenuDivider(),
+          const PopupMenuItem(
             value: _CardMenuAction.front,
             child: Text('置于顶层'),
           ),
-          PopupMenuItem(
+          const PopupMenuItem(
             value: _CardMenuAction.remove,
             child: Text('从白板移除'),
           ),
@@ -1257,14 +1271,18 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       switch (action) {
         case _CardMenuAction.quickEdit:
           final item = node.item;
-          widget.onEditCard?.call(
-            node.card!,
-            transform.canvasToScreenRect(
-              Rect.fromLTWH(item.x, item.y, item.width, item.height),
-            ),
-          );
+          if (compactEdit) {
+            widget.onEditCard?.call(
+              card,
+              transform.canvasToScreenRect(
+                Rect.fromLTWH(item.x, item.y, item.width, item.height),
+              ),
+            );
+          } else {
+            widget.onOpenCard?.call(card);
+          }
         case _CardMenuAction.open:
-          widget.onOpenCard?.call(node.card!);
+          widget.onOpenCard?.call(card);
         case _CardMenuAction.front:
           widget.viewModel.bringSelectedItemToFront();
         case _CardMenuAction.remove:
