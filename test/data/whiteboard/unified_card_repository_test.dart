@@ -60,6 +60,56 @@ void main() {
     expect(listed.single.card.body, '立即可见的正文');
   });
 
+  test('distinct tags are live, case-insensitive and survive restart',
+      () async {
+    final note = await repository.createTextCard(
+      cardId: 'tagged_note',
+      tags: const ['  Focus ', '研究', 'focus', ''],
+    );
+    final sourceCommit = await repository.commitIngestion(
+      _ingestion(hash: 'tagged_source_hash', body: '带标签的来源'),
+    );
+    await repository.updateCardMetadata(
+      sourceCommit.card.cardId,
+      tags: const ['FOCUS', '网页'],
+    );
+    final deleted = await repository.createTextCard(
+      cardId: 'deleted_tagged_note',
+      tags: const ['不应出现'],
+    );
+    await repository.softDeleteCard(deleted.cardId);
+
+    expect(await repository.listDistinctTags(), ['Focus', '研究', '网页']);
+    expect(
+      await repository.listDistinctTags(includeDeleted: true),
+      ['Focus', '不应出现', '研究', '网页'],
+    );
+    expect(
+      await repository.listCards(
+        const CardLibraryQuery(tags: {'focus'}),
+      ),
+      hasLength(2),
+    );
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+
+    expect(await repository.listDistinctTags(), ['Focus', '研究', '网页']);
+    final noteAfterRestart = await repository.getCard(note.cardId);
+    expect(noteAfterRestart!.card.tags, ['Focus', '研究']);
+    final sourceAfterRestart =
+        await repository.getCard(sourceCommit.card.cardId);
+    expect(sourceAfterRestart!.card.sourceId, sourceCommit.source.sourceId);
+    expect(sourceAfterRestart.card.tags, ['FOCUS', '网页']);
+    expect(
+      await repository.listCards(
+        const CardLibraryQuery(tags: {'FOCUS'}),
+      ),
+      hasLength(2),
+    );
+  });
+
   test('rich text keeps identity, updates searchable projection and restarts',
       () async {
     final card = await repository.createTextCard(title: '旧标题');

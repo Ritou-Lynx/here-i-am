@@ -115,8 +115,9 @@ class UnifiedCardRepository {
     required this.whiteboardRoot,
     RichTextStorage? richTextStorage,
     this.thumbnailResolver,
-  }) : richTextStorage = richTextStorage ??
-            RichTextStorage(Directory(_join(whiteboardRoot.path, 'rich_text')));
+  }) : richTextStorage =
+           richTextStorage ??
+           RichTextStorage(Directory(_join(whiteboardRoot.path, 'rich_text')));
 
   final AppDatabase db;
   final Directory whiteboardRoot;
@@ -158,23 +159,23 @@ class UnifiedCardRepository {
   }) async {
     final row = await (db.select(
       db.memoryCards,
-    )..where((t) => t.id.equals(cardId)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(cardId))).getSingleOrNull();
     final extra = await (db.select(
       db.whiteboardCardExtras,
-    )..where((t) => t.cardId.equals(cardId)))
-        .getSingleOrNull();
+    )..where((t) => t.cardId.equals(cardId))).getSingleOrNull();
     if (row == null || extra == null) return null;
     if (!includeDeleted && extra.deletedAt != null) return null;
 
-    final source =
-        extra.sourceId == null ? null : await _sourceById(extra.sourceId!);
+    final source = extra.sourceId == null
+        ? null
+        : await _sourceById(extra.sourceId!);
     final currentVersion = source?.currentVersionId == null
         ? null
         : await _versionById(source!.currentVersionId!);
     final placed = await isCardPlaced(cardId);
-    final rich =
-        loadDocument ? await richTextStorage.loadWithStatus(cardId) : null;
+    final rich = loadDocument
+        ? await richTextStorage.loadWithStatus(cardId)
+        : null;
     return UnifiedCardRecord(
       card: _toCard(row, extra),
       source: source,
@@ -203,8 +204,7 @@ class UnifiedCardRepository {
     final ids = selectedExtras.map((e) => e.cardId).toList();
     final rows = await (db.select(
       db.memoryCards,
-    )..where((t) => t.id.isIn(ids)))
-        .get();
+    )..where((t) => t.id.isIn(ids))).get();
     final rowsById = {for (final row in rows) row.id: row};
 
     final sourceIds = selectedExtras
@@ -216,8 +216,7 @@ class UnifiedCardRepository {
         ? <WhiteboardSource>[]
         : await (db.select(
             db.whiteboardSources,
-          )..where((t) => t.id.isIn(sourceIds)))
-            .get();
+          )..where((t) => t.id.isIn(sourceIds))).get();
     final sourcesById = {for (final row in sourceRows) row.id: _toSource(row)};
 
     Set<String> placedIds = const {};
@@ -230,15 +229,17 @@ class UnifiedCardRepository {
     }
 
     final normalizedSearch = query.search?.trim().toLowerCase() ?? '';
-    final normalizedTags =
-        query.tags?.map((tag) => tag.trim().toLowerCase()).toSet();
+    final normalizedTags = query.tags
+        ?.map((tag) => tag.trim().toLowerCase())
+        .toSet();
     final records = <UnifiedCardRecord>[];
     for (final extra in selectedExtras) {
       final row = rowsById[extra.cardId];
       if (row == null) continue;
       final card = _toCard(row, extra);
-      final source =
-          extra.sourceId == null ? null : sourcesById[extra.sourceId!];
+      final source = extra.sourceId == null
+          ? null
+          : sourcesById[extra.sourceId!];
       if (query.sourceTypes != null &&
           (source == null || !query.sourceTypes!.contains(source.mediaType))) {
         continue;
@@ -290,6 +291,42 @@ class UnifiedCardRepository {
     return records;
   }
 
+  /// Lists the canonical tag vocabulary stored on real Cards.
+  ///
+  /// Tags remain Card metadata; this method deliberately adds no second tag
+  /// table or cache. Results are normalized case-insensitively while keeping
+  /// the spelling of the first stored occurrence.
+  Future<List<String>> listDistinctTags({bool includeDeleted = false}) async {
+    final extras = await db.select(db.whiteboardCardExtras).get();
+    final selected = extras
+        .where((extra) => includeDeleted || extra.deletedAt == null)
+        .toList();
+    if (selected.isEmpty) return const [];
+
+    final ids = selected.map((extra) => extra.cardId).toList();
+    final existingIds =
+        (await (db.select(
+              db.memoryCards,
+            )..where((table) => table.id.isIn(ids))).get())
+            .map((row) => row.id)
+            .toSet();
+    final result = <String>[];
+    final seen = <String>{};
+    for (final extra in selected) {
+      if (!existingIds.contains(extra.cardId)) continue;
+      for (final tag in _decodeStringList(extra.tagsJson)) {
+        final trimmed = tag.trim();
+        if (trimmed.isEmpty || !seen.add(trimmed.toLowerCase())) continue;
+        result.add(trimmed);
+      }
+    }
+    result.sort((left, right) {
+      final byFolded = left.toLowerCase().compareTo(right.toLowerCase());
+      return byFolded != 0 ? byFolded : left.compareTo(right);
+    });
+    return result;
+  }
+
   /// Creates an explicit user-authored text card.
   Future<CardContract> createTextCard({
     String? cardId,
@@ -303,8 +340,7 @@ class UnifiedCardRepository {
     final id = cardId ?? StableId.generate('card').value;
     final existing = await (db.select(
       db.memoryCards,
-    )..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     if (existing != null) {
       throw StateError('Card already exists: $id');
     }
@@ -419,9 +455,7 @@ class UnifiedCardRepository {
   /// Raw `thumbnail` / `og_image` values remain untrusted download candidates;
   /// UI only receives [ResolvedThumbnail.file] after the resolver has produced
   /// and integrity-checked a content-addressed `thumbnail_ref`.
-  Future<ResolvedThumbnail> resolveThumbnail(
-    UnifiedCardRecord record,
-  ) async {
+  Future<ResolvedThumbnail> resolveThumbnail(UnifiedCardRecord record) async {
     final resolver = thumbnailResolver;
     final source = record.source;
     final versionId =
@@ -440,7 +474,8 @@ class UnifiedCardRepository {
       presentation['thumbnail_ref'],
       sourceMetadata['thumbnail_ref'],
     ]);
-    final cachedVersion = presentation['thumbnail_version_id'] as String? ??
+    final cachedVersion =
+        presentation['thumbnail_version_id'] as String? ??
         sourceMetadata['thumbnail_version_id'] as String?;
     final resolved = await resolver.resolve(
       ThumbnailResolveRequest(
@@ -452,7 +487,7 @@ class UnifiedCardRepository {
         cachedVersionId: cachedVersion,
         cachedCandidateHash:
             presentation['thumbnail_candidate_hash'] as String? ??
-                sourceMetadata['thumbnail_candidate_hash'] as String?,
+            sourceMetadata['thumbnail_candidate_hash'] as String?,
       ),
     );
     if (!resolved.isAvailable ||
@@ -463,12 +498,10 @@ class UnifiedCardRepository {
 
     try {
       final stillCurrent = await db.transaction<bool>(() async {
-        final current = await getCard(
-          record.card.cardId,
-          loadDocument: false,
-        );
+        final current = await getCard(record.card.cardId, loadDocument: false);
         if (current == null) return false;
-        final latestVersion = current.currentSourceVersion?.versionId ??
+        final latestVersion =
+            current.currentSourceVersion?.versionId ??
             current.source?.currentVersionId;
         if (latestVersion != versionId) return false;
         final currentPresentation = current.card.presentation;
@@ -486,7 +519,8 @@ class UnifiedCardRepository {
             currentCandidateHash != resolved.candidateHash) {
           return false;
         }
-        final hashIsProjected = resolved.candidateHash!.isEmpty ||
+        final hashIsProjected =
+            resolved.candidateHash!.isEmpty ||
             currentPresentation['thumbnail_candidate_hash'] ==
                 resolved.candidateHash;
         if (currentPresentation['thumbnail_ref'] == resolved.objectRef &&
@@ -504,9 +538,9 @@ class UnifiedCardRepository {
           if (resolved.candidateHash!.isNotEmpty)
             'thumbnail_candidate_hash': resolved.candidateHash,
         };
-        await (db.update(db.whiteboardCardExtras)
-              ..where((t) => t.cardId.equals(record.card.cardId)))
-            .write(
+        await (db.update(
+          db.whiteboardCardExtras,
+        )..where((t) => t.cardId.equals(record.card.cardId))).write(
           WhiteboardCardExtrasCompanion(
             presentationJson: Value(jsonEncode(projectedPresentation)),
           ),
@@ -523,10 +557,11 @@ class UnifiedCardRepository {
   }
 
   Future<List<SourceVersion>> listSourceVersions(String sourceId) async {
-    final rows = await (db.select(db.whiteboardSourceVersions)
-          ..where((t) => t.sourceId.equals(sourceId))
-          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
-        .get();
+    final rows =
+        await (db.select(db.whiteboardSourceVersions)
+              ..where((t) => t.sourceId.equals(sourceId))
+              ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+            .get();
     return rows.map(_toVersion).toList();
   }
 
@@ -585,7 +620,8 @@ class UnifiedCardRepository {
       sourceId,
       incomingVersion.contentHash,
     );
-    final version = sameHash ??
+    final version =
+        sameHash ??
         SourceVersion(
           versionId: _versionId(sourceId, incomingVersion.contentHash),
           sourceId: sourceId,
@@ -601,7 +637,9 @@ class UnifiedCardRepository {
     late IngestionCommitResult committed;
     await db.transaction(() async {
       if (sameHash == null) {
-        await db.into(db.whiteboardSourceVersions).insert(
+        await db
+            .into(db.whiteboardSourceVersions)
+            .insert(
               WhiteboardSourceVersionsCompanion.insert(
                 id: version.versionId,
                 sourceId: version.sourceId,
@@ -646,7 +684,8 @@ class UnifiedCardRepository {
       final existingCard = await _cardForSource(sourceId);
       final thumbnail =
           incomingSource.metadata['og_image'] ?? result.metadata['og_image'];
-      final description = incomingSource.metadata['description'] ??
+      final description =
+          incomingSource.metadata['description'] ??
           result.metadata['description'];
       final excerpt = result.metadata['body_excerpt'] as String? ?? '';
       final wasDeleted = existingCard?.deletedAt != null;
@@ -770,15 +809,17 @@ class UnifiedCardRepository {
   /// Adds the missing Extras half for a legacy Drift note without changing
   /// its MemoryCards row.
   Future<bool> backfillLegacyMemoryCardExtra(String cardId) async {
-    final row = await (db.select(db.memoryCards)
-          ..where((t) => t.id.equals(cardId)))
-        .getSingleOrNull();
+    final row = await (db.select(
+      db.memoryCards,
+    )..where((t) => t.id.equals(cardId))).getSingleOrNull();
     if (row == null) return false;
-    final existing = await (db.select(db.whiteboardCardExtras)
-          ..where((t) => t.cardId.equals(cardId)))
-        .getSingleOrNull();
+    final existing = await (db.select(
+      db.whiteboardCardExtras,
+    )..where((t) => t.cardId.equals(cardId))).getSingleOrNull();
     if (existing != null) return false;
-    await db.into(db.whiteboardCardExtras).insert(
+    await db
+        .into(db.whiteboardCardExtras)
+        .insert(
           WhiteboardCardExtrasCompanion.insert(
             cardId: cardId,
             cardKind: CardKind.note.name,
@@ -802,7 +843,9 @@ class UnifiedCardRepository {
             null) {
           continue;
         }
-        await db.into(db.whiteboardSourceVersions).insert(
+        await db
+            .into(db.whiteboardSourceVersions)
+            .insert(
               WhiteboardSourceVersionsCompanion.insert(
                 id: version.versionId,
                 sourceId: version.sourceId,
@@ -841,7 +884,9 @@ class UnifiedCardRepository {
   // Internal mapping / persistence ----------------------------------------
 
   Future<void> _insertNewCard(CardContract card) async {
-    await db.into(db.memoryCards).insert(
+    await db
+        .into(db.memoryCards)
+        .insert(
           MemoryCardsCompanion.insert(
             id: card.cardId,
             memoryScope: const Value('user_truth'),
@@ -856,7 +901,9 @@ class UnifiedCardRepository {
             updatedAt: _millis(card.updatedAt ?? card.createdAt),
           ),
         );
-    await db.into(db.whiteboardCardExtras).insert(
+    await db
+        .into(db.whiteboardCardExtras)
+        .insert(
           WhiteboardCardExtrasCompanion.insert(
             cardId: card.cardId,
             cardKind: card.cardKind.name,
@@ -881,8 +928,7 @@ class UnifiedCardRepository {
   Future<void> _updateExistingCard(CardContract card) async {
     await (db.update(
       db.memoryCards,
-    )..where((t) => t.id.equals(card.cardId)))
-        .write(
+    )..where((t) => t.id.equals(card.cardId))).write(
       MemoryCardsCompanion(
         title: Value(card.title),
         dropletLabel: Value(_dropletLabel(card.title)),
@@ -890,7 +936,9 @@ class UnifiedCardRepository {
         updatedAt: Value(_millis(card.updatedAt ?? card.createdAt)),
       ),
     );
-    await db.into(db.whiteboardCardExtras).insertOnConflictUpdate(
+    await db
+        .into(db.whiteboardCardExtras)
+        .insertOnConflictUpdate(
           WhiteboardCardExtrasCompanion.insert(
             cardId: card.cardId,
             cardKind: card.cardKind.name,
@@ -913,7 +961,9 @@ class UnifiedCardRepository {
   }
 
   Future<void> _upsertSource(SourceContent source) async {
-    await db.into(db.whiteboardSources).insertOnConflictUpdate(
+    await db
+        .into(db.whiteboardSources)
+        .insertOnConflictUpdate(
           WhiteboardSourcesCompanion.insert(
             id: source.sourceId,
             mediaType: source.mediaType.name,
@@ -941,33 +991,29 @@ class UnifiedCardRepository {
   }
 
   Future<CardContract?> _cardForSource(String sourceId) async {
-    final extra = await (db.select(
-      db.whiteboardCardExtras,
-    )
-          ..where((t) => t.sourceId.equals(sourceId))
-          ..limit(1))
-        .getSingleOrNull();
+    final extra =
+        await (db.select(db.whiteboardCardExtras)
+              ..where((t) => t.sourceId.equals(sourceId))
+              ..limit(1))
+            .getSingleOrNull();
     if (extra == null) return null;
     final row = await (db.select(
       db.memoryCards,
-    )..where((t) => t.id.equals(extra.cardId)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(extra.cardId))).getSingleOrNull();
     return row == null ? null : _toCard(row, extra);
   }
 
   Future<SourceContent?> _sourceById(String sourceId) async {
     final row = await (db.select(
       db.whiteboardSources,
-    )..where((t) => t.id.equals(sourceId)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(sourceId))).getSingleOrNull();
     return row == null ? null : _toSource(row);
   }
 
   Future<SourceVersion?> _versionById(String versionId) async {
     final row = await (db.select(
       db.whiteboardSourceVersions,
-    )..where((t) => t.id.equals(versionId)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(versionId))).getSingleOrNull();
     return row == null ? null : _toVersion(row);
   }
 
@@ -975,13 +1021,15 @@ class UnifiedCardRepository {
     String sourceId,
     String contentHash,
   ) async {
-    final row = await (db.select(db.whiteboardSourceVersions)
-          ..where(
-            (t) =>
-                t.sourceId.equals(sourceId) & t.contentHash.equals(contentHash),
-          )
-          ..limit(1))
-        .getSingleOrNull();
+    final row =
+        await (db.select(db.whiteboardSourceVersions)
+              ..where(
+                (t) =>
+                    t.sourceId.equals(sourceId) &
+                    t.contentHash.equals(contentHash),
+              )
+              ..limit(1))
+            .getSingleOrNull();
     return row == null ? null : _toVersion(row);
   }
 
@@ -1068,31 +1116,31 @@ class UnifiedCardRepository {
       );
 
   static SourceContent _toSource(WhiteboardSource row) => SourceContent(
-        sourceId: row.id,
-        mediaType: SourceMediaType.fromString(row.mediaType),
-        title: row.title,
-        ownerSpace: OwnerSpace.fromString(row.ownerSpace),
-        origin: SourceOrigin.fromString(row.origin),
-        provider: row.provider,
-        canonicalId: row.canonicalId,
-        mimeType: row.mimeType,
-        currentVersionId: row.currentVersionId,
-        contentHash: row.contentHash,
-        objectRef: row.objectRef,
-        metadata: _decodeMap(row.metadataJson) ?? const {},
-        createdAt: _date(row.createdAt),
-        updatedAt: row.updatedAt == null ? null : _date(row.updatedAt!),
-        deletedAt: row.deletedAt == null ? null : _date(row.deletedAt!),
-      );
+    sourceId: row.id,
+    mediaType: SourceMediaType.fromString(row.mediaType),
+    title: row.title,
+    ownerSpace: OwnerSpace.fromString(row.ownerSpace),
+    origin: SourceOrigin.fromString(row.origin),
+    provider: row.provider,
+    canonicalId: row.canonicalId,
+    mimeType: row.mimeType,
+    currentVersionId: row.currentVersionId,
+    contentHash: row.contentHash,
+    objectRef: row.objectRef,
+    metadata: _decodeMap(row.metadataJson) ?? const {},
+    createdAt: _date(row.createdAt),
+    updatedAt: row.updatedAt == null ? null : _date(row.updatedAt!),
+    deletedAt: row.deletedAt == null ? null : _date(row.deletedAt!),
+  );
 
   static SourceVersion _toVersion(WhiteboardSourceVersion row) => SourceVersion(
-        versionId: row.id,
-        sourceId: row.sourceId,
-        contentHash: row.contentHash,
-        objectRef: row.objectRef,
-        parserVersion: row.parserVersion,
-        createdAt: _date(row.createdAt),
-      );
+    versionId: row.id,
+    sourceId: row.sourceId,
+    contentHash: row.contentHash,
+    objectRef: row.objectRef,
+    parserVersion: row.parserVersion,
+    createdAt: _date(row.createdAt),
+  );
 
   static CardContract _copyCard(
     CardContract card, {
@@ -1106,21 +1154,20 @@ class UnifiedCardRepository {
     DateTime? updatedAt,
     DateTime? deletedAt,
     bool setDeletedAt = false,
-  }) =>
-      CardContract(
-        cardId: card.cardId,
-        cardKind: cardKind ?? card.cardKind,
-        sourceId: setSourceId ? sourceId : card.sourceId,
-        ownerSpace: card.ownerSpace,
-        title: title ?? card.title,
-        body: body ?? card.body,
-        tags: tags ?? card.tags,
-        presentation: presentation ?? card.presentation,
-        createdBy: card.createdBy,
-        createdAt: card.createdAt,
-        updatedAt: updatedAt ?? card.updatedAt,
-        deletedAt: setDeletedAt ? deletedAt : card.deletedAt,
-      );
+  }) => CardContract(
+    cardId: card.cardId,
+    cardKind: cardKind ?? card.cardKind,
+    sourceId: setSourceId ? sourceId : card.sourceId,
+    ownerSpace: card.ownerSpace,
+    title: title ?? card.title,
+    body: body ?? card.body,
+    tags: tags ?? card.tags,
+    presentation: presentation ?? card.presentation,
+    createdBy: card.createdBy,
+    createdAt: card.createdAt,
+    updatedAt: updatedAt ?? card.updatedAt,
+    deletedAt: setDeletedAt ? deletedAt : card.deletedAt,
+  );
 
   static CardDocumentState _documentState(RichTextLoadStatus? status) {
     switch (status) {

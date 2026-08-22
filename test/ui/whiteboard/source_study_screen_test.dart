@@ -77,6 +77,51 @@ void main() {
     expect(find.textContaining('canonical_url:'), findsOneWidget);
   });
 
+  testWidgets('ordinary Source Card writes tags through unified repository',
+      (tester) async {
+    final source = _source(video: false);
+    final card = _card(video: false);
+    repository = _StaticSourceRepository(
+      db: db,
+      root: root,
+      source: source,
+      card: card,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: SourceStudyScreen(
+        sourceId: source.sourceId,
+        repository: repository,
+      ),
+    ));
+    await _pumpSource(tester);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('card-tag-input')),
+      '#来源标签',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await _pumpSource(tester);
+
+    final recovered = await repository.getCardForSource(source.sourceId);
+    expect(recovered!.tags, ['来源标签']);
+    expect(await repository.listDistinctTags(), ['来源标签']);
+    expect(find.text('标签已保存'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(MaterialApp(
+      home: SourceStudyScreen(
+        sourceId: source.sourceId,
+        repository: repository,
+      ),
+    ));
+    await _pumpSource(tester);
+    expect(
+      find.byKey(const ValueKey('card-tag-chip-来源标签')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('video source enters real provider path and never Fixture Player',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
@@ -102,6 +147,10 @@ void main() {
     await _pumpSource(tester);
 
     expect(find.byType(VideoStudyScreen), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('source-video-tags-action')),
+      findsOneWidget,
+    );
     expect(find.text('Fixture Player'), findsNothing);
     expect(timedTextService.calls, 1);
     expect(find.text('当前为链接模式'), findsOneWidget,
@@ -142,6 +191,9 @@ class _FakeTimedTextService extends YouTubeTimedTextService {
 
 Future<void> _pumpSource(WidgetTester tester) async {
   for (var i = 0; i < 12; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 15)),
+    );
     await tester.pump(const Duration(milliseconds: 100));
   }
 }
@@ -195,7 +247,7 @@ class _StaticSourceRepository extends UnifiedCardRepository {
   }) : super(whiteboardRoot: root);
 
   final SourceContent source;
-  final CardContract card;
+  CardContract card;
   final SourceObjectRecord? object;
 
   SourceVersion get version => SourceVersion(
@@ -217,6 +269,37 @@ class _StaticSourceRepository extends UnifiedCardRepository {
   @override
   Future<CardContract?> getCardForSource(String sourceId) async =>
       sourceId == source.sourceId ? card : null;
+
+  @override
+  Future<List<String>> listDistinctTags({bool includeDeleted = false}) async =>
+      List.of(card.tags);
+
+  @override
+  Future<CardContract> updateCardMetadata(
+    String cardId, {
+    String? title,
+    String? body,
+    List<String>? tags,
+    CardKind? cardKind,
+    Map<String, dynamic>? presentation,
+  }) async {
+    if (cardId != card.cardId) throw StateError('Card not found: $cardId');
+    card = CardContract(
+      cardId: card.cardId,
+      cardKind: cardKind ?? card.cardKind,
+      sourceId: card.sourceId,
+      ownerSpace: card.ownerSpace,
+      title: title ?? card.title,
+      body: body ?? card.body,
+      tags: tags ?? card.tags,
+      presentation: presentation ?? card.presentation,
+      createdBy: card.createdBy,
+      createdAt: card.createdAt,
+      updatedAt: DateTime.now().toUtc(),
+      deletedAt: card.deletedAt,
+    );
+    return card;
+  }
 
   @override
   Future<SourceObjectRecord> getSourceObject(SourceVersion version) async =>
