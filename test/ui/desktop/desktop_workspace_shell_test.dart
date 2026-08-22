@@ -65,11 +65,19 @@ void main() {
     final before = tester
         .getSize(find.byKey(const ValueKey('desktop_workspace_content')))
         .width;
+    expect(
+      find.byKey(const ValueKey('desktop_sidebar_paper_seam')),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('desktop_sidebar_toggle')));
     await tester.pump();
 
     expect(find.byKey(const ValueKey('desktop_sidebar')), findsNothing);
     expect(find.byKey(const ValueKey('desktop_brand_mark')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('desktop_sidebar_paper_seam')),
+      findsNothing,
+    );
     expect(
         find.byKey(const ValueKey('desktop_sidebar_handle')), findsOneWidget);
     expect(
@@ -84,6 +92,14 @@ void main() {
     expect(
       after - before,
       DesktopWorkspaceTokens.sidebarExpandedWidth,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('desktop_sidebar_toggle')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('desktop_sidebar')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('desktop_sidebar_paper_seam')),
+      findsOneWidget,
     );
   });
 
@@ -164,6 +180,11 @@ void main() {
   });
 
   testWidgets('official plant-i asset is bundled and decodes', (tester) async {
+    expect(
+      DesktopBrandMark.assetPath,
+      'assets/branding/hereiam_v3_logo/'
+      'logo_foreground_ink_green_1024.png',
+    );
     final bytes = await rootBundle.load(DesktopBrandMark.assetPath);
     expect(bytes.lengthInBytes, greaterThan(0));
 

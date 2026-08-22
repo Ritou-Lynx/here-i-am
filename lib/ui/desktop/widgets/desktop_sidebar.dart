@@ -60,61 +60,35 @@ class DesktopSidebar extends StatelessWidget {
       width: DesktopWorkspaceTokens.sidebarExpandedWidth,
       child: ColoredBox(
         color: tokens.canvas,
-        child: Stack(
-          children: [
-            SafeArea(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 18),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14),
-                    child: DesktopBrandLockup(),
-                  ),
-                  const SizedBox(height: 16),
-                  for (final item in _navItems)
-                    _SidebarItem(item: item, currentPath: path),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Text(
-                      '工作台',
-                      style: whiteboardUiTextStyle(
-                        fontSize: 12,
-                        height: 1.4,
-                        color: tokens.textFaint,
-                      ),
-                    ),
-                  ),
-                ],
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 18),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14),
+                child: DesktopBrandLockup(),
               ),
-            ),
-            // A short, fading paper seam replaces a full-height divider.
-            Positioned(
-              right: 0,
-              top: 48,
-              bottom: 48,
-              width: 16,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        tokens.canvas.withValues(alpha: 0),
-                        tokens.divider.withValues(alpha: 0.28),
-                        tokens.canvas.withValues(alpha: 0),
-                      ],
-                    ),
+              const SizedBox(height: 16),
+              for (final item in _navItems)
+                _SidebarItem(item: item, currentPath: path),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Text(
+                  '工作台',
+                  style: whiteboardUiTextStyle(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: tokens.textFaint,
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

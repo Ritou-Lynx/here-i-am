@@ -2,6 +2,7 @@
 // Compass-aligned: GoRouter for declarative routing.
 // ViewModels are created in route builders and passed to screens.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -34,21 +35,102 @@ import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_index_screen.dart';
 import 'package:memex/routing/desktop_route_wrapper.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/desktop/desktop_workbench_shell.dart';
 import 'package:memex/ui/desktop/desktop_workspace_shell.dart';
 
 /// Creates the app [GoRouter]. Root content is built by [rootBuilder].
 GoRouter createAppRouter(
     GlobalKey<NavigatorState> navigatorKey, Widget Function() rootBuilder,
     {bool? desktopPlatformOverride}) {
+  final isDesktop = desktopPlatformOverride ?? _isDesktopPlatform;
   return GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: AppRoutes.home,
     observers: [personaChatNavigatorObserver],
     routes: [
-      GoRoute(
-        path: AppRoutes.home,
-        builder: (_, __) => rootBuilder(),
-      ),
+      // Desktop standard work surfaces share one persistent shell. The shell
+      // keeps the sidebar state while sibling pages switch with no Windows
+      // ZoomPageTransition. Mobile still builds the existing root unchanged.
+      if (isDesktop)
+        ShellRoute(
+          pageBuilder: (context, state, child) => NoTransitionPage<void>(
+            key: const ValueKey('desktop_workspace_shell_page'),
+            child: DesktopWorkspaceShell(
+              key: const ValueKey('persistent_desktop_workspace_shell'),
+              title: '首页',
+              meta: state.uri.path == AppRoutes.home
+                  ? desktopWorkbenchTodayLabel()
+                  : null,
+              activePath: state.uri.path,
+              showPageTitle: state.uri.path == AppRoutes.home,
+              child: child,
+            ),
+          ),
+          routes: [
+            GoRoute(
+              path: AppRoutes.home,
+              pageBuilder: (_, state) => NoTransitionPage<void>(
+                key: state.pageKey,
+                child: const DesktopWorkbenchShell(
+                  characterId: '',
+                  embeddedInWorkspaceShell: true,
+                ),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.whiteboard,
+              pageBuilder: (_, state) => NoTransitionPage<void>(
+                key: state.pageKey,
+                child: DesktopRouteWrapper(
+                  title: '白板',
+                  childOwnsPageTitle: true,
+                  desktopOnly: true,
+                  desktopPlatformOverride: desktopPlatformOverride,
+                  childBuilder: (_) => const WhiteboardIndexScreen(),
+                ),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.cardLibrary,
+              pageBuilder: (_, state) => NoTransitionPage<void>(
+                key: state.pageKey,
+                child: DesktopRouteWrapper(
+                  title: '卡片库',
+                  childOwnsPageTitle: true,
+                  desktopOnly: true,
+                  desktopPlatformOverride: desktopPlatformOverride,
+                  childBuilder: (_) => const CardLibraryScreen(),
+                ),
+              ),
+            ),
+          ],
+        )
+      else ...[
+        GoRoute(
+          path: AppRoutes.home,
+          builder: (_, __) => rootBuilder(),
+        ),
+        GoRoute(
+          path: AppRoutes.whiteboard,
+          builder: (_, __) => DesktopRouteWrapper(
+            title: '白板',
+            childOwnsPageTitle: true,
+            desktopOnly: true,
+            desktopPlatformOverride: desktopPlatformOverride,
+            childBuilder: (_) => const WhiteboardIndexScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.cardLibrary,
+          builder: (_, __) => DesktopRouteWrapper(
+            title: '卡片库',
+            childOwnsPageTitle: true,
+            desktopOnly: true,
+            desktopPlatformOverride: desktopPlatformOverride,
+            childBuilder: (_) => const CardLibraryScreen(),
+          ),
+        ),
+      ],
       GoRoute(
         path: AppRoutes.aboutI,
         builder: (_, __) => const AboutIScreen(),
@@ -143,16 +225,6 @@ GoRouter createAppRouter(
       // windows (W1 interactions / W2 rich text / W3 link ingestion / W4
       // video) only replace placeholder screen bodies, never these entries.
       GoRoute(
-        path: AppRoutes.whiteboard,
-        builder: (_, __) => DesktopRouteWrapper(
-          title: '白板',
-          childOwnsPageTitle: true,
-          desktopOnly: true,
-          desktopPlatformOverride: desktopPlatformOverride,
-          childBuilder: (_) => const WhiteboardIndexScreen(),
-        ),
-      ),
-      GoRoute(
         path: AppRoutes.whiteboardCanvas,
         builder: (context, state) => DesktopRouteWrapper(
           title: '白板',
@@ -164,16 +236,9 @@ GoRouter createAppRouter(
           ),
         ),
       ),
-      GoRoute(
-        path: AppRoutes.cardLibrary,
-        builder: (_, __) => DesktopRouteWrapper(
-          title: '卡片库',
-          childOwnsPageTitle: true,
-          desktopOnly: true,
-          desktopPlatformOverride: desktopPlatformOverride,
-          childBuilder: (_) => const CardLibraryScreen(),
-        ),
-      ),
+      // Card editing stays above the persistent standard shell. Direct entry
+      // therefore falls back to /cards, while a pushed editor can pop back to
+      // the still-live card library and preserve its filter state.
       GoRoute(
         path: AppRoutes.cardEdit,
         builder: (context, state) => DesktopRouteWrapper(
@@ -184,6 +249,19 @@ GoRouter createAppRouter(
           childBuilder: (_) => CardRichTextEditorScreen(
             cardId: state.pathParameters['cardId']!,
           ),
+        ),
+      ),
+      // Import has the same consumer-page return contract as card editing.
+      // Keeping it above the shell makes direct fallback and push/pop
+      // behavior unambiguous without changing the ingestion UI owner.
+      GoRoute(
+        path: AppRoutes.linkImport,
+        builder: (context, state) => DesktopRouteWrapper(
+          title: '导入链接',
+          childOwnsPageTitle: true,
+          desktopOnly: true,
+          desktopPlatformOverride: desktopPlatformOverride,
+          childBuilder: (_) => const LinkImportScreen(),
         ),
       ),
       GoRoute(
@@ -198,16 +276,14 @@ GoRouter createAppRouter(
           ),
         ),
       ),
-      GoRoute(
-        path: AppRoutes.linkImport,
-        builder: (_, __) => DesktopRouteWrapper(
-          title: '导入链接',
-          childOwnsPageTitle: true,
-          desktopOnly: true,
-          desktopPlatformOverride: desktopPlatformOverride,
-          childBuilder: (_) => const LinkImportScreen(),
-        ),
-      ),
     ],
   );
 }
+
+bool get _isDesktopPlatform => switch (defaultTargetPlatform) {
+      TargetPlatform.windows ||
+      TargetPlatform.linux ||
+      TargetPlatform.macOS =>
+        true,
+      _ => false,
+    };

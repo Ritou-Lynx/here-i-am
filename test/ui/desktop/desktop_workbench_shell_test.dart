@@ -11,12 +11,17 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
+import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/routing/router.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
+import 'package:memex/ui/core/widgets/app_opening_splash.dart';
 import 'package:memex/ui/desktop/desktop_workbench_shell.dart';
 import 'package:memex/ui/desktop/view_models/desktop_home_view_model.dart';
 import 'package:memex/ui/desktop/widgets/desktop_chat_overlay.dart';
+import 'package:memex/ui/desktop/widgets/desktop_home_charts.dart';
+import 'package:memex/ui/desktop/widgets/desktop_sidebar.dart';
 import 'package:memex/ui/whiteboard/card_library_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 
@@ -42,10 +47,12 @@ void main() {
     router = createAppRouter(
       GlobalKey<NavigatorState>(),
       () => const DesktopWorkbenchShell(characterId: 'i'),
+      desktopPlatformOverride: true,
     );
   });
 
   tearDown(() async {
+    router.dispose();
     WhiteboardDataBootstrap.setRepositoryForTesting(null);
     await db.close();
     if (repositoryRoot.existsSync()) {
@@ -133,7 +140,43 @@ void main() {
     await cardRepository.backfillLegacyMemoryCardExtra(id);
   }
 
-  testWidgets('home only renders desktop whiteboard work loops', (
+  Future<void> seedWebSourceCard() async {
+    final now = DateTime.now().toUtc();
+    const sourceId = 'source_home_web';
+    const versionId = 'version_home_web';
+    await cardRepository.importLegacyIngestion(
+      source: SourceContent(
+        sourceId: sourceId,
+        mediaType: SourceMediaType.web,
+        title: '真实网页来源',
+        origin: SourceOrigin.import,
+        currentVersionId: versionId,
+        contentHash: 'home_web_hash',
+        objectRef: 'objects/home_web.txt',
+        createdAt: now,
+        updatedAt: now,
+      ),
+      versions: [
+        SourceVersion(
+          versionId: versionId,
+          sourceId: sourceId,
+          contentHash: 'home_web_hash',
+          objectRef: 'objects/home_web.txt',
+          createdAt: now,
+        ),
+      ],
+      card: CardContract(
+        cardId: 'card_home_web',
+        cardKind: CardKind.source,
+        sourceId: sourceId,
+        title: '真实网页来源',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+  }
+
+  testWidgets('home renders six compact whiteboard-native modules', (
     tester,
   ) async {
     await seedBoardAndTask();
@@ -142,9 +185,20 @@ void main() {
     await pumpWorkbench(tester);
 
     expect(find.byKey(const ValueKey('workbench_module_grid')), findsOneWidget);
-    for (final title in ['最近白板', '待上板卡片']) {
+    for (final title in ['最近白板', '待整理卡片']) {
       expect(find.text(title), findsOneWidget, reason: 'missing module $title');
     }
+    for (final key in const [
+      'module_card_activity',
+      'module_card_composition',
+      'module_card_placement',
+      'module_board_growth',
+      'module_continue_work',
+      'module_pending_cards',
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+    expect(find.text('工作面'), findsNothing);
     for (final removed in [
       '林埃观察',
       '日程与待办',
@@ -240,7 +294,9 @@ void main() {
     await pumpWorkbench(tester);
 
     expect(find.textContaining('还没有白板'), findsOneWidget);
-    expect(find.textContaining('暂无待上板卡片'), findsOneWidget);
+    expect(find.textContaining('暂无待整理卡片'), findsOneWidget);
+    expect(find.textContaining('尚无新增卡片'), findsWidgets);
+    expect(find.textContaining('还没有卡片'), findsWidgets);
     expect(find.textContaining('演示数据'), findsNothing);
     expect(find.textContaining('mock'), findsNothing);
   });
@@ -250,6 +306,10 @@ void main() {
     tester,
   ) async {
     const moduleKeys = [
+      'module_card_activity',
+      'module_card_composition',
+      'module_card_placement',
+      'module_board_growth',
       'module_continue_work',
       'module_pending_cards',
     ];
@@ -266,6 +326,137 @@ void main() {
       }
       expect(tester.takeException(), isNull, reason: 'viewport $size');
     }
+  });
+
+  testWidgets('charts project real card source placement and board data', (
+    tester,
+  ) async {
+    await seedNoteCard(id: 'card_note_real', title: '真实文字卡');
+    await seedNoteCard(id: 'card_annotation_real', title: '真实批注卡');
+    await cardRepository.updateCardMetadata(
+      'card_annotation_real',
+      cardKind: CardKind.annotation,
+    );
+    await seedWebSourceCard();
+    final boardId = await store.createBoard(name: '真实研究板');
+    await db.into(db.whiteboardBoardItems).insert(
+          WhiteboardBoardItemsCompanion.insert(
+            id: 'item_real_annotation',
+            boardId: boardId,
+            cardId: 'card_annotation_real',
+          ),
+        );
+
+    await pumpWorkbench(tester);
+
+    expect(find.textContaining('近 30 天新增 3 张'), findsOneWidget);
+    expect(find.textContaining('1 张已上板 · 2 张待整理'), findsOneWidget);
+    expect(find.byType(DesktopCardActivityChart), findsOneWidget);
+    expect(find.byType(DesktopCardCompositionChart), findsOneWidget);
+    expect(find.byType(DesktopPlacementChart), findsOneWidget);
+    expect(find.byType(DesktopBoardGrowthChart), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('desktop_board_growth_palm_chart')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('来源媒介'), findsOneWidget);
+    expect(find.textContaining('网页 1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop sibling routes preserve shell without splash or zoom', (
+    tester,
+  ) async {
+    var mobileRootBuilds = 0;
+    final localRouter = createAppRouter(
+      GlobalKey<NavigatorState>(),
+      () {
+        mobileRootBuilds += 1;
+        return const AppOpeningSplash(playVideo: false);
+      },
+      desktopPlatformOverride: true,
+    );
+    addTearDown(localRouter.dispose);
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: localRouter));
+    await pumpUntilVisible(
+      tester,
+      find.byKey(const ValueKey('workbench_module_grid')),
+      failure: 'Desktop home did not load',
+    );
+    expect(mobileRootBuilds, 0);
+    expect(find.byType(AppOpeningSplash), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('desktop_sidebar_toggle')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('desktop_sidebar')), findsNothing);
+
+    localRouter.go(AppRoutes.cardLibrary);
+    await pumpUntilVisible(
+      tester,
+      find.byType(CardLibraryScreen),
+      failure: 'Card library did not load',
+    );
+    await pumpUntilNoProgress(tester);
+    expect(
+      find.ancestor(
+        of: find.byType(CardLibraryScreen),
+        matching: find.byType(ScaleTransition),
+      ),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('desktop_sidebar')), findsNothing);
+
+    localRouter.go(AppRoutes.home);
+    await pumpUntilVisible(
+      tester,
+      find.byKey(const ValueKey('workbench_module_grid')),
+      failure: 'Desktop home did not return',
+    );
+    expect(find.byType(AppOpeningSplash), findsNothing);
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('workbench_module_grid')),
+        matching: find.byType(ScaleTransition),
+      ),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('desktop_sidebar')), findsNothing);
+    expect(mobileRootBuilds, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('mobile router keeps the original root outside desktop shell', (
+    tester,
+  ) async {
+    var rootBuilds = 0;
+    final localRouter = createAppRouter(
+      GlobalKey<NavigatorState>(),
+      () {
+        rootBuilds += 1;
+        return const SizedBox(key: ValueKey('unchanged_mobile_root'));
+      },
+      desktopPlatformOverride: false,
+    );
+    addTearDown(localRouter.dispose);
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: localRouter));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('unchanged_mobile_root')), findsOneWidget);
+    expect(find.byType(DesktopSidebar), findsNothing);
+    expect(rootBuilds, 1);
+
+    localRouter.go(AppRoutes.cardLibrary);
+    await tester.pumpAndSettle();
+    expect(find.text('卡片库目前仅在桌面端提供'), findsOneWidget);
+    localRouter.go(AppRoutes.home);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('unchanged_mobile_root')), findsOneWidget);
+    expect(find.byType(DesktopSidebar), findsNothing);
   });
 
   testWidgets('loading and error states recover into the empty home', (

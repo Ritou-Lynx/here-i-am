@@ -14,6 +14,7 @@ import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
+import 'package:memex/domain/whiteboard/source_content.dart';
 
 /// One recently touched board in the desktop workbench.
 class ContinueWorkItem {
@@ -28,12 +29,50 @@ class ContinueWorkItem {
   final String subtitle;
 }
 
+/// One honest aggregate point used by the compact desktop charts.
+class DesktopCountPoint {
+  const DesktopCountPoint({required this.label, required this.value});
+
+  final String label;
+  final int value;
+}
+
+/// Whiteboard-native statistics only. No health, ledger, task-room or mock
+/// data is admitted into this projection.
+class DesktopHomeStats {
+  const DesktopHomeStats({
+    this.dailyCardCreates = const [],
+    this.cardKindCounts = const {},
+    this.sourceMediaCounts = const {},
+    this.totalCards = 0,
+    this.placedCards = 0,
+    this.boardGrowth = const [],
+    this.boardsTouchedLast30Days = 0,
+  });
+
+  final List<DesktopCountPoint> dailyCardCreates;
+  final Map<CardKind, int> cardKindCounts;
+  final Map<SourceMediaType, int> sourceMediaCounts;
+  final int totalCards;
+  final int placedCards;
+  final List<DesktopCountPoint> boardGrowth;
+  final int boardsTouchedLast30Days;
+
+  int get unplacedCards =>
+      (totalCards - placedCards).clamp(0, totalCards).toInt();
+  int get cardsCreatedLast30Days => dailyCardCreates.fold(
+        0,
+        (sum, point) => sum + point.value,
+      );
+}
+
 /// Immutable data snapshot rendered by the module grid.
 class DesktopHomeData {
   const DesktopHomeData({
     required this.boards,
     required this.continueWork,
     required this.pendingCards,
+    this.stats = const DesktopHomeStats(),
   });
 
   /// 最近白板（最多 3 张）。
@@ -44,6 +83,9 @@ class DesktopHomeData {
 
   /// 「待整理卡片」：未被任何白板引用的最近 note 卡。
   final List<MemoryCardViewData> pendingCards;
+
+  /// Aggregates rendered by the four chart modules on the desktop home.
+  final DesktopHomeStats stats;
 }
 
 /// Loads the workbench home data once and exposes load state.
@@ -91,6 +133,10 @@ class DesktopHomeViewModel extends ChangeNotifier {
     final cardService = MemoryCardQueryService(db);
 
     final boards = await store.listBoards();
+    final allCards = await unifiedCards.listCards();
+    final placedCards = await unifiedCards.listCards(
+      const CardLibraryQuery(placedOnBoard: true),
+    );
 
     final continueWork = <ContinueWorkItem>[
       for (final board in boards.take(_boardLimit))
@@ -102,11 +148,85 @@ class DesktopHomeViewModel extends ChangeNotifier {
     ];
 
     final pendingCards = await _loadPendingCards(cardService, unifiedCards);
+    final stats = _buildStats(
+      cards: allCards,
+      placedCardCount: placedCards.length,
+      boards: boards,
+      now: DateTime.now(),
+    );
 
     return DesktopHomeData(
       boards: boards.take(_boardLimit).toList(),
       continueWork: continueWork,
       pendingCards: pendingCards,
+      stats: stats,
+    );
+  }
+
+  DesktopHomeStats _buildStats({
+    required List<UnifiedCardRecord> cards,
+    required int placedCardCount,
+    required List<WhiteboardIndexEntry> boards,
+    required DateTime now,
+  }) {
+    final localNow = now.toLocal();
+    final today = DateTime(localNow.year, localNow.month, localNow.day);
+    final firstDay = today.subtract(const Duration(days: 29));
+    final cardCounts = List<int>.filled(30, 0);
+    final kindCounts = <CardKind, int>{};
+    final mediaCounts = <SourceMediaType, int>{};
+
+    for (final record in cards) {
+      final card = record.card;
+      kindCounts[card.cardKind] = (kindCounts[card.cardKind] ?? 0) + 1;
+      final mediaType = record.source?.mediaType;
+      if (mediaType != null) {
+        mediaCounts[mediaType] = (mediaCounts[mediaType] ?? 0) + 1;
+      }
+      final created = card.createdAt.toLocal();
+      final day = DateTime(created.year, created.month, created.day);
+      final index = day.difference(firstDay).inDays;
+      if (index >= 0 && index < cardCounts.length) cardCounts[index] += 1;
+    }
+
+    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    final firstWeek = weekStart.subtract(const Duration(days: 35));
+    final boardGrowth = <DesktopCountPoint>[];
+    for (var index = 0; index < 6; index++) {
+      final weekEnd = firstWeek.add(Duration(days: (index + 1) * 7));
+      final cumulative = boards.where((board) {
+        return board.createdAt.toLocal().isBefore(weekEnd);
+      }).length;
+      boardGrowth.add(
+        DesktopCountPoint(
+          label: '${weekEnd.month}/${weekEnd.day}',
+          value: cumulative,
+        ),
+      );
+    }
+
+    final thirtyDaysAgo = localNow.subtract(const Duration(days: 30));
+    final touched = boards.where((board) {
+      return (board.updatedAt ?? board.createdAt)
+          .toLocal()
+          .isAfter(thirtyDaysAgo);
+    }).length;
+
+    return DesktopHomeStats(
+      dailyCardCreates: [
+        for (var index = 0; index < cardCounts.length; index++)
+          DesktopCountPoint(
+            label: '${firstDay.add(Duration(days: index)).month}/'
+                '${firstDay.add(Duration(days: index)).day}',
+            value: cardCounts[index],
+          ),
+      ],
+      cardKindCounts: kindCounts,
+      sourceMediaCounts: mediaCounts,
+      totalCards: cards.length,
+      placedCards: placedCardCount,
+      boardGrowth: boardGrowth,
+      boardsTouchedLast30Days: touched,
     );
   }
 

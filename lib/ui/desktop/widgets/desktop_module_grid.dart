@@ -1,16 +1,14 @@
-/// Desktop whiteboard workbench home.
-///
-/// Desktop and phone keep independent page surfaces. The home only exposes
-/// the native whiteboard loop and never routes into phone-only life spaces.
+/// Compact, data-backed modules on the desktop whiteboard workbench home.
 library;
 
 import 'package:flutter/material.dart';
 
 import 'package:memex/data/memory_v3/models/memory_card_view_data.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
+import 'package:memex/ui/desktop/view_models/desktop_home_view_model.dart';
+import 'package:memex/ui/desktop/widgets/desktop_home_charts.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
-
-import '../view_models/desktop_home_view_model.dart';
 
 class WorkbenchModuleCallbacks {
   const WorkbenchModuleCallbacks({
@@ -24,8 +22,8 @@ class WorkbenchModuleCallbacks {
   final VoidCallback onOpenCardLibrary;
 }
 
-/// The desktop home currently owns two real work loops: return to a recent
-/// board, or organise a card that has not been placed on any board yet.
+/// Six compact modules fit in two rows on a normal desktop viewport. The
+/// charts are projections of repository data, never illustrative samples.
 class WorkbenchModuleGrid extends StatelessWidget {
   const WorkbenchModuleGrid({
     super.key,
@@ -41,13 +39,19 @@ class WorkbenchModuleGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final primaryDesktop = width >= 920 && constraints.maxHeight >= 560;
-        final columns = width >= 620 ? 2 : 1;
+        final primaryDesktop = width >= 960 && constraints.maxHeight >= 540;
+        final columns = primaryDesktop ? 3 : (width >= 620 ? 2 : 1);
         const gap = 12.0;
         final moduleWidth = (width - gap * (columns - 1)) / columns;
-        const moduleHeight = 320.0;
+        final rows = (6 / columns).ceil();
+        final availableHeight = constraints.maxHeight - gap * (rows - 1);
+        final moduleHeight = primaryDesktop
+            ? availableHeight / rows
+            : (constraints.maxHeight >= 520 ? 252.0 : 224.0);
+
         return GridView(
           key: const ValueKey('workbench_module_grid'),
+          padding: EdgeInsets.zero,
           physics: primaryDesktop
               ? const NeverScrollableScrollPhysics()
               : const ClampingScrollPhysics(),
@@ -58,6 +62,42 @@ class WorkbenchModuleGrid extends StatelessWidget {
             childAspectRatio: moduleWidth / moduleHeight,
           ),
           children: [
+            WorkbenchModuleCard(
+              key: const ValueKey('module_card_activity'),
+              title: _activityTitle(data.stats),
+              meta: '近 30 天',
+              onTap: callbacks.onOpenCardLibrary,
+              child: DesktopCardActivityChart(
+                points: data.stats.dailyCardCreates,
+              ),
+            ),
+            WorkbenchModuleCard(
+              key: const ValueKey('module_card_composition'),
+              title: _compositionTitle(data.stats),
+              meta: '${data.stats.totalCards} 张',
+              onTap: callbacks.onOpenCardLibrary,
+              child: DesktopCardCompositionChart(
+                kindCounts: data.stats.cardKindCounts,
+                mediaCounts: data.stats.sourceMediaCounts,
+              ),
+            ),
+            WorkbenchModuleCard(
+              key: const ValueKey('module_card_placement'),
+              title: _placementTitle(data.stats),
+              meta: '${data.stats.totalCards} 张',
+              onTap: callbacks.onOpenCardLibrary,
+              child: DesktopPlacementChart(
+                placed: data.stats.placedCards,
+                unplaced: data.stats.unplacedCards,
+              ),
+            ),
+            WorkbenchModuleCard(
+              key: const ValueKey('module_board_growth'),
+              title: _boardTitle(data.stats),
+              meta: '${data.boards.length} 个最近白板',
+              onTap: callbacks.onOpenBoards,
+              child: DesktopBoardGrowthChart(points: data.stats.boardGrowth),
+            ),
             _ContinueWorkModule(
               key: const ValueKey('module_continue_work'),
               items: data.continueWork,
@@ -80,13 +120,13 @@ class WorkbenchModuleCard extends StatelessWidget {
   const WorkbenchModuleCard({
     super.key,
     required this.title,
-    this.trailing,
+    this.meta,
     this.onTap,
     required this.child,
   });
 
   final String title;
-  final Widget? trailing;
+  final String? meta;
   final VoidCallback? onTap;
   final Widget child;
 
@@ -95,12 +135,12 @@ class WorkbenchModuleCard extends StatelessWidget {
     final tokens = DesktopWorkspaceTokens.of(context);
     return Material(
       color: tokens.surface,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -109,6 +149,8 @@ class WorkbenchModuleCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: whiteboardUiTextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -116,10 +158,20 @@ class WorkbenchModuleCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (trailing != null) trailing!,
+                  if (meta != null) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      meta!,
+                      style: whiteboardUiTextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: tokens.textMuted,
+                      ),
+                    ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Expanded(child: child),
             ],
           ),
@@ -145,13 +197,13 @@ class _ContinueWorkModule extends StatelessWidget {
   Widget build(BuildContext context) {
     return WorkbenchModuleCard(
       title: '最近白板',
-      trailing: const _StatusTag(text: '工作面'),
+      meta: '${items.length} 个',
       onTap: items.isEmpty ? onOpenBoards : null,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           if (items.isEmpty)
-            const _EmptyHint('还没有白板 · 点击前往白板索引新建')
+            const _EmptyHint('还没有白板 · 前往白板索引新建')
           else
             for (final board in items)
               _ModuleRow(
@@ -159,11 +211,9 @@ class _ContinueWorkModule extends StatelessWidget {
                 subtitle: board.subtitle,
                 onTap: () => onOpenBoard(board.boardId),
               ),
-          const SizedBox(height: 8),
           _ModuleRow(
             title: '查看全部白板',
             subtitle: '新建、搜索或继续整理',
-            tag: '打开',
             onTap: onOpenBoards,
           ),
         ],
@@ -185,11 +235,11 @@ class _PendingCardsModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return WorkbenchModuleCard(
-      title: '待上板卡片',
-      trailing: _StatusTag(text: '${cards.length} 张'),
+      title: '待整理卡片',
+      meta: '${cards.length} 张',
       onTap: onTap,
       child: cards.isEmpty
-          ? const _EmptyHint('暂无待上板卡片 · 点击打开卡片库')
+          ? const _EmptyHint('暂无待整理卡片 · 打开卡片库查看全部')
           : ListView(
               padding: EdgeInsets.zero,
               children: [
@@ -201,8 +251,6 @@ class _PendingCardsModule extends StatelessWidget {
                     subtitle: '${_relativeDay(card.createdAt)} 记录',
                     onTap: onTap,
                   ),
-                const SizedBox(height: 4),
-                const _SectionLabel('在卡片库中筛选后放入任意白板'),
               ],
             ),
     );
@@ -213,13 +261,11 @@ class _ModuleRow extends StatelessWidget {
   const _ModuleRow({
     required this.title,
     required this.subtitle,
-    this.tag,
     this.onTap,
   });
 
   final String title;
   final String subtitle;
-  final String? tag;
   final VoidCallback? onTap;
 
   @override
@@ -229,9 +275,9 @@ class _ModuleRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(5),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 7),
+          padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(
             children: [
               Expanded(
@@ -243,75 +289,30 @@ class _ModuleRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: whiteboardUiTextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: tokens.textPrimary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: whiteboardUiTextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: tokens.textMuted,
                       ),
                     ),
                   ],
                 ),
               ),
-              if (tag != null) ...[
-                const SizedBox(width: 8),
-                _StatusTag(text: tag!),
-              ],
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: tokens.textFaint,
+              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = DesktopWorkspaceTokens.of(context);
-    return Text(
-      text,
-      style: whiteboardUiTextStyle(
-        fontSize: 12,
-        color: tokens.textFaint,
-        height: 1.4,
-      ),
-    );
-  }
-}
-
-class _StatusTag extends StatelessWidget {
-  const _StatusTag({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = DesktopWorkspaceTokens.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: tokens.divider.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: whiteboardUiTextStyle(
-          fontSize: 11,
-          color: tokens.textMuted,
-          height: 1.35,
         ),
       ),
     );
@@ -339,6 +340,38 @@ class _EmptyHint extends StatelessWidget {
     );
   }
 }
+
+String _activityTitle(DesktopHomeStats stats) {
+  if (stats.cardsCreatedLast30Days == 0) return '近 30 天尚无新增卡片';
+  return '近 30 天新增 ${stats.cardsCreatedLast30Days} 张';
+}
+
+String _compositionTitle(DesktopHomeStats stats) {
+  if (stats.totalCards == 0) return '卡片构成等待记录';
+  final entries = stats.cardKindCounts.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+  return '${_cardKindLabel(entries.first.key)}卡片最多';
+}
+
+String _placementTitle(DesktopHomeStats stats) {
+  if (stats.totalCards == 0) return '卡片尚未进入白板';
+  return '${stats.placedCards} 张已上板 · ${stats.unplacedCards} 张待整理';
+}
+
+String _boardTitle(DesktopHomeStats stats) {
+  if (stats.boardGrowth.isEmpty || stats.boardGrowth.last.value == 0) {
+    return '白板等待建立';
+  }
+  return '${stats.boardsTouchedLast30Days} 个白板近月有活动';
+}
+
+String _cardKindLabel(CardKind kind) => switch (kind) {
+      CardKind.note => '文字',
+      CardKind.annotation => '批注',
+      CardKind.source => '来源',
+      CardKind.reference => '引用',
+      CardKind.taskArtifact => '产物',
+    };
 
 String _relativeDay(int msSinceEpoch) {
   final local = DateTime.fromMillisecondsSinceEpoch(msSinceEpoch).toLocal();

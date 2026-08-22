@@ -43,6 +43,24 @@ class DesktopWorkspaceShell extends StatefulWidget {
   State<DesktopWorkspaceShell> createState() => _DesktopWorkspaceShellState();
 }
 
+/// Marks descendants that already live inside the persistent desktop shell.
+///
+/// Route wrappers use this seam to avoid mounting a second sidebar when a
+/// standard work surface is hosted by the persistent desktop routing shell.
+class DesktopWorkspaceScope extends InheritedWidget {
+  const DesktopWorkspaceScope({
+    super.key,
+    required super.child,
+  });
+
+  static bool contains(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DesktopWorkspaceScope>() !=
+      null;
+
+  @override
+  bool updateShouldNotify(DesktopWorkspaceScope oldWidget) => false;
+}
+
 class _DesktopWorkspaceShellState extends State<DesktopWorkspaceShell> {
   late bool _sidebarCollapsed;
 
@@ -74,44 +92,46 @@ class _DesktopWorkspaceShellState extends State<DesktopWorkspaceShell> {
               body: widget.child,
             );
           }
-          return Scaffold(
-            key: const ValueKey('desktop_standard_shell'),
-            backgroundColor: tokens.canvas,
-            body: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DesktopSidebar(
-                  collapsed: _sidebarCollapsed,
-                  currentPath: widget.activePath,
-                ),
-                _DesktopSidebarHandle(
-                  collapsed: _sidebarCollapsed,
-                  onToggle: () => setState(
-                    () => _sidebarCollapsed = !_sidebarCollapsed,
+          return DesktopWorkspaceScope(
+            child: Scaffold(
+              key: const ValueKey('desktop_standard_shell'),
+              backgroundColor: tokens.canvas,
+              body: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DesktopSidebar(
+                    collapsed: _sidebarCollapsed,
+                    currentPath: widget.activePath,
                   ),
-                ),
-                Expanded(
-                  key: const ValueKey('desktop_workspace_content'),
-                  child: ColoredBox(
-                    color: tokens.canvas,
-                    child: SafeArea(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (widget.showPageTitle)
-                            DesktopPageTitle(
-                              title: widget.title,
-                              meta: widget.meta,
-                              actions: widget.actions,
-                              onBack: widget.onBack,
-                            ),
-                          Expanded(child: widget.child),
-                        ],
+                  _DesktopSidebarHandle(
+                    collapsed: _sidebarCollapsed,
+                    onToggle: () => setState(
+                      () => _sidebarCollapsed = !_sidebarCollapsed,
+                    ),
+                  ),
+                  Expanded(
+                    key: const ValueKey('desktop_workspace_content'),
+                    child: ColoredBox(
+                      color: tokens.canvas,
+                      child: SafeArea(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (widget.showPageTitle)
+                              DesktopPageTitle(
+                                title: widget.title,
+                                meta: widget.meta,
+                                actions: widget.actions,
+                                onBack: widget.onBack,
+                              ),
+                            Expanded(child: widget.child),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -137,22 +157,66 @@ class _DesktopSidebarHandle extends StatelessWidget {
       width: DesktopWorkspaceTokens.sidebarHandleWidth,
       child: ColoredBox(
         color: tokens.canvas,
-        child: Center(
-          child: IconButton(
-            key: const ValueKey('desktop_sidebar_toggle'),
-            onPressed: onToggle,
-            icon: Icon(
-              collapsed
-                  ? Icons.chevron_right_rounded
-                  : Icons.chevron_left_rounded,
-              size: 18,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (!collapsed)
+              CustomPaint(
+                key: const ValueKey('desktop_sidebar_paper_seam'),
+                painter: _PaperSeamPainter(tokens.divider),
+              ),
+            Center(
+              child: IconButton(
+                key: const ValueKey('desktop_sidebar_toggle'),
+                onPressed: onToggle,
+                icon: Icon(
+                  collapsed
+                      ? Icons.chevron_right_rounded
+                      : Icons.chevron_left_rounded,
+                  size: 18,
+                ),
+                color: tokens.textFaint,
+                tooltip: collapsed ? '展开侧栏' : '收起侧栏',
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-            color: tokens.textFaint,
-            tooltip: collapsed ? '展开侧栏' : '收起侧栏',
-            visualDensity: VisualDensity.compact,
-          ),
+          ],
         ),
       ),
     );
   }
+}
+
+/// A two-dimensional paper seam: it fades horizontally into the canvas and
+/// vertically before reaching either window edge. Unlike the previous
+/// rectangular gradient, it has no clipped top/bottom endpoints.
+class _PaperSeamPainter extends CustomPainter {
+  const _PaperSeamPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final seamRect = Rect.fromCenter(
+      center: Offset(0, size.height / 2),
+      width: size.width * 1.7,
+      height: size.height * 0.78,
+    );
+    final paint = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 1,
+        colors: [
+          color.withValues(alpha: 0.22),
+          color.withValues(alpha: 0.08),
+          color.withValues(alpha: 0),
+        ],
+        stops: const [0, 0.42, 1],
+      ).createShader(seamRect);
+    canvas.drawRect(Offset.zero & size, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PaperSeamPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
