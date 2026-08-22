@@ -31,8 +31,6 @@ class UIAnnotation {
   bool get isPoint => anchor.positionSpec['is_point'] as bool? ?? false;
 }
 
-enum AnnotationDraftField { title, body, quote }
-
 /// ViewModel for video study — the complete playback → annotation pipeline.
 class VideoStudyViewModel extends ChangeNotifier {
   final PlayerAdapter adapter;
@@ -86,11 +84,9 @@ class VideoStudyViewModel extends ChangeNotifier {
   Timer? _saveConfirmationTimer;
   bool _isSavingAnnotation = false;
   bool _dockVisible = true;
-  String _annotationDraftTitle = '';
-  String _annotationDraftBody = '';
-  String _annotationDraftQuote = '';
+  String _annotationDraftDocument = '';
   bool _annotationDraftInitialized = false;
-  AnnotationDraftField? _annotationDraftFocusedField;
+  bool _annotationDraftWasFocused = false;
 
   VideoStudyViewModel({
     required this.adapter,
@@ -223,31 +219,24 @@ class VideoStudyViewModel extends ChangeNotifier {
   bool get dockVisible => _dockVisible;
   bool get isSavingAnnotation => _isSavingAnnotation;
   bool get isCapturingTimeBoundary => _isCapturingTimeBoundary;
-  String get annotationDraftTitle => _annotationDraftTitle;
-  String get annotationDraftBody => _annotationDraftBody;
-  String get annotationDraftQuote => _annotationDraftQuote;
+  String get annotationDraftDocument => _annotationDraftDocument;
   bool get annotationDraftInitialized => _annotationDraftInitialized;
-  AnnotationDraftField? get annotationDraftFocusedField =>
-      _annotationDraftFocusedField;
+  bool get annotationDraftWasFocused => _annotationDraftWasFocused;
 
-  void updateAnnotationDraft({
-    String? title,
-    String? body,
-    String? quote,
-  }) {
-    if (title != null) _annotationDraftTitle = title;
-    if (body != null) _annotationDraftBody = body;
-    if (quote != null) _annotationDraftQuote = quote;
+  void updateAnnotationDraftDocument(String document) {
+    _annotationDraftDocument = document;
   }
 
   void initializeAnnotationDraft({required String quote}) {
     if (_annotationDraftInitialized) return;
-    _annotationDraftQuote = quote;
+    final normalizedQuote = quote.trim();
+    _annotationDraftDocument =
+        normalizedQuote.isEmpty ? '' : '\n\n原文引用\n$normalizedQuote';
     _annotationDraftInitialized = true;
   }
 
-  void rememberAnnotationDraftFocus(AnnotationDraftField field) {
-    _annotationDraftFocusedField = field;
+  void rememberAnnotationDraftFocus() {
+    _annotationDraftWasFocused = true;
   }
 
   bool get hasRuntimePlaybackSurface =>
@@ -333,8 +322,8 @@ class VideoStudyViewModel extends ChangeNotifier {
       // static capability declaration stays conservative; study readiness is
       // decided at runtime after this attempt.
       _maybeAutoFetchSubtitles(embedUrl);
-    } catch (e) {
-      _errorMessage = '加载失败：$e';
+    } catch (_) {
+      _errorMessage = '视频加载失败，请检查网络或稍后重试。';
       notifyListeners();
     }
   }
@@ -525,7 +514,8 @@ class VideoStudyViewModel extends ChangeNotifier {
     int? endMs,
     bool? isPoint,
   }) {
-    if (!canCreateTimeAnchorNow) return;
+    if (!canCreateTimeAnchorNow || hasPendingAnnotation) return;
+    _resetAnnotationDraft();
     if (cueIndex != null && _track != null && cueIndex < _track!.cues.length) {
       final cue = _track!.cues[cueIndex];
       _pendingAnnotationCueId = cue.cueId;
@@ -536,8 +526,8 @@ class VideoStudyViewModel extends ChangeNotifier {
     } else {
       _pendingAnnotationStartMs = startMs ?? _positionMs;
       _pendingAnnotationEndMs = endMs ?? _positionMs;
-      _pendingAnnotationIsPoint = isPoint ??
-          _pendingAnnotationStartMs == _pendingAnnotationEndMs;
+      _pendingAnnotationIsPoint =
+          isPoint ?? _pendingAnnotationStartMs == _pendingAnnotationEndMs;
       _pendingAnnotationSuggestedQuote = null;
     }
     notifyListeners();
@@ -577,16 +567,19 @@ class VideoStudyViewModel extends ChangeNotifier {
   /// Opens a point-annotation draft at the player's readable current time.
   /// This path never depends on a subtitle cue being present.
   Future<void> beginPointAnnotationAtCurrent() async {
-    if (!canCreateTimeAnchorNow) return;
+    if (!canCreateTimeAnchorNow || hasPendingAnnotation) return;
     _rangeSelectionStartMs = null;
     final current = await _captureCurrentPosition();
+    if (current == null) return;
     beginAnnotation(startMs: current, endMs: current, isPoint: true);
   }
 
   /// Captures the first boundary of a subtitle-independent time range.
   Future<void> beginRangeSelectionAtCurrent() async {
-    if (!canCreateTimeAnchorNow) return;
-    _rangeSelectionStartMs = await _captureCurrentPosition();
+    if (!canCreateTimeAnchorNow || hasPendingAnnotation) return;
+    final current = await _captureCurrentPosition();
+    if (current == null) return;
+    _rangeSelectionStartMs = current;
     notifyListeners();
   }
 
@@ -595,19 +588,33 @@ class VideoStudyViewModel extends ChangeNotifier {
     final first = _rangeSelectionStartMs;
     if (!canCreateTimeAnchorNow || first == null) return;
     final second = await _captureCurrentPosition();
-    _rangeSelectionStartMs = null;
+    if (second == null) return;
+    if (second == first) {
+      _errorMessage = '区间终点仍与起点相同，请先移动播放位置再结束区间。';
+      notifyListeners();
+      return;
+    }
     final start = first <= second ? first : second;
     final end = first <= second ? second : first;
+    _rangeSelectionStartMs = null;
     beginAnnotation(startMs: start, endMs: end, isPoint: false);
   }
 
-  Future<int> _captureCurrentPosition() async {
+  Future<int?> _captureCurrentPosition() async {
+    if (!canCreateTimeAnchorNow || _isCapturingTimeBoundary) return null;
+    _isCapturingTimeBoundary = true;
+    _errorMessage = null;
+    notifyListeners();
     try {
       final current = await adapter.currentPositionMs();
-      _positionMs = current;
-      return current;
-    } catch (_) {
+      _positionMs = current < 0 ? 0 : current;
       return _positionMs;
+    } catch (_) {
+      _errorMessage = '无法读取当前播放位置，请稍后重试。';
+      return null;
+    } finally {
+      _isCapturingTimeBoundary = false;
+      notifyListeners();
     }
   }
 
@@ -660,8 +667,8 @@ class VideoStudyViewModel extends ChangeNotifier {
               sourceVersionId: sourceVersionId,
               request: request,
             );
-    } catch (error) {
-      _errorMessage = '标注保存失败：$error';
+    } catch (_) {
+      _errorMessage = '标注保存失败，请稍后重试。';
       _isSavingAnnotation = false;
       notifyListeners();
       return false;
@@ -674,6 +681,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     _pendingAnnotationEndMs = null;
     _pendingAnnotationIsPoint = true;
     _pendingAnnotationSuggestedQuote = null;
+    _resetAnnotationDraft();
     _showSaveConfirmation = true;
     _isSavingAnnotation = false;
     notifyListeners();
@@ -710,15 +718,14 @@ class VideoStudyViewModel extends ChangeNotifier {
     _pendingAnnotationEndMs = null;
     _pendingAnnotationIsPoint = true;
     _pendingAnnotationSuggestedQuote = null;
+    _resetAnnotationDraft();
     notifyListeners();
   }
 
   void _resetAnnotationDraft() {
-    _annotationDraftTitle = '';
-    _annotationDraftBody = '';
-    _annotationDraftQuote = '';
+    _annotationDraftDocument = '';
     _annotationDraftInitialized = false;
-    _annotationDraftFocusedField = null;
+    _annotationDraftWasFocused = false;
   }
 
   bool get hasPendingAnnotation => _pendingAnnotationStartMs != null;
@@ -791,8 +798,8 @@ class VideoStudyViewModel extends ChangeNotifier {
           );
         notifyListeners();
       }
-    } catch (e) {
-      _errorMessage = '恢复失败：$e';
+    } catch (_) {
+      _errorMessage = '研读进度恢复失败，请稍后重试。';
       notifyListeners();
     }
   }

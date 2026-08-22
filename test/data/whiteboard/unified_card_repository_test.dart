@@ -189,6 +189,85 @@ void main() {
     expect(await target.exists(), isTrue);
   });
 
+  test('object exchange failure removes fresh partial files and can retry',
+      () async {
+    late File target;
+    var failOnce = true;
+    final faulting = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (failOnce &&
+            point ==
+                UnifiedCardRepositoryFaultPoint.ingestionDuringObjectExchange) {
+          failOnce = false;
+          await target.writeAsString('{"partial":"final"}');
+          await File('${target.path}.tmp').writeAsString('partial temp');
+          await File('${target.path}.bak').writeAsString('partial backup');
+          throw StateError('injected object exchange failure');
+        }
+      },
+    );
+    final result = _ingestion(hash: 'exchange_rollback', body: '交换失败');
+    target = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}src_web_f0_example${Platform.pathSeparator}'
+      'ver_web_f0_example_exchange_rollback.json',
+    );
+
+    await expectLater(faulting.commitIngestion(result), throwsStateError);
+    expect(await faulting.listCards(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+    expect(await target.exists(), isFalse);
+    expect(await File('${target.path}.tmp').exists(), isFalse);
+    expect(await File('${target.path}.bak').exists(), isFalse);
+
+    final retried = await faulting.commitIngestion(result);
+    expect(retried.cardCreated, isTrue);
+    expect(await faulting.listCards(), hasLength(1));
+    expect(
+      await faulting.listSourceVersions(result.source!.sourceId),
+      hasLength(1),
+    );
+  });
+
+  test('object exchange failure restores exact pre-existing sidecars',
+      () async {
+    late File target;
+    final faulting = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint.ingestionDuringObjectExchange) {
+          await target.writeAsString('{"partial":"final"}');
+          await File('${target.path}.tmp').writeAsString('overwritten temp');
+          await File('${target.path}.bak').writeAsString('overwritten backup');
+          throw StateError('injected object exchange failure');
+        }
+      },
+    );
+    final result = _ingestion(hash: 'exchange_sidecars', body: '恢复现场');
+    target = File(
+      '${tempDir.path}${Platform.pathSeparator}objects${Platform.pathSeparator}'
+      'sources${Platform.pathSeparator}src_web_f0_example${Platform.pathSeparator}'
+      'ver_web_f0_example_exchange_sidecars.json',
+    );
+    final temp = File('${target.path}.tmp');
+    final backup = File('${target.path}.bak');
+    await target.parent.create(recursive: true);
+    await temp.writeAsBytes(const [1, 2, 3, 4]);
+    await backup.writeAsBytes(const [5, 6, 7, 8]);
+
+    await expectLater(faulting.commitIngestion(result), throwsStateError);
+
+    expect(await faulting.listCards(), isEmpty);
+    expect(await db.select(db.whiteboardSourceVersions).get(), isEmpty);
+    expect(await target.exists(), isFalse);
+    expect(await temp.readAsBytes(), const [1, 2, 3, 4]);
+    expect(await backup.readAsBytes(), const [5, 6, 7, 8]);
+  });
+
   test('failed ingestion restores pre-existing sidecars but removes new final',
       () async {
     final faulting = UnifiedCardRepository(

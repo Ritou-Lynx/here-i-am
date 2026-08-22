@@ -21,6 +21,7 @@ import 'package:memex/domain/whiteboard/recoverable_file_exchange.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
+import 'package:memex/domain/whiteboard/video/time_range_anchor_spec.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 
 /// Filesystem availability of a card's rich-text body.
@@ -111,6 +112,7 @@ class IngestionCommitResult {
 enum UnifiedCardRepositoryFaultPoint {
   annotationAfterMemoryCardInsert,
   annotationAfterExtrasInsert,
+  ingestionDuringObjectExchange,
   ingestionAfterVersionInsert,
 }
 
@@ -428,8 +430,8 @@ class UnifiedCardRepository {
     return card;
   }
 
-  /// Inserts a complete Source-bound Annotation Card in one transaction.
-  Future<CardContract> createAnnotationCard(CardContract card) async {
+  /// Inserts a complete Source-bound video Annotation Card in one transaction.
+  Future<CardContract> createVideoAnnotationCard(CardContract card) async {
     if (card.cardKind != CardKind.annotation || card.sourceId == null) {
       throw ArgumentError('Annotation Card requires kind and sourceId');
     }
@@ -442,6 +444,19 @@ class UnifiedCardRepository {
     );
     if (anchor.sourceId != card.sourceId) {
       throw ArgumentError('Annotation Card Source and Anchor disagree');
+    }
+    if (anchor.positionKind != PositionKind.timeRange) {
+      throw ArgumentError('Video Annotation requires a time_range Anchor');
+    }
+    final specError = TimeRangeAnchorSpec.validate(anchor.positionSpec);
+    if (specError != null) throw ArgumentError(specError);
+    final startMs = (anchor.positionSpec['start_ms'] as num).toInt();
+    final endMs = (anchor.positionSpec['end_ms'] as num).toInt();
+    final isPoint = anchor.positionSpec['is_point'];
+    if (isPoint is! bool || isPoint != (startMs == endMs)) {
+      throw ArgumentError(
+        'time_range is_point must agree with start_ms and end_ms',
+      );
     }
     if (card.presentation['anchor_id'] != anchor.anchorId ||
         card.presentation['start_ms'] != anchor.positionSpec['start_ms'] ||
@@ -780,17 +795,16 @@ class UnifiedCardRepository {
           createdAt: incomingVersion.createdAt.toUtc(),
         );
     _SourceObjectWriteGuard? objectWriteGuard;
-    if (sameHash == null) {
-      final target = _objectFile(version.objectRef);
-      objectWriteGuard = await _SourceObjectWriteGuard.capture(
-        target,
-        version.objectRef,
-      );
-      await _writeSourceObject(version, result);
-    }
-
     late IngestionCommitResult committed;
     try {
+      if (sameHash == null) {
+        final target = _objectFile(version.objectRef);
+        objectWriteGuard = await _SourceObjectWriteGuard.capture(
+          target,
+          version.objectRef,
+        );
+        await _writeSourceObject(version, result);
+      }
       await db.transaction(() async {
         if (sameHash == null) {
           await db
@@ -1267,6 +1281,9 @@ class UnifiedCardRepository {
           if (entry.key != 'body_text') entry.key: entry.value,
       },
     };
+    await _injectFault(
+      UnifiedCardRepositoryFaultPoint.ingestionDuringObjectExchange,
+    );
     await RecoverableFileExchange.write(
       file,
       jsonEncode(payload),

@@ -26,7 +26,7 @@ class RepositoryVideoAnnotationStore {
       sourceVersionId: sourceVersionId,
       request: request,
     );
-    final persisted = await repository.createAnnotationCard(
+    final persisted = await repository.createVideoAnnotationCard(
       CardContract(
         cardId: draft.card.cardId,
         cardKind: CardKind.annotation,

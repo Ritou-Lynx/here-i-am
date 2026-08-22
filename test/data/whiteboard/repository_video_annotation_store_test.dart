@@ -155,7 +155,7 @@ void main() {
       ),
     );
     await expectLater(
-      repository.createAnnotationCard(
+      repository.createVideoAnnotationCard(
         _completeAnnotationCard(draft, startMs: 10001),
       ),
       throwsArgumentError,
@@ -185,11 +185,68 @@ void main() {
       'source_version_id': 'ver_missing',
     });
     await expectLater(
-      repository.createAnnotationCard(
+      repository.createVideoAnnotationCard(
         _completeAnnotationCard(draft, anchor: invalidAnchor),
       ),
       throwsStateError,
     );
+    expect(
+      await repository.listCards(
+        const CardLibraryQuery(
+          kinds: {CardKind.annotation},
+          includeDeleted: true,
+        ),
+      ),
+      isEmpty,
+    );
+  });
+
+  test('video annotation entry rejects invalid time-range semantics', () async {
+    final draft = VideoAnnotationService().createAnnotation(
+      sourceId: 'src_youtube_demo',
+      sourceVersionId: 'ver_youtube_demo_v1',
+      request: const AnnotationCreationRequest(
+        spec: TimeRangeAnchorSpec(startMs: 10000, endMs: 14000),
+        title: '非法时间锚点',
+      ),
+    );
+    final invalidAnchors = <AnchorContract>[
+      AnchorContract.fromJson({
+        ...draft.anchor.toJson(),
+        'position_kind': 'text_range',
+      }),
+      AnchorContract.fromJson({
+        ...draft.anchor.toJson(),
+        'position_spec': {
+          ...draft.anchor.positionSpec,
+          'start_ms': -1,
+        },
+      }),
+      AnchorContract.fromJson({
+        ...draft.anchor.toJson(),
+        'position_spec': {
+          ...draft.anchor.positionSpec,
+          'start_ms': 15000,
+          'end_ms': 14000,
+        },
+      }),
+      AnchorContract.fromJson({
+        ...draft.anchor.toJson(),
+        'position_spec': {
+          ...draft.anchor.positionSpec,
+          'is_point': true,
+        },
+      }),
+    ];
+
+    for (final anchor in invalidAnchors) {
+      await expectLater(
+        repository.createVideoAnnotationCard(
+          _completeAnnotationCard(draft, anchor: anchor),
+        ),
+        throwsArgumentError,
+      );
+    }
     expect(
       await repository.listCards(
         const CardLibraryQuery(

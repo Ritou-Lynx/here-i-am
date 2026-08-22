@@ -28,20 +28,38 @@ class AnnotationEditor extends StatefulWidget {
 }
 
 class _AnnotationEditorState extends State<AnnotationEditor> {
-  final _documentController = TextEditingController();
+  late final TextEditingController _documentController;
+  late final FocusNode _documentFocusNode;
 
   @override
   void initState() {
     super.initState();
-    final quote = widget.initialQuote?.trim();
-    if (quote != null && quote.isNotEmpty) {
-      _documentController.text = '\n\n原文引用\n$quote';
-      _documentController.selection = const TextSelection.collapsed(offset: 0);
+    final vm = widget.viewModel;
+    vm.initializeAnnotationDraft(quote: widget.initialQuote ?? '');
+    _documentController = TextEditingController(
+      text: vm.annotationDraftDocument,
+    );
+    _documentController.selection = const TextSelection.collapsed(offset: 0);
+    _documentFocusNode = FocusNode(debugLabel: 'video annotation document')
+      ..addListener(_rememberFocus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_documentFocusNode.hasFocus) {
+        _documentFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _rememberFocus() {
+    if (_documentFocusNode.hasFocus) {
+      widget.viewModel.rememberAnnotationDraftFocus();
     }
   }
 
   @override
   void dispose() {
+    _documentFocusNode
+      ..removeListener(_rememberFocus)
+      ..dispose();
     _documentController.dispose();
     super.dispose();
   }
@@ -98,6 +116,8 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
           TextField(
             key: const ValueKey('video_annotation_document'),
             controller: _documentController,
+            focusNode: _documentFocusNode,
+            onChanged: widget.viewModel.updateAnnotationDraftDocument,
             minLines: 8,
             maxLines: null,
             keyboardType: TextInputType.multiline,

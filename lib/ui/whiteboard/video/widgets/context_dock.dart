@@ -39,6 +39,10 @@ class _ContextDockState extends State<ContextDock> {
   @override
   void initState() {
     super.initState();
+    if (widget.viewModel.hasPendingAnnotation ||
+        widget.viewModel.showSaveConfirmation) {
+      _section = _DockSection.notes;
+    }
     widget.viewModel.addListener(_followAnnotationWorkflow);
   }
 
@@ -108,6 +112,19 @@ class _ContextDockState extends State<ContextDock> {
             ),
           if (vm.canCreateTimeAnchorNow)
             _CurrentTimeAnnotationBar(viewModel: vm),
+          if (vm.errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Text(
+                vm.errorMessage!,
+                key: const ValueKey('video_study_error'),
+                style: whiteboardUiTextStyle(
+                  color: tokens.error,
+                  fontSize: 11,
+                  height: 1.4,
+                ),
+              ),
+            ),
           if (vm.canReadPosition) Divider(height: 1, color: tokens.divider),
           _DockTabs(
             selected: _section,
@@ -244,57 +261,11 @@ class _CurrentTimeAnnotationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (viewModel.showSaveConfirmation) {
-      return _SaveConfirmationPane(
-        viewModel: viewModel,
-        onDismiss: viewModel.dismissSaveConfirmation,
-      );
-    }
-    if (viewModel.hasPendingAnnotation) {
-      return _PendingAnnotationPane(viewModel: viewModel);
-    }
-    if (viewModel.annotations.isNotEmpty) {
-      return _AnnotationCardsList(viewModel: viewModel);
-    }
-    final tokens = DesktopWorkspaceTokens.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Text(
-          viewModel.canCreateTimeAnchorNow
-              ? '尚无视频笔记\n可按当前位置或区间创建'
-              : '当前播放器无法读取时间\n不能伪造可恢复的时间标注',
-          key: const ValueKey('video_notes_empty'),
-          textAlign: TextAlign.center,
-          style: whiteboardUiTextStyle(
-            color: tokens.textFaint,
-            fontSize: 12,
-            height: 1.6,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CurrentTimeAnnotationBar extends StatelessWidget {
-  const _CurrentTimeAnnotationBar({
-    required this.viewModel,
-    this.compact = false,
-  });
-
-  final VideoStudyViewModel viewModel;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
     final rangeStart = viewModel.rangeSelectionStartMs;
     final controls = <Widget>[
       Text(
-        compact
-            ? VideoStudyViewModel.formatTimecode(viewModel.positionMs)
-            : '当前位置 ${VideoStudyViewModel.formatTimecode(viewModel.positionMs)}',
+        '当前位置 ${VideoStudyViewModel.formatTimecode(viewModel.positionMs)}',
         key: const ValueKey('video_current_position_label'),
         style: richTextCodeTextStyle(color: tokens.textMuted, fontSize: 11),
       ),
@@ -305,7 +276,7 @@ class _CurrentTimeAnnotationBar extends StatelessWidget {
                 ? null
                 : () => viewModel.beginPointAnnotationAtCurrent(),
         icon: const Icon(Icons.add_comment_outlined, size: 15),
-        label: Text(compact ? '当前点' : '在当前位置添加标注'),
+        label: const Text('在当前位置添加标注'),
       ),
       if (rangeStart == null)
         TextButton.icon(
@@ -328,7 +299,7 @@ class _CurrentTimeAnnotationBar extends StatelessWidget {
               ? null
               : () => viewModel.finishRangeSelectionAtCurrent(),
           icon: const Icon(Icons.last_page_rounded, size: 15),
-          label: Text(compact ? '结束并标注' : '以当前位置结束并标注'),
+          label: const Text('以当前位置结束并标注'),
         ),
         IconButton(
           tooltip: '取消区间',
@@ -337,13 +308,6 @@ class _CurrentTimeAnnotationBar extends StatelessWidget {
         ),
       ],
     ];
-    if (compact) {
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
-        child: Row(spacing: 8, children: controls),
-      );
-    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
       child: Wrap(
@@ -523,9 +487,7 @@ class _EmptyVideoNotes extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              canCreate
-                  ? '可在当前位置创建点笔记或时间区间笔记'
-                  : '当前播放器无法读取时间，暂不能创建时间笔记',
+              canCreate ? '可在当前位置创建点笔记或时间区间笔记' : '当前播放器无法读取时间，暂不能创建时间笔记',
               textAlign: TextAlign.center,
               style: whiteboardUiTextStyle(
                 color: tokens.textFaint,
@@ -635,14 +597,13 @@ class _AnnotationCardThumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
-    final title = annotation.card.title.isEmpty
-        ? '未命名标注'
-        : annotation.card.title;
+    final title =
+        annotation.card.title.isEmpty ? '未命名标注' : annotation.card.title;
     final start = VideoStudyViewModel.formatTimecode(annotation.startMs);
-    final timecode = annotation.isPoint ||
-            annotation.endMs == annotation.startMs
-        ? start
-        : '$start–${VideoStudyViewModel.formatTimecode(annotation.endMs)}';
+    final timecode =
+        annotation.isPoint || annotation.endMs == annotation.startMs
+            ? start
+            : '$start–${VideoStudyViewModel.formatTimecode(annotation.endMs)}';
     final summary = annotation.card.body.trim();
 
     return InkWell(
