@@ -3602,16 +3602,21 @@ only after you have written the goodbye you want the user to hear.''',
       {double alignment = 0.45, int newerCount = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
-      const avgItemHeight = 80.0;
+      const avgItemHeight = 140.0;
       final estimated = (newerCount * avgItemHeight)
           .clamp(0.0, _scrollController.position.maxScrollExtent);
       _scrollController.jumpTo(estimated);
-      _ensureVisibleWithRetry(messageId, alignment: alignment, retriesLeft: 3);
+      _ensureVisibleWithRetry(messageId, alignment: alignment, retriesLeft: 10);
     });
   }
 
-  void _ensureVisibleWithRetry(int messageId,
-      {double alignment = 0.45, int retriesLeft = 3}) {
+  void _ensureVisibleWithRetry(
+    int messageId, {
+    double alignment = 0.45,
+    int retriesLeft = 10,
+    double? searchOrigin,
+    bool searchingOlder = true,
+  }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final messageContext = _messageKeys[messageId]?.currentContext;
@@ -3626,11 +3631,28 @@ only after you have written the goodbye you want the user to hear.''',
       }
       if (retriesLeft <= 0 || !_scrollController.hasClients) return;
       final pos = _scrollController.position;
-      final nudge = pos.viewportDimension * 0.8;
-      final next = (pos.pixels + nudge).clamp(0.0, pos.maxScrollExtent);
+      final origin = searchOrigin ?? pos.pixels;
+      final nudge = pos.viewportDimension * 0.7;
+      double next;
+      if (searchingOlder) {
+        if (pos.pixels + nudge <= pos.maxScrollExtent) {
+          next = pos.pixels + nudge;
+        } else {
+          searchingOlder = false;
+          next = (origin - nudge).clamp(0.0, pos.maxScrollExtent);
+        }
+      } else {
+        next = (pos.pixels - nudge).clamp(0.0, pos.maxScrollExtent);
+      }
+      if ((next - pos.pixels).abs() < 1.0) return;
       _scrollController.jumpTo(next);
-      _ensureVisibleWithRetry(messageId,
-          alignment: alignment, retriesLeft: retriesLeft - 1);
+      _ensureVisibleWithRetry(
+        messageId,
+        alignment: alignment,
+        retriesLeft: retriesLeft - 1,
+        searchOrigin: origin,
+        searchingOlder: searchingOlder,
+      );
     });
   }
 
