@@ -258,15 +258,36 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   KeyEventResult _onEarlyKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
+    final hardware = HardwareKeyboard.instance;
+    final isModifier = hardware.isControlPressed || hardware.isMetaPressed;
+    if (_continuousFocusNode.hasFocus && isModifier) {
+      // Run document-level history before EditableText's private undo stack.
+      // During active IME composition the platform input method retains
+      // control, so composing text is never force-committed by this handler.
+      if (_continuousController.value.composing.isValid) {
+        return KeyEventResult.ignored;
+      }
+      if (key == LogicalKeyboardKey.keyZ) {
+        if (hardware.isShiftPressed) {
+          widget.controller.redo();
+        } else {
+          widget.controller.undo();
+        }
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyY) {
+        widget.controller.redo();
+        return KeyEventResult.handled;
+      }
+    }
     if (key != LogicalKeyboardKey.enter &&
         key != LogicalKeyboardKey.numpadEnter) {
       return KeyEventResult.ignored;
     }
-    final hw = HardwareKeyboard.instance;
-    if (hw.isShiftPressed ||
-        hw.isControlPressed ||
-        hw.isMetaPressed ||
-        hw.isAltPressed) {
+    if (hardware.isShiftPressed ||
+        hardware.isControlPressed ||
+        hardware.isMetaPressed ||
+        hardware.isAltPressed) {
       // Shift+Enter = soft newline; modifiers leave to the field.
       return KeyEventResult.ignored;
     }

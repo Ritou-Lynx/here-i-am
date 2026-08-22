@@ -95,6 +95,42 @@ void main() {
 
     expect(textController.value.composing, const TextRange(start: 0, end: 2));
     expect(controller.flushToDocument().blocks.first.text, equals('ni'));
+    expect(controller.canUndo, isTrue);
+  });
+
+  testWidgets('Ctrl+Z undoes coalesced typing and Ctrl+Y restores it',
+      (tester) async {
+    final controller = await pumpEditor(tester, const [
+      RichTextBlock(type: BlockType.paragraph, text: '编辑前'),
+    ]);
+    final field = find.byKey(const ValueKey('rich_text_continuous_document'));
+    await tester.tap(field);
+    final textController = tester.widget<TextField>(field).controller!;
+
+    textController.value = const TextEditingValue(
+      text: '编辑前，连续',
+      selection: TextSelection.collapsed(offset: 6),
+    );
+    textController.value = const TextEditingValue(
+      text: '编辑前，连续输入',
+      selection: TextSelection.collapsed(offset: 8),
+    );
+    await tester.pump();
+    expect(controller.document.blocks.single.text, '编辑前，连续输入');
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(textController.text, '编辑前');
+    expect(controller.document.blocks.single.text, '编辑前');
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyY);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(textController.text, '编辑前，连续输入');
+    expect(controller.document.blocks.single.text, '编辑前，连续输入');
   });
 
   testWidgets('current block cycles Paragraph to H1 to H6 to Paragraph',

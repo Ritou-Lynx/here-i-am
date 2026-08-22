@@ -6,7 +6,7 @@ import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 
 void main() {
-  test('continuous block replacement remains serializable and undoable', () {
+  test('rapid continuous replacements coalesce into one undo step', () {
     final controller = RichTextEditingController(
       const RichTextDocument(blocks: [
         RichTextBlock(type: BlockType.paragraph, text: '第一段'),
@@ -14,20 +14,31 @@ void main() {
       ]),
     );
 
-    controller.commitHistory(coalesce: false);
     controller.replaceContinuousBlocks(const [
-      RichTextBlock(type: BlockType.heading, text: '合并段', attrs: {'level': 6}),
+      RichTextBlock(type: BlockType.paragraph, text: '连'),
     ]);
-    controller.commitHistory(coalesce: false);
+    controller.replaceContinuousBlocks(const [
+      RichTextBlock(type: BlockType.paragraph, text: '连续'),
+    ]);
+    controller.replaceContinuousBlocks(const [
+      RichTextBlock(
+        type: BlockType.heading,
+        text: '连续输入',
+        attrs: {'level': 6},
+      ),
+    ]);
 
     final encoded = controller.flushToDocument().toJson();
     final restored = RichTextDocument.fromJson(encoded);
-    expect(restored.blocks.single.text, '合并段');
+    expect(restored.blocks.single.text, '连续输入');
     expect(restored.blocks.single.headingLevel, 6);
 
     expect(controller.undo(), isTrue);
     expect(controller.document.blocks, hasLength(2));
+    expect(controller.document.blocks.first.text, '第一段');
+    expect(controller.undo(), isFalse);
     expect(controller.redo(), isTrue);
+    expect(controller.document.blocks.single.text, '连续输入');
     expect(controller.document.blocks.single.headingLevel, 6);
   });
 

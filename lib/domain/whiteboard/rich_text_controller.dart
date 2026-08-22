@@ -258,7 +258,10 @@ class RichTextEditingController extends ChangeNotifier {
   /// legacy per-block states keeps the existing storage, history, media and
   /// migration APIs compatible without making block boundaries separate text
   /// inputs again.
-  void replaceContinuousBlocks(List<RichTextBlock> blocks) {
+  void replaceContinuousBlocks(
+    List<RichTextBlock> blocks, {
+    bool coalesceHistory = true,
+  }) {
     final normalized = blocks.isEmpty
         ? const [RichTextBlock(type: BlockType.paragraph)]
         : List<RichTextBlock>.unmodifiable(blocks);
@@ -266,6 +269,7 @@ class RichTextEditingController extends ChangeNotifier {
       blocks: normalized,
       assetRefs: _usedAssetRefs(normalized, _doc.assetRefs),
     );
+    _history.commit(_doc, coalesce: coalesceHistory);
     _syncStates();
     _dirty = true;
     notifyListeners();
