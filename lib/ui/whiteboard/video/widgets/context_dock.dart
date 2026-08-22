@@ -34,6 +34,43 @@ class ContextDock extends StatefulWidget {
 }
 
 class _ContextDockState extends State<ContextDock> {
+  _DockSection _section = _DockSection.subtitles;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.viewModel.addListener(_followAnnotationWorkflow);
+  }
+
+  @override
+  void didUpdateWidget(covariant ContextDock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.viewModel, widget.viewModel)) {
+      oldWidget.viewModel.removeListener(_followAnnotationWorkflow);
+      widget.viewModel.addListener(_followAnnotationWorkflow);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.viewModel.removeListener(_followAnnotationWorkflow);
+    super.dispose();
+  }
+
+  void _followAnnotationWorkflow() {
+    final vm = widget.viewModel;
+    if ((vm.hasPendingAnnotation || vm.showSaveConfirmation) &&
+        _section != _DockSection.notes &&
+        mounted) {
+      setState(() => _section = _DockSection.notes);
+    }
+  }
+
+  void _selectSection(_DockSection section) {
+    if (_section == section) return;
+    setState(() => _section = section);
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = widget.viewModel;
@@ -48,8 +85,10 @@ class _ContextDockState extends State<ContextDock> {
         children: [
           // Header
           _DockHeader(
-            title: '字幕 / 时间轴',
-            subtitle: _subtitleStatusLabel(vm),
+            title: '研读辅助',
+            subtitle: _section == _DockSection.subtitles
+                ? _subtitleStatusLabel(vm)
+                : '${vm.annotations.length} 条视频笔记',
             orientation: orientation,
             onToggleOrientation: widget.orientationLocked
                 ? null
@@ -71,19 +110,21 @@ class _ContextDockState extends State<ContextDock> {
           if (vm.canCreateTimeAnchorNow)
             _CurrentTimeAnnotationBar(viewModel: vm),
           if (vm.canReadPosition) Divider(height: 1, color: tokens.divider),
+          _DockTabs(
+            selected: _section,
+            noteCount: vm.annotations.length,
+            onSelected: _selectSection,
+          ),
+          Divider(height: 1, color: tokens.divider),
           // Body
           Expanded(
-            child: vm.showSaveConfirmation
-                ? _SaveConfirmationPane(
-                    viewModel: vm,
-                    onDismiss: vm.dismissSaveConfirmation,
+            child: _section == _DockSection.subtitles
+                ? KeyedSubtree(
+                    key: const ValueKey('video_subtitles_tab_content'),
+                    child: SubtitleListView(viewModel: vm),
                   )
-                : vm.hasPendingAnnotation
-                ? _PendingAnnotationPane(viewModel: vm)
-                : SubtitleListView(viewModel: vm),
+                : _VideoNotesPane(viewModel: vm),
           ),
-          // Annotation list (footer)
-          if (vm.annotations.isNotEmpty) _AnnotationCardsList(viewModel: vm),
         ],
       ),
     );
@@ -106,6 +147,94 @@ class _ContextDockState extends State<ContextDock> {
       TimedTextSourceKind.asr => '本机转写',
     };
     return '$source · ${track.cues.length} 条';
+  }
+}
+
+enum _DockSection { subtitles, notes }
+
+class _DockTabs extends StatelessWidget {
+  const _DockTabs({
+    required this.selected,
+    required this.noteCount,
+    required this.onSelected,
+  });
+
+  final _DockSection selected;
+  final int noteCount;
+  final ValueChanged<_DockSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 42,
+      child: Row(
+        children: [
+          Expanded(
+            child: _DockTab(
+              key: const ValueKey('video_dock_tab_subtitles'),
+              label: '字幕',
+              selected: selected == _DockSection.subtitles,
+              onTap: () => onSelected(_DockSection.subtitles),
+            ),
+          ),
+          Expanded(
+            child: _DockTab(
+              key: const ValueKey('video_dock_tab_notes'),
+              label: noteCount == 0 ? '视频笔记' : '视频笔记 $noteCount',
+              selected: selected == _DockSection.notes,
+              onTap: () => onSelected(_DockSection.notes),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DockTab extends StatelessWidget {
+  const _DockTab({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: selected ? tokens.action : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+            ),
+            child: Text(
+              label,
+              style: whiteboardUiTextStyle(
+                color: selected ? tokens.action : tokens.textMuted,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -242,7 +371,7 @@ class _DockHeader extends StatelessWidget {
           ),
           IconButton(
             key: const ValueKey('video_close_dock'),
-            tooltip: '关闭字幕与标注',
+            tooltip: '关闭字幕与视频笔记',
             icon: const Icon(Icons.close, size: 18),
             color: tokens.textMuted,
             onPressed: onClose,
@@ -278,6 +407,79 @@ class _PendingAnnotationPane extends StatelessWidget {
             initialQuote: viewModel.pendingAnnotationSuggestedQuote,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _VideoNotesPane extends StatelessWidget {
+  const _VideoNotesPane({required this.viewModel});
+
+  final VideoStudyViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    late final Widget content;
+    if (viewModel.showSaveConfirmation) {
+      content = _SaveConfirmationPane(
+        viewModel: viewModel,
+        onDismiss: viewModel.dismissSaveConfirmation,
+      );
+    } else if (viewModel.hasPendingAnnotation) {
+      content = _PendingAnnotationPane(viewModel: viewModel);
+    } else if (viewModel.annotations.isEmpty) {
+      content = _EmptyVideoNotes(
+        canCreate: viewModel.canCreateTimeAnchorNow,
+      );
+    } else {
+      content = _AnnotationCardsList(viewModel: viewModel);
+    }
+    return KeyedSubtree(
+      key: const ValueKey('video_notes_tab_content'),
+      child: content,
+    );
+  }
+}
+
+class _EmptyVideoNotes extends StatelessWidget {
+  const _EmptyVideoNotes({required this.canCreate});
+
+  final bool canCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Center(
+      key: const ValueKey('video_notes_empty_state'),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.note_alt_outlined, size: 36, color: tokens.textFaint),
+            const SizedBox(height: 10),
+            Text(
+              '还没有视频笔记',
+              style: whiteboardUiTextStyle(
+                color: tokens.textMuted,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              canCreate
+                  ? '可在当前位置创建点笔记或时间区间笔记'
+                  : '当前播放器无法读取时间，暂不能创建时间笔记',
+              textAlign: TextAlign.center,
+              style: whiteboardUiTextStyle(
+                color: tokens.textFaint,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -327,7 +529,7 @@ class _SaveConfirmationPane extends StatelessWidget {
             TextButton(
               onPressed: onDismiss,
               child: Text(
-                '返回字幕',
+                '返回视频笔记',
                 style: whiteboardUiTextStyle(
                   color: tokens.textMuted,
                   fontSize: 12,
@@ -348,27 +550,19 @@ class _AnnotationCardsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final annotations = viewModel.annotations;
-    final tokens = DesktopWorkspaceTokens.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        border: Border(top: BorderSide(color: tokens.divider, width: 1)),
-      ),
-      child: SizedBox(
-        height: 96,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          itemCount: annotations.length,
-          itemBuilder: (context, index) {
-            final a = annotations[index];
-            return _AnnotationCardThumb(
-              annotation: a,
-              onTap: () => viewModel.seekTo(a.startMs),
-            );
-          },
-        ),
-      ),
+    return ListView.separated(
+      key: const ValueKey('video_notes_list'),
+      padding: const EdgeInsets.all(12),
+      itemCount: annotations.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final annotation = annotations[index];
+        return _AnnotationCardThumb(
+          key: ValueKey('video_note_card_${annotation.card.cardId}'),
+          annotation: annotation,
+          onTap: () => viewModel.seekTo(annotation.startMs),
+        );
+      },
     );
   }
 }
@@ -377,7 +571,11 @@ class _AnnotationCardThumb extends StatelessWidget {
   final UIAnnotation annotation;
   final VoidCallback onTap;
 
-  const _AnnotationCardThumb({required this.annotation, required this.onTap});
+  const _AnnotationCardThumb({
+    super.key,
+    required this.annotation,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -385,15 +583,19 @@ class _AnnotationCardThumb extends StatelessWidget {
     final title = annotation.card.title.isEmpty
         ? '未命名标注'
         : annotation.card.title;
-    final timecode = VideoStudyViewModel.formatTimecode(annotation.startMs);
+    final start = VideoStudyViewModel.formatTimecode(annotation.startMs);
+    final timecode = annotation.isPoint ||
+            annotation.endMs == annotation.startMs
+        ? start
+        : '$start–${VideoStudyViewModel.formatTimecode(annotation.endMs)}';
+    final summary = annotation.card.body.trim();
 
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        width: 160,
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.all(10),
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: tokens.surfaceRaised,
           borderRadius: BorderRadius.circular(10),
@@ -401,7 +603,6 @@ class _AnnotationCardThumb extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               timecode,
@@ -421,6 +622,19 @@ class _AnnotationCardThumb extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
+            if (summary.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                summary,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: whiteboardUiTextStyle(
+                  color: tokens.textMuted,
+                  fontSize: 11,
+                  height: 1.45,
+                ),
+              ),
+            ],
           ],
         ),
       ),

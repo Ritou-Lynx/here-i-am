@@ -43,6 +43,49 @@ TimedTextTrack _buildTrack() {
   );
 }
 
+VideoAnnotationSession _sessionWithVideoNotes() {
+  final createdAt = DateTime.utc(2026, 8, 23, 9);
+  final specs = [
+    TimeRangeAnchorSpec.point(2000),
+    TimeRangeAnchorSpec.range(6000, 9500),
+    TimeRangeAnchorSpec.point(12000),
+  ];
+  final anchors = <AnchorContract>[];
+  final cards = <CardContract>[];
+  final bindings = <String, String>{};
+  for (var index = 0; index < specs.length; index++) {
+    final anchor = TimeRangeAnchorSpec.buildAnchor(
+      anchorId: 'anchor_note_$index',
+      sourceId: 'src_video_test',
+      sourceVersionId: 'ver_video_test_v1',
+      spec: specs[index],
+      createdAt: createdAt.add(Duration(minutes: index)),
+    );
+    final card = CardContract(
+      cardId: 'card_note_$index',
+      cardKind: CardKind.annotation,
+      sourceId: 'src_video_test',
+      title: '视频笔记 ${index + 1}',
+      body: '第 ${index + 1} 条笔记摘要，用于验证窄右栏纵向排列。',
+      createdAt: createdAt.add(Duration(minutes: index)),
+    );
+    anchors.add(anchor);
+    cards.add(card);
+    bindings[anchor.anchorId] = card.cardId;
+  }
+  return VideoAnnotationSession(
+    sourceId: 'src_video_test',
+    sourceVersionId: 'ver_video_test_v1',
+    lastPositionMs: 0,
+    anchors: anchors,
+    annotationCards: cards,
+    anchorToCard: bindings,
+    dockOrientation: 'right',
+    dockRatio: 0.35,
+    savedAt: createdAt,
+  );
+}
+
 /// Fake timedtext service with a scripted result (no network in tests).
 class _FakeTimedTextService extends YouTubeTimedTextService {
   final YouTubeTimedTextResult result;
@@ -193,14 +236,102 @@ void main() {
     expect(find.text('烟雾升起'), findsOneWidget);
     expect(find.text('副歌开始'), findsOneWidget);
 
-    // Dock header should show subtitle status.
-    expect(find.text('字幕 / 时间轴'), findsOneWidget);
+    // Dock header and tabs should expose both study contexts.
+    expect(find.text('研读辅助'), findsOneWidget);
+    expect(find.text('字幕'), findsOneWidget);
+    expect(find.text('视频笔记'), findsOneWidget);
     expect(find.textContaining('用户导入'), findsOneWidget);
 
     // Player controls visible.
     expect(find.byIcon(Icons.play_arrow), findsWidgets);
 
     adapter.dispose();
+  });
+
+  testWidgets('dock tabs separate subtitle and honest empty notes states',
+      (tester) async {
+    final adapter = _buildFixture();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('video_dock_tab_subtitles')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('video_dock_tab_notes')), findsOneWidget);
+    expect(find.byKey(const ValueKey('video_subtitles_tab_content')),
+        findsOneWidget);
+    expect(find.text('需要字幕'), findsWidgets);
+
+    await tester.tap(find.byKey(const ValueKey('video_dock_tab_notes')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_notes_tab_content')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('video_notes_empty_state')),
+        findsOneWidget);
+    expect(find.text('还没有视频笔记'), findsOneWidget);
+    expect(find.textContaining('可在当前位置创建'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('video_dock_tab_subtitles')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('video_subtitles_tab_content')),
+        findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('restored video notes are vertical, scrollable, and seekable',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
+    final adapter = _buildFixture();
+    final store = _RecordingSessionStore(restored: _sessionWithVideoNotes());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          initialTrack: _buildTrack(),
+          sessionStore: store,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('灯光切换'), findsOneWidget);
+    expect(find.text('视频笔记 1'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('video_dock_tab_notes')));
+    await tester.pumpAndSettle();
+
+    final first = find.byKey(const ValueKey('video_note_card_card_note_0'));
+    final second = find.byKey(const ValueKey('video_note_card_card_note_1'));
+    final third = find.byKey(const ValueKey('video_note_card_card_note_2'));
+    expect(first, findsOneWidget);
+    expect(second, findsOneWidget);
+    expect(third, findsOneWidget);
+    final firstRect = tester.getRect(first);
+    final secondRect = tester.getRect(second);
+    final thirdRect = tester.getRect(third);
+    expect(secondRect.top, greaterThan(firstRect.bottom));
+    expect(thirdRect.top, greaterThan(secondRect.bottom));
+    expect(secondRect.left, closeTo(firstRect.left, 0.1));
+
+    final list = find.byKey(const ValueKey('video_notes_list'));
+    final scrollable = tester.widget<Scrollable>(
+      find.descendant(of: list, matching: find.byType(Scrollable)),
+    );
+    expect(scrollable.axisDirection, AxisDirection.down);
+
+    await adapter.seekTo(50000);
+    await tester.tap(second);
+    await tester.pumpAndSettle();
+    expect(await adapter.currentPositionMs(), 6000);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('dock uses 65:35 right, 70:30 bottom, and fully leaves',
@@ -559,6 +690,8 @@ void main() {
     expect(find.text('在 00:07 创建标注'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField).first, '无字幕点标注');
+    await tester.ensureVisible(find.text('保存标注'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存标注'));
     await tester.pumpAndSettle();
     final anchor = store.saved!.anchors.single;
@@ -597,6 +730,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('00:10–00:14'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, '无字幕区间标注');
+    await tester.ensureVisible(find.text('保存标注'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存标注'));
     await tester.pumpAndSettle();
     final anchor = store.saved!.anchors.single;
@@ -619,6 +754,8 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('video_dock_tab_notes')));
     await tester.pumpAndSettle();
     expect(find.text('无字幕区间标注'), findsOneWidget);
     await restartedAdapter.seekTo(50000);
@@ -800,6 +937,8 @@ void main() {
       find.byKey(const ValueKey('video_annotation_document')),
       '只保留笔记\n引用已由用户删除',
     );
+    await tester.ensureVisible(find.text('保存标注'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存标注'));
     await tester.pumpAndSettle();
     expect(store.saved!.annotationCards.single.title, '只保留笔记');
