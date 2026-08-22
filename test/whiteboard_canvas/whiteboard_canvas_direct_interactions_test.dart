@@ -18,6 +18,7 @@ import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/ui/whiteboard_canvas/interactions/ui_intent.dart';
 import 'package:memex/ui/whiteboard_canvas/engine/flutter_canvas_adapter.dart';
+import 'package:memex/ui/whiteboard_canvas/edge_geometry.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
@@ -253,8 +254,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('候选连接点使用屏幕热区，离开后高亮消失且空白松手取消',
-      (tester) async {
+  testWidgets('候选连接点使用屏幕热区，离开后高亮消失且空白松手取消', (tester) async {
     final vm = WhiteboardCanvasViewModel(
       initialSnapshot: _snapshot(),
       boardId: 'board_direct',
@@ -309,11 +309,30 @@ void main() {
     await tester.pump();
     final handle = find.byKey(const Key('wb_connect_item_card_a_right'));
     final create = await tester.startGesture(tester.getCenter(handle));
-    await create.moveTo(tester.getCenter(find.text('Card B')));
+    final targetCard = tester.getRect(
+      find.byKey(const Key('wb_card_item_card_b')),
+    );
+    await create.moveTo(targetCard.topCenter - const Offset(0, 20));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('wb_snap_candidate_item_card_b_top')),
+      findsOneWidget,
+    );
     await create.up();
     await tester.pump();
 
     final editor = find.byKey(const Key('wb_edge_quick_editor'));
+    expect(editor, findsOneWidget);
+    final edgeId = vm.exportForSave().edges.single.edgeId;
+    final from = tester.getCenter(find.byKey(Key('wb_edge_${edgeId}_from')));
+    final to = tester.getCenter(find.byKey(Key('wb_edge_${edgeId}_to')));
+    final visibleCurvePoint =
+        CanvasEdgeGeometry.curveBetween(from, to).pointAt(0.5);
+    vm.handleIntent(const ClearEdgeSelectionIntent());
+    await tester.pump();
+    expect(editor, findsNothing);
+    await tester.tapAt(visibleCurvePoint);
+    await tester.pump();
     expect(editor, findsOneWidget);
     await tester.enterText(find.byKey(const Key('wb_edge_quick_label')), '支持');
     await tester.tap(find.descendant(

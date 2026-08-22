@@ -1281,24 +1281,13 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       );
       final a = transform.canvasToScreen(connection.from);
       final b = transform.canvasToScreen(connection.to);
-      final d = _distanceToSegment(screenPos, a, b);
+      final d = CanvasEdgeGeometry.curveBetween(a, b).distanceTo(screenPos);
       if (d < bestDist) {
         bestDist = d;
         best = edgeNode.edgeId;
       }
     }
     return best;
-  }
-
-  static double _distanceToSegment(Offset p, Offset a, Offset b) {
-    final ab = b - a;
-    final len2 = ab.dx * ab.dx + ab.dy * ab.dy;
-    if (len2 == 0) return (p - a).distance;
-    final t = (((p - a).dx * ab.dx + (p - a).dy * ab.dy) / len2).clamp(
-      0.0,
-      1.0,
-    );
-    return (p - (a + ab * t)).distance;
   }
 
   /// Whether a canvas point lies inside an item, accounting for rotation.
@@ -1682,9 +1671,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         isFrom: isFrom,
         fixedPoint: fixedPoint,
         currentPoint: box.globalToLocal(pointerPos),
-        excludedItemId: isFrom
-            ? selectedEdge.edge.toItemId
-            : selectedEdge.edge.fromItemId,
+        excludedItemId:
+            isFrom ? selectedEdge.edge.toItemId : selectedEdge.edge.fromItemId,
       );
     });
   }
@@ -2189,18 +2177,8 @@ class _CanvasPainter extends CustomPainter {
             : WhiteboardCanvasTokens.edgeWidth
         ..style = PaintingStyle.stroke;
 
-      final midX = (fromScreen.dx + toScreen.dx) / 2;
-      final path = Path()
-        ..moveTo(fromScreen.dx, fromScreen.dy)
-        ..cubicTo(
-          midX,
-          fromScreen.dy,
-          midX,
-          toScreen.dy,
-          toScreen.dx,
-          toScreen.dy,
-        );
-      canvas.drawPath(path, paint);
+      final curve = CanvasEdgeGeometry.curveBetween(fromScreen, toScreen);
+      canvas.drawPath(curve.toPath(), paint);
 
       if (edgeNode.edge.direction == EdgeDirection.directed) {
         _drawArrowHead(canvas, toScreen, fromScreen, paint);

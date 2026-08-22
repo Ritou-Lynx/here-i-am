@@ -44,12 +44,79 @@ class CanvasAnchorCandidate {
   final double distance;
 }
 
+/// Screen-space cubic used by both painting and hit-testing.
+class CanvasEdgeCurve {
+  const CanvasEdgeCurve({
+    required this.from,
+    required this.control1,
+    required this.control2,
+    required this.to,
+  });
+
+  final Offset from;
+  final Offset control1;
+  final Offset control2;
+  final Offset to;
+
+  Path toPath() => Path()
+    ..moveTo(from.dx, from.dy)
+    ..cubicTo(
+      control1.dx,
+      control1.dy,
+      control2.dx,
+      control2.dy,
+      to.dx,
+      to.dy,
+    );
+
+  Offset pointAt(double t) {
+    final clamped = t.clamp(0.0, 1.0);
+    final inverse = 1 - clamped;
+    return from * (inverse * inverse * inverse) +
+        control1 * (3 * inverse * inverse * clamped) +
+        control2 * (3 * inverse * clamped * clamped) +
+        to * (clamped * clamped * clamped);
+  }
+
+  double distanceTo(Offset point, {int segments = 32}) {
+    var best = double.infinity;
+    var previous = from;
+    for (var index = 1; index <= segments; index++) {
+      final current = pointAt(index / segments);
+      best = math.min(best, _distanceToSegment(point, previous, current));
+      previous = current;
+    }
+    return best;
+  }
+
+  static double _distanceToSegment(Offset point, Offset from, Offset to) {
+    final delta = to - from;
+    final lengthSquared = delta.distanceSquared;
+    if (lengthSquared == 0) return (point - from).distance;
+    final projection =
+        ((point - from).dx * delta.dx + (point - from).dy * delta.dy) /
+            lengthSquared;
+    final t = projection.clamp(0.0, 1.0);
+    return (point - (from + delta * t)).distance;
+  }
+}
+
 class CanvasEdgeGeometry {
   CanvasEdgeGeometry._();
 
   /// A forgiving target around each 14 px anchor handle. This value is in
   /// screen pixels, so zoom never makes connection creation harder.
   static const anchorSnapRadius = 28.0;
+
+  static CanvasEdgeCurve curveBetween(Offset fromScreen, Offset toScreen) {
+    final midX = (fromScreen.dx + toScreen.dx) / 2;
+    return CanvasEdgeCurve(
+      from: fromScreen,
+      control1: Offset(midX, fromScreen.dy),
+      control2: Offset(midX, toScreen.dy),
+      to: toScreen,
+    );
+  }
 
   /// Stable keys in the existing BoardEdge `style` JSON extension point.
   static const fromAnchorStyleKey = 'from_anchor_side';
@@ -126,8 +193,7 @@ class CanvasEdgeGeometry {
       if (excludedItemIds.contains(item.itemId)) continue;
       for (final side in CanvasAnchorSide.values) {
         final screenPoint = canvasToScreen(pointForSide(item, side));
-        final distanceSquared =
-            (screenPoint - pointerScreen).distanceSquared;
+        final distanceSquared = (screenPoint - pointerScreen).distanceSquared;
         if (distanceSquared > maxDistanceSquared) continue;
         if (best == null || distanceSquared < best.distance * best.distance) {
           best = CanvasAnchorCandidate(

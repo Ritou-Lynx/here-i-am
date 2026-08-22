@@ -117,7 +117,7 @@ void main() {
     });
 
     test('chooses the nearest legal anchor across small rotated items', () {
-      final near = BoardItem(
+      const near = BoardItem(
         itemId: 'near',
         boardId: 'board',
         cardId: 'near_card',
@@ -180,6 +180,22 @@ void main() {
         isNull,
       );
     });
+  });
+
+  test('paint and hit-test share the same non-linear edge curve', () {
+    final curve = CanvasEdgeGeometry.curveBetween(
+      const Offset(20, 100),
+      const Offset(220, 20),
+    );
+    final visiblePoint = curve.pointAt(0.5);
+
+    expect(visiblePoint, const Offset(120, 60));
+    expect(curve.distanceTo(visiblePoint), lessThan(0.001));
+    expect(
+      curve.distanceTo(const Offset(120, 100)),
+      greaterThan(30),
+      reason: 'the painted cubic must not be hit-tested as its straight chord',
+    );
   });
 
   test('anchor sides survive move resize undo redo and JSON restart', () {
