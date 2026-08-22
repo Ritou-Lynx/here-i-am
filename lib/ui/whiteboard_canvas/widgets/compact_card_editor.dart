@@ -1,10 +1,9 @@
 /// Transient, board-local Card editor.
 ///
 /// This surface edits the same [RichTextDocument] owned by
-/// [UnifiedCardRepository]. Ordinary linear Note Cards use one transient
-/// title/body text projection while embedded in a BoardItem; save splits its
-/// first line back to Card.title and the remainder back to the rich-text body.
-/// Complex documents and non-embedded entry points keep [CardRichTextEditor].
+/// [UnifiedCardRepository]. The Card title is projected into a synthetic,
+/// session-only first block so the embedded editor remains one continuous
+/// rich-text surface without changing the persisted body document.
 library;
 
 import 'dart:async';
@@ -41,56 +40,6 @@ class InlineCardTextProjection {
   static String compose({required String title, required String body}) {
     if (body.isEmpty) return title;
     return '$title\n$body';
-  }
-}
-
-class _InlineCardDocumentController extends TextEditingController {
-  _InlineCardDocumentController({required String title, required String body})
-      : super(
-          text: InlineCardTextProjection.compose(title: title, body: body),
-        ) {
-    selection = TextSelection.collapsed(offset: title.length);
-  }
-
-  @override
-  TextSpan buildTextSpan({
-    required BuildContext context,
-    TextStyle? style,
-    required bool withComposing,
-  }) {
-    final base = style ?? richTextBodyTextStyle(fontSize: 14);
-    final firstBreak = text.indexOf('\n');
-    final titleEnd = firstBreak >= 0 ? firstBreak : text.length;
-    final composing = value.composing;
-    final boundaries = <int>{0, titleEnd, text.length};
-    if (titleEnd < text.length) boundaries.add(titleEnd + 1);
-    if (withComposing && composing.isValid && !composing.isCollapsed) {
-      boundaries
-        ..add(composing.start.clamp(0, text.length))
-        ..add(composing.end.clamp(0, text.length));
-    }
-    final points = boundaries.toList()..sort();
-    return TextSpan(
-      style: base,
-      children: [
-        for (var index = 0; index < points.length - 1; index++)
-          if (points[index] < points[index + 1])
-            TextSpan(
-              text: text.substring(points[index], points[index + 1]),
-              style: (points[index] < titleEnd
-                      ? base.copyWith(fontWeight: FontWeight.w600)
-                      : base)
-                  .copyWith(
-                decoration: withComposing &&
-                        composing.isValid &&
-                        composing.start < points[index + 1] &&
-                        composing.end > points[index]
-                    ? TextDecoration.underline
-                    : null,
-              ),
-            ),
-      ],
-    );
   }
 }
 
@@ -144,25 +93,14 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
   final FocusNode _surfaceFocusNode = FocusNode(
     debugLabel: 'whiteboard inline card editor',
   );
-  final FocusNode _inlineFocusNode = FocusNode(
-    debugLabel: 'whiteboard inline card document',
-  );
   RichTextEditingController? _richText;
-  TextEditingController? _title;
-  _InlineCardDocumentController? _inlineDocument;
   CardContract? _card;
   String? _error;
-  String _savedTitle = '';
-  String _savedInlineText = '';
   bool _saving = false;
   bool _closing = false;
   int _loadGeneration = 0;
 
-  bool get _dirty {
-    final inlineDocument = _inlineDocument;
-    if (inlineDocument != null) return inlineDocument.text != _savedInlineText;
-    return (_richText?.isDirty ?? false) || (_title?.text ?? '') != _savedTitle;
-  }
+  bool get _dirty => _richText?.isDirty ?? false;
 
   @override
   void initState() {
@@ -206,7 +144,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
         setState(() => _error = '卡片不存在或已经删除。');
         return;
       }
-      final document = record.document ??
+      final bodyDocument = record.document ??
           RichTextDocument(
             blocks: [
               RichTextBlock(
@@ -215,33 +153,16 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
               ),
             ],
           );
-      final richText = RichTextEditingController(document)
-        ..addListener(_handleChanged);
-      final title = TextEditingController(text: record.card.title)
-        ..addListener(_handleChanged);
-      final inlineDocument = widget.embedded &&
-              record.card.cardKind == CardKind.note &&
-              _supportsInlineDocument(document)
-          ? (_InlineCardDocumentController(
-              title: record.card.title,
-              body: document.blocks.map((block) => block.text).join('\n'),
-            )..addListener(_handleChanged))
-          : null;
+      final richText = RichTextEditingController(
+        _InlineCardDocument.combine(
+          title: record.card.title,
+          body: bodyDocument,
+        ),
+      )..addListener(_handleChanged);
       setState(() {
         _card = record.card;
         _richText = richText;
-        _title = title;
-        _inlineDocument = inlineDocument;
-        _savedTitle = record.card.title;
-        _savedInlineText = inlineDocument?.text ?? '';
       });
-      if (inlineDocument != null && !widget.isReadonly) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && identical(_inlineDocument, inlineDocument)) {
-            _inlineFocusNode.requestFocus();
-          }
-        });
-      }
     } catch (error) {
       if (mounted && generation == _loadGeneration) {
         setState(() => _error = '无法打开卡片：$error');
@@ -256,41 +177,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
   void _disposeControllers() {
     _richText?.removeListener(_handleChanged);
     _richText?.dispose();
-    _title?.removeListener(_handleChanged);
-    _title?.dispose();
-    _inlineDocument?.removeListener(_handleChanged);
-    _inlineDocument?.dispose();
     _richText = null;
-    _title = null;
-    _inlineDocument = null;
-  }
-
-  bool _supportsInlineDocument(RichTextDocument document) =>
-      document.blocks.every((block) =>
-          block.children.isEmpty &&
-          block.type != BlockType.image &&
-          block.type != BlockType.video &&
-          block.type != BlockType.reference);
-
-  List<RichTextBlock> _projectBodyBlocks(
-    List<RichTextBlock> existing,
-    String body,
-  ) {
-    final lines = body.split('\n');
-    return [
-      for (var index = 0; index < lines.length; index++)
-        if (index < existing.length)
-          existing[index].copyWith(
-            text: lines[index],
-            marks: existing[index]
-                .marks
-                .map((mark) => mark.clamp(lines[index].length))
-                .whereType<RichTextMark>()
-                .toList(),
-          )
-        else
-          RichTextBlock(type: BlockType.paragraph, text: lines[index]),
-    ];
   }
 
   @override
@@ -299,7 +186,6 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     FocusManager.instance.removeEarlyKeyEventHandler(_onEarlyKeyEvent);
     widget.controller?._detach(this);
     _disposeControllers();
-    _inlineFocusNode.dispose();
     _surfaceFocusNode.dispose();
     super.dispose();
   }
@@ -307,28 +193,18 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
   Future<CardContract?> _save() async {
     if (widget.isReadonly) return null;
     final controller = _richText;
-    final title = _title;
-    if (controller == null || title == null || _saving) return _card;
-    final inlineDocument = _inlineDocument;
-    if (inlineDocument != null) {
-      final projection = InlineCardTextProjection.fromText(inlineDocument.text);
-      title.text = projection.title;
-      controller.replaceContinuousBlocks(
-        _projectBodyBlocks(controller.document.blocks, projection.body),
-        coalesceHistory: false,
-      );
-    }
+    if (controller == null || _saving) return _card;
     setState(() => _saving = true);
     try {
+      final edit = _InlineCardDocument.split(controller.flushToDocument());
       final updated = await widget.repository.saveRichText(
         widget.cardId,
-        controller.flushToDocument(),
-        title: title.text,
+        edit.body,
+        title: edit.title,
+        preserveEmptyTitle: true,
       );
       if (!mounted) return updated;
       controller.markSaved();
-      _savedTitle = updated.title;
-      _savedInlineText = inlineDocument?.text ?? '';
       _card = updated;
       widget.onSaved(updated);
       setState(() {});
@@ -448,8 +324,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     }
     final card = _card;
     final richText = _richText;
-    final title = _title;
-    if (card == null || richText == null || title == null) {
+    if (card == null || richText == null) {
       return const Center(
         child: SizedBox(
           width: 20,
@@ -460,18 +335,9 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     }
     final sourceCard = card.cardKind == CardKind.source;
     if (widget.embedded) {
-      final inlineDocument = _inlineDocument;
-      if (inlineDocument != null) {
-        return _buildInlineNoteSurface(
-          tokens: tokens,
-          controller: inlineDocument,
-        );
-      }
       return _buildEmbeddedBody(
-        tokens: tokens,
         card: card,
         richText: richText,
-        title: title,
       );
     }
     return Column(
@@ -508,33 +374,9 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
           ),
         ),
         Divider(height: 1, color: tokens.divider),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-          child: TextField(
-            key: const ValueKey('wb_compact_title'),
-            controller: title,
-            readOnly: widget.isReadonly,
-            autofocus: !widget.isReadonly,
-            style: whiteboardUiTextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: tokens.textPrimary,
-            ),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: '卡片标题',
-              filled: true,
-              fillColor: tokens.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
-                borderSide: BorderSide(color: tokens.divider),
-              ),
-            ),
-          ),
-        ),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
             child: AbsorbPointer(
               absorbing: widget.isReadonly,
               child: CardRichTextEditor(
@@ -546,6 +388,7 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
                 showToolbar: false,
                 compact: true,
                 readOnly: widget.isReadonly,
+                autofocus: !widget.isReadonly,
                 showSaveInToolbar: false,
                 markSavedAfterCallback: false,
               ),
@@ -582,87 +425,79 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     );
   }
 
-  Widget _buildInlineNoteSurface({
-    required DesktopWorkspaceTokens tokens,
-    required _InlineCardDocumentController controller,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: TextField(
-        key: const ValueKey('wb_inline_card_document'),
-        controller: controller,
-        focusNode: _inlineFocusNode,
-        readOnly: widget.isReadonly,
-        expands: true,
-        minLines: null,
-        maxLines: null,
-        textAlignVertical: TextAlignVertical.top,
-        keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.newline,
-        style: richTextBodyTextStyle(
-          color: tokens.textPrimary,
-          fontSize: 14,
-          height: 1.55,
-        ),
-        cursorColor: tokens.action,
-        decoration: null,
-      ),
-    );
-  }
-
   Widget _buildEmbeddedBody({
-    required DesktopWorkspaceTokens tokens,
     required CardContract card,
     required RichTextEditingController richText,
-    required TextEditingController title,
   }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            key: const ValueKey('wb_compact_title'),
-            controller: title,
+      child: ClipRect(
+        child: AbsorbPointer(
+          absorbing: widget.isReadonly,
+          child: CardRichTextEditor(
+            key: const ValueKey('wb_inline_card_document'),
+            controller: richText,
+            cardId: card.cardId,
+            objectStore: RichTextObjectStore(
+              widget.repository.richTextStorage.baseDir,
+            ),
+            onSave: (_) => _save(),
+            showToolbar: false,
+            compact: true,
             readOnly: widget.isReadonly,
+            inlineSurface: true,
             autofocus: !widget.isReadonly,
-            maxLines: 2,
-            minLines: 1,
-            style: whiteboardUiTextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: tokens.textPrimary,
-            ),
-            decoration: const InputDecoration(
-              isDense: true,
-              contentPadding: EdgeInsets.zero,
-              hintText: '卡片标题',
-              border: InputBorder.none,
-            ),
+            showSaveInToolbar: false,
+            markSavedAfterCallback: false,
           ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: ClipRect(
-              child: AbsorbPointer(
-                absorbing: widget.isReadonly,
-                child: CardRichTextEditor(
-                  controller: richText,
-                  cardId: card.cardId,
-                  objectStore: RichTextObjectStore(
-                    widget.repository.richTextStorage.baseDir,
-                  ),
-                  onSave: (_) => _save(),
-                  showToolbar: false,
-                  compact: true,
-                  readOnly: widget.isReadonly,
-                  inlineSurface: true,
-                  showSaveInToolbar: false,
-                  markSavedAfterCallback: false,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Session-only bridge between Card metadata and the one-surface editor.
+///
+/// The title boundary is explicit and stable for the lifetime of the editing
+/// controller. It is never persisted in [RichTextDocument], so an existing
+/// body H1 cannot be mistaken for the Card title and no synthetic block id is
+/// created or churned across opens.
+class _InlineCardDocument {
+  static const _titleBoundaryKey = '_inline_card_title_boundary';
+
+  static RichTextDocument combine({
+    required String title,
+    required RichTextDocument body,
+  }) {
+    return body.copyWith(
+      blocks: [
+        RichTextBlock(
+          type: BlockType.heading,
+          text: title,
+          attrs: const {
+            'level': 6,
+            _titleBoundaryKey: true,
+          },
+        ),
+        ...body.blocks,
+      ],
+    );
+  }
+
+  static ({String title, RichTextDocument body}) split(
+    RichTextDocument combined,
+  ) {
+    final blocks = combined.blocks;
+    if (blocks.isEmpty || blocks.first.attrs[_titleBoundaryKey] != true) {
+      throw StateError('Inline Card title boundary is missing');
+    }
+    final bodyBlocks = blocks.skip(1).toList(growable: false);
+    return (
+      title: blocks.first.text,
+      body: combined.copyWith(
+        blocks: bodyBlocks.isEmpty
+            ? const [RichTextBlock(type: BlockType.paragraph)]
+            : bodyBlocks,
       ),
     );
   }

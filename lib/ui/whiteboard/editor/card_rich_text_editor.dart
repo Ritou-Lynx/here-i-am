@@ -64,6 +64,7 @@ class CardRichTextEditor extends StatefulWidget {
   final bool compact;
   final bool readOnly;
   final bool inlineSurface;
+  final bool autofocus;
   final String cardId;
   final VoidCallback? onDirty;
 
@@ -86,6 +87,7 @@ class CardRichTextEditor extends StatefulWidget {
     this.compact = false,
     this.readOnly = false,
     this.inlineSurface = false,
+    this.autofocus = false,
     this.onDirty,
     this.objectStore,
     this.mediaImporter,
@@ -425,6 +427,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       minLines: widget.compact ? 1 : 8,
       expands: false,
       readOnly: widget.readOnly,
+      autofocus: widget.autofocus,
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
       decoration: InputDecoration(
@@ -845,6 +848,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       maxLines: null,
       minLines: 1,
       readOnly: widget.readOnly,
+      autofocus: widget.autofocus && blockIndex == 0 && childIndex == null,
       decoration: InputDecoration(
         isDense: true,
         filled: block.type == BlockType.code,

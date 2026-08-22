@@ -390,18 +390,25 @@ class UnifiedCardRepository {
   /// A Drift Card must already exist, so this path cannot create an orphan
   /// rich-text card id. The JSON is written atomically before the projection
   /// transaction; a later read reports a missing/corrupt file honestly.
+  /// [preserveEmptyTitle] is reserved for a surface that edits Card title and
+  /// body in one document: an explicit empty synthetic title remains empty
+  /// instead of being replaced by the first body line. Existing callers keep
+  /// the original projection fallback by default.
   Future<CardContract> saveRichText(
     String cardId,
     RichTextDocument document, {
     String? title,
+    bool preserveEmptyTitle = false,
   }) async {
     final current = await getCard(cardId, loadDocument: false);
     if (current == null) throw StateError('Card not found: $cardId');
     await richTextStorage.save(cardId, document);
     final projection = document.toPlainText().trim();
-    final projectedTitle = title?.trim().isNotEmpty == true
-        ? title!.trim()
-        : _firstNonEmptyLine(projection, fallback: current.card.title);
+    final projectedTitle = title != null && preserveEmptyTitle
+        ? title.trim()
+        : title?.trim().isNotEmpty == true
+            ? title!.trim()
+            : _firstNonEmptyLine(projection, fallback: current.card.title);
     return updateCardMetadata(cardId, title: projectedTitle, body: projection);
   }
 

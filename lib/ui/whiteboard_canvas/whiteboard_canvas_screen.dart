@@ -3670,7 +3670,7 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
               const SizedBox(height: 2),
               Text(
                 kindName,
-                style: TextStyle(
+                style: whiteboardUiTextStyle(
                   color: colors.textFaint,
                   fontSize: WhiteboardCanvasTokens.statusSize,
                 ),

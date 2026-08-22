@@ -178,6 +178,7 @@ class _TrackingRepository extends UnifiedCardRepository {
     String cardId,
     RichTextDocument document, {
     String? title,
+    bool preserveEmptyTitle = false,
   }) async {
     final expected = _nextSaveResult;
     if (expected != null) {
@@ -187,7 +188,12 @@ class _TrackingRepository extends UnifiedCardRepository {
       _nextSave = null;
       return expected;
     }
-    final saved = await super.saveRichText(cardId, document, title: title);
+    final saved = await super.saveRichText(
+      cardId,
+      document,
+      title: title,
+      preserveEmptyTitle: preserveEmptyTitle,
+    );
     _nextSave?.complete();
     _nextSave = null;
     return saved;
@@ -720,7 +726,7 @@ void main() {
     expect(after.height, before.height);
   });
 
-  testWidgets('原位连续卡面首行投影标题、其余投影正文且 Esc 保存', (tester) async {
+  testWidgets('原位编辑的标题首行与正文共用单一无框输入面', (tester) async {
     final harness = _RepoHarness.create();
     addTearDown(harness.dispose);
     final original = (await tester.runAsync(
@@ -744,13 +750,16 @@ void main() {
     final itemBefore = vm.exportForSave().boardItems.single;
 
     await _doubleTapAt(tester, tester.getCenter(find.text('原位卡片')));
-    final field = find.byKey(const Key('wb_inline_card_document'));
+    final field = find.byKey(const Key('rich_text_continuous_document'));
     await _pumpUntil(tester, field);
+    final editor = find.byKey(const Key('wb_compact_card_editor'));
+    expect(find.byKey(const Key('wb_compact_title')), findsNothing);
+    expect(
+      find.descendant(of: editor, matching: find.byType(TextField)),
+      findsOneWidget,
+    );
     await tester.tap(field);
-    tester.testTextInput.updateEditingValue(const TextEditingValue(
-      text: '编辑后标题\n编辑后正文',
-      selection: TextSelection.collapsed(offset: 11),
-    ));
+    await tester.enterText(field, '原位卡片\n编辑后正文');
     await tester.pump();
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -767,8 +776,23 @@ void main() {
     final stored = (await tester.runAsync(
       () => harness.repository.getCard('card_escape_inline'),
     ))!;
-    expect(stored.card.title, '编辑后标题');
+    expect(stored.card.title, '原位卡片');
     expect(stored.card.body, '编辑后正文');
+
+    await _doubleTapAt(tester, tester.getCenter(find.text('原位卡片')));
+    await _pumpUntil(tester, field);
+    await tester.enterText(field, '编辑后标题\n编辑后正文');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpUntilGone(
+      tester,
+      find.byKey(const Key('wb_compact_card_editor')),
+    );
+
+    final titleStored = (await tester.runAsync(
+      () => harness.repository.getCard('card_escape_inline'),
+    ))!;
+    expect(titleStored.card.title, '编辑后标题');
+    expect(titleStored.card.body, '编辑后正文');
   });
 
   testWidgets('同一 Card 的两个 BoardItem 只编辑被双击的摆放', (tester) async {
@@ -857,6 +881,37 @@ void main() {
       expect(text.style?.fontFamily, richTextCodeFamily);
       expect(text.style?.fontFamilyFallback, contains(richTextCjkFamily));
     }
+  });
+
+  testWidgets('左上卡片库展开后的卡片名称使用统一白板字体 Token', (tester) async {
+    final harness = _RepoHarness.create();
+    addTearDown(harness.dispose);
+    final card = (await tester.runAsync(
+      () => harness.repository.createTextCard(
+        cardId: 'card_library_font',
+        title: '库内中文卡片',
+      ),
+    ))!;
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(cards: [card]),
+      boardId: 'board_direct',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        cardRepository: harness.repository,
+      ),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('卡片库'));
+    final row = find.byKey(const Key('wb_lib_row_card_library_font'));
+    await _pumpUntil(tester, row);
+    final title = tester.widget<Text>(
+      find.descendant(of: row, matching: find.text('库内中文卡片')),
+    );
+    expect(title.style?.fontFamily, richTextCjkFamily);
+    expect(title.style?.fontFamilyFallback, contains(richTextCodeFamily));
   });
 
   testWidgets('布局保存失败回滚 BoardItem 并软删新 Card', (tester) async {
@@ -1027,7 +1082,7 @@ void main() {
     ));
     await tester.pump();
     await _doubleTapAt(tester, tester.getCenter(find.text('复杂卡片')));
-    final field = find.byKey(const Key('rich_text_block_0_root'));
+    final field = find.byKey(const Key('rich_text_block_1_root'));
     await _pumpUntil(tester, field);
     await tester.tap(field);
     tester.testTextInput.updateEditingValue(const TextEditingValue(
