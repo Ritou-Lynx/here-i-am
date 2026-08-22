@@ -102,9 +102,21 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
             maxLines: null,
             keyboardType: TextInputType.multiline,
             textAlignVertical: TextAlignVertical.top,
-            decoration: _inputDecoration(
-              tokens,
-              '第一行作为标题\n继续写正文；原文引用也在这里，可直接编辑或删除',
+            decoration: InputDecoration(
+              hintText: '第一行作为标题\n继续写正文；原文引用也在这里，可直接编辑或删除',
+              hintStyle: whiteboardUiTextStyle(
+                color: tokens.textFaint,
+                fontSize: 12,
+              ),
+              filled: false,
+              fillColor: Colors.transparent,
+              contentPadding: EdgeInsets.zero,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
             ),
             style: whiteboardUiTextStyle(
               fontSize: 14,
@@ -163,27 +175,6 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
       title: projection.title,
       body: projection.body,
       quote: projection.quote,
-    );
-  }
-
-  InputDecoration _inputDecoration(
-    DesktopWorkspaceTokens tokens,
-    String label,
-  ) {
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: tokens.divider),
-    );
-    return InputDecoration(
-      hintText: label,
-      isDense: true,
-      border: border,
-      enabledBorder: border,
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: tokens.action, width: 1.5),
-      ),
-      hintStyle: whiteboardUiTextStyle(color: tokens.textFaint, fontSize: 12),
     );
   }
 }

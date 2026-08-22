@@ -721,6 +721,11 @@ void main() {
     final documentField = tester.widget<TextField>(
       find.byKey(const ValueKey('video_annotation_document')),
     );
+    expect(documentField.decoration?.border, InputBorder.none);
+    expect(documentField.decoration?.enabledBorder, InputBorder.none);
+    expect(documentField.decoration?.focusedBorder, InputBorder.none);
+    expect(documentField.decoration?.filled, isFalse);
+    expect(documentField.decoration?.fillColor, Colors.transparent);
     expect(documentField.controller!.text, contains('原文引用'));
     expect(documentField.controller!.text, contains('灯光切换'));
 
