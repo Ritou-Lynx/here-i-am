@@ -16,7 +16,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/player_adapter.dart';
-import 'package:memex/domain/whiteboard/video/youtube_timedtext_service.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
 import '../view_models/video_study_view_model.dart';
@@ -56,7 +55,7 @@ class _SubtitleListViewState extends State<SubtitleListView> {
               reason: vm.subtitleFetchStatus == SubtitleAutoFetchStatus.failed
                   ? vm.subtitleFetchMessage
                   : null,
-              failureKind: vm.subtitleFailureKind,
+              failureLabel: vm.subtitleFailureLabel,
               onImport: () => _showImportDialog(context),
             ),
           ),
@@ -108,8 +107,7 @@ class _SubtitleListViewState extends State<SubtitleListView> {
   void _scrollToCue(int index) {
     if (!_scrollController.hasClients) return;
     const itemHeight = 64.0;
-    final offset =
-        (index * itemHeight) -
+    final offset = (index * itemHeight) -
         (_scrollController.position.viewportDimension / 3);
     _scrollController.animateTo(
       offset.clamp(0.0, _scrollController.position.maxScrollExtent),
@@ -185,7 +183,9 @@ class _CaptionTrackPicker extends StatelessWidget {
                             for (final candidate
                                 in viewModel.availableCaptionTracks) {
                               if (candidate.selectionKey == key) {
-                                viewModel.selectPlatformSubtitleTrack(candidate);
+                                viewModel.selectPlatformSubtitleTrack(
+                                  candidate,
+                                );
                                 break;
                               }
                             }
@@ -199,7 +199,7 @@ class _CaptionTrackPicker extends StatelessWidget {
               viewModel.subtitleFetchMessage != null) ...[
             const SizedBox(height: 4),
             Text(
-              '${viewModel.subtitleFailureKind == null ? '' : '${_NeedsSubtitleView._failureLabel(viewModel.subtitleFailureKind!)}：'}'
+              '${viewModel.subtitleFailureLabel == null ? '' : '${viewModel.subtitleFailureLabel}：'}'
               '${viewModel.subtitleFetchMessage}',
               key: const ValueKey('youtube_caption_track_error'),
               style: whiteboardUiTextStyle(
@@ -267,9 +267,8 @@ class _CueItem extends StatelessWidget {
                           style: richTextCodeTextStyle(
                             color: isActive ? tokens.action : tokens.textMuted,
                             fontSize: 12,
-                            fontWeight: isActive
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+                            fontWeight:
+                                isActive ? FontWeight.w600 : FontWeight.w400,
                           ),
                         ),
                       ),
@@ -322,13 +321,13 @@ class _NeedsSubtitleView extends StatelessWidget {
   final bool hasImportCapability;
   final VoidCallback onImport;
   final String? reason;
-  final YouTubeTimedTextFailureKind? failureKind;
+  final String? failureLabel;
 
   const _NeedsSubtitleView({
     required this.hasImportCapability,
     required this.onImport,
     this.reason,
-    this.failureKind,
+    this.failureLabel,
   });
 
   @override
@@ -351,9 +350,9 @@ class _NeedsSubtitleView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            if (failureKind != null) ...[
+            if (failureLabel != null) ...[
               Text(
-                '失败分类：${_failureLabel(failureKind!)}',
+                '失败分类：$failureLabel',
                 key: const ValueKey('subtitle_failure_category'),
                 style: whiteboardUiTextStyle(
                   color: tokens.textMuted,
@@ -397,15 +396,6 @@ class _NeedsSubtitleView extends StatelessWidget {
       ),
     );
   }
-
-  static String _failureLabel(YouTubeTimedTextFailureKind kind) =>
-      switch (kind) {
-        YouTubeTimedTextFailureKind.invalidVideo => '来源无效',
-        YouTubeTimedTextFailureKind.noTrack => '无字幕轨',
-        YouTubeTimedTextFailureKind.accessRestricted => '地区 / 权限限制',
-        YouTubeTimedTextFailureKind.network => '网络失败',
-        YouTubeTimedTextFailureKind.parserFailure => '解析器失效',
-      };
 }
 
 class _SubtitleImportDialog extends StatefulWidget {

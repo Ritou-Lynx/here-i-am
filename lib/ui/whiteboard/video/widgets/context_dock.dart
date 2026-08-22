@@ -83,7 +83,6 @@ class _ContextDockState extends State<ContextDock> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
           _DockHeader(
             title: '研读辅助',
             subtitle: _section == _DockSection.subtitles
@@ -93,10 +92,10 @@ class _ContextDockState extends State<ContextDock> {
             onToggleOrientation: widget.orientationLocked
                 ? null
                 : () => vm.setDockOrientation(
-                    vm.dockOrientation == DockOrientation.right
-                        ? DockOrientation.bottom
-                        : DockOrientation.right,
-                  ),
+                      vm.dockOrientation == DockOrientation.right
+                          ? DockOrientation.bottom
+                          : DockOrientation.right,
+                    ),
             onClose: () => vm.setDockVisible(false),
           ),
           Divider(height: 1, color: tokens.divider),
@@ -245,61 +244,113 @@ class _CurrentTimeAnnotationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (viewModel.showSaveConfirmation) {
+      return _SaveConfirmationPane(
+        viewModel: viewModel,
+        onDismiss: viewModel.dismissSaveConfirmation,
+      );
+    }
+    if (viewModel.hasPendingAnnotation) {
+      return _PendingAnnotationPane(viewModel: viewModel);
+    }
+    if (viewModel.annotations.isNotEmpty) {
+      return _AnnotationCardsList(viewModel: viewModel);
+    }
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Text(
+          viewModel.canCreateTimeAnchorNow
+              ? '尚无视频笔记\n可按当前位置或区间创建'
+              : '当前播放器无法读取时间\n不能伪造可恢复的时间标注',
+          key: const ValueKey('video_notes_empty'),
+          textAlign: TextAlign.center,
+          style: whiteboardUiTextStyle(
+            color: tokens.textFaint,
+            fontSize: 12,
+            height: 1.6,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CurrentTimeAnnotationBar extends StatelessWidget {
+  const _CurrentTimeAnnotationBar({
+    required this.viewModel,
+    this.compact = false,
+  });
+
+  final VideoStudyViewModel viewModel;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
     final rangeStart = viewModel.rangeSelectionStartMs;
+    final controls = <Widget>[
+      Text(
+        compact
+            ? VideoStudyViewModel.formatTimecode(viewModel.positionMs)
+            : '当前位置 ${VideoStudyViewModel.formatTimecode(viewModel.positionMs)}',
+        key: const ValueKey('video_current_position_label'),
+        style: richTextCodeTextStyle(color: tokens.textMuted, fontSize: 11),
+      ),
+      OutlinedButton.icon(
+        key: const ValueKey('video_annotate_current_position'),
+        onPressed:
+            viewModel.hasPendingAnnotation || viewModel.isCapturingTimeBoundary
+                ? null
+                : () => viewModel.beginPointAnnotationAtCurrent(),
+        icon: const Icon(Icons.add_comment_outlined, size: 15),
+        label: Text(compact ? '当前点' : '在当前位置添加标注'),
+      ),
+      if (rangeStart == null)
+        TextButton.icon(
+          key: const ValueKey('video_begin_range_annotation'),
+          onPressed: viewModel.hasPendingAnnotation ||
+                  viewModel.isCapturingTimeBoundary
+              ? null
+              : () => viewModel.beginRangeSelectionAtCurrent(),
+          icon: const Icon(Icons.first_page_rounded, size: 15),
+          label: const Text('开始区间'),
+        )
+      else ...[
+        Text(
+          '起点 ${VideoStudyViewModel.formatTimecode(rangeStart)}',
+          style: richTextCodeTextStyle(color: tokens.action, fontSize: 11),
+        ),
+        TextButton.icon(
+          key: const ValueKey('video_finish_range_annotation'),
+          onPressed: viewModel.isCapturingTimeBoundary
+              ? null
+              : () => viewModel.finishRangeSelectionAtCurrent(),
+          icon: const Icon(Icons.last_page_rounded, size: 15),
+          label: Text(compact ? '结束并标注' : '以当前位置结束并标注'),
+        ),
+        IconButton(
+          tooltip: '取消区间',
+          onPressed: viewModel.cancelRangeSelection,
+          icon: const Icon(Icons.close_rounded, size: 16),
+        ),
+      ],
+    ];
+    if (compact) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
+        child: Row(spacing: 8, children: controls),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
       child: Wrap(
         spacing: 8,
         runSpacing: 6,
         crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(
-            '当前位置 ${VideoStudyViewModel.formatTimecode(viewModel.positionMs)}',
-            key: const ValueKey('video_current_position_label'),
-            style: richTextCodeTextStyle(
-              color: tokens.textMuted,
-              fontSize: 11,
-            ),
-          ),
-          OutlinedButton.icon(
-            key: const ValueKey('video_annotate_current_position'),
-            onPressed: viewModel.hasPendingAnnotation
-                ? null
-                : viewModel.beginPointAnnotationAtCurrent,
-            icon: const Icon(Icons.add_comment_outlined, size: 15),
-            label: const Text('在当前位置添加标注'),
-          ),
-          if (rangeStart == null)
-            TextButton.icon(
-              key: const ValueKey('video_begin_range_annotation'),
-              onPressed: viewModel.hasPendingAnnotation
-                  ? null
-                  : viewModel.beginRangeSelectionAtCurrent,
-              icon: const Icon(Icons.first_page_rounded, size: 15),
-              label: const Text('开始区间'),
-            )
-          else ...[
-            Text(
-              '起点 ${VideoStudyViewModel.formatTimecode(rangeStart)}',
-              style: richTextCodeTextStyle(
-                color: tokens.action,
-                fontSize: 11,
-              ),
-            ),
-            TextButton.icon(
-              key: const ValueKey('video_finish_range_annotation'),
-              onPressed: viewModel.finishRangeSelectionAtCurrent,
-              icon: const Icon(Icons.last_page_rounded, size: 15),
-              label: const Text('以当前位置结束并标注'),
-            ),
-            IconButton(
-              tooltip: '取消区间',
-              onPressed: viewModel.cancelRangeSelection,
-              icon: const Icon(Icons.close_rounded, size: 16),
-            ),
-          ],
-        ],
+        children: controls,
       ),
     );
   }
@@ -355,8 +406,8 @@ class _DockHeader extends StatelessWidget {
             tooltip: onToggleOrientation == null
                 ? '窗口较窄，已自动停靠底部'
                 : orientation == DockOrientation.right
-                ? '停靠到底部'
-                : '停靠到右侧',
+                    ? '停靠到底部'
+                    : '停靠到右侧',
             icon: Icon(
               orientation == DockOrientation.right
                   ? Icons.view_stream_outlined
@@ -392,13 +443,17 @@ class _PendingAnnotationPane extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
     final startMs = viewModel.pendingAnnotationStartMs ?? 0;
+    final endMs = viewModel.pendingAnnotationEndMs ?? startMs;
+    final rangeLabel = viewModel.pendingAnnotationIsPoint == false
+        ? '${VideoStudyViewModel.formatTimecode(startMs)}–${VideoStudyViewModel.formatTimecode(endMs)}'
+        : VideoStudyViewModel.formatTimecode(startMs);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '在 ${VideoStudyViewModel.formatTimecode(startMs)} 创建标注',
+            '在 $rangeLabel 创建标注',
             style: richTextCodeTextStyle(color: tokens.action, fontSize: 13),
           ),
           const SizedBox(height: 12),

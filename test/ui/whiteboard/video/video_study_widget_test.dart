@@ -21,24 +21,9 @@ TimedTextTrack _buildTrack() {
     language: 'zh',
     reliability: TimedTextReliability.reliable,
     cues: [
-      TimedTextCue(
-        cueId: 'cue_1',
-        startMs: 2000,
-        endMs: 5000,
-        text: '灯光切换',
-      ),
-      TimedTextCue(
-        cueId: 'cue_2',
-        startMs: 6000,
-        endMs: 9500,
-        text: '烟雾升起',
-      ),
-      TimedTextCue(
-        cueId: 'cue_3',
-        startMs: 10000,
-        endMs: 14000,
-        text: '副歌开始',
-      ),
+      TimedTextCue(cueId: 'cue_1', startMs: 2000, endMs: 5000, text: '灯光切换'),
+      TimedTextCue(cueId: 'cue_2', startMs: 6000, endMs: 9500, text: '烟雾升起'),
+      TimedTextCue(cueId: 'cue_3', startMs: 10000, endMs: 14000, text: '副歌开始'),
     ],
   );
 }
@@ -200,8 +185,75 @@ class _SilentTimeEventAdapter implements PlayerAdapter {
 }
 
 class _FakeWindowsBilibiliAdapter extends WindowsBilibiliPlayerAdapter {
+  int currentPositionCalls = 0;
+
   @override
   Future<void> load(String sourceId, {String? embedUrl}) async {}
+
+  @override
+  Future<int> currentPositionMs() async {
+    currentPositionCalls++;
+    return super.currentPositionMs();
+  }
+}
+
+class _RetryableAdapter extends _LinkOnlyAdapter {
+  _RetryableAdapter() : super('fixture');
+
+  int loadCalls = 0;
+
+  @override
+  PlayerCapability get capability => const PlayerCapability(
+        canEmbedPlayer: true,
+      );
+
+  @override
+  Future<void> load(String sourceId, {String? embedUrl}) async {
+    loadCalls++;
+    if (loadCalls == 1) throw StateError('temporary surface failure');
+  }
+}
+
+/// Simulates a native player whose event stream lags behind its readable
+/// current position. Range boundaries must query currentPositionMs at click
+/// time instead of persisting the stale event position.
+class _LaggingTimeAdapter implements PlayerAdapter {
+  int currentMs = 0;
+
+  @override
+  String get providerId => 'fixture';
+
+  @override
+  PlayerCapability get capability => const PlayerCapability(
+        canSeek: true,
+        canReadDuration: true,
+        canReadPosition: true,
+        canEmbedPlayer: true,
+        canCreateTimeAnchor: true,
+      );
+
+  @override
+  Stream<PlayerTimeEvent> get timeEvents => const Stream.empty();
+
+  @override
+  Future<void> load(String sourceId, {String? embedUrl}) async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<int> currentPositionMs() async => currentMs;
+
+  @override
+  Future<int?> durationMs() async => 200000;
+
+  @override
+  Future<void> seekTo(int positionMs) async {
+    currentMs = positionMs;
+  }
 }
 
 void _useDesktopSurface(WidgetTester tester, Size size) {
@@ -212,8 +264,9 @@ void _useDesktopSurface(WidgetTester tester, Size size) {
 }
 
 void main() {
-  testWidgets('VideoStudyScreen shows player and subtitle dock',
-      (tester) async {
+  testWidgets('VideoStudyScreen shows player and subtitle dock', (
+    tester,
+  ) async {
     final adapter = _buildFixture();
     final track = _buildTrack();
 
@@ -359,6 +412,22 @@ void main() {
     );
     expect(find.byKey(const ValueKey('video_layout_right')), findsOneWidget);
     expect(
+      find.byKey(const ValueKey('video_transcript_column')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('video_notes_column')), findsOneWidget);
+    final playerLeft = tester.getTopLeft(
+      find.byKey(const ValueKey('video_player_region')),
+    );
+    final transcriptLeft = tester.getTopLeft(
+      find.byKey(const ValueKey('video_transcript_column')),
+    );
+    final notesLeft = tester.getTopLeft(
+      find.byKey(const ValueKey('video_notes_column')),
+    );
+    expect(playerLeft.dx, lessThan(transcriptLeft.dx));
+    expect(transcriptLeft.dx, lessThan(notesLeft.dx));
+    expect(
       playerSize.width / (playerSize.width + dockSize.width),
       closeTo(0.65, 0.01),
     );
@@ -398,8 +467,9 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('splitter changes real layout and persists the adjusted ratio',
-      (tester) async {
+  testWidgets('splitter changes real layout and persists the adjusted ratio', (
+    tester,
+  ) async {
     _useDesktopSurface(tester, const Size(1440, 900));
     final adapter = _buildFixture();
     final store = _RecordingSessionStore();
@@ -438,8 +508,9 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('restored bottom dock ratio controls the restarted layout',
-      (tester) async {
+  testWidgets('restored bottom dock ratio controls the restarted layout', (
+    tester,
+  ) async {
     _useDesktopSurface(tester, const Size(1440, 900));
     final adapter = _buildFixture();
     final store = _RecordingSessionStore(
@@ -485,8 +556,9 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('narrow desktop automatically moves the dock to the bottom',
-      (tester) async {
+  testWidgets('narrow desktop automatically moves the dock to the bottom', (
+    tester,
+  ) async {
     _useDesktopSurface(tester, const Size(720, 720));
     final adapter = _buildFixture();
 
@@ -509,8 +581,52 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('player and dock minimum sizes hold at 1024 by 720',
-      (tester) async {
+  testWidgets(
+    'compact dock exposes focusable subtitle and notes tabs and exits',
+    (tester) async {
+      _useDesktopSurface(tester, const Size(640, 720));
+      final adapter = _buildFixture();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoStudyScreen(
+            adapter: adapter,
+            sourceId: 'src_video_test',
+            sourceVersionId: 'ver_video_test_v1',
+            initialTrack: _buildTrack(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final transcriptTab = find.byKey(const ValueKey('video_transcript_tab'));
+      final notesTab = find.byKey(const ValueKey('video_notes_tab'));
+      expect(transcriptTab, findsOneWidget);
+      expect(notesTab, findsOneWidget);
+      expect(
+        find.ancestor(of: transcriptTab, matching: find.byType(InkWell)),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(of: notesTab, matching: find.byType(InkWell)),
+        findsOneWidget,
+      );
+
+      await tester.tap(notesTab);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('video_notes_empty')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('video_close_dock')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('video_context_dock')), findsNothing);
+      expect(find.byKey(const ValueKey('video_open_dock')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('player and dock minimum sizes hold at 1024 by 720', (
+    tester,
+  ) async {
     _useDesktopSurface(tester, const Size(1024, 720));
     final adapter = _buildFixture();
 
@@ -550,8 +666,9 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('Bilibili, Xiaohongshu and unknown providers stay link-only',
-      (tester) async {
+  testWidgets('Bilibili, Xiaohongshu and unknown providers stay link-only', (
+    tester,
+  ) async {
     for (final provider in const ['bilibili', 'xiaohongshu', 'unknown']) {
       final adapter = _LinkOnlyAdapter(provider);
       final url = 'https://example.com/$provider/video';
@@ -579,8 +696,9 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('Fixture surface icon follows paused and playing state',
-      (tester) async {
+  testWidgets('Fixture surface icon follows paused and playing state', (
+    tester,
+  ) async {
     final adapter = _buildFixture();
 
     await tester.pumpWidget(
@@ -611,8 +729,9 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('NeedsSubtitle state shows import prompt when no track',
-      (tester) async {
+  testWidgets('NeedsSubtitle state shows import prompt when no track', (
+    tester,
+  ) async {
     final adapter = _buildFixture();
 
     await tester.pumpWidget(
@@ -633,8 +752,9 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('Windows Bilibili is playable in-app but time-study limited',
-      (tester) async {
+  testWidgets('Windows Bilibili is playable in-app but time-study limited', (
+    tester,
+  ) async {
     final adapter = _FakeWindowsBilibiliAdapter();
     await tester.pumpWidget(
       MaterialApp(
@@ -656,15 +776,57 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const ValueKey('bilibili_login_boundary')),
+      findsOneWidget,
+    );
+    expect(find.text('失败分类：平台未开放'), findsOneWidget);
+    expect(find.textContaining('不会读取嵌入页登录态'), findsOneWidget);
+    expect(find.text('导入字幕'), findsOneWidget);
+    expect(
       find.byKey(const ValueKey('video_annotate_current_position')),
       findsNothing,
       reason: 'without readable current time the UI must not forge anchors',
     );
+    expect(
+      adapter.currentPositionCalls,
+      0,
+      reason: 'capability guards must prevent reading the frozen fake value',
+    );
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('point annotation at current time does not depend on subtitles',
-      (tester) async {
+  testWidgets('failed player load can retry without changing the source', (
+    tester,
+  ) async {
+    final adapter = _RetryableAdapter();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_retry',
+          sourceVersionId: 'ver_retry_v1',
+          providerId: 'fixture',
+          embedUrl: 'https://example.com/retry',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('temporary surface failure'), findsOneWidget);
+    expect(find.byKey(const ValueKey('video_retry_load')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('video_retry_load')));
+    await tester.pumpAndSettle();
+
+    expect(adapter.loadCalls, 2);
+    expect(find.byKey(const ValueKey('video_retry_load')), findsNothing);
+    expect(find.byKey(const ValueKey('video_player_region')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('point annotation at current time does not depend on subtitles', (
+    tester,
+  ) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
     final adapter = _buildFixture();
     final store = _RecordingSessionStore();
     await tester.pumpWidget(
@@ -685,8 +847,10 @@ void main() {
       find.byKey(const ValueKey('video_annotate_current_position')),
     );
     await tester.pump();
-    expect(find.byKey(const ValueKey('video_annotation_editor')),
-        findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('video_annotation_editor')),
+      findsOneWidget,
+    );
     expect(find.text('在 00:07 创建标注'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField).first, '无字幕点标注');
@@ -718,7 +882,9 @@ void main() {
     await tester.pumpAndSettle();
     await adapter.seekTo(10000);
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('video_begin_range_annotation')));
+    await tester.tap(
+      find.byKey(const ValueKey('video_begin_range_annotation')),
+    );
     await tester.pump();
     expect(find.text('起点 00:10'), findsOneWidget);
 
@@ -766,6 +932,60 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets(
+    'range boundaries read the player at click time and never collapse to a point',
+    (tester) async {
+      _useDesktopSurface(tester, const Size(1440, 900));
+      final adapter = _LaggingTimeAdapter();
+      final store = _RecordingSessionStore();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: VideoStudyScreen(
+            adapter: adapter,
+            sourceId: 'src_video_test',
+            sourceVersionId: 'ver_video_test_v1',
+            sessionStore: store,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      adapter.currentMs = 12000;
+      await tester.tap(
+        find.byKey(const ValueKey('video_begin_range_annotation')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('起点 00:12'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey('video_finish_range_annotation')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('video_annotation_editor')),
+        findsNothing,
+      );
+      expect(find.textContaining('区间终点仍与起点相同'), findsOneWidget);
+      expect(store.saved?.anchors ?? const [], isEmpty);
+
+      adapter.currentMs = 18500;
+      await tester.tap(
+        find.byKey(const ValueKey('video_finish_range_annotation')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('在 00:12–00:18 创建标注'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).first, '真实区间');
+      await tester.tap(find.text('保存标注'));
+      await tester.pumpAndSettle();
+
+      final anchor = store.saved!.anchors.single;
+      expect(anchor.positionSpec['start_ms'], 12000);
+      expect(anchor.positionSpec['end_ms'], 18500);
+      expect(anchor.positionSpec['is_point'], isFalse);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   testWidgets('Clicking a subtitle cue triggers seek', (tester) async {
     final adapter = _buildFixture();
     final track = _buildTrack();
@@ -793,8 +1013,9 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('timeline seek keeps the real player position in sync',
-      (tester) async {
+  testWidgets('timeline seek keeps the real player position in sync', (
+    tester,
+  ) async {
     final adapter = _buildFixture();
 
     await tester.pumpWidget(
@@ -809,9 +1030,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final timeline = find.byKey(
-      const ValueKey('video_timeline_anchor_bar'),
-    );
+    final timeline = find.byKey(const ValueKey('video_timeline_anchor_bar'));
     final rect = tester.getRect(timeline);
     await tester.tapAt(Offset(rect.left + rect.width * 0.5, rect.center.dy));
     await tester.pumpAndSettle();
@@ -822,8 +1041,9 @@ void main() {
     adapter.dispose();
   });
 
-  testWidgets('Annotation flow creates card and shows confirmation',
-      (tester) async {
+  testWidgets('Annotation flow creates card and shows confirmation', (
+    tester,
+  ) async {
     final adapter = _buildFixture();
     final track = _buildTrack();
     final store = _RecordingSessionStore();
@@ -973,9 +1193,7 @@ void main() {
       );
     }
 
-    Widget buildYoutubeScreen({
-      required YouTubeTimedTextService service,
-    }) {
+    Widget buildYoutubeScreen({required YouTubeTimedTextService service}) {
       final adapter = StubYouTubePlayerAdapter();
       return MaterialApp(
         home: VideoStudyScreen(
@@ -990,51 +1208,56 @@ void main() {
     }
 
     testWidgets(
-        'auto-fetch success loads the platform track and study is ready',
-        (tester) async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-      final service = _FakeTimedTextService(
-        YouTubeTimedTextResult(
-          track: platformTrack(),
-          availableTracks: const [
-            YouTubeCaptionTrack(
-              languageCode: 'zh-Hans',
-              displayName: '中文（简体）',
-              baseUrl: 'https://captions.test/zh',
-            ),
-            YouTubeCaptionTrack(
+      'auto-fetch success loads the platform track and study is ready',
+      (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+        final service = _FakeTimedTextService(
+          YouTubeTimedTextResult(
+            track: platformTrack(),
+            availableTracks: const [
+              YouTubeCaptionTrack(
+                languageCode: 'zh-Hans',
+                displayName: '中文（简体）',
+                baseUrl: 'https://captions.test/zh',
+              ),
+              YouTubeCaptionTrack(
+                languageCode: 'en',
+                displayName: 'English',
+                baseUrl: 'https://captions.test/en',
+              ),
+            ],
+            selectedTrack: const YouTubeCaptionTrack(
               languageCode: 'en',
               displayName: 'English',
               baseUrl: 'https://captions.test/en',
             ),
-          ],
-          selectedTrack: const YouTubeCaptionTrack(
-            languageCode: 'en',
-            displayName: 'English',
-            baseUrl: 'https://captions.test/en',
           ),
-        ),
-      );
+        );
 
-      await tester.pumpWidget(buildYoutubeScreen(service: service));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(buildYoutubeScreen(service: service));
+        await tester.pumpAndSettle();
 
-      expect(service.calls, equals(1),
-          reason: 'auto-fetch ran for YouTube on Windows');
-      expect(find.text('需要字幕'), findsNothing);
-      expect(find.text('Light switch, night begins'), findsOneWidget);
-      expect(find.text('Smoke rises on stage'), findsOneWidget);
-      expect(find.textContaining('平台字幕'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('youtube_caption_track_picker')),
-        findsOneWidget,
-      );
-      await tester.pumpWidget(const SizedBox.shrink());
-      debugDefaultTargetPlatformOverride = null;
-    });
+        expect(
+          service.calls,
+          equals(1),
+          reason: 'auto-fetch ran for YouTube on Windows',
+        );
+        expect(find.text('需要字幕'), findsNothing);
+        expect(find.text('Light switch, night begins'), findsOneWidget);
+        expect(find.text('Smoke rises on stage'), findsOneWidget);
+        expect(find.textContaining('平台字幕'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('youtube_caption_track_picker')),
+          findsOneWidget,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
 
-    testWidgets('auto-fetch failure shows honest "需要字幕" with reason',
-        (tester) async {
+    testWidgets('auto-fetch failure shows honest "需要字幕" with reason', (
+      tester,
+    ) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       final service = _FakeTimedTextService(
         const YouTubeTimedTextResult(
@@ -1049,10 +1272,7 @@ void main() {
       expect(service.calls, equals(1));
       expect(find.text('需要字幕'), findsWidgets);
       expect(find.text('导入字幕'), findsOneWidget);
-      expect(
-        find.text('无字幕轨：该视频没有向平台播放器公开 CC 字幕'),
-        findsOneWidget,
-      );
+      expect(find.text('无字幕轨：该视频没有向平台播放器公开 CC 字幕'), findsOneWidget);
       expect(find.text('失败分类：无字幕轨'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       debugDefaultTargetPlatformOverride = null;

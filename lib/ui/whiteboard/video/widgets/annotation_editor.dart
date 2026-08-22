@@ -126,8 +126,10 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
           ),
           const SizedBox(height: 12),
           // Actions
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               TextButton(
                 onPressed: () {
@@ -138,7 +140,6 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
                   style: whiteboardUiTextStyle(color: tokens.textMuted),
                 ),
               ),
-              const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: widget.viewModel.isSavingAnnotation ? null : _save,
                 icon: widget.viewModel.isSavingAnnotation

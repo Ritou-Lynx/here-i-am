@@ -14,6 +14,7 @@ export 'player_sync_controller.dart';
 export 'video_annotation_service.dart';
 export 'video_availability.dart';
 export 'youtube_timedtext_service.dart';
+export 'bilibili_timedtext_service.dart';
 export 'fixture_player_adapter.dart';
 export 'youtube_player_adapter.dart';
 export 'windows_bilibili_player_adapter.dart';

@@ -55,10 +55,10 @@ class VideoPlayerPanel extends StatelessWidget {
           // Player surface
           Positioned.fill(child: _PlayerSurface(viewModel: viewModel)),
           if (viewModel.adapter is WindowsBilibiliPlayerAdapter)
-            const Positioned(
+            Positioned(
               top: 16,
               right: 16,
-              child: _PlaybackLevelBadge(),
+              child: _BilibiliCapabilityNotice(viewModel: viewModel),
             ),
           // Bottom gradient + controls + timeline (only for players WITHOUT
           // native controls, e.g. the fixture simulator / link-only stubs).
@@ -195,8 +195,10 @@ class _PlayerSurface extends StatelessWidget {
   }
 }
 
-class _PlaybackLevelBadge extends StatelessWidget {
-  const _PlaybackLevelBadge();
+class _BilibiliCapabilityNotice extends StatelessWidget {
+  const _BilibiliCapabilityNotice({required this.viewModel});
+
+  final VideoStudyViewModel viewModel;
 
   @override
   Widget build(BuildContext context) {
@@ -207,15 +209,53 @@ class _PlaybackLevelBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: tokens.canvas.withValues(alpha: 0.18)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Text(
-          '可播放 · 时间研读受限',
-          key: const ValueKey('video_playback_level_limited'),
-          style: whiteboardUiTextStyle(
-            color: tokens.canvas,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 310),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '可播放 · 时间研读受限',
+                      key: const ValueKey('video_playback_level_limited'),
+                      style: whiteboardUiTextStyle(
+                        color: tokens.canvas,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '登录仅由平台嵌入页处理；应用不读取或保存登录态',
+                      key: const ValueKey('bilibili_login_boundary'),
+                      style: whiteboardUiTextStyle(
+                        color: tokens.canvas.withValues(alpha: 0.68),
+                        fontSize: 10,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('bilibili_retry_player'),
+                tooltip: '重新加载嵌入播放器',
+                onPressed: () => viewModel.retryLoad(),
+                icon: const Icon(Icons.refresh_rounded, size: 17),
+                color: tokens.canvas,
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+            ],
           ),
         ),
       ),

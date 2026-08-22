@@ -751,12 +751,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
               key: const ValueKey('link_import_commit_button'),
               focusNode: _commitFocusNode,
               onPressed: _cardBusy ? null : _saveCard,
-              icon: Icon(
-                studyReady
-                    ? Icons.playlist_add_check_rounded
-                    : Icons.save_outlined,
-                size: 16,
-              ),
+              icon: const Icon(Icons.save_outlined, size: 16),
               label: Text(
                 _cardBusy
                     ? '正在存入…'

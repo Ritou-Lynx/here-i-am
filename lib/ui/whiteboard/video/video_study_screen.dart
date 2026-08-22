@@ -40,6 +40,7 @@ class VideoStudyScreen extends StatefulWidget {
   final String? providerId;
   final VideoSessionStore? sessionStore;
   final YouTubeTimedTextService? timedTextService;
+  final BilibiliTimedTextService? bilibiliTimedTextService;
   final RepositoryVideoAnnotationStore? annotationStore;
   final bool runtimePlayerAvailable;
   final VoidCallback? onBack;
@@ -54,6 +55,7 @@ class VideoStudyScreen extends StatefulWidget {
     this.providerId,
     this.sessionStore,
     this.timedTextService,
+    this.bilibiliTimedTextService,
     this.annotationStore,
     this.runtimePlayerAvailable = true,
     this.onBack,
@@ -77,6 +79,7 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
       initialTrack: widget.initialTrack,
       sessionStore: widget.sessionStore,
       timedTextService: widget.timedTextService,
+      bilibiliTimedTextService: widget.bilibiliTimedTextService,
       annotationStore: widget.annotationStore,
       runtimePlayerAvailable: widget.runtimePlayerAvailable,
     );
@@ -110,7 +113,10 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
                   child: Consumer<VideoStudyViewModel>(
                     builder: (context, vm, _) {
                       if (!vm.isLoaded) {
-                        return _LoadingView(errorMessage: vm.errorMessage);
+                        return _LoadingView(
+                          errorMessage: vm.errorMessage,
+                          onRetry: vm.retryLoad,
+                        );
                       }
                       return _VideoStudyBody(
                         viewModel: vm,
@@ -141,7 +147,8 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
 
 class _LoadingView extends StatelessWidget {
   final String? errorMessage;
-  const _LoadingView({this.errorMessage});
+  final Future<void> Function() onRetry;
+  const _LoadingView({this.errorMessage, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -162,6 +169,15 @@ class _LoadingView extends StatelessWidget {
             errorMessage ?? '加载中…',
             style: whiteboardUiTextStyle(color: tokens.textFaint, fontSize: 14),
           ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              key: const ValueKey('video_retry_load'),
+              onPressed: () => onRetry(),
+              icon: const Icon(Icons.refresh_rounded, size: 17),
+              label: const Text('重试加载'),
+            ),
+          ],
         ],
       ),
     );
@@ -208,8 +224,9 @@ class _VideoStudyBody extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final autoBottom = constraints.maxWidth < _autoBottomBreakpoint;
-        final effectiveOrientation =
-            autoBottom ? DockOrientation.bottom : viewModel.dockOrientation;
+        final effectiveOrientation = autoBottom
+            ? DockOrientation.bottom
+            : viewModel.dockOrientation;
         if (effectiveOrientation == DockOrientation.right) {
           return _HorizontalLayout(viewModel: viewModel);
         }
@@ -473,11 +490,11 @@ class _LinkOnlyView extends StatelessWidget {
   }
 
   static String _providerLabel(String providerId) => switch (providerId) {
-        'bilibili' => '哔哩哔哩',
-        'xiaohongshu' => '小红书',
-        'unknown' => '这个来源',
-        _ => providerId,
-      };
+    'bilibili' => '哔哩哔哩',
+    'xiaohongshu' => '小红书',
+    'unknown' => '这个来源',
+    _ => providerId,
+  };
 
   static Future<void> _openExternal(BuildContext context, Uri uri) async {
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
