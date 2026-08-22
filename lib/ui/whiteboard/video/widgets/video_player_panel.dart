@@ -54,11 +54,14 @@ class VideoPlayerPanel extends StatelessWidget {
         children: [
           // Player surface
           Positioned.fill(child: _PlayerSurface(viewModel: viewModel)),
-          if (viewModel.adapter is WindowsBilibiliPlayerAdapter)
+          if (viewModel.adapter case final WindowsBilibiliPlayerAdapter adapter)
             Positioned(
               top: 16,
               right: 16,
-              child: _BilibiliCapabilityNotice(viewModel: viewModel),
+              child: _BilibiliPlaybackActions(
+                adapter: adapter,
+                viewModel: viewModel,
+              ),
             ),
           // Bottom gradient + controls + timeline (only for players WITHOUT
           // native controls, e.g. the fixture simulator / link-only stubs).
@@ -195,10 +198,63 @@ class _PlayerSurface extends StatelessWidget {
   }
 }
 
-class _BilibiliCapabilityNotice extends StatelessWidget {
-  const _BilibiliCapabilityNotice({required this.viewModel});
+class _BilibiliPlaybackActions extends StatefulWidget {
+  const _BilibiliPlaybackActions({
+    required this.adapter,
+    required this.viewModel,
+  });
 
+  final WindowsBilibiliPlayerAdapter adapter;
   final VideoStudyViewModel viewModel;
+
+  @override
+  State<_BilibiliPlaybackActions> createState() =>
+      _BilibiliPlaybackActionsState();
+}
+
+class _BilibiliPlaybackActionsState extends State<_BilibiliPlaybackActions> {
+  bool _busy = false;
+
+  Future<void> _openLoginWithNotice() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('打开 Bilibili 登录页？'),
+        content: const Text(
+          '当前沿用 WebView 默认会话，平台可能保留登录状态；应用不会读取或记录密码、Cookie。'
+          '固定登录 profile 与清除站点数据尚未获得授权。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('继续打开'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _run(widget.adapter.openLoginPage);
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bilibili 页面操作失败，请稍后重试。')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -213,47 +269,61 @@ class _BilibiliCapabilityNotice extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 310),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '可播放 · 时间研读受限',
-                      key: const ValueKey('video_playback_level_limited'),
-                      style: whiteboardUiTextStyle(
-                        color: tokens.canvas,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '登录仅由平台嵌入页处理；应用不读取或保存登录态',
-                      key: const ValueKey('bilibili_login_boundary'),
-                      style: whiteboardUiTextStyle(
-                        color: tokens.canvas.withValues(alpha: 0.68),
-                        fontSize: 10,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
+              Text(
+                widget.adapter.hasVerifiedTimeBridge
+                    ? '可播放 · 时间桥已验证'
+                    : '可播放 · 时间研读受限',
+                key: ValueKey(widget.adapter.hasVerifiedTimeBridge
+                    ? 'video_playback_level_timed'
+                    : 'video_playback_level_limited'),
+                style: whiteboardUiTextStyle(
+                  color: tokens.canvas,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              IconButton(
-                key: const ValueKey('bilibili_retry_player'),
-                tooltip: '重新加载嵌入播放器',
-                onPressed: () => viewModel.retryLoad(),
-                icon: const Icon(Icons.refresh_rounded, size: 17),
-                color: tokens.canvas,
-                constraints: const BoxConstraints.tightFor(
-                  width: 36,
-                  height: 36,
+              const SizedBox(height: 2),
+              Text(
+                '登录仅由平台嵌入页处理；应用不读取或保存登录态',
+                key: const ValueKey('bilibili_login_boundary'),
+                style: whiteboardUiTextStyle(
+                  color: tokens.canvas.withValues(alpha: 0.68),
+                  fontSize: 10,
+                  height: 1.35,
                 ),
-                padding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    key: const ValueKey('bilibili_retry_player'),
+                    tooltip: '重新加载嵌入播放器',
+                    onPressed: _busy ? null : widget.viewModel.retryLoad,
+                    icon: const Icon(Icons.refresh_rounded, size: 17),
+                    color: tokens.canvas,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 36,
+                      height: 36,
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                  TextButton(
+                    key: const ValueKey('bilibili_open_login'),
+                    onPressed: _busy ? null : _openLoginWithNotice,
+                    child: const Text('登录页'),
+                  ),
+                  TextButton(
+                    key: const ValueKey('bilibili_return_video'),
+                    onPressed:
+                        _busy ? null : () => _run(widget.adapter.returnToVideo),
+                    child: const Text('返回视频'),
+                  ),
+                ],
               ),
             ],
           ),

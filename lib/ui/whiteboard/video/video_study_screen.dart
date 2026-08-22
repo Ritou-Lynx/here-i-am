@@ -40,7 +40,7 @@ class VideoStudyScreen extends StatefulWidget {
   final String? providerId;
   final VideoSessionStore? sessionStore;
   final YouTubeTimedTextService? timedTextService;
-  final BilibiliTimedTextService? bilibiliTimedTextService;
+  final BilibiliPublicTimedTextResolver? bilibiliTimedTextResolver;
   final VideoAnnotationStore? annotationStore;
   final bool runtimePlayerAvailable;
   final VoidCallback? onBack;
@@ -55,7 +55,7 @@ class VideoStudyScreen extends StatefulWidget {
     this.providerId,
     this.sessionStore,
     this.timedTextService,
-    this.bilibiliTimedTextService,
+    this.bilibiliTimedTextResolver,
     this.annotationStore,
     this.runtimePlayerAvailable = true,
     this.onBack,
@@ -79,7 +79,7 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
       initialTrack: widget.initialTrack,
       sessionStore: widget.sessionStore,
       timedTextService: widget.timedTextService,
-      bilibiliTimedTextService: widget.bilibiliTimedTextService,
+      bilibiliTimedTextResolver: widget.bilibiliTimedTextResolver,
       annotationStore: widget.annotationStore,
       runtimePlayerAvailable: widget.runtimePlayerAvailable,
     );
@@ -224,9 +224,8 @@ class _VideoStudyBody extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final autoBottom = constraints.maxWidth < _autoBottomBreakpoint;
-        final effectiveOrientation = autoBottom
-            ? DockOrientation.bottom
-            : viewModel.dockOrientation;
+        final effectiveOrientation =
+            autoBottom ? DockOrientation.bottom : viewModel.dockOrientation;
         if (effectiveOrientation == DockOrientation.right) {
           return _HorizontalLayout(viewModel: viewModel);
         }
@@ -490,11 +489,11 @@ class _LinkOnlyView extends StatelessWidget {
   }
 
   static String _providerLabel(String providerId) => switch (providerId) {
-    'bilibili' => '哔哩哔哩',
-    'xiaohongshu' => '小红书',
-    'unknown' => '这个来源',
-    _ => providerId,
-  };
+        'bilibili' => '哔哩哔哩',
+        'xiaohongshu' => '小红书',
+        'unknown' => '这个来源',
+        _ => providerId,
+      };
 
   static Future<void> _openExternal(BuildContext context, Uri uri) async {
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -223,6 +225,55 @@ class _SilentTimeEventAdapter implements PlayerAdapter {
   Future<void> seekTo(int positionMs) async {
     _positionMs = positionMs;
   }
+}
+
+class _RuntimeNegotiatedAdapter implements PlayerAdapter {
+  final _events = StreamController<PlayerTimeEvent>.broadcast();
+  PlayerCapability _capability = const PlayerCapability(canEmbedPlayer: true);
+
+  @override
+  String get providerId => 'runtime-negotiated';
+
+  @override
+  PlayerCapability get capability => _capability;
+
+  @override
+  Stream<PlayerTimeEvent> get timeEvents => _events.stream;
+
+  @override
+  Future<void> load(String sourceId, {String? embedUrl}) async {}
+
+  void promote() {
+    _capability = const PlayerCapability(
+      canSeek: true,
+      canReadDuration: true,
+      canReadPosition: true,
+      canEmbedPlayer: true,
+      canCreateTimeAnchor: true,
+    );
+    _events.add(PlayerTimeEvent(
+      positionMs: 12000,
+      durationMs: 60000,
+      at: DateTime.now(),
+    ));
+  }
+
+  @override
+  Future<int> currentPositionMs() async => 12000;
+
+  @override
+  Future<int?> durationMs() async => 60000;
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> seekTo(int positionMs) async {}
+
+  void dispose() => _events.close();
 }
 
 class _FakeWindowsBilibiliAdapter extends WindowsBilibiliPlayerAdapter {
@@ -842,9 +893,21 @@ void main() {
       find.byKey(const ValueKey('bilibili_login_boundary')),
       findsOneWidget,
     );
-    expect(find.text('失败分类：平台未开放'), findsOneWidget);
+    expect(find.byKey(const ValueKey('bilibili_open_login')), findsOneWidget);
+    expect(find.byKey(const ValueKey('bilibili_return_video')), findsOneWidget);
+    expect(find.byKey(const ValueKey('bilibili_retry_player')), findsOneWidget);
+    expect(find.textContaining('清除'), findsNothing);
+    expect(find.text('失败分类：公开路径不可用'), findsOneWidget);
     expect(find.textContaining('不会读取嵌入页登录态'), findsOneWidget);
+    expect(find.textContaining('SRT / VTT'), findsOneWidget);
     expect(find.text('导入字幕'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('bilibili_open_login')));
+    await tester.pumpAndSettle();
+    expect(find.text('打开 Bilibili 登录页？'), findsOneWidget);
+    expect(find.textContaining('不会读取或记录密码、Cookie'), findsOneWidget);
+    expect(find.textContaining('清除站点数据尚未获得授权'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('video_annotate_current_position')),
       findsNothing,
@@ -854,6 +917,34 @@ void main() {
       adapter.currentPositionCalls,
       0,
       reason: 'capability guards must prevent reading the frozen fake value',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('runtime bridge promotion immediately enables time anchors',
+      (tester) async {
+    final adapter = _RuntimeNegotiatedAdapter();
+    expect(adapter.capability.canReadPosition, isFalse);
+    await tester.pumpWidget(MaterialApp(
+      home: VideoStudyScreen(
+        adapter: adapter,
+        sourceId: 'src_runtime_bridge',
+        sourceVersionId: 'ver_runtime_bridge_v1',
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(adapter.capability.canReadPosition, isFalse);
+    expect(
+      find.byKey(const ValueKey('video_annotate_current_position')),
+      findsNothing,
+    );
+    adapter.promote();
+    await tester.pumpAndSettle();
+    expect(adapter.capability.canReadPosition, isTrue);
+    expect(
+      find.byKey(const ValueKey('video_annotate_current_position')),
+      findsOneWidget,
     );
     await tester.pumpWidget(const SizedBox.shrink());
   });

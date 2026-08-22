@@ -17,14 +17,13 @@ void main() {
         isNull);
   });
 
-  test('builds a platform player URL without download or login parameters',
+  test('builds the top-level video URL without download or login parameters',
       () {
     final uri = Uri.parse(
-      WindowsBilibiliPlayerAdapter.buildEmbedUrl('BV1E8KV6QEu7'),
+      WindowsBilibiliPlayerAdapter.buildVideoPageUrl('BV1E8KV6QEu7'),
     );
-    expect(uri.host, 'player.bilibili.com');
-    expect(uri.queryParameters['bvid'], 'BV1E8KV6QEu7');
-    expect(uri.queryParameters['autoplay'], '0');
+    expect(uri.host, 'www.bilibili.com');
+    expect(uri.path, '/video/BV1E8KV6QEu7');
     expect(uri.queryParameters, isNot(contains('download')));
     expect(uri.queryParameters, isNot(contains('token')));
   });

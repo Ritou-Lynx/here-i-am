@@ -18,5 +18,7 @@ export 'bilibili_timedtext_service.dart';
 export 'fixture_player_adapter.dart';
 export 'youtube_player_adapter.dart';
 export 'windows_bilibili_player_adapter.dart';
+export 'bilibili_html_media_bridge.dart';
+export 'platform_timed_text_resolver.dart';
 export 'platform_player_adapters.dart';
 export 'provider_capability_matrix.dart';

@@ -59,13 +59,12 @@ class VideoStudyViewModel extends ChangeNotifier {
   SubtitleAutoFetchStatus _subtitleFetchStatus = SubtitleAutoFetchStatus.idle;
   String? _subtitleFetchMessage;
   YouTubeTimedTextFailureKind? _subtitleFailureKind;
-  BilibiliTimedTextFailureKind? _bilibiliSubtitleFailureKind;
+  PlatformTimedTextFailureKind? _platformSubtitleFailureKind;
   List<YouTubeCaptionTrack> _availableCaptionTracks = const [];
   YouTubeCaptionTrack? _selectedCaptionTrack;
   late YouTubeTimedTextService _timedTextService;
+  late UnifiedPlatformTimedTextResolver _platformTimedTextResolver;
   late bool _ownsTimedTextService;
-  late BilibiliTimedTextService _bilibiliTimedTextService;
-  late bool _ownsBilibiliTimedTextService;
 
   final List<UIAnnotation> _annotations = [];
   final Map<String, String> _anchorToCard = {};
@@ -98,7 +97,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     this.annotationStore,
     this.runtimePlayerAvailable = true,
     YouTubeTimedTextService? timedTextService,
-    BilibiliTimedTextService? bilibiliTimedTextService,
+    BilibiliPublicTimedTextResolver? bilibiliTimedTextResolver,
   }) {
     _track = initialTrack;
     _needsSubtitle = initialTrack == null ||
@@ -106,13 +105,14 @@ class VideoStudyViewModel extends ChangeNotifier {
         initialTrack.cues.isEmpty;
     _ownsTimedTextService = timedTextService == null;
     _timedTextService = timedTextService ?? YouTubeTimedTextService();
-    _ownsBilibiliTimedTextService = bilibiliTimedTextService == null;
-    _bilibiliTimedTextService =
-        bilibiliTimedTextService ?? const BilibiliTimedTextService();
+    _platformTimedTextResolver = UnifiedPlatformTimedTextResolver(
+      youtube: _timedTextService,
+      bilibili:
+          bilibiliTimedTextResolver ?? const BilibiliPublicTimedTextResolver(),
+    );
     _subtitleFetchStatus = _track?.cues.isNotEmpty == true
         ? SubtitleAutoFetchStatus.loaded
         : SubtitleAutoFetchStatus.idle;
-    _updateAvailability();
   }
 
   // ─── Track ───
@@ -127,27 +127,25 @@ class VideoStudyViewModel extends ChangeNotifier {
   /// Honest reason when auto-fetch failed, or a note when it loaded.
   String? get subtitleFetchMessage => _subtitleFetchMessage;
   YouTubeTimedTextFailureKind? get subtitleFailureKind => _subtitleFailureKind;
-  BilibiliTimedTextFailureKind? get bilibiliSubtitleFailureKind =>
-      _bilibiliSubtitleFailureKind;
   String? get subtitleFailureLabel {
-    final youtube = _subtitleFailureKind;
-    if (youtube != null) {
-      return switch (youtube) {
-        YouTubeTimedTextFailureKind.invalidVideo => '来源无效',
-        YouTubeTimedTextFailureKind.noTrack => '无字幕轨',
-        YouTubeTimedTextFailureKind.accessRestricted => '地区 / 权限限制',
-        YouTubeTimedTextFailureKind.network => '网络失败',
-        YouTubeTimedTextFailureKind.parserFailure => '解析器失效',
+    final platform = _platformSubtitleFailureKind;
+    if (platform != null) {
+      return switch (platform) {
+        PlatformTimedTextFailureKind.invalidSource => '来源无效',
+        PlatformTimedTextFailureKind.noTrack => '无字幕轨',
+        PlatformTimedTextFailureKind.accessRestricted => '地区 / 权限限制',
+        PlatformTimedTextFailureKind.network => '网络失败',
+        PlatformTimedTextFailureKind.parserFailure => '解析器失效',
+        PlatformTimedTextFailureKind.unsupported => '公开路径不可用',
       };
     }
-    final bilibili = _bilibiliSubtitleFailureKind;
-    if (bilibili == null) return null;
-    return switch (bilibili) {
-      BilibiliTimedTextFailureKind.invalidVideo => '来源无效',
-      BilibiliTimedTextFailureKind.unsupported => '平台未开放',
-      BilibiliTimedTextFailureKind.needsAuthorization => '需要授权',
-      BilibiliTimedTextFailureKind.network => '网络失败',
-      BilibiliTimedTextFailureKind.parserFailure => '解析器失效',
+    return switch (_subtitleFailureKind) {
+      YouTubeTimedTextFailureKind.invalidVideo => '来源无效',
+      YouTubeTimedTextFailureKind.noTrack => '无字幕轨',
+      YouTubeTimedTextFailureKind.accessRestricted => '地区 / 权限限制',
+      YouTubeTimedTextFailureKind.network => '网络失败',
+      YouTubeTimedTextFailureKind.parserFailure => '解析器失效',
+      null => null,
     };
   }
 
@@ -170,7 +168,15 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   // ─── Runtime availability (W4 model) ───
 
-  late VideoStudyAvailability _availability;
+  VideoStudyAvailability get _availability {
+    final hasUsable = _track != null &&
+        _track!.reliability != TimedTextReliability.unavailable &&
+        _track!.cues.isNotEmpty;
+    return VideoStudyAvailability(
+      capability: adapter.capability,
+      hasUsableSubtitleTrack: hasUsable,
+    );
+  }
 
   /// Whether a readable playback position exists at runtime.
   bool get hasReadablePosition => _availability.hasReadablePosition;
@@ -193,16 +199,6 @@ class VideoStudyViewModel extends ChangeNotifier {
   /// Whether the adapter exposes any playback surface (embed or position
   /// readback). Providers with neither are link-only.
   bool get hasAnyPlaybackSurface => _availability.hasAnyPlaybackSurface;
-
-  void _updateAvailability() {
-    final hasUsable = _track != null &&
-        _track!.reliability != TimedTextReliability.unavailable &&
-        _track!.cues.isNotEmpty;
-    _availability = VideoStudyAvailability(
-      capability: adapter.capability,
-      hasUsableSubtitleTrack: hasUsable,
-    );
-  }
 
   // ─── Sync ───
 
@@ -290,8 +286,10 @@ class VideoStudyViewModel extends ChangeNotifier {
           },
         );
         _syncController!.start();
-      } else if (canReadPosition) {
-        // No subtitle track but player still emits time events.
+      } else {
+        // Subscribe even before a runtime-negotiated bridge is promoted.
+        // Link-only adapters expose an empty stream; a bridge can emit later
+        // and immediately rebuild availability without reloading the screen.
         _syncController = PlayerSyncController(
           adapter: adapter,
           track: const TimedTextTrack(
@@ -341,11 +339,11 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   /// Whether platform-subtitle auto-fetch should run for the current setup.
   bool get _canAutoFetchSubtitles =>
-      (providerId == 'youtube' || providerId == 'bilibili') &&
       (providerId == 'bilibili' ||
-          kIsWeb ||
-          defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.windows) &&
+          (providerId == 'youtube' &&
+              (kIsWeb ||
+                  defaultTargetPlatform == TargetPlatform.android ||
+                  defaultTargetPlatform == TargetPlatform.windows))) &&
       (_track?.cues.isEmpty != false);
 
   void _maybeAutoFetchSubtitles(String? embedUrl) {
@@ -362,23 +360,26 @@ class VideoStudyViewModel extends ChangeNotifier {
   Future<void> _fetchPlatformSubtitles(String? embedUrl) async {
     final videoRef = embedUrl ?? sourceId;
     if (providerId == 'bilibili') {
-      final result = await _bilibiliTimedTextService.fetchForVideo(
-        videoRef,
-        sourceId: sourceId,
-        sourceVersionId: sourceVersionId,
+      final resolution = await _platformTimedTextResolver.resolve(
+        PlatformTimedTextRequest(
+          providerId: providerId,
+          videoRef: videoRef,
+          sourceId: sourceId,
+          sourceVersionId: sourceVersionId,
+        ),
       );
       _availableCaptionTracks = const [];
       _selectedCaptionTrack = null;
       _subtitleFailureKind = null;
-      _bilibiliSubtitleFailureKind = result.failureKind;
-      if (result.isSuccess && result.track != null) {
-        _setTrack(result.track!);
+      _platformSubtitleFailureKind = resolution.failureKind;
+      if (resolution.isSuccess && resolution.track != null) {
+        _setTrack(resolution.track!);
         _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
-        _subtitleFetchMessage = '已加载平台字幕（${result.track!.language}）';
-        _bilibiliSubtitleFailureKind = null;
+        _subtitleFetchMessage = '已加载平台字幕（${resolution.track!.language}）';
+        _platformSubtitleFailureKind = null;
       } else {
         _subtitleFetchStatus = SubtitleAutoFetchStatus.failed;
-        _subtitleFetchMessage = result.error ?? '哔哩哔哩字幕发现失败';
+        _subtitleFetchMessage = resolution.message ?? 'Bilibili 字幕发现失败';
         _needsSubtitle = true;
       }
       notifyListeners();
@@ -391,13 +392,13 @@ class VideoStudyViewModel extends ChangeNotifier {
     );
     _availableCaptionTracks = result.availableTracks;
     _selectedCaptionTrack = result.selectedTrack;
-    _bilibiliSubtitleFailureKind = null;
+    _platformSubtitleFailureKind = null;
     if (result.isSuccess && result.track != null) {
       _setTrack(result.track!);
       _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
       _subtitleFetchMessage = '已自动获取平台字幕（${result.track!.language}）';
       _subtitleFailureKind = null;
-      _bilibiliSubtitleFailureKind = null;
+      _platformSubtitleFailureKind = null;
     } else {
       _subtitleFetchStatus = SubtitleAutoFetchStatus.failed;
       _subtitleFetchMessage = result.error ?? '自动获取字幕失败';
@@ -442,8 +443,6 @@ class VideoStudyViewModel extends ChangeNotifier {
         _subtitleFetchStatus != SubtitleAutoFetchStatus.loaded) {
       _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
     }
-    _updateAvailability();
-
     _syncController?.dispose();
     if (_isLoaded && !_needsSubtitle) {
       _syncController = PlayerSyncController(
@@ -873,9 +872,6 @@ class VideoStudyViewModel extends ChangeNotifier {
     _syncController?.dispose();
     if (_ownsTimedTextService) {
       _timedTextService.dispose();
-    }
-    if (_ownsBilibiliTimedTextService) {
-      _bilibiliTimedTextService.dispose();
     }
     // Dispose the adapter if it exposes a dispose() method (FixturePlayerAdapter,
     // YouTubePlayerAdapter, and WebYouTubePlayerAdapter all do). Using dynamic
