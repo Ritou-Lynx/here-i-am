@@ -3389,9 +3389,11 @@ class _FloatingActionTools extends StatelessWidget {
       child: Align(
         alignment: Alignment.topCenter,
         child: _FloatingSurface(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               _FloatingLabeledButton(
                 key: const Key('wb_open_card_library_tool'),
                 icon: Icons.add_card_outlined,
@@ -3493,7 +3495,8 @@ class _FloatingActionTools extends StatelessWidget {
                 tooltip: '关闭画布工具',
                 onTap: onClose,
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
