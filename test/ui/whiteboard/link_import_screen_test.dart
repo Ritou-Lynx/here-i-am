@@ -241,6 +241,20 @@ void main() {
     expect(find.textContaining('还没有导入记录'), findsOneWidget);
   });
 
+  testWidgets('ordinary cards never pollute the recent-import list',
+      (tester) async {
+    await repository.createTextCard(
+      title: '这是一张普通文字卡',
+      body: '它属于卡片库，但不是一次链接导入。',
+      tags: const ['普通卡'],
+    );
+
+    await pump(tester, _service(repository, {}));
+
+    expect(find.text('这是一张普通文字卡'), findsNothing);
+    expect(find.textContaining('还没有导入记录'), findsOneWidget);
+  });
+
   testWidgets('direct route back falls back to the card library',
       (tester) async {
     await pump(tester, _service(repository, {}));
