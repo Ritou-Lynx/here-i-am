@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestion_service.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestor.dart';
 import 'package:memex/data/whiteboard/ingestion/safe_http_client.dart';
+import 'package:memex/data/whiteboard/ingestion/url_canonicalizer.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
@@ -90,11 +91,15 @@ class _ControlledLinkIngestionService extends LinkIngestionService {
     required LinkIngestionService delegate,
     this.commitGate,
     this.failRecentAfterCommit = false,
+    this.failSourceLookup = false,
+    this.failCommit = false,
   }) : _delegate = delegate;
 
   final LinkIngestionService _delegate;
   final Completer<void>? commitGate;
   final bool failRecentAfterCommit;
+  final bool failSourceLookup;
+  final bool failCommit;
 
   int ingestCalls = 0;
   int commitCalls = 0;
@@ -126,6 +131,11 @@ class _ControlledLinkIngestionService extends LinkIngestionService {
     CardCreatedBy createdBy = CardCreatedBy.user,
   }) async {
     commitCalls += 1;
+    if (failCommit) {
+      throw StateError(
+        'try to send request over isolate channel, but the connection was closed',
+      );
+    }
     await commitGate?.future;
     final outcome = await _delegate.commitResult(
       result,
@@ -138,8 +148,14 @@ class _ControlledLinkIngestionService extends LinkIngestionService {
   }
 
   @override
-  Future<LinkIngestionRecord?> getSource(String sourceId) =>
-      _delegate.getSource(sourceId);
+  Future<LinkIngestionRecord?> getSource(String sourceId) {
+    if (failSourceLookup) {
+      throw StateError(
+        'try to send request over isolate channel, but the connection was closed',
+      );
+    }
+    return _delegate.getSource(sourceId);
+  }
 
   @override
   Future<List<CardContract>> listCards() {
@@ -657,6 +673,69 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
     await settleFor(tester, find.text('已在卡片库'));
     expect(await tester.runAsync(service.listCards), hasLength(1));
+  });
+
+  testWidgets(
+      'desktop bilibili share URL still previews when existing-source lookup is unavailable',
+      (tester) async {
+    const url =
+        'https://www.bilibili.com/video/BV1E8KV6QEu7/?spm_id_from=333.1387.upload.video_card.click&vd_source=share-source';
+    final delegate = _service(repository, {});
+    final service = _ControlledLinkIngestionService(
+      repository: repository,
+      delegate: delegate,
+      failSourceLookup: true,
+      failCommit: true,
+    );
+    await pump(tester, service);
+
+    await tester.enterText(find.byType(TextField), url);
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await settleFor(tester, find.text('视频链接级保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('哔哩哔哩视频 · BV1E8KV6QEu7'), findsOneWidget);
+    expect(find.textContaining('预览已生成'), findsOneWidget);
+    expect(find.textContaining('抓取失败'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await settleFor(tester, find.textContaining('存储连接已失效'));
+
+    expect(find.textContaining('Bad state'), findsNothing);
+    expect(find.textContaining('try to send request'), findsNothing);
+    expect(find.textContaining('isolate channel'), findsNothing);
+    expect(await tester.runAsync(delegate.listCards), isEmpty);
+  });
+
+  testWidgets(
+      'desktop xiaohongshu share URL keeps parsed preview independent of repository lookup',
+      (tester) async {
+    const url =
+        'https://www.xiaohongshu.com/discovery/item/6a8881480000000018019591?source=webshare&xhsshare=pc_web&xsec_token=REDACTED&xsec_source=pc_share';
+    final normalized = canonicalizeUrl(url)!.normalized;
+    final delegate = _service(repository, {
+      normalized: _Canned(
+        _fixture('open_graph.html'),
+        200,
+        'text/html; charset=utf-8',
+      ),
+    });
+    final service = _ControlledLinkIngestionService(
+      repository: repository,
+      delegate: delegate,
+      failSourceLookup: true,
+    );
+    await pump(tester, service);
+
+    await tester.enterText(find.byType(TextField), url);
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await settleFor(tester, find.text('春雨昼眠主题设计文档'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('xiaohongshu'), findsOneWidget);
+    expect(find.textContaining('预览已生成'), findsOneWidget);
+    expect(find.textContaining('抓取失败'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '存入卡片库'), findsOneWidget);
   });
 
   testWidgets('full share prose extracts its URL before previewing',

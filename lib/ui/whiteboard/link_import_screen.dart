@@ -78,6 +78,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
   bool _cardBusy = false;
   String? _inputError;
   String? _recentError;
+  String? _sourceLookupWarning;
 
   LinkIngestionOutcome? _outcome;
   CardContract? _existingCard;
@@ -108,7 +109,9 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       service = widget.service ?? await _createService();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _storeError = '存储不可用：$e');
+      setState(() {
+        _storeError = '存储连接暂时不可用。请重新打开桌面应用后再试。';
+      });
       return;
     }
     if (!mounted) return;
@@ -195,36 +198,45 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       _existingCard = null;
       _matchesExistingVersion = false;
       _cardSaved = false;
+      _sourceLookupWarning = null;
     });
     try {
       // Fetch only — the Card is created explicitly by the user later.
       final outcome = await service.ingestUrl(url, createCard: false);
       CardContract? existing;
       var matchesExistingVersion = false;
+      String? sourceLookupWarning;
       final sourceId = outcome.result.source?.sourceId;
       if (sourceId != null) {
-        final record = await service.getSource(sourceId);
-        existing = record?.card;
-        final incomingHash = outcome.result.source?.contentHash;
-        matchesExistingVersion = incomingHash != null &&
-            record != null &&
-            record.versions.any(
-              (version) => version.contentHash == incomingHash,
-            );
+        try {
+          // Looking up an existing Source is only an optional de-duplication
+          // hint. A temporarily unavailable repository must not turn an
+          // already successful network / provider preview into "抓取失败".
+          final record = await service.getSource(sourceId);
+          existing = record?.card;
+          final incomingHash = outcome.result.source?.contentHash;
+          matchesExistingVersion = incomingHash != null &&
+              record != null &&
+              record.versions.any(
+                (version) => version.contentHash == incomingHash,
+              );
+        } catch (_) {
+          sourceLookupWarning = '预览已生成，但暂时无法核对这个来源是否已在卡片库。';
+        }
       }
       if (!mounted) return;
       setState(() {
         _outcome = outcome;
         _existingCard = existing;
         _matchesExistingVersion = matchesExistingVersion;
+        _sourceLookupWarning = sourceLookupWarning;
         _fetching = false;
       });
-      await _loadRecent();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _fetching = false;
-        _inputError = '抓取失败：$e';
+        _inputError = _friendlyPreviewFailure(e);
       });
     }
   }
@@ -279,7 +291,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       if (!mounted) return;
       setState(() {
         _cardBusy = false;
-        _inputError = '存入卡片库失败：$e';
+        _inputError = _friendlyCommitFailure(e);
       });
       return;
     }
@@ -291,6 +303,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       _cardSaved = true;
       _cardBusy = false;
       _inputError = null;
+      _sourceLookupWarning = null;
     });
 
     final source = finalOutcome.result.source;
@@ -329,6 +342,7 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
       _matchesExistingVersion = false;
       _cardSaved = false;
       _inputError = null;
+      _sourceLookupWarning = null;
     });
     _urlFocusNode.requestFocus();
   }
@@ -337,6 +351,28 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
     return result.source?.mediaType == SourceMediaType.video &&
         (result.videoCapability == VideoCapabilityLevel.playbackStudy ||
             result.videoCapability == VideoCapabilityLevel.localized);
+  }
+
+  String _friendlyPreviewFailure(Object error) {
+    if (_looksLikeClosedStorage(error)) {
+      return '预览未完成：存储连接已失效。请重新打开桌面应用后再试。';
+    }
+    return '预览未完成。请检查网络后重试；若站点要求登录，应用会单独标明。';
+  }
+
+  String _friendlyCommitFailure(Object error) {
+    if (_looksLikeClosedStorage(error)) {
+      return '存入失败：存储连接已失效。请重新打开桌面应用后再保存；当前只是预览，尚未写入卡片库。';
+    }
+    return '存入失败，当前预览尚未写入卡片库。请稍后重试。';
+  }
+
+  bool _looksLikeClosedStorage(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('connection was closed') ||
+        text.contains('database is closed') ||
+        text.contains('try to send request') ||
+        text.contains('isolate channel') && text.contains('closed');
   }
 
   // -----------------------------------------------------------------------
@@ -871,6 +907,13 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
             label: capabilityLabel,
             studyReady: studyReady,
           ),
+          if (_sourceLookupWarning != null) ...[
+            const SizedBox(height: 10),
+            _buildInlineNotice(
+              icon: Icons.storage_outlined,
+              message: _sourceLookupWarning!,
+            ),
+          ],
           if (updateAvailable) ...[
             const SizedBox(height: 12),
             Text(
@@ -961,6 +1004,38 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildInlineNotice({
+    required IconData icon,
+    required String message,
+  }) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.divider),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: tokens.textMuted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: whiteboardUiTextStyle(
+                color: tokens.textMuted,
+                fontSize: 12,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
