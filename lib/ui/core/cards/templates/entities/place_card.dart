@@ -110,9 +110,9 @@ class PlaceCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF7F8FA),
+                    color: const Color(0xFFF8F6EB),
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: const Color(0xFFEDE9D8)),
                   ),
                   child: const Text('📍', style: TextStyle(fontSize: 18)),
                 ),
@@ -148,7 +148,7 @@ class PlaceCard extends StatelessWidget {
               height: 40,
               child: const Icon(
                 Icons.location_on,
-                color: Color(0xFFEF4444),
+                color: Color(0xFF9B5B52),
                 size: 40,
               ),
             ),

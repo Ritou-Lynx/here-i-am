@@ -195,7 +195,7 @@ class _DurationCardState extends State<DurationCard>
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF5B6CFF).withValues(alpha: 0.08),
+                  color: const Color(0xFF6E7541).withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -216,18 +216,18 @@ class _DurationCardState extends State<DurationCard>
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF7F8FA),
+                            color: const Color(0xFFF8F6EB),
                             shape: BoxShape.circle,
                             border: Border.all(
                                 color: _isRunning
                                     ? const Color(0xFF34D399) // Emerald
-                                    : const Color(0xFFE2E8F0)),
+                                    : const Color(0xFFEDE9D8)),
                           ),
                           child: Icon(
                               _isRunning ? Icons.timer : Icons.timer_outlined,
                               color: _isRunning
                                   ? const Color(0xFF34D399) // Emerald
-                                  : const Color(0xFF5B6CFF), // Indigo-200
+                                  : const Color(0xFF6E7541), // Indigo-200
                               size: 20),
                         ),
                       ),

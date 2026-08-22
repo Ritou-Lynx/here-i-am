@@ -183,7 +183,7 @@ class _AgentActivityWidgetState extends State<AgentActivityWidget>
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+              color: const Color(0xFF6E7541).withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -339,7 +339,7 @@ class _DetailSheetState extends State<_DetailSheet>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
+                color: const Color(0xFFEDE9D8),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -429,10 +429,10 @@ class _DetailSheetState extends State<_DetailSheet>
                             height: 300,
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF7F8FA),
+                              color: const Color(0xFFF8F6EB),
                               borderRadius: BorderRadius.circular(12),
                               border:
-                                  Border.all(color: const Color(0xFFE2E8F0)),
+                                  Border.all(color: const Color(0xFFEDE9D8)),
                             ),
                             child: SingleChildScrollView(
                               child: MarkdownBody(
@@ -446,7 +446,7 @@ class _DetailSheetState extends State<_DetailSheet>
                                   code: const TextStyle(
                                       fontSize: 13,
                                       color: Color(0xFF475569),
-                                      backgroundColor: Color(0xFFE2E8F0),
+                                      backgroundColor: Color(0xFFEDE9D8),
                                       fontFamily: 'monospace'),
                                   codeblockDecoration: BoxDecoration(
                                     color: const Color(0xFF1E293B),
@@ -469,7 +469,7 @@ class _DetailSheetState extends State<_DetailSheet>
                                   width: 16,
                                   height: 16,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Color(0xFF6366F1)),
+                                      strokeWidth: 2, color: Color(0xFF6E7541)),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(UserStorage.l10n.keepAppOpen,
@@ -495,33 +495,33 @@ class _DetailSheetState extends State<_DetailSheet>
     switch (type) {
       case AgentActivityType.agent_start:
         iconData = Icons.rocket_launch;
-        color = const Color(0xFF10B981);
+        color = const Color(0xFF577254);
       case AgentActivityType.agent_stop:
         iconData = Icons.check_circle;
-        color = const Color(0xFF10B981);
+        color = const Color(0xFF577254);
       case AgentActivityType.tool_call_reqeust:
         iconData = Icons.build_circle_outlined;
-        color = const Color(0xFF6366F1);
+        color = const Color(0xFF6E7541);
       case AgentActivityType.tool_call_response:
         iconData = Icons.task_alt;
-        color = const Color(0xFF10B981);
+        color = const Color(0xFF577254);
       case AgentActivityType.thought:
       case AgentActivityType.thought_chunk:
         iconData = Icons.psychology;
-        color = const Color(0xFF8B5CF6);
+        color = const Color(0xFF526E72);
       case AgentActivityType.info:
       case AgentActivityType.output_chunk:
         iconData = Icons.info_outline;
-        color = const Color(0xFF3B82F6);
+        color = const Color(0xFF526E72);
       case AgentActivityType.error:
         iconData = Icons.error_outline;
-        color = const Color(0xFFEF4444);
+        color = const Color(0xFF9B5B52);
       case AgentActivityType.warn:
         iconData = Icons.warning_amber_rounded;
-        color = const Color(0xFFF59E0B);
+        color = const Color(0xFF9A702E);
       case AgentActivityType.plan:
         iconData = Icons.map_outlined;
-        color = const Color(0xFF10B981);
+        color = const Color(0xFF577254);
     }
     return Container(
       width: 48,

@@ -99,7 +99,7 @@ class _TimelineConfig extends HtmlWebViewConfig {
           showContainerDecoration: true,
           borderRadius: 24,
           backgroundColor: null, // Transparent to allow HTML background to show
-          borderColor: const Color(0xFFF7F8FA),
+          borderColor: const Color(0xFFF8F6EB),
         );
 }
 
@@ -115,7 +115,7 @@ class _InsightConfig extends HtmlWebViewConfig {
           showContainerDecoration: true,
           borderRadius: 24,
           backgroundColor: Colors.white,
-          borderColor: const Color(0xFFF7F8FA),
+          borderColor: const Color(0xFFF8F6EB),
         );
 }
 
@@ -145,7 +145,7 @@ class _RelatedCardConfig extends HtmlWebViewConfig {
           showContainerDecoration: true,
           borderRadius: 16,
           backgroundColor: Colors.white,
-          borderColor: const Color(0xFFE2E8F0),
+          borderColor: const Color(0xFFEDE9D8),
         );
 }
 

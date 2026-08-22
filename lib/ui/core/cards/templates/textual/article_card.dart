@@ -30,7 +30,7 @@ class ArticleCard extends StatelessWidget {
                 url: imageUrl,
                 fit: BoxFit.cover,
                 errorBuilder: (c, e, s) =>
-                    Container(color: const Color(0xFFE2E8F0)),
+                    Container(color: const Color(0xFFEDE9D8)),
               ),
             ),
 
@@ -78,12 +78,12 @@ class ArticleCard extends StatelessWidget {
                     blockquote: const TextStyle(
                         color: Color(0xFF4A5565), fontStyle: FontStyle.italic),
                     code: const TextStyle(
-                      backgroundColor: Color(0xFFF7F8FA),
+                      backgroundColor: Color(0xFFF8F6EB),
                       color: Color(0xFF0A0A0A),
                       fontFamily: 'monospace',
                     ),
                     codeblockDecoration: BoxDecoration(
-                      color: const Color(0xFFF7F8FA),
+                      color: const Color(0xFFF8F6EB),
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),

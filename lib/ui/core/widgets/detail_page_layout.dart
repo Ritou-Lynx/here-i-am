@@ -25,7 +25,7 @@ class DetailPageLayout extends StatelessWidget {
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: const Color(0xFFF8F6EB),
       body: Stack(
         children: [
           CustomScrollView(
@@ -51,7 +51,7 @@ class DetailPageLayout extends StatelessWidget {
             left: 0,
             right: 0,
             child: Container(
-              color: const Color(0xFFF7F8FA),
+              color: const Color(0xFFF8F6EB),
               padding: EdgeInsets.fromLTRB(16, topPadding + 8, 16, 12),
               child: Row(
                 children: [

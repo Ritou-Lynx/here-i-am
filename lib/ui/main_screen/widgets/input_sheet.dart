@@ -1515,7 +1515,7 @@ class _InputSheetState extends State<InputSheet>
                             ? AppColors.primary
                             : _isTranscribing
                                 ? AppColors.primary.withValues(alpha: 0.08)
-                                : const Color(0xFFF7F8FA),
+                                : const Color(0xFFF8F6EB),
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: Stack(
@@ -1555,7 +1555,7 @@ class _InputSheetState extends State<InputSheet>
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFF7F8FA),
+              color: const Color(0xFFF8F6EB),
               borderRadius: BorderRadius.circular(24),
             ),
             child: const Icon(
@@ -1572,7 +1572,7 @@ class _InputSheetState extends State<InputSheet>
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFF7F8FA),
+              color: const Color(0xFFF8F6EB),
               borderRadius: BorderRadius.circular(24),
             ),
             child: const Icon(
@@ -1815,7 +1815,7 @@ class _InputSheetState extends State<InputSheet>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFF7F8FA), width: 1.5),
+          border: Border.all(color: const Color(0xFFF8F6EB), width: 1.5),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),

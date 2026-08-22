@@ -206,7 +206,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         size: 10,
                         color: isSelected
                             ? AppColors.primary
-                            : const Color(0xFF10B981),
+                            : const Color(0xFF577254),
                       ),
                       const SizedBox(width: 2),
                       Text(
@@ -269,7 +269,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 0,
           shape: RoundedRectangleBorder(
-            side: const BorderSide(color: Color(0xFFE2E8F0)),
+            side: const BorderSide(color: Color(0xFFEDE9D8)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: InkWell(
@@ -296,7 +296,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF7F8FA),
+                              color: const Color(0xFFF8F6EB),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(

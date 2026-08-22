@@ -44,7 +44,7 @@ class ProcedureCard extends StatelessWidget {
                           width: 24,
                           height: 24,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEEF2FF),
+                            color: const Color(0xFFE7E8D1),
                             shape: BoxShape.circle,
                             border: Border.all(color: const Color(0xFFC7D2FE)),
                           ),
@@ -63,7 +63,7 @@ class ProcedureCard extends StatelessWidget {
                           Expanded(
                             child: Container(
                               width: 2,
-                              color: const Color(0xFFEEF2FF), // vertical line
+                              color: const Color(0xFFE7E8D1), // vertical line
                             ),
                           ),
                       ],

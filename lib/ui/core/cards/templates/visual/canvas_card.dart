@@ -33,8 +33,8 @@ class CanvasCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
-                  color: Color(0xFFF7F8FA),
+                  border: Border(bottom: BorderSide(color: Color(0xFFEDE9D8))),
+                  color: Color(0xFFF8F6EB),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -55,8 +55,8 @@ class CanvasCard extends StatelessWidget {
                       // Fake tools
                       children: [
                         _buildTool(const Color(0xFF0A0A0A)),
-                        _buildTool(const Color(0xFFEF4444)),
-                        _buildTool(const Color(0xFF5B6CFF)),
+                        _buildTool(const Color(0xFF9B5B52)),
+                        _buildTool(const Color(0xFF6E7541)),
                       ],
                     )
                   ],
@@ -75,7 +75,7 @@ class CanvasCard extends StatelessWidget {
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                               border: Border.all(
-                                  color: const Color(0xFF5B6CFF).withValues(alpha: 0.2),
+                                  color: const Color(0xFF6E7541).withValues(alpha: 0.2),
                                   width: 2),
                               borderRadius: BorderRadius.circular(12)),
                           child: const Text("Sketch Content",

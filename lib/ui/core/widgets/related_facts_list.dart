@@ -67,7 +67,7 @@ class _RelatedFactsListState extends State<RelatedFactsList> {
       mainAxisSize: MainAxisSize.min, // Ensure it doesn't take infinite height
       children: [
         const SizedBox(height: 16),
-        const Divider(height: 32, thickness: 1, color: Color(0xFFE2E8F0)),
+        const Divider(height: 32, thickness: 1, color: Color(0xFFEDE9D8)),
         const Padding(
           padding: EdgeInsets.only(bottom: 16),
           child: Text(

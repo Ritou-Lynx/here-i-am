@@ -61,7 +61,7 @@ class _ActionCenterSheetState extends State<ActionCenterSheet> {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFFF7F8FA),
+        color: Color(0xFFF8F6EB),
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       constraints: BoxConstraints(

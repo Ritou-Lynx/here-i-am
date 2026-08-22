@@ -167,8 +167,8 @@ class _ProgressCardState extends State<ProgressCard> {
             height: 16,
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                activeTrackColor: const Color(0xFF5B6CFF),
-                inactiveTrackColor: const Color(0xFFF7F8FA),
+                activeTrackColor: const Color(0xFF6E7541),
+                inactiveTrackColor: const Color(0xFFF8F6EB),
                 thumbColor: Colors.white,
                 trackHeight: 12,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),

@@ -22,7 +22,7 @@ class SnapshotCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x0D111827),
+              color: Color(0x0D293025),
               blurRadius: 24,
             ),
           ],
@@ -45,7 +45,7 @@ class SnapshotCard extends StatelessWidget {
                         width: double.infinity,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
-                          color: const Color(0xFFF7F8FA),
+                          color: const Color(0xFFF8F6EB),
                           child: const Center(
                             child: Icon(Icons.broken_image,
                                 color: Color(0xFF99A1AF)),

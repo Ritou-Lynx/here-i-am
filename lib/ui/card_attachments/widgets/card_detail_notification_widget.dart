@@ -144,13 +144,13 @@ class _CardDetailNotificationWidgetState
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                  color: const Color(0xFF6E7541).withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.notifications_none_rounded,
                   size: 18,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF6E7541),
                 ),
               ),
               const SizedBox(width: 12),

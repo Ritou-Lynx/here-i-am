@@ -249,7 +249,7 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color:
-                    (isAnswered ? colorScheme.primary : const Color(0xFF5B6CFF))
+                    (isAnswered ? colorScheme.primary : const Color(0xFF6E7541))
                         .withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
@@ -259,7 +259,7 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
                     : Icons.help_outline_rounded,
                 size: 18,
                 color:
-                    isAnswered ? colorScheme.primary : const Color(0xFF5B6CFF),
+                    isAnswered ? colorScheme.primary : const Color(0xFF6E7541),
               ),
             ),
             const SizedBox(width: 8),
@@ -271,7 +271,7 @@ class _ClarificationRequestCardState extends State<ClarificationRequestCard> {
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: isAnswered
                           ? colorScheme.primary
-                          : const Color(0xFF5B6CFF),
+                          : const Color(0xFF6E7541),
                       fontWeight: FontWeight.w700,
                     ),
               ),

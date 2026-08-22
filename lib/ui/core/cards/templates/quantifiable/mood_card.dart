@@ -24,10 +24,10 @@ class MoodCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: const BoxDecoration(
-              color: Color(0xFFF7F8FA),
+              color: Color(0xFFF8F6EB),
               shape: BoxShape.circle,
             ),
-            child: Icon(moodIcon, color: const Color(0xFF5B6CFF), size: 22),
+            child: Icon(moodIcon, color: const Color(0xFF6E7541), size: 22),
           ),
           const SizedBox(width: 14),
 

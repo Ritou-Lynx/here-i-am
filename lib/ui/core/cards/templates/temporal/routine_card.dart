@@ -69,10 +69,10 @@ class RoutineCard extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFFF7F8FA),
+                  color: const Color(0xFFF8F6EB),
                 ),
                 child: const Center(
-                  child: Icon(Icons.replay, color: Color(0xFF5B6CFF), size: 22),
+                  child: Icon(Icons.replay, color: Color(0xFF6E7541), size: 22),
                 ),
               ),
             ],
@@ -88,7 +88,7 @@ class RoutineCard extends StatelessWidget {
                 height: 28,
                 decoration: BoxDecoration(
                   color: completed
-                      ? const Color(0xFF5B6CFF)
+                      ? const Color(0xFF6E7541)
                       : const Color(0xFFE5E7EB),
                   borderRadius: BorderRadius.circular(4),
                 ),

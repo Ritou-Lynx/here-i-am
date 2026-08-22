@@ -23,7 +23,7 @@ class PersonCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: const Color(0xFFE2E8F0),
+                backgroundColor: const Color(0xFFEDE9D8),
                 backgroundImage:
                     avatarUrl != null ? NetworkImage(avatarUrl) : null,
                 child: avatarUrl == null
@@ -68,14 +68,14 @@ class PersonCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF5B6CFF).withValues(alpha: 0.1),
+                        color: const Color(0xFF6E7541).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         relation,
                         style: TextStyle(
                           fontSize: 12,
-                          color: const Color(0xFF5B6CFF),
+                          color: const Color(0xFF6E7541),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -93,9 +93,9 @@ class PersonCard extends StatelessWidget {
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'online':
-        return const Color(0xFF10B981);
+        return const Color(0xFF577254);
       case 'busy':
-        return const Color(0xFFEF4444);
+        return const Color(0xFF9B5B52);
       case 'away':
         return Colors.amber;
       default:

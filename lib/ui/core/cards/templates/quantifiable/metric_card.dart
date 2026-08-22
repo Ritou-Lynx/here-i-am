@@ -73,7 +73,7 @@ class MetricCard extends StatelessWidget {
                   width: 4,
                   height: 18,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF5B6CFF), // Indigo 500
+                    color: const Color(0xFF6E7541), // Indigo 500
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -105,10 +105,10 @@ class MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA).withValues(alpha: 0.5), // Slate 50
+        color: const Color(0xFFF8F6EB).withValues(alpha: 0.5), // Slate 50
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFF7F8FA), // Slate 100
+          color: const Color(0xFFF8F6EB), // Slate 100
           width: 1,
         ),
       ),
@@ -144,11 +144,11 @@ class MetricCard extends StatelessWidget {
 
     if (trend == 'up') {
       trendIcon = Icons.trending_up_rounded;
-      trendColor = const Color(0xFF10B981); // Emerald 500
+      trendColor = const Color(0xFF577254); // Emerald 500
       hasTrend = true;
     } else if (trend == 'down') {
       trendIcon = Icons.trending_down_rounded;
-      trendColor = const Color(0xFFEF4444); // Red 500
+      trendColor = const Color(0xFF9B5B52); // Red 500
       hasTrend = true;
     } else {
       trendIcon = Icons.horizontal_rule_rounded;
@@ -165,10 +165,10 @@ class MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA).withValues(alpha: 0.5), // Slate 50
+        color: const Color(0xFFF8F6EB).withValues(alpha: 0.5), // Slate 50
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFF7F8FA), // Slate 100
+          color: const Color(0xFFF8F6EB), // Slate 100
           width: 1,
         ),
       ),
@@ -308,11 +308,11 @@ class MetricCard extends StatelessWidget {
 
     if (trend == 'up') {
       trendIcon = Icons.trending_up_rounded;
-      trendColor = const Color(0xFF10B981); // Emerald 500
+      trendColor = const Color(0xFF577254); // Emerald 500
       hasTrend = true;
     } else if (trend == 'down') {
       trendIcon = Icons.trending_down_rounded;
-      trendColor = const Color(0xFFEF4444); // Red 500
+      trendColor = const Color(0xFF9B5B52); // Red 500
       hasTrend = true;
     } else {
       trendIcon = Icons.horizontal_rule_rounded;
@@ -427,28 +427,28 @@ class MetricCard extends StatelessWidget {
     switch (color) {
       case 'emerald':
         return {
-          'bg': const Color(0xFFECFDF5),
-          'primary': const Color(0xFF10B981),
+          'bg': const Color(0xFFE3ECDC),
+          'primary': const Color(0xFF577254),
         };
       case 'orange':
         return {
-          'bg': const Color(0xFFFFF7ED),
-          'primary': const Color(0xFFF97316),
+          'bg': const Color(0xFFF7E8BE),
+          'primary': const Color(0xFF9A702E),
         };
       case 'purple':
         return {
-          'bg': const Color(0xFFFAF5FF),
-          'primary': const Color(0xFFA855F7),
+          'bg': const Color(0xFFDDE9E7),
+          'primary': const Color(0xFF526E72),
         };
       case 'blue':
         return {
-          'bg': const Color(0xFFEFF6FF),
-          'primary': const Color(0xFF3B82F6),
+          'bg': const Color(0xFFDDE9E7),
+          'primary': const Color(0xFF526E72),
         };
       default: // Indigo as default
         return {
-          'bg': const Color(0xFFEEF2FF),
-          'primary': const Color(0xFF5B6CFF),
+          'bg': const Color(0xFFE7E8D1),
+          'primary': const Color(0xFF6E7541),
         };
     }
   }

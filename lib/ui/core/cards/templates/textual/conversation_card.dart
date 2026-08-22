@@ -56,7 +56,7 @@ class ConversationCard extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 240), // Limit width
                 decoration: BoxDecoration(
                   color:
-                      isMe ? const Color(0xFF3B82F6) : const Color(0xFFF7F8FA),
+                      isMe ? const Color(0xFF526E72) : const Color(0xFFF8F6EB),
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(12),
                     topRight: const Radius.circular(12),

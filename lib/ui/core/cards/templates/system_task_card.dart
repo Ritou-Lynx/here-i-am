@@ -66,7 +66,7 @@ class _SystemTaskCardState extends State<SystemTaskCard>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFA855F7).withValues(alpha: 0.1),
+            color: const Color(0xFF526E72).withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -118,7 +118,7 @@ class _SystemTaskCardState extends State<SystemTaskCard>
                                     : Colors.transparent,
                                 widget.status == 'failed'
                                     ? Colors.red
-                                    : const Color(0xFFA855F7),
+                                    : const Color(0xFF526E72),
                                 isProcessing
                                     ? const Color(0x00A855F7)
                                     : Colors.transparent,
@@ -152,7 +152,7 @@ class _SystemTaskCardState extends State<SystemTaskCard>
                                 : Icons.auto_awesome,
                         color: widget.status == 'failed'
                             ? Colors.red
-                            : const Color(0xFFA855F7),
+                            : const Color(0xFF526E72),
                         size: 24,
                       ),
                     ),
@@ -187,7 +187,7 @@ class _SystemTaskCardState extends State<SystemTaskCard>
                                   width: 4,
                                   height: 4,
                                   decoration: const BoxDecoration(
-                                    color: Color(0xFFA855F7),
+                                    color: Color(0xFF526E72),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -243,9 +243,9 @@ class _SystemTaskCardState extends State<SystemTaskCard>
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: const [
-                Color(0xFFF7F8FA),
-                Color(0xFFE2E8F0),
-                Color(0xFFF7F8FA),
+                Color(0xFFF8F6EB),
+                Color(0xFFEDE9D8),
+                Color(0xFFF8F6EB),
               ],
               stops: [
                 0.0,

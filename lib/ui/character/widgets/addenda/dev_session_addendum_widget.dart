@@ -263,8 +263,8 @@ class _DevSessionAddendumWidgetState extends State<DevSessionAddendumWidget> {
   Color _statusColor(String status, HereIamThemeTokens tokens) {
     return switch (status) {
       'done' => tokens.accent,
-      'failed' => const Color(0xFFEF4444),
-      'aborted' => const Color(0xFFF59E0B),
+      'failed' => const Color(0xFF9B5B52),
+      'aborted' => const Color(0xFF9A702E),
       _ => tokens.highlight,
     };
   }

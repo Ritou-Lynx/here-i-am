@@ -61,7 +61,7 @@ class DiceBearAvatar extends StatelessWidget {
       child: Container(
         width: size,
         height: size,
-        color: backgroundColor ?? const Color(0xFFEEF2FF),
+        color: backgroundColor ?? const Color(0xFFE7E8D1),
         child: FutureBuilder<File>(
           future: _cacheFile(seed!),
           builder: (context, snapshot) {
@@ -98,13 +98,13 @@ class DiceBearAvatar extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: backgroundColor ?? const Color(0xFFEEF2FF),
+        color: backgroundColor ?? const Color(0xFFE7E8D1),
         shape: BoxShape.circle,
       ),
       child: Icon(
         Icons.person,
         size: size * 0.5,
-        color: const Color(0xFF5B6CFF),
+        color: const Color(0xFF6E7541),
       ),
     );
   }
@@ -113,14 +113,14 @@ class DiceBearAvatar extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      color: backgroundColor ?? const Color(0xFFEEF2FF),
+      color: backgroundColor ?? const Color(0xFFE7E8D1),
       child: Center(
         child: SizedBox(
           width: size * 0.3,
           height: size * 0.3,
           child: const CircularProgressIndicator(
             strokeWidth: 2,
-            color: Color(0xFF5B6CFF),
+            color: Color(0xFF6E7541),
           ),
         ),
       ),

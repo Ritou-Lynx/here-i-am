@@ -19,8 +19,8 @@ class SharePosterDecorator extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFF7F8FA),
-            Color(0xFFE2E8F0),
+            Color(0xFFF8F6EB),
+            Color(0xFFEDE9D8),
           ],
         ),
       ),
@@ -40,7 +40,7 @@ class SharePosterDecorator extends StatelessWidget {
                   offset: const Offset(0, 12),
                 ),
                 BoxShadow(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.03),
+                  color: const Color(0xFF6E7541).withValues(alpha: 0.03),
                   blurRadius: 40,
                   offset: const Offset(0, 20),
                 ),
@@ -88,8 +88,8 @@ class SharePosterDecorator extends StatelessWidget {
                             blendMode: BlendMode.srcIn,
                             shaderCallback: (bounds) => const LinearGradient(
                               colors: [
-                                Color(0xFF6366F1),
-                                Color(0xFFA855F7),
+                                Color(0xFF6E7541),
+                                Color(0xFF526E72),
                                 Color(0xFFEC4899),
                               ],
                               begin: Alignment.topLeft,

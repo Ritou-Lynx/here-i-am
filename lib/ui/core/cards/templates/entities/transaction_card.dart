@@ -40,7 +40,7 @@ class TransactionCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(color: const Color(0xFFEDE9D8)),
                         ),
                         child: const Icon(Icons.shopping_bag_outlined,
                             color: Color(0xFF4A5565), size: 20),
@@ -106,7 +106,7 @@ class TransactionCard extends StatelessWidget {
                 if (items.isNotEmpty)
                   Container(
                     width: double.infinity,
-                    color: const Color(0xFFF7F8FA), // Slight offset color
+                    color: const Color(0xFFF8F6EB), // Slight offset color
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: [
@@ -123,7 +123,7 @@ class TransactionCard extends StatelessWidget {
                 // Bottom
                 Container(
                   height: 12,
-                  color: const Color(0xFFF7F8FA),
+                  color: const Color(0xFFF8F6EB),
                 ),
               ],
             ),

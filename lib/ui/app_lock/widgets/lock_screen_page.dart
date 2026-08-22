@@ -159,7 +159,7 @@ class _LockScreenState extends State<LockScreen> {
                       shape: BoxShape.circle,
                       color: isFilled
                           ? AppColors.primary
-                          : const Color(0xFFE2E8F0),
+                          : const Color(0xFFEDE9D8),
                       border: isFilled
                           ? null
                           : Border.all(
@@ -265,7 +265,7 @@ class _LockScreenState extends State<LockScreen> {
           shape: BoxShape.circle,
           color: Colors.white,
           border: Border.all(
-            color: const Color(0xFFE2E8F0),
+            color: const Color(0xFFEDE9D8),
             width: 1,
           ),
         ),

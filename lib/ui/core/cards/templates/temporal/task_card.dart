@@ -108,9 +108,9 @@ class _TaskCardState extends State<TaskCard> {
                   decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border:
-                          Border.all(color: const Color(0xFF5B6CFF), width: 2),
+                          Border.all(color: const Color(0xFF6E7541), width: 2),
                       color: _isCompleted
-                          ? const Color(0xFF5B6CFF)
+                          ? const Color(0xFF6E7541)
                           : Colors.transparent),
                   child: _isCompleted
                       ? const Icon(Icons.check, size: 12, color: Colors.white)
@@ -130,7 +130,7 @@ class _TaskCardState extends State<TaskCard> {
               ),
               if (widget.data['priority'] == 'high')
                 const Icon(Icons.priority_high,
-                    size: 16, color: Color(0xFFF43F5E))
+                    size: 16, color: Color(0xFF9B5B52))
             ],
           ),
           if (hasSubtasks) ...[

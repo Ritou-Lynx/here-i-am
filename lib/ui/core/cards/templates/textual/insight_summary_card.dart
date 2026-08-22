@@ -52,12 +52,12 @@ class InsightSummaryCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                      color: const Color(0xFF9A702E).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.auto_awesome,
-                      color: Color(0xFFF59E0B),
+                      color: Color(0xFF9A702E),
                       size: 20,
                     ),
                   ),
@@ -93,14 +93,14 @@ class InsightSummaryCard extends StatelessWidget {
           ),
           if (added.isNotEmpty || updated.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            const Divider(height: 1, color: Color(0xFFEDE9D8)),
             const SizedBox(height: 16),
           ],
           if (added.isNotEmpty)
-            _buildListSection(context, l10n.sectionNewInsights, added, const Color(0xFF10B981)),
+            _buildListSection(context, l10n.sectionNewInsights, added, const Color(0xFF577254)),
           if (updated.isNotEmpty)
             _buildListSection(
-                context, l10n.sectionUpdatedInsights, updated, const Color(0xFF3B82F6)),
+                context, l10n.sectionUpdatedInsights, updated, const Color(0xFF526E72)),
         ],
       ),
     );

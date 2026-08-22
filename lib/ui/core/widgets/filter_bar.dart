@@ -102,7 +102,7 @@ class _FilterBarState extends State<FilterBar> {
             final isInsight = filter.id == 'insight';
 
             // Premium Insight Colors
-            const premiumColor = Color(0xFFF59E0B); // Amber-500
+            const premiumColor = Color(0xFF9A702E); // Amber-500
 
             return Padding(
               padding:
@@ -123,7 +123,7 @@ class _FilterBarState extends State<FilterBar> {
                     border: Border.all(
                       color: isInsight
                           ? premiumColor.withOpacity(0.5)
-                          : (isActive ? Colors.black : const Color(0xFFE2E8F0)),
+                          : (isActive ? Colors.black : const Color(0xFFEDE9D8)),
                       width: isInsight ? 1.5 : 1.0,
                     ),
                     borderRadius: BorderRadius.circular(20),

@@ -45,7 +45,7 @@ class DebugSettingsPage extends StatelessWidget {
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: const Color(0xFFF8F6EB),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         children: [

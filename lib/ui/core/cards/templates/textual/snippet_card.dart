@@ -29,12 +29,12 @@ class SnippetCard extends StatelessWidget {
               styleSheet: MarkdownStyleSheet(
                 p: _getTextStyle(style),
                 code: const TextStyle(
-                  backgroundColor: Color(0xFFF7F8FA),
+                  backgroundColor: Color(0xFFF8F6EB),
                   color: Color(0xFF0A0A0A),
                   fontFamily: 'monospace',
                 ),
                 codeblockDecoration: BoxDecoration(
-                  color: const Color(0xFFF7F8FA),
+                  color: const Color(0xFFF8F6EB),
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
@@ -50,7 +50,7 @@ class SnippetCard extends StatelessWidget {
                             fontFamily: 'PingFang SC',
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
-                            color: Color(0xFF5B6CFF),
+                            color: Color(0xFF6E7541),
                           ),
                         ))
                     .toList(),

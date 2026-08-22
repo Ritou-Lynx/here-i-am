@@ -6,6 +6,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/companion/view_models/ledger_view_model.dart';
 import 'package:memex/ui/companion/widgets/insight_strip.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/result.dart';
 import 'package:provider/provider.dart';
 
@@ -790,169 +791,201 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        18,
-        20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _isEditing ? '修改账目' : '记一笔',
-                      style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded)),
-                ],
+    return SpringRainUiScope(
+      child: Builder(
+        builder: (context) {
+          final tokens = context.springRainUi;
+          return Container(
+            padding: EdgeInsets.fromLTRB(
+              tokens.space20,
+              18,
+              tokens.space20,
+              20 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            decoration: BoxDecoration(
+              color: tokens.surfaceRaised,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(tokens.radius28),
               ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _entryType,
-                decoration: const InputDecoration(
-                    labelText: '类型', border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'income', child: Text('制作 / 项目收入')),
-                  DropdownMenuItem(value: 'expense', child: Text('日常支出 / 消费')),
-                  DropdownMenuItem(value: 'transfer', child: Text('我和 i 之间转账')),
-                  DropdownMenuItem(value: 'cost', child: Text('AI 套餐 / 共同支出')),
-                  DropdownMenuItem(
-                      value: 'reward', child: Text('i 转给我（奖励 / 补偿）')),
-                  DropdownMenuItem(
-                      value: 'penalty', child: Text('我转给 i（奖励 / 罚款）')),
-                  DropdownMenuItem(value: 'loan', child: Text('我替 i 垫付')),
-                  DropdownMenuItem(value: 'repayment', child: Text('i 归还垫款')),
-                ],
-                onChanged: (value) => setState(() {
-                  _entryType = value!;
-                  if (!_isShared && !_isTransfer) {
-                    _aiAmountController.text = _amountController.text;
-                  }
-                }),
-              ),
-              if (_isTransfer) ...[
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _transferDirection,
-                  decoration: const InputDecoration(
-                      labelText: '方向', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'user_to_ai', child: Text('我 → i（我给 i 钱）')),
-                    DropdownMenuItem(
-                        value: 'ai_to_user', child: Text('i → 我（i 给我钱）')),
-                  ],
-                  onChanged: (value) =>
-                      setState(() => _transferDirection = value!),
-                ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _amountController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                            RegExp(r'^\d*\.?\d{0,2}'))
+            ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _isEditing ? '修改账目' : '记一笔',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: tokens.textPrimary,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
                       ],
-                      decoration: const InputDecoration(
-                          labelText: '总金额',
-                          prefixText: '¥ ',
-                          border: OutlineInputBorder()),
-                      validator: _validatePositiveMoney,
-                      onChanged: (value) {
-                        if (!_isShared && !_isTransfer) {
-                          _aiAmountController.text = value;
-                        }
-                      },
                     ),
-                  ),
-                  if (_isShared) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _aiAmountController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d*\.?\d{0,2}'))
-                        ],
+                    SizedBox(height: tokens.space8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _entryType,
+                      decoration: const InputDecoration(
+                          labelText: '类型', border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'income', child: Text('制作 / 项目收入')),
+                        DropdownMenuItem(
+                            value: 'expense', child: Text('日常支出 / 消费')),
+                        DropdownMenuItem(
+                            value: 'transfer', child: Text('我和 i 之间转账')),
+                        DropdownMenuItem(
+                            value: 'cost', child: Text('AI 套餐 / 共同支出')),
+                        DropdownMenuItem(
+                            value: 'reward',
+                            child: Text('i 转给我（奖励 / 补偿）')),
+                        DropdownMenuItem(
+                            value: 'penalty',
+                            child: Text('我转给 i（奖励 / 罚款）')),
+                        DropdownMenuItem(value: 'loan', child: Text('我替 i 垫付')),
+                        DropdownMenuItem(
+                            value: 'repayment', child: Text('i 归还垫款')),
+                      ],
+                      onChanged: (value) => setState(() {
+                        _entryType = value!;
+                        if (!_isShared && !_isTransfer) {
+                          _aiAmountController.text = _amountController.text;
+                        }
+                      }),
+                    ),
+                    if (_isTransfer) ...[
+                      SizedBox(height: tokens.space12),
+                      DropdownButtonFormField<String>(
+                        initialValue: _transferDirection,
                         decoration: const InputDecoration(
-                            labelText: '其中 i 的份额',
-                            prefixText: '¥ ',
-                            border: OutlineInputBorder()),
-                        validator: (value) {
-                          final message = _validateNonNegativeMoney(value);
-                          if (message != null) return message;
-                          final aiAmount = double.parse(value!);
-                          final total = double.tryParse(_amountController.text);
-                          return total != null && aiAmount > total
-                              ? '不能超过总金额'
-                              : null;
-                        },
+                            labelText: '方向', border: OutlineInputBorder()),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'user_to_ai',
+                              child: Text('我 → i（我给 i 钱）')),
+                          DropdownMenuItem(
+                              value: 'ai_to_user',
+                              child: Text('i → 我（i 给我钱）')),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _transferDirection = value!),
+                      ),
+                    ],
+                    SizedBox(height: tokens.space12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _amountController,
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                  RegExp(r'^\d*\.?\d{0,2}'))
+                            ],
+                            decoration: const InputDecoration(
+                                labelText: '总金额',
+                                prefixText: '¥ ',
+                                border: OutlineInputBorder()),
+                            validator: _validatePositiveMoney,
+                            onChanged: (value) {
+                              if (!_isShared && !_isTransfer) {
+                                _aiAmountController.text = value;
+                              }
+                            },
+                          ),
+                        ),
+                        if (_isShared) ...[
+                          SizedBox(width: tokens.space12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _aiAmountController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d*\.?\d{0,2}'))
+                              ],
+                              decoration: const InputDecoration(
+                                  labelText: '其中 i 的份额',
+                                  prefixText: '¥ ',
+                                  border: OutlineInputBorder()),
+                              validator: (value) {
+                                final message =
+                                    _validateNonNegativeMoney(value);
+                                if (message != null) return message;
+                                final aiAmount = double.parse(value!);
+                                final total =
+                                    double.tryParse(_amountController.text);
+                                return total != null && aiAmount > total
+                                    ? '不能超过总金额'
+                                    : null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    SizedBox(height: tokens.space12),
+                    TextFormField(
+                      controller: _purposeController,
+                      decoration: const InputDecoration(
+                          labelText: '事项',
+                          hintText: '例如：7 月 API 套餐',
+                          border: OutlineInputBorder()),
+                      validator: (value) => value == null || value.trim().isEmpty
+                          ? '写一下这笔钱是什么'
+                          : null,
+                    ),
+                    SizedBox(height: tokens.space12),
+                    TextFormField(
+                      controller: _notesController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                          labelText: '备注（可选）',
+                          border: OutlineInputBorder()),
+                    ),
+                    SizedBox(height: tokens.space8),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading:
+                          const Icon(Icons.calendar_today_outlined, size: 20),
+                      title: const Text('发生日期'),
+                      trailing: Text(
+                          DateFormat('yyyy年MM月dd日').format(_occurredAt)),
+                      onTap: _pickDate,
+                    ),
+                    SizedBox(height: tokens.space8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _submit,
+                        style: FilledButton.styleFrom(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14)),
+                        child:
+                            Text(_isEditing ? '保存修改' : '保存到共同账本'),
                       ),
                     ),
                   ],
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _purposeController,
-                decoration: const InputDecoration(
-                    labelText: '事项',
-                    hintText: '例如：7 月 API 套餐',
-                    border: OutlineInputBorder()),
-                validator: (value) =>
-                    value == null || value.trim().isEmpty ? '写一下这笔钱是什么' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _notesController,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                    labelText: '备注（可选）', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.calendar_today_outlined, size: 20),
-                title: const Text('发生日期'),
-                trailing: Text(DateFormat('yyyy年MM月dd日').format(_occurredAt)),
-                onTap: _pickDate,
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _submit,
-                  style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14)),
-                  child: Text(_isEditing ? '保存修改' : '保存到共同账本'),
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

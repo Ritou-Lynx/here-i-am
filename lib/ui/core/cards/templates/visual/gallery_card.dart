@@ -144,7 +144,7 @@ class GalleryCard extends StatelessWidget {
 
   Widget _buildImage(String url) {
     return Container(
-      color: const Color(0xFFF7F8FA),
+      color: const Color(0xFFF8F6EB),
       child: LocalImage(
         url: url,
         fit: BoxFit.cover,
