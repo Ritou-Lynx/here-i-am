@@ -435,7 +435,6 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
         child: AbsorbPointer(
           absorbing: widget.isReadonly,
           child: CardRichTextEditor(
-            key: const ValueKey('wb_inline_card_document'),
             controller: richText,
             cardId: card.cardId,
             objectStore: RichTextObjectStore(

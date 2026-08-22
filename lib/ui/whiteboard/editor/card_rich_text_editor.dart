@@ -243,6 +243,13 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     // scoped: it only acts while one of our fields is focused and has no
     // active IME composing region.
     FocusManager.instance.addEarlyKeyEventHandler(_onEarlyKeyEvent);
+    if (widget.autofocus && _usesContinuousSurface(widget.controller)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_continuousFocusNode.hasFocus) {
+          _continuousFocusNode.requestFocus();
+        }
+      });
+    }
   }
 
   @override
@@ -430,27 +437,28 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       autofocus: widget.autofocus,
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
-      decoration: InputDecoration(
-        isDense: true,
-        alignLabelWithHint: true,
-        contentPadding: widget.inlineSurface
-            ? EdgeInsets.zero
-            : const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        hintText: '在此输入…',
-        hintStyle: richTextBodyTextStyle(fontSize: 14).copyWith(
-          color: tokens.textFaint,
-        ),
-        border: const OutlineInputBorder(borderSide: BorderSide.none),
-        enabledBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.transparent),
-        ),
-        focusedBorder: widget.inlineSurface
-            ? InputBorder.none
-            : OutlineInputBorder(
+      decoration: widget.inlineSurface
+          ? null
+          : InputDecoration(
+              isDense: true,
+              alignLabelWithHint: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+              hintText: '在此输入…',
+              hintStyle: richTextBodyTextStyle(fontSize: 14).copyWith(
+                color: tokens.textFaint,
+              ),
+              border: const OutlineInputBorder(borderSide: BorderSide.none),
+              enabledBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.transparent),
+              ),
+              focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(4),
                 borderSide: BorderSide(color: tokens.divider, width: 1),
               ),
-      ),
+            ),
       onChanged: (_) {
         // [_onContinuousTextChanged] mirrors content without touching the
         // TextEditingValue, so Flutter retains its native composing range.

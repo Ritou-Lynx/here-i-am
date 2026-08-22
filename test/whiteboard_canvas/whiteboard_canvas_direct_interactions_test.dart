@@ -602,7 +602,7 @@ void main() {
     await _doubleTapAt(tester, const Offset(650, 470));
     await _pumpUntil(
       tester,
-      find.byKey(const Key('wb_inline_card_document')),
+      find.byKey(const Key('rich_text_continuous_document')),
     );
 
     final createdItemId = vm.exportForSave().boardItems.single.itemId;
@@ -621,11 +621,14 @@ void main() {
     final editor = find.byKey(const Key('wb_compact_card_editor'));
     final documentField = find.descendant(
       of: editor,
-      matching: find.byKey(const Key('wb_inline_card_document')),
+      matching: find.byKey(const Key('rich_text_continuous_document')),
     );
     expect(find.descendant(of: editor, matching: find.byType(TextField)),
         findsOneWidget);
     expect(tester.widget<TextField>(documentField).decoration, isNull);
+    // TextField autofocus is claimed on the next frame after the async Card
+    // load inserts the continuous editor.
+    await tester.pump();
     expect(tester.testTextInput.hasAnyClients, isTrue);
     tester.testTextInput.updateEditingValue(const TextEditingValue(
       text: '新标题\n第一段',
