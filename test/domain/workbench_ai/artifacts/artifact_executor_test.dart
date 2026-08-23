@@ -237,7 +237,214 @@ void main() {
         expect(domain.commitCalls, 0);
       },
     );
+
+    for (final phase in const [
+      ArtifactCommitPhase.planned,
+      ArtifactCommitPhase.staged,
+    ]) {
+      test('resumes an existing ${phase.name} journal explicitly', () async {
+        final fixture = _executableFixture();
+        final ids = fixture.plan.artifacts
+            .map((value) => value.manifest.artifactId)
+            .toList();
+        final objects = _FakeObjectStore(fixture.stagedObjects);
+        final ledger = _FakeLedger()
+          ..journal = ArtifactCommitJournal(
+            batchId: fixture.plan.batch.batchId,
+            phase: phase,
+            stagedArtifactIds:
+                phase == ArtifactCommitPhase.staged ? ids : const [],
+          );
+        final domain = _FakeDomainRepository(
+          stateHash: fixture.plan.batch.expectedStateHash,
+        );
+
+        final receipt = await _executor(
+          objects,
+          ledger,
+          domain,
+        ).execute(fixture.plan);
+
+        expect(receipt.status, OperationReceiptStatus.committed);
+        expect(domain.domainWriteCount, 1);
+        expect(ledger.journal!.phase, ArtifactCommitPhase.committed);
+      });
+    }
+
+    for (var objectIndex = 1; objectIndex <= 2; objectIndex++) {
+      test(
+        'resumes after crash following object commit $objectIndex',
+        () => _verifyCrashResume(
+          _CrashPoint.afterObjectCommit,
+          objectCommitCall: objectIndex,
+        ),
+      );
+    }
+
+    test(
+      'resumes after domain commit before committed journal',
+      () => _verifyCrashResume(_CrashPoint.afterDomainCommit),
+    );
+
+    test(
+      'rebuilds receipt after committed journal crash',
+      () => _verifyCrashResume(_CrashPoint.afterCommittedJournal),
+    );
+
+    test(
+      'replays saved receipt after crash before staging cleanup',
+      () => _verifyCrashResume(_CrashPoint.afterReceipt),
+    );
+
+    test('committed journal without queryable result stays pending', () async {
+      final fixture = _executableFixture();
+      final ids = fixture.plan.artifacts
+          .map((value) => value.manifest.artifactId)
+          .toList();
+      final objects = _FakeObjectStore(fixture.stagedObjects);
+      final ledger = _FakeLedger()
+        ..journal = ArtifactCommitJournal(
+          batchId: fixture.plan.batch.batchId,
+          phase: ArtifactCommitPhase.committed,
+          stagedArtifactIds: ids,
+          verifiedArtifactIds: ids,
+          boundArtifactIds: ids,
+        );
+      final domain = _FakeDomainRepository(
+        stateHash: fixture.plan.batch.expectedStateHash,
+      );
+
+      await expectLater(
+        _executor(objects, ledger, domain).execute(fixture.plan),
+        throwsA(
+          isA<ArtifactExecutionPending>().having(
+            (value) => value.code,
+            'code',
+            'committed_journal_without_domain_result',
+          ),
+        ),
+      );
+
+      expect(domain.commitCalls, 0);
+      expect(domain.rollbackCalls, 0);
+      expect(objects.garbageCollectionRefs, isEmpty);
+      expect(objects.stagedObjects, isNotEmpty);
+      expect(ledger.journal!.phase, ArtifactCommitPhase.committed);
+    });
+
+    test('uncertain domain outcome remains resumable without rollback or GC',
+        () async {
+      final fixture = _executableFixture();
+      final objects = _FakeObjectStore(fixture.stagedObjects);
+      final ledger = _FakeLedger();
+      final domain = _FakeDomainRepository(
+        stateHash: fixture.plan.batch.expectedStateHash,
+      )..commitOutcomePending = true;
+
+      await expectLater(
+        _executor(objects, ledger, domain).execute(fixture.plan),
+        throwsA(
+          isA<ArtifactExecutionPending>().having(
+            (value) => value.code,
+            'code',
+            'adapter_commit_outcome_pending',
+          ),
+        ),
+      );
+
+      expect(ledger.receipt, isNull);
+      expect(ledger.journal!.phase, ArtifactCommitPhase.hashesVerified);
+      expect(domain.rollbackCalls, 0);
+      expect(objects.garbageCollectionRefs, isEmpty);
+
+      domain.commitOutcomePending = false;
+      final resumed = await _executor(
+        objects,
+        ledger,
+        domain,
+      ).execute(fixture.plan);
+      expect(resumed.status, OperationReceiptStatus.committed);
+      expect(domain.domainWriteCount, 1);
+      expect(objects.finalWriteCounts.values, everyElement(1));
+    });
   });
+}
+
+enum _CrashPoint {
+  afterObjectCommit,
+  afterDomainCommit,
+  afterCommittedJournal,
+  afterReceipt,
+}
+
+Future<void> _verifyCrashResume(
+  _CrashPoint point, {
+  int? objectCommitCall,
+}) async {
+  final fixture = _executableFixture();
+  final objects = _FakeObjectStore(
+    fixture.stagedObjects,
+    moveOnCommit: point != _CrashPoint.afterReceipt,
+  );
+  final ledger = _FakeLedger();
+  final domain = _FakeDomainRepository(
+    stateHash: fixture.plan.batch.expectedStateHash,
+  );
+  switch (point) {
+    case _CrashPoint.afterObjectCommit:
+      objects.crashAfterCommitCall = objectCommitCall;
+      break;
+    case _CrashPoint.afterDomainCommit:
+      domain.crashAfterCommit = true;
+      break;
+    case _CrashPoint.afterCommittedJournal:
+      ledger.crashAfterCommittedJournal = true;
+      break;
+    case _CrashPoint.afterReceipt:
+      ledger.crashAfterReceipt = true;
+      break;
+  }
+
+  await expectLater(
+    _executor(objects, ledger, domain).execute(fixture.plan),
+    throwsA(isA<_SimulatedCrash>()),
+  );
+
+  final expectedPhase = switch (point) {
+    _CrashPoint.afterObjectCommit ||
+    _CrashPoint.afterDomainCommit =>
+      ArtifactCommitPhase.hashesVerified,
+    _CrashPoint.afterCommittedJournal ||
+    _CrashPoint.afterReceipt =>
+      ArtifactCommitPhase.committed,
+  };
+  expect(ledger.journal!.phase, expectedPhase);
+  if (point == _CrashPoint.afterReceipt) {
+    expect(ledger.receipt, isNotNull);
+    expect(objects.stagedObjects, isNotEmpty);
+  }
+
+  final resumed = await _executor(
+    objects,
+    ledger,
+    domain,
+  ).execute(fixture.plan);
+  final replay = await _executor(
+    objects,
+    ledger,
+    domain,
+  ).execute(fixture.plan);
+
+  expect(resumed.status, OperationReceiptStatus.committed);
+  expect(replay.toJson(), resumed.toJson());
+  expect(domain.domainWriteCount, 1);
+  expect(domain.commitCalls, 1);
+  expect(domain.rollbackCalls, 0);
+  expect(objects.garbageCollectionRefs, isEmpty);
+  expect(objects.stagedObjects, isEmpty);
+  expect(objects.openCalls, fixture.plan.artifacts.length);
+  expect(objects.finalWriteCounts, hasLength(fixture.plan.artifacts.length));
+  expect(objects.finalWriteCounts.values, everyElement(1));
 }
 
 ArtifactBundleExecutor _executor(
@@ -304,13 +511,19 @@ class _StagedBytes {
 }
 
 class _FakeObjectStore implements ArtifactObjectStore {
-  _FakeObjectStore(Map<String, _StagedBytes> stagedObjects)
-      : stagedObjects = Map.from(stagedObjects);
+  _FakeObjectStore(
+    Map<String, _StagedBytes> stagedObjects, {
+    this.moveOnCommit = true,
+  }) : stagedObjects = Map.from(stagedObjects);
 
   final Map<String, _StagedBytes> stagedObjects;
   final List<String> committedRefs = [];
+  final Map<String, int> finalWriteCounts = {};
   final List<String> garbageCollectionRefs = [];
+  final bool moveOnCommit;
   bool failDelete = false;
+  int? crashAfterCommitCall;
+  bool _commitCrashFired = false;
   int openCalls = 0;
   int commitCalls = 0;
 
@@ -329,7 +542,17 @@ class _FakeObjectStore implements ArtifactObjectStore {
   Future<void> commitVerified(ArtifactManifest manifest) async {
     commitCalls++;
     if (!committedRefs.contains(manifest.objectRef)) {
+      if (!stagedObjects.containsKey(manifest.stagedObjectRef)) {
+        throw StateError('neither staged nor final object exists');
+      }
       committedRefs.add(manifest.objectRef);
+      finalWriteCounts.update(manifest.objectRef, (value) => value + 1,
+          ifAbsent: () => 1);
+      if (moveOnCommit) stagedObjects.remove(manifest.stagedObjectRef);
+    }
+    if (!_commitCrashFired && commitCalls == crashAfterCommitCall) {
+      _commitCrashFired = true;
+      throw _SimulatedCrash('after_object_commit');
     }
   }
 
@@ -352,6 +575,10 @@ class _FakeLedger implements ArtifactExecutionLedger {
   ArtifactCommitJournal? journal;
   OperationReceipt? receipt;
   int openCalls = 0;
+  bool crashAfterCommittedJournal = false;
+  bool crashAfterReceipt = false;
+  bool _journalCrashFired = false;
+  bool _receiptCrashFired = false;
 
   @override
   Future<ArtifactExecutionRecord> open(ContentBundlePlan plan) async {
@@ -370,6 +597,12 @@ class _FakeLedger implements ArtifactExecutionLedger {
     ArtifactCommitJournal value,
   ) async {
     journal = value;
+    if (crashAfterCommittedJournal &&
+        !_journalCrashFired &&
+        value.phase == ArtifactCommitPhase.committed) {
+      _journalCrashFired = true;
+      throw _SimulatedCrash('after_committed_journal');
+    }
   }
 
   @override
@@ -378,6 +611,10 @@ class _FakeLedger implements ArtifactExecutionLedger {
     OperationReceipt value,
   ) async {
     receipt = value;
+    if (crashAfterReceipt && !_receiptCrashFired) {
+      _receiptCrashFired = true;
+      throw _SimulatedCrash('after_receipt');
+    }
   }
 }
 
@@ -388,6 +625,12 @@ class _FakeDomainRepository implements ArtifactDomainBatchRepository {
   final ArtifactDomainCommitException? commitError;
   int commitCalls = 0;
   int rollbackCalls = 0;
+  int domainWriteCount = 0;
+  int lookupCalls = 0;
+  bool crashAfterCommit = false;
+  bool commitOutcomePending = false;
+  bool _commitCrashFired = false;
+  ArtifactDomainCommitResult? durableResult;
   ContentBundlePlan? lastPlan;
   List<DomainOperation> rolledBack = [];
 
@@ -395,17 +638,34 @@ class _FakeDomainRepository implements ArtifactDomainBatchRepository {
   Future<String> readConflictHash(ContentBundlePlan plan) async => stateHash;
 
   @override
+  Future<ArtifactDomainCommitResult?> lookupCommit(
+    ContentBundlePlan plan,
+  ) async {
+    lookupCalls++;
+    return durableResult;
+  }
+
+  @override
   Future<ArtifactDomainCommitResult> commit(ContentBundlePlan plan) async {
     commitCalls++;
     lastPlan = plan;
     if (commitError != null) throw commitError!;
-    return ArtifactDomainCommitResult(
+    if (commitOutcomePending) {
+      throw const ArtifactExecutionPending('adapter_commit_outcome_pending');
+    }
+    durableResult ??= ArtifactDomainCommitResult(
       beforeStateHash: stateHash,
       afterStateHash:
           'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
       committedOperationIds:
           plan.batch.operations.map((value) => value.operationId).toList(),
     );
+    domainWriteCount++;
+    if (crashAfterCommit && !_commitCrashFired) {
+      _commitCrashFired = true;
+      throw _SimulatedCrash('after_domain_commit');
+    }
+    return durableResult!;
   }
 
   @override
@@ -416,4 +676,10 @@ class _FakeDomainRepository implements ArtifactDomainBatchRepository {
     rollbackCalls++;
     rolledBack = List.from(inverseOperations);
   }
+}
+
+class _SimulatedCrash extends Error {
+  _SimulatedCrash(this.point);
+
+  final String point;
 }

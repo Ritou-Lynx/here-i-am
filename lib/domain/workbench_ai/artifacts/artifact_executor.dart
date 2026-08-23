@@ -21,8 +21,9 @@ class StagedArtifactObject {
 /// Content-addressed storage boundary used by [ArtifactBundleExecutor].
 ///
 /// Implementations must resolve refs below configured roots, make
-/// [commitVerified] idempotent, and never delete final objects on an error
-/// path. Final objects are instead offered to delayed garbage collection.
+/// [commitVerified] idempotent (including staging already moved but a matching
+/// final object present), and never delete final objects on an error path.
+/// Final objects are instead offered to delayed garbage collection.
 abstract interface class ArtifactObjectStore {
   Future<StagedArtifactObject> openStaged(String stagedObjectRef);
 
@@ -37,7 +38,9 @@ abstract interface class ArtifactObjectStore {
 ///
 /// [open] atomically claims an idempotency key for the exact plan, or returns
 /// its existing checkpoint/receipt. A key claimed by a different plan must
-/// fail closed with [ArtifactIdempotencyConflict].
+/// fail closed with [ArtifactIdempotencyConflict]. Journal and receipt saves
+/// must be atomic and idempotent; after an uncertain save, the next [open]
+/// must expose either the prior or the newly durable value.
 abstract interface class ArtifactExecutionLedger {
   Future<ArtifactExecutionRecord> open(ContentBundlePlan plan);
 
@@ -79,8 +82,16 @@ class ArtifactDomainCommitResult {
 abstract interface class ArtifactDomainBatchRepository {
   Future<String> readConflictHash(ContentBundlePlan plan);
 
+  /// Returns the durable result for an already committed exact plan.
+  ///
+  /// Non-null proves that every domain write and binding committed; null must
+  /// prove that none did. An adapter unable to prove either outcome must throw
+  /// [ArtifactExecutionPending] instead of returning null.
+  Future<ArtifactDomainCommitResult?> lookupCommit(ContentBundlePlan plan);
+
   /// Atomically applies the declared domain operations and artifact bindings.
-  /// Repeating the same batch/idempotency key must return the first result.
+  /// Repeating the same exact plan must return the first durable result. That
+  /// result must become visible to [lookupCommit] atomically with the writes.
   Future<ArtifactDomainCommitResult> commit(ContentBundlePlan plan);
 
   /// Applies the supplied inverse operations in order, guarded by repository
@@ -104,6 +115,12 @@ class ArtifactExecutionException implements Exception {
 
 class ArtifactIdempotencyConflict extends ArtifactExecutionException {
   const ArtifactIdempotencyConflict() : super('artifact_idempotency_conflict');
+}
+
+/// The core cannot prove whether an external side effect happened yet.
+/// Pending never triggers rollback, staging deletion, GC or rejection.
+class ArtifactExecutionPending extends ArtifactExecutionException {
+  const ArtifactExecutionPending(super.code) : super(retryable: true);
 }
 
 /// A domain adapter may report operations that escaped an otherwise failed
@@ -155,92 +172,188 @@ class ArtifactBundleExecutor {
       await _deleteStaging(plan.artifacts);
       return record.receipt!;
     }
-    if (record.journal?.phase == ArtifactCommitPhase.recoveryRequired) {
-      return _recover(plan, record.journal!);
-    }
-
-    await _saveJournal(
-      plan,
-      ArtifactCommitJournal(
-        batchId: plan.batch.batchId,
-        phase: ArtifactCommitPhase.planned,
-      ),
-    );
-
     final stagedIds = plan.artifacts
         .map((artifact) => artifact.manifest.artifactId)
         .toList(growable: false);
-    await _saveJournal(
-      plan,
-      ArtifactCommitJournal(
-        batchId: plan.batch.batchId,
-        phase: ArtifactCommitPhase.staged,
-        stagedArtifactIds: stagedIds,
-      ),
-    );
-
-    try {
-      await _verifyAll(plan.artifacts);
-    } on ArtifactExecutionException catch (error) {
-      return _failAndRecover(
-        plan,
-        code: error.code,
-        stagedArtifactIds: stagedIds,
-        retryable: error.retryable,
-      );
-    } catch (_) {
-      return _failAndRecover(
-        plan,
-        code: 'staging_read_failed',
-        stagedArtifactIds: stagedIds,
-        retryable: true,
-      );
+    var journal = record.journal ??
+        ArtifactCommitJournal(
+          batchId: plan.batch.batchId,
+          phase: ArtifactCommitPhase.planned,
+        );
+    if (record.journal == null) {
+      await _saveJournal(plan, journal);
     }
 
-    await _saveJournal(
-      plan,
-      ArtifactCommitJournal(
-        batchId: plan.batch.batchId,
-        phase: ArtifactCommitPhase.hashesVerified,
-        stagedArtifactIds: stagedIds,
-        verifiedArtifactIds: stagedIds,
-      ),
-    );
+    while (true) {
+      switch (journal.phase) {
+        case ArtifactCommitPhase.planned:
+          journal = ArtifactCommitJournal(
+            batchId: plan.batch.batchId,
+            phase: ArtifactCommitPhase.staged,
+            stagedArtifactIds: stagedIds,
+          );
+          await _saveJournal(plan, journal);
+          continue;
+        case ArtifactCommitPhase.staged:
+          try {
+            await _verifyAll(plan.artifacts);
+          } on ArtifactExecutionException catch (error) {
+            return _failAndRecover(
+              plan,
+              code: error.code,
+              stagedArtifactIds: stagedIds,
+              retryable: error.retryable,
+            );
+          } on Exception {
+            throw const ArtifactExecutionPending('staging_read_pending');
+          }
+          journal = ArtifactCommitJournal(
+            batchId: plan.batch.batchId,
+            phase: ArtifactCommitPhase.hashesVerified,
+            stagedArtifactIds: stagedIds,
+            verifiedArtifactIds: stagedIds,
+          );
+          await _saveJournal(plan, journal);
+          continue;
+        case ArtifactCommitPhase.hashesVerified:
+          final resumed = await _resumeVerified(plan, journal);
+          if (resumed.receipt != null) return resumed.receipt!;
+          journal = resumed.journal!;
+          continue;
+        case ArtifactCommitPhase.committed:
+          return _resumeCommitted(plan);
+        case ArtifactCommitPhase.recoveryRequired:
+          return _recover(plan, journal);
+        case ArtifactCommitPhase.rolledBack:
+          throw const ArtifactExecutionPending(
+            'rolled_back_journal_without_receipt',
+          );
+      }
+    }
+  }
 
-    final beforeHash = await _domainRepository.readConflictHash(plan);
-    if (beforeHash != plan.batch.expectedStateHash) {
-      return _failAndRecover(
-        plan,
-        code: 'expected_state_hash_conflict',
-        stagedArtifactIds: stagedIds,
-        retryable: false,
-        beforeStateHash: beforeHash,
-      );
+  Future<ArtifactExecutionRecord> _resumeVerified(
+    ContentBundlePlan plan,
+    ArtifactCommitJournal journal,
+  ) async {
+    ArtifactDomainCommitResult? result;
+    try {
+      result = await _domainRepository.lookupCommit(plan);
+    } on ArtifactExecutionPending {
+      rethrow;
+    } on Exception {
+      throw const ArtifactExecutionPending('domain_lookup_pending');
+    }
+
+    String? beforeHash;
+    if (result == null) {
+      try {
+        beforeHash = await _domainRepository.readConflictHash(plan);
+      } on Exception {
+        throw const ArtifactExecutionPending('conflict_hash_pending');
+      }
+      if (beforeHash != plan.batch.expectedStateHash) {
+        return ArtifactExecutionRecord(
+          receipt: await _failAndRecover(
+            plan,
+            code: 'expected_state_hash_conflict',
+            stagedArtifactIds: journal.stagedArtifactIds,
+            retryable: false,
+            beforeStateHash: beforeHash,
+          ),
+        );
+      }
     }
 
     try {
       for (final artifact in plan.artifacts) {
+        // If a previous process already moved staging, the store verifies the
+        // matching final object and succeeds without writing it again.
         await _objectStore.commitVerified(artifact.manifest);
       }
+    } on Exception {
+      throw const ArtifactExecutionPending('object_commit_pending');
+    }
 
-      final result = await _domainRepository.commit(plan);
-      if (result.beforeStateHash != plan.batch.expectedStateHash) {
-        throw ArtifactDomainCommitException(
-          'expected_state_hash_conflict',
-          committedOperationIds: result.committedOperationIds,
+    if (result == null) {
+      try {
+        result = await _domainRepository.commit(plan);
+      } on ArtifactDomainCommitException catch (error) {
+        return ArtifactExecutionRecord(
+          receipt: await _failAndRecover(
+            plan,
+            code: error.code,
+            stagedArtifactIds: journal.stagedArtifactIds,
+            inverseOperations: _inverseForCommitted(
+              plan.batch.operations,
+              error.committedOperationIds,
+            ),
+            retryable: error.retryable,
+            beforeStateHash: beforeHash,
+          ),
         );
+      } on ArtifactExecutionPending {
+        rethrow;
+      } on Exception {
+        throw const ArtifactExecutionPending('domain_commit_outcome_pending');
       }
-      final expectedOperationIds = plan.batch.operations.map(
-        (operation) => operation.operationId,
+    }
+
+    _validateDomainResult(plan, result);
+    final committed = ArtifactCommitJournal(
+      batchId: plan.batch.batchId,
+      phase: ArtifactCommitPhase.committed,
+      stagedArtifactIds: journal.stagedArtifactIds,
+      verifiedArtifactIds: journal.verifiedArtifactIds,
+      boundArtifactIds: journal.verifiedArtifactIds,
+    );
+    await _saveJournal(plan, committed);
+    return ArtifactExecutionRecord(journal: committed);
+  }
+
+  Future<OperationReceipt> _resumeCommitted(ContentBundlePlan plan) async {
+    ArtifactDomainCommitResult? result;
+    try {
+      result = await _domainRepository.lookupCommit(plan);
+    } on ArtifactExecutionPending {
+      rethrow;
+    } on Exception {
+      throw const ArtifactExecutionPending('domain_lookup_pending');
+    }
+    if (result == null) {
+      throw const ArtifactExecutionPending(
+        'committed_journal_without_domain_result',
       );
-      if (!_sameIds(result.committedOperationIds, expectedOperationIds)) {
-        throw ArtifactDomainCommitException(
-          'domain_commit_incomplete',
-          committedOperationIds: result.committedOperationIds,
-        );
-      }
+    }
+    _validateDomainResult(plan, result);
+    final receipt = _committedReceipt(plan, result);
+    try {
+      await _ledger.saveReceipt(plan.batch, receipt);
+    } on Exception {
+      throw const ArtifactExecutionPending('receipt_persist_pending');
+    }
+    await _deleteStaging(plan.artifacts);
+    return receipt;
+  }
 
-      final receipt = OperationReceipt(
+  void _validateDomainResult(
+    ContentBundlePlan plan,
+    ArtifactDomainCommitResult result,
+  ) {
+    final expectedOperationIds = plan.batch.operations.map(
+      (operation) => operation.operationId,
+    );
+    if (result.beforeStateHash != plan.batch.expectedStateHash ||
+        !_sameIds(result.committedOperationIds, expectedOperationIds)) {
+      throw const ArtifactExecutionPending('domain_commit_result_invalid');
+    }
+  }
+
+  OperationReceipt _committedReceipt(
+    ContentBundlePlan plan,
+    ArtifactDomainCommitResult result,
+  ) =>
+      OperationReceipt(
         receiptId: _receiptId(plan.batch.batchId),
         batchId: plan.batch.batchId,
         idempotencyKey: plan.batch.idempotencyKey,
@@ -251,42 +364,6 @@ class ArtifactBundleExecutor {
         inverseOperations: _inverseOperations(plan.batch.operations),
         occurredAt: _clock().toUtc(),
       );
-      await _saveJournal(
-        plan,
-        ArtifactCommitJournal(
-          batchId: plan.batch.batchId,
-          phase: ArtifactCommitPhase.committed,
-          stagedArtifactIds: stagedIds,
-          verifiedArtifactIds: stagedIds,
-          boundArtifactIds: stagedIds,
-        ),
-      );
-      await _ledger.saveReceipt(plan.batch, receipt);
-      await _deleteStaging(plan.artifacts);
-      return receipt;
-    } on ArtifactDomainCommitException catch (error) {
-      final inverse = _inverseForCommitted(
-        plan.batch.operations,
-        error.committedOperationIds,
-      );
-      return _failAndRecover(
-        plan,
-        code: error.code,
-        stagedArtifactIds: stagedIds,
-        inverseOperations: inverse,
-        retryable: error.retryable,
-        beforeStateHash: beforeHash,
-      );
-    } catch (_) {
-      return _failAndRecover(
-        plan,
-        code: 'domain_commit_failed',
-        stagedArtifactIds: stagedIds,
-        retryable: true,
-        beforeStateHash: beforeHash,
-      );
-    }
-  }
 
   Future<void> _verifyAll(List<GeneratedArtifact> artifacts) async {
     for (final artifact in artifacts) {
@@ -387,6 +464,11 @@ class ArtifactBundleExecutor {
       failureCode: journal.failureCode,
       occurredAt: _clock().toUtc(),
     );
+    try {
+      await _ledger.saveReceipt(plan.batch, receipt);
+    } on Exception {
+      throw const ArtifactExecutionPending('receipt_persist_pending');
+    }
     await _saveJournal(
       plan,
       ArtifactCommitJournal(
@@ -398,7 +480,6 @@ class ArtifactBundleExecutor {
         failureCode: journal.failureCode,
       ),
     );
-    await _ledger.saveReceipt(plan.batch, receipt);
     return receipt;
   }
 
@@ -410,7 +491,11 @@ class ArtifactBundleExecutor {
     if (issues.isNotEmpty) {
       throw StateError('Invalid executor journal: ${issues.first.code}');
     }
-    await _ledger.saveJournal(plan.batch, journal);
+    try {
+      await _ledger.saveJournal(plan.batch, journal);
+    } on Exception {
+      throw const ArtifactExecutionPending('journal_persist_pending');
+    }
   }
 
   Future<void> _deleteStaging(List<GeneratedArtifact> artifacts) async {
