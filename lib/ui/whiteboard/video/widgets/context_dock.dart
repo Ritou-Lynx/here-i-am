@@ -513,10 +513,10 @@ class _EmptyVideoNotes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
-    return Center(
+    return SingleChildScrollView(
       key: const ValueKey('video_notes_empty_state'),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24),
+      child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -559,9 +559,10 @@ class _SaveConfirmationPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+    return SingleChildScrollView(
+      key: const ValueKey('video_save_confirmation_scroll'),
+      padding: const EdgeInsets.all(24),
+      child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

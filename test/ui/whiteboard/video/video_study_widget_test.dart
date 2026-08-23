@@ -515,6 +515,7 @@ void main() {
 
   testWidgets('dock tabs separate subtitle and honest empty notes states',
       (tester) async {
+    _useDesktopSurface(tester, const Size(640, 360));
     final adapter = _buildFixture();
     await tester.pumpWidget(
       MaterialApp(
@@ -533,6 +534,9 @@ void main() {
     expect(find.byKey(const ValueKey('video_subtitles_tab_content')),
         findsOneWidget);
     expect(find.text('需要字幕'), findsWidgets);
+    expect(find.byKey(const ValueKey('subtitle_empty_state_scroll')),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('video_dock_tab_notes')));
     await tester.pumpAndSettle();
@@ -542,6 +546,7 @@ void main() {
         find.byKey(const ValueKey('video_notes_empty_state')), findsOneWidget);
     expect(find.text('还没有视频笔记'), findsOneWidget);
     expect(find.textContaining('可在当前位置创建'), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('video_dock_tab_subtitles')));
     await tester.pumpAndSettle();

@@ -189,6 +189,12 @@ void main() {
         reason:
             'the document should fill the editor instead of defaulting to 8 lines',
       );
+      final documentField = tester.widget<TextField>(
+        find.byKey(const ValueKey('rich_text_continuous_document')),
+      );
+      expect(documentField.decoration?.filled, isFalse);
+      expect(documentField.decoration?.fillColor, Colors.transparent);
+      expect(documentField.decoration?.hoverColor, Colors.transparent);
     });
   });
 }

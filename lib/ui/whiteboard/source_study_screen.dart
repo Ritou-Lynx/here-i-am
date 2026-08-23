@@ -50,6 +50,13 @@ class SourceStudyScreen extends StatefulWidget {
 
 class _SourceStudyScreenState extends State<SourceStudyScreen> {
   late final Future<_SourceStudyData> _data = _load();
+  OverlayEntry? _tagEditorOverlay;
+
+  @override
+  void dispose() {
+    _closeVideoTags();
+    super.dispose();
+  }
 
   Future<_SourceStudyData> _load() async {
     final repository = widget.repository ??
@@ -157,7 +164,7 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
       onBack: _back,
       onEditTags: data.card == null
           ? null
-          : () => _openVideoTags(
+          : () => _toggleVideoTags(
                 repository: data.repository,
                 card: data.card!,
                 suggestions: data.tagSuggestions,
@@ -166,44 +173,66 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
     return studyScreen;
   }
 
-  Future<void> _openVideoTags({
+  void _toggleVideoTags({
     required UnifiedCardRepository repository,
     required CardContract card,
     required List<String> suggestions,
-  }) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final size = overlay.size;
-    await showMenu<void>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        size.width > 408 ? size.width - 396 : 12,
-        68,
-        12,
-        size.height > 80 ? size.height - 68 : 12,
-      ),
-      elevation: 8,
-      items: [
-        _TagEditorMenuEntry(
-          key: const ValueKey('source-video-tags-popover'),
-          child: SizedBox(
-            width: 340,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('视频卡标签'),
-                const SizedBox(height: 10),
-                _SourceTagEditor(
-                  repository: repository,
-                  card: card,
-                  suggestions: suggestions,
+  }) {
+    if (_tagEditorOverlay != null) {
+      _closeVideoTags();
+      return;
+    }
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (overlayContext) {
+        final tokens = DesktopWorkspaceTokens.of(overlayContext);
+        return Positioned(
+          top: 68,
+          right: 12,
+          child: TapRegion(
+            onTapOutside: (_) => _closeVideoTags(),
+            child: Material(
+              key: const ValueKey('source-video-tags-popover'),
+              color: tokens.surfaceRaised,
+              elevation: 8,
+              shadowColor: tokens.dark.withValues(alpha: 0.18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: tokens.divider),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: 340,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text('视频卡标签'),
+                      const SizedBox(height: 10),
+                      _SourceTagEditor(
+                        repository: repository,
+                        card: card,
+                        suggestions: suggestions,
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ],
+        );
+      },
     );
+    _tagEditorOverlay = entry;
+    overlay.insert(entry);
+  }
+
+  void _closeVideoTags() {
+    final entry = _tagEditorOverlay;
+    _tagEditorOverlay = null;
+    entry?.remove();
+    entry?.dispose();
   }
 
   static String _providerId(SourceContent source) {
@@ -247,29 +276,6 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
     if (adapter is YouTubePlayerAdapter) return adapter.isAvailable;
     return false;
   }
-}
-
-class _TagEditorMenuEntry extends PopupMenuEntry<void> {
-  const _TagEditorMenuEntry({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  double get height => 132;
-
-  @override
-  bool represents(void value) => false;
-
-  @override
-  State<_TagEditorMenuEntry> createState() => _TagEditorMenuEntryState();
-}
-
-class _TagEditorMenuEntryState extends State<_TagEditorMenuEntry> {
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: widget.child,
-      );
 }
 
 class _SourceStudyData {

@@ -437,28 +437,30 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       autofocus: widget.autofocus,
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
-      decoration: widget.inlineSurface
-          ? null
-          : InputDecoration(
-              isDense: true,
-              alignLabelWithHint: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 8,
-              ),
-              hintText: '在此输入…',
-              hintStyle: richTextBodyTextStyle(fontSize: 14).copyWith(
-                color: tokens.textFaint,
-              ),
-              border: const OutlineInputBorder(borderSide: BorderSide.none),
-              enabledBorder: const OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.transparent),
-              ),
-              focusedBorder: OutlineInputBorder(
+      decoration: InputDecoration(
+        isDense: true,
+        alignLabelWithHint: true,
+        filled: widget.inlineSurface ? false : null,
+        fillColor: widget.inlineSurface ? Colors.transparent : null,
+        hoverColor: widget.inlineSurface ? Colors.transparent : null,
+        contentPadding: widget.inlineSurface
+            ? EdgeInsets.zero
+            : const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        hintText: '在此输入…',
+        hintStyle: richTextBodyTextStyle(fontSize: 14).copyWith(
+          color: tokens.textFaint,
+        ),
+        border: const OutlineInputBorder(borderSide: BorderSide.none),
+        enabledBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: Colors.transparent),
+        ),
+        focusedBorder: widget.inlineSurface
+            ? InputBorder.none
+            : OutlineInputBorder(
                 borderRadius: BorderRadius.circular(4),
                 borderSide: BorderSide(color: tokens.divider, width: 1),
               ),
-            ),
+      ),
       onChanged: (_) {
         // [_onContinuousTextChanged] mirrors content without touching the
         // TextEditingValue, so Flutter retains its native composing range.

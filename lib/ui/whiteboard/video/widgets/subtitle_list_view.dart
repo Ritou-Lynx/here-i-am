@@ -343,66 +343,65 @@ class _NeedsSubtitleView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.subtitles_outlined, size: 40, color: tokens.textFaint),
-            const SizedBox(height: 12),
+    return SingleChildScrollView(
+      key: const ValueKey('subtitle_empty_state_scroll'),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.subtitles_outlined, size: 40, color: tokens.textFaint),
+          const SizedBox(height: 12),
+          Text(
+            '需要字幕',
+            style: whiteboardUiTextStyle(
+              color: tokens.textMuted,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (failureLabel != null) ...[
             Text(
-              '需要字幕',
+              '失败分类：$failureLabel',
+              key: const ValueKey('subtitle_failure_category'),
               style: whiteboardUiTextStyle(
                 color: tokens.textMuted,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 6),
-            if (failureLabel != null) ...[
-              Text(
-                '失败分类：$failureLabel',
-                key: const ValueKey('subtitle_failure_category'),
-                style: whiteboardUiTextStyle(
-                  color: tokens.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+          ],
+          Text(
+            reason != null && reason!.isNotEmpty
+                ? reason!
+                : '平台未提供可靠字幕\n导入 SRT 或 VTT 文件开始研读',
+            textAlign: TextAlign.center,
+            style: whiteboardUiTextStyle(
+              color: tokens.textFaint,
+              fontSize: 12,
+              height: 1.6,
+            ),
+          ),
+          if (hasImportCapability) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onImport,
+              icon: const Icon(Icons.file_upload_outlined, size: 16),
+              label: const Text('导入字幕'),
+              style: FilledButton.styleFrom(
+                backgroundColor: tokens.action,
+                foregroundColor: tokens.canvas,
+                minimumSize: const Size(44, 44),
+                textStyle: whiteboardUiTextStyle(fontSize: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              ),
-              const SizedBox(height: 6),
-            ],
-            Text(
-              reason != null && reason!.isNotEmpty
-                  ? reason!
-                  : '平台未提供可靠字幕\n导入 SRT 或 VTT 文件开始研读',
-              textAlign: TextAlign.center,
-              style: whiteboardUiTextStyle(
-                color: tokens.textFaint,
-                fontSize: 12,
-                height: 1.6,
               ),
             ),
-            if (hasImportCapability) ...[
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: onImport,
-                icon: const Icon(Icons.file_upload_outlined, size: 16),
-                label: const Text('导入字幕'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: tokens.action,
-                  foregroundColor: tokens.canvas,
-                  minimumSize: const Size(44, 44),
-                  textStyle: whiteboardUiTextStyle(fontSize: 14),
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
