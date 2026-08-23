@@ -93,8 +93,7 @@ class BilibiliPublicTimedTextResolver implements PlatformTimedTextResolver {
     BilibiliTimedTextService? service,
   }) : assert(probe == null || service == null),
        probe = probe,
-       _service =
-           service ?? (probe == null ? BilibiliTimedTextService() : null),
+       _service = service ?? (probe == null ? BilibiliTimedTextService() : null),
        _ownsService = service == null && probe == null;
 
   /// Compatibility seam for same-origin/test providers. Production defaults
@@ -179,6 +178,8 @@ class BilibiliPublicTimedTextResolver implements PlatformTimedTextResolver {
     BilibiliTimedTextFailureKind.network =>
       PlatformTimedTextFailureKind.network,
     BilibiliTimedTextFailureKind.parserFailure =>
+      PlatformTimedTextFailureKind.parserFailure,
+    BilibiliTimedTextFailureKind.responseTooLarge =>
       PlatformTimedTextFailureKind.parserFailure,
     null => null,
   };

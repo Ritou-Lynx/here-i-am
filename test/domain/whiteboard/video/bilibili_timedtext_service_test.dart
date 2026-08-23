@@ -4,24 +4,43 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/domain/whiteboard/player_adapter.dart';
+import 'package:memex/domain/whiteboard/video/bilibili_safe_http_transport.dart';
 import 'package:memex/domain/whiteboard/video/bilibili_timedtext_service.dart';
-import 'package:memex/domain/whiteboard/video/timedtext_transport.dart';
 
-class _FakeTransport implements TimedTextTransport {
+class _FakeTransport implements BilibiliHttpTransport {
   _FakeTransport(this.responses);
 
-  final List<FutureOr<String?>> responses;
+  final List<FutureOr<Object?>> responses;
   final List<String> urls = [];
   final List<Map<String, String>?> headers = [];
+  final List<int> maxByteBudgets = [];
   var _index = 0;
+  var disposed = false;
 
   @override
-  Future<String?> getText(String url, {Map<String, String>? headers}) async {
-    urls.add(url);
+  Future<BilibiliHttpFetchResult> getText(
+    Uri uri, {
+    required Map<String, String> headers,
+    required int maxBytes,
+  }) async {
+    urls.add(uri.toString());
     this.headers.add(headers);
-    if (_index >= responses.length) return null;
-    return await responses[_index++];
+    maxByteBudgets.add(maxBytes);
+    if (_index >= responses.length) {
+      return const BilibiliHttpFetchResult(
+        failureKind: BilibiliHttpFailureKind.network,
+      );
+    }
+    final value = await Future<Object?>.value(responses[_index++]);
+    if (value is BilibiliHttpFetchResult) return value;
+    if (value is String) return BilibiliHttpFetchResult(body: value);
+    return const BilibiliHttpFetchResult(
+      failureKind: BilibiliHttpFailureKind.network,
+    );
   }
+
+  @override
+  void dispose() => disposed = true;
 }
 
 String _metadata({int cid = 22}) => jsonEncode({
@@ -184,6 +203,81 @@ void main() {
     expect(parser.failureKind, BilibiliTimedTextFailureKind.parserFailure);
   });
 
+  test('classifies oversized metadata and BCC before parsing', () async {
+    const oversized = BilibiliHttpFetchResult(
+      failureKind: BilibiliHttpFailureKind.responseTooLarge,
+      message: 'too large',
+    );
+    final metadata = await BilibiliTimedTextService(
+      transport: _FakeTransport([oversized]),
+    ).fetchForVideo('BV1E8KV6QEu7', sourceId: 'src');
+    final bcc = await BilibiliTimedTextService(
+      transport: _FakeTransport([
+        _metadata(),
+        _player(tracks: [_track()]),
+        oversized,
+      ]),
+    ).fetchForVideo('BV1E8KV6QEu7', sourceId: 'src');
+
+    expect(
+      metadata.failureKind,
+      BilibiliTimedTextFailureKind.responseTooLarge,
+    );
+    expect(metadata.error, contains('视频元数据'));
+    expect(bcc.failureKind, BilibiliTimedTextFailureKind.responseTooLarge);
+    expect(bcc.error, contains('字幕内容'));
+  });
+
+  test('rejects excess cue count, single cue text and total text budget',
+      () async {
+    Future<BilibiliTimedTextResult> fetchWithBody(
+      List<Map<String, Object>> body, {
+      int maxCueCount = 10,
+      int maxCueTextChars = 10,
+      int maxTotalTextChars = 20,
+    }) =>
+        BilibiliTimedTextService(
+          transport: _FakeTransport([
+            _metadata(),
+            _player(tracks: [_track()]),
+            jsonEncode({'body': body}),
+          ]),
+          maxCueCount: maxCueCount,
+          maxCueTextChars: maxCueTextChars,
+          maxTotalTextChars: maxTotalTextChars,
+        ).fetchForVideo('BV1E8KV6QEu7', sourceId: 'src');
+
+    final excessCues = await fetchWithBody(
+      [
+        {'from': 0, 'to': 1, 'content': '一'},
+        {'from': 1, 'to': 2, 'content': '二'},
+      ],
+      maxCueCount: 1,
+    );
+    final longCue = await fetchWithBody(
+      [
+        {'from': 0, 'to': 1, 'content': '12345'},
+      ],
+      maxCueTextChars: 4,
+    );
+    final excessTotal = await fetchWithBody(
+      [
+        {'from': 0, 'to': 1, 'content': '123'},
+        {'from': 1, 'to': 2, 'content': '456'},
+      ],
+      maxTotalTextChars: 5,
+    );
+
+    for (final result in [excessCues, longCue, excessTotal]) {
+      expect(result.track, isNull);
+      expect(
+        result.failureKind,
+        BilibiliTimedTextFailureKind.responseTooLarge,
+      );
+      expect(result.error, contains('安全预算'));
+    }
+  });
+
   test('rejects an untrusted subtitle host as a parser failure', () async {
     final result = await BilibiliTimedTextService(
       transport: _FakeTransport([
@@ -211,6 +305,7 @@ void main() {
       metadata.complete(_metadata());
       final result = await pending;
 
+      expect((service.transport as _FakeTransport).disposed, isTrue);
       expect(result.track, isNull);
       expect(result.failureKind, BilibiliTimedTextFailureKind.network);
       expect(result.error, contains('已结束'));

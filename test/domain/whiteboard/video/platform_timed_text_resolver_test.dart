@@ -1,15 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/domain/whiteboard/player_adapter.dart';
+import 'package:memex/domain/whiteboard/video/bilibili_safe_http_transport.dart';
 import 'package:memex/domain/whiteboard/video/bilibili_timedtext_service.dart';
 import 'package:memex/domain/whiteboard/video/platform_timed_text_resolver.dart';
-import 'package:memex/domain/whiteboard/video/timedtext_transport.dart';
 import 'package:memex/domain/whiteboard/video/youtube_timedtext_service.dart';
 
-class _UnusedTransport implements TimedTextTransport {
+class _UnusedTransport implements BilibiliHttpTransport {
   @override
-  Future<String?> getText(String url, {Map<String, String>? headers}) async =>
-      null;
+  Future<BilibiliHttpFetchResult> getText(
+    Uri uri, {
+    required Map<String, String> headers,
+    required int maxBytes,
+  }) async =>
+      const BilibiliHttpFetchResult(
+        failureKind: BilibiliHttpFailureKind.network,
+      );
+
+  @override
+  void dispose() {}
 }
 
 class _BilibiliService extends BilibiliTimedTextService {
@@ -108,6 +117,20 @@ void main() {
 
       expect(result.failureKind, PlatformTimedTextFailureKind.accessRestricted);
       expect(result.message, '匿名不可见');
+    });
+
+    test('maps response size rejection to parserFailure', () async {
+      final resolver = BilibiliPublicTimedTextResolver(
+        service: _BilibiliService(const BilibiliTimedTextResult(
+          error: '响应过大',
+          failureKind: BilibiliTimedTextFailureKind.responseTooLarge,
+        )),
+      );
+
+      final result = await resolver.resolve(_request);
+
+      expect(result.failureKind, PlatformTimedTextFailureKind.parserFailure);
+      expect(result.message, '响应过大');
     });
 
     test('parses an ephemeral SRT fixture into a platform track', () async {
