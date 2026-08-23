@@ -28,6 +28,7 @@ import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
+import 'package:memex/ui/whiteboard/widgets/card_local_media_preview.dart';
 import 'package:memex/ui/whiteboard_canvas/widgets/board_target_picker.dart';
 
 class CardLibraryScreen extends StatefulWidget {
@@ -72,6 +73,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
   final Set<String> _thumbnailRequests = {};
   final List<String> _thumbnailQueue = [];
   bool _thumbnailWorkerRunning = false;
+  final Set<String> _deletingCardIds = {};
 
   @override
   void initState() {
@@ -237,6 +239,52 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         : AppRoutes.cardEditPath(hit.cardId);
     await context.push(path);
     if (mounted && widget.index == null) await _runQuery();
+  }
+
+  Future<void> _confirmDelete(_CardLibraryHit hit) async {
+    if (widget.index != null || _deletingCardIds.contains(hit.cardId)) return;
+    final repository = await _repositoryFuture;
+    if (repository == null || !mounted) return;
+    final isPlaced = await repository.isCardPlaced(hit.cardId);
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: ValueKey('card-library-delete-dialog-${hit.cardId}'),
+        title: const Text('删除这张卡片？'),
+        content: Text(
+          isPlaced
+              ? '这是全局删除。所有白板中的这张卡片都会变成失效引用；白板上的位置不会被悄悄移除。'
+              : '这是全局软删除，卡片将从卡片库隐藏。它的原件和历史内容不会被物理清除。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            key: ValueKey('card-library-confirm-delete-${hit.cardId}'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('全局删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deletingCardIds.add(hit.cardId));
+    try {
+      final deleted = await repository.softDeleteCard(hit.cardId);
+      if (!deleted) throw StateError('Card is already deleted');
+      if (mounted) await _runQuery();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('卡片没有删除成功，请重试')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deletingCardIds.remove(hit.cardId));
+    }
   }
 
   Future<WhiteboardDriftStore?> _resolveBoardStore() async {
@@ -611,6 +659,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
               onPlace: widget.index == null
                   ? () => _showBoardTargetPicker(hit)
                   : null,
+              onDelete: widget.index == null ? () => _confirmDelete(hit) : null,
               onThumbnailNeeded: widget.index == null && hit.isMedia
                   ? () => _queueThumbnail(hit.cardId)
                   : null,
@@ -650,6 +699,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
               onPlace: widget.index == null
                   ? () => _showBoardTargetPicker(hit)
                   : null,
+              onDelete: widget.index == null ? () => _confirmDelete(hit) : null,
               onThumbnailNeeded: widget.index == null && hit.isMedia
                   ? () => _queueThumbnail(hit.cardId)
                   : null,
@@ -816,12 +866,14 @@ class _CardPreview extends StatelessWidget {
     required this.onTap,
     required this.palette,
     this.onPlace,
+    this.onDelete,
     this.onThumbnailNeeded,
   });
 
   final _CardLibraryHit hit;
   final VoidCallback onTap;
   final VoidCallback? onPlace;
+  final VoidCallback? onDelete;
   final VoidCallback? onThumbnailNeeded;
   final _LibraryPalette palette;
 
@@ -846,7 +898,7 @@ class _CardPreview extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          flex: 7,
+          flex: hit.isImagePrimary ? 8 : 7,
           child: _MediaPreview(
             hit: hit,
             palette: palette,
@@ -854,7 +906,7 @@ class _CardPreview extends StatelessWidget {
           ),
         ),
         Flexible(
-          flex: 3,
+          flex: hit.isImagePrimary ? 2 : 3,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
             child: Row(
@@ -864,19 +916,23 @@ class _CardPreview extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        hit.title.isEmpty ? '未命名卡片' : hit.title,
-                        style: richTextBodyTextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                      if (!hit.isImagePrimary) ...[
+                        Text(
+                          hit.title.isEmpty ? '未命名卡片' : hit.title,
+                          style: richTextBodyTextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
+                        const SizedBox(height: 3),
+                      ],
                       Text(
                         [
-                          _sourceTypeLabel(hit.sourceType!),
+                          hit.sourceType == null
+                              ? '图片'
+                              : _sourceTypeLabel(hit.sourceType!),
                           if (hit.sourceLabel != null) hit.sourceLabel!,
                           if (hit.tags.isNotEmpty) hit.tags.take(2).join(' · '),
                         ].join(' · '),
@@ -890,6 +946,7 @@ class _CardPreview extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onDelete != null) _deleteButton(),
                 if (onPlace != null) ...[
                   const SizedBox(width: 6),
                   _placeButton(),
@@ -943,6 +1000,7 @@ class _CardPreview extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (onDelete != null) _deleteButton(),
               if (onPlace != null) ...[
                 const SizedBox(width: 6),
                 _placeButton(),
@@ -990,6 +1048,30 @@ class _CardPreview extends StatelessWidget {
       ),
     );
   }
+
+  Widget _deleteButton() => Semantics(
+        button: true,
+        label: '全局删除卡片',
+        child: GestureDetector(
+          key: ValueKey('card-library-delete-${hit.cardId}'),
+          behavior: HitTestBehavior.opaque,
+          onTap: onDelete,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Tooltip(
+              message: '全局删除卡片',
+              child: SizedBox.square(
+                dimension: 32,
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 17,
+                  color: palette.textFaint,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _MediaPreview extends StatelessWidget {
@@ -1171,6 +1253,7 @@ class _CardLibraryHit {
     this.thumbnail,
     this.hasLocalImage = false,
     this.localImageFile,
+    this.isImagePrimary = false,
   });
 
   factory _CardLibraryHit.legacy({
@@ -1203,6 +1286,7 @@ class _CardLibraryHit {
         : RichTextObjectStore(repository.richTextStorage.baseDir).resolveFile(
             imageRef,
           );
+    final imagePrimary = document != null && isImagePrimaryDocument(document);
     return _CardLibraryHit(
       cardId: record.card.cardId,
       title: record.card.title,
@@ -1214,6 +1298,7 @@ class _CardLibraryHit {
       sourceLabel: record.source?.provider,
       hasLocalImage: imageBlock != null,
       localImageFile: localImageFile,
+      isImagePrimary: imagePrimary,
     );
   }
 
@@ -1230,6 +1315,7 @@ class _CardLibraryHit {
       thumbnail: thumbnail ?? this.thumbnail,
       hasLocalImage: hasLocalImage,
       localImageFile: localImageFile,
+      isImagePrimary: isImagePrimary,
     );
   }
 
@@ -1244,6 +1330,7 @@ class _CardLibraryHit {
   final ResolvedThumbnail? thumbnail;
   final bool hasLocalImage;
   final File? localImageFile;
+  final bool isImagePrimary;
 
   bool get isMedia =>
       hasLocalImage ||

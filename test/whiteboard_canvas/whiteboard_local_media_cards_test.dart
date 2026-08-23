@@ -6,16 +6,20 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_asset_ref.dart';
 import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
 import 'package:memex/ui/whiteboard/widgets/card_local_media_preview.dart';
+import 'package:memex/ui/whiteboard/card_library_screen_v2.dart';
+import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
 
 const _png =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -90,7 +94,8 @@ class _FailingCleanupRepository extends UnifiedCardRepository {
 }
 
 class _MidImportFailureRepository extends UnifiedCardRepository {
-  _MidImportFailureRepository({required super.db, required super.whiteboardRoot});
+  _MidImportFailureRepository(
+      {required super.db, required super.whiteboardRoot});
 
   int saves = 0;
   int cleanupFailures = 1;
@@ -537,28 +542,42 @@ void main() {
   testWidgets('单项中途失败登记补偿且继续清理其余项', (tester) async {
     final root = Directory.systemTemp.createTempSync('wb_media_mid_fail_');
     final db = AppDatabase.forTesting(NativeDatabase.memory());
-    final repository = _MidImportFailureRepository(db: db, whiteboardRoot: root);
+    final repository =
+        _MidImportFailureRepository(db: db, whiteboardRoot: root);
     final harness = _Harness(root, db, repository);
     _disposeHarnessAfterTest(tester, harness);
     late final List<String> paths;
     await tester.runAsync(() async => paths = [
-      (await harness.sourceImage('first.png')).path,
-      (await harness.sourceImage('second.png')).path,
-    ]);
-    final vm = WhiteboardCanvasViewModel(initialSnapshot: WhiteboardSnapshot(
-      boards: [Board(boardId: 'board_media', name: '补偿', createdAt: DateTime.utc(2026, 8, 23))],
-    ), boardId: 'board_media');
-    await tester.pumpWidget(MaterialApp(home: WhiteboardCanvasScreen(
-      viewModel: vm, cardRepository: repository, imagePathPicker: () async => paths,
+          (await harness.sourceImage('first.png')).path,
+          (await harness.sourceImage('second.png')).path,
+        ]);
+    final vm = WhiteboardCanvasViewModel(
+        initialSnapshot: WhiteboardSnapshot(
+          boards: [
+            Board(
+                boardId: 'board_media',
+                name: '补偿',
+                createdAt: DateTime.utc(2026, 8, 23))
+          ],
+        ),
+        boardId: 'board_media');
+    await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasScreen(
+      viewModel: vm,
+      cardRepository: repository,
+      imagePathPicker: () async => paths,
     )));
     await tester.tap(find.byKey(const ValueKey('wb_import_image_tool')));
-    await _pumpUntil(tester, find.byKey(const ValueKey('wb_pending_card_compensation')));
+    await _pumpUntil(
+        tester, find.byKey(const ValueKey('wb_pending_card_compensation')));
     expect(find.textContaining('private'), findsNothing);
     expect(await tester.runAsync(repository.listCards), hasLength(1));
     await tester.tap(find.byKey(const ValueKey('wb_retry_card_compensation')));
-    await _pumpUntilGone(tester, find.byKey(const ValueKey('wb_pending_card_compensation')));
+    await _pumpUntilGone(
+        tester, find.byKey(const ValueKey('wb_pending_card_compensation')));
     expect(await tester.runAsync(repository.listCards), isEmpty);
-    final objects = RichTextObjectStore(repository.richTextStorage.baseDir).objectsDirectory;
+    final objects = RichTextObjectStore(repository.richTextStorage.baseDir)
+        .objectsDirectory;
     expect(objects.existsSync() ? objects.listSync() : const [], isEmpty);
   });
 
@@ -570,19 +589,298 @@ void main() {
     _disposeHarnessAfterTest(tester, harness);
     final created = DateTime.utc(2026, 8, 23);
     CardContract card(DateTime updated, String ref) => CardContract(
-      cardId: 'card_refresh', cardKind: CardKind.source, createdAt: created,
-      updatedAt: updated, presentation: {'thumbnail_ref': ref},
-    );
-    Widget app(CardContract value) => MaterialApp(home: CardLocalMediaPreview(
-      repository: repository, cardId: value.cardId, card: value,
-      placementKey: 'refresh', maxHeight: 80,
-      surfaceColor: Colors.white, foregroundColor: Colors.black,
-    ));
+          cardId: 'card_refresh',
+          cardKind: CardKind.source,
+          createdAt: created,
+          updatedAt: updated,
+          presentation: {'thumbnail_ref': ref},
+        );
+    Widget app(CardContract value) => MaterialApp(
+            home: CardLocalMediaPreview(
+          repository: repository,
+          cardId: value.cardId,
+          card: value,
+          placementKey: 'refresh',
+          maxHeight: 80,
+          surfaceColor: Colors.white,
+          foregroundColor: Colors.black,
+        ));
     await tester.pumpWidget(app(card(created, 'objects/a.png')));
     await tester.pump();
     final reads = repository.reads;
-    await tester.pumpWidget(app(card(created.add(const Duration(seconds: 1)), 'objects/b.png')));
+    await tester.pumpWidget(
+        app(card(created.add(const Duration(seconds: 1)), 'objects/b.png')));
     await tester.pump();
     expect(repository.reads, greaterThan(reads));
+  });
+
+  testWidgets('纯本地图片无 Source 时卡片库正常显示且不泄漏 ErrorWidget', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    await tester.runAsync(() async {
+      final source = await harness.sourceImage('library.png');
+      await harness.imageCard('card_media', source);
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: CardLibraryScreen(repository: harness.repository),
+    ));
+    await _pumpUntil(
+      tester,
+      find.byKey(const ValueKey('card-library-local-image-card_media')),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('图片'), findsOneWidget);
+    expect(find.byKey(const ValueKey('card-library-delete-card_media')),
+        findsOneWidget);
+  });
+
+  testWidgets('图片主卡占据卡面主体且最多保留一行元信息，混排卡仍走正文布局', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    late CardContract imageCard;
+    late CardContract mixedCard;
+    await tester.runAsync(() async {
+      final source = await harness.sourceImage('layout.png');
+      imageCard = await harness.imageCard('card_media', source);
+      final imageRecord = await harness.repository.getCard(imageCard.cardId);
+      final ref = imageRecord!.document!.assetRefs.single;
+      final created = await harness.repository.createTextCard(
+        cardId: 'card_mixed',
+        title: '图文卡',
+      );
+      mixedCard = await harness.repository.saveRichText(
+        created.cardId,
+        RichTextDocument(
+          blocks: [
+            RichTextBlock(
+              type: BlockType.image,
+              attrs: {'asset_ref_id': ref.refId},
+            ),
+            const RichTextBlock(type: BlockType.paragraph, text: '可编辑正文'),
+          ],
+          assetRefs: [ref],
+        ),
+        title: '图文卡',
+      );
+    });
+
+    final snapshot = _snapshot(imageCard);
+    final imageVm = WhiteboardCanvasViewModel(
+      initialSnapshot: snapshot,
+      boardId: 'board_media',
+    );
+    await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasScreen(
+      viewModel: imageVm,
+      cardRepository: harness.repository,
+    )));
+    await _pumpUntil(
+      tester,
+      find.byKey(const Key('wb_image_card_meta_item_media_a')),
+    );
+    await _pumpUntil(
+      tester,
+      find.byKey(const ValueKey('wb_local_media_item_media_a')),
+    );
+    final media = tester.getSize(
+      find.byKey(const ValueKey('wb_local_media_item_media_a')),
+    );
+    expect(media.height, greaterThan(170));
+
+    final mixedSnapshot = WhiteboardSnapshot(
+      boards: snapshot.boards,
+      cards: [mixedCard],
+      boardItems: const [
+        BoardItem(
+          itemId: 'item_mixed',
+          boardId: 'board_media',
+          cardId: 'card_mixed',
+          x: -120,
+          y: -100,
+          width: 240,
+          height: 220,
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasScreen(
+      viewModel: WhiteboardCanvasViewModel(
+        initialSnapshot: mixedSnapshot,
+        boardId: 'board_media',
+      ),
+      cardRepository: harness.repository,
+    )));
+    await _pumpUntil(tester, find.text('可编辑正文'));
+    expect(
+        find.byKey(const Key('wb_image_card_meta_item_mixed')), findsNothing);
+  });
+
+  testWidgets('图片主卡完整查看只显示整图和标签并可保存，图文卡保持富文本编辑', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    late CardContract imageCard;
+    late RichTextAssetRef ref;
+    await tester.runAsync(() async {
+      final source = await harness.sourceImage('viewer.png');
+      imageCard = await harness.imageCard('card_media', source);
+      final record = await harness.repository.getCard(imageCard.cardId);
+      ref = record!.document!.assetRefs.single;
+    });
+    CardRichTextEditorScreen.setRepositoryForTesting(harness.repository);
+    addTearDown(() => CardRichTextEditorScreen.setRepositoryForTesting(null));
+
+    await tester.pumpWidget(const MaterialApp(
+      home: CardRichTextEditorScreen(cardId: 'card_media'),
+    ));
+    await _pumpUntil(
+      tester,
+      find.byKey(const ValueKey('image-primary-full-image')),
+    );
+    expect(find.byKey(const ValueKey('rich_text_editor_paper')), findsNothing);
+    await tester.enterText(
+      find.byKey(const ValueKey('card-tag-input')),
+      '灵感',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump(const Duration(milliseconds: 100));
+    final updated = await tester.runAsync(
+      () => harness.repository.getCard('card_media', loadDocument: false),
+    );
+    expect(updated!.card.tags, contains('灵感'));
+
+    await tester.runAsync(() async {
+      final mixed = await harness.repository.createTextCard(
+        cardId: 'card_mixed',
+        title: '图文卡',
+      );
+      await harness.repository.saveRichText(
+        mixed.cardId,
+        RichTextDocument(
+          blocks: [
+            RichTextBlock(
+              type: BlockType.image,
+              attrs: {'asset_ref_id': ref.refId},
+            ),
+            const RichTextBlock(type: BlockType.paragraph, text: '正文'),
+          ],
+          assetRefs: [ref],
+        ),
+      );
+    });
+    await tester.pumpWidget(const MaterialApp(
+      home: CardRichTextEditorScreen(
+        key: ValueKey('mixed-editor'),
+        cardId: 'card_mixed',
+      ),
+    ));
+    await _pumpUntil(
+      tester,
+      find.byKey(const ValueKey('rich_text_editor_paper')),
+    );
+    expect(
+        find.byKey(const ValueKey('image-primary-card-screen')), findsNothing);
+  });
+
+  testWidgets('卡片库全局软删除明确提示所有白板引用且保留 BoardItem', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    late CardContract card;
+    final store = WhiteboardDriftStore(harness.db);
+    await tester.runAsync(() async {
+      final source = await harness.sourceImage('delete.png');
+      card = await harness.imageCard('card_media', source);
+      await store.save('board_media', _snapshot(card));
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: CardLibraryScreen(
+        repository: harness.repository,
+        boardStore: store,
+      ),
+    ));
+    await _pumpUntil(
+      tester,
+      find.byKey(const ValueKey('card-library-delete-card_media')),
+    );
+    await tester
+        .tap(find.byKey(const ValueKey('card-library-delete-card_media')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('所有白板中的这张卡片'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('card-library-confirm-delete-card_media')),
+    );
+    await tester.pumpAndSettle();
+    final deleted = await tester.runAsync(() => harness.repository.getCard(
+          'card_media',
+          includeDeleted: true,
+          loadDocument: false,
+        ));
+    expect(deleted!.card.deletedAt, isNotNull);
+    final reloaded = await tester.runAsync(() => store.load('board_media'));
+    expect(reloaded!.snapshot!.boardItems.single.cardId, 'card_media');
+  });
+
+  testWidgets('卡片库软删除失败时保留卡片并给出可重试反馈', (tester) async {
+    final root = Directory.systemTemp.createTempSync('wb_library_delete_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = _FailingCleanupRepository(
+      db: db,
+      whiteboardRoot: root,
+    );
+    final harness = _Harness(root, db, repository);
+    _disposeHarnessAfterTest(tester, harness);
+    await tester.runAsync(() async {
+      final source = await harness.sourceImage('delete-fail.png');
+      await harness.imageCard('card_media', source);
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: CardLibraryScreen(repository: repository),
+    ));
+    await _pumpUntil(
+      tester,
+      find.byKey(const ValueKey('card-library-delete-card_media')),
+    );
+    await tester
+        .tap(find.byKey(const ValueKey('card-library-delete-card_media')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('card-library-confirm-delete-card_media')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('卡片没有删除成功，请重试'), findsOneWidget);
+    final current = await tester.runAsync(() => repository.getCard(
+          'card_media',
+          includeDeleted: true,
+          loadDocument: false,
+        ));
+    expect(current!.card.deletedAt, isNull);
+  });
+
+  testWidgets('损坏的单张富文本卡降级显示且仍可从卡片库删除', (tester) async {
+    final harness = _Harness.create();
+    _disposeHarnessAfterTest(tester, harness);
+    await tester.runAsync(() async {
+      await harness.repository.createTextCard(
+        cardId: 'card_broken',
+        title: '待处理卡片',
+        body: '仍可识别的正文投影',
+      );
+      final dir = Directory(
+        '${harness.repository.richTextStorage.baseDir.path}'
+        '${Platform.pathSeparator}card_card_broken',
+      );
+      await dir.create(recursive: true);
+      await File('${dir.path}${Platform.pathSeparator}rich_text.json')
+          .writeAsString('{not-json', flush: true);
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: CardLibraryScreen(repository: harness.repository),
+    ));
+    await _pumpUntil(tester, find.text('仍可识别的正文投影'));
+    expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('card-library-delete-card_broken')),
+      findsOneWidget,
+    );
   });
 }

@@ -457,10 +457,11 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     for (final draft in created.reversed) {
       _pendingMediaCleanup[draft.card.cardId] = draft.ref;
       try {
-        final cleaned = await _compensateCreatedCard(repository, draft.card.cardId);
+        final cleaned =
+            await _compensateCreatedCard(repository, draft.card.cardId);
         if (cleaned) {
-          await _deleteImportedMediaArtifacts(repository, objectStore,
-              draft.card.cardId, draft.ref);
+          await _deleteImportedMediaArtifacts(
+              repository, objectStore, draft.card.cardId, draft.ref);
         }
       } catch (error) {
         if (mounted) {
@@ -589,8 +590,11 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       try {
         final mediaRef = _pendingMediaCleanup[cardId];
         if (mediaRef != null) {
-          await _deleteImportedMediaArtifacts(repository,
-              RichTextObjectStore(repository.richTextStorage.baseDir), cardId, mediaRef);
+          await _deleteImportedMediaArtifacts(
+              repository,
+              RichTextObjectStore(repository.richTextStorage.baseDir),
+              cardId,
+              mediaRef);
         }
       } catch (error) {
         lastError = error;
@@ -598,10 +602,10 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     }
     if (!mounted) return;
     setState(() {
-      _pendingCompensationCardId = _pendingMediaCleanup.isEmpty
-          ? null
-          : _pendingMediaCleanup.keys.first;
-      _pendingCompensationError = _pendingMediaCleanup.isEmpty ? null : lastError;
+      _pendingCompensationCardId =
+          _pendingMediaCleanup.isEmpty ? null : _pendingMediaCleanup.keys.first;
+      _pendingCompensationError =
+          _pendingMediaCleanup.isEmpty ? null : lastError;
     });
   }
 
@@ -2742,88 +2746,189 @@ class _CardContent extends StatelessWidget {
                 ),
               )
             : LayoutBuilder(
-                builder: (context, constraints) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (cardRepository != null)
-                      CardLocalMediaPreview(
-                        repository: cardRepository!,
-                        cardId: card!.cardId,
-                        card: card,
-                        placementKey: node.itemId,
-                        maxHeight: constraints.maxHeight *
-                            (constraints.maxHeight > 180 ? .62 : .48),
-                        surfaceColor: colors.orphanedSurface,
-                        foregroundColor: colors.textFaint,
-                      ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                builder: (context, constraints) => _CardMediaMode(
+                  repository: cardRepository,
+                  card: card!,
+                  builder: (context, imagePrimary) => imagePrimary
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              card!.title,
-                              style: richTextBodyTextStyle(
-                                color: colors.textPrimary,
-                                fontSize: WhiteboardCanvasTokens.titleSize,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
                             Expanded(
-                              child: Text(
-                                card.body,
-                                style: richTextBodyTextStyle(
-                                  color: colors.textSecondary,
-                                  fontSize: WhiteboardCanvasTokens.bodySize,
-                                ),
-                                maxLines: 5,
-                                overflow: TextOverflow.ellipsis,
+                              child: CardLocalMediaPreview(
+                                repository: cardRepository!,
+                                cardId: card.cardId,
+                                card: card,
+                                placementKey: node.itemId,
+                                maxHeight: constraints.maxHeight,
+                                surfaceColor: colors.orphanedSurface,
+                                foregroundColor: colors.textFaint,
+                                fit: BoxFit.cover,
                               ),
                             ),
-                            if (card.tags.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Wrap(
-                                  spacing: 4,
-                                  runSpacing: 2,
-                                  children: card.tags.take(4).map((tag) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: colors.cardSurface,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: colors.divider,
-                                          width: 0.5,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        tag,
-                                        style: whiteboardUiTextStyle(
-                                          color: colors.textFaint,
-                                          fontSize:
-                                              WhiteboardCanvasTokens.statusSize,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
+                            if (card.tags.isNotEmpty || card.title.isNotEmpty)
+                              Container(
+                                key: Key('wb_image_card_meta_${node.itemId}'),
+                                constraints: BoxConstraints(
+                                  maxHeight: constraints.maxHeight * .2,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                child: Text(
+                                  card.tags.isNotEmpty
+                                      ? card.tags
+                                          .map((tag) => '#$tag')
+                                          .join(' · ')
+                                      : card.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: whiteboardUiTextStyle(
+                                    color: colors.textFaint,
+                                    fontSize: WhiteboardCanvasTokens.statusSize,
+                                  ),
                                 ),
                               ),
                           ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (cardRepository != null)
+                              CardLocalMediaPreview(
+                                repository: cardRepository!,
+                                cardId: card.cardId,
+                                card: card,
+                                placementKey: node.itemId,
+                                maxHeight: constraints.maxHeight *
+                                    (constraints.maxHeight > 180 ? .62 : .48),
+                                surfaceColor: colors.orphanedSurface,
+                                foregroundColor: colors.textFaint,
+                              ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      card!.title,
+                                      style: richTextBodyTextStyle(
+                                        color: colors.textPrimary,
+                                        fontSize:
+                                            WhiteboardCanvasTokens.titleSize,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Expanded(
+                                      child: Text(
+                                        card.body,
+                                        style: richTextBodyTextStyle(
+                                          color: colors.textSecondary,
+                                          fontSize:
+                                              WhiteboardCanvasTokens.bodySize,
+                                        ),
+                                        maxLines: 5,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (card.tags.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 6),
+                                        child: Wrap(
+                                          spacing: 4,
+                                          runSpacing: 2,
+                                          children:
+                                              card.tags.take(4).map((tag) {
+                                            return Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 6,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: colors.cardSurface,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                border: Border.all(
+                                                  color: colors.divider,
+                                                  width: 0.5,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                tag,
+                                                style: whiteboardUiTextStyle(
+                                                  color: colors.textFaint,
+                                                  fontSize:
+                                                      WhiteboardCanvasTokens
+                                                          .statusSize,
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
       ),
+    );
+  }
+}
+
+class _CardMediaMode extends StatefulWidget {
+  const _CardMediaMode({
+    required this.repository,
+    required this.card,
+    required this.builder,
+  });
+
+  final UnifiedCardRepository? repository;
+  final CardContract card;
+  final Widget Function(BuildContext context, bool imagePrimary) builder;
+
+  @override
+  State<_CardMediaMode> createState() => _CardMediaModeState();
+}
+
+class _CardMediaModeState extends State<_CardMediaMode> {
+  late Future<CardLocalMediaProjection>? _projection = _load();
+
+  Future<CardLocalMediaProjection>? _load() {
+    final repository = widget.repository;
+    if (repository == null) return null;
+    return CardLocalMediaResolver(repository).resolve(
+      widget.card.cardId,
+      card: widget.card,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _CardMediaMode oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.repository, widget.repository) ||
+        oldWidget.card.cardId != widget.card.cardId ||
+        oldWidget.card.updatedAt != widget.card.updatedAt) {
+      _projection = _load();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final projection = _projection;
+    if (projection == null) return widget.builder(context, false);
+    return FutureBuilder<CardLocalMediaProjection>(
+      future: projection,
+      builder: (context, snapshot) =>
+          widget.builder(context, snapshot.data?.isImagePrimary == true),
     );
   }
 }
@@ -3394,107 +3499,109 @@ class _FloatingActionTools extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-              _FloatingLabeledButton(
-                key: const Key('wb_open_card_library_tool'),
-                icon: Icons.add_card_outlined,
-                label: cardLibraryVisible ? '收起卡片库' : '添加卡片',
-                tooltip: cardLibraryVisible ? '关闭卡片库' : '从卡片库放入白板',
-                onTap: onToggleCardLibrary,
-              ),
-              const SizedBox(width: 6),
-              _FloatingLabeledButton(
-                key: const ValueKey('wb_import_image_tool'),
-                icon: importingImages
-                    ? Icons.hourglass_top_rounded
-                    : Icons.add_photo_alternate_outlined,
-                label: importingImages ? '导入中' : '导入图片',
-                tooltip: vm.isReadonly ? '只读白板不能导入图片' : '选择本地图片并放到当前视口',
-                isEnabled: !vm.isReadonly && !importingImages,
-                onTap:
-                    !vm.isReadonly && !importingImages ? onImportImages : null,
-              ),
-              const SizedBox(width: 6),
-              _FloatingLabeledButton(
-                key: const Key('wb_create_group_tool'),
-                icon: Icons.create_new_folder_outlined,
-                label: '建组',
-                tooltip: vm.selection.length >= 2
-                    ? '将选中卡片建立分组'
-                    : '先框选或 Shift+点击至少两张卡片',
-                isEnabled: vm.selection.length >= 2 && !vm.isReadonly,
-                onTap: vm.selection.length >= 2 && !vm.isReadonly
-                    ? onCreateGroup
-                    : null,
-              ),
-              const SizedBox(width: 4),
-              _FloatingButton(
-                key: const Key('wb_create_edge_tool'),
-                icon: Icons.polyline_outlined,
-                tooltip: vm.selection.length == 2
-                    ? '备用：连接选中的两张卡片'
-                    : '拖动卡片边缘连接点可直接连线',
-                isEnabled: vm.selection.length == 2 && !vm.isReadonly,
-                onTap: vm.selection.length == 2 && !vm.isReadonly
-                    ? onCreateEdge
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                _selectionHint(vm.selection.length),
-                key: const Key('wb_selection_hint'),
-                style: whiteboardUiTextStyle(
-                  color: WhiteboardCanvasTokens.of(context).textSecondary,
-                  fontSize: WhiteboardCanvasTokens.statusSize,
+                _FloatingLabeledButton(
+                  key: const Key('wb_open_card_library_tool'),
+                  icon: Icons.add_card_outlined,
+                  label: cardLibraryVisible ? '收起卡片库' : '添加卡片',
+                  tooltip: cardLibraryVisible ? '关闭卡片库' : '从卡片库放入白板',
+                  onTap: onToggleCardLibrary,
                 ),
-              ),
-              const SizedBox(width: 10),
-              _FloatingButton(
-                icon: Icons.undo,
-                tooltip: '撤销 (Ctrl+Z)',
-                isEnabled: vm.canUndo && !vm.isReadonly,
-                onTap: vm.canUndo && !vm.isReadonly ? vm.undo : null,
-              ),
-              const SizedBox(width: 4),
-              _FloatingButton(
-                icon: Icons.redo,
-                tooltip: '重做 (Ctrl+Y)',
-                isEnabled: vm.canRedo && !vm.isReadonly,
-                onTap: vm.canRedo && !vm.isReadonly ? vm.redo : null,
-              ),
-              const SizedBox(width: 4),
-              _FloatingButton(
-                icon: Icons.delete_outline,
-                tooltip: '删除选中 (Del)',
-                isEnabled:
-                    (vm.selection.isNotEmpty || vm.selectedEdgeId != null) &&
-                        !vm.isReadonly,
-                onTap: (vm.selection.isNotEmpty || vm.selectedEdgeId != null) &&
-                        !vm.isReadonly
-                    ? () => vm.handleIntent(const DeleteSelectionIntent())
-                    : null,
-              ),
-              const SizedBox(width: 4),
-              _FloatingButton(
-                icon: Icons.layers,
-                tooltip: '置顶',
-                isEnabled: vm.selection.isNotEmpty && !vm.isReadonly,
-                onTap: vm.selection.isNotEmpty && !vm.isReadonly
-                    ? vm.bringSelectedItemToFront
-                    : null,
-              ),
-              const SizedBox(width: 4),
-              _FloatingButton(
-                icon: Icons.save_outlined,
-                tooltip: '保存快照 (Ctrl+S)',
-                isEnabled: !vm.isReadonly,
-                onTap: !vm.isReadonly ? vm.onSaveRequested : null,
-              ),
-              const SizedBox(width: 4),
-              _FloatingButton(
-                icon: Icons.close,
-                tooltip: '关闭画布工具',
-                onTap: onClose,
-              ),
+                const SizedBox(width: 6),
+                _FloatingLabeledButton(
+                  key: const ValueKey('wb_import_image_tool'),
+                  icon: importingImages
+                      ? Icons.hourglass_top_rounded
+                      : Icons.add_photo_alternate_outlined,
+                  label: importingImages ? '导入中' : '导入图片',
+                  tooltip: vm.isReadonly ? '只读白板不能导入图片' : '选择本地图片并放到当前视口',
+                  isEnabled: !vm.isReadonly && !importingImages,
+                  onTap: !vm.isReadonly && !importingImages
+                      ? onImportImages
+                      : null,
+                ),
+                const SizedBox(width: 6),
+                _FloatingLabeledButton(
+                  key: const Key('wb_create_group_tool'),
+                  icon: Icons.create_new_folder_outlined,
+                  label: '建组',
+                  tooltip: vm.selection.length >= 2
+                      ? '将选中卡片建立分组'
+                      : '先框选或 Shift+点击至少两张卡片',
+                  isEnabled: vm.selection.length >= 2 && !vm.isReadonly,
+                  onTap: vm.selection.length >= 2 && !vm.isReadonly
+                      ? onCreateGroup
+                      : null,
+                ),
+                const SizedBox(width: 4),
+                _FloatingButton(
+                  key: const Key('wb_create_edge_tool'),
+                  icon: Icons.polyline_outlined,
+                  tooltip: vm.selection.length == 2
+                      ? '备用：连接选中的两张卡片'
+                      : '拖动卡片边缘连接点可直接连线',
+                  isEnabled: vm.selection.length == 2 && !vm.isReadonly,
+                  onTap: vm.selection.length == 2 && !vm.isReadonly
+                      ? onCreateEdge
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  _selectionHint(vm.selection.length),
+                  key: const Key('wb_selection_hint'),
+                  style: whiteboardUiTextStyle(
+                    color: WhiteboardCanvasTokens.of(context).textSecondary,
+                    fontSize: WhiteboardCanvasTokens.statusSize,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _FloatingButton(
+                  icon: Icons.undo,
+                  tooltip: '撤销 (Ctrl+Z)',
+                  isEnabled: vm.canUndo && !vm.isReadonly,
+                  onTap: vm.canUndo && !vm.isReadonly ? vm.undo : null,
+                ),
+                const SizedBox(width: 4),
+                _FloatingButton(
+                  icon: Icons.redo,
+                  tooltip: '重做 (Ctrl+Y)',
+                  isEnabled: vm.canRedo && !vm.isReadonly,
+                  onTap: vm.canRedo && !vm.isReadonly ? vm.redo : null,
+                ),
+                const SizedBox(width: 4),
+                _FloatingButton(
+                  icon: Icons.delete_outline,
+                  tooltip: '删除选中 (Del)',
+                  isEnabled:
+                      (vm.selection.isNotEmpty || vm.selectedEdgeId != null) &&
+                          !vm.isReadonly,
+                  onTap:
+                      (vm.selection.isNotEmpty || vm.selectedEdgeId != null) &&
+                              !vm.isReadonly
+                          ? () => vm.handleIntent(const DeleteSelectionIntent())
+                          : null,
+                ),
+                const SizedBox(width: 4),
+                _FloatingButton(
+                  icon: Icons.layers,
+                  tooltip: '置顶',
+                  isEnabled: vm.selection.isNotEmpty && !vm.isReadonly,
+                  onTap: vm.selection.isNotEmpty && !vm.isReadonly
+                      ? vm.bringSelectedItemToFront
+                      : null,
+                ),
+                const SizedBox(width: 4),
+                _FloatingButton(
+                  icon: Icons.save_outlined,
+                  tooltip: '保存快照 (Ctrl+S)',
+                  isEnabled: !vm.isReadonly,
+                  onTap: !vm.isReadonly ? vm.onSaveRequested : null,
+                ),
+                const SizedBox(width: 4),
+                _FloatingButton(
+                  icon: Icons.close,
+                  tooltip: '关闭画布工具',
+                  onTap: onClose,
+                ),
               ],
             ),
           ),
@@ -3629,6 +3736,55 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
   bool _loading = true;
   Object? _loadError;
   int _loadGeneration = 0;
+
+  Future<void> _confirmGlobalDelete(UnifiedCardRecord record) async {
+    final repository = widget.repository;
+    if (repository == null || widget.viewModel.isReadonly) return;
+    final isPlaced = await repository.isCardPlaced(record.card.cardId);
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: ValueKey('wb-library-delete-dialog-${record.card.cardId}'),
+        title: const Text('全局删除这张卡片？'),
+        content: Text(
+          isPlaced
+              ? '所有白板中的放置都会变成失效引用；这不是“从当前白板移除”。'
+              : '卡片会从卡片库隐藏，但原件和历史内容不会被物理清除。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            key: ValueKey('wb-library-confirm-delete-${record.card.cardId}'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('全局删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final deleted = await repository.softDeleteCard(record.card.cardId);
+      if (!deleted) throw StateError('Card is already deleted');
+      widget.viewModel.removeCardContent(record.card.cardId);
+      if (mounted) {
+        setState(() {
+          _allCards = _allCards
+              .where((item) => item.card.cardId != record.card.cardId)
+              .toList();
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('卡片没有删除成功，请重试')),
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -3891,6 +4047,19 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
                       color: colors.textFaint,
                     ),
                   const SizedBox(width: 4),
+                  IconButton(
+                    key: ValueKey('wb-library-delete-$cardId'),
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      size: 16,
+                      color: colors.textFaint,
+                    ),
+                    tooltip: '全局删除卡片',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: vm.isReadonly
+                        ? null
+                        : () => _confirmGlobalDelete(record),
+                  ),
                   IconButton(
                     icon: Icon(
                       Icons.space_dashboard_outlined,

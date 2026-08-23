@@ -25,6 +25,7 @@ class CardLocalMediaProjection {
     this.file,
     this.label,
     this.opensFull = false,
+    this.isImagePrimary = false,
   });
 
   const CardLocalMediaProjection.none()
@@ -34,26 +35,34 @@ class CardLocalMediaProjection {
     File file, {
     String? label,
     bool opensFull = false,
+    bool isImagePrimary = false,
   }) : this._(
           state: CardLocalMediaState.available,
           file: file,
           label: label,
           opensFull: opensFull,
+          isImagePrimary: isImagePrimary,
         );
 
   const CardLocalMediaProjection.missing({
     String? label,
     bool opensFull = false,
+    bool isImagePrimary = false,
   }) : this._(
           state: CardLocalMediaState.missing,
           label: label,
           opensFull: opensFull,
+          isImagePrimary: isImagePrimary,
         );
 
   final CardLocalMediaState state;
   final File? file;
   final String? label;
   final bool opensFull;
+
+  /// True only when the document is an image card, rather than text with an
+  /// embedded image. Titles created from filenames do not count as body text.
+  final bool isImagePrimary;
 
   bool get hasEvidence => state != CardLocalMediaState.none;
   bool get isAvailable => state == CardLocalMediaState.available;
@@ -74,12 +83,13 @@ class CardLocalMediaResolver {
     if (imageBlock != null) {
       final ref = document!.assetRefById(imageBlock.assetRefId ?? '');
       final label = _imageLabel(imageBlock);
-      final opensFull =
-          _firstContentBlock(document.blocks)?.type == BlockType.image;
+      final imagePrimary = isImagePrimaryDocument(document);
+      final opensFull = imagePrimary;
       if (ref == null || !ref.mimeType.startsWith('image/')) {
         return CardLocalMediaProjection.missing(
           label: label,
           opensFull: opensFull,
+          isImagePrimary: imagePrimary,
         );
       }
       final file = RichTextObjectStore(
@@ -89,11 +99,13 @@ class CardLocalMediaResolver {
           ? CardLocalMediaProjection.missing(
               label: label,
               opensFull: opensFull,
+              isImagePrimary: imagePrimary,
             )
           : CardLocalMediaProjection.available(
               file,
               label: label,
               opensFull: opensFull,
+              isImagePrimary: imagePrimary,
             );
     }
 
@@ -153,6 +165,26 @@ class CardLocalMediaResolver {
     }
     return null;
   }
+}
+
+/// Image-card classification shared by canvas, library and the full viewer.
+/// Nested editable text disqualifies an image-only card; captions/alt metadata
+/// remain image metadata and do not create a fake text editor.
+bool isImagePrimaryDocument(RichTextDocument document) {
+  final first = CardLocalMediaResolver._firstContentBlock(document.blocks);
+  if (first?.type != BlockType.image) return false;
+
+  bool hasEditableText(List<RichTextBlock> blocks) {
+    for (final block in blocks) {
+      if (block.type != BlockType.image && block.text.trim().isNotEmpty) {
+        return true;
+      }
+      if (hasEditableText(block.children)) return true;
+    }
+    return false;
+  }
+
+  return !hasEditableText(document.blocks);
 }
 
 class CardLocalMediaPreview extends StatefulWidget {

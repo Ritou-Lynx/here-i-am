@@ -18,12 +18,15 @@ import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor_screen.dart'
     as editor;
 import 'package:memex/ui/whiteboard/fonts.dart';
+import 'package:memex/ui/whiteboard/widgets/card_local_media_preview.dart';
+import 'package:memex/ui/whiteboard/widgets/card_tag_field.dart';
 
 /// Full-screen rich text editor for a card.
 class CardRichTextEditorScreen extends StatefulWidget {
@@ -88,6 +91,8 @@ class _EditorLoad {
     this.tagSuggestions = const [],
     this.message,
     this.error,
+    this.imageProjection,
+    this.card,
   });
 
   final RichTextStorage storage;
@@ -97,6 +102,8 @@ class _EditorLoad {
   final List<String> tagSuggestions;
   final String? message;
   final String? error;
+  final CardLocalMediaProjection? imageProjection;
+  final CardContract? card;
 }
 
 class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
@@ -131,6 +138,21 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
       final tagSuggestions = await repository.listDistinctTags();
       switch (record.documentState) {
         case CardDocumentState.available:
+          final projection = await CardLocalMediaResolver(repository).resolve(
+            widget.cardId,
+            card: record.card,
+          );
+          if (projection.isImagePrimary) {
+            return _EditorLoad(
+              storage: repository.richTextStorage,
+              repository: repository,
+              document: record.document,
+              tags: record.card.tags,
+              tagSuggestions: tagSuggestions,
+              imageProjection: projection,
+              card: record.card,
+            );
+          }
           return _EditorLoad(
             storage: repository.richTextStorage,
             repository: repository,
@@ -164,8 +186,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   }
 
   static RichTextDocument _projectionDocument(String body) => RichTextDocument(
-    blocks: [RichTextBlock(type: BlockType.paragraph, text: body)],
-  );
+        blocks: [RichTextBlock(type: BlockType.paragraph, text: body)],
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -189,6 +211,16 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
             onBack: _exitEditor,
           );
         }
+        if (load.imageProjection != null && load.card != null) {
+          return _ImagePrimaryCardScreen(
+            card: load.card!,
+            projection: load.imageProjection!,
+            tags: load.tags,
+            tagSuggestions: load.tagSuggestions,
+            repository: load.repository!,
+            onBack: _exitEditor,
+          );
+        }
         return editor.CardRichTextEditorScreen(
           storage: load.storage,
           cardId: widget.cardId,
@@ -200,7 +232,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
           onSaveDocument: load.repository == null
               ? null
               : (cardId, document) =>
-                    load.repository!.saveRichText(cardId, document),
+                  load.repository!.saveRichText(cardId, document),
           onSaveTags: load.repository == null
               ? null
               : (cardId, tags) async {
@@ -208,6 +240,136 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                 },
         );
       },
+    );
+  }
+}
+
+class _ImagePrimaryCardScreen extends StatefulWidget {
+  const _ImagePrimaryCardScreen({
+    required this.card,
+    required this.projection,
+    required this.tags,
+    required this.tagSuggestions,
+    required this.repository,
+    required this.onBack,
+  });
+
+  final CardContract card;
+  final CardLocalMediaProjection projection;
+  final List<String> tags;
+  final List<String> tagSuggestions;
+  final UnifiedCardRepository repository;
+  final VoidCallback onBack;
+
+  @override
+  State<_ImagePrimaryCardScreen> createState() =>
+      _ImagePrimaryCardScreenState();
+}
+
+class _ImagePrimaryCardScreenState extends State<_ImagePrimaryCardScreen> {
+  late List<String> _tags = List.of(widget.tags);
+  bool _saving = false;
+  String? _saveError;
+
+  Future<void> _saveTags(List<String> tags) async {
+    setState(() {
+      _tags = List.of(tags);
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      await widget.repository
+          .updateCardMetadata(widget.card.cardId, tags: tags);
+    } catch (_) {
+      if (mounted) setState(() => _saveError = '标签没有保存成功，请重试');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final file = widget.projection.file;
+    return Scaffold(
+      key: const ValueKey('image-primary-card-screen'),
+      backgroundColor: tokens.canvas,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DesktopPageTitle(
+            title: '查看图片',
+            meta: _saving ? '正在保存标签' : null,
+            onBack: widget.onBack,
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: tokens.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: tokens.divider),
+                ),
+                child: file == null
+                    ? Center(
+                        child: Text(
+                          '图片对象缺失',
+                          style: whiteboardUiTextStyle(
+                            color: tokens.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                      )
+                    : InteractiveViewer(
+                        minScale: .5,
+                        maxScale: 6,
+                        child: Center(
+                          child: Image.file(
+                            file,
+                            key: const ValueKey('image-primary-full-image'),
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Center(
+                              child: Text(
+                                '图片无法显示',
+                                style: whiteboardUiTextStyle(
+                                  color: tokens.textMuted,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                CardTagField(
+                  tags: _tags,
+                  suggestions: widget.tagSuggestions,
+                  enabled: !_saving,
+                  onChanged: _saveTags,
+                ),
+                if (_saveError != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _saveError!,
+                    style: whiteboardUiTextStyle(
+                      color: tokens.error,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -249,8 +411,8 @@ class _EditorRouteState extends StatelessWidget {
                         loading
                             ? Icons.hourglass_empty_rounded
                             : isError
-                            ? Icons.error_outline_rounded
-                            : Icons.info_outline_rounded,
+                                ? Icons.error_outline_rounded
+                                : Icons.info_outline_rounded,
                         size: 24,
                         color: isError ? tokens.error : tokens.textMuted,
                       ),
