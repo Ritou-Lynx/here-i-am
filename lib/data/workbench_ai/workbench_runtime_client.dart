@@ -70,6 +70,7 @@ abstract interface class WorkbenchConversationRuntimeGateway
     implements WorkbenchRuntimeGateway {
   Future<WorkbenchRuntimeSession> resumeSession({
     required String providerSessionId,
+    required List<Map<String, dynamic>> dynamicTools,
   });
 
   Future<void> interruptTurn({
@@ -123,12 +124,14 @@ class WorkbenchRuntimeClient implements WorkbenchConversationRuntimeGateway {
   @override
   Future<WorkbenchRuntimeSession> resumeSession({
     required String providerSessionId,
+    required List<Map<String, dynamic>> dynamicTools,
   }) async {
     final data = await _post('$prefix/sessions/resume', {
       'provider_session_id': providerSessionId,
       'config': {
         'ephemeral': false,
         'service_name': 'here_i_am_workbench',
+        if (dynamicTools.isNotEmpty) 'dynamic_tools': dynamicTools,
       },
     });
     final metadata = _map(data['provider_metadata']);

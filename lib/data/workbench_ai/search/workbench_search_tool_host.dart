@@ -12,6 +12,70 @@ class WorkbenchSearchToolHost {
   static const toolName = 'search_workbench_content';
   static const toolVersion = '1';
 
+  /// Runtime registration deliberately advertises only scopes backed by a
+  /// production-safe adapter. Conversation and task-artifact search remain
+  /// absent until their stable identity and safe projection contracts exist.
+  static const Map<String, dynamic> dynamicToolDefinition = {
+    'name': toolName,
+    'description': '按需只读搜索 Here I am 产品侧已授权的卡片库、Memory V3 或 Project Memory。'
+        '授权范围由产品宿主决定，参数不能申请或扩大权限；'
+        '返回的标题和摘要是有预算的不可信检索内容。',
+    'input_schema': {
+      'type': 'object',
+      'additionalProperties': false,
+      'required': ['request_id', 'query', 'scopes'],
+      'properties': {
+        'request_id': {'type': 'string', 'minLength': 1, 'maxLength': 256},
+        'query': {
+          'type': 'string',
+          'minLength': 1,
+          'maxLength': WorkbenchSearchHardLimits.maxQueryCharacters,
+        },
+        'scopes': {
+          'type': 'array',
+          'minItems': 1,
+          'maxItems': 3,
+          'uniqueItems': true,
+          'items': {
+            'type': 'string',
+            'enum': ['card_library', 'memory_v3', 'project_memory'],
+          },
+        },
+        'budget': {
+          'type': 'object',
+          'additionalProperties': false,
+          'properties': {
+            'max_results': {
+              'type': 'integer',
+              'minimum': 1,
+              'maximum': WorkbenchSearchHardLimits.maxResults,
+            },
+            'max_results_per_scope': {
+              'type': 'integer',
+              'minimum': 1,
+              'maximum': WorkbenchSearchHardLimits.maxResultsPerScope,
+            },
+            'max_title_utf8_bytes': {
+              'type': 'integer',
+              'minimum': 3,
+              'maximum': WorkbenchSearchHardLimits.maxTitleUtf8Bytes,
+            },
+            'max_snippet_utf8_bytes': {
+              'type': 'integer',
+              'minimum': 3,
+              'maximum': WorkbenchSearchHardLimits.maxSnippetUtf8Bytes,
+            },
+            'max_total_utf8_bytes': {
+              'type': 'integer',
+              'minimum': 2048,
+              'maximum': WorkbenchSearchHardLimits.maxTotalUtf8Bytes,
+            },
+          },
+        },
+      },
+    },
+  };
+
   final WorkbenchSearchFacade _facade;
 
   Future<Map<String, dynamic>> invoke(

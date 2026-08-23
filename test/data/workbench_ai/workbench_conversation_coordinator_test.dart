@@ -300,6 +300,7 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
   @override
   Future<WorkbenchRuntimeSession> resumeSession({
     required String providerSessionId,
+    required List<Map<String, dynamic>> dynamicTools,
   }) async {
     resumeSessionCalls++;
     resumedProviderIds.add(providerSessionId);
