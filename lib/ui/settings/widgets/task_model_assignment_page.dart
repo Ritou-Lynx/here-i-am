@@ -57,7 +57,7 @@ class TaskModelAssignmentPage extends StatefulWidget {
 class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   static const _inheritDefault = '__inherit_default__';
   static const _gameAgentId = 'game_agent';
-  static const _backgroundAsset = 'assets/images/雨玻璃.jpg';
+  static const _backgroundAsset = 'assets/images/闆ㄧ幓鐠?jpg';
   static const _warmSurface = SpringRainUiTokens.daylightCanvas;
   static const _warmControl = SpringRainUiTokens.daylightSurfaceMuted;
   static const _text = SpringRainUiTokens.daylightTextPrimary;
@@ -68,9 +68,9 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   static const _tasks = <_TaskModelDefinition>[
     _TaskModelDefinition(
       id: 'chat',
-      title: '聊天与互动',
-      description: '日常聊天、主动联系、澄清补全与游戏角色扮演',
-      membersLabel: '林埃聊天 · 主动联系 · 澄清补全 · 游戏跟随此项',
+      title: '鑱婂ぉ涓庝簰鍔?,
+      description: '鏃ュ父鑱婂ぉ銆佷富鍔ㄨ仈绯汇€佹緞娓呰ˉ鍏ㄤ笌娓告垙瑙掕壊鎵紨',
+      membersLabel: '鏋楀焹鑱婂ぉ 路 涓诲姩鑱旂郴 路 婢勬竻琛ュ叏 路 娓告垙璺熼殢姝ら」',
       agentIds: [
         AgentDefinitions.companionAgent,
         AgentDefinitions.checkinAgent,
@@ -79,9 +79,9 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     ),
     _TaskModelDefinition(
       id: 'memory',
-      title: '记忆整理',
-      description: '记录整理、Fragment、凝结与角色记忆摘要',
-      membersLabel: '记录整理 · 角色记忆摘要',
+      title: '璁板繂鏁寸悊',
+      description: '璁板綍鏁寸悊銆丗ragment銆佸嚌缁撲笌瑙掕壊璁板繂鎽樿',
+      membersLabel: '璁板綍鏁寸悊 路 瑙掕壊璁板繂鎽樿',
       agentIds: [
         AgentDefinitions.recordOrganizerAgent,
         AgentDefinitions.profileAgent,
@@ -89,9 +89,9 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     ),
     _TaskModelDefinition(
       id: 'schedule',
-      title: '日程分析',
-      description: '日程识别与路由刷新',
-      membersLabel: '日程整理 · 日程路由',
+      title: '鏃ョ▼鍒嗘瀽',
+      description: '鏃ョ▼璇嗗埆涓庤矾鐢卞埛鏂?,
+      membersLabel: '鏃ョ▼鏁寸悊 路 鏃ョ▼璺敱',
       agentIds: [
         AgentDefinitions.scheduleAggregatorAgent,
         AgentDefinitions.scheduleRefreshRouterAgent,
@@ -99,9 +99,9 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     ),
     _TaskModelDefinition(
       id: 'content',
-      title: '内容分析',
-      description: '媒体、跨记录洞察、生活洞察与语义检索',
-      membersLabel: '媒体分析 · 跨记录洞察 · 生活洞察 · 语义检索',
+      title: '鍐呭鍒嗘瀽',
+      description: '濯掍綋銆佽法璁板綍娲炲療銆佺敓娲绘礊瀵熶笌璇箟妫€绱?,
+      membersLabel: '濯掍綋鍒嗘瀽 路 璺ㄨ褰曟礊瀵?路 鐢熸椿娲炲療 路 璇箟妫€绱?,
       agentIds: [
         AgentDefinitions.analyzeAssets,
         AgentDefinitions.lifeInsightAgent,
@@ -114,68 +114,68 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   /// legacy Chat/Comment entries intentionally stay out of this list.
   static const _agentGroups = <_AgentGroupDefinition>[
     _AgentGroupDefinition(
-      title: '高频路径',
+      title: '楂橀璺緞',
       agents: [
         _AgentModelDefinition(
           id: AgentDefinitions.companionAgent,
-          title: '林埃聊天',
-          description: '主聊天、共读与悬浮球对话',
+          title: '鏋楀焹鑱婂ぉ',
+          description: '涓昏亰澶┿€佸叡璇讳笌鎮诞鐞冨璇?,
         ),
         _AgentModelDefinition(
           id: _gameAgentId,
-          title: '游戏角色扮演',
-          description: 'SillyTavern 与后续游戏会话',
+          title: '娓告垙瑙掕壊鎵紨',
+          description: 'SillyTavern 涓庡悗缁父鎴忎細璇?,
           followsAgentId: AgentDefinitions.companionAgent,
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.recordOrganizerAgent,
-          title: '记录整理',
-          description: 'User-truth、Fragment 与记忆凝结',
+          title: '璁板綍鏁寸悊',
+          description: 'User-truth銆丗ragment 涓庤蹇嗗嚌缁?,
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.checkinAgent,
-          title: '主动联系',
-          description: '主动消息与陪伴判断',
+          title: '涓诲姩鑱旂郴',
+          description: '涓诲姩娑堟伅涓庨櫔浼村垽鏂?,
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.scheduleAggregatorAgent,
-          title: '日程整理',
-          description: '日程与任务聚合',
+          title: '鏃ョ▼鏁寸悊',
+          description: '鏃ョ▼涓庝换鍔¤仛鍚?,
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.scheduleRefreshRouterAgent,
-          title: '日程路由',
-          description: '识别需要刷新的日程路径',
+          title: '鏃ョ▼璺敱',
+          description: '璇嗗埆闇€瑕佸埛鏂扮殑鏃ョ▼璺緞',
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.analyzeAssets,
-          title: '媒体分析',
-          description: '图片、语音与附件分析',
+          title: '濯掍綋鍒嗘瀽',
+          description: '鍥剧墖銆佽闊充笌闄勪欢鍒嗘瀽',
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.lifeInsightAgent,
-          title: '生活洞察',
-          description: '节律、健康、财务与日程观察',
+          title: '鐢熸椿娲炲療',
+          description: '鑺傚緥銆佸仴搴枫€佽储鍔′笌鏃ョ▼瑙傚療',
         ),
       ],
     ),
     _AgentGroupDefinition(
-      title: '基础能力',
+      title: '鍩虹鑳藉姏',
       agents: [
         _AgentModelDefinition(
           id: AgentDefinitions.profileAgent,
-          title: '角色记忆摘要',
-          description: '角色上下文压缩与记忆摘要',
+          title: '瑙掕壊璁板繂鎽樿',
+          description: '瑙掕壊涓婁笅鏂囧帇缂╀笌璁板繂鎽樿',
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.clarificationResolutionAgent,
-          title: '澄清与补全',
-          description: '处理需要进一步确认的内容',
+          title: '婢勬竻涓庤ˉ鍏?,
+          description: '澶勭悊闇€瑕佽繘涓€姝ョ‘璁ょ殑鍐呭',
         ),
         _AgentModelDefinition(
           id: AgentDefinitions.embeddingAgent,
-          title: '语义检索',
-          description: 'Embedding 与相似度召回',
+          title: '璇箟妫€绱?,
+          description: 'Embedding 涓庣浉浼煎害鍙洖',
         ),
       ],
     ),
@@ -314,9 +314,9 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
         _taskSelectedKeys = taskState.selected;
         _mixedTaskIds = taskState.mixed;
       });
-      _showSaved('${task.title}已切换');
+      _showSaved('${task.title}宸插垏鎹?);
     } catch (error) {
-      _showError('切换失败：$error');
+      _showError('鍒囨崲澶辫触锛?error');
     } finally {
       if (mounted) setState(() => _savingId = null);
     }
@@ -342,9 +342,9 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
         _taskSelectedKeys = taskState.selected;
         _mixedTaskIds = taskState.mixed;
       });
-      _showSaved('${agent.title}已切换');
+      _showSaved('${agent.title}宸插垏鎹?);
     } catch (error) {
-      _showError('切换失败：$error');
+      _showError('鍒囨崲澶辫触锛?error');
     } finally {
       if (mounted) setState(() => _savingId = null);
     }
@@ -362,7 +362,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
 
   String _configLabel(LLMConfig config) {
     final model = config.modelId.trim();
-    return model.isEmpty ? config.key : '${config.key} · $model';
+    return model.isEmpty ? config.key : '${config.key} 路 $model';
   }
 
   String _effectiveModelLabel(String? selected) {
@@ -370,7 +370,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     for (final config in _configs) {
       if (config.key == key) return _configLabel(config);
     }
-    return '尚未配置';
+    return '灏氭湭閰嶇疆';
   }
 
   String _dropdownValue(String? selected) {
@@ -430,8 +430,8 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
                                 const SizedBox(height: 16),
                                 Text(
                                   _mode == ModelAssignmentMode.tasks
-                                      ? '按用途会同时切换这一用途下的全部 Agent。游戏始终跟随聊天模型。'
-                                      : '这是同一套配置的逐 Agent 视图；可单独覆盖某条路径，也可看见明确的跟随关系。',
+                                      ? '鎸夌敤閫斾細鍚屾椂鍒囨崲杩欎竴鐢ㄩ€斾笅鐨勫叏閮?Agent銆傛父鎴忓缁堣窡闅忚亰澶╂ā鍨嬨€?
+                                      : '杩欐槸鍚屼竴濂楅厤缃殑閫?Agent 瑙嗗浘锛涘彲鍗曠嫭瑕嗙洊鏌愭潯璺緞锛屼篃鍙湅瑙佹槑纭殑璺熼殢鍏崇郴銆?,
                                   style: const TextStyle(
                                     color: _secondary,
                                     height: 1.45,
@@ -486,7 +486,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
           ),
           const Expanded(
             child: Text(
-              '模型分配',
+              '妯″瀷鍒嗛厤',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: SpringRainUiTokens.daylightTextOnAccent,
@@ -515,12 +515,12 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
       child: Row(
         children: [
           _ModeButton(
-            label: '按用途',
+            label: '鎸夌敤閫?,
             selected: _mode == ModelAssignmentMode.tasks,
             onTap: () => setState(() => _mode = ModelAssignmentMode.tasks),
           ),
           _ModeButton(
-            label: '按 Agent',
+            label: '鎸?Agent',
             selected: _mode == ModelAssignmentMode.agents,
             onTap: () => setState(() => _mode = ModelAssignmentMode.agents),
           ),
@@ -537,7 +537,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
       title: task.title,
       description: task.description,
       technicalLabel:
-          mixed ? '包含单独配置 · ${task.membersLabel}' : task.membersLabel,
+          mixed ? '鍖呭惈鍗曠嫭閰嶇疆 路 ${task.membersLabel}' : task.membersLabel,
       saving: saving,
       child: _buildDropdown(
         key: ValueKey('task-model-${task.id}-${_dropdownValue(selected)}'),
@@ -556,11 +556,11 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
       title: agent.title,
       description: agent.description,
       technicalLabel:
-          followsAgentId == null ? agent.id : '${agent.id} · 不单独保存模型配置',
+          followsAgentId == null ? agent.id : '${agent.id} 路 涓嶅崟鐙繚瀛樻ā鍨嬮厤缃?,
       saving: saving,
       child: followsAgentId != null
           ? _InheritedModelLabel(
-              text: '跟随林埃聊天 · ${_effectiveModelLabel(selected)}',
+              text: '璺熼殢鏋楀焹鑱婂ぉ 路 ${_effectiveModelLabel(selected)}',
             )
           : _buildDropdown(
               key: ValueKey(
@@ -579,8 +579,8 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     required ValueChanged<String> onChanged,
   }) {
     final effectiveKey = selected ?? _defaultKey;
-    final currentStatus = _connectivity[effectiveKey]?.status ??
-        _ConnectivityStatus.idle;
+    final connState = _connectivity[effectiveKey] ??
+        const _ConnectivityState();
     return DropdownButtonFormField<String>(
       key: key,
       initialValue: _dropdownValue(selected),
@@ -594,8 +594,8 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-        suffixIcon: _ConnectivityDot(
-          status: currentStatus,
+        suffixIcon: _ConnectivityBadge(
+          state: connState,
           onTap: () => _testConnectivity(effectiveKey),
         ),
       ),
@@ -603,7 +603,7 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
         DropdownMenuItem(
           value: _inheritDefault,
           child: _DropdownItem(
-            text: '继承默认 · ${_effectiveModelLabel(null)}',
+            text: '缁ф壙榛樿 路 ${_effectiveModelLabel(null)}',
             status: _connectivity[_defaultKey]?.status ??
                 _ConnectivityStatus.idle,
           ),
@@ -810,41 +810,50 @@ class _AgentModelDefinition {
 }
 
 /// Small colored dot showing model connectivity status. Tappable to retest.
-class _ConnectivityDot extends StatelessWidget {
-  const _ConnectivityDot({required this.status, this.onTap});
+class _ConnectivityBadge extends StatelessWidget {
+  const _ConnectivityBadge({required this.state, this.onTap});
 
-  final _ConnectivityStatus status;
+  final _ConnectivityState state;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      _ConnectivityStatus.ok => const Color(0xFF5B8C5A),
-      _ConnectivityStatus.fail => const Color(0xFFC46B5A),
-      _ConnectivityStatus.testing => _TaskModelAssignmentPageState._accent,
-      _ConnectivityStatus.idle => _TaskModelAssignmentPageState._secondary,
+    final status = state.status;
+    final (color, label) = switch (status) {
+      _ConnectivityStatus.ok => (
+        const Color(0xFF5B8C5A),
+        state.responseTime != null
+            ? '鍙敤 ${_formatDuration(state.responseTime!)}'
+            : '鍙敤'
+      ),
+      _ConnectivityStatus.fail => (
+        const Color(0xFFC46B5A),
+        _shortError(state.error) ?? '涓嶅彲鐢?
+      ),
+      _ConnectivityStatus.testing => (
+        _TaskModelAssignmentPageState._accent,
+        '娴嬭瘯涓?
+      ),
+      _ConnectivityStatus.idle => (
+        _TaskModelAssignmentPageState._secondary,
+        '鏈祴璇?
+      ),
     };
-    final child = status == _ConnectivityStatus.testing
+    final dot = status == _ConnectivityStatus.testing
         ? SizedBox(
-            width: 12,
-            height: 12,
+            width: 11,
+            height: 11,
             child: CircularProgressIndicator(
-              strokeWidth: 1.8,
+              strokeWidth: 1.6,
               color: color,
             ),
           )
         : Container(
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.3),
-                  blurRadius: 4,
-                ),
-              ],
             ),
           );
     return Padding(
@@ -852,9 +861,43 @@ class _ConnectivityDot extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Center(child: child),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            dot,
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  height: 1.1,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  static String _formatDuration(Duration d) {
+    final ms = d.inMilliseconds;
+    if (ms < 1000) return '${ms}ms';
+    return '${(ms / 1000).toStringAsFixed(1)}s';
+  }
+
+  static String? _shortError(String? error) {
+    if (error == null || error.trim().isEmpty) return null;
+    var s = error.trim();
+    // Common noise that doesn't help the user.
+    s = s.replaceFirst(RegExp(r'^DioException:\s*'), '');
+    s = s.replaceFirst(RegExp(r'^Exception:\s*'), '');
+    if (s.length > 40) s = '${s.substring(0, 40)}鈥?;
+    return s;
   }
 }
 
