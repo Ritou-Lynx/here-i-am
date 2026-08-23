@@ -84,7 +84,16 @@ void main() {
     expect(
         find.descendant(of: embeddedEditor, matching: find.byType(TextField)),
         findsOneWidget);
-    expect(tester.widget<TextField>(inlineDocument).decoration, isNull);
+    final inlineDecoration =
+        tester.widget<TextField>(inlineDocument).decoration;
+    expect(inlineDecoration?.border, isA<OutlineInputBorder>());
+    expect(
+      (inlineDecoration?.border as OutlineInputBorder).borderSide,
+      BorderSide.none,
+    );
+    expect(inlineDecoration?.focusedBorder, InputBorder.none);
+    expect(inlineDecoration?.filled, isFalse);
+    expect(inlineDecoration?.fillColor, Colors.transparent);
     expect(
         find.descendant(
           of: embeddedEditor,

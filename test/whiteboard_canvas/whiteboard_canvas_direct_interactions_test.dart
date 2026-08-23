@@ -625,7 +625,16 @@ void main() {
     );
     expect(find.descendant(of: editor, matching: find.byType(TextField)),
         findsOneWidget);
-    expect(tester.widget<TextField>(documentField).decoration, isNull);
+    final documentDecoration =
+        tester.widget<TextField>(documentField).decoration;
+    expect(documentDecoration?.border, isA<OutlineInputBorder>());
+    expect(
+      (documentDecoration?.border as OutlineInputBorder).borderSide,
+      BorderSide.none,
+    );
+    expect(documentDecoration?.focusedBorder, InputBorder.none);
+    expect(documentDecoration?.filled, isFalse);
+    expect(documentDecoration?.fillColor, Colors.transparent);
     // TextField autofocus is claimed on the next frame after the async Card
     // load inserts the continuous editor.
     await tester.pump();

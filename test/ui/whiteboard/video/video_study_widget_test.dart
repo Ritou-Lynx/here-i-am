@@ -1383,7 +1383,7 @@ void main() {
     expect(find.byKey(const ValueKey('bilibili_retry_player')), findsOneWidget);
     expect(find.textContaining('清除'), findsNothing);
     expect(find.text('失败分类：公开路径不可用'), findsOneWidget);
-    expect(find.textContaining('不会读取嵌入页登录态'), findsOneWidget);
+    expect(find.textContaining('应用不读取或保存登录态'), findsOneWidget);
     expect(find.textContaining('SRT / VTT'), findsOneWidget);
     expect(find.text('导入字幕'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('bilibili_open_login')));
