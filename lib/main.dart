@@ -714,7 +714,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
                 height: 1,
                 child: XhsHiddenWebViewHost(),
               ),
-            if (AppFlavor.isHereIAm)
+            if (AppFlavor.isHereIAm && (Platform.isAndroid || Platform.isIOS))
               ValueListenableBuilder<bool>(
                 valueListenable:
                     AppStartupVisibilityController.isAppInteractive,
@@ -734,7 +734,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
                 _hasUser &&
                 !_isLocked)
               const Positioned.fill(
-                child: GlobalDesktopChatOverlayHost(),
+                child: GlobalDesktopChatOverlayHost(characterId: 'i'),
               ),
           ],
         );

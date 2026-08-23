@@ -59,10 +59,12 @@ class GlobalDesktopChatOverlay extends StatefulWidget {
   const GlobalDesktopChatOverlay({
     super.key,
     this.controller,
+    this.characterId,
     this.characterIdResolver,
   });
 
   final GlobalDesktopChatOverlayController? controller;
+  final String? characterId;
   final Future<String?> Function()? characterIdResolver;
 
   @override
@@ -79,10 +81,12 @@ class GlobalDesktopChatOverlayHost extends StatelessWidget {
   const GlobalDesktopChatOverlayHost({
     super.key,
     this.controller,
+    this.characterId,
     this.characterIdResolver,
   });
 
   final GlobalDesktopChatOverlayController? controller;
+  final String? characterId;
   final Future<String?> Function()? characterIdResolver;
 
   @override
@@ -92,6 +96,7 @@ class GlobalDesktopChatOverlayHost extends StatelessWidget {
         OverlayEntry(
           builder: (_) => GlobalDesktopChatOverlay(
             controller: controller,
+            characterId: characterId,
             characterIdResolver: characterIdResolver,
           ),
         ),
@@ -112,7 +117,7 @@ class _GlobalDesktopChatOverlayState extends State<GlobalDesktopChatOverlay> {
     super.initState();
     _controller.addListener(_handleControllerChanged);
     CharacterService.instance.addListener(_handleCharacterChanged);
-    _resolveCharacter();
+    if (widget.characterId == null) _resolveCharacter();
   }
 
   @override
@@ -124,10 +129,11 @@ class _GlobalDesktopChatOverlayState extends State<GlobalDesktopChatOverlay> {
       oldController.removeListener(_handleControllerChanged);
       _controller.addListener(_handleControllerChanged);
     }
-    if (oldWidget.characterIdResolver != widget.characterIdResolver) {
+    if (oldWidget.characterId != widget.characterId ||
+        oldWidget.characterIdResolver != widget.characterIdResolver) {
       _characterRetryTimer?.cancel();
       _characterId = null;
-      _resolveCharacter();
+      if (widget.characterId == null) _resolveCharacter();
     }
   }
 
@@ -183,7 +189,8 @@ class _GlobalDesktopChatOverlayState extends State<GlobalDesktopChatOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final characterId = _controller.expectedCharacterId ?? _characterId;
+    final characterId =
+        _controller.expectedCharacterId ?? widget.characterId ?? _characterId;
     if (characterId == null) return const SizedBox.shrink();
     final pageContext =
         _controller.temporaryContextLabel ?? _desktopPageContextLabel(context);

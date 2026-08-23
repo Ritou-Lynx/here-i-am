@@ -227,6 +227,39 @@ void main() {
   );
 
   testWidgets(
+    'fixed Here I am identity shows the desktop entry without DB resolution',
+    (tester) async {
+      var resolutionCalls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => Stack(
+            children: [
+              if (child != null) child,
+              Positioned.fill(
+                child: GlobalDesktopChatOverlayHost(
+                  characterId: 'i',
+                  characterIdResolver: () async {
+                    resolutionCalls += 1;
+                    return null;
+                  },
+                ),
+              ),
+            ],
+          ),
+          home: const Scaffold(body: Text('工作台')),
+        ),
+      );
+      await tester.pump();
+
+      expect(resolutionCalls, 0);
+      expect(
+        find.byKey(const ValueKey('desktop_floating_ball')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
     'desktop presentation renders real turns and uses supplied send',
     (tester) async {
       final controller = TextEditingController(text: '继续整理');
