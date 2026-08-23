@@ -89,6 +89,12 @@ class VideoStudyViewModel extends ChangeNotifier {
   bool _disposed = false;
   bool _hadTimeAnchorCapability = false;
   int _lifecycleEpoch = 0;
+  String? _segmentCardId;
+  int? _segmentStartMs;
+  int? _segmentEndMs;
+  final Set<String> _loopingSegmentCardIds = <String>{};
+  int _segmentEpoch = 0;
+  bool _settlingSegmentBoundary = false;
 
   VideoStudyViewModel({
     required this.adapter,
@@ -209,7 +215,22 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   // ─── Annotations ───
 
-  List<UIAnnotation> get annotations => List.unmodifiable(_annotations);
+  List<UIAnnotation> get annotations {
+    final sorted = List<UIAnnotation>.of(_annotations)
+      ..sort((a, b) {
+        final byStart = a.startMs.compareTo(b.startMs);
+        if (byStart != 0) return byStart;
+        final byCreated = a.card.createdAt.compareTo(b.card.createdAt);
+        if (byCreated != 0) return byCreated;
+        return a.card.cardId.compareTo(b.card.cardId);
+      });
+    return List.unmodifiable(sorted);
+  }
+
+  String? get activeSegmentCardId => _segmentCardId;
+
+  bool isSegmentLoopEnabled(String cardId) =>
+      _loopingSegmentCardIds.contains(cardId);
 
   // ─── Dock ───
 
@@ -242,6 +263,7 @@ class VideoStudyViewModel extends ChangeNotifier {
       runtimePlayerAvailable && hasAnyPlaybackSurface;
 
   void setDockVisible(bool visible) {
+    if (!visible) cancelSegmentPlayback();
     _dockVisible = visible;
     notifyListeners();
     saveSession();
@@ -286,6 +308,7 @@ class VideoStudyViewModel extends ChangeNotifier {
           onPositionChanged: (ms) {
             if (!_isCurrentEpoch(epoch)) return;
             _positionMs = ms;
+            _handleSegmentPosition(ms);
             _handleAdapterRuntimeState();
           },
           onDurationChanged: (ms) {
@@ -309,6 +332,7 @@ class VideoStudyViewModel extends ChangeNotifier {
           onPositionChanged: (ms) {
             if (!_isCurrentEpoch(epoch)) return;
             _positionMs = ms;
+            _handleSegmentPosition(ms);
             _handleAdapterRuntimeState();
           },
           onDurationChanged: (ms) {
@@ -470,6 +494,7 @@ class VideoStudyViewModel extends ChangeNotifier {
         },
         onPositionChanged: (ms) {
           _positionMs = ms;
+          _handleSegmentPosition(ms);
           _handleAdapterRuntimeState();
         },
         onDurationChanged: (ms) {
@@ -510,14 +535,138 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   Future<void> seekTo(int ms) async {
     if (!canSeek) return;
-    await _syncController?.seekToPosition(ms);
+    cancelSegmentPlayback();
+    await _seekToRaw(ms);
     notifyListeners();
   }
 
   Future<void> seekToCue(int cueIndex) async {
     if (!canSeek || _track == null) return;
+    cancelSegmentPlayback();
     await _syncController?.seekToCue(cueIndex);
     notifyListeners();
+  }
+
+  Future<void> _seekToRaw(int ms) async {
+    final controller = _syncController;
+    if (controller != null) {
+      await controller.seekToPosition(ms);
+    } else {
+      await adapter.seekTo(ms);
+    }
+    _positionMs = ms;
+  }
+
+  /// Activates a saved note. Point notes only seek. Range notes play from
+  /// start until end and then pause, or repeat when that card's loop is on.
+  Future<void> activateAnnotation(UIAnnotation annotation) async {
+    // Await the previous segment's pause before starting another one. Native
+    // WebView adapters may complete pause asynchronously; fire-and-forget here
+    // can otherwise let an old pause arrive after the new play command.
+    await _cancelSegmentPlaybackAndWait();
+    if (_disposed) return;
+    final start = annotation.startMs;
+    final end = annotation.endMs;
+    if (annotation.isPoint || end <= start) {
+      await _seekToRaw(start);
+      if (!_disposed) notifyListeners();
+      return;
+    }
+    final epoch = ++_segmentEpoch;
+    _segmentCardId = annotation.card.cardId;
+    _segmentStartMs = start;
+    _segmentEndMs = end;
+    await _seekToRaw(start);
+    if (_disposed || epoch != _segmentEpoch) return;
+    await adapter.play();
+    if (_disposed || epoch != _segmentEpoch) return;
+    _isPlaying = true;
+    notifyListeners();
+  }
+
+  Future<void> toggleSegmentLoop(UIAnnotation annotation) async {
+    final cardId = annotation.card.cardId;
+    if (_loopingSegmentCardIds.remove(cardId)) {
+      notifyListeners();
+      return;
+    }
+    _loopingSegmentCardIds.add(cardId);
+    notifyListeners();
+    if (_segmentCardId != cardId) {
+      await activateAnnotation(annotation);
+    }
+  }
+
+  void cancelSegmentPlayback() {
+    final hadSegment = _segmentCardId != null;
+    _segmentEpoch++;
+    _segmentCardId = null;
+    _segmentStartMs = null;
+    _segmentEndMs = null;
+    _settlingSegmentBoundary = false;
+    if (hadSegment) {
+      unawaited(_pauseBestEffort());
+      _isPlaying = false;
+    }
+  }
+
+  Future<void> _cancelSegmentPlaybackAndWait() async {
+    final hadSegment = _segmentCardId != null;
+    _segmentEpoch++;
+    _segmentCardId = null;
+    _segmentStartMs = null;
+    _segmentEndMs = null;
+    _settlingSegmentBoundary = false;
+    if (!hadSegment) return;
+    await _pauseBestEffort();
+    _isPlaying = false;
+  }
+
+  Future<void> _pauseBestEffort() async {
+    try {
+      await adapter.pause();
+    } catch (_) {
+      // A runtime bridge may disappear while leaving the source. Session
+      // state must still be cleared even if the platform rejects the pause.
+    }
+  }
+
+  void _handleSegmentPosition(int positionMs) {
+    final end = _segmentEndMs;
+    if (end == null || positionMs < end || _settlingSegmentBoundary) return;
+    _settlingSegmentBoundary = true;
+    final epoch = _segmentEpoch;
+    unawaited(_settleSegmentBoundary(epoch));
+  }
+
+  Future<void> _settleSegmentBoundary(int epoch) async {
+    final cardId = _segmentCardId;
+    final start = _segmentStartMs;
+    if (cardId == null || start == null || epoch != _segmentEpoch) return;
+    if (_loopingSegmentCardIds.contains(cardId)) {
+      await _seekToRaw(start);
+      if (_disposed || epoch != _segmentEpoch) return;
+      await adapter.play();
+      if (_disposed || epoch != _segmentEpoch) return;
+      _isPlaying = true;
+      _settlingSegmentBoundary = false;
+      notifyListeners();
+      return;
+    }
+    await _pauseBestEffort();
+    if (_disposed || epoch != _segmentEpoch) return;
+    final end = _segmentEndMs;
+    if (end != null) {
+      await _seekToRaw(end);
+      if (_disposed || epoch != _segmentEpoch) return;
+    }
+    _isPlaying = false;
+    _segmentCardId = null;
+    _segmentStartMs = null;
+    _segmentEndMs = null;
+    _settlingSegmentBoundary = false;
+    notifyListeners();
+    saveSession();
   }
 
   // ─── Annotations ───
@@ -725,6 +874,54 @@ class VideoStudyViewModel extends ChangeNotifier {
     return true;
   }
 
+  Future<bool> updateAnnotationDocument({
+    required UIAnnotation annotation,
+    required String title,
+    required String body,
+  }) async {
+    if (_disposed) return false;
+    try {
+      final updatedCard = annotationStore == null
+          ? CardContract(
+              cardId: annotation.card.cardId,
+              cardKind: annotation.card.cardKind,
+              sourceId: annotation.card.sourceId,
+              ownerSpace: annotation.card.ownerSpace,
+              title: title,
+              body: body,
+              tags: annotation.card.tags,
+              presentation: annotation.card.presentation,
+              createdBy: annotation.card.createdBy,
+              createdAt: annotation.card.createdAt,
+              updatedAt: DateTime.now().toUtc(),
+              deletedAt: annotation.card.deletedAt,
+            )
+          : await annotationStore!.updateAnnotationCard(
+              cardId: annotation.card.cardId,
+              title: title,
+              body: body,
+            );
+      if (_disposed) return false;
+      final index = _annotations.indexWhere(
+        (item) => item.card.cardId == annotation.card.cardId,
+      );
+      if (index < 0) return false;
+      _annotations[index] = UIAnnotation(
+        anchor: _annotations[index].anchor,
+        card: updatedCard,
+      );
+      _errorMessage = null;
+      notifyListeners();
+      saveSession();
+      return true;
+    } catch (error) {
+      if (_disposed) return false;
+      _errorMessage = '笔记保存失败：$error';
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Dismisses the save confirmation immediately.
   void dismissSaveConfirmation() {
     _saveConfirmationTimer?.cancel();
@@ -893,6 +1090,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     if (_disposed) return;
     final hasCapability = canCreateTimeAnchorNow;
     if (_hadTimeAnchorCapability && !hasCapability) {
+      cancelSegmentPlayback();
       _clearTransientAnnotationState(clearRange: true);
     }
     _hadTimeAnchorCapability = hasCapability;
@@ -914,6 +1112,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     if (_disposed) return;
     _disposed = true;
     _lifecycleEpoch++;
+    cancelSegmentPlayback();
     _saveConfirmationTimer?.cancel();
     _saveConfirmationTimer = null;
     _syncController?.dispose();

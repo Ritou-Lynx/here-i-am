@@ -22,6 +22,12 @@ abstract interface class VideoAnnotationStore {
     required String currentVersionId,
     int? currentDurationMs,
   });
+
+  Future<CardContract> updateAnnotationCard({
+    required String cardId,
+    required String title,
+    required String body,
+  });
 }
 
 class RepositoryVideoAnnotationStore implements VideoAnnotationStore {
@@ -60,6 +66,21 @@ class RepositoryVideoAnnotationStore implements VideoAnnotationStore {
       ),
     );
     return VideoAnnotationResult(anchor: draft.anchor, card: persisted);
+  }
+
+  /// Updates the editable Card projection without changing its immutable
+  /// Anchor identity or time range.
+  @override
+  Future<CardContract> updateAnnotationCard({
+    required String cardId,
+    required String title,
+    required String body,
+  }) {
+    return repository.updateCardMetadata(
+      cardId,
+      title: title,
+      body: body,
+    );
   }
 
   /// Restores annotation cards for one Source from the unified repository.

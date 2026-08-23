@@ -46,6 +46,7 @@ class VideoStudyScreen extends StatefulWidget {
   final VideoAnnotationStore? annotationStore;
   final bool runtimePlayerAvailable;
   final VoidCallback? onBack;
+  final VoidCallback? onEditTags;
 
   const VideoStudyScreen({
     super.key,
@@ -61,6 +62,7 @@ class VideoStudyScreen extends StatefulWidget {
     this.annotationStore,
     this.runtimePlayerAvailable = true,
     this.onBack,
+    this.onEditTags,
   });
 
   @override
@@ -153,6 +155,7 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
                       return _VideoStudyBody(
                         viewModel: vm,
                         embedUrl: widget.embedUrl,
+                        onEditTags: widget.onEditTags,
                       );
                     },
                   ),
@@ -221,8 +224,13 @@ class _VideoStudyBody extends StatelessWidget {
 
   final VideoStudyViewModel viewModel;
   final String? embedUrl;
+  final VoidCallback? onEditTags;
 
-  const _VideoStudyBody({required this.viewModel, this.embedUrl});
+  const _VideoStudyBody({
+    required this.viewModel,
+    this.embedUrl,
+    this.onEditTags,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -259,11 +267,15 @@ class _VideoStudyBody extends StatelessWidget {
         final effectiveOrientation =
             autoBottom ? DockOrientation.bottom : viewModel.dockOrientation;
         if (effectiveOrientation == DockOrientation.right) {
-          return _HorizontalLayout(viewModel: viewModel);
+          return _HorizontalLayout(
+            viewModel: viewModel,
+            onEditTags: onEditTags,
+          );
         }
         return _VerticalLayout(
           viewModel: viewModel,
           orientationLocked: autoBottom,
+          onEditTags: onEditTags,
         );
       },
     );
@@ -277,8 +289,9 @@ class _HorizontalLayout extends StatelessWidget {
   static const double _minimumDockWidth = 320;
 
   final VideoStudyViewModel viewModel;
+  final VoidCallback? onEditTags;
 
-  const _HorizontalLayout({required this.viewModel});
+  const _HorizontalLayout({required this.viewModel, this.onEditTags});
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +326,10 @@ class _HorizontalLayout extends StatelessWidget {
               SizedBox(
                 key: const ValueKey('video_context_dock_region'),
                 width: dockWidth,
-                child: ContextDock(viewModel: viewModel),
+                child: ContextDock(
+                  viewModel: viewModel,
+                  onEditTags: onEditTags,
+                ),
               ),
             ],
           ),
@@ -332,10 +348,12 @@ class _VerticalLayout extends StatelessWidget {
 
   final VideoStudyViewModel viewModel;
   final bool orientationLocked;
+  final VoidCallback? onEditTags;
 
   const _VerticalLayout({
     required this.viewModel,
     required this.orientationLocked,
+    this.onEditTags,
   });
 
   @override
@@ -378,6 +396,7 @@ class _VerticalLayout extends StatelessWidget {
                   viewModel: viewModel,
                   displayOrientation: DockOrientation.bottom,
                   orientationLocked: orientationLocked,
+                  onEditTags: onEditTags,
                 ),
               ),
             ],

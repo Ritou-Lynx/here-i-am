@@ -356,6 +356,36 @@ void main() {
       isTrue,
     );
   });
+
+  test('editing a video note updates its Card and preserves the Anchor',
+      () async {
+    final store = RepositoryVideoAnnotationStore(repository);
+    final created = await store.createAnnotation(
+      sourceId: 'src_youtube_demo',
+      sourceVersionId: 'ver_youtube_demo_v1',
+      request: const AnnotationCreationRequest(
+        spec: TimeRangeAnchorSpec(startMs: 10000, endMs: 14000),
+        title: '编辑前',
+        body: '旧正文',
+      ),
+    );
+
+    final updated = await store.updateAnnotationCard(
+      cardId: created.card.cardId,
+      title: '编辑后',
+      body: '连续编辑后的正文',
+    );
+    final restored = await store.listAnnotations(
+      sourceId: 'src_youtube_demo',
+      currentVersionId: 'ver_youtube_demo_v1',
+    );
+
+    expect(updated.title, '编辑后');
+    expect(updated.body, '连续编辑后的正文');
+    expect(restored.single.anchor.toJson(), created.anchor.toJson());
+    expect(restored.single.card.title, '编辑后');
+    expect(restored.single.card.body, '连续编辑后的正文');
+  });
 }
 
 CardContract _completeAnnotationCard(

@@ -137,6 +137,15 @@ class _ThrowingAnnotationStore implements VideoAnnotationStore {
     int? currentDurationMs,
   }) async =>
       const [];
+
+  @override
+  Future<CardContract> updateAnnotationCard({
+    required String cardId,
+    required String title,
+    required String body,
+  }) {
+    throw StateError('annotation-store-secret-token');
+  }
 }
 
 class _ThrowingSessionStore implements VideoSessionStore {
@@ -225,6 +234,72 @@ class _SilentTimeEventAdapter implements PlayerAdapter {
   Future<void> seekTo(int positionMs) async {
     _positionMs = positionMs;
   }
+}
+
+class _DelayedPauseAdapter implements PlayerAdapter {
+  final _events = StreamController<PlayerTimeEvent>.broadcast();
+  Completer<void>? pauseCompleter;
+  int positionMs = 0;
+  int playCalls = 0;
+  int pauseCalls = 0;
+  bool playing = false;
+
+  @override
+  String get providerId => 'delayed-pause';
+
+  @override
+  PlayerCapability get capability => const PlayerCapability(
+        canSeek: true,
+        canReadDuration: true,
+        canReadPosition: true,
+        canEmbedPlayer: true,
+        canCreateTimeAnchor: true,
+      );
+
+  @override
+  Stream<PlayerTimeEvent> get timeEvents => _events.stream;
+
+  @override
+  Future<int> currentPositionMs() async => positionMs;
+
+  @override
+  Future<int?> durationMs() async => 200000;
+
+  @override
+  Future<void> load(String sourceId, {String? embedUrl}) async {
+    emit(positionMs);
+  }
+
+  @override
+  Future<void> pause() async {
+    pauseCalls++;
+    final delayed = pauseCompleter;
+    if (delayed != null) await delayed.future;
+    playing = false;
+  }
+
+  @override
+  Future<void> play() async {
+    playCalls++;
+    playing = true;
+  }
+
+  @override
+  Future<void> seekTo(int positionMs) async {
+    this.positionMs = positionMs;
+    emit(positionMs);
+  }
+
+  void emit(int ms) {
+    positionMs = ms;
+    _events.add(PlayerTimeEvent(
+      positionMs: ms,
+      durationMs: 200000,
+      at: DateTime.now(),
+    ));
+  }
+
+  void dispose() => _events.close();
 }
 
 class _CountingSessionStore extends _RecordingSessionStore {
@@ -519,6 +594,16 @@ void main() {
     expect(scrollable.axisDirection, AxisDirection.down);
     expect(scrollableState.position.maxScrollExtent, greaterThan(0));
 
+    await adapter.seekTo(50000);
+    await tester.tap(second);
+    await tester.pumpAndSettle();
+    expect(await adapter.currentPositionMs(), inInclusiveRange(6000, 9500));
+    expect(
+      adapter.isPlaying,
+      isTrue,
+      reason: 'range notes play from start toward their end boundary',
+    );
+
     final last = find.byKey(const ValueKey('video_note_card_card_note_11'));
     await tester.scrollUntilVisible(
       last,
@@ -536,6 +621,335 @@ void main() {
     await tester.pumpAndSettle();
     expect(await adapter.currentPositionMs(), 46000);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('video notes sort by timeline and edit inline on double click',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
+    final createdAt = DateTime.utc(2026, 8, 23, 9);
+    final session = VideoAnnotationSession(
+      sourceId: 'src_video_test',
+      sourceVersionId: 'ver_video_test_v1',
+      lastPositionMs: 0,
+      anchors: [
+        TimeRangeAnchorSpec.buildAnchor(
+          anchorId: 'late_anchor',
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          spec: TimeRangeAnchorSpec.point(60000),
+          createdAt: createdAt,
+        ),
+        TimeRangeAnchorSpec.buildAnchor(
+          anchorId: 'early_anchor',
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          spec: TimeRangeAnchorSpec.point(10000),
+          createdAt: createdAt.add(const Duration(minutes: 1)),
+        ),
+      ],
+      annotationCards: [
+        CardContract(
+          cardId: 'late_card',
+          cardKind: CardKind.annotation,
+          title: '后段笔记',
+          body: '后段正文',
+          createdAt: createdAt,
+        ),
+        CardContract(
+          cardId: 'early_card',
+          cardKind: CardKind.annotation,
+          title: '前段笔记',
+          body: '前段正文',
+          createdAt: createdAt.add(const Duration(minutes: 1)),
+        ),
+      ],
+      anchorToCard: const {
+        'late_anchor': 'late_card',
+        'early_anchor': 'early_card',
+      },
+      savedAt: createdAt,
+    );
+    final store = _RecordingSessionStore(restored: session);
+    final adapter = _buildFixture();
+    await tester.pumpWidget(MaterialApp(
+      home: VideoStudyScreen(
+        adapter: adapter,
+        sourceId: 'src_video_test',
+        sourceVersionId: 'ver_video_test_v1',
+        sessionStore: store,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('video_dock_tab_notes')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('前段笔记')).dy,
+      lessThan(tester.getTopLeft(find.text('后段笔记')).dy),
+    );
+
+    final earlyCard = find.byKey(const ValueKey('video_note_card_early_card'));
+    await tester.tap(earlyCard);
+    await tester.pumpAndSettle();
+    expect(await adapter.currentPositionMs(), 10000);
+
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(earlyCard);
+    await tester.pump(const Duration(milliseconds: 80));
+    await tester.tap(earlyCard);
+    await tester.pumpAndSettle();
+    final editor = find.byKey(const ValueKey('video_note_editor_early_card'));
+    expect(editor, findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
+    await tester.enterText(editor, '改后的标题\n改后的连续正文');
+    await tester.tap(find.descendant(of: earlyCard, matching: find.text('保存')));
+    await tester.pumpAndSettle();
+    expect(find.text('改后的标题'), findsOneWidget);
+    expect(find.text('改后的连续正文'), findsOneWidget);
+    expect(
+        store.saved!.annotationCards
+            .firstWhere(
+              (card) => card.cardId == 'early_card',
+            )
+            .title,
+        '改后的标题');
+
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(earlyCard);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.tap(earlyCard);
+    await tester.pumpAndSettle();
+    await tester.enterText(editor, '不应保存的标题\n临时正文');
+    await tester.tap(
+      find.descendant(of: earlyCard, matching: find.text('取消')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('改后的标题'), findsOneWidget);
+    expect(find.text('不应保存的标题'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test('annotation ordering has deterministic same-time tie breakers',
+      () async {
+    final adapter = _DelayedPauseAdapter();
+    final viewModel = VideoStudyViewModel(
+      adapter: adapter,
+      sourceId: 'src_video_test',
+      sourceVersionId: 'ver_video_test_v1',
+      providerId: 'fixture',
+    );
+    await viewModel.initialize();
+    final created = DateTime.utc(2026, 8, 23, 9);
+    AnchorContract anchor(String id) => TimeRangeAnchorSpec.buildAnchor(
+          anchorId: id,
+          sourceId: 'src_video_test',
+          sourceVersionId: 'ver_video_test_v1',
+          spec: TimeRangeAnchorSpec.point(10000),
+          createdAt: created,
+        );
+    CardContract card(String id, DateTime at) => CardContract(
+          cardId: id,
+          cardKind: CardKind.annotation,
+          title: id,
+          createdAt: at,
+        );
+    viewModel.restoreFromSession(VideoAnnotationSession(
+      sourceId: 'src_video_test',
+      sourceVersionId: 'ver_video_test_v1',
+      lastPositionMs: 0,
+      anchors: [anchor('z_anchor'), anchor('b_anchor'), anchor('a_anchor')],
+      annotationCards: [
+        card('z_card', created.add(const Duration(minutes: 1))),
+        card('b_card', created),
+        card('a_card', created),
+      ],
+      anchorToCard: const {
+        'z_anchor': 'z_card',
+        'b_anchor': 'b_card',
+        'a_anchor': 'a_card',
+      },
+      savedAt: created,
+    ));
+    expect(
+      viewModel.annotations.map((item) => item.card.cardId),
+      ['a_card', 'b_card', 'z_card'],
+    );
+    viewModel.dispose(disposeAdapter: false);
+    adapter.dispose();
+  });
+
+  test('range playback pauses at end and loops when enabled', () async {
+    final adapter = _DelayedPauseAdapter();
+    final viewModel = VideoStudyViewModel(
+      adapter: adapter,
+      sourceId: 'src_video_test',
+      sourceVersionId: 'ver_video_test_v1',
+      providerId: 'fixture',
+    );
+    await viewModel.initialize();
+    viewModel.restoreFromSession(_sessionWithVideoNotes());
+    final range = viewModel.annotations.firstWhere((item) => !item.isPoint);
+
+    await viewModel.activateAnnotation(range);
+    expect(adapter.positionMs, range.startMs);
+    expect(adapter.playing, isTrue);
+    adapter.emit(range.endMs);
+    await Future<void>.delayed(Duration.zero);
+    expect(adapter.playing, isFalse);
+    expect(adapter.positionMs, range.endMs);
+    expect(viewModel.activeSegmentCardId, isNull);
+
+    await viewModel.toggleSegmentLoop(range);
+    expect(viewModel.isSegmentLoopEnabled(range.card.cardId), isTrue);
+    adapter.emit(range.endMs);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(adapter.positionMs, range.startMs);
+    expect(adapter.playing, isTrue);
+    expect(viewModel.activeSegmentCardId, range.card.cardId);
+    viewModel.dispose(disposeAdapter: false);
+    adapter.dispose();
+  });
+
+  test('point annotation seeks without entering segment playback', () async {
+    final adapter = _DelayedPauseAdapter();
+    final viewModel = VideoStudyViewModel(
+      adapter: adapter,
+      sourceId: 'src_video_test',
+      sourceVersionId: 'ver_video_test_v1',
+      providerId: 'fixture',
+    );
+    await viewModel.initialize();
+    viewModel.restoreFromSession(_sessionWithVideoNotes());
+    final point = viewModel.annotations.firstWhere((item) => item.isPoint);
+    await viewModel.activateAnnotation(point);
+    expect(adapter.positionMs, point.startMs);
+    expect(adapter.playCalls, 0);
+    expect(viewModel.activeSegmentCardId, isNull);
+    viewModel.dispose(disposeAdapter: false);
+    adapter.dispose();
+  });
+
+  test('switching ranges awaits delayed pause before the new play', () async {
+    final adapter = _DelayedPauseAdapter();
+    final viewModel = VideoStudyViewModel(
+      adapter: adapter,
+      sourceId: 'src_video_test',
+      sourceVersionId: 'ver_video_test_v1',
+      providerId: 'fixture',
+    );
+    await viewModel.initialize();
+    final session = _sessionWithVideoNotes();
+    viewModel.restoreFromSession(session);
+    final first = viewModel.annotations.firstWhere((item) => !item.isPoint);
+    final second = UIAnnotation(
+      anchor: TimeRangeAnchorSpec.buildAnchor(
+        anchorId: 'second_range',
+        sourceId: 'src_video_test',
+        sourceVersionId: 'ver_video_test_v1',
+        spec: TimeRangeAnchorSpec.range(20000, 24000),
+        createdAt: DateTime.utc(2026, 8, 23),
+      ),
+      card: CardContract(
+        cardId: 'second_range_card',
+        cardKind: CardKind.annotation,
+        title: '第二段',
+        createdAt: DateTime.utc(2026, 8, 23),
+      ),
+    );
+    await viewModel.activateAnnotation(first);
+    expect(adapter.playCalls, 1);
+
+    adapter.pauseCompleter = Completer<void>();
+    final switching = viewModel.activateAnnotation(second);
+    await Future<void>.delayed(Duration.zero);
+    expect(adapter.pauseCalls, 1);
+    expect(adapter.playCalls, 1,
+        reason: 'new play must wait for the previous native pause');
+    adapter.pauseCompleter!.complete();
+    await switching;
+    expect(adapter.playCalls, 2);
+    expect(adapter.positionMs, 20000);
+    expect(adapter.playing, isTrue);
+    viewModel.dispose(disposeAdapter: false);
+    adapter.dispose();
+  });
+
+  testWidgets('switching tabs and hiding dock cancel active segment playback',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(1440, 900));
+    final adapter = FixturePlayerAdapter(
+      durationMs: 200000,
+      tickInterval: const Duration(milliseconds: 10),
+      tickMs: 100,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: VideoStudyScreen(
+        adapter: adapter,
+        sourceId: 'src_video_test',
+        sourceVersionId: 'ver_video_test_v1',
+        sessionStore: _RecordingSessionStore(
+          restored: _sessionWithVideoNotes(),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('video_dock_tab_notes')));
+    await tester.pumpAndSettle();
+    final rangeCard = find.byKey(
+      const ValueKey('video_note_card_card_note_1'),
+    );
+
+    await tester.tap(rangeCard);
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(adapter.isPlaying, isTrue);
+    await tester.tap(find.byKey(const ValueKey('video_dock_tab_subtitles')));
+    await tester.pump();
+    expect(adapter.isPlaying, isFalse);
+
+    await tester.tap(find.byKey(const ValueKey('video_dock_tab_notes')));
+    await tester.pump();
+    await tester.tap(rangeCard);
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(adapter.isPlaying, isTrue);
+    await tester.tap(find.byKey(const ValueKey('video_close_dock')));
+    await tester.pump();
+    expect(adapter.isPlaying, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test('runtime capability downgrade cancels active segment', () async {
+    final adapter = _RuntimeNegotiatedAdapter();
+    final viewModel = VideoStudyViewModel(
+      adapter: adapter,
+      sourceId: 'src_runtime_segment',
+      sourceVersionId: 'ver_runtime_segment_v1',
+      providerId: 'bilibili',
+    );
+    await viewModel.initialize();
+    adapter.promote();
+    await Future<void>.delayed(Duration.zero);
+    final annotation = UIAnnotation(
+      anchor: TimeRangeAnchorSpec.buildAnchor(
+        anchorId: 'runtime_range',
+        sourceId: 'src_runtime_segment',
+        sourceVersionId: 'ver_runtime_segment_v1',
+        spec: TimeRangeAnchorSpec.range(10000, 14000),
+        createdAt: DateTime.utc(2026, 8, 23),
+      ),
+      card: CardContract(
+        cardId: 'runtime_range_card',
+        cardKind: CardKind.annotation,
+        title: '运行时区间',
+        createdAt: DateTime.utc(2026, 8, 23),
+      ),
+    );
+    await viewModel.activateAnnotation(annotation);
+    expect(viewModel.activeSegmentCardId, annotation.card.cardId);
+    adapter.revoke();
+    await Future<void>.delayed(Duration.zero);
+    expect(viewModel.activeSegmentCardId, isNull);
+    viewModel.dispose();
   });
 
   testWidgets('dock uses 65:35 right, 70:30 bottom, and fully leaves',
@@ -775,6 +1189,34 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets('bottom dock header keeps tags and controls inside narrow width',
+      (tester) async {
+    _useDesktopSurface(tester, const Size(640, 520));
+    final adapter = _buildFixture();
+    var tagCalls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: VideoStudyScreen(
+        adapter: adapter,
+        sourceId: 'src_video_test',
+        sourceVersionId: 'ver_video_test_v1',
+        initialTrack: _buildTrack(),
+        onEditTags: () => tagCalls++,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('video_layout_bottom')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('source-video-tags-action')), findsOneWidget);
+    expect(find.byKey(const ValueKey('video_close_dock')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const ValueKey('source-video-tags-action')));
+    expect(tagCalls, 1);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    adapter.dispose();
+  });
 
   testWidgets('player and dock minimum sizes hold at 1024 by 720', (
     tester,
@@ -1730,7 +2172,8 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('副歌观察'));
     await tester.pumpAndSettle();
-    expect(await adapter.currentPositionMs(), equals(2000));
+    expect(await adapter.currentPositionMs(), inInclusiveRange(2000, 5000));
+    expect(adapter.isPlaying, isTrue);
 
     await tester.pumpWidget(const SizedBox.shrink());
     adapter.dispose();

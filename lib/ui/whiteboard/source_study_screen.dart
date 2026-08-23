@@ -52,8 +52,7 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
   late final Future<_SourceStudyData> _data = _load();
 
   Future<_SourceStudyData> _load() async {
-    final repository =
-        widget.repository ??
+    final repository = widget.repository ??
         await WhiteboardDataBootstrap.productionRepository();
     final source = await repository.getSource(widget.sourceId);
     if (source == null) return _SourceStudyData(repository: repository);
@@ -156,22 +155,54 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
       sessionStore: createVideoSessionStore(sourceId: source.sourceId),
       annotationStore: RepositoryVideoAnnotationStore(data.repository),
       onBack: _back,
+      onEditTags: data.card == null
+          ? null
+          : () => _openVideoTags(
+                repository: data.repository,
+                card: data.card!,
+                suggestions: data.tagSuggestions,
+              ),
     );
-    final card = data.card;
-    if (card == null) return studyScreen;
-    return Stack(
-      children: [
-        Positioned.fill(child: studyScreen),
-        Positioned(
-          top: 16,
-          right: 64,
-          child: _VideoSourceTagAction(
-            repository: data.repository,
-            card: card,
-            suggestions: data.tagSuggestions,
+    return studyScreen;
+  }
+
+  Future<void> _openVideoTags({
+    required UnifiedCardRepository repository,
+    required CardContract card,
+    required List<String> suggestions,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(child: Text('视频卡标签')),
+                    IconButton(
+                      tooltip: '关闭',
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _SourceTagEditor(
+                  repository: repository,
+                  card: card,
+                  suggestions: suggestions,
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -201,13 +232,13 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
   }
 
   static PlayerAdapter _adapterFor(String provider) => switch (provider) {
-    'youtube' => createYouTubeAdapter(),
-    'bilibili' => defaultTargetPlatform == TargetPlatform.windows && !kIsWeb
-        ? WindowsBilibiliPlayerAdapter()
-        : BilibiliPlayerAdapter(),
-    'xiaohongshu' => XiaohongshuPlayerAdapter(),
-    _ => _UnsupportedVideoPlayerAdapter(provider),
-  };
+        'youtube' => createYouTubeAdapter(),
+        'bilibili' => defaultTargetPlatform == TargetPlatform.windows && !kIsWeb
+            ? WindowsBilibiliPlayerAdapter()
+            : BilibiliPlayerAdapter(),
+        'xiaohongshu' => XiaohongshuPlayerAdapter(),
+        _ => _UnsupportedVideoPlayerAdapter(provider),
+      };
 
   static bool _runtimePlayerAvailable(PlayerAdapter adapter) {
     if (kIsWeb) return adapter.providerId == 'youtube';
@@ -254,8 +285,8 @@ class _OrdinarySourceView extends StatelessWidget {
     final body = object?.bodyText?.trim().isNotEmpty == true
         ? object!.bodyText!.trim()
         : (data.card?.body.trim().isNotEmpty == true
-              ? data.card!.body.trim()
-              : (source.metadata['description'] as String? ?? '').trim());
+            ? data.card!.body.trim()
+            : (source.metadata['description'] as String? ?? '').trim());
     final tokens = DesktopWorkspaceTokens.of(context);
     return Scaffold(
       backgroundColor: tokens.canvas,
@@ -267,10 +298,10 @@ class _OrdinarySourceView extends StatelessWidget {
                 .toDouble();
             final readingWidth =
                 constraints.maxWidth >= _readingColumnMinWidth + 64
-                ? availableWidth
-                      .clamp(_readingColumnMinWidth, _readingColumnMaxWidth)
-                      .toDouble()
-                : availableWidth;
+                    ? availableWidth
+                        .clamp(_readingColumnMinWidth, _readingColumnMaxWidth)
+                        .toDouble()
+                    : availableWidth;
             final sourceLine = _sourceLine(source);
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(32, 16, 32, 48),
@@ -361,74 +392,10 @@ class _OrdinarySourceView extends StatelessWidget {
   }
 
   static String _sourceLine(SourceContent source) => [
-    source.metadata['site_name'],
-    source.metadata['author'],
-    source.provider,
-  ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
-}
-
-class _VideoSourceTagAction extends StatelessWidget {
-  const _VideoSourceTagAction({
-    required this.repository,
-    required this.card,
-    required this.suggestions,
-  });
-
-  final UnifiedCardRepository repository;
-  final CardContract card;
-  final List<String> suggestions;
-
-  Future<void> _open(BuildContext context) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(child: Text('视频卡标签')),
-                    IconButton(
-                      tooltip: '关闭',
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _SourceTagEditor(
-                  repository: repository,
-                  card: card,
-                  suggestions: suggestions,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = DesktopWorkspaceTokens.of(context);
-    return Material(
-      color: tokens.surfaceRaised.withValues(alpha: 0.94),
-      borderRadius: BorderRadius.circular(9),
-      child: IconButton(
-        key: const ValueKey('source-video-tags-action'),
-        tooltip: '编辑标签',
-        onPressed: () => _open(context),
-        icon: const Icon(Icons.tag_rounded, size: 18),
-        color: tokens.textMuted,
-      ),
-    );
-  }
+        source.metadata['site_name'],
+        source.metadata['author'],
+        source.provider,
+      ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
 }
 
 class _SourceTagEditor extends StatefulWidget {
@@ -576,11 +543,11 @@ class _SourceDetails extends StatelessWidget {
   }
 
   static String _objectStateLabel(SourceObjectState? state) => switch (state) {
-    SourceObjectState.available => '正文对象可用',
-    SourceObjectState.missing => '正文对象缺失，已使用卡片投影',
-    SourceObjectState.corrupt => '正文对象损坏，已使用卡片投影',
-    null => '没有正文对象',
-  };
+        SourceObjectState.available => '正文对象可用',
+        SourceObjectState.missing => '正文对象缺失，已使用卡片投影',
+        SourceObjectState.corrupt => '正文对象损坏，已使用卡片投影',
+        null => '没有正文对象',
+      };
 }
 
 class _VersionStatus extends StatelessWidget {

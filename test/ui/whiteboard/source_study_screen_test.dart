@@ -149,7 +149,8 @@ void main() {
     expect(find.byType(VideoStudyScreen), findsOneWidget);
     expect(
       find.byKey(const ValueKey('source-video-tags-action')),
-      findsOneWidget,
+      findsNothing,
+      reason: 'link-only mode has no ContextDock header to overlap',
     );
     expect(find.text('Fixture Player'), findsNothing);
     expect(timedTextService.calls, 1);

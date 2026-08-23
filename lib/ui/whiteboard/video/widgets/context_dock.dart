@@ -7,6 +7,8 @@
 /// warm paper surfaces, coffee-text, low-saturation green accents.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
@@ -21,12 +23,14 @@ class ContextDock extends StatefulWidget {
   final VideoStudyViewModel viewModel;
   final DockOrientation? displayOrientation;
   final bool orientationLocked;
+  final VoidCallback? onEditTags;
 
   const ContextDock({
     super.key,
     required this.viewModel,
     this.displayOrientation,
     this.orientationLocked = false,
+    this.onEditTags,
   });
 
   @override
@@ -72,6 +76,9 @@ class _ContextDockState extends State<ContextDock> {
 
   void _selectSection(_DockSection section) {
     if (_section == section) return;
+    if (section != _DockSection.notes) {
+      widget.viewModel.cancelSegmentPlayback();
+    }
     setState(() => _section = section);
   }
 
@@ -100,6 +107,7 @@ class _ContextDockState extends State<ContextDock> {
                           ? DockOrientation.bottom
                           : DockOrientation.right,
                     ),
+            onEditTags: widget.onEditTags,
             onClose: () => vm.setDockVisible(false),
           ),
           Divider(height: 1, color: tokens.divider),
@@ -325,6 +333,7 @@ class _DockHeader extends StatelessWidget {
   final String subtitle;
   final DockOrientation orientation;
   final VoidCallback? onToggleOrientation;
+  final VoidCallback? onEditTags;
   final VoidCallback onClose;
 
   const _DockHeader({
@@ -332,6 +341,7 @@ class _DockHeader extends StatelessWidget {
     required this.subtitle,
     required this.orientation,
     required this.onToggleOrientation,
+    required this.onEditTags,
     required this.onClose,
   });
 
@@ -366,6 +376,19 @@ class _DockHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (onEditTags != null)
+            IconButton(
+              key: const ValueKey('source-video-tags-action'),
+              tooltip: '编辑视频标签',
+              icon: const Icon(Icons.tag_outlined, size: 18),
+              color: tokens.textMuted,
+              onPressed: onEditTags,
+              constraints: const BoxConstraints.tightFor(
+                width: 36,
+                height: 36,
+              ),
+              padding: EdgeInsets.zero,
+            ),
           IconButton(
             tooltip: onToggleOrientation == null
                 ? '窗口较窄，已自动停靠底部'
@@ -577,22 +600,54 @@ class _AnnotationCardsList extends StatelessWidget {
         return _AnnotationCardThumb(
           key: ValueKey('video_note_card_${annotation.card.cardId}'),
           annotation: annotation,
-          onTap: () => viewModel.seekTo(annotation.startMs),
+          viewModel: viewModel,
         );
       },
     );
   }
 }
 
-class _AnnotationCardThumb extends StatelessWidget {
+class _AnnotationCardThumb extends StatefulWidget {
   final UIAnnotation annotation;
-  final VoidCallback onTap;
+  final VideoStudyViewModel viewModel;
 
   const _AnnotationCardThumb({
     super.key,
     required this.annotation,
-    required this.onTap,
+    required this.viewModel,
   });
+
+  @override
+  State<_AnnotationCardThumb> createState() => _AnnotationCardThumbState();
+}
+
+class _AnnotationCardThumbState extends State<_AnnotationCardThumb> {
+  late final TextEditingController _controller;
+  bool _editing = false;
+  bool _saving = false;
+  DateTime? _lastTapAt;
+
+  UIAnnotation get annotation => widget.annotation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: _documentText(annotation));
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnnotationCardThumb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_editing && oldWidget.annotation.card != widget.annotation.card) {
+      _controller.text = _documentText(annotation);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -607,7 +662,7 @@ class _AnnotationCardThumb extends StatelessWidget {
     final summary = annotation.card.body.trim();
 
     return InkWell(
-      onTap: onTap,
+      onTap: _editing ? null : _handleTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
         width: double.infinity,
@@ -620,40 +675,212 @@ class _AnnotationCardThumb extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              timecode,
-              style: richTextCodeTextStyle(
-                color: tokens.action,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    timecode,
+                    style: richTextCodeTextStyle(
+                      color: tokens.action,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (!annotation.isPoint &&
+                    annotation.endMs > annotation.startMs)
+                  _SegmentLoopToggle(
+                    enabled: widget.viewModel.isSegmentLoopEnabled(
+                      annotation.card.cardId,
+                    ),
+                    onPressed: _editing
+                        ? null
+                        : () => widget.viewModel.toggleSegmentLoop(annotation),
+                  ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: whiteboardUiTextStyle(
-                color: tokens.textPrimary,
-                fontSize: 12,
-              ),
-            ),
-            if (summary.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                summary,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+            if (_editing) ...[
+              const SizedBox(height: 8),
+              TextField(
+                key: ValueKey(
+                  'video_note_editor_${annotation.card.cardId}',
+                ),
+                controller: _controller,
+                autofocus: true,
+                minLines: 3,
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
+                decoration: InputDecoration(
+                  hintText: '第一行作为标题，继续输入正文',
+                  hintStyle: whiteboardUiTextStyle(
+                    color: tokens.textFaint,
+                    fontSize: 11,
+                  ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                  filled: false,
+                ),
                 style: whiteboardUiTextStyle(
-                  color: tokens.textMuted,
-                  fontSize: 11,
-                  height: 1.45,
+                  color: tokens.textPrimary,
+                  fontSize: 12,
+                  height: 1.55,
                 ),
               ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _saving ? null : _cancelEditing,
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 6),
+                  FilledButton(
+                    onPressed: _saving ? null : _saveEditing,
+                    child: Text(_saving ? '保存中…' : '保存'),
+                  ),
+                ],
+              ),
+            ] else ...[
+              const SizedBox(height: 4),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: whiteboardUiTextStyle(
+                  color: tokens.textPrimary,
+                  fontSize: 12,
+                ),
+              ),
+              if (summary.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  summary,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: whiteboardUiTextStyle(
+                    color: tokens.textMuted,
+                    fontSize: 11,
+                    height: 1.45,
+                  ),
+                ),
+              ],
             ],
           ],
         ),
       ),
+    );
+  }
+
+  void _handleTap() {
+    final now = DateTime.now();
+    final previous = _lastTapAt;
+    _lastTapAt = now;
+    if (previous != null && now.difference(previous).inMilliseconds <= 350) {
+      _lastTapAt = null;
+      _beginEditing();
+      return;
+    }
+    // Single click acts immediately; a second click converts the same action
+    // into inline editing and cancels any just-started segment.
+    unawaited(widget.viewModel.activateAnnotation(annotation));
+  }
+
+  void _beginEditing() {
+    widget.viewModel.cancelSegmentPlayback();
+    setState(() {
+      _controller.text = _documentText(annotation);
+      _controller.selection = TextSelection.collapsed(
+        offset: _controller.text.length,
+      );
+      _editing = true;
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _controller.text = _documentText(annotation);
+      _editing = false;
+    });
+  }
+
+  Future<void> _saveEditing() async {
+    final projection = _VideoNoteDocumentProjection.parse(_controller.text);
+    setState(() => _saving = true);
+    final saved = await widget.viewModel.updateAnnotationDocument(
+      annotation: annotation,
+      title: projection.title,
+      body: projection.body,
+    );
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      if (saved) _editing = false;
+    });
+  }
+
+  static String _documentText(UIAnnotation annotation) {
+    final title = annotation.card.title;
+    final body = annotation.card.body;
+    if (title.isEmpty) return body;
+    if (body.isEmpty) return title;
+    return '$title\n$body';
+  }
+}
+
+class _SegmentLoopToggle extends StatelessWidget {
+  const _SegmentLoopToggle({
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return TextButton.icon(
+      key: const ValueKey('video_segment_loop_toggle'),
+      onPressed: onPressed,
+      icon: Icon(
+        Icons.repeat_rounded,
+        size: 14,
+        color: enabled ? tokens.action : tokens.textFaint,
+      ),
+      label: Text(
+        '循环片段',
+        style: whiteboardUiTextStyle(
+          color: enabled ? tokens.action : tokens.textMuted,
+          fontSize: 11,
+        ),
+      ),
+      style: TextButton.styleFrom(
+        minimumSize: const Size(36, 28),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+}
+
+class _VideoNoteDocumentProjection {
+  const _VideoNoteDocumentProjection({
+    required this.title,
+    required this.body,
+  });
+
+  final String title;
+  final String body;
+
+  factory _VideoNoteDocumentProjection.parse(String raw) {
+    final normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final lines = normalized.split('\n');
+    return _VideoNoteDocumentProjection(
+      title: lines.isEmpty ? '' : lines.first.trim(),
+      body: lines.length <= 1 ? '' : lines.sublist(1).join('\n').trim(),
     );
   }
 }
