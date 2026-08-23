@@ -2812,7 +2812,7 @@ class _CardContent extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      card!.title,
+                                      card.title,
                                       style: richTextBodyTextStyle(
                                         color: colors.textPrimary,
                                         fontSize:

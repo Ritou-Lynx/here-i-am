@@ -1,9 +1,7 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/domain/whiteboard/whiteboard_contracts.dart';
-import 'package:memex/domain/whiteboard/player_adapter.dart';
 import 'package:memex/domain/whiteboard/video/video_domain.dart';
 
 void main() {
@@ -73,7 +71,7 @@ void main() {
     });
 
     test('strips BOM from SRT content', () {
-      final raw = '\uFEFF1\n00:00:01,000 --> 00:00:03,000\nHello';
+      const raw = '\uFEFF1\n00:00:01,000 --> 00:00:03,000\nHello';
       final result = SubtitleParser.parse(raw, sourceId: 'src_bom');
       expect(result.isSuccess, isTrue);
       expect(result.track!.cues.length, equals(1));
@@ -81,7 +79,7 @@ void main() {
     });
 
     test('cues are sorted by start time', () {
-      final raw = '2\n00:00:10,000 --> 00:00:12,000\nB\n\n'
+      const raw = '2\n00:00:10,000 --> 00:00:12,000\nB\n\n'
           '1\n00:00:01,000 --> 00:00:03,000\nA';
       final result = SubtitleParser.parse(raw, sourceId: 'src_unsorted');
       expect(result.isSuccess, isTrue);
@@ -569,7 +567,7 @@ void main() {
         canReadDuration: false,
         canEmbedPlayer: true,
       );
-      final avail = VideoStudyAvailability(
+      const avail = VideoStudyAvailability(
         capability: capability,
         hasUsableSubtitleTrack: true,
       );

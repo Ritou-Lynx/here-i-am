@@ -101,10 +101,19 @@ class _MidImportFailureRepository extends UnifiedCardRepository {
   int cleanupFailures = 1;
 
   @override
-  Future<CardContract> saveRichText(String cardId, RichTextDocument document,
-      {String? title}) {
+  Future<CardContract> saveRichText(
+    String cardId,
+    RichTextDocument document, {
+    String? title,
+    bool preserveEmptyTitle = false,
+  }) {
     if (++saves == 2) throw StateError(r'C:\private\should-not-leak.png');
-    return super.saveRichText(cardId, document, title: title);
+    return super.saveRichText(
+      cardId,
+      document,
+      title: title,
+      preserveEmptyTitle: preserveEmptyTitle,
+    );
   }
 
   @override
