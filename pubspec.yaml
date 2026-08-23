@@ -78,7 +78,13 @@ dependencies:
   pedometer: ^4.0.0
   workmanager: ^0.9.0
   android_alarm_manager_plus: ^4.0.7
-  flutter_foreground_task: ^8.17.0
+  # Vendored fork (packages/flutter_foreground_task): Android 14/15 crash fixes.
+  #  - ForegroundService.startForeground try/catch (ForegroundServiceStartNotAllowedException, SecurityException)
+  #  - RestartReceiver/RebootReceiver onReceive guarded from background startForegroundService crashes
+  #  - ForegroundServiceManager.stop falls back to context.stopService when startForegroundService is blocked
+  #  - ForegroundService.onTimeout (API 35+) proactively self-stops so dataSync budget exhaustion doesn't kill the process
+  flutter_foreground_task:
+    path: packages/flutter_foreground_task
   flutter_local_notifications: ^18.0.1
   timezone: ^0.10.1
   # Vendored fork (packages/flutter_callkit_incoming): patched so the call

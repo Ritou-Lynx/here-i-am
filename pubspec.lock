@@ -701,10 +701,9 @@ packages:
   flutter_foreground_task:
     dependency: "direct main"
     description:
-      name: flutter_foreground_task
-      sha256: "206017ee1bf864f34b8d7bce664a172717caa21af8da23f55866470dfe316644"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/flutter_foreground_task"
+      relative: true
+    source: path
     version: "8.17.0"
   flutter_image_compress:
     dependency: "direct main"

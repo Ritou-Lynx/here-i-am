@@ -400,6 +400,12 @@ void callbackDispatcher() {
         // The foreground service is immune to Samsung Freecess — the WorkManager
         // isolate only needs to survive long enough to fire startService(), then
         // the OS-managed foreground service takes over independently.
+        //
+        // Android 12/14+ note: when the app has no FGS-start exemption this call
+        // returns ServiceRequestFailure instead of throwing. Our Dart
+        // startPersistent treats failure as "wait for next foreground resume".
+        // We rely on the drain/notification path above to surface the checkin
+        // even if the foreground service can't come up right now.
         try {
           await CompanionForegroundService.initialize();
           await CompanionForegroundService.triggerCheckin();
