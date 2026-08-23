@@ -258,6 +258,50 @@ void main() {
     expect(find.textContaining('还没有导入记录'), findsOneWidget);
   });
 
+  testWidgets('production XHS SSR preview exposes exact-note capabilities',
+      (tester) async {
+    const url =
+        'https://www.xiaohongshu.com/discovery/item/6a89dc8e000000001402bdc5';
+    await pump(
+      tester,
+      _service(repository, {
+        url: _Canned(_fixture('xiaohongshu_ssr_note.html'), 200, 'text/html'),
+      }),
+    );
+
+    await fetch(tester, url);
+
+    expect(find.byKey(const ValueKey('link_import_xhs_evidence_state')),
+        findsOneWidget);
+    expect(find.text('公开原图：检测到 2 张，确认后安全缓存'), findsOneWidget);
+    expect(find.text('OCR：确认保存后检查本机能力'), findsOneWidget);
+    expect(find.text('公开评论：已保留 1 条顶层评论'), findsOneWidget);
+  });
+
+  testWidgets('XHS public gate is a specific failure and cannot be committed',
+      (tester) async {
+    const url =
+        'https://www.xiaohongshu.com/discovery/item/6a89dc8e000000001402bdc5';
+    await pump(
+      tester,
+      _service(repository, {
+        url: _Canned(
+          _fixture('xiaohongshu_public_gate.html'),
+          200,
+          'text/html',
+        ),
+      }),
+    );
+
+    await tester.enterText(find.byType(TextField), url);
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await settleFor(tester, find.text('抓取失败'));
+
+    expect(find.textContaining('没有当前笔记的公开详情'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('link_import_commit_button')), findsNothing);
+  });
+
   testWidgets('ordinary cards never pollute the recent-import list',
       (tester) async {
     await repository.createTextCard(
@@ -747,11 +791,11 @@ void main() {
       'desktop xiaohongshu share URL keeps parsed preview independent of repository lookup',
       (tester) async {
     const url =
-        'https://www.xiaohongshu.com/discovery/item/6a8881480000000018019591?source=webshare&xhsshare=pc_web&xsec_token=REDACTED&xsec_source=pc_share';
+        'https://www.xiaohongshu.com/discovery/item/6a89dc8e000000001402bdc5?source=webshare&xhsshare=pc_web&xsec_token=REDACTED&xsec_source=pc_share';
     final normalized = canonicalizeUrl(url)!.normalized;
     final delegate = _service(repository, {
       normalized: _Canned(
-        _fixture('open_graph.html'),
+        _fixture('xiaohongshu_ssr_note.html'),
         200,
         'text/html; charset=utf-8',
       ),
@@ -765,7 +809,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), url);
     await tester.tap(find.widgetWithText(FilledButton, '预览'));
-    await settleFor(tester, find.text('春雨昼眠主题设计文档'));
+    await settleFor(tester, find.text('真实结构图文笔记'));
     await tester.pumpAndSettle();
 
     expect(find.text('xiaohongshu'), findsOneWidget);

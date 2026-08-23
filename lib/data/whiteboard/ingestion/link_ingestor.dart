@@ -25,7 +25,7 @@ import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 /// Orchestrates link ingestion into [IngestionResult].
 class LinkIngestor {
   LinkIngestor({SafeHttpClient? httpClient})
-    : _httpClient = httpClient ?? SafeHttpClient();
+      : _httpClient = httpClient ?? SafeHttpClient();
 
   final SafeHttpClient _httpClient;
 
@@ -95,6 +95,55 @@ class LinkIngestor {
           )
         : null;
 
+    final xhsCapabilities = xhsEvidence == null
+        ? null
+        : <String, dynamic>{
+            'public_page':
+                xhsEvidence.noteLocated ? 'available' : 'unavailable',
+            'images': xhsEvidence.mediaCandidates.any(
+              (candidate) => candidate.confidence == 'high',
+            )
+                ? 'detected'
+                : 'unavailable',
+            'ocr': xhsEvidence.mediaCandidates.any(
+              (candidate) => candidate.confidence == 'high',
+            )
+                ? 'pending_commit'
+                : 'unavailable',
+            'comments':
+                xhsEvidence.comments.isNotEmpty ? 'detected' : 'unavailable',
+            if (xhsEvidence.limitationCode != null)
+              'public_page_reason_code': xhsEvidence.limitationCode,
+            if (xhsEvidence.limitationReason != null)
+              'public_page_reason': xhsEvidence.limitationReason,
+            if (xhsEvidence.mediaCandidates.every(
+              (candidate) => candidate.confidence != 'high',
+            ))
+              'images_reason': '匿名页面没有提供当前笔记的图片列表；站点分享图不会被当作笔记原图。',
+            if (xhsEvidence.comments.isEmpty)
+              'comments_reason': '匿名 HTML 没有呈现顶层评论；未调用登录接口、私有接口或评论翻页。',
+          };
+
+    if (xhsEvidence != null &&
+        finalCanonical.canonicalId != null &&
+        !xhsEvidence.noteLocated) {
+      return IngestionResult(
+        canonicalUrl: finalCanonical.normalized,
+        provider: finalCanonical.provider,
+        originalUrl: canonical.original,
+        status: IngestionStatus.failed,
+        errorMessage: xhsEvidence.limitationReason ?? '匿名页面没有提供当前小红书笔记的公开详情。',
+        metadata: {
+          'xhs_public_access': 'anonymous',
+          'xhs_parser_version': xhsEvidence.parserVersion,
+          'xhs_evidence_capabilities': xhsCapabilities,
+          'http_status': httpResult.statusCode,
+          'mime_type': httpResult.mimeType,
+        },
+        resolvedAt: resolvedAt,
+      );
+    }
+
     if (parsed.isEmpty) {
       return IngestionResult(
         canonicalUrl: finalCanonical.normalized,
@@ -118,8 +167,8 @@ class LinkIngestor {
       mediaType: xhsEvidence?.noteKind == XiaohongshuNoteKind.video
           ? SourceMediaType.video
           : xhsEvidence?.noteKind == XiaohongshuNoteKind.image
-          ? SourceMediaType.image
-          : SourceMediaType.web,
+              ? SourceMediaType.image
+              : SourceMediaType.web,
       title: parsed.title ?? finalCanonical.host,
       ownerSpace: OwnerSpace.user,
       origin: SourceOrigin.externalLink,
@@ -141,9 +190,9 @@ class LinkIngestor {
           'xhs_note_kind': xhsEvidence.noteKind.name,
           'xhs_parser_version': xhsEvidence.parserVersion,
           'xhs_public_access': 'anonymous',
-          'xhs_public_comments': xhsEvidence.comments
-              .map((comment) => comment.toJson())
-              .toList(),
+          'xhs_evidence_capabilities': xhsCapabilities,
+          'xhs_public_comments':
+              xhsEvidence.comments.map((comment) => comment.toJson()).toList(),
           'xhs_media_candidates': xhsEvidence.mediaCandidates
               .map((candidate) => candidate.toJson())
               .toList(),
@@ -171,8 +220,7 @@ class LinkIngestor {
       source: source,
       sourceVersion: sourceVersion.toJson(),
       hasBody: parsed.bodyText != null && parsed.bodyText!.isNotEmpty,
-      hasMedia:
-          parsed.imageUrls.isNotEmpty ||
+      hasMedia: parsed.imageUrls.isNotEmpty ||
           parsed.ogImage != null ||
           xhsEvidence?.noteKind == XiaohongshuNoteKind.video,
       videoCapability: xhsEvidence?.noteKind == XiaohongshuNoteKind.video
@@ -189,9 +237,9 @@ class LinkIngestor {
           'xhs_note_kind': xhsEvidence.noteKind.name,
           'xhs_parser_version': xhsEvidence.parserVersion,
           'xhs_public_access': 'anonymous',
-          'xhs_public_comments': xhsEvidence.comments
-              .map((comment) => comment.toJson())
-              .toList(),
+          'xhs_evidence_capabilities': xhsCapabilities,
+          'xhs_public_comments':
+              xhsEvidence.comments.map((comment) => comment.toJson()).toList(),
           'xhs_media_candidates': xhsEvidence.mediaCandidates
               .map((candidate) => candidate.toJson())
               .toList(),
@@ -368,9 +416,8 @@ class LinkIngestor {
       if (xhsEvidence != null)
         jsonEncode({
           'kind': xhsEvidence.noteKind.name,
-          'comments': xhsEvidence.comments
-              .map((comment) => comment.toJson())
-              .toList(),
+          'comments':
+              xhsEvidence.comments.map((comment) => comment.toJson()).toList(),
         }),
     ].join('\n');
     return sha256.convert(utf8.encode(basis)).toString().substring(0, 32);

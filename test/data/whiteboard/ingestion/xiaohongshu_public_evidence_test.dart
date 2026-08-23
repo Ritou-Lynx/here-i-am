@@ -118,4 +118,55 @@ void main() {
       'https://img.example/note.png',
     ]);
   });
+
+  test('production SSR state reads only the exact discovery note', () {
+    final html = _fixture('xiaohongshu_ssr_note.html');
+    const url =
+        'https://www.xiaohongshu.com/discovery/item/6a89dc8e000000001402bdc5?xsec_token=REDACTED';
+    final evidence = parseXiaohongshuPublicEvidence(
+      html,
+      sourceUrl: url,
+      parsedPage: parseHtmlPage(html, sourceUrl: url),
+    );
+
+    expect(evidence.noteLocated, isTrue);
+    expect(evidence.limitationCode, isNull);
+    expect(evidence.noteKind, XiaohongshuNoteKind.image);
+    expect(evidence.mediaCandidates.map((item) => item.originalUrl), [
+      'https://sns-img.example/1.jpg',
+      'https://sns-img.example/2.jpg',
+      'https://site.example/share.jpg',
+    ]);
+    expect(
+      evidence.mediaCandidates
+          .where((item) => item.confidence == 'high')
+          .length,
+      2,
+    );
+    expect(
+      evidence.mediaCandidates
+          .any((item) => item.originalUrl.contains('recommendation')),
+      isFalse,
+    );
+    expect(evidence.comments, hasLength(1));
+    expect(evidence.comments.single.author, '公开用户');
+    expect(evidence.comments.single.text, '公开可见的顶层评论');
+  });
+
+  test('public gate is explicit and does not promote site OG to note media',
+      () {
+    final html = _fixture('xiaohongshu_public_gate.html');
+    const url =
+        'https://www.xiaohongshu.com/discovery/item/6a89dc8e000000001402bdc5';
+    final evidence = parseXiaohongshuPublicEvidence(
+      html,
+      sourceUrl: url,
+      parsedPage: parseHtmlPage(html, sourceUrl: url),
+    );
+
+    expect(evidence.noteLocated, isFalse);
+    expect(evidence.limitationCode, 'note_not_in_public_state');
+    expect(evidence.noteKind, XiaohongshuNoteKind.text);
+    expect(evidence.mediaCandidates, isEmpty);
+  });
 }

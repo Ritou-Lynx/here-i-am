@@ -529,4 +529,76 @@ void main() {
       expect(imageAdapter.requested, isEmpty);
     },
   );
+
+  test(
+    'production discovery URL commits SSR image objects and restart metadata',
+    () async {
+      const url =
+          'https://www.xiaohongshu.com/discovery/item/6a89dc8e000000001402bdc5';
+      final html = File(
+        'test/data/whiteboard/ingestion/fixtures/xiaohongshu_ssr_note.html',
+      ).readAsBytesSync();
+      final pageClient = _client(
+        {url: _Response(html, 'text/html')},
+        config: const SafeHttpConfig(
+          enforceDnsCheck: false,
+          allowedMimePrefixes: {'text/html'},
+        ),
+      );
+      final imageClient = _client({
+        'https://sns-img.example/1.jpg': _Response(_png(), 'image/png'),
+        'https://sns-img.example/2.jpg': _Response(_png(), 'image/png'),
+      });
+      final dbFile = File('${tempDir.path}/production-entry.sqlite');
+      var db = AppDatabase.forTesting(NativeDatabase(dbFile));
+      addTearDown(() async {
+        try {
+          await db.close();
+        } catch (_) {}
+      });
+      var repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+      final service = LinkIngestionService(
+        repository: repository,
+        ingestor: LinkIngestor(httpClient: pageClient),
+        xiaohongshuEvidenceProcessor: XiaohongshuEvidenceProcessor(
+          objectStore: RichTextObjectStore(tempDir),
+          imageClient: imageClient,
+          recognizer: const _FixtureRecognizer(OcrRecognition.unavailable(
+            reason: 'Windows test recognizer unavailable',
+          )),
+        ),
+      );
+
+      final preview = await service.ingestUrl(url);
+      expect(preview.result.source?.mediaType, SourceMediaType.image);
+      expect(
+        (preview.result.metadata['xhs_media_candidates'] as List)
+            .whereType<Map>()
+            .where((item) => item['confidence'] != 'low'),
+        hasLength(2),
+      );
+      final committed = await service.commitResult(preview.result);
+      final evidence = committed.result.metadata['xhs_image_evidence'] as List;
+      expect(
+          evidence.whereType<Map>().where((item) => item['status'] == 'stored'),
+          hasLength(2));
+      expect(
+        committed.result.metadata['xhs_evidence_capabilities'],
+        containsPair('images', 'stored'),
+      );
+      expect(
+        committed.result.metadata['xhs_evidence_capabilities'],
+        containsPair('ocr', 'unavailable'),
+      );
+
+      final sourceId = committed.result.source!.sourceId;
+      await db.close();
+      db = AppDatabase.forTesting(NativeDatabase(dbFile));
+      repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+      final restored = await LinkIngestionService(repository: repository)
+          .getSource(sourceId);
+      expect(restored?.source.metadata['xhs_image_evidence'], hasLength(2));
+      expect(restored?.source.metadata['xhs_public_comments'], hasLength(1));
+    },
+  );
 }

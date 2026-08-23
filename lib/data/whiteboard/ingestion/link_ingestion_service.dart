@@ -105,12 +105,47 @@ class LinkIngestionService {
       final committedResult = result.provider == 'xiaohongshu'
           ? await _xiaohongshuEvidenceProcessor.process(result)
           : result;
-      final committed = await _repository.commitIngestion(
+      var committed = await _repository.commitIngestion(
         committedResult,
         cardKind: cardKind,
         ownerSpace: ownerSpace,
         createdBy: createdBy,
       );
+      if (committedResult.provider == 'xiaohongshu' &&
+          committedResult.source?.mediaType == SourceMediaType.image) {
+        // Explicit import is the only network-writing boundary. Project the
+        // first verified XHS original into the card's sanitized thumbnail
+        // cache here, so card-library/canvas rendering remains local-only.
+        // Failure never discards the original evidence object or the Card.
+        try {
+          final record = await _repository.getCard(
+            committed.card.cardId,
+            loadDocument: false,
+          );
+          if (record != null) {
+            final projection = await _repository.resolveThumbnail(record);
+            if (projection.isAvailable) {
+              final refreshed = await _repository.getCard(
+                committed.card.cardId,
+                loadDocument: false,
+              );
+              if (refreshed != null) {
+                committed = IngestionCommitResult(
+                  source: committed.source,
+                  version: committed.version,
+                  versionIsNew: committed.versionIsNew,
+                  card: refreshed.card,
+                  cardCreated: committed.cardCreated,
+                  cardRestored: committed.cardRestored,
+                );
+              }
+            }
+          }
+        } catch (_) {
+          // Thumbnail is a rebuildable projection. The persisted original,
+          // OCR/comment evidence and explicit Card commit remain successful.
+        }
+      }
       return LinkIngestionOutcome(
         result: committedResult,
         upsert: committed,

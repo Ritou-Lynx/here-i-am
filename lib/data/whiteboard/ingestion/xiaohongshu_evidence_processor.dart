@@ -60,6 +60,12 @@ class XiaohongshuEvidenceProcessor {
       };
       metadata['xhs_media_evidence'] = evidence;
       sourceMetadata['xhs_media_evidence'] = evidence;
+      _updateCapabilitySummary(
+        metadata,
+        sourceMetadata,
+        images: 'not_applicable',
+        ocr: 'not_applicable',
+      );
       return _versionedResult(_copyResult(
         input,
         source: _copySource(
@@ -93,7 +99,7 @@ class XiaohongshuEvidenceProcessor {
             url: url,
             order: order,
             parserVersion: metadata['xhs_parser_version'] as String? ??
-                'xhs-public-evidence-v2',
+                'xhs-public-evidence-v3',
           ),
         );
       } catch (error) {
@@ -105,13 +111,51 @@ class XiaohongshuEvidenceProcessor {
           'failure': _sanitizeFailure(error.toString()),
           'fetched_at': _clock().toUtc().toIso8601String(),
           'parser_version': metadata['xhs_parser_version'] as String? ??
-              'xhs-public-evidence-v2',
+              'xhs-public-evidence-v3',
         });
       }
     }
     metadata['xhs_image_evidence'] = evidence;
     sourceMetadata['xhs_image_evidence'] = evidence;
     final stored = evidence.any((item) => item['status'] == 'stored');
+    final firstStored = evidence.cast<Map<String, dynamic>?>().firstWhere(
+          (item) => item?['status'] == 'stored',
+          orElse: () => null,
+        );
+    final thumbnailUrl = firstStored?['final_url'] as String? ??
+        firstStored?['original_url'] as String?;
+    if (thumbnailUrl != null && thumbnailUrl.isNotEmpty) {
+      final pageOg = metadata.remove('og_image') ??
+          sourceMetadata.remove('og_image');
+      if (pageOg != null) {
+        metadata['xhs_page_og_image'] = pageOg;
+        sourceMetadata['xhs_page_og_image'] = pageOg;
+      }
+      sourceMetadata.remove('og_image');
+      metadata['thumbnail_url'] = thumbnailUrl;
+      sourceMetadata['thumbnail_url'] = thumbnailUrl;
+    }
+    final ocrStates = evidence
+        .where((item) => item['status'] == 'stored')
+        .map((item) => item['ocr'])
+        .whereType<Map>()
+        .map((ocr) => ocr['status'])
+        .whereType<String>()
+        .toSet();
+    _updateCapabilitySummary(
+      metadata,
+      sourceMetadata,
+      images: stored ? 'stored' : 'failed',
+      imagesReason:
+          stored ? null : '检测到公开图片，但安全下载或图片校验均未成功；请查看逐图 failure_code。',
+      ocr: ocrStates.contains('available')
+          ? 'available'
+          : ocrStates.contains('failed')
+              ? 'failed'
+              : 'unavailable',
+      ocrReason:
+          ocrStates.contains('available') ? null : '当前平台没有可用的本机 OCR；原图证据仍会保留。',
+    );
     return _versionedResult(_copyResult(
       input,
       source: _copySource(
@@ -304,6 +348,35 @@ class XiaohongshuEvidenceProcessor {
       metadata: metadata,
     );
   }
+}
+
+void _updateCapabilitySummary(
+  Map<String, dynamic> metadata,
+  Map<String, dynamic> sourceMetadata, {
+  required String images,
+  required String ocr,
+  String? imagesReason,
+  String? ocrReason,
+}) {
+  final existing = metadata['xhs_evidence_capabilities'];
+  final summary = existing is Map
+      ? Map<String, dynamic>.from(existing)
+      : <String, dynamic>{};
+  summary['images'] = images;
+  summary['ocr'] = ocr;
+  if (imagesReason == null) {
+    summary.remove('images_reason');
+  } else {
+    summary['images_reason'] = imagesReason;
+  }
+  if (ocrReason == null) {
+    summary.remove('ocr_reason');
+  } else {
+    summary['ocr_reason'] = ocrReason;
+  }
+  metadata['xhs_evidence_capabilities'] = summary;
+  sourceMetadata['xhs_evidence_capabilities'] =
+      Map<String, dynamic>.from(summary);
 }
 
 String _sanitizeFailure(String value) {

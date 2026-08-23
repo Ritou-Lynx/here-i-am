@@ -917,6 +917,11 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
             label: capabilityLabel,
             studyReady: studyReady,
           ),
+          if (source.provider == 'xiaohongshu' &&
+              result.metadata['xhs_evidence_capabilities'] is Map) ...[
+            const SizedBox(height: 10),
+            _buildXiaohongshuEvidenceState(result),
+          ],
           if (_sourceLookupWarning != null) ...[
             const SizedBox(height: 10),
             _buildInlineNotice(
@@ -988,6 +993,98 @@ class _LinkImportScreenState extends State<LinkImportScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildXiaohongshuEvidenceState(IngestionResult result) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    final capabilities = Map<String, dynamic>.from(
+      result.metadata['xhs_evidence_capabilities'] as Map,
+    );
+    final candidates = (result.metadata['xhs_media_candidates'] as List?)
+            ?.whereType<Map>()
+            .where((item) => item['confidence'] != 'low')
+            .length ??
+        0;
+    final evidence = (result.metadata['xhs_image_evidence'] as List?)
+            ?.whereType<Map>()
+            .toList() ??
+        const <Map>[];
+    final stored = evidence.where((item) => item['status'] == 'stored').length;
+    final failed = evidence.length - stored;
+    final comments =
+        (result.metadata['xhs_public_comments'] as List?)?.length ?? 0;
+    final imageState = capabilities['images'] as String?;
+    final ocrState = capabilities['ocr'] as String?;
+
+    String imageLabel;
+    if (imageState == 'stored') {
+      imageLabel = '公开原图：已安全缓存 $stored 张${failed > 0 ? '，$failed 张失败' : ''}';
+    } else if (imageState == 'detected') {
+      imageLabel = '公开原图：检测到 $candidates 张，确认后安全缓存';
+    } else if (imageState == 'failed') {
+      imageLabel = '公开原图：缓存失败（检测到 ${evidence.length} 张）';
+    } else {
+      imageLabel = '公开原图：匿名页面未提供';
+    }
+
+    final ocrLabel = switch (ocrState) {
+      'available' => 'OCR：已生成',
+      'pending_commit' => 'OCR：确认保存后检查本机能力',
+      'failed' => 'OCR：识别失败，原图已保留',
+      'not_applicable' => 'OCR：不适用于视频笔记',
+      _ => 'OCR：当前平台不可用，原图仍保留',
+    };
+    final commentLabel =
+        comments > 0 ? '公开评论：已保留 $comments 条顶层评论' : '公开评论：匿名 HTML 未呈现（0 条）';
+    final reasons = <String>[
+      if (capabilities['images_reason'] case final String reason) reason,
+      if (capabilities['ocr_reason'] case final String reason) reason,
+      if (capabilities['comments_reason'] case final String reason) reason,
+    ];
+
+    return Container(
+      key: const ValueKey('link_import_xhs_evidence_state'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tokens.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '小红书公开证据',
+            style: whiteboardUiTextStyle(
+              color: tokens.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 5),
+          for (final label in [imageLabel, ocrLabel, commentLabel])
+            Text(
+              label,
+              style: whiteboardUiTextStyle(
+                color: tokens.textMuted,
+                fontSize: 11,
+                height: 1.45,
+              ),
+            ),
+          if (reasons.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              reasons.join('\n'),
+              style: whiteboardUiTextStyle(
+                color: tokens.textFaint,
+                fontSize: 10,
+                height: 1.4,
+              ),
+            ),
+          ],
         ],
       ),
     );
