@@ -79,6 +79,7 @@ import 'package:memex/data/services/quick_action_service.dart';
 import 'package:memex/data/services/speech_transcription_service.dart';
 import 'package:memex/data/services/background_task_drain_service.dart';
 import 'package:memex/data/services/sync/core_sync_runtime_service.dart';
+import 'package:memex/data/workbench_ai/workbench_conversation_coordinator.dart';
 import 'package:memex/ui/companion/widgets/companion_first_shell.dart';
 import 'package:memex/ui/desktop/widgets/global_desktop_chat_overlay.dart';
 import 'package:memex/ui/companion/widgets/floating_record_ball.dart';
@@ -365,6 +366,14 @@ void main() async {
     providers: dependencyProviders,
     child: MemexApp(router: appRouter),
   ));
+  if (isDesktop) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Do not delay the first desktop frame. This readiness probe only starts
+      // and initializes the local App Server; provider thread creation remains
+      // owned by the user's first ordinary conversation turn.
+      unawaited(WorkbenchConversationCoordinator.instance.warmUp());
+    });
+  }
 }
 
 /// Root route content: user check then loading / MainScreen (Compass-style).

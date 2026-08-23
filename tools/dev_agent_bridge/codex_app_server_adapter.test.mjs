@@ -100,6 +100,7 @@ test('discovers auth, capabilities, and models before starting a session', async
 
   const auth = await adapter.getAuthStatus();
   const capabilities = await adapter.listCapabilities();
+  assert.equal(adapter.sessions.size, 0, 'readiness discovery must not create a thread');
   const session = await adapter.startSession(
     { model: 'fake-model', sandbox: 'read-only', ephemeral: true },
     { manifest_id: 'manifest-1' },
@@ -114,6 +115,22 @@ test('discovers auth, capabilities, and models before starting a session', async
   assert.equal(session.status, 'idle');
   assert.equal(session.model, 'fake-model');
   assert.match(session.provider_metadata.provider_session_id, /^fake-thread-/);
+});
+
+test('serializes concurrent readiness discovery and first session start', async (t) => {
+  const adapter = createAdapter({ defaultModel: 'fake-model' });
+  t.after(() => adapter.stop());
+
+  const [capabilities, session] = await Promise.all([
+    adapter.listCapabilities(),
+    adapter.startSession({ model: 'fake-model', ephemeral: false }),
+  ]);
+
+  assert.ok(capabilities.capabilities.includes('turn_start'));
+  assert.equal(adapter.client.state, 'ready');
+  assert.equal(adapter.sessions.size, 1);
+  assert.equal(session.status, RuntimeStatus.IDLE);
+  assert.equal(adapter.readEvents(session.session_id).events.length, 1);
 });
 
 test('fails fast when model/list does not contain the requested model', async (t) => {

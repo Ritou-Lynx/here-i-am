@@ -7,6 +7,59 @@ import 'package:memex/data/workbench_ai/workbench_runtime_binding_store.dart';
 import 'package:memex/domain/workbench_ai/runtime/runtime_session_binding.dart';
 
 void main() {
+  test('coalesces best-effort warm-up without starting a session or writing',
+      () async {
+    final gate = Completer<void>();
+    final runtime = _FakeConversationRuntime(warmUpGate: gate);
+    final replies = <String>[];
+    final coordinator = _coordinator(runtime, replies);
+
+    final first = coordinator.warmUp();
+    final second = coordinator.warmUp();
+
+    expect(runtime.warmUpCalls, 1);
+    expect(runtime.startSessionCalls, 0);
+    expect(replies, isEmpty);
+    gate.complete();
+    expect(await first, isTrue);
+    expect(await second, isTrue);
+  });
+
+  test('warm-up failure is retryable and does not poison normal send',
+      () async {
+    final runtime = _FakeConversationRuntime(warmUpFailures: 1)
+      ..enqueueCompletedReply('正常首轮');
+    final replies = <String>[];
+    final coordinator = _coordinator(runtime, replies);
+
+    expect(await coordinator.warmUp(), isFalse);
+    final sent = await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '预热失败后正常发送',
+    );
+    expect(await coordinator.warmUp(), isTrue);
+
+    expect(sent.outcome, WorkbenchConversationOutcome.completed);
+    expect(replies, ['正常首轮']);
+    expect(runtime.warmUpCalls, 2);
+    expect(runtime.startSessionCalls, 1);
+  });
+
+  test('disposing warm-up cancels only the readiness wait', () async {
+    final gate = Completer<void>();
+    final runtime = _FakeConversationRuntime(warmUpGate: gate);
+    final coordinator = _coordinator(runtime, <String>[]);
+
+    final pending = coordinator.warmUp();
+    coordinator.disposeWarmUp();
+
+    expect(await pending, isFalse);
+    expect(runtime.warmUpCancelCalls, 1);
+    expect(runtime.startSessionCalls, 0);
+    expect(await coordinator.warmUp(), isFalse);
+  });
+
   test(
     'reuses one product conversation binding across ordinary turns',
     () async {
@@ -270,8 +323,7 @@ void main() {
     },
   );
 
-  test('hanging stop control is bounded and reported as unconfirmed',
-      () async {
+  test('hanging stop control is bounded and reported as unconfirmed', () async {
     final runtime = _FakeConversationRuntime(interruptHangs: true)
       ..enqueueSilentTurn();
     final replies = <String>[];
@@ -581,7 +633,10 @@ WorkbenchConversationCoordinator _coordinator(
   );
 }
 
-class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
+class _FakeConversationRuntime
+    implements
+        WorkbenchConversationRuntimeGateway,
+        WorkbenchRuntimeWarmUpGateway {
   _FakeConversationRuntime({
     this.startFailure,
     this.interruptFailure = false,
@@ -589,6 +644,8 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
     this.startSessionGate,
     this.resumeProvider,
     this.resumedStartFailure,
+    this.warmUpGate,
+    this.warmUpFailures = 0,
   });
 
   final WorkbenchRuntimeException? startFailure;
@@ -597,6 +654,8 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
   final Completer<void>? startSessionGate;
   final String? resumeProvider;
   final WorkbenchRuntimeException? resumedStartFailure;
+  final Completer<void>? warmUpGate;
+  int warmUpFailures;
   final List<_TurnScript> _scripts = [];
   final Completer<void> turnStarted = Completer<void>();
   final List<String> startedTurnSessionIds = [];
@@ -605,11 +664,53 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
   int resumeSessionCalls = 0;
   int interruptCalls = 0;
   int closeSessionCalls = 0;
+  int warmUpCalls = 0;
+  int warmUpCancelCalls = 0;
   int _sessionSerial = 0;
   int _turnSerial = 0;
   bool failNextStartTurn = false;
   final Completer<void> _interruptGate = Completer<void>();
   _RunningTurn? _running;
+
+  @override
+  WorkbenchRuntimeWarmUpOperation warmUp() {
+    warmUpCalls++;
+    final completion = Completer<void>();
+    if (warmUpFailures > 0) {
+      warmUpFailures--;
+      completion.completeError(
+        const WorkbenchRuntimeException(
+          'runtime_unavailable',
+          'warm-up failed',
+        ),
+      );
+    } else if (warmUpGate == null) {
+      completion.complete();
+    } else {
+      warmUpGate!.future.then(
+        (_) {
+          if (!completion.isCompleted) completion.complete();
+        },
+        onError: (Object error, StackTrace stack) {
+          if (!completion.isCompleted) completion.completeError(error, stack);
+        },
+      );
+    }
+    return WorkbenchRuntimeWarmUpOperation(
+      completed: completion.future,
+      cancel: () {
+        warmUpCancelCalls++;
+        if (!completion.isCompleted) {
+          completion.completeError(
+            const WorkbenchRuntimeException(
+              'runtime_unavailable',
+              'warm-up cancelled',
+            ),
+          );
+        }
+      },
+    );
+  }
 
   void enqueueCompletedReply(String reply) {
     _scripts.add(_TurnScript.completed(reply));

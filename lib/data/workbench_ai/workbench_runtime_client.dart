@@ -1,5 +1,7 @@
 library;
 
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 
 class WorkbenchRuntimeException implements Exception {
@@ -39,6 +41,36 @@ class WorkbenchRuntimeEvents {
   final String status;
   final List<Map<String, dynamic>> events;
   final int nextSequence;
+}
+
+/// A best-effort Runtime readiness probe that can be abandoned by its owner.
+///
+/// Cancellation only abandons the local HTTP wait. The Bridge owns App Server
+/// startup and serializes it with a concurrent session start, so cancelling a
+/// UI lifecycle probe cannot tear down shared provider state.
+class WorkbenchRuntimeWarmUpOperation {
+  WorkbenchRuntimeWarmUpOperation({
+    required this.completed,
+    required void Function() cancel,
+  }) : _cancel = cancel;
+
+  final Future<void> completed;
+  final void Function() _cancel;
+  bool _cancelled = false;
+
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    _cancel();
+  }
+}
+
+/// Optional readiness capability kept separate from conversation semantics.
+///
+/// A warm-up must not create a product session, provider thread, turn, tool
+/// call, or persisted product state.
+abstract interface class WorkbenchRuntimeWarmUpGateway {
+  WorkbenchRuntimeWarmUpOperation warmUp();
 }
 
 abstract interface class WorkbenchRuntimeGateway {
@@ -82,11 +114,16 @@ abstract interface class WorkbenchConversationRuntimeGateway
   });
 }
 
-class WorkbenchRuntimeClient implements WorkbenchConversationRuntimeGateway {
+class WorkbenchRuntimeClient
+    implements
+        WorkbenchConversationRuntimeGateway,
+        WorkbenchRuntimeWarmUpGateway {
   WorkbenchRuntimeClient({
     String bridgeUrl = 'http://127.0.0.1:47831',
     Dio? dio,
+    Duration warmUpTimeout = const Duration(seconds: 8),
   })  : _baseUri = _validateBridgeUrl(bridgeUrl),
+        _warmUpTimeout = warmUpTimeout,
         _dio = dio ??
             Dio(
               BaseOptions(
@@ -101,6 +138,45 @@ class WorkbenchRuntimeClient implements WorkbenchConversationRuntimeGateway {
 
   final Uri _baseUri;
   final Dio _dio;
+  final Duration _warmUpTimeout;
+
+  @override
+  WorkbenchRuntimeWarmUpOperation warmUp() {
+    final cancelToken = CancelToken();
+    final completed = () async {
+      try {
+        final response = await _dio
+            .getUri(
+          _uri('$prefix/capabilities'),
+          cancelToken: cancelToken,
+        )
+            .timeout(
+          _warmUpTimeout,
+          onTimeout: () {
+            cancelToken.cancel('Runtime warm-up timed out.');
+            throw const WorkbenchRuntimeException(
+              'runtime_warmup_timeout',
+              'Runtime warm-up timed out.',
+            );
+          },
+        );
+        final data = _map(response.data);
+        if (data['capabilities'] is! List ||
+            data['provider_metadata'] is! Map) {
+          throw const WorkbenchRuntimeException(
+            'invalid_response',
+            'Runtime capability response is invalid.',
+          );
+        }
+      } on DioException catch (error) {
+        throw _normalizeDio(error);
+      }
+    }();
+    return WorkbenchRuntimeWarmUpOperation(
+      completed: completed,
+      cancel: () => cancelToken.cancel('Runtime warm-up cancelled.'),
+    );
+  }
 
   @override
   Future<WorkbenchRuntimeSession> startSession({
