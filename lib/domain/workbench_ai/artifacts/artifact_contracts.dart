@@ -3,6 +3,7 @@
 library artifact_contracts;
 
 export 'artifact_contract_validation.dart';
+export 'artifact_executor.dart';
 export 'content_bundle_plan.dart';
 export 'generated_artifact.dart';
 export 'html_artifact_contract.dart';
