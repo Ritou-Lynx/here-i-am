@@ -55,11 +55,8 @@ class WorkbenchConversationCoordinator {
         _turnTimeout = turnTimeout,
         _controlTimeout = controlTimeout;
 
-  static final WorkbenchRuntimeClient _productionRuntime =
-      WorkbenchRuntimeClient();
-
   static final instance = WorkbenchConversationCoordinator(
-    runtime: _productionRuntime,
+    runtime: WorkbenchRuntimeClient(),
     searchTool: WorkbenchRuntimeSearchTool.production(
       database: AppDatabase.instance,
       loadCardRepository: WhiteboardDataBootstrap.productionRepository,
@@ -86,10 +83,6 @@ class WorkbenchConversationCoordinator {
   final Duration _controlTimeout;
   final Map<String, _ConversationRuntime> _bindings = {};
   final Map<String, _ActiveConversationTurn> _activeTurns = {};
-  WorkbenchRuntimeWarmUpOperation? _warmUpOperation;
-  Future<bool>? _warmUpResult;
-  bool _warmUpSucceeded = false;
-  bool _warmUpDisposed = false;
   int _bindingSerial = 0;
 
   bool isRunning(String conversationId) =>
@@ -99,54 +92,6 @@ class WorkbenchConversationCoordinator {
       _bindings[conversationId]?.binding;
 
   WorkbenchBindingDurability get bindingDurability => _bindingStore.durability;
-
-  /// Starts the provider process and discovers auth/models without creating a
-  /// Runtime session, provider thread, turn, tool call, or product write.
-  ///
-  /// Failures are intentionally contained here. A later [send] still follows
-  /// the normal startSession path, and the Bridge readiness gate is retryable.
-  Future<bool> warmUp() {
-    if (_warmUpDisposed) return Future<bool>.value(false);
-    if (_warmUpSucceeded) return Future<bool>.value(true);
-    final pending = _warmUpResult;
-    if (pending != null) return pending;
-    final runtime = _runtime;
-    if (runtime is! WorkbenchRuntimeWarmUpGateway) {
-      return Future<bool>.value(false);
-    }
-
-    final operation = (runtime as WorkbenchRuntimeWarmUpGateway).warmUp();
-    _warmUpOperation = operation;
-    late final Future<bool> result;
-    result = () async {
-      try {
-        await operation.completed;
-        if (_warmUpDisposed) return false;
-        _warmUpSucceeded = true;
-        return true;
-      } catch (_) {
-        return false;
-      } finally {
-        if (identical(_warmUpResult, result)) {
-          _warmUpOperation = null;
-          _warmUpResult = null;
-        }
-      }
-    }();
-    _warmUpResult = result;
-    return result;
-  }
-
-  /// Cancels only this owner's readiness wait; it never stops the Bridge or
-  /// App Server and therefore cannot race a real conversation turn.
-  void cancelWarmUp() => _warmUpOperation?.cancel();
-
-  /// Releases the optional warm-up lifecycle without changing conversation
-  /// bindings or active turns.
-  void disposeWarmUp() {
-    _warmUpDisposed = true;
-    cancelWarmUp();
-  }
 
   Future<WorkbenchConversationResult> send({
     required String conversationId,

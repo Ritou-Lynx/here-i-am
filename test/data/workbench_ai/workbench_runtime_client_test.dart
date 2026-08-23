@@ -6,44 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
 
 void main() {
-  test('warm-up discovers capabilities without creating a session or turn',
-      () async {
-    final adapter = _RuntimeAdapter(provider: 'fake-runtime');
-    final dio = Dio()..httpClientAdapter = adapter;
-    final client = WorkbenchRuntimeClient(dio: dio);
-
-    final operation = client.warmUp();
-    await operation.completed;
-
-    expect(adapter.requests, hasLength(1));
-    expect(adapter.requests.single.method, 'GET');
-    expect(adapter.requests.single.path, endsWith('/capabilities'));
-    expect(adapter.requests.single.data, isNull);
-  });
-
-  test('warm-up is bounded and cancels its local readiness wait', () async {
-    final adapter = _RuntimeAdapter(
-      provider: 'fake-runtime',
-      capabilityDelay: const Duration(milliseconds: 50),
-    );
-    final dio = Dio()..httpClientAdapter = adapter;
-    final client = WorkbenchRuntimeClient(
-      dio: dio,
-      warmUpTimeout: const Duration(milliseconds: 1),
-    );
-
-    await expectLater(
-      client.warmUp().completed,
-      throwsA(
-        isA<WorkbenchRuntimeException>().having(
-          (error) => error.code,
-          'code',
-          'runtime_warmup_timeout',
-        ),
-      ),
-    );
-  });
-
   test('start and resume send the same tools and resume provider guard',
       () async {
     final adapter = _RuntimeAdapter(provider: 'fake-runtime');
@@ -94,13 +56,9 @@ void main() {
 }
 
 class _RuntimeAdapter implements HttpClientAdapter {
-  _RuntimeAdapter({
-    required this.provider,
-    this.capabilityDelay = Duration.zero,
-  });
+  _RuntimeAdapter({required this.provider});
 
   final String provider;
-  final Duration capabilityDelay;
   final List<RequestOptions> requests = [];
 
   @override
@@ -110,26 +68,6 @@ class _RuntimeAdapter implements HttpClientAdapter {
     Future<dynamic>? cancelFuture,
   ) async {
     requests.add(options);
-    if (options.path.endsWith('/capabilities')) {
-      if (capabilityDelay > Duration.zero) {
-        await Future<void>.delayed(capabilityDelay);
-      }
-      return ResponseBody.fromString(
-        jsonEncode({
-          'capabilities': ['session_start', 'turn_start'],
-          'provider_metadata': {
-            'provider': provider,
-            'models': [
-              {'id': 'fake-model'},
-            ],
-          },
-        }),
-        200,
-        headers: {
-          'content-type': ['application/json'],
-        },
-      );
-    }
     return ResponseBody.fromString(
       jsonEncode({
         'session_id': 'local-${requests.length}',
