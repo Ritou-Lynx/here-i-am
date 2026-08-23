@@ -98,6 +98,21 @@ void main() {
       );
     });
 
+    test('unavailable binding can recover to a fresh idle local session', () {
+      final unavailable = _binding().transitionTo(
+        RuntimeSessionStatus.unavailable,
+        at: _time.add(const Duration(minutes: 1)),
+      );
+
+      final recovered = unavailable.transitionTo(
+        RuntimeSessionStatus.idle,
+        at: _time.add(const Duration(minutes: 2)),
+      );
+
+      expect(recovered.status, RuntimeSessionStatus.idle);
+      expect(recovered.providerSessionId, unavailable.providerSessionId);
+    });
+
     test('rejects session transition timestamps before last activity', () {
       final interrupted = _binding().transitionTo(
         RuntimeSessionStatus.interrupted,

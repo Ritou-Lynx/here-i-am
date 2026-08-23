@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -160,6 +161,105 @@ void main() {
     );
     expect(replies, ['已找到。', '已恢复。']);
   });
+
+  test('hanging search is bounded by the remaining turn deadline', () async {
+    final adapter = _BlockingRuntimeSearchAdapter();
+    final runtime = _SearchConversationRuntime();
+    final replies = <String>[];
+    final coordinator = _searchCoordinator(
+      runtime: runtime,
+      searchTool: _tool(adapter, projectedProjectIds: {'project-a'}),
+      replies: replies,
+      turnTimeout: const Duration(milliseconds: 10),
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '搜索但不要永远等待',
+    );
+
+    expect(result.errorCode, 'runtime_timeout');
+    expect(replies.single, contains('等待超时'));
+    expect(runtime.interruptCalls, 1);
+    expect(runtime.closeSessionCalls, 1);
+    expect(runtime.toolResponses, isEmpty);
+  });
+
+  test('stop during search returns promptly and cleans the local turn',
+      () async {
+    final adapter = _BlockingRuntimeSearchAdapter();
+    final runtime = _SearchConversationRuntime();
+    final replies = <String>[];
+    final coordinator = _searchCoordinator(
+      runtime: runtime,
+      searchTool: _tool(adapter, projectedProjectIds: {'project-a'}),
+      replies: replies,
+    );
+
+    final pending = coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '开始搜索',
+    );
+    await adapter.started.future;
+    expect(await coordinator.stop('persona-i'), isTrue);
+    final result = await pending;
+
+    expect(result.outcome, WorkbenchConversationOutcome.interrupted);
+    expect(result.errorCode, 'runtime_interrupted');
+    expect(replies.single, '已停止这次电脑回复。');
+    expect(runtime.interruptCalls, 2);
+    expect(runtime.closeSessionCalls, 1);
+    expect(runtime.toolResponses, isEmpty);
+  });
+
+  test('tool response transport failure abandons the runtime session',
+      () async {
+    final runtime = _SearchConversationRuntime(
+      responseFailure: const WorkbenchRuntimeException(
+        'tool_response_failed',
+        'Bridge rejected the tool response.',
+      ),
+    );
+    final replies = <String>[];
+    final coordinator = _searchCoordinator(
+      runtime: runtime,
+      searchTool: _tool(
+        _RuntimeSearchAdapter(),
+        projectedProjectIds: {'project-a'},
+      ),
+      replies: replies,
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '搜索并回传',
+    );
+
+    expect(result.errorCode, 'tool_response_failed');
+    expect(runtime.interruptCalls, 1);
+    expect(runtime.closeSessionCalls, 1);
+  });
+}
+
+WorkbenchConversationCoordinator _searchCoordinator({
+  required _SearchConversationRuntime runtime,
+  required WorkbenchRuntimeSearchTool searchTool,
+  required List<String> replies,
+  Duration turnTimeout = const Duration(seconds: 2),
+}) {
+  return WorkbenchConversationCoordinator(
+    runtime: runtime,
+    searchTool: searchTool,
+    addReply: (_, content) async {
+      replies.add(content);
+      return replies.length;
+    },
+    pollInterval: Duration.zero,
+    turnTimeout: turnTimeout,
+  );
 }
 
 WorkbenchRuntimeSearchTool _tool(
@@ -216,8 +316,29 @@ class _RuntimeSearchAdapter implements WorkbenchSearchAdapter {
   }
 }
 
+class _BlockingRuntimeSearchAdapter implements WorkbenchSearchAdapter {
+  final Completer<void> started = Completer<void>();
+  final Completer<SearchAdapterResult> _never =
+      Completer<SearchAdapterResult>();
+
+  @override
+  String get adapterId => 'blocking_runtime_search_adapter';
+
+  @override
+  Set<SearchScope> get supportedScopes => const {SearchScope.cardLibrary};
+
+  @override
+  Future<SearchAdapterResult> search(SearchAdapterRequest request) {
+    if (!started.isCompleted) started.complete();
+    return _never.future;
+  }
+}
+
 class _SearchConversationRuntime
     implements WorkbenchConversationRuntimeGateway {
+  _SearchConversationRuntime({this.responseFailure});
+
+  final WorkbenchRuntimeException? responseFailure;
   final List<List<Map<String, dynamic>>> startedTools = [];
   final List<List<Map<String, dynamic>>> resumedTools = [];
   final List<({bool success, String text})> toolResponses = [];
@@ -225,6 +346,8 @@ class _SearchConversationRuntime
   int _sessionSerial = 0;
   int _turnSerial = 0;
   int _activeTurn = 0;
+  int interruptCalls = 0;
+  int closeSessionCalls = 0;
 
   @override
   Future<WorkbenchRuntimeSession> startSession({
@@ -234,18 +357,22 @@ class _SearchConversationRuntime
     startedTools.add(dynamicTools);
     return WorkbenchRuntimeSession(
       sessionId: 'local-${++_sessionSerial}',
+      provider: 'fake-search-runtime',
       providerSessionId: 'provider-1',
     );
   }
 
   @override
   Future<WorkbenchRuntimeSession> resumeSession({
+    required String provider,
     required String providerSessionId,
     required List<Map<String, dynamic>> dynamicTools,
   }) async {
+    expect(provider, 'fake-search-runtime');
     resumedTools.add(dynamicTools);
     return WorkbenchRuntimeSession(
       sessionId: 'local-${++_sessionSerial}',
+      provider: provider,
       providerSessionId: providerSessionId,
     );
   }
@@ -310,6 +437,7 @@ class _SearchConversationRuntime
     required bool success,
     required String text,
   }) async {
+    if (responseFailure != null) throw responseFailure!;
     toolResponses.add((success: success, text: text));
   }
 
@@ -317,8 +445,12 @@ class _SearchConversationRuntime
   Future<void> interruptTurn({
     required String sessionId,
     required String turnId,
-  }) async {}
+  }) async {
+    interruptCalls++;
+  }
 
   @override
-  Future<void> closeSession(String sessionId) async {}
+  Future<void> closeSession(String sessionId) async {
+    closeSessionCalls++;
+  }
 }

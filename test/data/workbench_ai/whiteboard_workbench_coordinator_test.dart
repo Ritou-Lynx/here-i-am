@@ -196,6 +196,7 @@ class _FakeRuntime implements WorkbenchRuntimeGateway {
     expect(writeTool['description'], contains('每个所选 item_id 恰好出现一次'));
     return const WorkbenchRuntimeSession(
       sessionId: 'session_1',
+      provider: 'fake-runtime',
       providerSessionId: 'provider_1',
     );
   }

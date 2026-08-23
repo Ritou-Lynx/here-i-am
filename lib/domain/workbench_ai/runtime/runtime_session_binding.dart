@@ -216,6 +216,7 @@ class RuntimeSessionBinding {
           next == RuntimeSessionStatus.closed ||
           next == RuntimeSessionStatus.unavailable,
       RuntimeSessionStatus.unavailable => next == RuntimeSessionStatus.active ||
+          next == RuntimeSessionStatus.idle ||
           next == RuntimeSessionStatus.closed,
       RuntimeSessionStatus.closed => false,
     };

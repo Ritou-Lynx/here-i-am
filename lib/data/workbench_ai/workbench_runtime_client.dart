@@ -15,10 +15,12 @@ class WorkbenchRuntimeException implements Exception {
 class WorkbenchRuntimeSession {
   const WorkbenchRuntimeSession({
     required this.sessionId,
+    required this.provider,
     required this.providerSessionId,
   });
 
   final String sessionId;
+  final String provider;
   final String providerSessionId;
 }
 
@@ -69,6 +71,7 @@ abstract interface class WorkbenchRuntimeGateway {
 abstract interface class WorkbenchConversationRuntimeGateway
     implements WorkbenchRuntimeGateway {
   Future<WorkbenchRuntimeSession> resumeSession({
+    required String provider,
     required String providerSessionId,
     required List<Map<String, dynamic>> dynamicTools,
   });
@@ -105,8 +108,8 @@ class WorkbenchRuntimeClient implements WorkbenchConversationRuntimeGateway {
     Map<String, dynamic> contextManifest = const {},
   }) async {
     final config = <String, dynamic>{
-        'ephemeral': false,
-        'service_name': 'here_i_am_workbench',
+      'ephemeral': false,
+      'service_name': 'here_i_am_workbench',
       if (dynamicTools.isNotEmpty) 'dynamic_tools': dynamicTools,
     };
     final data = await _post('$prefix/sessions', {
@@ -117,16 +120,19 @@ class WorkbenchRuntimeClient implements WorkbenchConversationRuntimeGateway {
     final metadata = _map(data['provider_metadata']);
     return WorkbenchRuntimeSession(
       sessionId: sessionId,
+      provider: _requiredString(metadata, 'provider'),
       providerSessionId: _requiredString(metadata, 'provider_session_id'),
     );
   }
 
   @override
   Future<WorkbenchRuntimeSession> resumeSession({
+    required String provider,
     required String providerSessionId,
     required List<Map<String, dynamic>> dynamicTools,
   }) async {
     final data = await _post('$prefix/sessions/resume', {
+      'provider': provider,
       'provider_session_id': providerSessionId,
       'config': {
         'ephemeral': false,
@@ -135,17 +141,29 @@ class WorkbenchRuntimeClient implements WorkbenchConversationRuntimeGateway {
       },
     });
     final metadata = _map(data['provider_metadata']);
+    final sessionId = _requiredString(data, 'session_id');
+    final resumedProvider = _requiredString(metadata, 'provider');
+    if (resumedProvider != provider) {
+      try {
+        await closeSession(sessionId);
+      } catch (_) {
+        // Preserve the mismatch as the authoritative failure. The product
+        // binding remains unavailable even if Bridge cleanup also fails.
+      }
+      throw const WorkbenchRuntimeException(
+        'runtime_provider_mismatch',
+        'Runtime resumed a different provider.',
+      );
+    }
     return WorkbenchRuntimeSession(
-      sessionId: _requiredString(data, 'session_id'),
+      sessionId: sessionId,
+      provider: resumedProvider,
       providerSessionId: _requiredString(metadata, 'provider_session_id'),
     );
   }
 
   @override
-  Future<WorkbenchRuntimeTurn> startTurn(
-    String sessionId,
-    String input,
-  ) async {
+  Future<WorkbenchRuntimeTurn> startTurn(String sessionId, String input) async {
     final data = await _post(
       '$prefix/sessions/${Uri.encodeComponent(sessionId)}/turns',
       {'input': input},
@@ -232,10 +250,7 @@ class WorkbenchRuntimeClient implements WorkbenchConversationRuntimeGateway {
     }
   }
 
-  Uri _uri(
-    String path, {
-    Map<String, String>? queryParameters,
-  }) {
+  Uri _uri(String path, {Map<String, String>? queryParameters}) {
     return _baseUri.replace(
       path: '${_baseUri.path.replaceFirst(RegExp(r'/$'), '')}$path',
       queryParameters: queryParameters,
