@@ -1,8 +1,10 @@
 /// Annotation editor — inline form for creating a video annotation card.
 ///
 /// Appears when the ViewModel has a pending annotation. Shows the time range,
-/// a title input, a body input, and save/cancel buttons. On save, creates
-/// a time_range Anchor + Annotation Card via the ViewModel.
+/// one continuous document and save/cancel buttons. The first line projects
+/// to the Card title; everything after it remains one editable Card body.
+/// A cue quote may be inserted into that document, but is never a separate
+/// required field and can be edited or deleted before saving.
 library;
 
 import 'package:flutter/material.dart';
@@ -26,21 +28,43 @@ class AnnotationEditor extends StatefulWidget {
 }
 
 class _AnnotationEditorState extends State<AnnotationEditor> {
-  final _titleController = TextEditingController();
-  final _bodyController = TextEditingController();
-  final _quoteController = TextEditingController();
+  late final TextEditingController _documentController;
+  late final FocusNode _documentFocusNode;
 
   @override
   void initState() {
     super.initState();
-    _quoteController.text = widget.initialQuote ?? '';
+    final vm = widget.viewModel;
+    final draftWasInitialized = vm.annotationDraftInitialized;
+    final shouldRestoreFocus = vm.annotationDraftWasFocused;
+    vm.initializeAnnotationDraft(quote: widget.initialQuote ?? '');
+    _documentController = TextEditingController(
+      text: vm.annotationDraftDocument,
+    );
+    _documentController.selection = const TextSelection.collapsed(offset: 0);
+    _documentFocusNode = FocusNode(debugLabel: 'video annotation document')
+      ..addListener(_rememberFocus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          (!draftWasInitialized || shouldRestoreFocus) &&
+          !_documentFocusNode.hasFocus) {
+        _documentFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _rememberFocus() {
+    if (_documentFocusNode.hasFocus) {
+      widget.viewModel.rememberAnnotationDraftFocus();
+    }
   }
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _bodyController.dispose();
-    _quoteController.dispose();
+    _documentFocusNode
+      ..removeListener(_rememberFocus)
+      ..dispose();
+    _documentController.dispose();
     super.dispose();
   }
 
@@ -48,6 +72,11 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
     final startMs = widget.viewModel.pendingAnnotationStartMs ?? 0;
+    final endMs = widget.viewModel.pendingAnnotationEndMs ?? startMs;
+    final timeLabel = widget.viewModel.pendingAnnotationIsPoint
+        ? VideoStudyViewModel.formatTimecode(startMs)
+        : '${VideoStudyViewModel.formatTimecode(startMs)}–'
+            '${VideoStudyViewModel.formatTimecode(endMs)}';
 
     return Container(
       key: const ValueKey('video_annotation_editor'),
@@ -76,7 +105,7 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
               ),
               const Spacer(),
               Text(
-                VideoStudyViewModel.formatTimecode(startMs),
+                timeLabel,
                 style: richTextCodeTextStyle(
                   color: tokens.action,
                   fontSize: 13,
@@ -86,43 +115,45 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
             ],
           ),
           const SizedBox(height: 12),
-          // Title input
+          // The annotation is one continuous document. Card title/body and
+          // optional Anchor quote are projections produced only on save.
           TextField(
-            controller: _titleController,
-            decoration: _inputDecoration(tokens, '标题'),
-            style: whiteboardUiTextStyle(
-              fontSize: 14,
-              color: tokens.textPrimary,
+            key: const ValueKey('video_annotation_document'),
+            controller: _documentController,
+            focusNode: _documentFocusNode,
+            onChanged: widget.viewModel.updateAnnotationDraftDocument,
+            minLines: 8,
+            maxLines: null,
+            keyboardType: TextInputType.multiline,
+            textAlignVertical: TextAlignVertical.top,
+            decoration: InputDecoration(
+              hintText: '第一行作为标题\n继续写正文；原文引用也在这里，可直接编辑或删除',
+              hintStyle: whiteboardUiTextStyle(
+                color: tokens.textFaint,
+                fontSize: 12,
+              ),
+              filled: false,
+              fillColor: Colors.transparent,
+              contentPadding: EdgeInsets.zero,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
             ),
-          ),
-          const SizedBox(height: 8),
-          // Body input
-          TextField(
-            controller: _bodyController,
-            maxLines: 3,
-            decoration: _inputDecoration(tokens, '笔记'),
             style: whiteboardUiTextStyle(
               fontSize: 14,
               height: 1.6,
               color: tokens.textPrimary,
             ),
           ),
-          const SizedBox(height: 8),
-          // Quote input (optional)
-          TextField(
-            controller: _quoteController,
-            maxLines: 2,
-            decoration: _inputDecoration(tokens, '引用原文（可选）'),
-            style: whiteboardUiTextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: tokens.textMuted,
-            ),
-          ),
           const SizedBox(height: 12),
           // Actions
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               TextButton(
                 onPressed: () {
@@ -133,7 +164,6 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
                   style: whiteboardUiTextStyle(color: tokens.textMuted),
                 ),
               ),
-              const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: widget.viewModel.isSavingAnnotation ? null : _save,
                 icon: widget.viewModel.isSavingAnnotation
@@ -163,33 +193,49 @@ class _AnnotationEditorState extends State<AnnotationEditor> {
   }
 
   Future<void> _save() async {
+    final projection = _AnnotationDocumentProjection.fromDocument(
+      _documentController.text,
+    );
     await widget.viewModel.confirmAnnotation(
-      title: _titleController.text.trim(),
-      body: _bodyController.text.trim(),
-      quote: _quoteController.text.trim().isEmpty
-          ? null
-          : _quoteController.text.trim(),
+      title: projection.title,
+      body: projection.body,
+      quote: projection.quote,
     );
   }
+}
 
-  InputDecoration _inputDecoration(
-    DesktopWorkspaceTokens tokens,
-    String label,
-  ) {
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: tokens.divider),
+class _AnnotationDocumentProjection {
+  const _AnnotationDocumentProjection({
+    required this.title,
+    required this.body,
+    required this.quote,
+  });
+
+  final String title;
+  final String body;
+  final String? quote;
+
+  factory _AnnotationDocumentProjection.fromDocument(String raw) {
+    final normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final lines = normalized.split('\n');
+    final title = lines.isEmpty ? '' : lines.first.trim();
+    final bodyLines = lines.length <= 1 ? const <String>[] : lines.sublist(1);
+    final markerIndex = bodyLines.indexWhere(
+      (line) => line.trim() == '原文引用',
     );
-    return InputDecoration(
-      labelText: label,
-      isDense: true,
-      border: border,
-      enabledBorder: border,
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: tokens.action, width: 1.5),
-      ),
-      labelStyle: whiteboardUiTextStyle(color: tokens.textMuted, fontSize: 12),
+    String? quote;
+    if (markerIndex >= 0) {
+      final quoteText = bodyLines
+          .skip(markerIndex + 1)
+          .map((line) => line.startsWith('> ') ? line.substring(2) : line)
+          .join('\n')
+          .trim();
+      if (quoteText.isNotEmpty) quote = quoteText;
+    }
+    return _AnnotationDocumentProjection(
+      title: title,
+      body: bodyLines.join('\n').trim(),
+      quote: quote,
     );
   }
 }

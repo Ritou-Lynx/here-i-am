@@ -104,6 +104,7 @@ void main() {
         find.byKey(const ValueKey('card-library-create-text')), findsOneWidget);
     expect(
         find.byKey(const ValueKey('card-library-import-link')), findsOneWidget);
+    expect(find.text('导入链接 / 视频'), findsOneWidget);
   });
 
   testWidgets('default view lists real text and media cards with true previews',
@@ -386,6 +387,9 @@ void main() {
     await boardStore.createBoard(name: '筛选目标板');
     await pumpApp(tester);
 
+    expect(find.textContaining('卡片角色：'), findsOneWidget);
+    expect(find.textContaining('媒介类型：'), findsOneWidget);
+
     final placeButton =
         find.byKey(const ValueKey('card-library-place-note_filter'));
     await tester.scrollUntilVisible(
@@ -405,6 +409,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('card-library-kind-filter')));
     await tester.pumpAndSettle();
+    expect(find.text('原件卡'), findsOneWidget);
     await tester.tap(find.text('文字').last);
     await tester.pumpAndSettle();
     expect(find.text('河边笔记'), findsOneWidget);
@@ -622,12 +627,23 @@ void main() {
     expect(find.byType(CardRichTextEditorScreen), findsOneWidget);
 
     await _pumpUntilFound(tester, find.byType(TextField));
+    await tester.enterText(
+      find.byKey(const ValueKey('card-tag-input')),
+      '#闭环标签',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
     await tester.enterText(find.byType(TextField).first, '重启恢复标题\n搜索闭环关键词');
     await tester.tap(find.text('保存').first);
     await _pumpUntilFound(tester, find.text('已保存'));
     router.pop();
     await tester.pumpAndSettle();
 
+    expect(find.text('重启恢复标题'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('card-library-tag-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('闭环标签').last);
+    await tester.pumpAndSettle();
     expect(find.text('重启恢复标题'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('card-library-search')),
@@ -656,6 +672,10 @@ void main() {
         RichTextBlock(type: BlockType.paragraph, text: '搜索闭环关键词'),
       ]),
     );
+    await repository.updateCardMetadata(
+      created.cardId,
+      tags: const ['重启标签'],
+    );
     await db.close();
     db = AppDatabase.forTesting(NativeDatabase(dbFile));
     repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
@@ -667,6 +687,13 @@ void main() {
     expect(recovered.card.title, '重启恢复标题');
     expect(recovered.card.body, contains('搜索闭环关键词'));
     expect(recovered.document!.toPlainText(), contains('搜索闭环关键词'));
+    expect(recovered.card.tags, ['重启标签']);
+    expect(
+      await repository.listCards(
+        const CardLibraryQuery(tags: {'重启标签'}),
+      ),
+      hasLength(1),
+    );
   });
 }
 

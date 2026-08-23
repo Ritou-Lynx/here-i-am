@@ -35,6 +35,17 @@ class RichTextDocumentHistory {
   /// the previous one, the previous entry is replaced instead of stacking,
   /// collapsing rapid edits into a single undo step.
   void commit(RichTextDocument next, {bool coalesce = true}) {
+    // Explicit save/checkpoint calls can immediately follow the automatic
+    // continuous-editor mirror. Do not push a duplicate current snapshot:
+    // otherwise the first Undo appears to do nothing.
+    if (_deepEquals(_current.toJson(), next.toJson())) {
+      if (!coalesce) {
+        // An explicit checkpoint after the automatic mirror is a boundary
+        // for the *next* edit, not another undo entry for the same value.
+        _lastCommitAt = DateTime.fromMillisecondsSinceEpoch(0);
+      }
+      return;
+    }
     final now = DateTime.now();
     if (coalesce &&
         _undo.isNotEmpty &&
@@ -77,4 +88,25 @@ class RichTextDocumentHistory {
   void dispose() {
     _coalesceTimer?.cancel();
   }
+}
+
+bool _deepEquals(Object? left, Object? right) {
+  if (identical(left, right)) return true;
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (!_deepEquals(left[index], right[index])) return false;
+    }
+    return true;
+  }
+  if (left is Map && right is Map) {
+    if (left.length != right.length) return false;
+    for (final key in left.keys) {
+      if (!right.containsKey(key) || !_deepEquals(left[key], right[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return left == right;
 }

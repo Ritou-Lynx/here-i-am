@@ -10,13 +10,27 @@ import 'package:memex/domain/whiteboard/anchor_contract.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/video/video_annotation_service.dart';
 
-class RepositoryVideoAnnotationStore {
+abstract interface class VideoAnnotationStore {
+  Future<VideoAnnotationResult> createAnnotation({
+    required String sourceId,
+    required String sourceVersionId,
+    required AnnotationCreationRequest request,
+  });
+
+  Future<List<VideoAnnotationResult>> listAnnotations({
+    required String sourceId,
+    required String currentVersionId,
+    int? currentDurationMs,
+  });
+}
+
+class RepositoryVideoAnnotationStore implements VideoAnnotationStore {
   const RepositoryVideoAnnotationStore(this.repository);
 
   final UnifiedCardRepository repository;
 
-  /// Creates the Card first, then links Source and installs annotation kind +
-  /// the complete Anchor presentation, matching the F4 write-order contract.
+  /// Persists the complete Source-bound Annotation Card atomically.
+  @override
   Future<VideoAnnotationResult> createAnnotation({
     required String sourceId,
     required String sourceVersionId,
@@ -27,23 +41,23 @@ class RepositoryVideoAnnotationStore {
       sourceVersionId: sourceVersionId,
       request: request,
     );
-    await repository.createTextCard(
-      cardId: draft.card.cardId,
-      title: draft.card.title,
-      body: draft.card.body,
-      tags: draft.card.tags,
-      ownerSpace: draft.card.ownerSpace,
-      createdBy: draft.card.createdBy,
-      createdAt: draft.card.createdAt,
-    );
-    await repository.linkSourceToCard(draft.card.cardId, sourceId);
-    final persisted = await repository.updateCardMetadata(
-      draft.card.cardId,
-      cardKind: CardKind.annotation,
-      presentation: {
-        ...draft.card.presentation,
-        'anchor': draft.anchor.toJson(),
-      },
+    final persisted = await repository.createVideoAnnotationCard(
+      CardContract(
+        cardId: draft.card.cardId,
+        cardKind: CardKind.annotation,
+        sourceId: sourceId,
+        ownerSpace: draft.card.ownerSpace,
+        title: draft.card.title,
+        body: draft.card.body,
+        tags: draft.card.tags,
+        presentation: {
+          ...draft.card.presentation,
+          'anchor': draft.anchor.toJson(),
+        },
+        createdBy: draft.card.createdBy,
+        createdAt: draft.card.createdAt,
+        updatedAt: draft.card.updatedAt,
+      ),
     );
     return VideoAnnotationResult(anchor: draft.anchor, card: persisted);
   }
@@ -51,6 +65,7 @@ class RepositoryVideoAnnotationStore {
   /// Restores annotation cards for one Source from the unified repository.
   /// A changed version preserves the old identity and is always exposed as
   /// orphaned. Duration overlap alone is not valid re-anchor evidence.
+  @override
   Future<List<VideoAnnotationResult>> listAnnotations({
     required String sourceId,
     required String currentVersionId,

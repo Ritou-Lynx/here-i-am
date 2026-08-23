@@ -127,6 +127,7 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
 
   bool _placeWithViewModel(Board board) {
     final vm = widget.viewModel!;
+    if (vm.isReadonly) return false;
     final vp = vm.viewport;
     return vm.placeCardOnBoard(
           cardId: widget.cardId,
@@ -147,6 +148,10 @@ class _BoardTargetPickerState extends State<BoardTargetPicker> {
     String? placedBoardName;
     try {
       final externalCreate = widget.onCreateRequested;
+      if (externalCreate == null && widget.viewModel!.isReadonly) {
+        setState(() => _error = '只读白板不能新建或放入卡片。');
+        return;
+      }
       final board = externalCreate != null
           ? await externalCreate(name)
           : widget.viewModel!.createBoard(name);

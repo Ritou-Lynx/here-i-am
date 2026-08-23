@@ -43,6 +43,24 @@ class DesktopWorkspaceShell extends StatefulWidget {
   State<DesktopWorkspaceShell> createState() => _DesktopWorkspaceShellState();
 }
 
+/// Marks descendants that already live inside the persistent desktop shell.
+///
+/// Route wrappers use this seam to avoid mounting a second sidebar when a
+/// standard work surface is hosted by the persistent desktop routing shell.
+class DesktopWorkspaceScope extends InheritedWidget {
+  const DesktopWorkspaceScope({
+    super.key,
+    required super.child,
+  });
+
+  static bool contains(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DesktopWorkspaceScope>() !=
+      null;
+
+  @override
+  bool updateShouldNotify(DesktopWorkspaceScope oldWidget) => false;
+}
+
 class _DesktopWorkspaceShellState extends State<DesktopWorkspaceShell> {
   late bool _sidebarCollapsed;
 
@@ -74,44 +92,46 @@ class _DesktopWorkspaceShellState extends State<DesktopWorkspaceShell> {
               body: widget.child,
             );
           }
-          return Scaffold(
-            key: const ValueKey('desktop_standard_shell'),
-            backgroundColor: tokens.canvas,
-            body: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DesktopSidebar(
-                  collapsed: _sidebarCollapsed,
-                  currentPath: widget.activePath,
-                ),
-                _DesktopSidebarHandle(
-                  collapsed: _sidebarCollapsed,
-                  onToggle: () => setState(
-                    () => _sidebarCollapsed = !_sidebarCollapsed,
+          return DesktopWorkspaceScope(
+            child: Scaffold(
+              key: const ValueKey('desktop_standard_shell'),
+              backgroundColor: tokens.canvas,
+              body: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DesktopSidebar(
+                    collapsed: _sidebarCollapsed,
+                    currentPath: widget.activePath,
                   ),
-                ),
-                Expanded(
-                  key: const ValueKey('desktop_workspace_content'),
-                  child: ColoredBox(
-                    color: tokens.canvas,
-                    child: SafeArea(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (widget.showPageTitle)
-                            DesktopPageTitle(
-                              title: widget.title,
-                              meta: widget.meta,
-                              actions: widget.actions,
-                              onBack: widget.onBack,
-                            ),
-                          Expanded(child: widget.child),
-                        ],
+                  _DesktopSidebarHandle(
+                    collapsed: _sidebarCollapsed,
+                    onToggle: () => setState(
+                      () => _sidebarCollapsed = !_sidebarCollapsed,
+                    ),
+                  ),
+                  Expanded(
+                    key: const ValueKey('desktop_workspace_content'),
+                    child: ColoredBox(
+                      color: tokens.canvas,
+                      child: SafeArea(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (widget.showPageTitle)
+                              DesktopPageTitle(
+                                title: widget.title,
+                                meta: widget.meta,
+                                actions: widget.actions,
+                                onBack: widget.onBack,
+                              ),
+                            Expanded(child: widget.child),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -137,6 +157,8 @@ class _DesktopSidebarHandle extends StatelessWidget {
       width: DesktopWorkspaceTokens.sidebarHandleWidth,
       child: ColoredBox(
         color: tokens.canvas,
+        // The shared canvas and this narrow strip are the seam. Do not paint a
+        // full-height divider or a rectangular shadow behind the toggle.
         child: Center(
           child: IconButton(
             key: const ValueKey('desktop_sidebar_toggle'),

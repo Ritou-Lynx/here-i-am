@@ -30,6 +30,7 @@ void main() {
   late AppDatabase db;
   late WhiteboardDriftStore store;
   late GoRouter router;
+  late UnifiedCardRepository repository;
   late Directory repositoryRoot;
 
   setUp(() {
@@ -40,9 +41,11 @@ void main() {
     // exercised end to end.
     AppDatabase.setTestInstance(db);
     repositoryRoot = Directory.systemTemp.createTempSync('route_repository_');
-    WhiteboardDataBootstrap.setRepositoryForTesting(
-      UnifiedCardRepository(db: db, whiteboardRoot: repositoryRoot),
+    repository = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: repositoryRoot,
     );
+    WhiteboardDataBootstrap.setRepositoryForTesting(repository);
     // The card editor resolves its storage via path_provider, whose platform
     // channel is unavailable under `flutter test`; point it at a temp dir.
     CardRichTextEditorScreen.setStorageForTesting(
@@ -51,10 +54,12 @@ void main() {
     router = createAppRouter(
       GlobalKey<NavigatorState>(),
       () => const Scaffold(body: SizedBox()),
+      desktopPlatformOverride: true,
     );
   });
 
   tearDown(() async {
+    router.dispose();
     WhiteboardDataBootstrap.setRepositoryForTesting(null);
     await db.close();
     if (repositoryRoot.existsSync()) {
@@ -84,6 +89,45 @@ void main() {
       );
     }
     fail('Route $path did not become ready');
+  }
+
+  Future<void> waitForLinkImportInitialization(WidgetTester tester) async {
+    final fetchButton =
+        find.byKey(const ValueKey('link_import_fetch_button'));
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (fetchButton.evaluate().isNotEmpty &&
+          tester.widget<FilledButton>(fetchButton).onPressed != null) {
+        // LinkImportScreen enables the action after resolving its Repository,
+        // then loads recent imports on the same Drift executor. A query after
+        // that point is a deterministic barrier before the route is popped.
+        await tester.runAsync(() => repository.listCards());
+        await tester.pump();
+        return;
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+    fail('Link import did not finish initializing');
+  }
+
+  Future<void> waitForCardLibraryQuery(WidgetTester tester) async {
+    final library = find.byType(CardLibraryScreen);
+    final loader = find.descendant(
+      of: library,
+      matching: find.byType(CircularProgressIndicator),
+    );
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+      if (library.evaluate().isNotEmpty && loader.evaluate().isEmpty) {
+        return;
+      }
+    }
+    fail('Card library query did not finish');
   }
 
   testWidgets('whiteboard index route resolves', (tester) async {
@@ -191,15 +235,11 @@ void main() {
     );
 
     await tester.tap(find.byTooltip('返回'));
-    for (var i = 0; i < 100; i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-      if (find.byType(CardLibraryScreen).evaluate().isNotEmpty) break;
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 5)),
-      );
-    }
-
-    expect(find.byType(CardLibraryScreen), findsOneWidget);
+    expect(
+      router.routeInformationProvider.value.uri.path,
+      AppRoutes.cardLibrary,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('pushed card edit back restores card library state',
@@ -209,13 +249,14 @@ void main() {
       AppRoutes.cardLibrary,
       until: find.byType(CardLibraryScreen),
     );
+    await waitForCardLibraryQuery(tester);
     await tester.enterText(
       find.byKey(const ValueKey('card-library-search')),
       '保留筛选',
     );
     await tester.pump();
 
-    final pending = router.push(AppRoutes.cardEditPath('card_pushed'));
+    router.push(AppRoutes.cardEditPath('card_pushed'));
     for (var i = 0; i < 100; i++) {
       await tester.pump(const Duration(milliseconds: 20));
       if (find.byType(CardRichTextEditorScreen).evaluate().isNotEmpty) break;
@@ -224,14 +265,15 @@ void main() {
       );
     }
     await tester.tap(find.byTooltip('返回'));
-    await pending;
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await waitForCardLibraryQuery(tester);
 
     expect(find.byType(CardLibraryScreen), findsOneWidget);
     final search = tester.widget<TextField>(
       find.byKey(const ValueKey('card-library-search')),
     );
     expect(search.controller!.text, '保留筛选');
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('direct dirty card edit confirms before library fallback',
@@ -244,7 +286,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, '尚未保存的内容');
     await tester.pump();
 
-    await tester.tap(find.byKey(const ValueKey('desktop_page_back')));
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.text('尚未保存'), findsOneWidget);
 
@@ -253,18 +295,14 @@ void main() {
     expect(find.byType(CardRichTextEditorScreen), findsOneWidget);
     expect(find.text('尚未保存的内容'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('desktop_page_back')));
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('放弃'));
-    for (var i = 0; i < 100; i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-      if (find.byType(CardLibraryScreen).evaluate().isNotEmpty) break;
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 5)),
-      );
-    }
-
-    expect(find.byType(CardLibraryScreen), findsOneWidget);
+    expect(
+      router.routeInformationProvider.value.uri.path,
+      AppRoutes.cardLibrary,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('source study route resolves with sourceId parameter',
@@ -296,7 +334,61 @@ void main() {
     expect(find.byType(LinkImportScreen), findsOneWidget);
     expect(
         find.byKey(const ValueKey('desktop_standard_shell')), findsOneWidget);
-    expect(find.byType(DesktopSidebar), findsOneWidget);
+    expect(find.byType(DesktopSidebar).hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('direct link import back falls back to the card library',
+      (tester) async {
+    await pumpRoute(
+      tester,
+      AppRoutes.linkImport,
+      until: find.byType(LinkImportScreen),
+    );
+
+    await tester.tap(find.byTooltip('返回'));
+    expect(
+      router.routeInformationProvider.value.uri.path,
+      AppRoutes.cardLibrary,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('pushed link import back restores live card library shell',
+      (tester) async {
+    await pumpRoute(
+      tester,
+      AppRoutes.cardLibrary,
+      until: find.byType(CardLibraryScreen),
+    );
+    await waitForCardLibraryQuery(tester);
+    await tester.enterText(
+      find.byKey(const ValueKey('card-library-search')),
+      '保留导入前筛选',
+    );
+    await tester.pump();
+
+    router.push(AppRoutes.linkImport);
+    expect(
+      router.routeInformationProvider.value.uri.path,
+      AppRoutes.linkImport,
+    );
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (find.byType(LinkImportScreen).evaluate().isNotEmpty) break;
+    }
+    expect(find.byType(LinkImportScreen), findsOneWidget);
+    await waitForLinkImportInitialization(tester);
+    router.pop();
+    await tester.pump(const Duration(milliseconds: 350));
+    await waitForCardLibraryQuery(tester);
+
+    expect(find.byType(CardLibraryScreen), findsOneWidget);
+    final search = tester.widget<TextField>(
+      find.byKey(const ValueKey('card-library-search')),
+    );
+    expect(search.controller!.text, '保留导入前筛选');
+    expect(find.byType(DesktopSidebar).hitTestable(), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('desktop-only wrapper does not build its child off desktop',

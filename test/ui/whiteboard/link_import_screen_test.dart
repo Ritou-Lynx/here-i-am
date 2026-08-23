@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestion_service.dart';
 import 'package:memex/data/whiteboard/ingestion/link_ingestor.dart';
 import 'package:memex/data/whiteboard/ingestion/safe_http_client.dart';
+import 'package:memex/data/whiteboard/ingestion/url_canonicalizer.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
@@ -90,11 +92,15 @@ class _ControlledLinkIngestionService extends LinkIngestionService {
     required LinkIngestionService delegate,
     this.commitGate,
     this.failRecentAfterCommit = false,
+    this.failSourceLookup = false,
+    this.failCommit = false,
   }) : _delegate = delegate;
 
   final LinkIngestionService _delegate;
   final Completer<void>? commitGate;
   final bool failRecentAfterCommit;
+  final bool failSourceLookup;
+  final bool failCommit;
 
   int ingestCalls = 0;
   int commitCalls = 0;
@@ -126,6 +132,11 @@ class _ControlledLinkIngestionService extends LinkIngestionService {
     CardCreatedBy createdBy = CardCreatedBy.user,
   }) async {
     commitCalls += 1;
+    if (failCommit) {
+      throw StateError(
+        'try to send request over isolate channel, but the connection was closed',
+      );
+    }
     await commitGate?.future;
     final outcome = await _delegate.commitResult(
       result,
@@ -138,8 +149,14 @@ class _ControlledLinkIngestionService extends LinkIngestionService {
   }
 
   @override
-  Future<LinkIngestionRecord?> getSource(String sourceId) =>
-      _delegate.getSource(sourceId);
+  Future<LinkIngestionRecord?> getSource(String sourceId) {
+    if (failSourceLookup) {
+      throw StateError(
+        'try to send request over isolate channel, but the connection was closed',
+      );
+    }
+    return _delegate.getSource(sourceId);
+  }
 
   @override
   Future<List<CardContract>> listCards() {
@@ -238,6 +255,20 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '预览'), findsOneWidget);
     expect(find.textContaining('example.com/article'), findsNothing);
+    expect(find.textContaining('还没有导入记录'), findsOneWidget);
+  });
+
+  testWidgets('ordinary cards never pollute the recent-import list',
+      (tester) async {
+    await repository.createTextCard(
+      title: '这是一张普通文字卡',
+      body: '它属于卡片库，但不是一次链接导入。',
+      tags: const ['普通卡'],
+    );
+
+    await pump(tester, _service(repository, {}));
+
+    expect(find.text('这是一张普通文字卡'), findsNothing);
     expect(find.textContaining('还没有导入记录'), findsOneWidget);
   });
 
@@ -564,7 +595,7 @@ void main() {
     );
   });
 
-  testWidgets('YouTube preview is zero-write then confirms into source route',
+  testWidgets('YouTube save stays put and open is a separate explicit action',
       (tester) async {
     final service = _service(repository, {});
     await pump(tester, service);
@@ -584,15 +615,23 @@ void main() {
       isNull,
     );
 
-    await tester.tap(find.widgetWithText(FilledButton, '保存并进入研读'));
-    await settleFor(
-      tester,
-      find.text('视频研读:src_youtube_M7lc1UVf-VE'),
-    );
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await settleFor(tester, find.text('已在卡片库'));
+    expect(find.text('视频研读:src_youtube_M7lc1UVf-VE'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, '打开视频研读'), findsOneWidget);
 
     final cards = await tester.runAsync(service.listCards);
     expect(cards, hasLength(1));
     expect(cards!.single.sourceId, 'src_youtube_M7lc1UVf-VE');
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, '打开视频研读'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('视频研读:src_youtube_M7lc1UVf-VE'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('failed state shown honestly with error message', (tester) async {
@@ -624,20 +663,156 @@ void main() {
     expect(find.widgetWithText(FilledButton, '存入卡片库'), findsNothing);
   });
 
-  testWidgets('unsupported state shown honestly (video platform)',
+  testWidgets('bilibili is saved honestly as a link-only video source',
       (tester) async {
-    await pump(tester, _service(repository, {}));
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final service = _service(repository, {});
+    await pump(tester, service);
 
     await tester.enterText(
       find.byType(TextField),
       'https://www.bilibili.com/video/BV1xx411c7mD',
     );
     await tester.tap(find.widgetWithText(FilledButton, '预览'));
-    await settleFor(tester, find.text('暂不支持此链接'));
+    await settleFor(tester, find.text('视频链接级保存'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('研读模块'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '存入卡片库'), findsNothing);
+    expect(find.text('哔哩哔哩视频 · BV1xx411c7mD'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '存入卡片库'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await settleFor(
+      tester,
+      find.text('打开视频播放（时间研读受限）'),
+    );
+    expect(await tester.runAsync(service.listCards), hasLength(1));
+    await tester.tap(find.text('打开视频播放（时间研读受限）'));
+    await settleFor(
+      tester,
+      find.text('视频研读:src_bilibili_BV1xx411c7mD'),
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('bilibili stays card-library-only on unsupported platforms',
+      (tester) async {
+    final service = _service(repository, {});
+    await pump(tester, service);
+
+    await fetch(
+      tester,
+      'https://www.bilibili.com/video/BV1xx411c7mD',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await settleFor(tester, find.text('打开卡片库'));
+    expect(find.textContaining('时间研读受限'), findsNothing);
+
+    await tester.tap(find.text('打开卡片库'));
+    await settleFor(tester, find.text('卡片库页面'));
+  });
+
+  testWidgets(
+      'desktop bilibili share URL still previews when existing-source lookup is unavailable',
+      (tester) async {
+    const url =
+        'https://www.bilibili.com/video/BV1E8KV6QEu7/?spm_id_from=333.1387.upload.video_card.click&vd_source=share-source';
+    final delegate = _service(repository, {});
+    final service = _ControlledLinkIngestionService(
+      repository: repository,
+      delegate: delegate,
+      failSourceLookup: true,
+      failCommit: true,
+    );
+    await pump(tester, service);
+
+    await tester.enterText(find.byType(TextField), url);
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await settleFor(tester, find.text('视频链接级保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('哔哩哔哩视频 · BV1E8KV6QEu7'), findsOneWidget);
+    expect(find.textContaining('预览已生成'), findsOneWidget);
+    expect(find.textContaining('抓取失败'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilledButton, '存入卡片库'));
+    await settleFor(tester, find.textContaining('存储连接已失效'));
+
+    expect(find.textContaining('Bad state'), findsNothing);
+    expect(find.textContaining('try to send request'), findsNothing);
+    expect(find.textContaining('isolate channel'), findsNothing);
+    expect(await tester.runAsync(delegate.listCards), isEmpty);
+  });
+
+  testWidgets(
+      'desktop xiaohongshu share URL keeps parsed preview independent of repository lookup',
+      (tester) async {
+    const url =
+        'https://www.xiaohongshu.com/discovery/item/6a8881480000000018019591?source=webshare&xhsshare=pc_web&xsec_token=REDACTED&xsec_source=pc_share';
+    final normalized = canonicalizeUrl(url)!.normalized;
+    final delegate = _service(repository, {
+      normalized: _Canned(
+        _fixture('open_graph.html'),
+        200,
+        'text/html; charset=utf-8',
+      ),
+    });
+    final service = _ControlledLinkIngestionService(
+      repository: repository,
+      delegate: delegate,
+      failSourceLookup: true,
+    );
+    await pump(tester, service);
+
+    await tester.enterText(find.byType(TextField), url);
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await settleFor(tester, find.text('春雨昼眠主题设计文档'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('xiaohongshu'), findsOneWidget);
+    expect(find.textContaining('预览已生成'), findsOneWidget);
+    expect(find.textContaining('抓取失败'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '存入卡片库'), findsOneWidget);
+  });
+
+  testWidgets('full share prose extracts its URL before previewing',
+      (tester) async {
+    const url = 'https://example.com/shared-note';
+    final service = _service(repository, {
+      url: _Canned(_fixture('open_graph.html'), 200, 'text/html'),
+    });
+    await pump(tester, service);
+
+    await tester.enterText(
+      find.byType(TextField),
+      '分享标题和口令都在前面，最后才是链接：$url。',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await settleFor(tester, find.text('春雨昼眠主题设计文档'));
+
+    expect(find.text('链接级保存'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '存入卡片库'), findsOneWidget);
+    expect(find.text(url), findsWidgets);
+  });
+
+  testWidgets('multiple links require an explicit candidate choice',
+      (tester) async {
+    const selected = 'https://example.com/second';
+    final service = _service(repository, {
+      selected: _Canned(_fixture('open_graph.html'), 200, 'text/html'),
+    });
+    await pump(tester, service);
+
+    await tester.enterText(
+      find.byType(TextField),
+      '第一个 https://example.com/first 第二个 $selected',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '预览'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('选择要导入的链接'), findsOneWidget);
+    await tester.tap(find.text(selected));
+    await settleFor(tester, find.text('春雨昼眠主题设计文档'));
+    expect(find.text(selected), findsWidgets);
   });
 
   testWidgets(

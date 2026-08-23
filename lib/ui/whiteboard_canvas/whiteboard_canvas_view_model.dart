@@ -10,6 +10,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 
@@ -103,6 +104,10 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   /// Operations log for audit display (all operations since load).
   final List<WhiteboardOperation> _operationLog = [];
 
+  /// Repository-owned Card projections. Undo/redo owns board layout only;
+  /// restoring an old layout must never restore stale Card title/body data.
+  final Map<String, CardContract> _currentCards = {};
+
   /// Logical-action grouping: while a gesture runs (drag / resize / rotate /
   /// edge retarget), the adapter operations it produces are buffered and
   /// committed as ONE undo step on [endLogicalAction]. This is the
@@ -120,6 +125,9 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     required this.boardId,
   })  : _adapter = FlutterCanvasAdapter(initialSnapshot),
         _viewport = initialSnapshot.viewport {
+    _currentCards.addEntries(
+      initialSnapshot.cards.map((card) => MapEntry(card.cardId, card)),
+    );
     _selection = CanvasSelection();
     _undoStack.add(UndoRedoEntry(snapshot: initialSnapshot));
     _adapter.onOperation(_handleOperation);
@@ -132,9 +140,18 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   CanvasSelection get selection => _selection;
   BoardViewport get viewport => _viewport;
   bool get isReadonly => _readonly;
-  bool get canUndo => _undoStack.length > 1;
-  bool get canRedo => _redoStack.isNotEmpty;
+  bool get canUndo => !_readonly && _undoStack.length > 1;
+  bool get canRedo => !_readonly && _redoStack.isNotEmpty;
   String? get selectedEdgeId => _selectedEdgeId;
+  BoardEdge? get selectedEdge {
+    final id = _selectedEdgeId;
+    if (id == null) return null;
+    return boardState.edges
+        .cast<CanvasEdgeNode?>()
+        .firstWhere((edge) => edge?.edgeId == id, orElse: () => null)
+        ?.edge;
+  }
+
   bool get isInLogicalAction => _logicalActionDepth > 0;
   List<WhiteboardOperation> get operationLog =>
       List.unmodifiable(_operationLog);
@@ -228,6 +245,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   /// Starts a logical action: subsequent adapter operations are buffered
   /// instead of each becoming an undo step.
   void beginLogicalAction() {
+    if (_readonly) return;
     _logicalActionDepth++;
     if (_logicalActionDepth == 1) {
       _logicalActionBaseline = _adapter.exportSnapshot();
@@ -256,7 +274,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     _logicalActionDepth = 0;
     final baseline = _logicalActionBaseline;
     if (baseline != null) {
-      _adapter.load(baseline);
+      _adapter.load(_overlayCurrentCards(baseline));
       _pruneEdgeSelection();
     }
     for (final op in _bufferedOperations) {
@@ -319,11 +337,17 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       case ToggleGroupCollapsedIntent(:final groupId):
         toggleGroupCollapsed(groupId);
         return true;
-      case RetargetEdgeIntent(:final edgeId, :final fromItemId, :final toItemId):
+      case RetargetEdgeIntent(
+          :final edgeId,
+          :final fromItemId,
+          :final toItemId,
+          :final stylePatch
+        ):
         return retargetEdge(
           edgeId: edgeId,
           fromItemId: fromItemId,
           toItemId: toItemId,
+          stylePatch: stylePatch,
         );
       case SelectEdgeIntent(:final edgeId):
         _selectedEdgeId = edgeId;
@@ -345,6 +369,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     double width = 260,
     double height = 200,
   }) {
+    if (_readonly) return;
     final item = _adapter.placeCard(
       boardId: boardId,
       cardId: cardId,
@@ -360,6 +385,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void moveSelectedItems(double dx, double dy) {
+    if (_readonly) return;
     if (_selection.isEmpty) return;
     final deltas = <String, math.Point<double>>{};
     for (final id in _selection.selectedItemIds) {
@@ -370,6 +396,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void moveItems(Map<String, math.Point<double>> deltas) {
+    if (_readonly) return;
     if (deltas.isEmpty) return;
     _adapter.moveItems(boardId: boardId, deltas: deltas);
     notifyListeners();
@@ -382,6 +409,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     double? x,
     double? y,
   }) {
+    if (_readonly) return;
     _adapter.resizeItem(
       boardId: boardId,
       itemId: itemId,
@@ -394,6 +422,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void removeSelectedItems() {
+    if (_readonly) return;
     if (_selection.isEmpty) return;
     _adapter.removeItems(
       boardId: boardId,
@@ -404,6 +433,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void removeItems(List<String> itemIds) {
+    if (_readonly) return;
     _adapter.removeItems(boardId: boardId, itemIds: itemIds);
     for (final id in itemIds) {
       _selection.removeId(id);
@@ -412,6 +442,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void bringSelectedItemToFront() {
+    if (_readonly) return;
     if (_selection.isEmpty) return;
     for (final id in _selection.selectedItemIds) {
       _adapter.bringToFront(boardId: boardId, itemId: id);
@@ -420,6 +451,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void createGroupFromSelection({String name = ''}) {
+    if (_readonly) return;
     if (_selection.isEmpty) return;
     final group = _adapter.createGroup(
       boardId: boardId,
@@ -433,27 +465,67 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void removeGroup(String groupId) {
+    if (_readonly) return;
     _adapter.removeGroup(boardId: boardId, groupId: groupId);
     notifyListeners();
   }
 
-  void createEdge({
+  bool createEdge({
     required String fromItemId,
     required String toItemId,
     EdgeDirection direction = EdgeDirection.undirected,
     String? label,
+    Map<String, dynamic> style = const {},
   }) {
-    _adapter.createEdge(
+    if (_readonly) return false;
+    final edge = _adapter.createEdge(
       boardId: boardId,
       fromItemId: fromItemId,
       toItemId: toItemId,
       direction: direction,
       label: label,
+      style: style,
     );
+    if (edge == null) return false;
+    _selectedEdgeId = edge.edgeId;
+    notifyListeners();
+    return true;
+  }
+
+  bool updateEdge({
+    required String edgeId,
+    required EdgeDirection direction,
+    String? label,
+  }) {
+    if (_readonly) return false;
+    final updated = _adapter.updateEdge(
+      boardId: boardId,
+      edgeId: edgeId,
+      direction: direction,
+      label: label,
+    );
+    if (updated) notifyListeners();
+    return updated;
+  }
+
+  /// Refreshes Repository-owned Card content in the render snapshot without
+  /// adding it to the board operation/undo stream.
+  void upsertCardContent(CardContract card) {
+    _currentCards[card.cardId] = card;
+    _adapter.upsertCardContent(card);
+    notifyListeners();
+  }
+
+  /// Removes a renderer projection after a failed create transaction. This
+  /// does not delete Repository data and never enters layout history.
+  void removeCardContent(String cardId) {
+    _currentCards.remove(cardId);
+    _adapter.removeCardContent(cardId);
     notifyListeners();
   }
 
   void removeEdge(String edgeId) {
+    if (_readonly) return;
     _adapter.removeEdge(boardId: boardId, edgeId: edgeId);
     if (_selectedEdgeId == edgeId) _selectedEdgeId = null;
     notifyListeners();
@@ -464,6 +536,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     required String itemId,
     required double rotationDegrees,
   }) {
+    if (_readonly) return;
     _adapter.rotateItem(
       boardId: boardId,
       itemId: itemId,
@@ -483,6 +556,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void setGroupCollapsed(String groupId, bool collapsed) {
+    if (_readonly) return;
     _adapter.setGroupCollapsed(
       boardId: boardId,
       groupId: groupId,
@@ -509,12 +583,15 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     required String edgeId,
     String? fromItemId,
     String? toItemId,
+    Map<String, dynamic> stylePatch = const {},
   }) {
+    if (_readonly) return false;
     final ok = _adapter.retargetEdge(
       boardId: boardId,
       edgeId: edgeId,
       fromItemId: fromItemId,
       toItemId: toItemId,
+      stylePatch: stylePatch,
     );
     if (ok) notifyListeners();
     return ok;
@@ -523,6 +600,9 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   /// Creates a new board in the snapshot (BoardTargetPicker "新建白板").
   /// Returns the created board.
   Board createBoard(String name) {
+    if (_readonly) {
+      throw StateError('只读白板不能新建白板');
+    }
     final board = Board(
       boardId: StableId.generate('board').value,
       name: name,
@@ -541,6 +621,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
     required double x,
     required double y,
   }) {
+    if (_readonly) return null;
     final item = _adapter.placeCard(
       boardId: boardId,
       cardId: cardId,
@@ -557,12 +638,12 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   // ── Undo / Redo ────────────────────────────────────────────────────
 
   void undo() {
-    if (!canUndo) return;
+    if (_readonly || !canUndo) return;
     cancelLogicalAction();
     final current = _undoStack.removeLast();
     _redoStack.add(current);
     final previous = _undoStack.last;
-    _adapter.load(previous.snapshot);
+    _adapter.load(_overlayCurrentCards(previous.snapshot));
     _viewport = previous.snapshot.viewport;
     _selection.clear();
     _selectedEdgeId = null;
@@ -570,11 +651,11 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   void redo() {
-    if (!canRedo) return;
+    if (_readonly || !canRedo) return;
     cancelLogicalAction();
     final next = _redoStack.removeLast();
     _undoStack.add(next);
-    _adapter.load(next.snapshot);
+    _adapter.load(_overlayCurrentCards(next.snapshot));
     _viewport = next.snapshot.viewport;
     _selection.clear();
     _selectedEdgeId = null;
@@ -584,6 +665,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   // ── Read-only mode ─────────────────────────────────────────────────
 
   void setReadonly(bool readonly) {
+    if (readonly && _logicalActionDepth > 0) cancelLogicalAction();
     _readonly = readonly;
     _adapter.setReadonly(readonly);
     if (readonly) _selection.clear();
@@ -598,6 +680,11 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   /// Loads a snapshot from persistence, replacing all current state.
   void loadFromSnapshot(WhiteboardSnapshot snapshot) {
     _adapter.load(snapshot);
+    _currentCards
+      ..clear()
+      ..addEntries(
+        snapshot.cards.map((card) => MapEntry(card.cardId, card)),
+      );
     _viewport = snapshot.viewport;
     _undoStack
       ..clear()
@@ -609,6 +696,22 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   }
 
   // ── Internal ───────────────────────────────────────────────────────
+
+  WhiteboardSnapshot _overlayCurrentCards(WhiteboardSnapshot layout) {
+    return WhiteboardSnapshot(
+      schemaVersion: layout.schemaVersion,
+      sources: layout.sources,
+      sourceVersions: layout.sourceVersions,
+      cards: _currentCards.values.toList(growable: false),
+      boards: layout.boards,
+      boardItems: layout.boardItems,
+      groups: layout.groups,
+      groupMembers: layout.groupMembers,
+      edges: layout.edges,
+      viewport: layout.viewport,
+      updatedAt: layout.updatedAt,
+    );
+  }
 
   void _handleOperation(WhiteboardOperation operation) {
     _operationLog.add(operation);
@@ -651,8 +754,7 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
       actor: first.actor,
       operationKind: first.operationKind,
       targetIds: {
-        for (final op in ops)
-          ...op.targetIds,
+        for (final op in ops) ...op.targetIds,
       }.toList(),
       payload: {
         'merged_count': ops.length,
@@ -667,10 +769,8 @@ class WhiteboardCanvasViewModel extends ChangeNotifier {
   void _pruneEdgeSelection() {
     final id = _selectedEdgeId;
     if (id == null) return;
-    final stillExists = _adapter
-        .exportSnapshot()
-        .edges
-        .any((e) => e.edgeId == id);
+    final stillExists =
+        _adapter.exportSnapshot().edges.any((e) => e.edgeId == id);
     if (!stillExists) _selectedEdgeId = null;
   }
 

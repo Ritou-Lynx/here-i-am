@@ -119,11 +119,13 @@ class RetargetEdgeIntent extends UiIntent {
   final String edgeId;
   final String? fromItemId;
   final String? toItemId;
+  final Map<String, dynamic> stylePatch;
 
   const RetargetEdgeIntent({
     required this.edgeId,
     this.fromItemId,
     this.toItemId,
+    this.stylePatch = const {},
   });
 }
 

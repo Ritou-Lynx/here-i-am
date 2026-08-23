@@ -59,6 +59,15 @@ void main() {
       expect(c.canonicalId, 'BV1xx411c7mD');
     });
 
+    test('desktop bilibili share URL keeps its stable BV id', () {
+      final c = canonicalizeUrl(
+        'https://www.bilibili.com/video/BV1E8KV6QEu7/?spm_id_from=333.1387.upload.video_card.click&vd_source=share-source',
+      );
+      expect(c, isNotNull);
+      expect(c!.provider, 'bilibili');
+      expect(c.canonicalId, 'BV1E8KV6QEu7');
+    });
+
     test('bilibili short link', () {
       final c = canonicalizeUrl('https://b23.tv/abc123');
       expect(c, isNotNull);
@@ -72,6 +81,15 @@ void main() {
       expect(c, isNotNull);
       expect(c!.provider, 'xiaohongshu');
       expect(c.canonicalId, '65f0a1b2c3d4e5f6a7b8c9d0');
+    });
+
+    test('desktop xiaohongshu share URL keeps its note id', () {
+      final c = canonicalizeUrl(
+        'https://www.xiaohongshu.com/discovery/item/6a8881480000000018019591?source=webshare&xhsshare=pc_web&xsec_token=REDACTED&xsec_source=pc_share',
+      );
+      expect(c, isNotNull);
+      expect(c!.provider, 'xiaohongshu');
+      expect(c.canonicalId, '6a8881480000000018019591');
     });
 
     test('youtube watch v', () {

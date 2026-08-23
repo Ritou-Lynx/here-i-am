@@ -10,7 +10,7 @@ class DesktopBrandMark extends StatelessWidget {
   const DesktopBrandMark({super.key, this.size = 40});
 
   static const assetPath =
-      'assets/branding/hereiam_v3_logo/logo_foreground_1024.png';
+      'assets/branding/hereiam_v3_logo/logo_foreground_ink_green_1024.png';
 
   final double size;
 

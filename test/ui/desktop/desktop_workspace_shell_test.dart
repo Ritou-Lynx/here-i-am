@@ -56,7 +56,7 @@ void main() {
     expect(scaffold.backgroundColor, const Color(0xFFF0EFEB));
   });
 
-  testWidgets('sidebar content fully exits while the 34px handle remains',
+  testWidgets('sidebar handle stays shadow-free while content exits',
       (tester) async {
     await setViewport(tester, const Size(1280, 720));
     await tester.pumpWidget(standardShell());
@@ -65,11 +65,19 @@ void main() {
     final before = tester
         .getSize(find.byKey(const ValueKey('desktop_workspace_content')))
         .width;
+    expect(
+      find.byKey(const ValueKey('desktop_sidebar_paper_seam')),
+      findsNothing,
+    );
     await tester.tap(find.byKey(const ValueKey('desktop_sidebar_toggle')));
     await tester.pump();
 
     expect(find.byKey(const ValueKey('desktop_sidebar')), findsNothing);
     expect(find.byKey(const ValueKey('desktop_brand_mark')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('desktop_sidebar_paper_seam')),
+      findsNothing,
+    );
     expect(
         find.byKey(const ValueKey('desktop_sidebar_handle')), findsOneWidget);
     expect(
@@ -84,6 +92,14 @@ void main() {
     expect(
       after - before,
       DesktopWorkspaceTokens.sidebarExpandedWidth,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('desktop_sidebar_toggle')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('desktop_sidebar')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('desktop_sidebar_paper_seam')),
+      findsNothing,
     );
   });
 
@@ -164,6 +180,11 @@ void main() {
   });
 
   testWidgets('official plant-i asset is bundled and decodes', (tester) async {
+    expect(
+      DesktopBrandMark.assetPath,
+      'assets/branding/hereiam_v3_logo/'
+      'logo_foreground_ink_green_1024.png',
+    );
     final bytes = await rootBundle.load(DesktopBrandMark.assetPath);
     expect(bytes.lengthInBytes, greaterThan(0));
 

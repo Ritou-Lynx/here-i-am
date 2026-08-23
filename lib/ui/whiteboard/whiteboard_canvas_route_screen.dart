@@ -312,6 +312,7 @@ class _WhiteboardCanvasRouteScreenState
           viewModel: vm,
           cardRepository: _cardRepository,
           onOpenCard: (card) => unawaited(_openCard(card)),
+          onPersistSnapshot: () => _save(vm),
           onExit: () => unawaited(_handleExit()),
         ),
         if (_saving)

@@ -37,6 +37,9 @@ class VideoPlayerPanel extends StatelessWidget {
     if (adapter is WindowsYouTubePlayerAdapter && adapter.isAvailable) {
       return true;
     }
+    if (adapter is WindowsBilibiliPlayerAdapter && adapter.isAvailable) {
+      return true;
+    }
     if (adapter is YouTubePlayerAdapter && adapter.isAvailable) return true;
     return false;
   }
@@ -51,6 +54,12 @@ class VideoPlayerPanel extends StatelessWidget {
         children: [
           // Player surface
           Positioned.fill(child: _PlayerSurface(viewModel: viewModel)),
+          if (viewModel.adapter is WindowsBilibiliPlayerAdapter)
+            Positioned(
+              top: 16,
+              right: 16,
+              child: _BilibiliCapabilityNotice(viewModel: viewModel),
+            ),
           // Bottom gradient + controls + timeline (only for players WITHOUT
           // native controls, e.g. the fixture simulator / link-only stubs).
           if (!nativeControls)
@@ -83,6 +92,19 @@ class _PlayerSurface extends StatelessWidget {
 
     // Windows Desktop — native Edge WebView2 hosting the YouTube IFrame API.
     if (adapter is WindowsYouTubePlayerAdapter && adapter.isAvailable) {
+      final controller = adapter.webviewController;
+      if (controller != null && controller.value.isInitialized) {
+        return Webview(
+          controller,
+          permissionRequested: (_, __, ___) => WebviewPermissionDecision.deny,
+        );
+      }
+    }
+
+    // Windows Desktop — Bilibili's platform-allowed external player. It is
+    // genuinely playable in-app but has no supported current/duration/seek
+    // bridge, so the surrounding UI labels it as time-study limited.
+    if (adapter is WindowsBilibiliPlayerAdapter && adapter.isAvailable) {
       final controller = adapter.webviewController;
       if (controller != null && controller.value.isInitialized) {
         return Webview(
@@ -167,6 +189,74 @@ class _PlayerSurface extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BilibiliCapabilityNotice extends StatelessWidget {
+  const _BilibiliCapabilityNotice({required this.viewModel});
+
+  final VideoStudyViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = DesktopWorkspaceTokens.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.dark.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tokens.canvas.withValues(alpha: 0.18)),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 310),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '可播放 · 时间研读受限',
+                      key: const ValueKey('video_playback_level_limited'),
+                      style: whiteboardUiTextStyle(
+                        color: tokens.canvas,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '登录仅由平台嵌入页处理；应用不读取或保存登录态',
+                      key: const ValueKey('bilibili_login_boundary'),
+                      style: whiteboardUiTextStyle(
+                        color: tokens.canvas.withValues(alpha: 0.68),
+                        fontSize: 10,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('bilibili_retry_player'),
+                tooltip: '重新加载嵌入播放器',
+                onPressed: () => viewModel.retryLoad(),
+                icon: const Icon(Icons.refresh_rounded, size: 17),
+                color: tokens.canvas,
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
         ),
       ),
     );

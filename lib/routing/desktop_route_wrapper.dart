@@ -9,8 +9,7 @@
 ///   ),
 library;
 
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -49,7 +48,13 @@ class DesktopRouteWrapper extends StatelessWidget {
 
   bool get _isDesktop =>
       desktopPlatformOverride ??
-      (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+      switch (defaultTargetPlatform) {
+        TargetPlatform.windows ||
+        TargetPlatform.linux ||
+        TargetPlatform.macOS =>
+          true,
+        _ => false,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +63,7 @@ class DesktopRouteWrapper extends StatelessWidget {
     }
     final routeChild = childBuilder?.call(context) ?? child!;
     if (!_isDesktop) return routeChild;
+    if (DesktopWorkspaceScope.contains(context)) return routeChild;
     return DesktopWorkspaceShell(
       title: title,
       mode: mode,

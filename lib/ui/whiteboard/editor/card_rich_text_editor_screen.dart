@@ -28,6 +28,7 @@ import 'package:memex/ui/desktop/widgets/desktop_page_title.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/editor/unsaved_exit_guard.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
+import 'package:memex/ui/whiteboard/widgets/card_tag_field.dart';
 
 class CardRichTextEditorScreen extends StatefulWidget {
   final RichTextStorage storage;
@@ -35,6 +36,9 @@ class CardRichTextEditorScreen extends StatefulWidget {
   final RichTextDocument? initialDocument;
   final Future<void> Function(String cardId, RichTextDocument document)?
       onSaveDocument;
+  final Future<void> Function(String cardId, List<String> tags)? onSaveTags;
+  final List<String> initialTags;
+  final List<String> tagSuggestions;
   final String? degradedMessage;
   final Future<void> Function()? onExit;
 
@@ -55,6 +59,9 @@ class CardRichTextEditorScreen extends StatefulWidget {
     required this.cardId,
     this.initialDocument,
     this.onSaveDocument,
+    this.onSaveTags,
+    this.initialTags = const [],
+    this.tagSuggestions = const [],
     this.degradedMessage,
     this.onExit,
     this.controller,
@@ -72,6 +79,11 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   late RichTextObjectStore _objectStore;
   final FocusNode _saveFocusNode = FocusNode(debugLabel: 'editor-save');
   bool _saving = false;
+  late List<String> _tags = List.of(widget.initialTags);
+  late List<String> _savedTags = List.of(widget.initialTags);
+
+  bool get _tagsDirty => !_sameTags(_tags, _savedTags);
+  bool get _hasUnsavedChanges => _controller.isDirty || _tagsDirty;
 
   @override
   void initState() {
@@ -122,17 +134,22 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
         // awaited through [onSaveDocument].
         widget.storage.saveSync(widget.cardId, document);
       }
+      final saveTags = widget.onSaveTags;
+      if (_tagsDirty && saveTags != null) {
+        await saveTags(widget.cardId, List.unmodifiable(_tags));
+      }
       _controller.markSaved();
+      _savedTags = List.of(_tags);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已保存')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已保存')));
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存失败：$error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存失败：$error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -142,12 +159,12 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   Future<void> _requestExit() async {
     final choice = await confirmUnsavedExit(
       context,
-      hasUnsavedChanges: _controller.isDirty,
+      hasUnsavedChanges: _hasUnsavedChanges,
       onSave: _save,
     );
     // A failed save deliberately keeps the controller dirty. Do not let the
     // confirmation path close the editor and lose those changes.
-    if (choice == UnsavedExitChoice.save && _controller.isDirty) return;
+    if (choice == UnsavedExitChoice.save && _hasUnsavedChanges) return;
     if (choice == UnsavedExitChoice.cancel || !mounted) return;
     final onExit = widget.onExit;
     if (onExit != null) {
@@ -158,7 +175,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   }
 
   Future<List<RichTextAssetRef>> _defaultMediaImporter(
-      MediaImportKind kind) async {
+    MediaImportKind kind,
+  ) async {
     final result = await FilePicker.platform.pickFiles(
       type: kind == MediaImportKind.image ? FileType.image : FileType.any,
       allowMultiple: true,
@@ -168,10 +186,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
     for (final file in result.files) {
       final path = file.path;
       if (path == null) continue; // Web only; desktop always has a path.
-      final ref = await _objectStore.importFile(
-        path,
-        alt: file.name,
-      );
+      final ref = await _objectStore.importFile(path, alt: file.name);
       refs.add(ref);
     }
     return refs;
@@ -181,7 +196,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
     return PopScope(
-      canPop: !_controller.isDirty,
+      canPop: !_hasUnsavedChanges,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         await _requestExit();
@@ -199,7 +214,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                 onBack: _requestExit,
                 actions: [
                   _SaveStateIndicator(
-                    isDirty: _controller.isDirty,
+                    isDirty: _hasUnsavedChanges,
                     isSaving: _saving,
                   ),
                   const SizedBox(width: 12),
@@ -219,8 +234,9 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                       minimumSize: const Size(88, 36),
                       backgroundColor: tokens.action,
                       foregroundColor: tokens.canvas,
-                      disabledBackgroundColor:
-                          tokens.actionSoft.withValues(alpha: 0.42),
+                      disabledBackgroundColor: tokens.actionSoft.withValues(
+                        alpha: 0.42,
+                      ),
                       disabledForegroundColor: tokens.textMuted,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -257,15 +273,33 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: tokens.divider),
                           ),
-                          child: CardRichTextEditor(
-                            controller: _controller,
-                            cardId: widget.cardId,
-                            objectStore: _objectStore,
-                            mediaImporter:
-                                widget.mediaImporter ?? _defaultMediaImporter,
-                            onSave: (_) => _save(),
-                            markSavedAfterCallback: false,
-                            showSaveInToolbar: false,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: CardRichTextEditor(
+                                  controller: _controller,
+                                  cardId: widget.cardId,
+                                  objectStore: _objectStore,
+                                  mediaImporter: widget.mediaImporter ??
+                                      _defaultMediaImporter,
+                                  onSave: (_) => _save(),
+                                  markSavedAfterCallback: false,
+                                  showSaveInToolbar: false,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Divider(height: 1, color: tokens.divider),
+                              const SizedBox(height: 14),
+                              CardTagField(
+                                tags: _tags,
+                                suggestions: widget.tagSuggestions,
+                                enabled: !_saving && widget.onSaveTags != null,
+                                onChanged: (tags) {
+                                  setState(() => _tags = List.of(tags));
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -279,13 +313,18 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
       ),
     );
   }
+
+  static bool _sameTags(List<String> left, List<String> right) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) return false;
+    }
+    return true;
+  }
 }
 
 class _SaveStateIndicator extends StatelessWidget {
-  const _SaveStateIndicator({
-    required this.isDirty,
-    required this.isSaving,
-  });
+  const _SaveStateIndicator({required this.isDirty, required this.isSaving});
 
   final bool isDirty;
   final bool isSaving;

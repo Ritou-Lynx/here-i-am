@@ -62,7 +62,8 @@ class CardRichTextEditorScreen extends StatefulWidget {
       dir = Directory(p.join(support.path, 'whiteboard', 'rich_text'));
     } catch (_) {
       dir = Directory(
-          p.join(Directory.systemTemp.path, 'hereiam_whiteboard_rich_text'));
+        p.join(Directory.systemTemp.path, 'hereiam_whiteboard_rich_text'),
+      );
     }
     return RichTextStorage(dir);
   }
@@ -83,6 +84,8 @@ class _EditorLoad {
     required this.storage,
     this.repository,
     this.document,
+    this.tags = const [],
+    this.tagSuggestions = const [],
     this.message,
     this.error,
   });
@@ -90,6 +93,8 @@ class _EditorLoad {
   final RichTextStorage storage;
   final UnifiedCardRepository? repository;
   final RichTextDocument? document;
+  final List<String> tags;
+  final List<String> tagSuggestions;
   final String? message;
   final String? error;
 }
@@ -123,18 +128,23 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
           error: '卡片不存在：${widget.cardId}',
         );
       }
+      final tagSuggestions = await repository.listDistinctTags();
       switch (record.documentState) {
         case CardDocumentState.available:
           return _EditorLoad(
             storage: repository.richTextStorage,
             repository: repository,
             document: record.document,
+            tags: record.card.tags,
+            tagSuggestions: tagSuggestions,
           );
         case CardDocumentState.corrupt:
           return _EditorLoad(
             storage: repository.richTextStorage,
             repository: repository,
             document: _projectionDocument(record.card.body),
+            tags: record.card.tags,
+            tagSuggestions: tagSuggestions,
             message: '富文本文件已损坏，当前显示数据库中的可搜索正文投影。保存将生成新的有效文档。',
           );
         case CardDocumentState.missing:
@@ -142,6 +152,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
             storage: repository.richTextStorage,
             repository: repository,
             document: _projectionDocument(record.card.body),
+            tags: record.card.tags,
+            tagSuggestions: tagSuggestions,
             message: record.card.body.isEmpty ? null : '富文本文件缺失，当前已用数据库正文投影恢复。',
           );
       }
@@ -152,8 +164,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
   }
 
   static RichTextDocument _projectionDocument(String body) => RichTextDocument(
-        blocks: [RichTextBlock(type: BlockType.paragraph, text: body)],
-      );
+    blocks: [RichTextBlock(type: BlockType.paragraph, text: body)],
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -181,12 +193,19 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
           storage: load.storage,
           cardId: widget.cardId,
           initialDocument: load.document,
+          initialTags: load.tags,
+          tagSuggestions: load.tagSuggestions,
           degradedMessage: load.message,
           onExit: _exitEditor,
           onSaveDocument: load.repository == null
               ? null
               : (cardId, document) =>
-                  load.repository!.saveRichText(cardId, document),
+                    load.repository!.saveRichText(cardId, document),
+          onSaveTags: load.repository == null
+              ? null
+              : (cardId, tags) async {
+                  await load.repository!.updateCardMetadata(cardId, tags: tags);
+                },
         );
       },
     );
@@ -216,11 +235,7 @@ class _EditorRouteState extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          DesktopPageTitle(
-            title: '编辑卡片',
-            meta: cardId,
-            onBack: onBack,
-          ),
+          DesktopPageTitle(title: '编辑卡片', meta: cardId, onBack: onBack),
           Expanded(
             child: Center(
               child: ConstrainedBox(
@@ -234,8 +249,8 @@ class _EditorRouteState extends StatelessWidget {
                         loading
                             ? Icons.hourglass_empty_rounded
                             : isError
-                                ? Icons.error_outline_rounded
-                                : Icons.info_outline_rounded,
+                            ? Icons.error_outline_rounded
+                            : Icons.info_outline_rounded,
                         size: 24,
                         color: isError ? tokens.error : tokens.textMuted,
                       ),

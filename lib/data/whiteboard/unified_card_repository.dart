@@ -6,19 +6,24 @@
 /// MemoryCards directly or treating a JSON directory as a card library.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
+import 'package:path/path.dart' as path_api;
 
 import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/whiteboard/anchor_contract.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/recoverable_file_exchange.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
 import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
+import 'package:memex/domain/whiteboard/video/time_range_anchor_spec.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 
 /// Filesystem availability of a card's rich-text body.
@@ -105,31 +110,227 @@ class IngestionCommitResult {
   final bool cardRestored;
 }
 
+/// Deterministic transaction boundaries used only by repository fault tests.
+enum UnifiedCardRepositoryFaultPoint {
+  annotationAfterMemoryCardInsert,
+  annotationAfterExtrasInsert,
+  ingestionDuringObjectExchange,
+  ingestionAfterObjectWriteBeforeVersionInsert,
+  ingestionAfterVersionInsert,
+  ingestionAfterTransactionCommitBeforeIntentCleanup,
+}
+
+typedef UnifiedCardRepositoryFaultInjector =
+    Future<void> Function(UnifiedCardRepositoryFaultPoint point);
+
+/// Test-only sentinel that models a process exit without running compensation.
+///
+/// Production callers never throw this. Repository fault tests use it to prove
+/// that startup intent reconciliation repairs the cross-file/DB crash window.
+class UnifiedCardRepositorySimulatedProcessExit implements Exception {
+  const UnifiedCardRepositorySimulatedProcessExit();
+}
+
+class _SourceObjectWriteGuard {
+  static const int maxSnapshotFileBytes = 4 * 1024 * 1024;
+  static const int maxSnapshotTotalBytes = 8 * 1024 * 1024;
+
+  const _SourceObjectWriteGuard({
+    required this.objectRef,
+    required this.snapshots,
+  });
+
+  final String objectRef;
+  final List<_FileSnapshot> snapshots;
+
+  Map<String, dynamic> get intentSnapshot => {
+        'final': snapshots[0].toJson(),
+        'temp': snapshots[1].toJson(),
+        'backup': snapshots[2].toJson(),
+      };
+
+  static Future<_SourceObjectWriteGuard> capture(
+    File target,
+    String objectRef,
+  ) async {
+    final temp = RecoverableFileExchange.tempFor(target);
+    final backup = RecoverableFileExchange.backupFor(target);
+    final snapshots = await Future.wait(
+      <File>[target, temp, backup].map(_FileSnapshot.capture),
+    );
+    final totalBytes = snapshots.fold<int>(
+      0,
+      (total, snapshot) => total + (snapshot.contents?.length ?? 0),
+    );
+    if (totalBytes > maxSnapshotTotalBytes) {
+      throw StateError('Source object recovery snapshot exceeds safe limit');
+    }
+    return _SourceObjectWriteGuard(objectRef: objectRef, snapshots: snapshots);
+  }
+
+  static _SourceObjectWriteGuard? fromIntent(
+    File target,
+    String objectRef,
+    Object? raw,
+  ) {
+    if (raw is! Map || raw.length != 3) return null;
+    final snapshots = <_FileSnapshot?>[
+      _FileSnapshot.fromJson(target, raw['final']),
+      _FileSnapshot.fromJson(
+        RecoverableFileExchange.tempFor(target),
+        raw['temp'],
+      ),
+      _FileSnapshot.fromJson(
+        RecoverableFileExchange.backupFor(target),
+        raw['backup'],
+      ),
+    ];
+    if (snapshots.any((snapshot) => snapshot == null)) return null;
+    final totalBytes = snapshots.fold<int>(
+      0,
+      (total, snapshot) => total + (snapshot?.contents?.length ?? 0),
+    );
+    if (totalBytes > maxSnapshotTotalBytes) return null;
+    return _SourceObjectWriteGuard(
+      objectRef: objectRef,
+      snapshots: snapshots.cast<_FileSnapshot>(),
+    );
+  }
+
+  Future<void> removeCreatedFilesIfUnreferenced(AppDatabase db) async {
+    final versionReference = await (db.select(
+      db.whiteboardSourceVersions,
+    )..where((row) => row.objectRef.equals(objectRef))).getSingleOrNull();
+    final sourceReference = await (db.select(
+      db.whiteboardSources,
+    )..where((row) => row.objectRef.equals(objectRef))).getSingleOrNull();
+    final isReferenced = versionReference != null || sourceReference != null;
+    if (isReferenced) return;
+    await restoreSnapshots();
+  }
+
+  Future<void> restoreSnapshots() async {
+    for (final snapshot in snapshots) {
+      if (snapshot.contents != null) {
+        await snapshot.file.parent.create(recursive: true);
+        await snapshot.file.writeAsBytes(snapshot.contents!, flush: true);
+      } else if (await snapshot.file.exists()) {
+        await snapshot.file.delete();
+      }
+    }
+  }
+}
+
+class _FileSnapshot {
+  const _FileSnapshot(this.file, this.contents);
+
+  final File file;
+  final List<int>? contents;
+
+  Map<String, dynamic> toJson() => {
+        'existed': contents != null,
+        if (contents != null) ...{
+          'bytes_base64': base64Encode(contents!),
+          'length': contents!.length,
+          'sha256': sha256.convert(contents!).toString(),
+        },
+      };
+
+  static _FileSnapshot? fromJson(File file, Object? raw) {
+    if (raw is! Map || raw['existed'] is! bool) return null;
+    if (raw['existed'] == false) {
+      if (raw.length != 1) return null;
+      return _FileSnapshot(file, null);
+    }
+    final encoded = raw['bytes_base64'];
+    final length = raw['length'];
+    final expectedHash = raw['sha256'];
+    if (raw.length != 4 ||
+        encoded is! String ||
+        length is! int ||
+        length < 0 ||
+        length > _SourceObjectWriteGuard.maxSnapshotFileBytes ||
+        expectedHash is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(expectedHash)) {
+      return null;
+    }
+    final maxEncodedLength = ((length + 2) ~/ 3) * 4;
+    if (encoded.length != maxEncodedLength) return null;
+    try {
+      final decoded = base64Decode(encoded);
+      if (decoded.length != length ||
+          sha256.convert(decoded).toString() != expectedHash) {
+        return null;
+      }
+      return _FileSnapshot(file, decoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<_FileSnapshot> capture(File file) async {
+    if (!await file.exists()) return _FileSnapshot(file, null);
+    final length = await file.length();
+    if (length > _SourceObjectWriteGuard.maxSnapshotFileBytes) {
+      throw StateError('Source object recovery snapshot exceeds safe limit');
+    }
+    final contents = await file.readAsBytes();
+    if (contents.length > _SourceObjectWriteGuard.maxSnapshotFileBytes) {
+      throw StateError('Source object recovery snapshot exceeds safe limit');
+    }
+    return _FileSnapshot(file, contents);
+  }
+}
+
+class _SourceObjectIntentReconciliation {
+  const _SourceObjectIntentReconciliation({
+    required this.protectedObjectPaths,
+    required this.hasUnresolvedIntent,
+  });
+
+  final Set<String> protectedObjectPaths;
+  final bool hasUnresolvedIntent;
+}
+
 /// Repository for the single production Card / Source data truth.
 ///
 /// The database is constructor-injected. This file intentionally has no
 /// dependency on MemexRouter or AppDatabase.instance.
 class UnifiedCardRepository {
+  static final Map<String, Future<void>> _sourceObjectCommitLocks = {};
+  static const int _maxSourceObjectIntentBytes = 12 * 1024 * 1024;
+
   UnifiedCardRepository({
     required this.db,
     required this.whiteboardRoot,
     RichTextStorage? richTextStorage,
     this.thumbnailResolver,
-  }) : richTextStorage = richTextStorage ??
-            RichTextStorage(Directory(_join(whiteboardRoot.path, 'rich_text')));
+    this.faultInjector,
+    this.sourceObjectPathCanonicalizer,
+  }) : richTextStorage =
+           richTextStorage ??
+           RichTextStorage(Directory(_join(whiteboardRoot.path, 'rich_text')));
 
   final AppDatabase db;
   final Directory whiteboardRoot;
   final RichTextStorage richTextStorage;
   final ThumbnailResolver? thumbnailResolver;
+  final UnifiedCardRepositoryFaultInjector? faultInjector;
+  final Future<String> Function(String path)? sourceObjectPathCanonicalizer;
 
   /// Repairs interrupted rich-text and Source-object exchanges at startup.
   Future<void> recoverFileReplacements() async {
     await richTextStorage.recoverAll();
-    final sourceRoot = Directory(
-      _join(_join(whiteboardRoot.path, 'objects'), 'sources'),
-    );
+    final reconciliation = await _reconcileSourceObjectIntents();
+    final sourceRoot = _sourceObjectRoot;
     if (!await sourceRoot.exists()) return;
+    if (reconciliation.hasUnresolvedIntent ||
+        !await _isDirectoryContained(
+          root: whiteboardRoot,
+          child: sourceRoot,
+        )) {
+      return;
+    }
     final targets = <String>{};
     await for (final entity in sourceRoot.list(
       recursive: true,
@@ -143,11 +344,169 @@ class UnifiedCardRepository {
       if (path.endsWith('.json')) targets.add(path);
     }
     for (final path in targets) {
+      final target = File(path);
+      if (reconciliation.protectedObjectPaths.contains(target.absolute.path)) {
+        continue;
+      }
+      if (!await _isSafeContainedSourceObjectFile(target)) continue;
       await RecoverableFileExchange.recover(
-        File(path),
+        target,
         validator: _isValidJsonMap,
       );
     }
+  }
+
+  Future<_SourceObjectIntentReconciliation>
+      _reconcileSourceObjectIntents() async {
+    final protectedObjectPaths = <String>{};
+    var hasUnresolvedIntent = false;
+    final intentRoot = _sourceObjectIntentRoot;
+    if (!await intentRoot.exists()) {
+      return _SourceObjectIntentReconciliation(
+        protectedObjectPaths: protectedObjectPaths,
+        hasUnresolvedIntent: false,
+      );
+    }
+    if (!await _isDirectoryContained(
+      root: whiteboardRoot,
+      child: intentRoot,
+    )) {
+      return _SourceObjectIntentReconciliation(
+        protectedObjectPaths: protectedObjectPaths,
+        hasUnresolvedIntent: true,
+      );
+    }
+    final targets = <String>{};
+    await for (final entity in intentRoot.list(followLinks: false)) {
+      if (entity is! File && entity is! Link) continue;
+      var path = entity.path;
+      if (path.endsWith('.tmp') || path.endsWith('.bak')) {
+        path = path.substring(0, path.length - 4);
+      }
+      if (path.endsWith('.json')) targets.add(path);
+    }
+    for (final path in targets) {
+      final intentFile = File(path);
+      final candidates = <File>[
+        intentFile,
+        RecoverableFileExchange.tempFor(intentFile),
+        RecoverableFileExchange.backupFor(intentFile),
+      ];
+      try {
+        final candidateContents = <File, String>{};
+        var candidateBoundaryUnknown = false;
+        for (final candidate in candidates) {
+          final type = await FileSystemEntity.type(
+            candidate.path,
+            followLinks: false,
+          );
+          if (type == FileSystemEntityType.notFound) continue;
+          if (type != FileSystemEntityType.file) {
+            candidateBoundaryUnknown = true;
+            continue;
+          }
+          final contents = await _readBoundedIntentCandidate(candidate);
+          if (contents == null) {
+            candidateBoundaryUnknown = true;
+            continue;
+          }
+          candidateContents[candidate] = contents;
+        }
+
+        if (candidateBoundaryUnknown) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+
+        final validObjectRefs = <String>{};
+        for (final contents in candidateContents.values) {
+          if (!_isValidSourceObjectIntentJson(contents)) continue;
+          final decoded = jsonDecode(contents) as Map<String, dynamic>;
+          validObjectRefs.add(decoded['object_ref'] as String);
+        }
+
+        if (validObjectRefs.length > 1) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+
+        if (validObjectRefs.isEmpty) {
+          var allCandidatesIdentifyManagedObjects =
+              candidateContents.isNotEmpty;
+          for (final contents in candidateContents.values) {
+            try {
+              final decoded = jsonDecode(contents);
+              final objectRef = decoded is Map<String, dynamic>
+                  ? _safeManagedSourceObjectRef(decoded['object_ref'])
+                  : null;
+              if (objectRef == null) {
+                allCandidatesIdentifyManagedObjects = false;
+              } else {
+                protectedObjectPaths.add(_objectFile(objectRef).absolute.path);
+              }
+            } catch (_) {
+              allCandidatesIdentifyManagedObjects = false;
+            }
+          }
+          if (!allCandidatesIdentifyManagedObjects) {
+            hasUnresolvedIntent = true;
+          }
+          continue;
+        }
+
+        final objectRef = validObjectRefs.single;
+        final objectFile = _objectFile(objectRef);
+        protectedObjectPaths.add(objectFile.absolute.path);
+        if (!await _isSafeContainedSourceObjectFile(objectFile)) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+
+        final recovered = await RecoverableFileExchange.recover(
+          intentFile,
+          validator: _isValidSourceObjectIntentJson,
+          maxBytes: _maxSourceObjectIntentBytes,
+        );
+        if (!recovered || !await intentFile.exists()) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+        final recoveredContents =
+            await _readBoundedIntentCandidate(intentFile);
+        if (recoveredContents == null ||
+            !_isValidSourceObjectIntentJson(recoveredContents)) {
+          hasUnresolvedIntent = true;
+          continue;
+        }
+        final decoded =
+            jsonDecode(recoveredContents) as Map<String, dynamic>;
+        final guard = _SourceObjectWriteGuard.fromIntent(
+          objectFile,
+          objectRef,
+          decoded['pre_write_snapshot'],
+        )!;
+        final versionReference = await (db.select(
+          db.whiteboardSourceVersions,
+        )..where((row) => row.objectRef.equals(objectRef)))
+            .getSingleOrNull();
+        final sourceReference = await (db.select(
+          db.whiteboardSources,
+        )..where((row) => row.objectRef.equals(objectRef)))
+            .getSingleOrNull();
+        if (versionReference == null && sourceReference == null) {
+          await guard.restoreSnapshots();
+        }
+        await _deleteFileExchange(intentFile);
+      } catch (_) {
+        // Corrupt or unknown intents stay byte-for-byte available for
+        // diagnosis and never block reconciliation of independent intents.
+        hasUnresolvedIntent = true;
+      }
+    }
+    return _SourceObjectIntentReconciliation(
+      protectedObjectPaths: protectedObjectPaths,
+      hasUnresolvedIntent: hasUnresolvedIntent,
+    );
   }
 
   /// Returns an active card by stable id, or null when it is absent/deleted.
@@ -158,23 +517,23 @@ class UnifiedCardRepository {
   }) async {
     final row = await (db.select(
       db.memoryCards,
-    )..where((t) => t.id.equals(cardId)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(cardId))).getSingleOrNull();
     final extra = await (db.select(
       db.whiteboardCardExtras,
-    )..where((t) => t.cardId.equals(cardId)))
-        .getSingleOrNull();
+    )..where((t) => t.cardId.equals(cardId))).getSingleOrNull();
     if (row == null || extra == null) return null;
     if (!includeDeleted && extra.deletedAt != null) return null;
 
-    final source =
-        extra.sourceId == null ? null : await _sourceById(extra.sourceId!);
+    final source = extra.sourceId == null
+        ? null
+        : await _sourceById(extra.sourceId!);
     final currentVersion = source?.currentVersionId == null
         ? null
         : await _versionById(source!.currentVersionId!);
     final placed = await isCardPlaced(cardId);
-    final rich =
-        loadDocument ? await richTextStorage.loadWithStatus(cardId) : null;
+    final rich = loadDocument
+        ? await richTextStorage.loadWithStatus(cardId)
+        : null;
     return UnifiedCardRecord(
       card: _toCard(row, extra),
       source: source,
@@ -203,8 +562,7 @@ class UnifiedCardRepository {
     final ids = selectedExtras.map((e) => e.cardId).toList();
     final rows = await (db.select(
       db.memoryCards,
-    )..where((t) => t.id.isIn(ids)))
-        .get();
+    )..where((t) => t.id.isIn(ids))).get();
     final rowsById = {for (final row in rows) row.id: row};
 
     final sourceIds = selectedExtras
@@ -216,8 +574,7 @@ class UnifiedCardRepository {
         ? <WhiteboardSource>[]
         : await (db.select(
             db.whiteboardSources,
-          )..where((t) => t.id.isIn(sourceIds)))
-            .get();
+          )..where((t) => t.id.isIn(sourceIds))).get();
     final sourcesById = {for (final row in sourceRows) row.id: _toSource(row)};
 
     Set<String> placedIds = const {};
@@ -230,15 +587,17 @@ class UnifiedCardRepository {
     }
 
     final normalizedSearch = query.search?.trim().toLowerCase() ?? '';
-    final normalizedTags =
-        query.tags?.map((tag) => tag.trim().toLowerCase()).toSet();
+    final normalizedTags = query.tags
+        ?.map((tag) => tag.trim().toLowerCase())
+        .toSet();
     final records = <UnifiedCardRecord>[];
     for (final extra in selectedExtras) {
       final row = rowsById[extra.cardId];
       if (row == null) continue;
       final card = _toCard(row, extra);
-      final source =
-          extra.sourceId == null ? null : sourcesById[extra.sourceId!];
+      final source = extra.sourceId == null
+          ? null
+          : sourcesById[extra.sourceId!];
       if (query.sourceTypes != null &&
           (source == null || !query.sourceTypes!.contains(source.mediaType))) {
         continue;
@@ -290,6 +649,42 @@ class UnifiedCardRepository {
     return records;
   }
 
+  /// Lists the canonical tag vocabulary stored on real Cards.
+  ///
+  /// Tags remain Card metadata; this method deliberately adds no second tag
+  /// table or cache. Results are normalized case-insensitively while keeping
+  /// the spelling of the first stored occurrence.
+  Future<List<String>> listDistinctTags({bool includeDeleted = false}) async {
+    final extras = await db.select(db.whiteboardCardExtras).get();
+    final selected = extras
+        .where((extra) => includeDeleted || extra.deletedAt == null)
+        .toList();
+    if (selected.isEmpty) return const [];
+
+    final ids = selected.map((extra) => extra.cardId).toList();
+    final existingIds =
+        (await (db.select(
+              db.memoryCards,
+            )..where((table) => table.id.isIn(ids))).get())
+        .map((row) => row.id)
+        .toSet();
+    final result = <String>[];
+    final seen = <String>{};
+    for (final extra in selected) {
+      if (!existingIds.contains(extra.cardId)) continue;
+      for (final tag in _decodeStringList(extra.tagsJson)) {
+        final trimmed = tag.trim();
+        if (trimmed.isEmpty || !seen.add(trimmed.toLowerCase())) continue;
+        result.add(trimmed);
+      }
+    }
+    result.sort((left, right) {
+      final byFolded = left.toLowerCase().compareTo(right.toLowerCase());
+      return byFolded != 0 ? byFolded : left.compareTo(right);
+    });
+    return result;
+  }
+
   /// Creates an explicit user-authored text card.
   Future<CardContract> createTextCard({
     String? cardId,
@@ -303,8 +698,7 @@ class UnifiedCardRepository {
     final id = cardId ?? StableId.generate('card').value;
     final existing = await (db.select(
       db.memoryCards,
-    )..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     if (existing != null) {
       throw StateError('Card already exists: $id');
     }
@@ -322,6 +716,68 @@ class UnifiedCardRepository {
     );
     await db.transaction(() => _insertNewCard(card));
     return card;
+  }
+
+  /// Inserts a complete Source-bound video Annotation Card in one transaction.
+  Future<CardContract> createVideoAnnotationCard(CardContract card) async {
+    if (card.cardKind != CardKind.annotation || card.sourceId == null) {
+      throw ArgumentError('Annotation Card requires kind and sourceId');
+    }
+    final rawAnchor = card.presentation['anchor'];
+    if (rawAnchor is! Map) {
+      throw ArgumentError('Annotation Card requires an Anchor projection');
+    }
+    final anchor = AnchorContract.fromJson(
+      Map<String, dynamic>.from(rawAnchor),
+    );
+    if (anchor.sourceId != card.sourceId) {
+      throw ArgumentError('Annotation Card Source and Anchor disagree');
+    }
+    if (anchor.positionKind != PositionKind.timeRange) {
+      throw ArgumentError('Video Annotation requires a time_range Anchor');
+    }
+    final specError = TimeRangeAnchorSpec.validate(anchor.positionSpec);
+    if (specError != null) throw ArgumentError(specError);
+    final startMs = (anchor.positionSpec['start_ms'] as num).toInt();
+    final endMs = (anchor.positionSpec['end_ms'] as num).toInt();
+    final isPoint = anchor.positionSpec['is_point'];
+    if (isPoint is! bool || isPoint != (startMs == endMs)) {
+      throw ArgumentError(
+        'time_range is_point must agree with start_ms and end_ms',
+      );
+    }
+    if (card.presentation['anchor_id'] != anchor.anchorId ||
+        card.presentation['start_ms'] != anchor.positionSpec['start_ms'] ||
+        card.presentation['end_ms'] != anchor.positionSpec['end_ms'] ||
+        card.presentation['is_point'] != anchor.positionSpec['is_point']) {
+      throw ArgumentError('Annotation Card summary and Anchor disagree');
+    }
+    return db.transaction(() async {
+      if (await _sourceById(card.sourceId!) == null) {
+        throw StateError('Source not found: ${card.sourceId}');
+      }
+      final sourceVersion = await _versionById(anchor.sourceVersionId);
+      if (sourceVersion == null || sourceVersion.sourceId != card.sourceId) {
+        throw StateError(
+          'SourceVersion does not belong to Source: ${anchor.sourceVersionId}',
+        );
+      }
+      final existing = await (db.select(
+        db.memoryCards,
+      )..where((t) => t.id.equals(card.cardId))).getSingleOrNull();
+      if (existing != null) {
+        throw StateError('Card already exists: ${card.cardId}');
+      }
+      await _insertMemoryCardRow(card);
+      await _injectFault(
+        UnifiedCardRepositoryFaultPoint.annotationAfterMemoryCardInsert,
+      );
+      await _insertCardExtraRow(card);
+      await _injectFault(
+        UnifiedCardRepositoryFaultPoint.annotationAfterExtrasInsert,
+      );
+      return card;
+    });
   }
 
   /// Updates card metadata and its searchable projection in one transaction.
@@ -354,18 +810,25 @@ class UnifiedCardRepository {
   /// A Drift Card must already exist, so this path cannot create an orphan
   /// rich-text card id. The JSON is written atomically before the projection
   /// transaction; a later read reports a missing/corrupt file honestly.
+  /// [preserveEmptyTitle] is reserved for a surface that edits Card title and
+  /// body in one document: an explicit empty synthetic title remains empty
+  /// instead of being replaced by the first body line. Existing callers keep
+  /// the original projection fallback by default.
   Future<CardContract> saveRichText(
     String cardId,
     RichTextDocument document, {
     String? title,
+    bool preserveEmptyTitle = false,
   }) async {
     final current = await getCard(cardId, loadDocument: false);
     if (current == null) throw StateError('Card not found: $cardId');
     await richTextStorage.save(cardId, document);
     final projection = document.toPlainText().trim();
-    final projectedTitle = title?.trim().isNotEmpty == true
-        ? title!.trim()
-        : _firstNonEmptyLine(projection, fallback: current.card.title);
+    final projectedTitle = title != null && preserveEmptyTitle
+        ? title.trim()
+        : title?.trim().isNotEmpty == true
+            ? title!.trim()
+            : _firstNonEmptyLine(projection, fallback: current.card.title);
     return updateCardMetadata(cardId, title: projectedTitle, body: projection);
   }
 
@@ -419,9 +882,7 @@ class UnifiedCardRepository {
   /// Raw `thumbnail` / `og_image` values remain untrusted download candidates;
   /// UI only receives [ResolvedThumbnail.file] after the resolver has produced
   /// and integrity-checked a content-addressed `thumbnail_ref`.
-  Future<ResolvedThumbnail> resolveThumbnail(
-    UnifiedCardRecord record,
-  ) async {
+  Future<ResolvedThumbnail> resolveThumbnail(UnifiedCardRecord record) async {
     final resolver = thumbnailResolver;
     final source = record.source;
     final versionId =
@@ -440,7 +901,8 @@ class UnifiedCardRepository {
       presentation['thumbnail_ref'],
       sourceMetadata['thumbnail_ref'],
     ]);
-    final cachedVersion = presentation['thumbnail_version_id'] as String? ??
+    final cachedVersion =
+        presentation['thumbnail_version_id'] as String? ??
         sourceMetadata['thumbnail_version_id'] as String?;
     final resolved = await resolver.resolve(
       ThumbnailResolveRequest(
@@ -463,12 +925,10 @@ class UnifiedCardRepository {
 
     try {
       final stillCurrent = await db.transaction<bool>(() async {
-        final current = await getCard(
-          record.card.cardId,
-          loadDocument: false,
-        );
+        final current = await getCard(record.card.cardId, loadDocument: false);
         if (current == null) return false;
-        final latestVersion = current.currentSourceVersion?.versionId ??
+        final latestVersion =
+            current.currentSourceVersion?.versionId ??
             current.source?.currentVersionId;
         if (latestVersion != versionId) return false;
         final currentPresentation = current.card.presentation;
@@ -486,7 +946,8 @@ class UnifiedCardRepository {
             currentCandidateHash != resolved.candidateHash) {
           return false;
         }
-        final hashIsProjected = resolved.candidateHash!.isEmpty ||
+        final hashIsProjected =
+            resolved.candidateHash!.isEmpty ||
             currentPresentation['thumbnail_candidate_hash'] ==
                 resolved.candidateHash;
         if (currentPresentation['thumbnail_ref'] == resolved.objectRef &&
@@ -504,9 +965,9 @@ class UnifiedCardRepository {
           if (resolved.candidateHash!.isNotEmpty)
             'thumbnail_candidate_hash': resolved.candidateHash,
         };
-        await (db.update(db.whiteboardCardExtras)
-              ..where((t) => t.cardId.equals(record.card.cardId)))
-            .write(
+        await (db.update(
+          db.whiteboardCardExtras,
+        )..where((t) => t.cardId.equals(record.card.cardId))).write(
           WhiteboardCardExtrasCompanion(
             presentationJson: Value(jsonEncode(projectedPresentation)),
           ),
@@ -523,10 +984,11 @@ class UnifiedCardRepository {
   }
 
   Future<List<SourceVersion>> listSourceVersions(String sourceId) async {
-    final rows = await (db.select(db.whiteboardSourceVersions)
-          ..where((t) => t.sourceId.equals(sourceId))
-          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
-        .get();
+    final rows =
+        await (db.select(db.whiteboardSourceVersions)
+              ..where((t) => t.sourceId.equals(sourceId))
+              ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+            .get();
     return rows.map(_toVersion).toList();
   }
 
@@ -577,6 +1039,23 @@ class UnifiedCardRepository {
         result.sourceVersion == null) {
       throw StateError('Only successful ingestion results can create cards');
     }
+    return _withSourceObjectCommitLock(
+      whiteboardRoot.absolute.path,
+      () => _commitIngestionLocked(
+        result,
+        cardKind: cardKind,
+        ownerSpace: ownerSpace,
+        createdBy: createdBy,
+      ),
+    );
+  }
+
+  Future<IngestionCommitResult> _commitIngestionLocked(
+    IngestionResult result, {
+    required CardKind cardKind,
+    required OwnerSpace ownerSpace,
+    required CardCreatedBy createdBy,
+  }) async {
     final incomingSource = result.source!;
     final incomingVersion = SourceVersion.fromJson(result.sourceVersion!);
     final existingSource = await _findCanonicalSource(result, incomingSource);
@@ -585,7 +1064,8 @@ class UnifiedCardRepository {
       sourceId,
       incomingVersion.contentHash,
     );
-    final version = sameHash ??
+    final version =
+        sameHash ??
         SourceVersion(
           versionId: _versionId(sourceId, incomingVersion.contentHash),
           sourceId: sourceId,
@@ -594,34 +1074,80 @@ class UnifiedCardRepository {
           parserVersion: incomingVersion.parserVersion,
           createdAt: incomingVersion.createdAt.toUtc(),
         );
-    if (sameHash == null) {
-      await _writeSourceObject(version, result);
-    }
-
+    _SourceObjectWriteGuard? objectWriteGuard;
+    File? intentFile;
     late IngestionCommitResult committed;
-    await db.transaction(() async {
+    try {
       if (sameHash == null) {
-        await db.into(db.whiteboardSourceVersions).insert(
-              WhiteboardSourceVersionsCompanion.insert(
-                id: version.versionId,
-                sourceId: version.sourceId,
-                contentHash: version.contentHash,
-                objectRef: version.objectRef,
-                parserVersion: Value(version.parserVersion),
-                createdAt: _millis(version.createdAt),
-              ),
-            );
+        final target = _objectFile(version.objectRef);
+        objectWriteGuard = await _SourceObjectWriteGuard.capture(
+          target,
+          version.objectRef,
+        );
+        intentFile = _sourceObjectIntentFile(version);
+        await _writeSourceObjectIntent(intentFile, version, objectWriteGuard);
+        await _writeSourceObject(version, result);
+        await _injectFault(
+          UnifiedCardRepositoryFaultPoint
+              .ingestionAfterObjectWriteBeforeVersionInsert,
+        );
       }
+      await db.transaction(() async {
+        final transactionSource = await _findCanonicalSource(
+          result,
+          incomingSource,
+        );
+        final transactionSourceId =
+            transactionSource?.sourceId ?? incomingSource.sourceId;
+        if (transactionSourceId != sourceId) {
+          throw StateError('Canonical Source changed during ingestion');
+        }
+        final transactionSameHash = await _versionByHash(
+          transactionSourceId,
+          incomingVersion.contentHash,
+        );
+        if ((sameHash == null) != (transactionSameHash == null)) {
+          throw StateError('SourceVersion changed during ingestion');
+        }
+        if (sameHash == null) {
+          await db
+              .into(db.whiteboardSourceVersions)
+              .insert(
+                WhiteboardSourceVersionsCompanion.insert(
+                  id: version.versionId,
+                  sourceId: version.sourceId,
+                  contentHash: version.contentHash,
+                  objectRef: version.objectRef,
+                  parserVersion: Value(version.parserVersion),
+                  createdAt: _millis(version.createdAt),
+                ),
+              );
+          await _injectFault(
+            UnifiedCardRepositoryFaultPoint.ingestionAfterVersionInsert,
+          );
+        }
       final now = result.resolvedAt.toUtc();
       final source = SourceContent(
         sourceId: sourceId,
-        mediaType: incomingSource.mediaType,
-        title: incomingSource.title,
+        mediaType: sameHash == null
+            ? incomingSource.mediaType
+            : (existingSource?.mediaType ?? incomingSource.mediaType),
+        title: sameHash == null
+            ? incomingSource.title
+            : (existingSource?.title ?? incomingSource.title),
         ownerSpace: existingSource?.ownerSpace ?? ownerSpace,
-        origin: incomingSource.origin,
-        provider: incomingSource.provider,
-        canonicalId: incomingSource.canonicalId,
-        mimeType: incomingSource.mimeType,
+        origin: sameHash == null
+            ? incomingSource.origin
+            : (existingSource?.origin ?? incomingSource.origin),
+        provider: sameHash == null
+            ? incomingSource.provider
+            : (existingSource?.provider ?? incomingSource.provider),
+        canonicalId: sameHash == null
+            ? incomingSource.canonicalId
+            : existingSource?.canonicalId,
+        mimeType: sameHash == null
+            ? incomingSource.mimeType
+            : (existingSource?.mimeType ?? incomingSource.mimeType),
         currentVersionId: sameHash == null
             ? version.versionId
             : (existingSource?.currentVersionId ?? version.versionId),
@@ -634,8 +1160,12 @@ class UnifiedCardRepository {
         metadata: {
           ...?existingSource?.metadata,
           ...incomingSource.metadata,
-          'canonical_url': result.canonicalUrl,
-          if (result.originalUrl != null) 'original_url': result.originalUrl,
+          'canonical_url': sameHash == null
+              ? result.canonicalUrl
+              : (existingSource?.metadata['canonical_url'] ??
+                  result.canonicalUrl),
+          if (sameHash == null && result.originalUrl != null)
+            'original_url': result.originalUrl,
         },
         createdAt: existingSource?.createdAt ?? incomingSource.createdAt,
         updatedAt: sameHash == null ? now : existingSource?.updatedAt,
@@ -646,7 +1176,8 @@ class UnifiedCardRepository {
       final existingCard = await _cardForSource(sourceId);
       final thumbnail =
           incomingSource.metadata['og_image'] ?? result.metadata['og_image'];
-      final description = incomingSource.metadata['description'] ??
+      final description =
+          incomingSource.metadata['description'] ??
           result.metadata['description'];
       final excerpt = result.metadata['body_excerpt'] as String? ?? '';
       final wasDeleted = existingCard?.deletedAt != null;
@@ -671,7 +1202,7 @@ class UnifiedCardRepository {
           : _copyCard(
               existingCard,
               title: source.title.isEmpty ? null : source.title,
-              body: excerpt.isEmpty ? null : excerpt,
+              body: sameHash == null && excerpt.isNotEmpty ? excerpt : null,
               presentation: {
                 ...existingCard.presentation,
                 if (thumbnail != null) 'thumbnail': thumbnail,
@@ -688,15 +1219,35 @@ class UnifiedCardRepository {
       } else {
         await _updateExistingCard(card);
       }
-      committed = IngestionCommitResult(
-        source: source,
-        version: version,
-        versionIsNew: sameHash == null,
-        card: card,
-        cardCreated: cardCreated,
-        cardRestored: wasDeleted,
+        committed = IngestionCommitResult(
+          source: source,
+          version: version,
+          versionIsNew: sameHash == null,
+          card: card,
+          cardCreated: cardCreated,
+          cardRestored: wasDeleted,
+        );
+      });
+    } catch (error) {
+      if (error is UnifiedCardRepositorySimulatedProcessExit) rethrow;
+      await objectWriteGuard?.removeCreatedFilesIfUnreferenced(db);
+      if (intentFile != null) await _deleteFileExchange(intentFile);
+      rethrow;
+    }
+
+    // The Drift transaction above is the commit point. Intent cleanup is
+    // deliberately outside the compensation catch: once DB rows reference
+    // the new object, cleanup failure must never restore pre-write bytes.
+    try {
+      await _injectFault(
+        UnifiedCardRepositoryFaultPoint
+            .ingestionAfterTransactionCommitBeforeIntentCleanup,
       );
-    });
+      if (intentFile != null) await _deleteFileExchange(intentFile);
+    } catch (error) {
+      if (error is UnifiedCardRepositorySimulatedProcessExit) rethrow;
+      // Startup reconciliation sees the DB reference and removes only intent.
+    }
     return committed;
   }
 
@@ -770,15 +1321,17 @@ class UnifiedCardRepository {
   /// Adds the missing Extras half for a legacy Drift note without changing
   /// its MemoryCards row.
   Future<bool> backfillLegacyMemoryCardExtra(String cardId) async {
-    final row = await (db.select(db.memoryCards)
-          ..where((t) => t.id.equals(cardId)))
-        .getSingleOrNull();
+    final row = await (db.select(
+      db.memoryCards,
+    )..where((t) => t.id.equals(cardId))).getSingleOrNull();
     if (row == null) return false;
-    final existing = await (db.select(db.whiteboardCardExtras)
-          ..where((t) => t.cardId.equals(cardId)))
-        .getSingleOrNull();
+    final existing = await (db.select(
+      db.whiteboardCardExtras,
+    )..where((t) => t.cardId.equals(cardId))).getSingleOrNull();
     if (existing != null) return false;
-    await db.into(db.whiteboardCardExtras).insert(
+    await db
+        .into(db.whiteboardCardExtras)
+        .insert(
           WhiteboardCardExtrasCompanion.insert(
             cardId: cardId,
             cardKind: CardKind.note.name,
@@ -802,7 +1355,9 @@ class UnifiedCardRepository {
             null) {
           continue;
         }
-        await db.into(db.whiteboardSourceVersions).insert(
+        await db
+            .into(db.whiteboardSourceVersions)
+            .insert(
               WhiteboardSourceVersionsCompanion.insert(
                 id: version.versionId,
                 sourceId: version.sourceId,
@@ -841,7 +1396,14 @@ class UnifiedCardRepository {
   // Internal mapping / persistence ----------------------------------------
 
   Future<void> _insertNewCard(CardContract card) async {
-    await db.into(db.memoryCards).insert(
+    await _insertMemoryCardRow(card);
+    await _insertCardExtraRow(card);
+  }
+
+  Future<void> _insertMemoryCardRow(CardContract card) async {
+    await db
+        .into(db.memoryCards)
+        .insert(
           MemoryCardsCompanion.insert(
             id: card.cardId,
             memoryScope: const Value('user_truth'),
@@ -856,7 +1418,12 @@ class UnifiedCardRepository {
             updatedAt: _millis(card.updatedAt ?? card.createdAt),
           ),
         );
-    await db.into(db.whiteboardCardExtras).insert(
+  }
+
+  Future<void> _insertCardExtraRow(CardContract card) async {
+    await db
+        .into(db.whiteboardCardExtras)
+        .insert(
           WhiteboardCardExtrasCompanion.insert(
             cardId: card.cardId,
             cardKind: card.cardKind.name,
@@ -878,11 +1445,33 @@ class UnifiedCardRepository {
         );
   }
 
+  Future<void> _injectFault(UnifiedCardRepositoryFaultPoint point) async {
+    await faultInjector?.call(point);
+  }
+
+  Future<T> _withSourceObjectCommitLock<T>(
+    String key,
+    Future<T> Function() action,
+  ) async {
+    final previous = _sourceObjectCommitLocks[key] ?? Future<void>.value();
+    final gate = Completer<void>();
+    final current = gate.future;
+    _sourceObjectCommitLocks[key] = current;
+    try {
+      await previous.catchError((_) {});
+      return await action();
+    } finally {
+      gate.complete();
+      if (identical(_sourceObjectCommitLocks[key], current)) {
+        _sourceObjectCommitLocks.remove(key);
+      }
+    }
+  }
+
   Future<void> _updateExistingCard(CardContract card) async {
     await (db.update(
       db.memoryCards,
-    )..where((t) => t.id.equals(card.cardId)))
-        .write(
+    )..where((t) => t.id.equals(card.cardId))).write(
       MemoryCardsCompanion(
         title: Value(card.title),
         dropletLabel: Value(_dropletLabel(card.title)),
@@ -890,7 +1479,9 @@ class UnifiedCardRepository {
         updatedAt: Value(_millis(card.updatedAt ?? card.createdAt)),
       ),
     );
-    await db.into(db.whiteboardCardExtras).insertOnConflictUpdate(
+    await db
+        .into(db.whiteboardCardExtras)
+        .insertOnConflictUpdate(
           WhiteboardCardExtrasCompanion.insert(
             cardId: card.cardId,
             cardKind: card.cardKind.name,
@@ -913,7 +1504,9 @@ class UnifiedCardRepository {
   }
 
   Future<void> _upsertSource(SourceContent source) async {
-    await db.into(db.whiteboardSources).insertOnConflictUpdate(
+    await db
+        .into(db.whiteboardSources)
+        .insertOnConflictUpdate(
           WhiteboardSourcesCompanion.insert(
             id: source.sourceId,
             mediaType: source.mediaType.name,
@@ -941,33 +1534,29 @@ class UnifiedCardRepository {
   }
 
   Future<CardContract?> _cardForSource(String sourceId) async {
-    final extra = await (db.select(
-      db.whiteboardCardExtras,
-    )
-          ..where((t) => t.sourceId.equals(sourceId))
-          ..limit(1))
-        .getSingleOrNull();
+    final extra =
+        await (db.select(db.whiteboardCardExtras)
+              ..where((t) => t.sourceId.equals(sourceId))
+              ..limit(1))
+            .getSingleOrNull();
     if (extra == null) return null;
     final row = await (db.select(
       db.memoryCards,
-    )..where((t) => t.id.equals(extra.cardId)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(extra.cardId))).getSingleOrNull();
     return row == null ? null : _toCard(row, extra);
   }
 
   Future<SourceContent?> _sourceById(String sourceId) async {
     final row = await (db.select(
       db.whiteboardSources,
-    )..where((t) => t.id.equals(sourceId)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(sourceId))).getSingleOrNull();
     return row == null ? null : _toSource(row);
   }
 
   Future<SourceVersion?> _versionById(String versionId) async {
     final row = await (db.select(
       db.whiteboardSourceVersions,
-    )..where((t) => t.id.equals(versionId)))
-        .getSingleOrNull();
+    )..where((t) => t.id.equals(versionId))).getSingleOrNull();
     return row == null ? null : _toVersion(row);
   }
 
@@ -975,13 +1564,15 @@ class UnifiedCardRepository {
     String sourceId,
     String contentHash,
   ) async {
-    final row = await (db.select(db.whiteboardSourceVersions)
-          ..where(
-            (t) =>
-                t.sourceId.equals(sourceId) & t.contentHash.equals(contentHash),
-          )
-          ..limit(1))
-        .getSingleOrNull();
+    final row =
+        await (db.select(db.whiteboardSourceVersions)
+              ..where(
+                (t) =>
+                    t.sourceId.equals(sourceId) &
+                    t.contentHash.equals(contentHash),
+              )
+              ..limit(1))
+            .getSingleOrNull();
     return row == null ? null : _toVersion(row);
   }
 
@@ -989,9 +1580,8 @@ class UnifiedCardRepository {
     IngestionResult result,
     SourceContent incoming,
   ) async {
-    final byId = await _sourceById(incoming.sourceId);
-    if (byId != null) return byId;
     final rows = await db.select(db.whiteboardSources).get();
+    rows.sort((left, right) => left.id.compareTo(right.id));
     for (final row in rows) {
       if (incoming.canonicalId != null &&
           row.provider == incoming.provider &&
@@ -999,11 +1589,12 @@ class UnifiedCardRepository {
         return _toSource(row);
       }
       final metadata = _decodeMap(row.metadataJson);
-      if (metadata?['canonical_url'] == result.canonicalUrl) {
+      if (row.provider == incoming.provider &&
+          metadata?['canonical_url'] == result.canonicalUrl) {
         return _toSource(row);
       }
     }
-    return null;
+    return _sourceById(incoming.sourceId);
   }
 
   Future<void> _writeSourceObject(
@@ -1025,11 +1616,142 @@ class UnifiedCardRepository {
           if (entry.key != 'body_text') entry.key: entry.value,
       },
     };
+    await _injectFault(
+      UnifiedCardRepositoryFaultPoint.ingestionDuringObjectExchange,
+    );
     await RecoverableFileExchange.write(
       file,
       jsonEncode(payload),
       validator: _isValidJsonMap,
     );
+  }
+
+  Directory get _sourceObjectIntentRoot => Directory(
+        _join(_join(whiteboardRoot.path, 'objects'), 'source_object_intents'),
+      );
+
+  Directory get _sourceObjectRoot => Directory(
+        _join(_join(whiteboardRoot.path, 'objects'), 'sources'),
+      );
+
+  File _sourceObjectIntentFile(SourceVersion version) {
+    final name =
+        base64Url.encode(utf8.encode(version.objectRef)).replaceAll('=', '');
+    return File(_join(_sourceObjectIntentRoot.path, '$name.json'));
+  }
+
+  Future<void> _writeSourceObjectIntent(
+    File file,
+    SourceVersion version,
+    _SourceObjectWriteGuard guard,
+  ) async {
+    await file.parent.create(recursive: true);
+    await RecoverableFileExchange.write(
+      file,
+      jsonEncode({
+        'schema_version': 2,
+        'kind': 'source_object_commit',
+        'object_ref': version.objectRef,
+        'source_id': version.sourceId,
+        'source_version_id': version.versionId,
+        'pre_write_snapshot': guard.intentSnapshot,
+      }),
+      validator: _isValidSourceObjectIntentJson,
+    );
+  }
+
+  Future<String?> _readBoundedIntentCandidate(File file) async {
+    try {
+      final beforeLength = await file.length();
+      if (beforeLength > _maxSourceObjectIntentBytes) return null;
+      final reader = await file.open();
+      try {
+        final bytes = await reader.read(_maxSourceObjectIntentBytes + 1);
+        if (bytes.length > _maxSourceObjectIntentBytes ||
+            await file.length() != bytes.length) {
+          return null;
+        }
+        return utf8.decode(bytes, allowMalformed: false);
+      } finally {
+        await reader.close();
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> _isSafeContainedSourceObjectFile(File target) async {
+    final sourceRoot = _sourceObjectRoot;
+    if (!await _isDirectoryContained(
+      root: whiteboardRoot,
+      child: sourceRoot,
+    )) {
+      return false;
+    }
+    if (!await _isDirectoryContained(
+      root: sourceRoot,
+      child: target.parent,
+    )) {
+      return false;
+    }
+    for (final candidate in <File>[
+      target,
+      RecoverableFileExchange.tempFor(target),
+      RecoverableFileExchange.backupFor(target),
+    ]) {
+      final type = await FileSystemEntity.type(
+        candidate.path,
+        followLinks: false,
+      );
+      if (type != FileSystemEntityType.file &&
+          type != FileSystemEntityType.notFound) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<bool> _isDirectoryContained({
+    required Directory root,
+    required Directory child,
+  }) async {
+    try {
+      final rootType = await FileSystemEntity.type(
+        root.path,
+        followLinks: false,
+      );
+      final childType = await FileSystemEntity.type(
+        child.path,
+        followLinks: false,
+      );
+      if (rootType != FileSystemEntityType.directory ||
+          childType != FileSystemEntityType.directory) {
+        return false;
+      }
+      final rootPath = path_api.normalize(
+        path_api.absolute(await _canonicalizeDirectory(root.path)),
+      );
+      final childPath = path_api.normalize(
+        path_api.absolute(await _canonicalizeDirectory(child.path)),
+      );
+      return path_api.isWithin(rootPath, childPath);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String> _canonicalizeDirectory(String path) =>
+      sourceObjectPathCanonicalizer?.call(path) ??
+      Directory(path).resolveSymbolicLinks();
+
+  static Future<void> _deleteFileExchange(File file) async {
+    for (final candidate in <File>[
+      file,
+      RecoverableFileExchange.tempFor(file),
+      RecoverableFileExchange.backupFor(file),
+    ]) {
+      if (await candidate.exists()) await candidate.delete();
+    }
   }
 
   File _objectFile(String objectRef) {
@@ -1049,6 +1771,75 @@ class UnifiedCardRepository {
     } catch (_) {
       return false;
     }
+  }
+
+  static bool _isValidSourceObjectIntentJson(String contents) {
+    try {
+      final decoded = jsonDecode(contents);
+      return decoded is Map<String, dynamic> &&
+          _isValidSourceObjectIntentMap(decoded);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool _isValidSourceObjectIntentMap(Map<String, dynamic> intent) {
+    const keys = {
+      'schema_version',
+      'kind',
+      'object_ref',
+      'source_id',
+      'source_version_id',
+      'pre_write_snapshot',
+    };
+    if (intent.length != keys.length ||
+        !intent.keys.every(keys.contains) ||
+        intent['schema_version'] != 2 ||
+        intent['kind'] != 'source_object_commit') {
+      return false;
+    }
+    final objectRef = _safeSourceObjectIntentRef(intent);
+    if (objectRef == null) return false;
+    return _SourceObjectWriteGuard.fromIntent(
+          File('intent-validation.json'),
+          objectRef,
+          intent['pre_write_snapshot'],
+        ) !=
+        null;
+  }
+
+  static String? _safeSourceObjectIntentRef(Map<String, dynamic> intent) {
+    final objectRef = _safeManagedSourceObjectRef(intent['object_ref']);
+    final sourceId = intent['source_id'];
+    final sourceVersionId = intent['source_version_id'];
+    if (objectRef == null ||
+        sourceId is! String ||
+        sourceVersionId is! String ||
+        sourceId.isEmpty ||
+        sourceVersionId.isEmpty ||
+        objectRef != 'objects/sources/$sourceId/$sourceVersionId.json') {
+      return null;
+    }
+    return objectRef;
+  }
+
+  static String? _safeManagedSourceObjectRef(Object? raw) {
+    if (raw is! String ||
+        raw.contains('..') ||
+        raw.contains('\\') ||
+        raw.contains(':')) {
+      return null;
+    }
+    final segments = raw.split('/');
+    if (segments.length != 4 ||
+        segments[0] != 'objects' ||
+        segments[1] != 'sources' ||
+        segments[2].isEmpty ||
+        segments[3].isEmpty ||
+        !segments[3].endsWith('.json')) {
+      return null;
+    }
+    return raw;
   }
 
   static CardContract _toCard(MemoryCard row, WhiteboardCardExtra extra) =>
@@ -1106,8 +1897,7 @@ class UnifiedCardRepository {
     DateTime? updatedAt,
     DateTime? deletedAt,
     bool setDeletedAt = false,
-  }) =>
-      CardContract(
+  }) => CardContract(
         cardId: card.cardId,
         cardKind: cardKind ?? card.cardKind,
         sourceId: setSourceId ? sourceId : card.sourceId,

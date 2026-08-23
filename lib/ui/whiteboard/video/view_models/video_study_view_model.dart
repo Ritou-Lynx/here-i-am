@@ -5,6 +5,8 @@
 /// persistence. Uses [ChangeNotifier] following the project's MVVM pattern.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:memex/data/whiteboard/repository_video_annotation_store.dart';
@@ -35,7 +37,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   final String sourceId;
   final String sourceVersionId;
   final String providerId;
-  final RepositoryVideoAnnotationStore? annotationStore;
+  final VideoAnnotationStore? annotationStore;
   final bool runtimePlayerAvailable;
 
   /// Optional session persistence for restart recovery. When null, session
@@ -56,8 +58,14 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   SubtitleAutoFetchStatus _subtitleFetchStatus = SubtitleAutoFetchStatus.idle;
   String? _subtitleFetchMessage;
+  YouTubeTimedTextFailureKind? _subtitleFailureKind;
+  BilibiliTimedTextFailureKind? _bilibiliSubtitleFailureKind;
+  List<YouTubeCaptionTrack> _availableCaptionTracks = const [];
+  YouTubeCaptionTrack? _selectedCaptionTrack;
   late YouTubeTimedTextService _timedTextService;
   late bool _ownsTimedTextService;
+  late BilibiliTimedTextService _bilibiliTimedTextService;
+  late bool _ownsBilibiliTimedTextService;
 
   final List<UIAnnotation> _annotations = [];
   final Map<String, String> _anchorToCard = {};
@@ -68,9 +76,17 @@ class VideoStudyViewModel extends ChangeNotifier {
   String? _pendingAnnotationCueId;
   int? _pendingAnnotationStartMs;
   int? _pendingAnnotationEndMs;
+  bool _pendingAnnotationIsPoint = true;
+  String? _pendingAnnotationSuggestedQuote;
+  int? _rangeSelectionStartMs;
+  bool _isCapturingTimeBoundary = false;
   bool _showSaveConfirmation = false;
+  Timer? _saveConfirmationTimer;
   bool _isSavingAnnotation = false;
   bool _dockVisible = true;
+  String _annotationDraftDocument = '';
+  bool _annotationDraftInitialized = false;
+  bool _annotationDraftWasFocused = false;
 
   VideoStudyViewModel({
     required this.adapter,
@@ -82,6 +98,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     this.annotationStore,
     this.runtimePlayerAvailable = true,
     YouTubeTimedTextService? timedTextService,
+    BilibiliTimedTextService? bilibiliTimedTextService,
   }) {
     _track = initialTrack;
     _needsSubtitle = initialTrack == null ||
@@ -89,6 +106,9 @@ class VideoStudyViewModel extends ChangeNotifier {
         initialTrack.cues.isEmpty;
     _ownsTimedTextService = timedTextService == null;
     _timedTextService = timedTextService ?? YouTubeTimedTextService();
+    _ownsBilibiliTimedTextService = bilibiliTimedTextService == null;
+    _bilibiliTimedTextService =
+        bilibiliTimedTextService ?? const BilibiliTimedTextService();
     _subtitleFetchStatus = _track?.cues.isNotEmpty == true
         ? SubtitleAutoFetchStatus.loaded
         : SubtitleAutoFetchStatus.idle;
@@ -106,6 +126,34 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   /// Honest reason when auto-fetch failed, or a note when it loaded.
   String? get subtitleFetchMessage => _subtitleFetchMessage;
+  YouTubeTimedTextFailureKind? get subtitleFailureKind => _subtitleFailureKind;
+  BilibiliTimedTextFailureKind? get bilibiliSubtitleFailureKind =>
+      _bilibiliSubtitleFailureKind;
+  String? get subtitleFailureLabel {
+    final youtube = _subtitleFailureKind;
+    if (youtube != null) {
+      return switch (youtube) {
+        YouTubeTimedTextFailureKind.invalidVideo => '来源无效',
+        YouTubeTimedTextFailureKind.noTrack => '无字幕轨',
+        YouTubeTimedTextFailureKind.accessRestricted => '地区 / 权限限制',
+        YouTubeTimedTextFailureKind.network => '网络失败',
+        YouTubeTimedTextFailureKind.parserFailure => '解析器失效',
+      };
+    }
+    final bilibili = _bilibiliSubtitleFailureKind;
+    if (bilibili == null) return null;
+    return switch (bilibili) {
+      BilibiliTimedTextFailureKind.invalidVideo => '来源无效',
+      BilibiliTimedTextFailureKind.unsupported => '平台未开放',
+      BilibiliTimedTextFailureKind.needsAuthorization => '需要授权',
+      BilibiliTimedTextFailureKind.network => '网络失败',
+      BilibiliTimedTextFailureKind.parserFailure => '解析器失效',
+    };
+  }
+
+  List<YouTubeCaptionTrack> get availableCaptionTracks =>
+      List.unmodifiable(_availableCaptionTracks);
+  YouTubeCaptionTrack? get selectedCaptionTrack => _selectedCaptionTrack;
 
   // ─── Playback ───
 
@@ -170,6 +218,26 @@ class VideoStudyViewModel extends ChangeNotifier {
   double get dockRatio => _dockRatio;
   bool get dockVisible => _dockVisible;
   bool get isSavingAnnotation => _isSavingAnnotation;
+  bool get isCapturingTimeBoundary => _isCapturingTimeBoundary;
+  String get annotationDraftDocument => _annotationDraftDocument;
+  bool get annotationDraftInitialized => _annotationDraftInitialized;
+  bool get annotationDraftWasFocused => _annotationDraftWasFocused;
+
+  void updateAnnotationDraftDocument(String document) {
+    _annotationDraftDocument = document;
+  }
+
+  void initializeAnnotationDraft({required String quote}) {
+    if (_annotationDraftInitialized) return;
+    final normalizedQuote = quote.trim();
+    _annotationDraftDocument =
+        normalizedQuote.isEmpty ? '' : '\n\n原文引用\n$normalizedQuote';
+    _annotationDraftInitialized = true;
+  }
+
+  void rememberAnnotationDraftFocus() {
+    _annotationDraftWasFocused = true;
+  }
 
   bool get hasRuntimePlaybackSurface =>
       runtimePlayerAvailable && hasAnyPlaybackSurface;
@@ -196,7 +264,11 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   /// Loads the video and starts the sync controller.
   Future<void> initialize({String? embedUrl}) async {
+    _lastEmbedUrl = embedUrl;
     try {
+      _syncController?.dispose();
+      _syncController = null;
+      _errorMessage = null;
       await adapter.load(sourceId, embedUrl: embedUrl);
       _isLoaded = true;
 
@@ -250,16 +322,28 @@ class VideoStudyViewModel extends ChangeNotifier {
       // static capability declaration stays conservative; study readiness is
       // decided at runtime after this attempt.
       _maybeAutoFetchSubtitles(embedUrl);
-    } catch (e) {
-      _errorMessage = '加载失败：$e';
+    } catch (_) {
+      _errorMessage = '视频加载失败，请检查网络或稍后重试。';
       notifyListeners();
     }
   }
 
+  String? _lastEmbedUrl;
+
+  /// Retries the same provider surface without changing Source/Card identity.
+  Future<void> retryLoad() async {
+    if (_isCapturingTimeBoundary) return;
+    _isLoaded = false;
+    _errorMessage = null;
+    notifyListeners();
+    await initialize(embedUrl: _lastEmbedUrl);
+  }
+
   /// Whether platform-subtitle auto-fetch should run for the current setup.
   bool get _canAutoFetchSubtitles =>
-      providerId == 'youtube' &&
-      (kIsWeb ||
+      (providerId == 'youtube' || providerId == 'bilibili') &&
+      (providerId == 'bilibili' ||
+          kIsWeb ||
           defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.windows) &&
       (_track?.cues.isEmpty != false);
@@ -277,18 +361,47 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   Future<void> _fetchPlatformSubtitles(String? embedUrl) async {
     final videoRef = embedUrl ?? sourceId;
+    if (providerId == 'bilibili') {
+      final result = await _bilibiliTimedTextService.fetchForVideo(
+        videoRef,
+        sourceId: sourceId,
+        sourceVersionId: sourceVersionId,
+      );
+      _availableCaptionTracks = const [];
+      _selectedCaptionTrack = null;
+      _subtitleFailureKind = null;
+      _bilibiliSubtitleFailureKind = result.failureKind;
+      if (result.isSuccess && result.track != null) {
+        _setTrack(result.track!);
+        _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
+        _subtitleFetchMessage = '已加载平台字幕（${result.track!.language}）';
+        _bilibiliSubtitleFailureKind = null;
+      } else {
+        _subtitleFetchStatus = SubtitleAutoFetchStatus.failed;
+        _subtitleFetchMessage = result.error ?? '哔哩哔哩字幕发现失败';
+        _needsSubtitle = true;
+      }
+      notifyListeners();
+      return;
+    }
     final result = await _timedTextService.fetchForVideo(
       videoRef,
       sourceId: sourceId,
       sourceVersionId: sourceVersionId,
     );
+    _availableCaptionTracks = result.availableTracks;
+    _selectedCaptionTrack = result.selectedTrack;
+    _bilibiliSubtitleFailureKind = null;
     if (result.isSuccess && result.track != null) {
       _setTrack(result.track!);
       _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
       _subtitleFetchMessage = '已自动获取平台字幕（${result.track!.language}）';
+      _subtitleFailureKind = null;
+      _bilibiliSubtitleFailureKind = null;
     } else {
       _subtitleFetchStatus = SubtitleAutoFetchStatus.failed;
       _subtitleFetchMessage = result.error ?? '自动获取字幕失败';
+      _subtitleFailureKind = result.failureKind;
       _needsSubtitle = true;
     }
     notifyListeners();
@@ -395,16 +508,119 @@ class VideoStudyViewModel extends ChangeNotifier {
   // ─── Annotations ───
 
   /// Starts creating an annotation at the current position or a specific cue.
-  void beginAnnotation({int? cueIndex, int? startMs, int? endMs}) {
+  void beginAnnotation({
+    int? cueIndex,
+    int? startMs,
+    int? endMs,
+    bool? isPoint,
+  }) {
+    if (!canCreateTimeAnchorNow || hasPendingAnnotation) return;
+    _resetAnnotationDraft();
     if (cueIndex != null && _track != null && cueIndex < _track!.cues.length) {
       final cue = _track!.cues[cueIndex];
       _pendingAnnotationCueId = cue.cueId;
       _pendingAnnotationStartMs = cue.startMs;
       _pendingAnnotationEndMs = cue.endMs;
+      _pendingAnnotationIsPoint = false;
+      _pendingAnnotationSuggestedQuote = cue.text;
     } else {
       _pendingAnnotationStartMs = startMs ?? _positionMs;
       _pendingAnnotationEndMs = endMs ?? _positionMs;
+      _pendingAnnotationIsPoint =
+          isPoint ?? _pendingAnnotationStartMs == _pendingAnnotationEndMs;
+      _pendingAnnotationSuggestedQuote = null;
     }
+    notifyListeners();
+  }
+
+  /// Loads a user-selected platform CC track without changing source/card
+  /// identity. SRT/VTT import remains available if this request fails.
+  Future<void> selectPlatformSubtitleTrack(YouTubeCaptionTrack selected) async {
+    if (providerId != 'youtube' ||
+        _subtitleFetchStatus == SubtitleAutoFetchStatus.fetching) {
+      return;
+    }
+    _subtitleFetchStatus = SubtitleAutoFetchStatus.fetching;
+    _selectedCaptionTrack = selected;
+    _subtitleFetchMessage = '正在加载 ${selected.label}…';
+    notifyListeners();
+    final result = await _timedTextService.fetchTrack(
+      selected,
+      sourceId: sourceId,
+      sourceVersionId: sourceVersionId,
+      availableTracks: _availableCaptionTracks,
+    );
+    if (result.isSuccess && result.track != null) {
+      _setTrack(result.track!);
+      _subtitleFetchStatus = SubtitleAutoFetchStatus.loaded;
+      _subtitleFetchMessage = '已切换到 ${selected.label}';
+      _subtitleFailureKind = null;
+    } else {
+      _subtitleFetchStatus = SubtitleAutoFetchStatus.failed;
+      _subtitleFetchMessage = result.error ?? '字幕轨加载失败';
+      _subtitleFailureKind = result.failureKind;
+      _needsSubtitle = _track == null || _track!.cues.isEmpty;
+    }
+    notifyListeners();
+  }
+
+  /// Opens a point-annotation draft at the player's readable current time.
+  /// This path never depends on a subtitle cue being present.
+  Future<void> beginPointAnnotationAtCurrent() async {
+    if (!canCreateTimeAnchorNow || hasPendingAnnotation) return;
+    _rangeSelectionStartMs = null;
+    final current = await _captureCurrentPosition();
+    if (current == null) return;
+    beginAnnotation(startMs: current, endMs: current, isPoint: true);
+  }
+
+  /// Captures the first boundary of a subtitle-independent time range.
+  Future<void> beginRangeSelectionAtCurrent() async {
+    if (!canCreateTimeAnchorNow || hasPendingAnnotation) return;
+    final current = await _captureCurrentPosition();
+    if (current == null) return;
+    _rangeSelectionStartMs = current;
+    notifyListeners();
+  }
+
+  /// Captures the second boundary and opens an annotation draft.
+  Future<void> finishRangeSelectionAtCurrent() async {
+    final first = _rangeSelectionStartMs;
+    if (!canCreateTimeAnchorNow || first == null) return;
+    final second = await _captureCurrentPosition();
+    if (second == null) return;
+    if (second == first) {
+      _errorMessage = '区间终点仍与起点相同，请先移动播放位置再结束区间。';
+      notifyListeners();
+      return;
+    }
+    final start = first <= second ? first : second;
+    final end = first <= second ? second : first;
+    _rangeSelectionStartMs = null;
+    beginAnnotation(startMs: start, endMs: end, isPoint: false);
+  }
+
+  Future<int?> _captureCurrentPosition() async {
+    if (!canCreateTimeAnchorNow || _isCapturingTimeBoundary) return null;
+    _isCapturingTimeBoundary = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final current = await adapter.currentPositionMs();
+      _positionMs = current < 0 ? 0 : current;
+      return _positionMs;
+    } catch (_) {
+      _errorMessage = '无法读取当前播放位置，请稍后重试。';
+      return null;
+    } finally {
+      _isCapturingTimeBoundary = false;
+      notifyListeners();
+    }
+  }
+
+  void cancelRangeSelection() {
+    if (_rangeSelectionStartMs == null) return;
+    _rangeSelectionStartMs = null;
     notifyListeners();
   }
 
@@ -417,7 +633,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   }) async {
     if (_pendingAnnotationStartMs == null || _isSavingAnnotation) return false;
 
-    final spec = _pendingAnnotationStartMs == _pendingAnnotationEndMs
+    final spec = _pendingAnnotationIsPoint
         ? TimeRangeAnchorSpec.point(
             _pendingAnnotationStartMs!,
             cueId: _pendingAnnotationCueId,
@@ -451,8 +667,8 @@ class VideoStudyViewModel extends ChangeNotifier {
               sourceVersionId: sourceVersionId,
               request: request,
             );
-    } catch (error) {
-      _errorMessage = '标注保存失败：$error';
+    } catch (_) {
+      _errorMessage = '标注保存失败，请稍后重试。';
       _isSavingAnnotation = false;
       notifyListeners();
       return false;
@@ -463,6 +679,9 @@ class VideoStudyViewModel extends ChangeNotifier {
     _pendingAnnotationCueId = null;
     _pendingAnnotationStartMs = null;
     _pendingAnnotationEndMs = null;
+    _pendingAnnotationIsPoint = true;
+    _pendingAnnotationSuggestedQuote = null;
+    _resetAnnotationDraft();
     _showSaveConfirmation = true;
     _isSavingAnnotation = false;
     notifyListeners();
@@ -470,8 +689,12 @@ class VideoStudyViewModel extends ChangeNotifier {
     // Persist the session immediately so the annotation survives a restart.
     saveSession();
 
-    // Auto-dismiss the confirmation after a short delay.
-    Future.delayed(const Duration(milliseconds: 900), () {
+    // Auto-dismiss the confirmation after a short delay. Keep the timer
+    // cancelable so closing the study surface never leaves lifecycle work
+    // behind (and repeated saves cannot stack callbacks).
+    _saveConfirmationTimer?.cancel();
+    _saveConfirmationTimer = Timer(const Duration(milliseconds: 900), () {
+      _saveConfirmationTimer = null;
       if (_showSaveConfirmation) {
         _showSaveConfirmation = false;
         notifyListeners();
@@ -482,6 +705,8 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   /// Dismisses the save confirmation immediately.
   void dismissSaveConfirmation() {
+    _saveConfirmationTimer?.cancel();
+    _saveConfirmationTimer = null;
     _showSaveConfirmation = false;
     notifyListeners();
   }
@@ -491,11 +716,26 @@ class VideoStudyViewModel extends ChangeNotifier {
     _pendingAnnotationCueId = null;
     _pendingAnnotationStartMs = null;
     _pendingAnnotationEndMs = null;
+    _pendingAnnotationIsPoint = true;
+    _pendingAnnotationSuggestedQuote = null;
+    _resetAnnotationDraft();
     notifyListeners();
+  }
+
+  void _resetAnnotationDraft() {
+    _annotationDraftDocument = '';
+    _annotationDraftInitialized = false;
+    _annotationDraftWasFocused = false;
   }
 
   bool get hasPendingAnnotation => _pendingAnnotationStartMs != null;
   int? get pendingAnnotationStartMs => _pendingAnnotationStartMs;
+  int? get pendingAnnotationEndMs => _pendingAnnotationEndMs;
+  bool get pendingAnnotationIsPoint => _pendingAnnotationIsPoint;
+  String? get pendingAnnotationSuggestedQuote =>
+      _pendingAnnotationSuggestedQuote;
+  int? get rangeSelectionStartMs => _rangeSelectionStartMs;
+  bool get hasRangeSelectionStart => _rangeSelectionStartMs != null;
 
   /// Whether the annotation-saved confirmation should be shown.
   bool get showSaveConfirmation => _showSaveConfirmation;
@@ -558,8 +798,8 @@ class VideoStudyViewModel extends ChangeNotifier {
           );
         notifyListeners();
       }
-    } catch (e) {
-      _errorMessage = '恢复失败：$e';
+    } catch (_) {
+      _errorMessage = '研读进度恢复失败，请稍后重试。';
       notifyListeners();
     }
   }
@@ -628,9 +868,14 @@ class VideoStudyViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _saveConfirmationTimer?.cancel();
+    _saveConfirmationTimer = null;
     _syncController?.dispose();
     if (_ownsTimedTextService) {
       _timedTextService.dispose();
+    }
+    if (_ownsBilibiliTimedTextService) {
+      _bilibiliTimedTextService.dispose();
     }
     // Dispose the adapter if it exposes a dispose() method (FixturePlayerAdapter,
     // YouTubePlayerAdapter, and WebYouTubePlayerAdapter all do). Using dynamic

@@ -54,16 +54,13 @@ class LinkIngestor {
     }
 
     // Bilibili remains link-only because there is no stable public control
-    // API. Do not pretend ordinary HTML ingestion makes it study-capable.
+    // API. Link-only is still a valid Source/Card capability: inability to
+    // control playback must not be confused with inability to save the link.
     if (canonical.provider == 'bilibili') {
-      return IngestionResult(
-        canonicalUrl: canonical.normalized,
-        provider: canonical.provider,
-        originalUrl: canonical.original,
-        status: IngestionStatus.unsupported,
-        errorMessage: '视频平台链接（${canonical.provider}）由研读模块处理，'
-            '普通链接抓取不支持',
-        resolvedAt: resolvedAt,
+      return _linkOnlyVideoPreview(
+        canonical,
+        resolvedAt,
+        providerLabel: '哔哩哔哩',
       );
     }
 
@@ -236,6 +233,69 @@ class LinkIngestor {
         'provider': 'youtube',
         'video_id': videoId,
         'embed_url': embedUrl,
+      },
+      resolvedAt: resolvedAt,
+    );
+  }
+
+  IngestionResult _linkOnlyVideoPreview(
+    CanonicalUrl canonical,
+    DateTime resolvedAt, {
+    required String providerLabel,
+  }) {
+    final identity = canonical.canonicalId ?? canonical.normalized;
+    final sourceId = _deriveSourceId(canonical);
+    final contentHash = sha256
+        .convert(utf8.encode('${canonical.provider}\n$identity'))
+        .toString()
+        .substring(0, 32);
+    final versionId = _deriveVersionId(sourceId, contentHash);
+    final objectRef = 'ingestion/$sourceId/$versionId.json';
+    final source = SourceContent(
+      sourceId: sourceId,
+      mediaType: SourceMediaType.video,
+      title: '$providerLabel视频 · ${canonical.canonicalId ?? canonical.host}',
+      ownerSpace: OwnerSpace.user,
+      origin: SourceOrigin.externalLink,
+      provider: canonical.provider,
+      canonicalId: canonical.canonicalId,
+      mimeType: 'text/uri-list',
+      currentVersionId: versionId,
+      contentHash: contentHash,
+      objectRef: objectRef,
+      metadata: {
+        'canonical_url': canonical.normalized,
+        'original_url': canonical.original,
+        'provider': canonical.provider,
+        if (canonical.canonicalId != null) 'video_id': canonical.canonicalId,
+        'playback_capability': 'link_only',
+      },
+      createdAt: resolvedAt,
+      updatedAt: resolvedAt,
+    );
+    final sourceVersion = SourceVersion(
+      versionId: versionId,
+      sourceId: sourceId,
+      contentHash: contentHash,
+      objectRef: objectRef,
+      parserVersion: 'w4-link-only-url-v1',
+      createdAt: resolvedAt,
+    );
+    return IngestionResult(
+      resultId: StableId.generate('ingest').value,
+      canonicalUrl: canonical.normalized,
+      provider: canonical.provider,
+      originalUrl: canonical.original,
+      status: IngestionStatus.ok,
+      source: source,
+      sourceVersion: sourceVersion.toJson(),
+      hasMedia: true,
+      videoCapability: VideoCapabilityLevel.linkOnly,
+      metadata: {
+        'title': source.title,
+        'provider': canonical.provider,
+        if (canonical.canonicalId != null) 'video_id': canonical.canonicalId,
+        'playback_capability': 'link_only',
       },
       resolvedAt: resolvedAt,
     );

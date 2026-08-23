@@ -49,10 +49,10 @@ class CardLibraryScreen extends StatefulWidget {
 class _CardLibraryScreenState extends State<CardLibraryScreen> {
   late final Future<UnifiedCardRepository?> _repositoryFuture =
       widget.repository != null
-          ? Future.value(widget.repository)
-          : widget.index != null
-              ? Future.value(null)
-              : CardLibraryScreen.resolveRepository();
+      ? Future.value(widget.repository)
+      : widget.index != null
+      ? Future.value(null)
+      : CardLibraryScreen.resolveRepository();
   final _queryController = TextEditingController();
   Timer? _debounce;
   List<_CardLibraryHit> _hits = const [];
@@ -112,11 +112,13 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
           _thumbnailRequests.clear();
           _thumbnailQueue.clear();
           _hits = results
-              .map((hit) => _CardLibraryHit.legacy(
-                    cardId: hit.cardId,
-                    title: hit.title,
-                    plainText: hit.plainText,
-                  ))
+              .map(
+                (hit) => _CardLibraryHit.legacy(
+                  cardId: hit.cardId,
+                  title: hit.title,
+                  plainText: hit.plainText,
+                ),
+              )
               .toList();
           _loading = false;
         });
@@ -125,16 +127,20 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
 
       final repository = await _repositoryFuture;
       if (repository == null) return;
-      final records = await repository.listCards(CardLibraryQuery(
-        kinds: _kind == null ? null : {_kind!},
-        sourceTypes: _sourceType == null ? null : {_sourceType!},
-        tags: _tag == null ? null : {_tag!},
-        search: query,
-        placedOnBoard: _placed,
-      ));
-      final allRecords = _knownTags.isEmpty
-          ? await repository.listCards()
-          : const <UnifiedCardRecord>[];
+      final results = await Future.wait<Object>([
+        repository.listCards(
+          CardLibraryQuery(
+            kinds: _kind == null ? null : {_kind!},
+            sourceTypes: _sourceType == null ? null : {_sourceType!},
+            tags: _tag == null ? null : {_tag!},
+            search: query,
+            placedOnBoard: _placed,
+          ),
+        ),
+        repository.listDistinctTags(),
+      ]);
+      final records = results[0] as List<UnifiedCardRecord>;
+      final knownTags = results[1] as List<String>;
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _recordsById = {
@@ -143,11 +149,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         _thumbnailRequests.clear();
         _thumbnailQueue.clear();
         _hits = records.map(_CardLibraryHit.fromRecord).toList();
-        if (allRecords.isNotEmpty) {
-          _knownTags = {
-            for (final record in allRecords) ...record.card.tags,
-          };
-        }
+        _knownTags = knownTags.toSet();
         _loading = false;
       });
     } catch (error) {
@@ -215,9 +217,9 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
       if (mounted) await _runQuery();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('新建失败：$error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('新建失败：$error')));
       }
     } finally {
       if (mounted) setState(() => _creating = false);
@@ -272,15 +274,15 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         ),
       );
       if (!mounted || boardName == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已放入“$boardName”')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已放入“$boardName”')));
       await _runQuery();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('放入白板失败：$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('放入白板失败：$error')));
     }
   }
 
@@ -290,12 +292,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
   ) async {
     final now = DateTime.now().toUtc();
     final boardId = await store.createBoard(name: name);
-    return Board(
-      boardId: boardId,
-      name: name,
-      createdAt: now,
-      updatedAt: now,
-    );
+    return Board(boardId: boardId, name: name, createdAt: now, updatedAt: now);
   }
 
   Future<bool> _placeCard(
@@ -311,7 +308,8 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     if (!snapshot.cards.any((card) => card.cardId == cardId)) {
       throw StateError('卡片不存在或尚未完成保存');
     }
-    final nextZ = snapshot.boardItems
+    final nextZ =
+        snapshot.boardItems
             .where((item) => item.boardId == board.boardId)
             .fold<int>(
               0,
@@ -426,10 +424,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     );
   }
 
-  Widget _buildToolbar(
-    _LibraryPalette palette, {
-    required bool desktop,
-  }) {
+  Widget _buildToolbar(_LibraryPalette palette, {required bool desktop}) {
     final searchField = TextField(
       key: const ValueKey('card-library-search'),
       controller: _queryController,
@@ -445,11 +440,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         constraints: const BoxConstraints(minHeight: 44),
         border: _inputBorder(palette),
         enabledBorder: _inputBorder(palette),
-        focusedBorder: _inputBorder(
-          palette,
-          color: palette.action,
-          width: 1.5,
-        ),
+        focusedBorder: _inputBorder(palette, color: palette.action, width: 1.5),
       ),
     );
     final actionButtons = <Widget>[
@@ -457,7 +448,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         key: const ValueKey('card-library-import-link'),
         onPressed: () => context.push(AppRoutes.linkImport),
         icon: const Icon(Icons.link_rounded, size: 18),
-        label: const Text('导入链接'),
+        label: const Text('导入链接 / 视频'),
         style: _secondaryButtonStyle(palette),
       ),
       FilledButton.icon(
@@ -510,7 +501,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
             children: [
               _FilterMenu<CardKind>(
                 key: const ValueKey('card-library-kind-filter'),
-                label: '类型',
+                label: '卡片角色',
                 value: _kind,
                 values: CardKind.values,
                 labelFor: _cardKindLabel,
@@ -522,7 +513,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
               ),
               _FilterMenu<SourceMediaType>(
                 key: const ValueKey('card-library-source-filter'),
-                label: '来源',
+                label: '媒介类型',
                 value: _sourceType,
                 values: SourceMediaType.values,
                 labelFor: _sourceTypeLabel,
@@ -563,16 +554,10 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     );
   }
 
-  Widget _buildResults(
-    _LibraryPalette palette, {
-    required bool desktop,
-  }) {
+  Widget _buildResults(_LibraryPalette palette, {required bool desktop}) {
     if (_loading) {
       return Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: palette.action,
-        ),
+        child: CircularProgressIndicator(strokeWidth: 2, color: palette.action),
       );
     }
     if (_error != null) {
@@ -592,7 +577,8 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
       );
     }
     if (_hits.isEmpty) {
-      final narrowed = _kind != null ||
+      final narrowed =
+          _kind != null ||
           _sourceType != null ||
           _tag != null ||
           _placed != null ||
@@ -638,10 +624,10 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
         final columns = width >= 1180
             ? 4
             : width >= 820
-                ? 3
-                : width >= 540
-                    ? 2
-                    : 1;
+            ? 3
+            : width >= 540
+            ? 2
+            : 1;
         return GridView.builder(
           key: const ValueKey('card-library-grid'),
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -676,11 +662,10 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
     _LibraryPalette palette, {
     Color? color,
     double width = 1,
-  }) =>
-      OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: color ?? palette.border, width: width),
-      );
+  }) => OutlineInputBorder(
+    borderRadius: BorderRadius.circular(10),
+    borderSide: BorderSide(color: color ?? palette.border, width: width),
+  );
 
   ButtonStyle _secondaryButtonStyle(_LibraryPalette palette) =>
       OutlinedButton.styleFrom(
@@ -721,17 +706,17 @@ class _LibraryPalette {
       );
 
   factory _LibraryPalette.mobile(SpringRainUiTokens tokens) => _LibraryPalette(
-        canvas: tokens.canvas,
-        surface: tokens.surface,
-        surfaceSelected: tokens.surfaceSelected,
-        surfaceRaised: tokens.surfaceRaised,
-        border: tokens.divider,
-        textPrimary: tokens.textPrimary,
-        textSecondary: tokens.textSecondary,
-        textFaint: tokens.textTertiary,
-        action: tokens.accent,
-        dark: tokens.textPrimary,
-      );
+    canvas: tokens.canvas,
+    surface: tokens.surface,
+    surfaceSelected: tokens.surfaceSelected,
+    surfaceRaised: tokens.surfaceRaised,
+    border: tokens.divider,
+    textPrimary: tokens.textPrimary,
+    textSecondary: tokens.textSecondary,
+    textFaint: tokens.textTertiary,
+    action: tokens.accent,
+    dark: tokens.textPrimary,
+  );
 
   final Color canvas;
   final Color surface;
@@ -1066,10 +1051,7 @@ class _MediaPreview extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: whiteboardUiTextStyle(
-                fontSize: 12,
-                color: palette.canvas,
-              ),
+              style: whiteboardUiTextStyle(fontSize: 12, color: palette.canvas),
             ),
           ],
         ),
@@ -1176,14 +1158,13 @@ class _CardLibraryHit {
     required String cardId,
     required String title,
     required String plainText,
-  }) =>
-      _CardLibraryHit(
-        cardId: cardId,
-        title: title,
-        plainText: plainText,
-        cardKind: CardKind.note,
-        tags: const [],
-      );
+  }) => _CardLibraryHit(
+    cardId: cardId,
+    title: title,
+    plainText: plainText,
+    cardKind: CardKind.note,
+    tags: const [],
+  );
 
   factory _CardLibraryHit.fromRecord(UnifiedCardRecord record) {
     return _CardLibraryHit(
@@ -1238,20 +1219,20 @@ class _CardLibraryHit {
 }
 
 String _cardKindLabel(CardKind kind) => switch (kind) {
-      CardKind.source => '来源',
-      CardKind.note => '文字',
-      CardKind.annotation => '批注',
-      CardKind.taskArtifact => '任务产物',
-      CardKind.reference => '引用',
-    };
+  CardKind.source => '原件卡',
+  CardKind.note => '文字',
+  CardKind.annotation => '批注',
+  CardKind.taskArtifact => '任务产物',
+  CardKind.reference => '引用',
+};
 
 String _sourceTypeLabel(SourceMediaType type) => switch (type) {
-      SourceMediaType.text => '文本',
-      SourceMediaType.book => '书籍',
-      SourceMediaType.pdf => 'PDF',
-      SourceMediaType.image => '图片',
-      SourceMediaType.web => '网页',
-      SourceMediaType.video => '视频',
-      SourceMediaType.audio => '音频',
-      SourceMediaType.file => '文件',
-    };
+  SourceMediaType.text => '文本',
+  SourceMediaType.book => '书籍',
+  SourceMediaType.pdf => 'PDF',
+  SourceMediaType.image => '图片',
+  SourceMediaType.web => '网页',
+  SourceMediaType.video => '视频',
+  SourceMediaType.audio => '音频',
+  SourceMediaType.file => '文件',
+};

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +17,7 @@ import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 
 void main() {
@@ -70,6 +72,42 @@ void main() {
     expect(find.text('真实文字卡'), findsOneWidget);
 
     await _doubleTap(tester, find.text('真实文字卡'));
+    await _waitForWidget(
+        tester, find.byKey(const Key('wb_compact_card_editor')));
+    final embeddedEditor = find.byKey(const Key('wb_compact_card_editor'));
+    final inlineDocument = find.descendant(
+      of: embeddedEditor,
+      matching: find.byKey(const Key('rich_text_continuous_document')),
+    );
+    await _waitForWidget(tester, inlineDocument);
+    expect(embeddedEditor, findsOneWidget);
+    expect(
+        find.descendant(of: embeddedEditor, matching: find.byType(TextField)),
+        findsOneWidget);
+    expect(tester.widget<TextField>(inlineDocument).decoration, isNull);
+    expect(
+        find.descendant(
+          of: embeddedEditor,
+          matching: find.byType(CardRichTextEditor),
+        ),
+        findsOneWidget);
+    expect(
+      find.ancestor(
+        of: embeddedEditor,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget.key is Key &&
+              widget.key.toString().contains('wb_card_item_'),
+        ),
+      ),
+      findsWidgets,
+    );
+    expect(find.byKey(const Key('wb_compact_editor_position')), findsNothing);
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byKey(const Key('wb_compact_editor_expand')), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _settle(tester);
+    await _openCardContextAction(tester, find.text('真实文字卡'), '展开查看');
     await _waitForWidget(tester, find.text('文字卡消费页'));
     expect(find.text('文字卡消费页'), findsOneWidget);
     expect(pendingSave, isNotNull);
@@ -195,25 +233,34 @@ void main() {
         title: 'F1 来源卡',
         page: '来源消费页',
         marker: 'source:${committed.source.sourceId}',
+        compact: false,
       ),
       (
         title: '带来源批注卡',
         page: '文字卡消费页',
         marker: 'card:card_annotation_source',
+        compact: true,
       ),
       (
         title: '缺少来源的来源卡',
         page: '文字卡消费页',
         marker: 'card:card_source_missing',
+        compact: false,
       ),
       (
         title: '普通文字卡',
         page: '文字卡消费页',
         marker: 'card:card_plain_note',
+        compact: true,
       ),
     ];
     for (final routeCase in cases) {
-      await _doubleTap(tester, find.text(routeCase.title));
+      await _openCardContextAction(
+        tester,
+        find.text(routeCase.title),
+        routeCase.compact ? '展开查看' : '打开来源',
+      );
+      expect(find.byKey(const Key('wb_compact_card_editor')), findsNothing);
       await _waitForWidget(tester, find.text(routeCase.page));
       expect(find.text(routeCase.marker), findsOneWidget);
       router.pop();
@@ -377,6 +424,9 @@ Future<void> _openCanvasTools(WidgetTester tester) async {
 
 Future<void> _waitForWidget(WidgetTester tester, Finder finder) async {
   for (var i = 0; i < 50 && finder.evaluate().isEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
     await tester.pump(const Duration(milliseconds: 50));
   }
   await _settle(tester);
@@ -386,6 +436,22 @@ Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
   await tester.tap(finder, kind: ui.PointerDeviceKind.mouse);
   await tester.pump(const Duration(milliseconds: 50));
   await tester.tap(finder, kind: ui.PointerDeviceKind.mouse);
+}
+
+Future<void> _openCardContextAction(
+  WidgetTester tester,
+  Finder card,
+  String action,
+) async {
+  final click = await tester.startGesture(
+    tester.getCenter(card),
+    kind: PointerDeviceKind.mouse,
+    buttons: kSecondaryMouseButton,
+  );
+  await click.up();
+  await _settle(tester);
+  await tester.tap(find.text(action));
+  await _settle(tester);
 }
 
 GoRouter _router({

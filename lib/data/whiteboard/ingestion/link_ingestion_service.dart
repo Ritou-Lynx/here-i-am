@@ -109,6 +109,13 @@ class LinkIngestionService {
     );
   }
 
-  Future<List<CardContract>> listCards() async =>
-      (await _repository.listCards()).map((record) => record.card).toList();
+  /// Cards created by the ingestion flow, for the import screen's recent
+  /// history. Ordinary notes, annotations and task artifacts must never leak
+  /// into this projection merely because they share the unified repository.
+  Future<List<CardContract>> listCards() async => (await _repository.listCards(
+        const CardLibraryQuery(kinds: {CardKind.source}),
+      ))
+          .map((record) => record.card)
+          .where((card) => card.sourceId?.trim().isNotEmpty == true)
+          .toList();
 }

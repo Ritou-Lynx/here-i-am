@@ -17,6 +17,10 @@ import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 
+bool _mapsEqual(Map<String, dynamic> a, Map<String, dynamic> b) =>
+    a.length == b.length &&
+    a.entries.every((entry) => b[entry.key] == entry.value);
+
 /// Callback emitted when the adapter produces a [WhiteboardOperation].
 typedef OnOperationCallback = void Function(WhiteboardOperation operation);
 
@@ -98,7 +102,8 @@ class FlutterCanvasAdapter {
   /// an identity map, but it exists to honor the boundary contract.
   final Map<String, String> _engineToProductId = {};
 
-  FlutterCanvasAdapter([WhiteboardSnapshot? initial]) : _snapshot = initial ?? const WhiteboardSnapshot() {
+  FlutterCanvasAdapter([WhiteboardSnapshot? initial])
+      : _snapshot = initial ?? const WhiteboardSnapshot() {
     _rebuildIdMapping();
   }
 
@@ -111,6 +116,7 @@ class FlutterCanvasAdapter {
   /// Creates a new snapshot with the specified fields replaced.
   /// This avoids modifying the shared contract types.
   WhiteboardSnapshot _cloneSnapshot({
+    List<CardContract>? cards,
     List<Board>? boards,
     List<BoardItem>? boardItems,
     List<BoardGroup>? groups,
@@ -122,7 +128,7 @@ class FlutterCanvasAdapter {
       schemaVersion: _snapshot.schemaVersion,
       sources: _snapshot.sources,
       sourceVersions: _snapshot.sourceVersions,
-      cards: _snapshot.cards,
+      cards: cards ?? _snapshot.cards,
       boards: boards ?? _snapshot.boards,
       boardItems: boardItems ?? _snapshot.boardItems,
       groups: groups ?? _snapshot.groups,
@@ -142,6 +148,31 @@ class FlutterCanvasAdapter {
   }
 
   bool get isReadonly => _readonly;
+
+  /// Refreshes card content used by the renderer without creating a canvas
+  /// operation. Card content is Repository truth, not board-layout truth, so
+  /// this never enters the board undo/audit stream.
+  void upsertCardContent(CardContract card) {
+    final cards = [..._snapshot.cards];
+    final index =
+        cards.indexWhere((candidate) => candidate.cardId == card.cardId);
+    if (index == -1) {
+      cards.add(card);
+    } else {
+      cards[index] = card;
+    }
+    _snapshot = _cloneSnapshot(cards: cards);
+  }
+
+  /// Removes renderer-only Card content without creating a board operation.
+  /// Used only when a just-created Repository Card is compensated after its
+  /// BoardItem failed to persist.
+  void removeCardContent(String cardId) {
+    if (!_snapshot.cards.any((card) => card.cardId == cardId)) return;
+    _snapshot = _cloneSnapshot(
+      cards: _snapshot.cards.where((card) => card.cardId != cardId).toList(),
+    );
+  }
 
   /// Registers a callback for operations produced by this adapter.
   void onOperation(OnOperationCallback callback) {
@@ -230,6 +261,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return null;
     final boardExists = _snapshot.boards.any((b) => b.boardId == boardId);
     if (!boardExists) return null;
     final cardExists = _snapshot.cards.any((c) => c.cardId == cardId);
@@ -285,6 +317,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final items = _snapshot.boardItems
         .where((i) => i.boardId == boardId && deltas.containsKey(i.itemId))
         .toList();
@@ -342,6 +375,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final item = _snapshot.boardItems
         .cast<BoardItem?>()
         .firstWhere((i) => i?.itemId == itemId, orElse: () => null);
@@ -399,6 +433,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final removed = _snapshot.boardItems
         .where((i) => i.boardId == boardId && itemIds.contains(i.itemId))
         .toList();
@@ -418,8 +453,7 @@ class FlutterCanvasAdapter {
           .toList(),
       edges: _snapshot.edges
           .where((e) =>
-              !itemIds.contains(e.fromItemId) &&
-              !itemIds.contains(e.toItemId))
+              !itemIds.contains(e.fromItemId) && !itemIds.contains(e.toItemId))
           .toList(),
     );
 
@@ -553,6 +587,7 @@ class FlutterCanvasAdapter {
     required String edgeId,
     String? fromItemId,
     String? toItemId,
+    Map<String, dynamic> stylePatch = const {},
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
@@ -565,7 +600,12 @@ class FlutterCanvasAdapter {
     final newFrom = fromItemId ?? edge.fromItemId;
     final newTo = toItemId ?? edge.toItemId;
     if (newFrom == newTo) return false;
-    if (newFrom == edge.fromItemId && newTo == edge.toItemId) return false;
+    final newStyle = {...edge.style, ...stylePatch};
+    if (newFrom == edge.fromItemId &&
+        newTo == edge.toItemId &&
+        _mapsEqual(newStyle, edge.style)) {
+      return false;
+    }
 
     final itemIds = _snapshot.boardItems
         .where((i) => i.boardId == boardId)
@@ -581,16 +621,15 @@ class FlutterCanvasAdapter {
       direction: edge.direction,
       semanticType: edge.semanticType,
       label: edge.label,
-      style: edge.style,
+      style: newStyle,
       createdBy: edge.createdBy,
       createdAt: edge.createdAt,
       deletedAt: edge.deletedAt,
     );
 
     _snapshot = _cloneSnapshot(
-      edges: _snapshot.edges
-          .map((e) => e.edgeId == edgeId ? newEdge : e)
-          .toList(),
+      edges:
+          _snapshot.edges.map((e) => e.edgeId == edgeId ? newEdge : e).toList(),
     );
 
     _emitOperation(
@@ -602,11 +641,71 @@ class FlutterCanvasAdapter {
         'from_item_id': newFrom,
         'to_item_id': newTo,
         'direction': edge.direction.name,
+        if (newStyle.isNotEmpty) 'style': newStyle,
       },
       inverse: {
         'kind': 'edge',
         'from_item_id': edge.fromItemId,
         'to_item_id': edge.toItemId,
+        if (edge.style.isNotEmpty) 'style': edge.style,
+      },
+      authorizationId: authorizationId,
+    );
+    return true;
+  }
+
+  /// Updates the editable presentation fields of an existing board edge.
+  /// Endpoint identity is intentionally unchanged here.
+  bool updateEdge({
+    required String boardId,
+    required String edgeId,
+    required EdgeDirection direction,
+    String? label,
+    OperationActor actor = OperationActor.user,
+    String? authorizationId,
+  }) {
+    if (_readonly) return false;
+    final edge = _snapshot.edges.cast<BoardEdge?>().firstWhere(
+        (candidate) => candidate?.edgeId == edgeId,
+        orElse: () => null);
+    if (edge == null || edge.boardId != boardId) return false;
+    final normalizedLabel = label?.trim();
+    final newLabel = normalizedLabel == null || normalizedLabel.isEmpty
+        ? null
+        : normalizedLabel;
+    if (edge.direction == direction && edge.label == newLabel) return false;
+
+    final updated = BoardEdge(
+      edgeId: edge.edgeId,
+      boardId: edge.boardId,
+      fromItemId: edge.fromItemId,
+      toItemId: edge.toItemId,
+      direction: direction,
+      semanticType: edge.semanticType,
+      label: newLabel,
+      style: edge.style,
+      createdBy: edge.createdBy,
+      createdAt: edge.createdAt,
+      deletedAt: edge.deletedAt,
+    );
+    _snapshot = _cloneSnapshot(
+      edges: _snapshot.edges
+          .map((candidate) => candidate.edgeId == edgeId ? updated : candidate)
+          .toList(),
+    );
+    _emitOperation(
+      boardId: boardId,
+      actor: actor,
+      kind: OperationKind.edge,
+      targetIds: [edgeId],
+      payload: {
+        'direction': direction.name,
+        'label': newLabel,
+      },
+      inverse: {
+        'kind': 'edge',
+        'direction': edge.direction.name,
+        'label': edge.label,
       },
       authorizationId: authorizationId,
     );
@@ -620,6 +719,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final item = _snapshot.boardItems
         .cast<BoardItem?>()
         .firstWhere((i) => i?.itemId == itemId, orElse: () => null);
@@ -688,6 +788,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return null;
     final boardExists = _snapshot.boards.any((b) => b.boardId == boardId);
     if (!boardExists) return null;
 
@@ -730,14 +831,14 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final group = _snapshot.groups
         .cast<BoardGroup?>()
         .firstWhere((g) => g?.groupId == groupId, orElse: () => null);
     if (group == null) return;
 
-    final oldMembers = _snapshot.groupMembers
-        .where((m) => m.groupId == groupId)
-        .toList();
+    final oldMembers =
+        _snapshot.groupMembers.where((m) => m.groupId == groupId).toList();
 
     _snapshot = _cloneSnapshot(
       groups: _snapshot.groups.where((g) => g.groupId != groupId).toList(),
@@ -770,9 +871,11 @@ class FlutterCanvasAdapter {
     String? semanticType,
     String? label,
     String? edgeId,
+    Map<String, dynamic> style = const {},
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly || fromItemId == toItemId) return null;
     final items = _snapshot.boardItems.where((i) => i.boardId == boardId);
     final fromExists = items.any((i) => i.itemId == fromItemId);
     final toExists = items.any((i) => i.itemId == toItemId);
@@ -787,6 +890,7 @@ class FlutterCanvasAdapter {
       direction: direction,
       semanticType: semanticType,
       label: label,
+      style: style,
       createdAt: DateTime.now(),
     );
 
@@ -802,6 +906,7 @@ class FlutterCanvasAdapter {
         'from_item_id': fromItemId,
         'to_item_id': toItemId,
         'direction': direction.name,
+        if (style.isNotEmpty) 'style': style,
       },
       inverse: {'kind': 'remove_edge', 'edge_id': id},
       authorizationId: authorizationId,
@@ -817,6 +922,7 @@ class FlutterCanvasAdapter {
     OperationActor actor = OperationActor.user,
     String? authorizationId,
   }) {
+    if (_readonly) return;
     final edge = _snapshot.edges
         .cast<BoardEdge?>()
         .firstWhere((e) => e?.edgeId == edgeId, orElse: () => null);

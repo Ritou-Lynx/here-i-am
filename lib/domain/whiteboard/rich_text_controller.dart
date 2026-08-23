@@ -251,6 +251,30 @@ class RichTextEditingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Replaces the top-level blocks from the continuous document surface.
+  ///
+  /// The UI owns selection and IME composition while an edit is in progress;
+  /// this method only mirrors the serializable block document. Rebuilding the
+  /// legacy per-block states keeps the existing storage, history, media and
+  /// migration APIs compatible without making block boundaries separate text
+  /// inputs again.
+  void replaceContinuousBlocks(
+    List<RichTextBlock> blocks, {
+    bool coalesceHistory = true,
+  }) {
+    final normalized = blocks.isEmpty
+        ? const [RichTextBlock(type: BlockType.paragraph)]
+        : List<RichTextBlock>.unmodifiable(blocks);
+    _doc = _doc.copyWith(
+      blocks: normalized,
+      assetRefs: _usedAssetRefs(normalized, _doc.assetRefs),
+    );
+    _history.commit(_doc, coalesce: coalesceHistory);
+    _syncStates();
+    _dirty = true;
+    notifyListeners();
+  }
+
   /// Toggles an inline mark over a selection in a specific block.
   void applyMarkToBlock(int blockIndex, MarkType type, int start, int end,
       {Map<String, dynamic> attrs = const {}}) {

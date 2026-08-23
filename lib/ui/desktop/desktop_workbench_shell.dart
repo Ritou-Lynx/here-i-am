@@ -25,11 +25,13 @@ class DesktopWorkbenchShell extends StatefulWidget {
     required this.characterId,
     this.initialVoiceMode = false,
     this.viewModel,
+    this.embeddedInWorkspaceShell = false,
   });
 
   final String characterId;
   final bool initialVoiceMode;
   final DesktopHomeViewModel? viewModel;
+  final bool embeddedInWorkspaceShell;
 
   @override
   State<DesktopWorkbenchShell> createState() => _DesktopWorkbenchShellState();
@@ -68,22 +70,27 @@ class _DesktopWorkbenchShellState extends State<DesktopWorkbenchShell> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
+    final content = ChangeNotifierProvider.value(
       value: _viewModel,
-      child: DesktopWorkspaceShell(
-        title: '首页',
-        meta: _todayLabel(),
-        activePath: AppRoutes.home,
-        child: _DesktopWorkbenchContent(callbacks: _callbacks),
-      ),
+      child: _DesktopWorkbenchContent(callbacks: _callbacks),
+    );
+    if (widget.embeddedInWorkspaceShell ||
+        DesktopWorkspaceScope.contains(context)) {
+      return content;
+    }
+    return DesktopWorkspaceShell(
+      title: '首页',
+      meta: desktopWorkbenchTodayLabel(),
+      activePath: AppRoutes.home,
+      child: content,
     );
   }
+}
 
-  String _todayLabel() {
-    final now = DateTime.now();
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    return '${now.month} 月 ${now.day} 日 · 周${weekdays[now.weekday - 1]}';
-  }
+String desktopWorkbenchTodayLabel([DateTime? value]) {
+  final now = value ?? DateTime.now();
+  const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+  return '${now.month} 月 ${now.day} 日 · 周${weekdays[now.weekday - 1]}';
 }
 
 class _DesktopWorkbenchContent extends StatelessWidget {

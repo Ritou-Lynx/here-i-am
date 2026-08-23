@@ -58,8 +58,10 @@ class TimeRangeAnchorSpec {
 
   /// Parses a positionSpec map into a typed spec.
   factory TimeRangeAnchorSpec.fromMap(Map<String, dynamic> map) {
-    final start = (map['start_ms'] as num?)?.toInt() ?? 0;
-    final end = (map['end_ms'] as num?)?.toInt() ?? start;
+    final error = validate(map);
+    if (error != null) throw ArgumentError(error);
+    final start = map['start_ms'] as int;
+    final end = map['end_ms'] as int;
     return TimeRangeAnchorSpec(
       startMs: start,
       endMs: end,
@@ -82,18 +84,16 @@ class TimeRangeAnchorSpec {
   static String? validate(Map<String, dynamic> spec) {
     final start = spec['start_ms'];
     final end = spec['end_ms'];
-    if (start == null || start is! int && start is! double) {
+    if (start is! int) {
       return 'time_range positionSpec requires start_ms (int)';
     }
-    if (end == null || end is! int && end is! double) {
+    if (end is! int) {
       return 'time_range positionSpec requires end_ms (int)';
     }
-    final s = (start as num).toInt();
-    final e = (end as num).toInt();
-    if (s < 0 || e < 0) {
+    if (start < 0 || end < 0) {
       return 'time_range start_ms and end_ms must be non-negative';
     }
-    if (s > e) {
+    if (start > end) {
       return 'time_range start_ms must be <= end_ms';
     }
     return null;
