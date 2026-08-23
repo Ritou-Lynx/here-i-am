@@ -341,6 +341,11 @@ void main() {
 
       expect(find.text('我接着看这一页。'), findsOneWidget);
       expect(find.text('先帮我理一下。'), findsOneWidget);
+      expect(
+        find.byType(SelectionArea),
+        findsOneWidget,
+        reason: '桌面普通消息须支持鼠标选择与 Ctrl+C 复制。',
+      );
       expect(find.text('当前 · 来源研读 · 仅本次上下文'), findsOneWidget);
       expect(find.byKey(const ValueKey('desktop_chat_panel')), findsNothing);
 
