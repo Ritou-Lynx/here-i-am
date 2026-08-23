@@ -116,8 +116,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     _timedTextService = timedTextService ?? YouTubeTimedTextService();
     _platformTimedTextResolver = UnifiedPlatformTimedTextResolver(
       youtube: _timedTextService,
-      bilibili:
-          bilibiliTimedTextResolver ?? const BilibiliPublicTimedTextResolver(),
+      bilibili: bilibiliTimedTextResolver ?? BilibiliPublicTimedTextResolver(),
     );
     _subtitleFetchStatus = _track?.cues.isNotEmpty == true
         ? SubtitleAutoFetchStatus.loaded
@@ -1116,6 +1115,7 @@ class VideoStudyViewModel extends ChangeNotifier {
     _saveConfirmationTimer?.cancel();
     _saveConfirmationTimer = null;
     _syncController?.dispose();
+    _platformTimedTextResolver.dispose();
     if (_ownsTimedTextService) {
       _timedTextService.dispose();
     }

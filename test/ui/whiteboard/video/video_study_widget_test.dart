@@ -1363,6 +1363,9 @@ void main() {
           sourceVersionId: 'ver_bilibili_acceptance_v1',
           providerId: 'bilibili',
           embedUrl: 'https://www.bilibili.com/video/BV1E8KV6QEu7',
+          bilibiliTimedTextResolver: BilibiliPublicTimedTextResolver(
+            probe: const DisabledBilibiliSameOriginSubtitleProbe(),
+          ),
         ),
       ),
     );

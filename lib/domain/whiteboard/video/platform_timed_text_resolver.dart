@@ -7,6 +7,7 @@
 library;
 
 import '../player_adapter.dart';
+import 'bilibili_timedtext_service.dart';
 import 'subtitle_parser.dart';
 import 'youtube_timedtext_service.dart';
 
@@ -87,11 +88,20 @@ class DisabledBilibiliSameOriginSubtitleProbe
 }
 
 class BilibiliPublicTimedTextResolver implements PlatformTimedTextResolver {
-  const BilibiliPublicTimedTextResolver({
-    this.probe = const DisabledBilibiliSameOriginSubtitleProbe(),
-  });
+  BilibiliPublicTimedTextResolver({
+    BilibiliSameOriginSubtitleProbe? probe,
+    BilibiliTimedTextService? service,
+  }) : assert(probe == null || service == null),
+       probe = probe,
+       _service =
+           service ?? (probe == null ? BilibiliTimedTextService() : null),
+       _ownsService = service == null && probe == null;
 
-  final BilibiliSameOriginSubtitleProbe probe;
+  /// Compatibility seam for same-origin/test providers. Production defaults
+  /// to the anonymous HTTP service and never reads the player WebView session.
+  final BilibiliSameOriginSubtitleProbe? probe;
+  final BilibiliTimedTextService? _service;
+  final bool _ownsService;
 
   static String? extractBvid(String? value) {
     if (value == null || value.trim().isEmpty) return null;
@@ -110,9 +120,23 @@ class BilibiliPublicTimedTextResolver implements PlatformTimedTextResolver {
       );
     }
 
+    final service = _service;
+    if (service != null) {
+      final result = await service.fetchForVideo(
+        request.videoRef,
+        sourceId: request.sourceId,
+        sourceVersionId: request.sourceVersionId,
+      );
+      return PlatformTimedTextResolution(
+        track: result.track,
+        failureKind: _mapBilibiliFailure(result.failureKind),
+        message: result.error,
+      );
+    }
+
     BilibiliSameOriginProbeResult result;
     try {
-      result = await probe.probe(bvid);
+      result = await probe!.probe(bvid);
     } catch (error) {
       return PlatformTimedTextResolution(
         failureKind: PlatformTimedTextFailureKind.network,
@@ -122,8 +146,7 @@ class BilibiliPublicTimedTextResolver implements PlatformTimedTextResolver {
     final raw = result.subtitleText;
     if (raw == null || raw.trim().isEmpty) {
       return PlatformTimedTextResolution(
-        failureKind:
-            result.failureKind ?? PlatformTimedTextFailureKind.noTrack,
+        failureKind: result.failureKind ?? PlatformTimedTextFailureKind.noTrack,
         message: result.message ?? '当前视频未发现公开字幕轨',
       );
     }
@@ -142,6 +165,26 @@ class BilibiliPublicTimedTextResolver implements PlatformTimedTextResolver {
       );
     }
     return PlatformTimedTextResolution(track: parsed.track);
+  }
+
+  static PlatformTimedTextFailureKind? _mapBilibiliFailure(
+    BilibiliTimedTextFailureKind? kind,
+  ) => switch (kind) {
+    BilibiliTimedTextFailureKind.invalidVideo =>
+      PlatformTimedTextFailureKind.invalidSource,
+    BilibiliTimedTextFailureKind.noTrack =>
+      PlatformTimedTextFailureKind.noTrack,
+    BilibiliTimedTextFailureKind.needsAuthorization =>
+      PlatformTimedTextFailureKind.accessRestricted,
+    BilibiliTimedTextFailureKind.network =>
+      PlatformTimedTextFailureKind.network,
+    BilibiliTimedTextFailureKind.parserFailure =>
+      PlatformTimedTextFailureKind.parserFailure,
+    null => null,
+  };
+
+  void dispose() {
+    if (_ownsService) _service?.dispose();
   }
 }
 
@@ -189,10 +232,9 @@ class YouTubePublicTimedTextResolver implements PlatformTimedTextResolver {
 class UnifiedPlatformTimedTextResolver implements PlatformTimedTextResolver {
   UnifiedPlatformTimedTextResolver({
     required YouTubeTimedTextService youtube,
-    BilibiliPublicTimedTextResolver bilibili =
-        const BilibiliPublicTimedTextResolver(),
-  })  : _youtube = YouTubePublicTimedTextResolver(youtube),
-        _bilibili = bilibili;
+    BilibiliPublicTimedTextResolver? bilibili,
+  }) : _youtube = YouTubePublicTimedTextResolver(youtube),
+       _bilibili = bilibili ?? BilibiliPublicTimedTextResolver();
 
   final YouTubePublicTimedTextResolver _youtube;
   final BilibiliPublicTimedTextResolver _bilibili;
@@ -209,4 +251,6 @@ class UnifiedPlatformTimedTextResolver implements PlatformTimedTextResolver {
             message: '当前平台没有字幕 resolver；可导入 SRT / VTT。',
           )),
       };
+
+  void dispose() => _bilibili.dispose();
 }
