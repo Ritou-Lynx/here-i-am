@@ -144,8 +144,47 @@ class _WhiteboardCanvasRouteScreenState
       boardId: widget.boardId,
       selectedItemIds: vm.selection.selectedItemIds,
       flush: () => _save(vm),
-      reload: _load,
+      reload: _reloadWorkbenchSurface,
     );
+  }
+
+  /// Reloads an externally-mutated board without tearing down the visible
+  /// canvas route. Keeping the existing ViewModel and widget tree avoids a
+  /// loading-screen flash and preserves stable Windows accessibility parents
+  /// while workbench actions replace the persisted board snapshot.
+  Future<void> _reloadWorkbenchSurface() async {
+    final vm = _viewModel;
+    if (vm == null) {
+      await _load();
+      return;
+    }
+    try {
+      final result = await _store.load(widget.boardId);
+      if (!result.isSuccess || result.snapshot == null) {
+        if (!mounted) return;
+        setState(() => _saveError = result.error ?? '重新加载白板失败，请重试。');
+        return;
+      }
+      final repository = _cardRepository ??
+          widget.cardRepository ??
+          await (widget.repositoryLoader?.call() ??
+              WhiteboardDataBootstrap.productionRepository());
+      final snapshot = await _hydrateFromRepository(
+        result.snapshot!,
+        repository,
+      );
+      if (!mounted || !identical(vm, _viewModel)) return;
+      vm.loadFromSnapshot(snapshot);
+      setState(() {
+        _cardRepository = repository;
+        _error = null;
+        _saveError = null;
+      });
+      _attachWorkbenchSurface(vm);
+    } catch (_) {
+      if (!mounted || !identical(vm, _viewModel)) return;
+      setState(() => _saveError = '重新加载白板失败，请重试。');
+    }
   }
 
   void _syncWorkbenchSelection() {

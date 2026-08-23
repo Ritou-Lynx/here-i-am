@@ -24,6 +24,33 @@ void main() {
   });
 
   testWidgets(
+    'workbench handoff releases the desktop composer before UI mutation',
+    (tester) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TextField(
+              focusNode: focusNode,
+              autofocus: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(focusNode.hasFocus, isTrue);
+
+      await releaseDesktopComposerForWorkbenchAction(
+        focusNode,
+        frameBarrier: () async {},
+      );
+
+      expect(focusNode.hasFocus, isFalse);
+    },
+  );
+
+  testWidgets(
     'Web-style popover keeps page width, leaves orb visible, and restores focus',
     (tester) async {
       tester.view.physicalSize = const Size(1280, 720);

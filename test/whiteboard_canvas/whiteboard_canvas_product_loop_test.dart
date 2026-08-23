@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
+import 'package:memex/data/workbench_ai/whiteboard_workbench_surface.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
@@ -19,8 +20,63 @@ import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
+import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 
 void main() {
+  testWidgets('workbench reload updates the existing canvas in place',
+      (tester) async {
+    final root = Directory.systemTemp.createTempSync('workbench_reload_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    final store = WhiteboardDriftStore(db);
+    addTearDown(() async {
+      WhiteboardWorkbenchSurfaceController.instance
+          .detach(WhiteboardWorkbenchSurfaceController.instance.current?.owner ?? Object());
+      await db.close();
+      if (root.existsSync()) root.deleteSync(recursive: true);
+    });
+    const cardId = 'card_workbench_reload';
+    await tester.runAsync(() => repository.createTextCard(
+          cardId: cardId,
+          title: '重载前',
+        ));
+    final boardId =
+        (await tester.runAsync(() => store.createBoard(name: '原地重载')))!;
+    expect(
+      await tester.runAsync(() => store.save(
+            boardId,
+            _layout(
+              boardId,
+              cardId: cardId,
+              itemId: 'item_workbench_reload',
+            ),
+          )),
+      isTrue,
+    );
+    final router = _router(
+      boardId: boardId,
+      store: store,
+      repository: repository,
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await _settle(tester);
+    final before = tester
+        .widget<WhiteboardCanvasScreen>(find.byType(WhiteboardCanvasScreen))
+        .viewModel;
+    final surface = WhiteboardWorkbenchSurfaceController.instance.current;
+    expect(surface, isNotNull);
+
+    await tester.runAsync(() => surface!.reload());
+    await _settle(tester);
+
+    final after = tester
+        .widget<WhiteboardCanvasScreen>(find.byType(WhiteboardCanvasScreen))
+        .viewModel;
+    expect(identical(after, before), isTrue);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
   testWidgets(
       'real Repository Card → board → consumer → save → reconnect → remove',
       (tester) async {

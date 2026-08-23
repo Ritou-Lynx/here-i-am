@@ -1131,6 +1131,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
 
   // Drag / resize / rotate / edge-retarget gesture state
   _CardDragState? _dragState;
+  _GroupDragState? _groupDragState;
   _ResizeState? _resizeState;
   _RotateState? _rotateState;
   _EdgeRetargetState? _edgeRetargetState;
@@ -1238,7 +1239,12 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
                   // card's GestureDetector handles it; if over an edge, the
                   // edge becomes selected for endpoint editing; otherwise
                   // begin a marquee.
-                  if (_isOverCardOrChrome(event.localPosition, transform)) {
+                  if (_isOverCardOrChrome(event.localPosition, transform) ||
+                      _isOverGroupHeader(
+                        event.localPosition,
+                        boardState,
+                        transform,
+                      )) {
                     return;
                   }
                   if (_selectEdgeAt(
@@ -1439,6 +1445,28 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         height: 24,
       );
       if (resizeRect.contains(screenPos)) return true;
+    }
+    return false;
+  }
+
+  /// Group headers own their complete pointer region. The canvas-level raw
+  /// listener otherwise sees the same primary-down event before the header's
+  /// pan recognizer wins and would start a marquee underneath the group drag.
+  bool _isOverGroupHeader(
+    Offset screenPos,
+    CanvasBoardState boardState,
+    CanvasTransform transform,
+  ) {
+    final itemsByItemId = {
+      for (final node in boardState.nodes) node.itemId: node.item,
+    };
+    for (final group in boardState.groups) {
+      final layout = _resolveGroupScreenLayout(
+        group,
+        itemsByItemId,
+        transform,
+      );
+      if (layout?.headerRect.contains(screenPos) ?? false) return true;
     }
     return false;
   }
@@ -1686,6 +1714,38 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   void _onDragEnd() {
     if (_dragState == null) return;
     _dragState = null;
+    widget.viewModel.endLogicalAction();
+  }
+
+  void _onGroupDragStart(CanvasGroupNode group, Offset position) {
+    if (widget.viewModel.isReadonly) return;
+    final itemIds = group.members.map((member) => member.itemId).toSet();
+    if (itemIds.isEmpty) return;
+    _clearPendingBlankClick();
+    widget.viewModel.beginLogicalAction();
+    _isPanning = false;
+    _groupDragState = _GroupDragState(
+      groupId: group.groupId,
+      itemIds: itemIds,
+      lastPosition: position,
+    );
+  }
+
+  void _onGroupDragUpdate(String groupId, Offset position) {
+    final drag = _groupDragState;
+    if (drag == null || drag.groupId != groupId) return;
+    final vm = widget.viewModel;
+    final dx = (position.dx - drag.lastPosition.dx) / vm.viewport.zoom;
+    final dy = (position.dy - drag.lastPosition.dy) / vm.viewport.zoom;
+    vm.moveItems({
+      for (final itemId in drag.itemIds) itemId: math.Point(dx, dy),
+    });
+    _groupDragState = drag.copyWith(lastPosition: position);
+  }
+
+  void _onGroupDragEnd() {
+    if (_groupDragState == null) return;
+    _groupDragState = null;
     widget.viewModel.endLogicalAction();
   }
 
@@ -2037,6 +2097,13 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
             },
             onRemove:
                 vm.isReadonly ? null : () => vm.removeGroup(groupNode.groupId),
+            onDragStart: vm.isReadonly
+                ? null
+                : (position) => _onGroupDragStart(groupNode, position),
+            onDragUpdate: vm.isReadonly
+                ? null
+                : (position) => _onGroupDragUpdate(groupNode.groupId, position),
+            onDragEnd: vm.isReadonly ? null : _onGroupDragEnd,
           ),
         // Cards (culled to viewport, LOD-tiered)
         for (final node in visibleNodes)
@@ -2081,6 +2148,7 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         // Marquee selection box (on top)
         if (_isMarqueeing && _marqueeStart != null && _marqueeCurrent != null)
           Positioned(
+            key: const Key('wb_marquee_selection'),
             left: math.min(_marqueeStart!.dx, _marqueeCurrent!.dx),
             top: math.min(_marqueeStart!.dy, _marqueeCurrent!.dy),
             width: (_marqueeCurrent! - _marqueeStart!).dx.abs(),
@@ -2251,6 +2319,24 @@ class _CardDragState {
   final String itemId;
   final Offset lastPosition;
   const _CardDragState({required this.itemId, required this.lastPosition});
+}
+
+class _GroupDragState {
+  const _GroupDragState({
+    required this.groupId,
+    required this.itemIds,
+    required this.lastPosition,
+  });
+
+  final String groupId;
+  final Set<String> itemIds;
+  final Offset lastPosition;
+
+  _GroupDragState copyWith({Offset? lastPosition}) => _GroupDragState(
+        groupId: groupId,
+        itemIds: itemIds,
+        lastPosition: lastPosition ?? this.lastPosition,
+      );
 }
 
 enum _CardMenuAction { quickEdit, open, front, remove }
@@ -2974,16 +3060,102 @@ class _OrphanedCardContent extends StatelessWidget {
   }
 }
 
-/// Group widget — renders a group rectangle computed from member bounds.
-///
-/// Tap toggles collapsed state. When collapsed, member cards are hidden and
-/// the group renders as a compact header chip.
+const _groupSidePaddingCanvas = 24.0;
+const _groupHeaderTopInset = 6.0;
+const _groupHeaderHorizontalInset = 12.0;
+const _groupHeaderHeight = 30.0;
+const _groupHeaderCardGap = 16.0;
+const _groupHeaderMinFrameWidth = 220.0;
+const _groupHeaderMaxWidth = 320.0;
+const _groupCollapsedBottomInset = 6.0;
+
+class _GroupScreenLayout {
+  const _GroupScreenLayout({required this.frameRect, required this.headerRect});
+
+  final Rect frameRect;
+  final Rect headerRect;
+}
+
+/// Resolves all group chrome in screen pixels so title text and controls stay
+/// usable at every canvas zoom. The expanded frame still follows member bounds,
+/// while its top edge reserves a fixed-height title row plus a safe card gap.
+_GroupScreenLayout? _resolveGroupScreenLayout(
+  CanvasGroupNode groupNode,
+  Map<String, BoardItem> itemsByItemId,
+  CanvasTransform transform,
+) {
+  final memberItems = <BoardItem>[];
+  for (final member in groupNode.members) {
+    final item = itemsByItemId[member.itemId];
+    if (item != null) memberItems.add(item);
+  }
+  if (memberItems.isEmpty) return null;
+
+  var minX = double.infinity;
+  var minY = double.infinity;
+  var maxX = -double.infinity;
+  var maxY = -double.infinity;
+  for (final item in memberItems) {
+    minX = math.min(minX, item.x);
+    minY = math.min(minY, item.y);
+    maxX = math.max(maxX, item.x + item.width);
+    maxY = math.max(maxY, item.y + item.height);
+  }
+
+  final memberScreenTop = transform.canvasToScreen(Offset(minX, minY)).dy;
+  final frameLeft =
+      transform.canvasToScreen(Offset(minX - _groupSidePaddingCanvas, minY)).dx;
+  final naturalFrameRight =
+      transform.canvasToScreen(Offset(maxX + _groupSidePaddingCanvas, minY)).dx;
+  final naturalFrameWidth = naturalFrameRight - frameLeft;
+  final frameWidth = groupNode.group.collapsed
+      ? naturalFrameWidth.clamp(
+          _groupHeaderMinFrameWidth,
+          _groupHeaderMaxWidth,
+        )
+      : math.max(naturalFrameWidth, _groupHeaderMinFrameWidth);
+  final frameTop = memberScreenTop -
+      _groupHeaderTopInset -
+      _groupHeaderHeight -
+      _groupHeaderCardGap;
+  final frameBottom = groupNode.group.collapsed
+      ? frameTop +
+          _groupHeaderTopInset +
+          _groupHeaderHeight +
+          _groupCollapsedBottomInset
+      : transform
+          .canvasToScreen(Offset(maxX, maxY + _groupSidePaddingCanvas))
+          .dy;
+  final frameRect = Rect.fromLTWH(
+    frameLeft,
+    frameTop,
+    frameWidth,
+    math.max(frameBottom - frameTop, 1),
+  );
+  final headerWidth = math.min(
+    math.max(frameRect.width - _groupHeaderHorizontalInset * 2, 0.0),
+    _groupHeaderMaxWidth,
+  );
+  final headerRect = Rect.fromLTWH(
+    frameRect.left + _groupHeaderHorizontalInset,
+    frameRect.top + _groupHeaderTopInset,
+    headerWidth,
+    _groupHeaderHeight,
+  );
+  return _GroupScreenLayout(frameRect: frameRect, headerRect: headerRect);
+}
+
+/// Group widget — renders a group frame and fixed-size screen-space header.
+/// When collapsed, member cards are hidden and only the aligned header remains.
 class _GroupWidget extends StatelessWidget {
   final CanvasGroupNode groupNode;
   final Map<String, BoardItem> itemsByItemId;
   final CanvasTransform transform;
   final VoidCallback onToggle;
   final VoidCallback? onRemove;
+  final void Function(Offset position)? onDragStart;
+  final void Function(Offset position)? onDragUpdate;
+  final VoidCallback? onDragEnd;
 
   const _GroupWidget({
     required this.groupNode,
@@ -2991,44 +3163,23 @@ class _GroupWidget extends StatelessWidget {
     required this.transform,
     required this.onToggle,
     required this.onRemove,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = WhiteboardCanvasTokens.of(context);
-    final memberItems = <BoardItem>[];
-    for (final member in groupNode.members) {
-      final item = itemsByItemId[member.itemId];
-      if (item != null) memberItems.add(item);
-    }
-    if (memberItems.isEmpty) return const SizedBox.shrink();
-
-    var minX = double.infinity;
-    var minY = double.infinity;
-    var maxX = -double.infinity;
-    var maxY = -double.infinity;
-    for (final item in memberItems) {
-      minX = math.min(minX, item.x);
-      minY = math.min(minY, item.y);
-      maxX = math.max(maxX, item.x + item.width);
-      maxY = math.max(maxY, item.y + item.height);
-    }
-
-    const pad = 24.0;
     final collapsed = groupNode.group.collapsed;
-    final Rect groupRect;
-    if (collapsed) {
-      final width = (maxX - minX + pad * 2).clamp(180.0, 320.0);
-      groupRect = Rect.fromLTWH(minX - pad, minY - pad - 20, width, 46);
-    } else {
-      groupRect = Rect.fromLTRB(
-        minX - pad,
-        minY - pad - 20,
-        maxX + pad,
-        maxY + pad,
-      );
-    }
-    final screenRect = transform.canvasToScreenRect(groupRect);
+    final layout = _resolveGroupScreenLayout(
+      groupNode,
+      itemsByItemId,
+      transform,
+    );
+    if (layout == null) return const SizedBox.shrink();
+    final screenRect = layout.frameRect;
+    final localHeaderRect = layout.headerRect.shift(-screenRect.topLeft);
 
     return Positioned(
       key: Key('wb_group_${groupNode.groupId}'),
@@ -3036,82 +3187,126 @@ class _GroupWidget extends StatelessWidget {
       top: screenRect.top,
       width: screenRect.width,
       height: screenRect.height,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onToggle,
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.groupRect,
-            borderRadius: BorderRadius.circular(
-              WhiteboardCanvasTokens.groupRadius,
-            ),
-            border: Border.all(
-              color: collapsed ? colors.actionSecondary : colors.groupBorder,
-              width: collapsed ? 1.5 : 1,
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.groupRect,
+          borderRadius: BorderRadius.circular(
+            WhiteboardCanvasTokens.groupRadius,
           ),
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: Container(
-              margin: const EdgeInsets.only(top: 6, left: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: colors.canvas,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    collapsed ? Icons.unfold_more : Icons.unfold_less,
-                    size: 14,
-                    color:
-                        collapsed ? colors.actionSecondary : colors.groupLabel,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    groupNode.group.name.isNotEmpty
-                        ? groupNode.group.name
-                        : '未命名分组',
-                    style: TextStyle(
-                      color: colors.groupLabel,
-                      fontSize: WhiteboardCanvasTokens.metaSize,
-                      fontWeight: FontWeight.w500,
+          border: Border.all(
+            color: collapsed ? colors.actionSecondary : colors.groupBorder,
+            width: collapsed ? 1.5 : 1,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned.fromRect(
+              rect: localHeaderRect,
+              child: MouseRegion(
+                cursor: onDragStart == null
+                    ? MouseCursor.defer
+                    : SystemMouseCursors.move,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanStart: onDragStart == null
+                      ? null
+                      : (details) => onDragStart!(details.globalPosition),
+                  onPanUpdate: onDragUpdate == null
+                      ? null
+                      : (details) => onDragUpdate!(details.globalPosition),
+                  onPanEnd: onDragEnd == null ? null : (_) => onDragEnd!(),
+                  onPanCancel: onDragEnd,
+                  child: Container(
+                    key: Key('wb_group_drag_handle_${groupNode.groupId}'),
+                    height: _groupHeaderHeight,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: colors.canvas,
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                  ),
-                  if (collapsed) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      '${groupNode.members.length} 张卡片',
-                      style: TextStyle(
-                        color: colors.actionSecondary,
-                        fontSize: WhiteboardCanvasTokens.statusSize,
-                      ),
-                    ),
-                  ],
-                  if (onRemove != null) ...[
-                    const SizedBox(width: 4),
-                    Tooltip(
-                      message: '解散分组',
-                      child: InkWell(
-                        key: Key('wb_ungroup_${groupNode.groupId}'),
-                        onTap: onRemove,
-                        borderRadius: BorderRadius.circular(4),
-                        child: Padding(
-                          padding: const EdgeInsets.all(3),
-                          child: Icon(
-                            Icons.folder_off_outlined,
-                            size: 14,
-                            color: colors.textFaint,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Tooltip(
+                          message: collapsed ? '展开分组' : '收起分组',
+                          child: InkWell(
+                            key: Key('wb_toggle_group_${groupNode.groupId}'),
+                            onTap: onToggle,
+                            borderRadius: BorderRadius.circular(4),
+                            child: SizedBox.square(
+                              dimension: 22,
+                              child: Center(
+                                child: Icon(
+                                  collapsed
+                                      ? Icons.unfold_more
+                                      : Icons.unfold_less,
+                                  size: 14,
+                                  color: collapsed
+                                      ? colors.actionSecondary
+                                      : colors.groupLabel,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            groupNode.group.name.isNotEmpty
+                                ? groupNode.group.name
+                                : '未命名分组',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.groupLabel,
+                              fontSize: WhiteboardCanvasTokens.metaSize,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        if (collapsed) ...[
+                          const SizedBox(width: 8),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 72),
+                            child: Text(
+                              '${groupNode.members.length} 张卡片',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: colors.actionSecondary,
+                                fontSize: WhiteboardCanvasTokens.statusSize,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (onRemove != null) ...[
+                          const SizedBox(width: 4),
+                          Tooltip(
+                            message: '解散分组',
+                            child: InkWell(
+                              key: Key('wb_ungroup_${groupNode.groupId}'),
+                              onTap: onRemove,
+                              borderRadius: BorderRadius.circular(4),
+                              child: SizedBox.square(
+                                dimension: 22,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.folder_off_outlined,
+                                    size: 14,
+                                    color: colors.textFaint,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ],
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

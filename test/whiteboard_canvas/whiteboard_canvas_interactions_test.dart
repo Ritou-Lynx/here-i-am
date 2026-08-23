@@ -45,6 +45,7 @@ WhiteboardSnapshot _snapshot({
   bool withGroup = false,
   bool withExtraCard = false,
   bool withOtherBoard = false,
+  String groupName = '测试分组',
 }) {
   final now = DateTime(2026, 8, 15);
   return WhiteboardSnapshot(
@@ -120,10 +121,10 @@ WhiteboardSnapshot _snapshot({
     ],
     groups: [
       if (withGroup)
-        const BoardGroup(
+        BoardGroup(
           groupId: 'group_g1',
           boardId: 'board_widget',
-          name: '测试分组',
+          name: groupName,
         ),
     ],
     groupMembers: [
@@ -630,8 +631,7 @@ void main() {
       expect(find.text('Card A'), findsOneWidget);
       expect(find.text('Card B'), findsOneWidget);
 
-      // The group title chip sits above the member cards; tapping it toggles.
-      await tester.tap(find.text('测试分组'));
+      await tester.tap(find.byKey(const Key('wb_toggle_group_group_g1')));
       await tester.pumpAndSettle();
 
       expect(vm.exportForSave().groups.first.collapsed, isTrue);
@@ -640,7 +640,7 @@ void main() {
       expect(find.text('Card B'), findsNothing);
       expect(find.text('2 张卡片'), findsOneWidget);
 
-      await tester.tap(find.text('测试分组'));
+      await tester.tap(find.byKey(const Key('wb_toggle_group_group_g1')));
       await tester.pumpAndSettle();
 
       expect(vm.exportForSave().groups.first.collapsed, isFalse);
@@ -662,9 +662,110 @@ void main() {
       await tester.pumpAndSettle();
       expect(vm.selection.length, equals(2));
 
-      await tester.tap(find.text('测试分组'));
+      await tester.tap(find.byKey(const Key('wb_toggle_group_group_g1')));
       await tester.pumpAndSettle();
       expect(vm.selection.isEmpty, isTrue);
+    });
+
+    testWidgets('dragging the group header moves every member as one undo step',
+        (tester) async {
+      final vm = await _pumpCanvas(tester, _snapshot(withGroup: true));
+      final before = {
+        for (final item in vm.exportForSave().boardItems)
+          item.itemId: math.Point(item.x, item.y),
+      };
+
+      await tester.drag(
+        find.byKey(const Key('wb_group_drag_handle_group_g1')),
+        const Offset(90, 55),
+      );
+      await tester.pumpAndSettle();
+
+      for (final item in vm.exportForSave().boardItems) {
+        expect(item.x - before[item.itemId]!.x, closeTo(90, 1));
+        expect(item.y - before[item.itemId]!.y, closeTo(55, 1));
+      }
+
+      await _sendShortcut(tester, LogicalKeyboardKey.keyZ, control: true);
+      for (final item in vm.exportForSave().boardItems) {
+        expect(item.x, before[item.itemId]!.x);
+        expect(item.y, before[item.itemId]!.y);
+      }
+    });
+
+    testWidgets('group header drag never starts a marquee underneath it',
+        (tester) async {
+      final vm = await _pumpCanvas(tester, _snapshot(withGroup: true));
+      final before = vm.exportForSave().boardItems.first;
+      final header = find.byKey(
+        const Key('wb_group_drag_handle_group_g1'),
+      );
+
+      final gesture = await tester.startGesture(tester.getCenter(header));
+      await gesture.moveBy(const Offset(48, 32));
+      await tester.pump();
+
+      expect(find.byKey(const Key('wb_marquee_selection')), findsNothing);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final after = vm.exportForSave().boardItems.first;
+      expect(after.x, greaterThan(before.x));
+      expect(after.y, greaterThan(before.y));
+    });
+
+    testWidgets('collapsed group ellipsizes an overlong name without overflow',
+        (tester) async {
+      const longName = '这是一个由自动整理生成的非常非常长的分组名称用于验证折叠状态不会突破像素边界';
+      await _pumpCanvas(
+        tester,
+        _snapshot(withGroup: true, groupName: longName),
+      );
+
+      await tester.tap(find.byKey(const Key('wb_toggle_group_group_g1')));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final title = tester.widget<Text>(find.text(longName));
+      expect(title.maxLines, 1);
+      expect(title.overflow, TextOverflow.ellipsis);
+    });
+
+    testWidgets(
+        'group header keeps card clearance and aligned controls when zoomed out',
+        (tester) async {
+      const longName = '这是一个由自动整理生成的非常非常长的分组名称用于验证缩放布局';
+      final vm = await _pumpCanvas(
+        tester,
+        _snapshot(withGroup: true, groupName: longName),
+      );
+      vm.setViewport(const BoardViewport(zoom: 0.25));
+      await tester.pumpAndSettle();
+
+      final header = find.byKey(
+        const Key('wb_group_drag_handle_group_g1'),
+      );
+      final topCard = find.byKey(const Key('wb_card_item_a'));
+      expect(
+        tester.getRect(topCard).top - tester.getRect(header).bottom,
+        greaterThanOrEqualTo(14.5),
+      );
+      expect(tester.getRect(header).height, closeTo(30, 0.1));
+
+      await tester.tap(find.byKey(const Key('wb_toggle_group_group_g1')));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final toggle = tester.getRect(
+        find.byKey(const Key('wb_toggle_group_group_g1')),
+      );
+      final count = tester.getRect(find.text('2 张卡片'));
+      final ungroup = tester.getRect(
+        find.byKey(const Key('wb_ungroup_group_g1')),
+      );
+      expect((toggle.center.dy - count.center.dy).abs(), lessThan(1));
+      expect((ungroup.center.dy - count.center.dy).abs(), lessThan(1));
+      expect(tester.getRect(header).height, closeTo(30, 0.1));
+      expect(tester.getRect(header).width, greaterThanOrEqualTo(195));
     });
   });
 

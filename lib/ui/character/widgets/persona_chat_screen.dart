@@ -343,6 +343,22 @@ const personaChatMinimumStartupSplashDuration = Duration(milliseconds: 1800);
 /// 1-on-1 chat screen with an AI companion character.
 enum PersonaChatPresentation { fullScreen, desktopFloating }
 
+/// Releases the Windows text-input/accessibility node before a workbench
+/// action starts rebuilding the desktop chat and whiteboard semantics trees.
+///
+/// The frame barrier is intentional: on Windows, [FocusNode.unfocus] updates
+/// the framework synchronously, but the native IME connection is detached by
+/// the following frame. Starting the workbench mutation before that detach can
+/// leave an accessibility client querying a node whose parent was replaced.
+@visibleForTesting
+Future<void> releaseDesktopComposerForWorkbenchAction(
+  FocusNode focusNode, {
+  Future<void> Function()? frameBarrier,
+}) async {
+  focusNode.unfocus();
+  await (frameBarrier?.call() ?? WidgetsBinding.instance.endOfFrame);
+}
+
 class PersonaChatScreen extends StatefulWidget {
   final String characterId;
   final bool embedded;
@@ -2465,6 +2481,11 @@ only after you have written the goodbye you want the user to hear.''',
     if (text.isEmpty) return;
 
     final actionCoordinator = WhiteboardWorkbenchCoordinator.instance;
+    final isWorkbenchAction = actionCoordinator.matches(text);
+    if (isWorkbenchAction) {
+      await releaseDesktopComposerForWorkbenchAction(_composerFocus);
+      if (!mounted) return;
+    }
     _clearComposerText(staleText: text);
     final userMessageId = await _chatService.addUserMessage(
       _currentCharacterId,
@@ -2475,7 +2496,7 @@ only after you have written the goodbye you want the user to hear.''',
       autoRead: false,
       scrollToBottom: true,
     );
-    if (actionCoordinator.matches(text)) {
+    if (isWorkbenchAction) {
       unawaited(
         actionCoordinator
           .run(
