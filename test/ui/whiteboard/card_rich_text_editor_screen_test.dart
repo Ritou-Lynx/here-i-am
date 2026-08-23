@@ -174,6 +174,21 @@ void main() {
         find.byKey(const ValueKey('rich_text_editor_paper')),
       );
       expect(desktopPaper.width, inInclusiveRange(820, 920));
+      expect(
+        tester.widget(find.byKey(const ValueKey('rich_text_editor_paper'))),
+        isA<Padding>(),
+        reason: 'the global editor is a continuous surface, not a framed card',
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(const ValueKey('rich_text_continuous_document')),
+            )
+            .height,
+        greaterThan(360),
+        reason:
+            'the document should fill the editor instead of defaulting to 8 lines',
+      );
     });
   });
 }

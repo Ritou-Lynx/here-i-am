@@ -111,43 +111,65 @@ class _ContextDockState extends State<ContextDock> {
             onClose: () => vm.setDockVisible(false),
           ),
           Divider(height: 1, color: tokens.divider),
-          // Study timeline with time anchors — lives in the dock (not overlaid
-          // on the player) so it never overlaps a native player's progress bar.
-          if (vm.canReadPosition)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: TimelineAnchorBar(viewModel: vm),
-            ),
-          if (vm.canCreateTimeAnchorNow)
-            _CurrentTimeAnnotationBar(viewModel: vm),
-          if (vm.errorMessage != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Text(
-                vm.errorMessage!,
-                key: const ValueKey('video_study_error'),
-                style: whiteboardUiTextStyle(
-                  color: tokens.error,
-                  fontSize: 11,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          if (vm.canReadPosition) Divider(height: 1, color: tokens.divider),
-          _DockTabs(
-            selected: _section,
-            noteCount: vm.annotations.length,
-            onSelected: _selectSection,
-          ),
-          Divider(height: 1, color: tokens.divider),
-          // Body
           Expanded(
-            child: _section == _DockSection.subtitles
-                ? KeyedSubtree(
-                    key: const ValueKey('video_subtitles_tab_content'),
-                    child: SubtitleListView(viewModel: vm),
-                  )
-                : _VideoNotesPane(viewModel: vm),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // These controls can be taller than a bottom-docked panel on
+                // a short window. Let them yield and scroll instead of forcing
+                // the entire dock Column to overflow.
+                if (vm.canReadPosition ||
+                    vm.canCreateTimeAnchorNow ||
+                    vm.errorMessage != null)
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: SingleChildScrollView(
+                      key: const ValueKey('video_dock_anchor_controls'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (vm.canReadPosition)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                              child: TimelineAnchorBar(viewModel: vm),
+                            ),
+                          if (vm.canCreateTimeAnchorNow)
+                            _CurrentTimeAnnotationBar(viewModel: vm),
+                          if (vm.errorMessage != null)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                              child: Text(
+                                vm.errorMessage!,
+                                key: const ValueKey('video_study_error'),
+                                style: whiteboardUiTextStyle(
+                                  color: tokens.error,
+                                  fontSize: 11,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          if (vm.canReadPosition)
+                            Divider(height: 1, color: tokens.divider),
+                        ],
+                      ),
+                    ),
+                  ),
+                _DockTabs(
+                  selected: _section,
+                  noteCount: vm.annotations.length,
+                  onSelected: _selectSection,
+                ),
+                Divider(height: 1, color: tokens.divider),
+                Expanded(
+                  child: _section == _DockSection.subtitles
+                      ? KeyedSubtree(
+                          key: const ValueKey('video_subtitles_tab_content'),
+                          child: SubtitleListView(viewModel: vm),
+                        )
+                      : _VideoNotesPane(viewModel: vm),
+                ),
+              ],
+            ),
           ),
         ],
       ),

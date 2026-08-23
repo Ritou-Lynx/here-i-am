@@ -119,8 +119,7 @@ class _ContinuousDocumentController extends TextEditingController {
       selection: preserveSelection
           ? TextSelection(
               baseOffset: oldSelection.baseOffset.clamp(0, nextText.length),
-              extentOffset:
-                  oldSelection.extentOffset.clamp(0, nextText.length),
+              extentOffset: oldSelection.extentOffset.clamp(0, nextText.length),
             )
           : TextSelection.collapsed(offset: nextText.length),
     );
@@ -177,8 +176,8 @@ class _ContinuousDocumentController extends TextEditingController {
             text: block.text.substring(points[i], points[i + 1]),
             style: _markStyle(
               base,
-              block.marks.where((mark) =>
-                  mark.start < points[i + 1] && mark.end > points[i]),
+              block.marks.where(
+                  (mark) => mark.start < points[i + 1] && mark.end > points[i]),
             ),
           ),
     ];
@@ -229,7 +228,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
   @override
   void initState() {
     super.initState();
-    _continuousBlocks = List<RichTextBlock>.from(widget.controller.document.blocks);
+    _continuousBlocks =
+        List<RichTextBlock>.from(widget.controller.document.blocks);
     _continuousController = _ContinuousDocumentController(
       blocks: _continuousBlocks,
     )..addListener(_onContinuousTextChanged);
@@ -431,8 +431,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       ),
       cursorColor: tokens.action,
       maxLines: null,
-      minLines: widget.compact ? 1 : 8,
-      expands: false,
+      minLines: widget.compact ? 1 : null,
+      expands: !widget.compact,
       readOnly: widget.readOnly,
       autofocus: widget.autofocus,
       keyboardType: TextInputType.multiline,
@@ -495,9 +495,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     String nextText,
   ) {
     var prefix = 0;
-    final sharedLength = oldText.length < nextText.length
-        ? oldText.length
-        : nextText.length;
+    final sharedLength =
+        oldText.length < nextText.length ? oldText.length : nextText.length;
     while (prefix < sharedLength &&
         oldText.codeUnitAt(prefix) == nextText.codeUnitAt(prefix)) {
       prefix++;
@@ -617,10 +616,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
             () => _addLinkOnFocused(context, c),
           ),
           const SizedBox(width: 4),
-          _toolbarButton(
-              tokens,
-              '正文',
-              '正文段落',
+          _toolbarButton(tokens, '正文', '正文段落',
               () => _setBlockTypeFocused(c, BlockType.paragraph)),
           for (var level = 1; level <= 6; level++)
             _toolbarButton(
@@ -1127,9 +1123,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       final startBlock = _continuousBlockAt(selection.start);
       final endBlock = _continuousBlockAt(selection.end - 1);
       for (var index = startBlock; index <= endBlock; index++) {
-        final start = index == startBlock
-            ? _localOffset(index, selection.start)
-            : 0;
+        final start =
+            index == startBlock ? _localOffset(index, selection.start) : 0;
         final end = index == endBlock
             ? _localOffset(index, selection.end)
             : _continuousBlocks[index].text.length;
@@ -1252,7 +1247,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _continuousFocusNode.requestFocus();
       _continuousController.selection = TextSelection(
-        baseOffset: selection.baseOffset.clamp(0, _continuousController.text.length),
+        baseOffset:
+            selection.baseOffset.clamp(0, _continuousController.text.length),
         extentOffset:
             selection.extentOffset.clamp(0, _continuousController.text.length),
       );
@@ -1274,8 +1270,8 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
     final sel = continuous
         ? _continuousSelectionForAction()
         : (path!.child == null
-            ? c.controllerFor(path.block)
-            : c.childControllerFor(path.block, path.child!))
+                ? c.controllerFor(path.block)
+                : c.childControllerFor(path.block, path.child!))
             .selection;
     if (sel.start == sel.end) return;
     final linkController = TextEditingController();

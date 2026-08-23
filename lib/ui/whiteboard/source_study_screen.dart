@@ -171,28 +171,28 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
     required CardContract card,
     required List<String> suggestions,
   }) async {
-    await showDialog<void>(
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final size = overlay.size;
+    await showMenu<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
+      position: RelativeRect.fromLTRB(
+        size.width > 408 ? size.width - 396 : 12,
+        68,
+        12,
+        size.height > 80 ? size.height - 68 : 12,
+      ),
+      elevation: 8,
+      items: [
+        _TagEditorMenuEntry(
+          key: const ValueKey('source-video-tags-popover'),
+          child: SizedBox(
+            width: 340,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    const Expanded(child: Text('视频卡标签')),
-                    IconButton(
-                      tooltip: '关闭',
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                const Text('视频卡标签'),
+                const SizedBox(height: 10),
                 _SourceTagEditor(
                   repository: repository,
                   card: card,
@@ -202,7 +202,7 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -247,6 +247,29 @@ class _SourceStudyScreenState extends State<SourceStudyScreen> {
     if (adapter is YouTubePlayerAdapter) return adapter.isAvailable;
     return false;
   }
+}
+
+class _TagEditorMenuEntry extends PopupMenuEntry<void> {
+  const _TagEditorMenuEntry({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  double get height => 132;
+
+  @override
+  bool represents(void value) => false;
+
+  @override
+  State<_TagEditorMenuEntry> createState() => _TagEditorMenuEntryState();
+}
+
+class _TagEditorMenuEntryState extends State<_TagEditorMenuEntry> {
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: widget.child,
+      );
 }
 
 class _SourceStudyData {

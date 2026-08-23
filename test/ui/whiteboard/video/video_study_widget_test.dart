@@ -1192,7 +1192,7 @@ void main() {
 
   testWidgets('bottom dock header keeps tags and controls inside narrow width',
       (tester) async {
-    _useDesktopSurface(tester, const Size(640, 520));
+    _useDesktopSurface(tester, const Size(640, 360));
     final adapter = _buildFixture();
     var tagCalls = 0;
     await tester.pumpWidget(MaterialApp(

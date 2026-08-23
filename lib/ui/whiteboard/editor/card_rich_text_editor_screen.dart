@@ -259,19 +259,13 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                       alignment: Alignment.topCenter,
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 920),
-                        child: Container(
+                        child: Padding(
                           key: const ValueKey('rich_text_editor_paper'),
-                          margin: EdgeInsets.fromLTRB(
-                            compact ? 12 : 24,
-                            4,
-                            compact ? 12 : 24,
+                          padding: EdgeInsets.fromLTRB(
+                            compact ? 14 : 24,
+                            8,
+                            compact ? 14 : 24,
                             compact ? 12 : 20,
-                          ),
-                          padding: EdgeInsets.all(compact ? 14 : 20),
-                          decoration: BoxDecoration(
-                            color: tokens.surfaceRaised,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: tokens.divider),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -286,6 +280,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                                   onSave: (_) => _save(),
                                   markSavedAfterCallback: false,
                                   showSaveInToolbar: false,
+                                  inlineSurface: true,
                                 ),
                               ),
                               const SizedBox(height: 14),
