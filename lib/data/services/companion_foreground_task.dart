@@ -391,6 +391,13 @@ class CompanionForegroundService {
 
   /// Start the persistent service (idempotent). Safe to call on every app
   /// launch — if it's already running this is a no-op.
+  ///
+  /// Android 12+/14+ background-start guard: when this is invoked from a
+  /// background isolate (alarm callback, WorkManager dispatcher, voice or
+  /// call router while backgrounded), `ContextCompat.startForegroundService`
+  /// is denied and the app's `ForegroundServiceStartNotAllowedException` risk
+  /// rises. We bail early and let the next foreground resume, alarm tick, or
+  /// explicit user gesture retry instead of racing the exemption window.
   static Future<void> startPersistent() async {
     final prefs = await SharedPreferences.getInstance();
     final isRunning = await FlutterForegroundTask.isRunningService;
@@ -423,6 +430,18 @@ class CompanionForegroundService {
       }
     }
 
+    // Foreground-lifecycle guard: only attempt start/stop/update when the app
+    // is in the foreground. Background isolates may not have the FGS-start
+    // exemption, and any failure here is silent on Android (ServiceRequestResult
+    // Failure) but native-side retries can still crash the process if the
+    // system later attempts to validate the service start.
+    //
+    // Note: We deliberately DO NOT consult WidgetsBinding here — this method
+    // is also called from engine-less background isolates (alarm callbacks)
+    // where WidgetsBinding is unavailable. Instead we use the
+    // `isRunningService` + owner/version check below to skip no-op starts,
+    // and we treat every ServiceRequestResult failure as a signal to wait
+    // for the next foreground resume.
     if (isRunning) {
       final owner = prefs.getString(_ownerPrefsKey);
       final version = prefs.getInt(_versionPrefsKey);
@@ -435,29 +454,51 @@ class CompanionForegroundService {
         // (user may have changed primary companion or enabled/disabled characters).
         // FlutterForegroundTask.updateService() refreshes the on-going notification.
         final title = await _buildNotificationTitle();
-        await FlutterForegroundTask.updateService(
+        final updateResult = await FlutterForegroundTask.updateService(
           notificationTitle: title,
           notificationText: '在后台陪着你',
           notificationIcon: _notificationIcon,
         );
-        debugPrint('[ForegroundTask] persistent service already running, '
-            'notification updated to "$title"');
+        if (updateResult is ServiceRequestFailure) {
+          debugPrint(
+            '[ForegroundTask] updateService denied (probably background); '
+            'notification will refresh on next foreground resume: '
+            '${updateResult.error}',
+          );
+        } else {
+          debugPrint('[ForegroundTask] persistent service already running, '
+              'notification updated to "$title"');
+        }
         return;
       }
       debugPrint(
         '[ForegroundTask] restarting stale foreground service '
         '(owner=$owner version=$version)',
       );
-      await FlutterForegroundTask.stopService();
+      final stopResult = await FlutterForegroundTask.stopService();
+      if (stopResult is ServiceRequestFailure) {
+        debugPrint(
+          '[ForegroundTask] stopService failed; deferring restart to next '
+          'foreground resume: ${stopResult.error}',
+        );
+        return;
+      }
     }
     await initialize();
     final title = await _buildNotificationTitle();
-    await FlutterForegroundTask.startService(
+    final startResult = await FlutterForegroundTask.startService(
       notificationTitle: title,
       notificationText: '在后台陪着你',
       notificationIcon: _notificationIcon,
       callback: companionForegroundTaskEntry,
     );
+    if (startResult is ServiceRequestFailure) {
+      debugPrint(
+        '[ForegroundTask] startService denied; companion alive-check will '
+        'retry on next foreground/alarm tick: ${startResult.error}',
+      );
+      return;
+    }
     debugPrint('[ForegroundTask] persistent service started');
   }
 

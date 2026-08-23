@@ -41,7 +41,19 @@ class BackgroundTaskForegroundHandler extends TaskHandler {
     } catch (e, st) {
       debugPrint('[TaskDrainForeground] error: $e\n$st');
     } finally {
-      await FlutterForegroundTask.stopService();
+      try {
+        final stopResult = await FlutterForegroundTask.stopService();
+        if (stopResult is ServiceRequestFailure) {
+          debugPrint(
+            '[TaskDrainForeground] stopService failed; will rely on '
+            'system stopWithTask: ${stopResult.error}',
+          );
+        }
+      } catch (e) {
+        // Native side may throw if the service was already reaped by the
+        // system; swallow and continue with the companion hand-off.
+        debugPrint('[TaskDrainForeground] stopService threw: $e');
+      }
       unawaited(CompanionForegroundService.startPersistent());
     }
   }
@@ -98,11 +110,21 @@ class BackgroundTaskForegroundService {
     }
 
     await initialize();
-    await FlutterForegroundTask.startService(
+    final startResult = await FlutterForegroundTask.startService(
       notificationTitle: 'Memex is processing',
       notificationText: 'AI tasks are continuing in the background.',
       callback: backgroundTaskForegroundEntry,
     );
+    if (startResult is ServiceRequestFailure) {
+      // Android 12+ background-start restriction. The drain caller
+      // (WorkManager callback / health_service) already has a fallback
+      // non-FGS path (BackgroundTaskDrainRunner.runFromWorkmanager).
+      debugPrint(
+        '[TaskDrainForeground] startService denied (background); '
+        'caller should fall back to WorkManager drain: ${startResult.error}',
+      );
+      return false;
+    }
     return true;
   }
 }

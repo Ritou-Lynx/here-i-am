@@ -39,7 +39,6 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- Foreground Service (bypasses Samsung Freecess) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Full-screen intent for incoming call-style notifications -->
@@ -66,12 +65,17 @@
             android:name="ic_stat_here_i_am"
             android:resource="@drawable/ic_stat_here_i_am" />
         <!-- flutter_foreground_task powers companion/check-in background ticks.
-             Keep microphone out: fresh installs can crash before runtime audio
-             permission can be granted. mediaPlayback supports continuous reply. -->
+             Keep microphone: required for background voice/call via CompanionForegroundService.
+             Drop dataSync: Android 15 enforces a 6h/24h budget on dataSync; exceeding it yields
+             ForegroundServiceDidNotStopInTimeException → Time-limit crash chain.
+             stopWithTask="true" tells flutter_foreground_task to return START_NOT_STICKY and
+             skip RestartReceiver self-revival, killing ForegroundServiceStartNotAllowedException
+             loops triggered by background startForegroundService from broadcast contexts. -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
-            android:foregroundServiceType="dataSync|mediaPlayback|microphone"
-            android:exported="false" />
+            android:foregroundServiceType="mediaPlayback|microphone"
+            android:exported="false"
+            android:stopWithTask="true" />
         <service
             android:name="com.llfbandit.record.service.AudioRecordingService"
             android:foregroundServiceType="microphone"
