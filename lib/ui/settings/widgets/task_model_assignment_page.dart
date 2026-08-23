@@ -250,16 +250,15 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
   }
 
   Future<void> _testConnectivity(String configKey) async {
-    final config =
-        _configs.where((c) => c.key == configKey).firstOrNull;
+    final config = _configs.where((c) => c.key == configKey).firstOrNull;
     if (config == null || !config.isValid) return;
 
     if (!mounted) return;
     setState(() {
       _connectivity = {
         ..._connectivity,
-        configKey: const _ConnectivityState(
-            status: _ConnectivityStatus.testing),
+        configKey:
+            const _ConnectivityState(status: _ConnectivityStatus.testing),
       };
     });
 
@@ -270,7 +269,9 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
       _connectivity = {
         ..._connectivity,
         configKey: _ConnectivityState(
-          status: result.success ? _ConnectivityStatus.ok : _ConnectivityStatus.fail,
+          status: result.success
+              ? _ConnectivityStatus.ok
+              : _ConnectivityStatus.fail,
           error: result.error,
           responseTime: result.responseTime,
         ),
@@ -579,8 +580,8 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
     required ValueChanged<String> onChanged,
   }) {
     final effectiveKey = selected ?? _defaultKey;
-    final currentStatus = _connectivity[effectiveKey]?.status ??
-        _ConnectivityStatus.idle;
+    final connectivity =
+        _connectivity[effectiveKey] ?? const _ConnectivityState();
     return DropdownButtonFormField<String>(
       key: key,
       initialValue: _dropdownValue(selected),
@@ -594,8 +595,8 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-        suffixIcon: _ConnectivityDot(
-          status: currentStatus,
+        suffixIcon: _ConnectivityBadge(
+          state: connectivity,
           onTap: () => _testConnectivity(effectiveKey),
         ),
       ),
@@ -604,8 +605,8 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
           value: _inheritDefault,
           child: _DropdownItem(
             text: '继承默认 · ${_effectiveModelLabel(null)}',
-            status: _connectivity[_defaultKey]?.status ??
-                _ConnectivityStatus.idle,
+            status:
+                _connectivity[_defaultKey]?.status ?? _ConnectivityStatus.idle,
           ),
         ),
         for (final config in _configs)
@@ -809,52 +810,98 @@ class _AgentModelDefinition {
   final String? followsAgentId;
 }
 
-/// Small colored dot showing model connectivity status. Tappable to retest.
-class _ConnectivityDot extends StatelessWidget {
-  const _ConnectivityDot({required this.status, this.onTap});
+/// Compact connectivity status with a label. Tapping it retests the model.
+class _ConnectivityBadge extends StatelessWidget {
+  const _ConnectivityBadge({required this.state, this.onTap});
 
-  final _ConnectivityStatus status;
+  final _ConnectivityState state;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      _ConnectivityStatus.ok => const Color(0xFF5B8C5A),
-      _ConnectivityStatus.fail => const Color(0xFFC46B5A),
-      _ConnectivityStatus.testing => _TaskModelAssignmentPageState._accent,
-      _ConnectivityStatus.idle => _TaskModelAssignmentPageState._secondary,
+    final status = state.status;
+    final (color, label) = switch (status) {
+      _ConnectivityStatus.ok => (
+          const Color(0xFF5B8C5A),
+          state.responseTime == null
+              ? '可用'
+              : '可用 ${_formatDuration(state.responseTime!)}',
+        ),
+      _ConnectivityStatus.fail => (
+          const Color(0xFFC46B5A),
+          '不可用${_shortError(state.error)}',
+        ),
+      _ConnectivityStatus.testing => (
+          _TaskModelAssignmentPageState._accent,
+          '测试中',
+        ),
+      _ConnectivityStatus.idle => (
+          _TaskModelAssignmentPageState._secondary,
+          '未测试',
+        ),
     };
-    final child = status == _ConnectivityStatus.testing
+    final dot = status == _ConnectivityStatus.testing
         ? SizedBox(
-            width: 12,
-            height: 12,
+            width: 11,
+            height: 11,
             child: CircularProgressIndicator(
-              strokeWidth: 1.8,
+              strokeWidth: 1.6,
               color: color,
             ),
           )
         : Container(
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.3),
-                  blurRadius: 4,
-                ),
-              ],
             ),
           );
-    return Padding(
-      padding: const EdgeInsets.only(right: 10),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Center(child: child),
+    final badge = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 148, minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 8, right: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              dot,
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: color, fontSize: 11, height: 1.1),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
+    final error = state.error?.trim();
+    return error == null || error.isEmpty
+        ? badge
+        : Tooltip(message: error, child: badge);
+  }
+
+  static String _formatDuration(Duration duration) {
+    final milliseconds = duration.inMilliseconds;
+    if (milliseconds < 1000) return '${milliseconds}ms';
+    return '${(milliseconds / 1000).toStringAsFixed(1)}s';
+  }
+
+  static String _shortError(String? error) {
+    if (error == null || error.trim().isEmpty) return '';
+    var message = error.trim();
+    message = message.replaceFirst(RegExp(r'^DioException:\s*'), '');
+    message = message.replaceFirst(RegExp(r'^Exception:\s*'), '');
+    if (message.length > 32) message = '${message.substring(0, 32)}…';
+    return ' $message';
   }
 }
 

@@ -140,4 +140,17 @@ void main() {
     expect(find.text('PKM'), findsNothing);
     expect(find.text('Cards'), findsNothing);
   });
+
+  testWidgets('connectivity_badge_readable_status',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: TaskModelAssignmentPage()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('模型分配'), findsOneWidget);
+    expect(find.text('聊天与互动'), findsOneWidget);
+    expect(find.text('未测试'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }
