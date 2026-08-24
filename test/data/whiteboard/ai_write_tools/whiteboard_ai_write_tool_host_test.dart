@@ -99,6 +99,51 @@ void main() {
     expect(identical(repeated, undone), isTrue);
   });
 
+  test('restore preserves undo state after process restart', () async {
+    var snapshot = _snapshot();
+    final beforeSnapshot = _copySnapshot(
+      snapshot,
+      updatedAt: snapshot.updatedAt,
+    );
+    final fixture = _fixture(
+      now: now,
+      load: (_) async => snapshot,
+      save: (_, value) async {
+        snapshot = value;
+        return true;
+      },
+    );
+    final applied = await fixture.host.groupAndConnect(fixture.request);
+    final reopened = _fixture(
+      now: now,
+      load: (_) async => snapshot,
+      save: (_, value) async {
+        snapshot = value;
+        return true;
+      },
+    );
+    reopened.host.restoreUndoReceipt(
+      receipt: applied,
+      beforeSnapshot: beforeSnapshot,
+    );
+    final restored = await reopened.host.undo(
+      WhiteboardAiUndoRequest(
+        undoToken: applied.undoToken!,
+        runtimeTurnId: 'turn_1',
+      ),
+    );
+    expect(restored.status, WhiteboardAiWriteStatus.undone);
+    expect(jsonEncode(snapshot.toJson()), jsonEncode(beforeSnapshot.toJson()));
+
+    final repeated = await reopened.host.undo(
+      WhiteboardAiUndoRequest(
+        undoToken: applied.undoToken!,
+        runtimeTurnId: 'turn_1',
+      ),
+    );
+    expect(identical(repeated, restored), isTrue);
+  });
+
   test('undo tolerates timestamp-only refresh after reopening a board',
       () async {
     var snapshot = _snapshot();

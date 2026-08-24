@@ -176,6 +176,84 @@ void main() {
     expect(reopenedReloads, 1);
   });
 
+  test('restores undo capability from persisted action records after reopen',
+      () async {
+    var reloads = 0;
+    surfaceController.attach(
+      owner: surfaceOwner,
+      boardId: 'board_1',
+      selectedItemIds: {'item_1', 'item_2', 'item_3'},
+      flush: () async => true,
+      reload: () async {
+        reloads += 1;
+      },
+    );
+    final runtime = _FakeRuntime();
+    final projections = <WorkbenchActionProjection>[];
+    final coordinator = WhiteboardWorkbenchCoordinator(
+      runtime: runtime,
+      store: store,
+      repositoryLoader: () async => repository,
+      surfaceController: surfaceController,
+      addAction: (_, __, projection) async {
+        projections.add(WorkbenchActionProjection.fromJson(projection));
+        return 41;
+      },
+      updateAction: (_, __, projection) async {
+        projections.add(WorkbenchActionProjection.fromJson(projection));
+      },
+      clock: () => DateTime.utc(2026, 8, 21, 10),
+    );
+
+    expect(
+      await coordinator.run(
+        characterId: 'i',
+        userText: '按主题分组并连线',
+        userMessageId: 7,
+      ),
+      isTrue,
+    );
+    final completed = projections.last;
+    expect(completed.status, WorkbenchActionStatus.completed);
+    expect(
+      (await store.load('board_1')).snapshot!.groups,
+      hasLength(1),
+    );
+
+    surfaceController.detach(surfaceOwner);
+    surfaceOwner = Object();
+    final reopenedProjections = <WorkbenchActionProjection>[];
+    final restartedCoordinator = WhiteboardWorkbenchCoordinator(
+      runtime: _FakeRuntime(),
+      store: store,
+      repositoryLoader: () async => repository,
+      surfaceController: surfaceController,
+      addAction: (_, __, ___) async => 41,
+      updateAction: (_, __, projection) async {
+        reopenedProjections.add(WorkbenchActionProjection.fromJson(projection));
+      },
+      clock: () => DateTime.utc(2026, 8, 21, 10),
+    );
+    surfaceController.attach(
+      owner: surfaceOwner,
+      boardId: 'board_1',
+      selectedItemIds: {'item_1', 'item_2', 'item_3'},
+      flush: () async => true,
+      reload: () async {
+        reloads += 1;
+      },
+    );
+
+    await restartedCoordinator.undo(completed.actionId);
+
+    expect(reopenedProjections.last.status, WorkbenchActionStatus.undone);
+    expect(
+      (await store.load('board_1')).snapshot!.groups,
+      isEmpty,
+    );
+    expect(reloads, 2, reason: 'undo should trigger board reload once.');
+  });
+
   test('does not intercept an ordinary discussion of grouping and links',
       () async {
     final coordinator = WhiteboardWorkbenchCoordinator(

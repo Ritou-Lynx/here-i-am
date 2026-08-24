@@ -36,6 +36,7 @@ class WorkbenchActionProjection {
     this.beforeSnapshotHash,
     this.afterSnapshotHash,
     this.undoToken,
+    this.undoReceipt,
     this.errorCode,
     this.tools = const [],
   }) {
@@ -98,6 +99,7 @@ class WorkbenchActionProjection {
       'before_snapshot_hash',
       'after_snapshot_hash',
       'undo_token',
+      'undo_receipt',
       'error_code',
       'tools',
       'created_at',
@@ -126,6 +128,7 @@ class WorkbenchActionProjection {
       beforeSnapshotHash: _optionalString(json['before_snapshot_hash']),
       afterSnapshotHash: _optionalString(json['after_snapshot_hash']),
       undoToken: _optionalString(json['undo_token']),
+      undoReceipt: _optionalMap(json['undo_receipt']),
       errorCode: _optionalString(json['error_code']),
       tools: _stringList(json['tools']),
       createdAt: DateTime.parse(_string(json, 'created_at')).toUtc(),
@@ -150,6 +153,7 @@ class WorkbenchActionProjection {
   final String? beforeSnapshotHash;
   final String? afterSnapshotHash;
   final String? undoToken;
+  final Map<String, dynamic>? undoReceipt;
   final String? errorCode;
   final List<String> tools;
   final DateTime createdAt;
@@ -170,6 +174,7 @@ class WorkbenchActionProjection {
     String? beforeSnapshotHash,
     String? afterSnapshotHash,
     String? undoToken,
+    Map<String, dynamic>? undoReceipt,
     String? errorCode,
     List<String>? tools,
     DateTime? updatedAt,
@@ -193,6 +198,7 @@ class WorkbenchActionProjection {
       beforeSnapshotHash: beforeSnapshotHash ?? this.beforeSnapshotHash,
       afterSnapshotHash: afterSnapshotHash ?? this.afterSnapshotHash,
       undoToken: undoToken ?? this.undoToken,
+      undoReceipt: undoReceipt ?? this.undoReceipt,
       errorCode: errorCode ?? this.errorCode,
       tools: tools ?? this.tools,
       createdAt: createdAt,
@@ -221,6 +227,7 @@ class WorkbenchActionProjection {
           'before_snapshot_hash': beforeSnapshotHash,
         if (afterSnapshotHash != null) 'after_snapshot_hash': afterSnapshotHash,
         if (undoToken != null) 'undo_token': undoToken,
+        if (undoReceipt != null) 'undo_receipt': undoReceipt,
         if (errorCode != null) 'error_code': errorCode,
         'tools': tools,
         'created_at': createdAt.toUtc().toIso8601String(),
@@ -238,6 +245,12 @@ String? _optionalString(Object? value) {
   if (value == null) return null;
   if (value is! String) throw const FormatException('Expected string');
   return value;
+}
+
+Map<String, dynamic>? _optionalMap(Object? value) {
+  if (value == null) return null;
+  if (value is! Map) return null;
+  return Map<String, dynamic>.from(value);
 }
 
 int _integer(Map<String, dynamic> json, String key) {

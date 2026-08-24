@@ -87,8 +87,10 @@ class WhiteboardWorkbenchCoordinator {
   final WhiteboardPermissionBroker _permissionBroker;
   final DateTime Function() _clock;
   final Map<String, _UndoBinding> _undoBindings = {};
+  final Set<String> _restoredCharacters = {};
 
   bool _running = false;
+  String? _activeCharacterId;
 
   bool matches(String text) {
     final normalized = text.trim();
@@ -111,6 +113,11 @@ class WhiteboardWorkbenchCoordinator {
     required String userText,
     required int userMessageId,
   }) async {
+    final normalizedCharacterId = characterId.trim();
+    if (normalizedCharacterId.isNotEmpty) {
+      _activeCharacterId = normalizedCharacterId;
+      await _restoreUndoBindings(normalizedCharacterId);
+    }
     if (!matches(userText)) return false;
     final surface = _surfaceController.current;
     if (surface == null) {
@@ -193,6 +200,13 @@ class WhiteboardWorkbenchCoordinator {
         throw const _ProductActionFailure(
           'whiteboard_save_failed',
           '当前白板还没有保存成功，暂未执行整理。',
+        );
+      }
+      final loaded = await _store.load(surface.boardId);
+      if (!loaded.isSuccess || loaded.snapshot == null) {
+        throw const _ProductActionFailure(
+          'snapshot_unavailable',
+          '当前白板快照不可恢复，暂未执行整理。',
         );
       }
       final repository = await _repositoryLoader();
@@ -281,6 +295,12 @@ class WhiteboardWorkbenchCoordinator {
         beforeSnapshotHash: receipt.beforeSnapshotHash,
         afterSnapshotHash: receipt.afterSnapshotHash,
         undoToken: receipt.undoToken,
+        undoReceipt:
+            receipt.toUndoReceiptEnvelope(beforeSnapshot: loaded.snapshot!),
+      );
+      writeHost.restoreUndoReceipt(
+        receipt: receipt,
+        beforeSnapshot: loaded.snapshot!,
       );
       _undoBindings[actionId] = _UndoBinding(
         messageId: actionMessageId,
@@ -288,7 +308,7 @@ class WhiteboardWorkbenchCoordinator {
         host: writeHost,
         runtimeTurnId: turn.turnId,
         undoToken: receipt.undoToken!,
-        reload: surface.reload,
+        reload: () => _reloadIfBoardOpen(surface.boardId),
       );
       await _updateProjection(actionMessageId, projection);
       await surface.reload();
@@ -454,7 +474,61 @@ class WhiteboardWorkbenchCoordinator {
     );
   }
 
+  Future<void> _restoreUndoBindings(String characterId) async {
+    if (_restoredCharacters.contains(characterId)) return;
+    try {
+      final messages = await PersonaChatService.instance.getMessages(
+        characterId,
+        limit: 200,
+      );
+      for (final message in messages) {
+        for (final action in _extractWorkbenchActionProjections(message)) {
+          if (_undoBindings.containsKey(action.actionId)) continue;
+          if (action.status != WorkbenchActionStatus.completed) continue;
+          if (action.actionType != 'whiteboard_group_and_connect') continue;
+          if (action.undoToken == null ||
+              action.undoReceipt == null ||
+              action.runtimeTurnId == null) continue;
+          final beforeSnapshot = _undoReceiptBeforeSnapshot(action.undoReceipt!);
+          if (beforeSnapshot == null) continue;
+          final receipt = _restoreReceiptFromProjection(
+            action: action,
+            actionUndoReceipt: action.undoReceipt!,
+          );
+          if (receipt == null) continue;
+          final host = WhiteboardAiWriteToolHost.forDriftStore(
+            permissionBroker: _permissionBroker,
+            store: _store,
+          );
+          host.restoreUndoReceipt(
+            receipt: receipt,
+            beforeSnapshot: beforeSnapshot,
+          );
+          _undoBindings[action.actionId] = _UndoBinding(
+            messageId: message.id,
+            projection: action,
+            host: host,
+            runtimeTurnId: action.runtimeTurnId!,
+            undoToken: action.undoToken!,
+            reload: () => _reloadIfBoardOpen(action.boardId),
+          );
+        }
+      }
+    } finally {
+      _restoredCharacters.add(characterId);
+    }
+  }
+
+  Future<void> _reloadIfBoardOpen(String boardId) async {
+    final surface = _surfaceController.current;
+    if (surface != null && surface.boardId == boardId) {
+      await surface.reload();
+    }
+  }
+
   Future<void> undo(String actionId) async {
+    final characterId = _activeCharacterId ?? 'i';
+    await _restoreUndoBindings(characterId);
     final binding = _undoBindings[actionId];
     if (binding == null) return;
     final activeSurface = _surfaceController.current;
@@ -629,6 +703,61 @@ groups 必须完整划分以上选择：每个所选 item_id 必须且只能出�
       },
     },
   ];
+}
+
+Iterable<WorkbenchActionProjection> _extractWorkbenchActionProjections(
+  dynamic message,
+) {
+  final attachmentsRaw = message.attachmentsJson;
+  if (attachmentsRaw is! String || attachmentsRaw.trim().isEmpty) {
+    return const [];
+  }
+  final decoded = jsonDecode(attachmentsRaw);
+  if (decoded is! List) return const [];
+  final projections = <WorkbenchActionProjection>[];
+  for (final rawAttachment in decoded) {
+    if (rawAttachment is! Map) continue;
+    if (rawAttachment['type'] != 'workbench_action') continue;
+    final action = rawAttachment['action'];
+    if (action is! Map) continue;
+    try {
+      projections.add(
+        WorkbenchActionProjection.fromJson(Map<String, dynamic>.from(action)),
+      );
+    } catch (_) {}
+  }
+  return projections;
+}
+
+WhiteboardAiWriteReceipt? _restoreReceiptFromProjection({
+  required WorkbenchActionProjection action,
+  required Map<String, dynamic> actionUndoReceipt,
+}) {
+  try {
+    final receiptMap = Map<String, dynamic>.from(actionUndoReceipt)
+      ..remove('before_snapshot');
+    return WhiteboardAiWriteReceipt.fromJson({
+      ...receiptMap,
+      'runtime_turn_id': action.runtimeTurnId ?? actionUndoReceipt['runtime_turn_id'],
+      'board_id': action.boardId,
+      'operation_batch_id':
+          action.operationBatchId ?? actionUndoReceipt['operation_batch_id'],
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+WhiteboardSnapshot? _undoReceiptBeforeSnapshot(
+  Map<String, dynamic> actionUndoReceipt,
+) {
+  final rawBefore = actionUndoReceipt['before_snapshot'];
+  if (rawBefore is! Map) return null;
+  try {
+    return WhiteboardSnapshot.fromJson(Map<String, dynamic>.from(rawBefore));
+  } catch (_) {
+    return null;
+  }
 }
 
 class _UndoBinding {

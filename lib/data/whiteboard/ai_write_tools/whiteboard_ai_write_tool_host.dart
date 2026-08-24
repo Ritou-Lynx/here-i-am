@@ -76,6 +76,24 @@ class WhiteboardAiWriteToolHost {
   final Map<String, _UndoRecord> _undoRecords = {};
   final Map<String, WhiteboardAiWriteReceipt> _completedUndos = {};
 
+  void restoreUndoReceipt({
+    required WhiteboardAiWriteReceipt receipt,
+    required WhiteboardSnapshot beforeSnapshot,
+  }) {
+    if (receipt.status != WhiteboardAiWriteStatus.applied ||
+        receipt.undoToken == null ||
+        receipt.afterSnapshotHash == null) {
+      return;
+    }
+    final token = receipt.undoToken!;
+    if (_undoRecords.containsKey(token)) return;
+    _undoRecords[token] = _UndoRecord(
+      receipt: receipt,
+      beforeSnapshot: beforeSnapshot,
+      afterSnapshotHash: receipt.afterSnapshotHash!,
+    );
+  }
+
   Future<WhiteboardAiWriteReceipt> groupAndConnect(
     WhiteboardAiGroupAndConnectRequest request,
   ) async {

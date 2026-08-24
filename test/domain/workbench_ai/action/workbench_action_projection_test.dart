@@ -23,6 +23,13 @@ void main() {
       beforeSnapshotHash: List.filled(64, 'a').join(),
       afterSnapshotHash: List.filled(64, 'b').join(),
       undoToken: 'undo_1',
+      undoReceipt: {
+        'schema_version': 1,
+        'status': 'applied',
+        'operation_batch_id': 'batch_1',
+        'runtime_turn_id': 'turn_1',
+        'board_id': 'board_1',
+      },
       tools: const [
         'whiteboard_read_selection',
         'whiteboard_group_and_connect',
@@ -36,6 +43,7 @@ void main() {
     expect(decoded.actionId, action.actionId);
     expect(decoded.status, WorkbenchActionStatus.completed);
     expect(decoded.undoToken, 'undo_1');
+    expect(decoded.undoReceipt, isNotNull);
     expect(decoded.tools, action.tools);
     expect(decoded.toJson(), action.toJson());
   });
