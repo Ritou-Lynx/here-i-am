@@ -162,6 +162,10 @@ class MemexRouter {
         );
         GrowthPactService.init(AppDatabase.instance);
         TaskRoomService.init(AppDatabase.instance);
+        // Persisted queue recovery is awaited once before any Bridge or UI can
+        // observe TaskRoom state, so an interrupted task is never presented as
+        // still running after an App/Bridge restart.
+        await TaskRoomService.instance.restoreInterruptedTaskRoomsOnce();
         unawaited(
           DreamingSchedulerService.scheduleExistingBacklog(
             AppDatabase.instance,

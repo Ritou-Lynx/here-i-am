@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:drift/drift.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
@@ -28,10 +27,14 @@ class TaskRoomService {
   static const String _queueLastFailedAtKey = 'lastFailedAt';
   static const String _queueLastRecoveredAtKey = 'lastRecoveredAt';
   static const String _queuePausedReasonKey = 'pauseReason';
+  static const String _queueResumableStateKey = 'resumableState';
+  static const String _queuePausedState = 'paused';
+  static const String _queueInterruptedState = 'interrupted';
   static const String _interruptedByRestartReason = 'interrupted_by_restart';
 
   static bool _initialized = false;
   static TaskRoomService? _instance;
+  Future<int>? _startupRecovery;
 
   TaskRoomService({required AppDatabase db}) : _db = db;
 
@@ -45,6 +48,13 @@ class TaskRoomService {
       throw StateError('TaskRoomService not initialized. Call init() first.');
     }
     return _instance!;
+  }
+
+  /// Runs persisted running-task recovery at most once for this service
+  /// instance. The application startup path must await this before exposing
+  /// TaskRoom state to the Bridge or UI.
+  Future<int> restoreInterruptedTaskRoomsOnce() {
+    return _startupRecovery ??= restoreInterruptedTaskRooms();
   }
 
   // ========================================================================
@@ -64,6 +74,10 @@ class TaskRoomService {
     String? boardId,
     int maxRetries = _defaultMaxRetries,
   }) async {
+    if (maxRetries < 0) {
+      throw ArgumentError.value(maxRetries, 'maxRetries', 'must not be negative');
+    }
+
     final id = _uuid.v4();
     final now = DateTime.now().millisecondsSinceEpoch;
     final normalizedContext = _withQueueContext(
@@ -150,26 +164,37 @@ class TaskRoomService {
 
   /// 继续执行（resume）暂停任务。
   Future<void> resumeTaskRoom(String id) async {
-    final room = await getTaskRoom(id);
-    if (room == null) {
-      throw ArgumentError('Task room not found: $id');
-    }
+    await _db.transaction(() async {
+      final room = await _getTaskRoomInTransaction(id);
+      if (room == null) {
+        throw ArgumentError('Task room not found: $id');
+      }
 
-    final status = TaskStatus.fromString(room.status);
-    if (status == TaskStatus.blocked) {
-      await updateTaskStatus(id: id, status: TaskStatus.running);
-      await _clearQueueField(
-        taskId: id,
-        queueField: _queuePausedReasonKey,
+      final status = TaskStatus.fromString(room.status);
+      if (status == TaskStatus.running) return;
+      if (status != TaskStatus.blocked) {
+        throw StateError('Cannot resume task in status ${status.value}.');
+      }
+
+      final context = _readContext(room);
+      final queue = _queueForContext(context);
+      if (!_isQueueResumable(queue)) {
+        throw StateError('Cannot resume a non-queue blocked task.');
+      }
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      queue
+        ..remove(_queuePausedReasonKey)
+        ..remove(_queueResumableStateKey)
+        ..[_queueLastStartedAtKey] = now;
+      context[_queueContextKey] = queue;
+      await _writeTaskStatusAndContext(
+        id: id,
+        status: TaskStatus.running,
+        context: context,
+        now: now,
       );
-      return;
-    }
-
-    if (status == TaskStatus.running) {
-      return;
-    }
-
-    throw StateError('Cannot resume task in status ${status.value}.');
+    });
   }
 
   /// 暂停任务：转为 blocked，用于用户可控恢复。
@@ -177,35 +202,36 @@ class TaskRoomService {
     required String id,
     String? reason,
   }) async {
-    final room = await getTaskRoom(id);
-    if (room == null) {
-      throw ArgumentError('Task room not found: $id');
-    }
-
-    final status = TaskStatus.fromString(room.status);
-    if (status == TaskStatus.blocked) {
-      if (reason != null) {
-        await _setQueueField(
-          taskId: id,
-          queueField: _queuePausedReasonKey,
-          value: reason,
-        );
+    await _db.transaction(() async {
+      final room = await _getTaskRoomInTransaction(id);
+      if (room == null) {
+        throw ArgumentError('Task room not found: $id');
       }
-      return;
-    }
 
-    if (status != TaskStatus.running) {
-      throw StateError('Cannot pause task in status ${status.value}.');
-    }
+      final status = TaskStatus.fromString(room.status);
+      final context = _readContext(room);
+      final queue = _queueForContext(context);
+      if (status == TaskStatus.blocked) {
+        if (!_isQueueResumable(queue)) {
+          throw StateError('Cannot pause a non-queue blocked task.');
+        }
+        if (reason == null) return;
+      } else if (status != TaskStatus.running) {
+        throw StateError('Cannot pause task in status ${status.value}.');
+      }
 
-    await updateTaskStatus(id: id, status: TaskStatus.blocked);
-    if (reason != null) {
-      await _setQueueField(
-        taskId: id,
-        queueField: _queuePausedReasonKey,
-        value: reason,
+      queue[_queueResumableStateKey] = _queuePausedState;
+      if (reason != null) {
+        queue[_queuePausedReasonKey] = reason;
+      }
+      context[_queueContextKey] = queue;
+      await _writeTaskStatusAndContext(
+        id: id,
+        status: TaskStatus.blocked,
+        context: context,
+        now: DateTime.now().millisecondsSinceEpoch,
       );
-    }
+    });
   }
 
   /// 取消任务：终态外重复调用幂等。
@@ -234,68 +260,70 @@ class TaskRoomService {
     required String id,
     String? failureReason,
   }) async {
-    final room = await getTaskRoom(id);
-    if (room == null) {
-      throw ArgumentError('Task room not found: $id');
-    }
+    await _db.transaction(() async {
+      final room = await _getTaskRoomInTransaction(id);
+      if (room == null) {
+        throw ArgumentError('Task room not found: $id');
+      }
 
-    final status = TaskStatus.fromString(room.status);
-    if (status != TaskStatus.failed) {
-      throw StateError(
-        'Only failed tasks can be retried. Current status is ${status.value}.',
+      final status = TaskStatus.fromString(room.status);
+      if (status != TaskStatus.failed) {
+        throw StateError(
+          'Only failed tasks can be retried. Current status is ${status.value}.',
+        );
+      }
+
+      final context = _readContext(room);
+      final queue = _queueForContext(context);
+      final maxRetries = queue[_queueMaxRetriesKey] as int;
+      final retryCount = queue[_queueRetryCountKey] as int;
+      if (retryCount >= maxRetries) {
+        throw StateError('Task room $id exceeded max retries ($maxRetries).');
+      }
+
+      queue
+        ..[_queueRetryCountKey] = retryCount + 1
+        ..remove(_queueFailedReasonKey)
+        ..remove(_queueLastFailedAtKey)
+        ..remove(_queuePausedReasonKey)
+        ..remove(_queueResumableStateKey);
+      context[_queueContextKey] = queue;
+      await _writeTaskStatusAndContext(
+        id: id,
+        status: TaskStatus.pending,
+        context: context,
+        now: DateTime.now().millisecondsSinceEpoch,
+        progressPercent: 0,
+        currentStep: failureReason == null ? 'retry' : 'retry after $failureReason',
       );
-    }
-
-    final queue = _readQueueMetadata(room);
-    final maxRetries = _coerceInt(queue[_queueMaxRetriesKey]) ?? _defaultMaxRetries;
-    final retryCount = _coerceInt(queue[_queueRetryCountKey]) ?? 0;
-
-    if (retryCount >= maxRetries) {
-      throw StateError(
-        'Task room $id exceeded max retries ($maxRetries).',
-      );
-    }
-
-    final nextRetryCount = retryCount + 1;
-    await _updateTaskQueueMetadata(
-      taskId: id,
-      metadataPatch: {
-        _queueRetryCountKey: nextRetryCount,
-        _queueFailedReasonKey: null,
-        _queueLastFailedAtKey: null,
-      },
-    );
-
-    await updateTaskStatus(
-      id: id,
-      status: TaskStatus.pending,
-      progressPercent: 0,
-      currentStep: failureReason != null ? null : 'retry',
-      failureReason: failureReason,
-    );
+    });
   }
 
   /// 重启/进程恢复：将运行中任务标记为可恢复暂停态。
   Future<int> restoreInterruptedTaskRooms() async {
-    final interrupted = await (_db.select(_db.taskRooms)
-          ..where((t) => t.status.equals(TaskStatus.running.value)))
-        .get();
+    final restored = await _db.transaction(() async {
+      final interrupted = await (_db.select(_db.taskRooms)
+            ..where((t) => t.status.equals(TaskStatus.running.value)))
+          .get();
+      final now = DateTime.now().millisecondsSinceEpoch;
 
-    if (interrupted.isEmpty) return 0;
-
-    var restored = 0;
-    for (final room in interrupted) {
-      await updateTaskStatus(id: room.id, status: TaskStatus.blocked);
-      await _updateTaskQueueMetadata(
-        taskId: room.id,
-        metadataPatch: {
-          _queuePausedReasonKey: _interruptedByRestartReason,
-          _queueInterruptedReasonKey: _interruptedByRestartReason,
-          _queueLastRecoveredAtKey: DateTime.now().millisecondsSinceEpoch,
-        },
-      );
-      restored += 1;
-    }
+      for (final room in interrupted) {
+        final context = _readContext(room);
+        final queue = _queueForContext(context)
+          ..[_queuePausedReasonKey] = _interruptedByRestartReason
+          ..[_queueInterruptedReasonKey] = _interruptedByRestartReason
+          ..[_queueResumableStateKey] = _queueInterruptedState
+          ..[_queueLastRecoveredAtKey] = now;
+        context[_queueContextKey] = queue;
+        await _writeTaskStatusAndContext(
+          id: room.id,
+          status: TaskStatus.blocked,
+          context: context,
+          now: now,
+        );
+      }
+      return interrupted.length;
+    });
 
     _log.info('Restored $restored interrupted task rooms');
     return restored;
@@ -352,92 +380,43 @@ class TaskRoomService {
       throw ArgumentError('progressPercent must be between 0 and 100, got: $progressPercent');
     }
 
-    // Validate state transition
-    final currentTask = await getTaskRoom(id);
-    if (currentTask == null) {
-      throw ArgumentError('Task room not found: $id');
-    }
-
-    final currentStatus = TaskStatus.fromString(currentTask.status);
-
-    // Allow same-state updates only for non-terminal states (to update progress/currentStep)
-    // Terminal states (completed/failed/cancelled/archived) cannot be modified
-    if (currentStatus != status) {
-      // Different state: validate transition
-      if (!currentStatus.canTransitionTo(status)) {
-        throw StateError(
-          'Invalid status transition: ${currentStatus.value} -> ${status.value}. '
-          'Valid transitions: ${TaskStatus.validTransitions[currentStatus]?.map((s) => s.value).join(", ")}',
-        );
+    await _db.transaction(() async {
+      final currentTask = await _getTaskRoomInTransaction(id);
+      if (currentTask == null) {
+        throw ArgumentError('Task room not found: $id');
       }
-    } else {
-      // Same state: only allow for non-terminal states
-      if (currentStatus.isTerminal) {
-        throw StateError(
-          'Cannot update terminal state ${currentStatus.value}. '
-          'Terminal states (completed/failed/cancelled/archived) are immutable.',
-        );
+      _validateStatusTransition(
+        current: TaskStatus.fromString(currentTask.status),
+        next: status,
+      );
+
+      final context = _readContext(currentTask);
+      final queue = _queueForContext(context);
+      final currentStatus = TaskStatus.fromString(currentTask.status);
+      if (currentStatus == TaskStatus.failed && status == TaskStatus.pending) {
+        throw StateError('Use retryTaskRoom to retry a failed task.');
       }
-    }
-
-    var updates = TaskRoomsCompanion(
-      status: Value(status.value),
-      updatedAt: Value(now),
-    );
-
-    if (progressPercent != null) {
-      updates = updates.copyWith(progressPercent: Value(progressPercent));
-    }
-    if (currentStep != null) {
-      updates = updates.copyWith(currentStep: Value(currentStep));
-    }
-
-    // 设置完成或归档时间戳
-    if (status == TaskStatus.completed) {
-      updates = updates.copyWith(completedAt: Value(now));
-    } else if (status == TaskStatus.archived) {
-      updates = updates.copyWith(archivedAt: Value(now));
-    }
-
-    await (_db.update(_db.taskRooms)..where((t) => t.id.equals(id)))
-        .write(updates);
-
-    if (status == TaskStatus.running) {
-      await _updateTaskQueueMetadata(
-        taskId: id,
-        metadataPatch: {
-          _queueLastStartedAtKey: now,
-          _queuePausedReasonKey: null,
-        },
+      if (currentStatus == TaskStatus.blocked &&
+          status == TaskStatus.running &&
+          !_isQueueResumable(queue)) {
+        throw StateError('Cannot resume a non-queue blocked task.');
+      }
+      _applyStatusQueueMetadata(
+        queue: queue,
+        status: status,
+        now: now,
+        failureReason: failureReason,
       );
-    }
-
-    if (status == TaskStatus.failed) {
-      await _updateTaskQueueMetadata(
-        taskId: id,
-        metadataPatch: {
-          _queueFailedReasonKey: failureReason ?? 'failed',
-          _queueLastFailedAtKey: now,
-          _queuePausedReasonKey: null,
-        },
+      context[_queueContextKey] = queue;
+      await _writeTaskStatusAndContext(
+        id: id,
+        status: status,
+        context: context,
+        now: now,
+        progressPercent: progressPercent,
+        currentStep: currentStep,
       );
-    } else if (status == TaskStatus.completed ||
-        status == TaskStatus.cancelled ||
-        status == TaskStatus.archived) {
-      await _updateTaskQueueMetadata(
-        taskId: id,
-        metadataPatch: {
-          _queueFailedReasonKey: null,
-          _queueLastFailedAtKey: null,
-        },
-      );
-    }
-
-    if (status == TaskStatus.cancelled ||
-        status == TaskStatus.completed ||
-        status == TaskStatus.archived) {
-      await _clearQueueField(taskId: id, queueField: _queuePausedReasonKey);
-    }
+    });
 
     _log.info('Updated task $id: status=${status.value} progress=$progressPercent');
   }
@@ -448,21 +427,28 @@ class TaskRoomService {
     Map<String, dynamic>? context,
     Map<String, dynamic>? permissions,
   }) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    var updates = TaskRoomsCompanion(
-      updatedAt: Value(now),
-    );
+    await _db.transaction(() async {
+      final room = await _getTaskRoomInTransaction(id);
+      if (room == null) {
+        throw ArgumentError('Task room not found: $id');
+      }
 
-    if (context != null) {
-      updates = updates.copyWith(contextJson: Value(jsonEncode(context)));
-    }
-    if (permissions != null) {
-      updates = updates.copyWith(
-          permissionsJson: Value(jsonEncode(permissions)));
-    }
-
-    await (_db.update(_db.taskRooms)..where((t) => t.id.equals(id)))
-        .write(updates);
+      var updates = TaskRoomsCompanion(
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      );
+      if (context != null) {
+        final nextContext = Map<String, dynamic>.from(context);
+        final queue = _queueForContext(_readContext(room));
+        nextContext[_queueContextKey] = queue;
+        updates = updates.copyWith(contextJson: Value(jsonEncode(nextContext)));
+      }
+      if (permissions != null) {
+        updates = updates.copyWith(
+            permissionsJson: Value(jsonEncode(permissions)));
+      }
+      await (_db.update(_db.taskRooms)..where((t) => t.id.equals(id)))
+          .write(updates);
+    });
   }
 
   /// 归档任务房间（软删除）
@@ -510,14 +496,13 @@ class TaskRoomService {
     required int maxRetries,
   }) {
     final normalizedContext = Map<String, dynamic>.from(context ?? {});
-    final queueContext = normalizedContext[_queueContextKey];
-    final mergedQueue = <String, dynamic>{
+    if (maxRetries < 0) {
+      throw ArgumentError.value(maxRetries, 'maxRetries', 'must not be negative');
+    }
+    normalizedContext[_queueContextKey] = <String, dynamic>{
       _queueMaxRetriesKey: maxRetries,
       _queueRetryCountKey: 0,
-      if (queueContext is Map<String, dynamic>) ...queueContext,
     };
-
-    normalizedContext[_queueContextKey] = mergedQueue;
     return normalizedContext;
   }
 
@@ -535,18 +520,18 @@ class TaskRoomService {
     return {};
   }
 
-  Map<String, dynamic> _readQueueMetadata(TaskRoom room) {
-    final context = _readContext(room);
+  Map<String, dynamic> _queueForContext(Map<String, dynamic> context) {
     final raw = context[_queueContextKey];
-    final maxRetries = _coerceInt(raw is Map && raw[_queueMaxRetriesKey] != null
-        ? raw[_queueMaxRetriesKey]
-        : null);
-
-    return {
-      _queueMaxRetriesKey: maxRetries ?? _defaultMaxRetries,
-      _queueRetryCountKey: raw is Map ? _coerceInt(raw[_queueRetryCountKey]) ?? 0 : 0,
-      if (raw is Map) ...raw.cast<String, dynamic>(),
-    };
+    final queue = raw is Map
+        ? raw.map((key, value) => MapEntry(key.toString(), value))
+        : <String, dynamic>{};
+    final maxRetries = _coerceInt(queue[_queueMaxRetriesKey]);
+    final retryCount = _coerceInt(queue[_queueRetryCountKey]);
+    queue[_queueMaxRetriesKey] =
+        maxRetries != null && maxRetries >= 0 ? maxRetries : _defaultMaxRetries;
+    queue[_queueRetryCountKey] =
+        retryCount != null && retryCount >= 0 ? retryCount : 0;
+    return queue;
   }
 
   int? _coerceInt(Object? value) {
@@ -555,65 +540,93 @@ class TaskRoomService {
     return null;
   }
 
-  Future<void> _setQueueField({
-    required String taskId,
-    required String queueField,
-    required Object? value,
-  }) async {
-    final room = await getTaskRoom(taskId);
-    if (room == null) {
-      throw ArgumentError('Task room not found: $taskId');
-    }
-
-    final context = _readContext(room);
-    final queue = Map<String, dynamic>.from(context[_queueContextKey] ?? {});
-    if (value == null) {
-      queue.remove(queueField);
-    } else {
-      queue[queueField] = value;
-    }
-    context[_queueContextKey] = queue;
-
-    await (_db.update(_db.taskRooms)..where((t) => t.id.equals(taskId)))
-        .write(TaskRoomsCompanion(
-          contextJson: Value(jsonEncode(context)),
-          updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
-        ));
+  bool _isQueueResumable(Map<String, dynamic> queue) {
+    final state = queue[_queueResumableStateKey];
+    return state == _queuePausedState || state == _queueInterruptedState;
   }
 
-  Future<void> _clearQueueField({
-    required String taskId,
-    required String queueField,
-  }) async {
-    await _setQueueField(taskId: taskId, queueField: queueField, value: null);
+  void _applyStatusQueueMetadata({
+    required Map<String, dynamic> queue,
+    required TaskStatus status,
+    required int now,
+    String? failureReason,
+  }) {
+    if (status == TaskStatus.running) {
+      queue
+        ..[_queueLastStartedAtKey] = now
+        ..remove(_queuePausedReasonKey)
+        ..remove(_queueResumableStateKey);
+    } else if (status == TaskStatus.failed) {
+      queue
+        ..[_queueFailedReasonKey] = failureReason ?? 'failed'
+        ..[_queueLastFailedAtKey] = now
+        ..remove(_queuePausedReasonKey)
+        ..remove(_queueResumableStateKey);
+    } else if (status == TaskStatus.completed ||
+        status == TaskStatus.cancelled ||
+        status == TaskStatus.archived) {
+      queue
+        ..remove(_queueFailedReasonKey)
+        ..remove(_queueLastFailedAtKey)
+        ..remove(_queuePausedReasonKey)
+        ..remove(_queueResumableStateKey);
+    }
   }
 
-  Future<void> _updateTaskQueueMetadata({
-    required String taskId,
-    required Map<String, dynamic> metadataPatch,
-  }) async {
-    final room = await getTaskRoom(taskId);
-    if (room == null) {
-      throw ArgumentError('Task room not found: $taskId');
-    }
-
-    final context = _readContext(room);
-    final queue = Map<String, dynamic>.from(context[_queueContextKey] ?? {});
-    for (final entry in metadataPatch.entries) {
-      if (entry.value == null) {
-        queue.remove(entry.key);
-      } else {
-        queue[entry.key] = entry.value;
-      }
-    }
-    context[_queueContextKey] = queue;
-
-    await (_db.update(_db.taskRooms)..where((t) => t.id.equals(taskId))).write(
-          TaskRoomsCompanion(
-            contextJson: Value(jsonEncode(context)),
-            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
-          ),
+  void _validateStatusTransition({
+    required TaskStatus current,
+    required TaskStatus next,
+  }) {
+    if (current != next) {
+      if (!current.canTransitionTo(next)) {
+        throw StateError(
+          'Invalid status transition: ${current.value} -> ${next.value}. '
+          'Valid transitions: ${TaskStatus.validTransitions[current]?.map((s) => s.value).join(", ")}',
         );
+      }
+      return;
+    }
+    if (current.isTerminal) {
+      throw StateError(
+        'Cannot update terminal state ${current.value}. '
+        'Terminal states (completed/failed/cancelled/archived) are immutable.',
+      );
+    }
+  }
+
+  Future<TaskRoom?> _getTaskRoomInTransaction(String id) {
+    return (_db.select(_db.taskRooms)
+          ..where((t) => t.id.equals(id))
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<void> _writeTaskStatusAndContext({
+    required String id,
+    required TaskStatus status,
+    required Map<String, dynamic> context,
+    required int now,
+    int? progressPercent,
+    String? currentStep,
+  }) async {
+    var updates = TaskRoomsCompanion(
+      status: Value(status.value),
+      contextJson: Value(jsonEncode(context)),
+      updatedAt: Value(now),
+    );
+    if (progressPercent != null) {
+      updates = updates.copyWith(progressPercent: Value(progressPercent));
+    }
+    if (currentStep != null) {
+      updates = updates.copyWith(currentStep: Value(currentStep));
+    }
+    if (status == TaskStatus.completed) {
+      updates = updates.copyWith(completedAt: Value(now));
+    } else if (status == TaskStatus.archived) {
+      updates = updates.copyWith(archivedAt: Value(now));
+    }
+    await (_db.update(_db.taskRooms)..where((t) => t.id.equals(id)))
+        .write(updates);
   }
 
   // ========================================================================

@@ -219,6 +219,17 @@ void main() {
       expect(pending.every((m) => m.messageType == 'chat'), isTrue);
     });
 
+    test('ordinary chat write does not create a TaskRoom', () async {
+      final before = await db.select(db.taskRooms).get();
+
+      await service.addUserMessage('luna', '今天下雨了吗？');
+
+      final after = await db.select(db.taskRooms).get();
+      expect(before, isEmpty);
+      expect(after, isEmpty,
+          reason: '普通短聊天只写 PersonaChatMessages，不进入长任务队列');
+    });
+
     test('character messages are not enqueued to the sync outbox', () async {
       final base = DateTime(2026, 6, 14, 9);
       final deviceId = await DeviceIdentityService.getOrCreate();

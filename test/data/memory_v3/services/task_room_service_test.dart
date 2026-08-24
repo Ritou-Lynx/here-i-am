@@ -395,6 +395,18 @@ void main() {
       expect(queue['retryCount'], 0);
     });
 
+    test('enqueueTaskRoom rejects negative maxRetries', () async {
+      expect(
+        () => service.enqueueTaskRoom(
+          title: 'Invalid retry policy',
+          goal: 'Must reject negative retries',
+          taskType: TaskType.coding,
+          maxRetries: -1,
+        ),
+        throwsArgumentError,
+      );
+    });
+
     test('getTaskStatus returns normalized status', () async {
       final id = await service.createTaskRoom(
         title: 'Status task',
@@ -419,16 +431,34 @@ void main() {
       var room = await service.getTaskRoom(id);
       expect(room!.status, TaskStatus.blocked.value);
       expect(parseQueueContext(room)['pauseReason'], 'user requested');
+      expect(parseQueueContext(room)['resumableState'], 'paused');
 
       // resume is idempotent when already running
       await service.resumeTaskRoom(id);
       room = await service.getTaskRoom(id);
       expect(room!.status, TaskStatus.running.value);
       expect(parseQueueContext(room).containsKey('pauseReason'), isFalse);
+      expect(parseQueueContext(room).containsKey('resumableState'), isFalse);
 
       await service.resumeTaskRoom(id);
       room = await service.getTaskRoom(id);
       expect(room!.status, TaskStatus.running.value);
+    });
+
+    test('resumeTaskRoom rejects blocked tasks not marked by the queue',
+        () async {
+      final id = await service.createTaskRoom(
+        title: 'Domain blocked task',
+        goal: 'Do not bypass another blocked reason',
+        taskType: TaskType.planning,
+      );
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+      await service.updateTaskStatus(id: id, status: TaskStatus.blocked);
+
+      expect(() => service.resumeTaskRoom(id), throwsStateError);
+      final room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.blocked.value);
+      expect(parseQueueContext(room).containsKey('resumableState'), isFalse);
     });
 
     test('cancelTaskRoom is idempotent in terminal or canceled states', () async {
@@ -475,6 +505,60 @@ void main() {
       );
     });
 
+    test('failed and retry transitions persist queue state with status',
+        () async {
+      final id = await service.enqueueTaskRoom(
+        title: 'Atomic queue transition',
+        goal: 'Keep status and queue metadata paired',
+        taskType: TaskType.coding,
+      );
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+      await service.updateTaskStatus(
+        id: id,
+        status: TaskStatus.failed,
+        failureReason: 'connection lost',
+      );
+
+      var room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.failed.value);
+      expect(parseQueueContext(room)['failedReason'], 'connection lost');
+      expect(parseQueueContext(room)['lastFailedAt'], isA<int>());
+
+      await service.retryTaskRoom(id: id);
+      room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.pending.value);
+      expect(parseQueueContext(room)['retryCount'], 1);
+      expect(parseQueueContext(room).containsKey('failedReason'), isFalse);
+      expect(parseQueueContext(room).containsKey('lastFailedAt'), isFalse);
+    });
+
+    test('generic status updates cannot bypass queue retry or resume guards',
+        () async {
+      final failedId = await service.enqueueTaskRoom(
+        title: 'Retry guard',
+        goal: 'Reject direct failed to pending',
+        taskType: TaskType.coding,
+      );
+      await service.updateTaskStatus(id: failedId, status: TaskStatus.running);
+      await service.updateTaskStatus(id: failedId, status: TaskStatus.failed);
+      expect(
+        () => service.updateTaskStatus(id: failedId, status: TaskStatus.pending),
+        throwsStateError,
+      );
+
+      final blockedId = await service.createTaskRoom(
+        title: 'Resume guard',
+        goal: 'Reject direct blocked to running',
+        taskType: TaskType.coding,
+      );
+      await service.updateTaskStatus(id: blockedId, status: TaskStatus.running);
+      await service.updateTaskStatus(id: blockedId, status: TaskStatus.blocked);
+      expect(
+        () => service.updateTaskStatus(id: blockedId, status: TaskStatus.running),
+        throwsStateError,
+      );
+    });
+
     test('restoreInterruptedTaskRooms converts running tasks to blocked with recovery marker', () async {
       final runningId = await service.createTaskRoom(
         title: 'Running task',
@@ -488,6 +572,10 @@ void main() {
         goal: 'Should stay done',
         taskType: TaskType.whiteboard,
       );
+      await service.updateTaskStatus(
+        id: completedId,
+        status: TaskStatus.running,
+      );
       await service.updateTaskStatus(id: completedId, status: TaskStatus.completed);
 
       final restored = await service.restoreInterruptedTaskRooms();
@@ -500,9 +588,29 @@ void main() {
         'interrupted_by_restart',
       );
       expect(parseQueueContext(restoredRoom).containsKey('interruptedReason'), isTrue);
+      expect(parseQueueContext(restoredRoom)['resumableState'], 'interrupted');
 
       final untouchedRoom = await service.getTaskRoom(completedId);
       expect(TaskStatus.fromString(untouchedRoom!.status), TaskStatus.completed);
+    });
+
+    test('startup recovery runs once and leaves interrupted work resumable',
+        () async {
+      final id = await service.enqueueTaskRoom(
+        title: 'Restarted task',
+        goal: 'Recover only once',
+        taskType: TaskType.whiteboard,
+      );
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+
+      expect(await service.restoreInterruptedTaskRoomsOnce(), 1);
+      expect(await service.restoreInterruptedTaskRoomsOnce(), 1);
+
+      final room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.blocked.value);
+      expect(parseQueueContext(room)['resumableState'], 'interrupted');
+      await service.resumeTaskRoom(id);
+      expect(await service.getTaskStatus(id), TaskStatus.running);
     });
 
     test('非法状态不允许执行 queue 操作', () async {
@@ -511,6 +619,7 @@ void main() {
         goal: 'Blocked case',
         taskType: TaskType.coding,
       );
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
       await service.updateTaskStatus(id: id, status: TaskStatus.completed);
 
       expect(() => service.resumeTaskRoom(id), throwsA(isA<StateError>()));
@@ -563,7 +672,7 @@ void main() {
         content: {},
       );
 
-      await Future.delayed(Duration(milliseconds: 10));
+      await Future.delayed(const Duration(milliseconds: 10));
 
       await service.recordArtifact(
         taskId: taskId,
@@ -679,7 +788,7 @@ void main() {
         selectedOption: 'A',
       );
 
-      await Future.delayed(Duration(milliseconds: 10));
+      await Future.delayed(const Duration(milliseconds: 10));
 
       await service.recordDecision(
         taskId: taskId,
