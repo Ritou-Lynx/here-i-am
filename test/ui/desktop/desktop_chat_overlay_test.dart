@@ -490,6 +490,19 @@ void main() {
     );
 
     expect(find.byKey(const ValueKey('desktop_chat_send')), findsNothing);
+    final input = tester.widget<TextField>(
+      find.byKey(const ValueKey('desktop_chat_input')),
+    );
+    expect(input.enabled, isTrue);
+    expect(input.minLines, 2);
+    expect(input.maxLines, 5);
+    expect(input.decoration?.filled, isFalse);
+    expect(input.decoration?.focusedBorder, InputBorder.none);
+    await tester.enterText(
+      find.byKey(const ValueKey('desktop_chat_input')),
+      '语音转写在回复期间也能提交到输入框',
+    );
+    expect(controller.text, '语音转写在回复期间也能提交到输入框');
     await tester.tap(find.byKey(const ValueKey('desktop_chat_stop')));
     await tester.pump();
     expect(stops, 1);

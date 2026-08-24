@@ -324,6 +324,15 @@ class _DelayedLoadAdapter extends _LinkOnlyAdapter {
   void dispose() {}
 }
 
+class _StalledEmbedAdapter extends _DelayedLoadAdapter {
+  _StalledEmbedAdapter() : super('fixture');
+
+  @override
+  PlayerCapability get capability => const PlayerCapability(
+        canEmbedPlayer: true,
+      );
+}
+
 class _DelayedBiliProbe implements BilibiliSameOriginSubtitleProbe {
   final completer = Completer<BilibiliSameOriginProbeResult>();
 
@@ -1509,6 +1518,39 @@ void main() {
     expect(adapter.loadCalls, 2);
     expect(find.byKey(const ValueKey('video_retry_load')), findsNothing);
     expect(find.byKey(const ValueKey('video_player_region')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('stalled player times out and subtitle workspace remains usable',
+      (tester) async {
+    final adapter = _StalledEmbedAdapter();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStudyScreen(
+          adapter: adapter,
+          sourceId: 'src_stalled',
+          sourceVersionId: 'ver_stalled_v1',
+        ),
+      ),
+    );
+
+    await tester.pump(VideoStudyViewModel.playerLoadTimeout);
+    await tester.pump();
+    expect(find.textContaining('视频加载超时'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('video_continue_without_player')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('video_continue_without_player')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('video_player_degraded_surface')),
+      findsOneWidget,
+    );
+    expect(find.text('导入字幕'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

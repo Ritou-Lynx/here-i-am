@@ -13,6 +13,7 @@ import 'package:webview_flutter_windows/webview_flutter_windows.dart';
 
 import '../player_adapter.dart';
 import 'provider_capability_matrix.dart';
+import 'windows_webview_lifecycle.dart';
 
 class WindowsYouTubePlayerAdapter implements PlayerAdapter {
   static const String virtualHost = 'hereiam-player.local';
@@ -29,6 +30,7 @@ class WindowsYouTubePlayerAdapter implements PlayerAdapter {
   bool _initialized = false;
   bool _playerReady = false;
   bool _disposed = false;
+  Future<void>? _disposeFuture;
   String? _lastFailure;
 
   WebviewController? get webviewController => _controller;
@@ -75,6 +77,8 @@ class WindowsYouTubePlayerAdapter implements PlayerAdapter {
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
     try {
+      await WindowsWebViewLifecycle.waitForPreviousDisposal();
+      if (_disposed) throw StateError('Windows YouTube 播放器已关闭');
       final version = await WebviewController.getWebViewVersion();
       final runtimeFailure = runtimeFailureMessage(version);
       if (runtimeFailure != null) {
@@ -249,21 +253,31 @@ class WindowsYouTubePlayerAdapter implements PlayerAdapter {
           ? value
           : null;
 
-  void dispose() {
-    if (_disposed) return;
+  Future<void> dispose() {
+    final existing = _disposeFuture;
+    if (existing != null) return existing;
     _disposed = true;
-    for (final subscription in _subscriptions) {
-      unawaited(subscription.cancel());
-    }
+    final disposal = _disposeResources();
+    _disposeFuture = disposal;
+    WindowsWebViewLifecycle.registerDisposal(disposal);
+    return disposal;
+  }
+
+  Future<void> _disposeResources() async {
+    final subscriptions = List<StreamSubscription<dynamic>>.of(_subscriptions);
     _subscriptions.clear();
-    _controller?.dispose();
+    await Future.wait(
+        subscriptions.map((subscription) => subscription.cancel()));
+    final controller = _controller;
     _controller = null;
-    unawaited(_timeController.close());
+    if (controller != null) await controller.dispose();
+    await _timeController.close();
     final directory = _hostDirectory;
+    _hostDirectory = null;
     if (directory != null) {
-      unawaited(
-        directory.delete(recursive: true).then<void>((_) {}, onError: (_) {}),
-      );
+      await directory
+          .delete(recursive: true)
+          .then<void>((_) {}, onError: (_) {});
     }
   }
 }

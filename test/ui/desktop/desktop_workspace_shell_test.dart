@@ -17,18 +17,52 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  Widget standardShell({String activePath = '/cards'}) {
+  Widget standardShell({
+    String activePath = '/cards',
+    Widget child = const SizedBox.expand(
+      key: ValueKey('foundation_test_content'),
+    ),
+  }) {
     return MaterialApp(
       home: DesktopWorkspaceShell(
         title: '卡片库',
         meta: '共享地基',
         activePath: activePath,
-        child: const SizedBox.expand(
-          key: ValueKey('foundation_test_content'),
-        ),
+        child: child,
       ),
     );
   }
+
+  testWidgets('real desktop SnackBar overlay inherits scoped theme',
+      (tester) async {
+    await tester.pumpWidget(
+      standardShell(
+        child: Builder(
+          builder: (context) => Center(
+            child: FilledButton(
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('桌面保存完成')),
+              ),
+              child: const Text('显示提示'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('显示提示'));
+    await tester.pump();
+
+    final contentContext = tester.element(find.text('桌面保存完成'));
+    final theme = Theme.of(contentContext);
+    final tokens = DesktopWorkspaceTokens.of(contentContext);
+    expect(theme.snackBarTheme.backgroundColor, tokens.dark);
+    expect(theme.snackBarTheme.contentTextStyle?.color, tokens.canvas);
+    expect(
+      find.byKey(const ValueKey('desktop_workspace_scaffold_messenger')),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('standard shell uses scoped Lieflat Palm canvas and 148px nav',
       (tester) async {

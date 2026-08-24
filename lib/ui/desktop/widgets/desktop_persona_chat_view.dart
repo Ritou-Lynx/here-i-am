@@ -480,7 +480,13 @@ class _DesktopComposer extends StatelessWidget {
                   controller: controller,
                   focusNode: focusNode,
                   autofocus: true,
-                  enabled: enabled && !isStreaming,
+                  // Keep the native text client attached while i is replying.
+                  // Disabling it tears down IME / clipboard integrations on
+                  // Windows and makes paste or speech-to-text commits vanish.
+                  enabled: enabled,
+                  minLines: 2,
+                  maxLines: 5,
+                  keyboardType: TextInputType.multiline,
                   textInputAction: TextInputAction.send,
                   onSubmitted: canSend ? (_) => onSend() : null,
                   cursorColor: tokens.action,
@@ -492,7 +498,17 @@ class _DesktopComposer extends StatelessWidget {
                   decoration: InputDecoration(
                     isDense: true,
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
+                    filled: false,
+                    fillColor: Colors.transparent,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 7,
+                    ),
                     hintText: !enabled
                         ? '正在连接…'
                         : isStreaming
@@ -599,7 +615,7 @@ double _preferredPopoverHeight({
   }
   final contextHeight = hasContextLabel ? 35.0 : 0.0;
   final gaps = hasContextLabel ? 18.0 : 9.0;
-  const composerHeight = 50.0;
+  const composerHeight = 72.0;
   return contextHeight + messageHeight + gaps + composerHeight;
 }
 

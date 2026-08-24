@@ -82,8 +82,12 @@ class _DesktopWorkspaceShellState extends State<DesktopWorkspaceShell> {
   @override
   Widget build(BuildContext context) {
     return DesktopWorkspaceTheme(
-      child: Builder(
-        builder: (context) {
+      // MaterialApp owns a root ScaffoldMessenger above this scoped theme.
+      // Desktop feedback must instead be inserted below DesktopWorkspaceTheme
+      // so SnackBar overlays inherit the Lieflat Palm colors and typography.
+      child: ScaffoldMessenger(
+        key: const ValueKey('desktop_workspace_scaffold_messenger'),
+        child: Builder(builder: (context) {
           final tokens = DesktopWorkspaceTokens.of(context);
           if (widget.mode == DesktopWorkspaceMode.immersive) {
             return Scaffold(
@@ -134,7 +138,7 @@ class _DesktopWorkspaceShellState extends State<DesktopWorkspaceShell> {
               ),
             ),
           );
-        },
+        }),
       ),
     );
   }

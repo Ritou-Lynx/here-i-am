@@ -86,6 +86,38 @@ class _PlayerSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
     final adapter = viewModel.adapter;
+    final playerLoadError =
+        viewModel.playerLoadFailed ? viewModel.errorMessage : null;
+
+    if (playerLoadError != null) {
+      return Container(
+        key: const ValueKey('video_player_degraded_surface'),
+        color: tokens.dark,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_outlined, color: tokens.textFaint, size: 44),
+            const SizedBox(height: 12),
+            Text(
+              playerLoadError,
+              textAlign: TextAlign.center,
+              style: whiteboardUiTextStyle(
+                color: tokens.canvas.withValues(alpha: 0.72),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () => viewModel.retryLoad(),
+              icon: const Icon(Icons.refresh_rounded, size: 17),
+              label: const Text('重试播放器'),
+            ),
+          ],
+        ),
+      );
+    }
 
     // Flutter Web — YouTube IFrame embedded via HtmlElementView (conditional)
     final webSurface = player_surface.buildWebYouTubeSurface(adapter);

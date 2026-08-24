@@ -195,6 +195,7 @@ void main() {
       expect(documentField.decoration?.filled, isFalse);
       expect(documentField.decoration?.fillColor, Colors.transparent);
       expect(documentField.decoration?.hoverColor, Colors.transparent);
+      expect(documentField.textAlignVertical, TextAlignVertical.top);
     });
   });
 }

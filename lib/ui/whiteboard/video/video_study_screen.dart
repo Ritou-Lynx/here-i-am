@@ -100,6 +100,10 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
           !identical(viewModel, _viewModel)) {
         return;
       }
+      // A timed-out or failed player must not receive a restored seek while
+      // its native WebView is still initializing. The degraded subtitle path
+      // remains available without pretending playback state was restored.
+      if (!viewModel.isLoaded) return;
       await viewModel.restoreSession(currentVersionId: widget.sourceVersionId);
     }));
   }
@@ -150,6 +154,7 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
                         return _LoadingView(
                           errorMessage: vm.errorMessage,
                           onRetry: vm.retryLoad,
+                          onContinue: vm.continueWithoutPlayer,
                         );
                       }
                       return _VideoStudyBody(
@@ -183,7 +188,12 @@ class _VideoStudyScreenState extends State<VideoStudyScreen> {
 class _LoadingView extends StatelessWidget {
   final String? errorMessage;
   final Future<void> Function() onRetry;
-  const _LoadingView({this.errorMessage, required this.onRetry});
+  final VoidCallback onContinue;
+  const _LoadingView({
+    this.errorMessage,
+    required this.onRetry,
+    required this.onContinue,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -206,11 +216,24 @@ class _LoadingView extends StatelessWidget {
           ),
           if (errorMessage != null) ...[
             const SizedBox(height: 14),
-            OutlinedButton.icon(
-              key: const ValueKey('video_retry_load'),
-              onPressed: () => onRetry(),
-              icon: const Icon(Icons.refresh_rounded, size: 17),
-              label: const Text('重试加载'),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  key: const ValueKey('video_retry_load'),
+                  onPressed: () => onRetry(),
+                  icon: const Icon(Icons.refresh_rounded, size: 17),
+                  label: const Text('重试播放器'),
+                ),
+                FilledButton.icon(
+                  key: const ValueKey('video_continue_without_player'),
+                  onPressed: onContinue,
+                  icon: const Icon(Icons.subtitles_outlined, size: 17),
+                  label: const Text('进入字幕与笔记'),
+                ),
+              ],
             ),
           ],
         ],

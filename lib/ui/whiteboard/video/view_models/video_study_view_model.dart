@@ -33,6 +33,11 @@ class UIAnnotation {
 
 /// ViewModel for video study — the complete playback → annotation pipeline.
 class VideoStudyViewModel extends ChangeNotifier {
+  // Keep this outside provider-owned deadlines (YouTube currently uses 30s)
+  // so the adapter can publish its precise failure before the screen-level
+  // permanent-spinner guard fires.
+  static const playerLoadTimeout = Duration(seconds: 35);
+
   final PlayerAdapter adapter;
   final String sourceId;
   final String sourceVersionId;
@@ -53,6 +58,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   int _durationMs = 0;
   bool _isPlaying = false;
   bool _isLoaded = false;
+  bool _playerLoadFailed = false;
   bool _needsSubtitle = false;
   String? _errorMessage;
 
@@ -167,6 +173,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   int get durationMs => _durationMs;
   bool get isPlaying => _isPlaying;
   bool get isLoaded => _isLoaded;
+  bool get playerLoadFailed => _playerLoadFailed;
   bool get canSeek => adapter.capability.canSeek;
   bool get canReadPosition => adapter.capability.canReadPosition;
   bool get canReadDuration => adapter.capability.canReadDuration;
@@ -290,7 +297,10 @@ class VideoStudyViewModel extends ChangeNotifier {
       _syncController?.dispose();
       _syncController = null;
       _errorMessage = null;
-      await adapter.load(sourceId, embedUrl: embedUrl);
+      _playerLoadFailed = false;
+      await adapter
+          .load(sourceId, embedUrl: embedUrl)
+          .timeout(playerLoadTimeout);
       if (!_isCurrentEpoch(epoch)) return;
       _isLoaded = true;
       _hadTimeAnchorCapability = canCreateTimeAnchorNow;
@@ -356,11 +366,26 @@ class VideoStudyViewModel extends ChangeNotifier {
       // static capability declaration stays conservative; study readiness is
       // decided at runtime after this attempt.
       _maybeAutoFetchSubtitles(embedUrl, epoch);
+    } on TimeoutException {
+      if (!_isCurrentEpoch(epoch)) return;
+      _playerLoadFailed = true;
+      _errorMessage = '视频加载超时。你仍可进入字幕与笔记，或稍后重试播放器。';
+      notifyListeners();
     } catch (_) {
       if (!_isCurrentEpoch(epoch)) return;
+      _playerLoadFailed = true;
       _errorMessage = '视频加载失败，请检查网络或稍后重试。';
       notifyListeners();
     }
+  }
+
+  /// Opens the study workspace in an honest degraded mode. Subtitle import,
+  /// notes and source metadata remain usable even when the provider player or
+  /// WebView2 cannot initialize.
+  void continueWithoutPlayer() {
+    if (_errorMessage == null || _isLoaded) return;
+    _isLoaded = true;
+    notifyListeners();
   }
 
   String? _lastEmbedUrl;
@@ -369,6 +394,7 @@ class VideoStudyViewModel extends ChangeNotifier {
   Future<void> retryLoad() async {
     if (_isCapturingTimeBoundary) return;
     _isLoaded = false;
+    _playerLoadFailed = false;
     _errorMessage = null;
     notifyListeners();
     await initialize(embedUrl: _lastEmbedUrl);
@@ -1132,7 +1158,8 @@ class VideoStudyViewModel extends ChangeNotifier {
       } else {
         // WebYouTubePlayerAdapter or any other adapter with a dispose method.
         try {
-          (a as dynamic).dispose();
+          final disposal = (a as dynamic).dispose();
+          if (disposal is Future<void>) unawaited(disposal);
         } catch (_) {
           // Adapter has no dispose() — nothing to clean up.
         }

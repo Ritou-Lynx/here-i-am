@@ -14,6 +14,7 @@ import 'package:webview_flutter_windows/webview_flutter_windows.dart';
 
 import '../player_adapter.dart';
 import 'bilibili_html_media_bridge.dart';
+import 'windows_webview_lifecycle.dart';
 
 class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   final StreamController<PlayerTimeEvent> _timeController =
@@ -25,6 +26,7 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   BilibiliBridgeVerificationCoordinator? _verifier;
   bool _initialized = false;
   bool _disposed = false;
+  Future<void>? _disposeFuture;
   bool _showingLoginPage = false;
   bool _sourceNavigationValid = false;
   String? _currentBvid;
@@ -71,6 +73,8 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
     try {
+      await WindowsWebViewLifecycle.waitForPreviousDisposal();
+      if (_disposed) throw StateError('Windows 哔哩哔哩播放器已关闭');
       final version = await WebviewController.getWebViewVersion();
       if (version == null || version.trim().isEmpty) {
         throw StateError('未安装 Microsoft Edge WebView2 Runtime');
@@ -315,15 +319,24 @@ class WindowsBilibiliPlayerAdapter implements PlayerAdapter {
     ));
   }
 
-  void dispose() {
-    if (_disposed) return;
+  Future<void> dispose() {
+    final existing = _disposeFuture;
+    if (existing != null) return existing;
     _disposed = true;
-    for (final subscription in _subscriptions) {
-      unawaited(subscription.cancel());
-    }
+    final disposal = _disposeResources();
+    _disposeFuture = disposal;
+    WindowsWebViewLifecycle.registerDisposal(disposal);
+    return disposal;
+  }
+
+  Future<void> _disposeResources() async {
+    final subscriptions = List<StreamSubscription<dynamic>>.of(_subscriptions);
     _subscriptions.clear();
-    _controller?.dispose();
+    await Future.wait(
+        subscriptions.map((subscription) => subscription.cancel()));
+    final controller = _controller;
     _controller = null;
-    unawaited(_timeController.close());
+    if (controller != null) await controller.dispose();
+    await _timeController.close();
   }
 }

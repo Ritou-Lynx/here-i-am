@@ -433,6 +433,7 @@ class _CardRichTextEditorState extends State<CardRichTextEditor> {
       maxLines: null,
       minLines: widget.compact ? 1 : null,
       expands: !widget.compact,
+      textAlignVertical: TextAlignVertical.top,
       readOnly: widget.readOnly,
       autofocus: widget.autofocus,
       keyboardType: TextInputType.multiline,

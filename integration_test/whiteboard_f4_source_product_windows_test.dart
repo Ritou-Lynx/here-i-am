@@ -104,8 +104,10 @@ void main() {
       find.byKey(ValueKey('annotate_cue_${sourceId}_0')),
     );
     await _pumpFor(tester, const Duration(milliseconds: 300));
-    await tester.enterText(find.byType(TextField).at(0), 'Windows 原生标注');
-    await tester.enterText(find.byType(TextField).at(1), '来自真实 WebView2 播放位置');
+    await tester.enterText(
+      find.byKey(const ValueKey('video_annotation_document')),
+      'Windows 原生标注\n来自真实 WebView2 播放位置',
+    );
     await tester.ensureVisible(find.text('保存标注'));
     await tester.tap(find.text('保存标注'));
     await _pumpFor(tester, const Duration(milliseconds: 500));
