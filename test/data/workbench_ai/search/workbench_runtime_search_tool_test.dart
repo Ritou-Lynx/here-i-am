@@ -242,6 +242,30 @@ void main() {
     expect(runtime.interruptCalls, 1);
     expect(runtime.closeSessionCalls, 1);
   });
+
+  test('host unavailable yields failed tool result', () async {
+    final runtime = _SearchConversationRuntime();
+    final tool = WorkbenchRuntimeSearchTool(
+      loadHost: () async {
+        throw Exception('runtime host unreachable');
+      },
+      authorizationFactory: DesktopWorkbenchSearchAuthorizationFactory(
+        loadProjectedProjectIds: () async => {'project-a'},
+      ),
+    );
+
+    final result = await tool.invoke({
+      'request_id': 'runtime-host-unavailable',
+      'query': '检索一下',
+      'scopes': ['memory_v3'],
+    });
+
+    expect(result.success, isFalse);
+    expect(jsonDecode(result.text), {
+      'status': 'failed',
+      'error_code': 'search_tool_failed',
+    });
+  });
 }
 
 WorkbenchConversationCoordinator _searchCoordinator({

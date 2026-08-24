@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
@@ -8,14 +9,24 @@ import 'package:memex/data/workbench_ai/search/context_search_projection.dart';
 import 'package:memex/data/workbench_ai/search/existing_search_adapters.dart';
 import 'package:memex/data/workbench_ai/search/workbench_search_facade.dart';
 import 'package:memex/data/workbench_ai/search/workbench_search_tool_host.dart';
+import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/workbench_ai/context/context_envelope.dart';
 import 'package:memex/domain/workbench_ai/context/context_envelope_codec.dart';
 import 'package:memex/domain/workbench_ai/runtime/runtime_session_binding.dart';
 import 'package:memex/domain/workbench_ai/search/workbench_search_contract.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   final retrievedAt = DateTime.utc(2026, 8, 22, 10);
+  late bool fts5Available;
+
+  setUpAll(() {
+    fts5Available = _checkFts5();
+    if (!fts5Available) {
+      print('[search-facade-test] FTS5 not available on this runtime.');
+    }
+  });
 
   SearchHitRef hit({
     required SearchScope scope,
@@ -198,6 +209,125 @@ void main() {
     expect(result.hits.single.stableRef, 'card:card-alpha');
     expect(result.hits.single.provenance.sourceRef, 'card:card-alpha');
   });
+
+  test('real Memory V3 data can be matched through FTS-backed search', () async {
+    if (!fts5Available) return;
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    await db.createFtsTables();
+    await _insertMemoryCard(
+      db,
+      id: 'memory-card-needle',
+      type: 'fact',
+      title: '日常记忆',
+      label: '拿铁',
+      text: '用户今天喝了一杯拿铁，下午更有精神。',
+    );
+    final adapter = MemoryV3WorkbenchSearchAdapter(
+      MemoryCardQuerySearchReader(MemoryCardQueryService(db)),
+    );
+    final response = await WorkbenchSearchFacade(adapters: [adapter]).search(
+      request: WorkbenchSearchRequest(
+        requestId: 'trace-memory-real-hit',
+        query: '咖啡',
+        scopes: {SearchScope.memoryV3},
+        budget:
+            const WorkbenchSearchBudget(maxResults: 1, maxResultsPerScope: 1),
+      ),
+      authorization: SearchAuthorization(
+        profileId: 'memory-v3-real',
+        grants: [
+          SearchPermissionGrant(
+            lane: SearchPermissionLane.userTruth,
+            allContainers: true,
+          ),
+        ],
+      ),
+    );
+
+    expect(response.status, WorkbenchSearchStatus.ok);
+    expect(response.hits, hasLength(1));
+    expect(response.hits.single.objectId, 'memory-card-needle');
+    expect(response.hits.single.scope, SearchScope.memoryV3);
+    expect(response.hits.single.stableRef, 'memory_card:memory-card-needle');
+    expect(response.hits.single.permissionLane, SearchPermissionLane.userTruth);
+    expect(response.trace.candidateCount, 1);
+    await db.close();
+  });
+
+  test('real Memory V3 query returns empty when no matching card', () async {
+    if (!fts5Available) return;
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    await db.createFtsTables();
+    await _insertMemoryCard(
+      db,
+      id: 'memory-card-weather',
+      type: 'fact',
+      title: '天气记忆',
+      label: '晴天',
+      text: '明天要下雨。',
+    );
+    final adapter = MemoryV3WorkbenchSearchAdapter(
+      MemoryCardQuerySearchReader(MemoryCardQueryService(db)),
+    );
+    final response = await WorkbenchSearchFacade(adapters: [adapter]).search(
+      request: WorkbenchSearchRequest(
+        requestId: 'trace-memory-real-empty',
+        query: '记账',
+        scopes: {SearchScope.memoryV3},
+        budget:
+            const WorkbenchSearchBudget(maxResults: 1, maxResultsPerScope: 1),
+      ),
+      authorization: SearchAuthorization(
+        profileId: 'memory-v3-real-empty',
+        grants: [
+          SearchPermissionGrant(
+            lane: SearchPermissionLane.userTruth,
+            allContainers: true,
+          ),
+        ],
+      ),
+    );
+
+    expect(response.status, WorkbenchSearchStatus.empty);
+    expect(response.hits, isEmpty);
+    expect(response.trace.returnedCount, 0);
+    await db.close();
+  });
+
+  test(
+    'adapter-level backend unavailability degrades to partial and returns no secrets',
+    () async {
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      final service = MemoryCardQueryService(db);
+      await db.close();
+      final adapter = MemoryV3WorkbenchSearchAdapter(
+        MemoryCardQuerySearchReader(service),
+      );
+      final response = await WorkbenchSearchFacade(adapters: [adapter]).search(
+        request: WorkbenchSearchRequest(
+          requestId: 'trace-memory-backend-unavailable',
+          query: '拿铁',
+          scopes: {SearchScope.memoryV3},
+        ),
+        authorization: SearchAuthorization(
+          profileId: 'memory-v3-unavailable',
+          grants: [
+            SearchPermissionGrant(
+              lane: SearchPermissionLane.userTruth,
+              allContainers: true,
+            ),
+          ],
+        ),
+      );
+      final encoded = jsonEncode(response.toJson());
+
+      expect(response.status, WorkbenchSearchStatus.partial);
+      expect(response.trace.failedScopes, [SearchScope.memoryV3]);
+      expect(encoded, isNot(contains('MemoryCardQueryService')));
+      expect(encoded, isNot(contains('database')));
+      await db.close();
+    },
+  );
 
   test('restricted Memory V3 searches evidence before the result limit',
       () async {
@@ -535,3 +665,47 @@ String _stableRef(SearchScope scope, String id) => switch (scope) {
       SearchScope.conversation => 'chat_message:$id',
       SearchScope.taskArtifact => 'task_artifact:$id',
     };
+
+Future<void> _insertMemoryCard(
+  AppDatabase db, {
+  required String id,
+  required String type,
+  required String title,
+  required String label,
+  required String text,
+}) async {
+  final now = DateTime(2026, 8, 24, 12).millisecondsSinceEpoch;
+  await db.into(db.memoryCards).insert(
+        MemoryCardsCompanion.insert(
+          id: id,
+          type: type,
+          title: title,
+          dropletLabel: label,
+          presentationModule: '[]',
+          retrievalText: text,
+          valence: 0,
+          arousal: 0.2,
+          createdAt: now,
+          updatedAt: now,
+          status: const Value.absent(),
+          needsFollowUp: const Value.absent(),
+        ),
+      );
+  await db.searchDao.upsertMemoryV3Fts(
+    cardId: id,
+    dropletLabel: label,
+    title: title,
+    retrievalText: text,
+  );
+}
+
+bool _checkFts5() {
+  try {
+    final db = sqlite3.openInMemory();
+    db.execute('CREATE VIRTUAL TABLE _fts5_check USING fts5(content)');
+    db.dispose();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
