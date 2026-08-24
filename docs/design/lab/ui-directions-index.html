@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>故我在 · 三套 UI 方向对比（2026-08-23）</title>
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#2C2E24; --ink-soft:#565843; --ink-faint:#8A8C74;
+  --moss:#6E7541; --canvas:#F3F1E8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'LXGW WenKai TC',-apple-system,'PingFang SC',sans-serif;
+  background:#E9E6DA;color:var(--ink);min-height:100vh;
+  padding:60px 40px 100px;line-height:1.6;
+}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:26px;font-weight:600;margin-bottom:8px}
+.sub{color:var(--ink-soft);font-size:14px;margin-bottom:40px;max-width:640px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px}
+.card{
+  display:block;text-decoration:none;color:inherit;
+  background:#fff;border-radius:20px;overflow:hidden;
+  border:1px solid rgba(44,46,36,0.1);
+  box-shadow:0 2px 6px rgba(44,46,36,0.06),0 16px 44px rgba(44,46,36,0.08);
+  transition:transform .2s,box-shadow .2s;
+}
+.card:hover{transform:translateY(-4px);box-shadow:0 4px 10px rgba(44,46,36,0.08),0 24px 60px rgba(44,46,36,0.14)}
+.card__preview{height:220px;position:relative;overflow:hidden}
+.card__preview--a{background:linear-gradient(160deg,#F3F1E8 0%,#E8E5D2 55%,#D4D8BC 100%)}
+.card__preview--b{background:linear-gradient(160deg,#0B0E0C 0%,#16210f 60%,#1f2c15 100%)}
+.card__preview--c{background:linear-gradient(160deg,#FAFAF8 0%,#EFEFEA 60%,#DEDED8 100%)}
+.card__swatch{position:absolute;bottom:18px;left:20px;display:flex;gap:8px}
+.sw{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,0.7);box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+.card__body{padding:20px 22px 24px}
+.card__tag{font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--moss);text-transform:uppercase}
+.card__title{font-size:19px;font-weight:600;margin:4px 0 6px}
+.card__desc{font-size:13.5px;color:var(--ink-soft);line-height:1.55}
+.card__meta{margin-top:14px;font-size:12px;color:var(--ink-faint)}
+.note{
+  margin-top:44px;padding:20px 24px;background:rgba(110,117,65,0.08);
+  border-left:3px solid var(--moss);border-radius:0 12px 12px 0;
+  font-size:13.5px;color:var(--ink-soft);
+}
+.note b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>三套 UI 方向 · 基于开屏动画「春雨昼眠」</h1>
+  <p class="sub">开屏画面：奶油纸底（#F3F3EC）+ 水彩青苔（鼠尾草绿）+ 摊开的书 + 雨幕。以下三套方案各自对这组基因做了差异很大的演绎。纯设计画板，不动源代码。</p>
+
+  <div class="cards">
+    <a class="card" href="./ui-direction-a-daylight.html">
+      <div class="card__preview card__preview--a">
+        <div class="card__swatch">
+          <span class="sw" style="background:#F3F1E8"></span>
+          <span class="sw" style="background:#6E7541"></span>
+          <span class="sw" style="background:#C9A86C"></span>
+          <span class="sw" style="background:#2C2E24"></span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="card__tag">方向 A · 白昼</div>
+        <div class="card__title">纸上苔痕</div>
+        <div class="card__desc">开屏动画「走进去」的版本。奶油纸底 + 水彩噪点 + 苔绿 + 暖金，柔和卡片投影，像书房里的下午。最忠于开屏气质。</div>
+        <div class="card__meta">Chat / Memory Review / Schedule</div>
+      </div>
+    </a>
+
+    <a class="card" href="./ui-direction-b-nightrain.html">
+      <div class="card__preview card__preview--b">
+        <div class="card__swatch">
+          <span class="sw" style="background:#0B0E0C"></span>
+          <span class="sw" style="background:#7EA262"></span>
+          <span class="sw" style="background:#F2CA70"></span>
+          <span class="sw" style="background:#E8EADF"></span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="card__tag">方向 B · 雨夜</div>
+        <div class="card__title">夜雨苔窗</div>
+        <div class="card__desc">现有深色 Chat 的精致重生：深绿雨夜 + 玻璃气泡 + 苔绿辉光 + 暖金提醒。不再是「垫一张底图」，而是层次化的雨后玻璃温室。</div>
+        <div class="card__meta">Chat / Memory Review / Schedule</div>
+      </div>
+    </a>
+
+    <a class="card" href="./ui-direction-c-mist.html">
+      <div class="card__preview card__preview--c">
+        <div class="card__swatch">
+          <span class="sw" style="background:#FAFAF8"></span>
+          <span class="sw" style="background:#DEDED8"></span>
+          <span class="sw" style="background:#1C1C1A"></span>
+          <span class="sw" style="background:#2E3B28"></span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="card__tag">方向 C · 雾白</div>
+        <div class="card__title">雾白素墨</div>
+        <div class="card__desc">极简编辑感：近乎无装饰、墨色单色、细竖线替代气泡、下划线输入框。像一本日系杂志或阅读器——让内容本身成为视觉。</div>
+        <div class="card__meta">Chat / Memory Review / Schedule</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="note">
+    <b>说明：</b>三套方案共享同一套信息架构（Chat 首页 / 观察面板 tab / 记忆卡与日程实体），只在视觉语言上分化——这样你可以纯粹比较「气质」，而不被布局差异干扰。若某套方向得到认可，再进入 lab 画板调参，最后以 <b>HereIamThemeTokens 新 skin</b> 的方式落地 Flutter（符合既有规范化路径：不迁移现状裸色值）。
+  </div>
+</div>
+</body>
+</html>

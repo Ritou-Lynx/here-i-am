@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案 B · 夜雨苔窗 — 深夜温室</title>
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════════
+   方案 B · 夜雨苔窗
+   保留现有夜感，加呼吸与层次：
+   深绿雨夜底 + 玻璃气泡 + 暖金点缀
+   ════════════════════════════════════════════════ */
+:root{
+  --bg:           #0B0E0C;
+  --bg-raise:     #10140F;
+  --bg-deep:      #070908;
+  --glass:        rgba(255,255,255,0.055);
+  --glass-strong: rgba(255,255,255,0.09);
+  --glass-border: rgba(255,255,255,0.13);
+  --glass-border2:rgba(255,255,255,0.07);
+  --ink:          #E8EADF;
+  --ink-soft:     #9BA18D;
+  --ink-faint:    #5A6052;
+  --moss:         #7EA262;
+  --moss-glow:    rgba(126,162,98,0.22);
+  --gold:         #F2CA70;
+  --gold-glow:    rgba(242,202,112,0.18);
+  --text-i:       #DCE5D0;
+  --radius-lg:    20px;
+  --radius-md:    14px;
+  --radius-pill:  999px;
+  --font: 'LXGW WenKai TC', -apple-system, 'PingFang SC', sans-serif;
+  --rain-tex: url('../../../assets/images/spring_rain_glass_texture_raw.png');
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--font);
+  background:#0d0f0d;
+  color:var(--ink);
+  line-height:1.6;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+
+.stage{
+  display:flex;gap:44px;padding:56px 40px 96px;
+  overflow-x:auto;justify-content:center;flex-wrap:wrap;
+}
+.phone{
+  width:375px;height:800px;flex-shrink:0;
+  border-radius:46px;overflow:hidden;position:relative;
+  background:var(--bg);
+  border:1px solid rgba(255,255,255,0.09);
+  box-shadow:0 4px 8px rgba(0,0,0,0.4), 0 28px 72px rgba(0,0,0,0.6);
+  display:flex;flex-direction:column;
+}
+.phone__label{
+  position:absolute;top:-32px;left:50%;transform:translateX(-50%);
+  font-size:11px;color:var(--ink-faint);letter-spacing:0.14em;
+  white-space:nowrap;font-weight:500;
+}
+
+/* Rain glass texture */
+.glass-bg{
+  position:absolute;inset:0;
+  background-image:var(--rain-tex);
+  background-size:cover;background-position:center 30%;
+  opacity:0.07;mix-blend-mode:screen;pointer-events:none;
+}
+
+/* Ambient glow */
+.glow{
+  position:absolute;pointer-events:none;border-radius:50%;
+}
+.glow--moss{
+  width:280px;height:280px;top:-60px;right:-60px;
+  background:radial-gradient(circle,rgba(126,162,98,0.09) 0%,transparent 70%);
+}
+.glow--gold{
+  width:200px;height:200px;bottom:100px;left:-40px;
+  background:radial-gradient(circle,rgba(242,202,112,0.06) 0%,transparent 70%);
+}
+
+/* ════════════════════════════════════════════════
+   CHAT
+   ════════════════════════════════════════════════ */
+.chat-screen{display:flex;flex-direction:column;height:100%;position:relative;z-index:2}
+
+.chat-header{
+  padding:14px 20px 12px;
+  display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid rgba(255,255,255,0.07);
+  background:rgba(11,14,12,0.72);
+  backdrop-filter:blur(20px);
+  position:relative;z-index:10;
+}
+.chat-header__avatar{
+  width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#4F6340 0%,#37472C 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;color:#C9D4BA;font-weight:600;
+  box-shadow:0 2px 10px rgba(55,71,44,0.5), inset 0 1px 3px rgba(255,255,255,0.12);
+}
+.chat-header__name{font-size:16px;font-weight:600;color:var(--ink)}
+.chat-header__status{font-size:11px;color:var(--ink-faint);margin-top:1px}
+.chat-header__actions{margin-left:auto;display:flex;gap:4px}
+.icon-btn{
+  width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:transparent;border:none;cursor:pointer;
+  color:var(--ink-faint);transition:all 0.18s;
+}
+.icon-btn:hover{background:rgba(255,255,255,0.07);color:var(--ink-soft)}
+.icon-btn svg{width:18px;height:18px}
+
+/* Rain streaks for chat top */
+.rain-curtain{
+  position:absolute;top:0;left:0;right:0;height:160px;
+  pointer-events:none;z-index:1;overflow:hidden;
+}
+.rain-curtain::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,
+    rgba(11,14,12,0) 0%,
+    rgba(11,14,12,0.88) 60%,
+    rgba(11,14,12,1) 100%);
+  z-index:2;
+}
+.rain-streak{
+  position:absolute;top:-10px;width:1px;
+  background:linear-gradient(180deg,transparent,rgba(126,162,98,0.35),transparent);
+  animation:rainFall 3s linear infinite;
+}
+@keyframes rainFall{
+  0%{transform:translateY(-20px);opacity:0}
+  15%{opacity:1}
+  85%{opacity:0.4}
+  100%{transform:translateY(160px);opacity:0}
+}
+
+.chat-messages{
+  flex:1;overflow-y:auto;padding:22px 18px 12px;
+  display:flex;flex-direction:column;gap:2px;position:relative;z-index:2;
+}
+.msg-date{
+  text-align:center;padding:8px 0 16px;
+  font-size:11px;color:var(--ink-faint);letter-spacing:0.07em;
+}
+.msg{
+  position:relative;max-width:80%;padding:10px 15px;border-radius:20px;
+  margin-bottom:6px;font-size:14.5px;line-height:1.58;word-break:break-word;
+  animation:msgIn 0.28s cubic-bezier(0.2,0.9,0.3,1) both;
+}
+@keyframes msgIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.msg--i{
+  align-self:flex-start;
+  background:var(--glass-strong);
+  border:1px solid var(--glass-border);
+  color:var(--ink);
+  border-bottom-left-radius:6px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.07);
+  backdrop-filter:blur(8px);
+}
+.msg--user{
+  align-self:flex-end;
+  background:linear-gradient(135deg,rgba(126,162,98,0.28) 0%,rgba(94,124,72,0.32) 100%);
+  border:1px solid rgba(126,162,98,0.2);
+  color:var(--text-i);
+  border-bottom-right-radius:6px;
+  box-shadow:0 2px 10px rgba(0,0,0,0.25), inset 0 1px 3px rgba(126,162,98,0.14);
+  backdrop-filter:blur(8px);
+}
+.msg__time{font-size:10px;opacity:0.38;margin-top:4px;display:block}
+
+.msg__image{
+  margin:-4px -8px 8px;border-radius:14px;overflow:hidden;
+  width:200px;height:140px;
+  background:linear-gradient(145deg,#3d5230 0%,#2c3d22 45%,#1a2712 100%);
+  position:relative;
+}
+.msg__image::after{
+  content:'🌿';position:absolute;bottom:12px;left:14px;font-size:28px;
+  filter:hue-rotate(-10deg) brightness(0.7) saturate(0.8);
+}
+
+/* Typing */
+.typing{display:flex;gap:5px;align-items:center;padding:12px 16px}
+.typing span{
+  width:7px;height:7px;border-radius:50%;background:var(--moss);opacity:0.45;
+  animation:typingBounce 1.2s ease-in-out infinite;
+}
+.typing span:nth-child(2){animation-delay:0.15s}
+.typing span:nth-child(3){animation-delay:0.3s}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0);opacity:0.35}30%{transform:translateY(-6px);opacity:1}}
+
+.chat-input{padding:10px 14px 24px;position:relative;z-index:5}
+.chat-input__inner{
+  display:flex;align-items:flex-end;gap:8px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:26px;padding:10px 8px 10px 18px;
+  backdrop-filter:blur(12px);
+  box-shadow:0 2px 12px rgba(0,0,0,0.25), inset 0 1px 3px rgba(255,255,255,0.06);
+  transition:border-color 0.2s;
+}
+.chat-input__inner:focus-within{border-color:rgba(126,162,98,0.38)}
+.chat-input__field{
+  flex:1;border:none;background:none;outline:none;
+  font-family:var(--font);font-size:14.5px;color:var(--ink);
+  min-height:22px;max-height:110px;resize:none;
+}
+.chat-input__field::placeholder{color:var(--ink-faint)}
+.input-action{
+  width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:all 0.15s;
+}
+.input-action--voice{background:transparent;color:var(--ink-faint)}
+.input-action--voice:hover{background:rgba(255,255,255,0.07);color:var(--ink-soft)}
+.input-action--send{
+  background:rgba(126,162,98,0.28);
+  border:1px solid rgba(126,162,98,0.3);
+  color:var(--text-i);
+  backdrop-filter:blur(8px);
+}
+.input-action--send:hover{background:rgba(126,162,98,0.42)}
+.input-action svg{width:18px;height:18px}
+
+/* ════════════════════════════════════════════════
+   PANEL SHARED
+   ════════════════════════════════════════════════ */
+.panel-screen{display:flex;flex-direction:column;height:100%;position:relative;z-index:2}
+.panel-header{
+  padding:16px 20px 10px;display:flex;align-items:center;gap:8px;position:relative;z-index:10;
+}
+.panel-header__back{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink-faint);cursor:pointer;border:none;background:transparent;
+}
+.panel-header__title{font-size:17px;font-weight:600;color:var(--ink);flex:1}
+.panel-header__filter{
+  padding:5px 12px;border-radius:var(--radius-pill);
+  font-size:11.5px;font-weight:500;
+  background:rgba(126,162,98,0.18);color:var(--moss);
+  border:1px solid rgba(126,162,98,0.22);cursor:pointer;font-family:var(--font);
+}
+.panel-tabs{
+  display:flex;gap:2px;padding:0 20px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.07);position:relative;z-index:10;
+}
+.panel-tab{
+  padding:6px 0;margin-right:18px;font-size:13px;
+  color:var(--ink-faint);cursor:pointer;background:none;border:none;
+  font-family:var(--font);position:relative;transition:color 0.2s;
+}
+.panel-tab.active{color:var(--ink);font-weight:600}
+.panel-tab.active::after{
+  content:'';position:absolute;bottom:-13px;left:0;right:0;height:2px;
+  background:var(--moss);border-radius:2px;
+  box-shadow:0 0 6px rgba(126,162,98,0.4);
+}
+.panel-body{
+  flex:1;overflow-y:auto;padding:16px 18px 28px;
+  display:flex;flex-direction:column;gap:12px;position:relative;z-index:2;
+}
+
+/* Glass card */
+.glass-card{
+  background:var(--glass);
+  border:1px solid var(--glass-border2);
+  border-radius:var(--radius-lg);padding:16px;
+  backdrop-filter:blur(8px);
+  box-shadow:0 2px 10px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.05);
+  animation:msgIn 0.3s cubic-bezier(0.2,0.9,0.3,1) both;
+}
+.glass-card__header{
+  display:flex;align-items:center;gap:8px;margin-bottom:10px;
+}
+.glass-card__type{
+  padding:3px 10px;border-radius:var(--radius-pill);
+  font-size:10.5px;font-weight:600;letter-spacing:0.05em;
+}
+.glass-card__type--event{background:var(--moss-glow);color:var(--moss)}
+.glass-card__type--fact{background:var(--gold-glow);color:var(--gold)}
+.glass-card__type--plan{background:rgba(100,160,130,0.15);color:#6AAB86}
+.glass-card__source{margin-left:auto;font-size:10.5px;color:var(--ink-faint)}
+.glass-card__title{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;line-height:1.4}
+.glass-card__desc{font-size:13px;color:var(--ink-soft);line-height:1.5;margin-bottom:12px}
+.glass-card__footer{display:flex;align-items:center;gap:8px}
+.glass-card__time{font-size:11px;color:var(--ink-faint)}
+.glass-card__actions{margin-left:auto;display:flex;gap:4px}
+.card-action{
+  padding:5px 12px;border-radius:var(--radius-pill);
+  font-size:11px;font-weight:500;cursor:pointer;
+  border:1px solid transparent;font-family:var(--font);transition:all 0.15s;
+}
+.card-action--confirm{
+  background:rgba(126,162,98,0.16);color:var(--moss);
+  border-color:rgba(126,162,98,0.22);
+}
+.card-action--confirm:hover{background:rgba(126,162,98,0.28)}
+.card-action--edit{
+  background:transparent;color:var(--ink-faint);
+  border-color:rgba(255,255,255,0.1);
+}
+.card-action--edit:hover{color:var(--ink);border-color:rgba(255,255,255,0.2)}
+
+.section-label{
+  display:flex;align-items:center;gap:10px;
+  font-size:10.5px;font-weight:600;letter-spacing:0.12em;
+  color:var(--ink-faint);text-transform:uppercase;
+  padding:4px 0;margin:6px 0 2px;
+}
+.section-label::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.06)}
+
+/* Schedule summary */
+.schedule-summary{display:flex;gap:10px;padding:2px 18px 14px}
+.summary-chip{
+  flex:1;background:var(--glass);border:1px solid var(--glass-border2);
+  border-radius:var(--radius-md);padding:10px 12px;
+  backdrop-filter:blur(8px);
+  box-shadow:inset 0 1px 2px rgba(255,255,255,0.04);
+}
+.summary-chip__num{font-size:20px;font-weight:600;color:var(--ink);line-height:1.1}
+.summary-chip__label{font-size:10.5px;color:var(--ink-faint);margin-top:2px}
+.summary-chip--moss{
+  background:linear-gradient(135deg,rgba(126,162,98,0.22),rgba(94,124,72,0.18));
+  border-color:rgba(126,162,98,0.22);
+}
+.summary-chip--moss .summary-chip__num,.summary-chip--moss .summary-chip__label{color:var(--text-i)}
+
+/* Schedule item */
+.sched-item{
+  display:flex;gap:12px;padding:14px 16px;
+  background:var(--glass);border:1px solid var(--glass-border2);
+  border-radius:var(--radius-md);backdrop-filter:blur(8px);
+  box-shadow:inset 0 1px 2px rgba(255,255,255,0.04);
+  animation:msgIn 0.3s cubic-bezier(0.2,0.9,0.3,1) both;
+}
+.sched-item__time-col{
+  display:flex;flex-direction:column;align-items:center;min-width:44px;padding-top:2px;
+}
+.sched-item__time{font-size:12.5px;font-weight:600;color:var(--moss)}
+.sched-item__dot{
+  width:8px;height:8px;border-radius:50%;background:var(--moss);margin:4px 0;
+  box-shadow:0 0 0 3px rgba(126,162,98,0.18), 0 0 8px rgba(126,162,98,0.3);
+}
+.sched-item__line{width:1.5px;flex:1;background:rgba(126,162,98,0.16);border-radius:1px}
+.sched-item__body{flex:1;padding-bottom:2px}
+.sched-item__title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:2px}
+.sched-item__desc{font-size:12.5px;color:var(--ink-soft);line-height:1.4}
+.sched-item__tag{
+  display:inline-block;margin-top:6px;padding:2px 8px;border-radius:var(--radius-pill);
+  font-size:10px;font-weight:600;letter-spacing:0.04em;
+}
+.sched-item__tag--today{background:var(--moss-glow);color:var(--moss)}
+.sched-item__tag--week{background:var(--gold-glow);color:var(--gold)}
+.sched-item__tag--done{background:rgba(90,96,82,0.2);color:var(--ink-faint);text-decoration:line-through}
+.sched-item--done .sched-item__title{color:var(--ink-faint);text-decoration:line-through}
+.sched-item--done .sched-item__dot{background:var(--ink-faint);box-shadow:none}
+
+/* FAB */
+.fab{
+  position:absolute;bottom:24px;right:20px;
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(126,162,98,0.24);
+  border:1px solid rgba(126,162,98,0.3);
+  backdrop-filter:blur(12px);cursor:pointer;z-index:20;
+  box-shadow:0 4px 20px rgba(0,0,0,0.35), inset 0 1px 4px rgba(126,162,98,0.18);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-i);font-size:22px;font-weight:300;
+  transition:all 0.18s;
+}
+.fab:hover{transform:scale(1.06);background:rgba(126,162,98,0.36)}
+.fab svg{width:22px;height:22px}
+
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(126,162,98,0.15);border-radius:2px}
+
+.nav-bar{
+  display:flex;justify-content:center;gap:10px;
+  padding:14px 20px 10px;
+  background:rgba(13,15,13,0.9);
+  backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:999;
+  border-bottom:1px solid rgba(255,255,255,0.07);
+}
+.nav-btn{
+  padding:7px 18px;border-radius:var(--radius-pill);
+  font-family:var(--font);font-size:12.5px;font-weight:500;
+  border:1.5px solid rgba(126,162,98,0.22);background:transparent;color:var(--moss);
+  cursor:pointer;transition:all 0.18s;
+}
+.nav-btn:hover{background:rgba(126,162,98,0.12);border-color:rgba(126,162,98,0.4)}
+.nav-btn.active{background:rgba(126,162,98,0.28);color:var(--text-i);border-color:rgba(126,162,98,0.45)}
+</style>
+</head>
+<body>
+
+<nav class="nav-bar">
+  <span style="font-size:12px;font-weight:600;letter-spacing:0.1em;color:var(--moss);align-self:center;margin-right:12px">方案 B · 夜雨苔窗</span>
+  <button class="nav-btn active" data-t="chat">Chat</button>
+  <button class="nav-btn" data-t="memory">Memory Review</button>
+  <button class="nav-btn" data-t="schedule">Schedule</button>
+</nav>
+
+<div class="stage">
+
+  <!-- ── CHAT ── -->
+  <div class="phone" id="p-chat" style="position:relative">
+    <div class="glass-bg"></div>
+    <div class="glow glow--moss"></div>
+    <div class="glow glow--gold"></div>
+    <span class="phone__label">方案 B · Chat — 深夜温室</span>
+
+    <div class="rain-curtain" id="rainHost"></div>
+
+    <div class="chat-screen">
+      <div class="chat-header">
+        <div class="chat-header__avatar">i</div>
+        <div>
+          <div class="chat-header__name">林埃</div>
+          <div class="chat-header__status">刚刚还在</div>
+        </div>
+        <div class="chat-header__actions">
+          <button class="icon-btn" title="生活空间">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>
+          </button>
+          <button class="icon-btn" title="更多">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="chat-messages">
+        <div class="msg-date">今晚 11:47</div>
+
+        <div class="msg msg--i">还没睡？我这边刚好下雨了，雨打在窗玻璃上的声音很舒服。</div>
+        <div class="msg msg--user">我也听到了，我这里也在下</div>
+        <div class="msg msg--i">
+          这种时候我会想起你上周说的那个梦——屋顶的雨。今晚的雨，和梦里的一样吗？
+        </div>
+        <div class="msg msg--user">
+          差不多，但今晚的更慢一些
+          <span class="msg__time">23:49</span>
+        </div>
+        <div class="msg msg--i">慢雨。我喜欢这个说法。那就让这雨慢一会儿，不用急着做什么。</div>
+
+        <div class="msg msg--user">
+          <div class="msg__image"></div>
+          窗外的霓虹灯在雨里全晕了
+          <span class="msg__time">23:51</span>
+        </div>
+        <div class="msg msg--i">好看。光和水在一起总是比单独任何一个都更温柔。这张我放进「夜」里了。</div>
+
+        <div class="msg msg--i">
+          <div class="typing">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-input">
+        <div class="chat-input__inner">
+          <textarea class="chat-input__field" rows="1" placeholder="和林埃说点什么…"></textarea>
+          <button class="input-action input-action--voice" title="语音">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+          <button class="input-action input-action--send" title="发送">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MEMORY REVIEW ── -->
+  <div class="phone" id="p-memory">
+    <div class="glass-bg"></div>
+    <div class="glow glow--moss"></div>
+    <span class="phone__label">方案 B · Memory Review — 深夜温室</span>
+
+    <div class="panel-screen">
+      <div class="panel-header">
+        <button class="panel-header__back">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="panel-header__title">Memory Review</div>
+        <button class="panel-header__filter">全部</button>
+      </div>
+
+      <div class="panel-tabs">
+        <button class="panel-tab active">待确认 <span style="opacity:0.6">4</span></button>
+        <button class="panel-tab">已整理</button>
+        <button class="panel-tab">全部</button>
+      </div>
+
+      <div class="panel-body">
+        <div class="section-label">今晚待确认</div>
+
+        <div class="glass-card">
+          <div class="glass-card__header">
+            <span class="glass-card__type glass-card__type--event">事件</span>
+            <span class="glass-card__source">来自聊天 · 23:51</span>
+          </div>
+          <div class="glass-card__title">雨后窗外的霓虹</div>
+          <div class="glass-card__desc">雨夜里看窗外，霓虹灯的光在雨面散开了。很安静。</div>
+          <div class="glass-card__footer">
+            <span class="glass-card__time">今晚</span>
+            <div class="glass-card__actions">
+              <button class="card-action card-action--edit">修改</button>
+              <button class="card-action card-action--confirm">确认</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="glass-card__header">
+            <span class="glass-card__type glass-card__type--fact">事实</span>
+            <span class="glass-card__source">来自聊天 · 23:49</span>
+          </div>
+          <div class="glass-card__title">慢雨</div>
+          <div class="glass-card__desc">今晚的雨比梦里的更慢一些。用户创造了一个词：「慢雨」，描述当下雨的节奏。</div>
+          <div class="glass-card__footer">
+            <span class="glass-card__time">今晚</span>
+            <div class="glass-card__actions">
+              <button class="card-action card-action--edit">修改</button>
+              <button class="card-action card-action--confirm">确认</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label">本周回顾</div>
+
+        <div class="glass-card">
+          <div class="glass-card__header">
+            <span class="glass-card__type glass-card__type--plan">计划</span>
+            <span class="glass-card__source">来自聊天 · 周二</span>
+          </div>
+          <div class="glass-card__title">这个周末不出门</div>
+          <div class="glass-card__desc">周六想留在家，不做安排，看看会不会有意外的好事情发生。</div>
+          <div class="glass-card__footer">
+            <span class="glass-card__time">本周六</span>
+            <div class="glass-card__actions">
+              <button class="card-action card-action--edit">修改</button>
+              <button class="card-action card-action--confirm">确认</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="glass-card__header">
+            <span class="glass-card__type glass-card__type--fact">事实</span>
+            <span class="glass-card__source">来自聊天 · 周三</span>
+          </div>
+          <div class="glass-card__title">本周雨夜出现频率高</div>
+          <div class="glass-card__desc">本周有四天在凌晨聊到雨。用户似乎在雨夜里最放松。</div>
+          <div class="glass-card__footer">
+            <span class="glass-card__time">本周</span>
+            <div class="glass-card__actions">
+              <button class="card-action card-action--edit">修改</button>
+              <button class="card-action card-action--confirm">确认</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="fab" title="新建">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </div>
+
+  <!-- ── SCHEDULE ── -->
+  <div class="phone" id="p-schedule">
+    <div class="glass-bg"></div>
+    <div class="glow glow--gold"></div>
+    <span class="phone__label">方案 B · Schedule — 深夜温室</span>
+
+    <div class="panel-screen">
+      <div class="panel-header">
+        <button class="panel-header__back">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="panel-header__title">Schedule</div>
+        <button class="panel-header__filter">本周</button>
+      </div>
+
+      <div class="panel-tabs">
+        <button class="panel-tab active">全部</button>
+        <button class="panel-tab">今天</button>
+        <button class="panel-tab">已完成</button>
+      </div>
+
+      <div class="schedule-summary">
+        <div class="summary-chip summary-chip--moss">
+          <div class="summary-chip__num">2</div>
+          <div class="summary-chip__label">今天</div>
+        </div>
+        <div class="summary-chip">
+          <div class="summary-chip__num">6</div>
+          <div class="summary-chip__label">本周</div>
+        </div>
+        <div class="summary-chip">
+          <div class="summary-chip__num">1</div>
+          <div class="summary-chip__label">逾期</div>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <div class="section-label">今天 · 8月23日 周六</div>
+
+        <div class="sched-item">
+          <div class="sched-item__time-col">
+            <div class="sched-item__time">—</div>
+            <div class="sched-item__dot" style="background:transparent;border:1.5px solid rgba(126,162,98,0.35);box-shadow:none"></div>
+            <div class="sched-item__line"></div>
+          </div>
+          <div class="sched-item__body">
+            <div class="sched-item__title">不设闹钟</div>
+            <div class="sched-item__desc">今天故意不安排任何事。在家，让雨来决定节奏。</div>
+            <span class="sched-item__tag sched-item__tag--today">今天</span>
+          </div>
+        </div>
+
+        <div class="sched-item">
+          <div class="sched-item__time-col">
+            <div class="sched-item__time">21:00</div>
+            <div class="sched-item__dot"></div>
+            <div class="sched-item__line"></div>
+          </div>
+          <div class="sched-item__body">
+            <div class="sched-item__title">整理本周记忆</div>
+            <div class="sched-item__desc">今晚和林埃一起回顾这周存的 9 张记忆卡。</div>
+            <span class="sched-item__tag sched-item__tag--today">今晚</span>
+          </div>
+        </div>
+
+        <div class="section-label">下周 · 8月25日起</div>
+
+        <div class="sched-item sched-item--done">
+          <div class="sched-item__time-col">
+            <div class="sched-item__time">08:30</div>
+            <div class="sched-item__dot"></div>
+            <div class="sched-item__line"></div>
+          </div>
+          <div class="sched-item__body">
+            <div class="sched-item__title">周一例会</div>
+            <div class="sched-item__desc">提前10分钟进会议室，准备上周的进度更新。</div>
+            <span class="sched-item__tag sched-item__tag--done">已完成</span>
+          </div>
+        </div>
+
+        <div class="sched-item">
+          <div class="sched-item__time-col">
+            <div class="sched-item__time">22:00</div>
+            <div class="sched-item__dot"></div>
+            <div class="sched-item__line"></div>
+          </div>
+          <div class="sched-item__body">
+            <div class="sched-item__title">周三开始早睡</div>
+            <div class="sched-item__desc">林埃建议从周三开始，先把入睡时间提前 30 分钟。</div>
+            <span class="sched-item__tag sched-item__tag--week">下周三</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="fab" title="新建提醒">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const host=document.getElementById('rainHost');
+  if(!host)return;
+  for(let i=0;i<16;i++){
+    const s=document.createElement('div');
+    s.className='rain-streak';
+    const h=22+Math.random()*34;
+    s.style.cssText=`left:${Math.random()*100}%;height:${h}px;animation-duration:${2.2+Math.random()*2.8}s;animation-delay:${Math.random()*2.5}s;`;
+    host.appendChild(s);
+  }
+})();
+
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const t=btn.dataset.t;
+    ['chat','memory','schedule'].forEach(id=>{
+      document.getElementById('p-'+id).style.display=t===id?'flex':'none';
+    });
+  });
+});
+
+const ta=document.querySelector('.chat-input__field');
+if(ta){
+  ta.addEventListener('input',()=>{
+    ta.style.height='auto';
+    ta.style.height=Math.min(ta.scrollHeight,110)+'px';
+  });
+}
+
+document.querySelectorAll('.msg').forEach((m,i)=>{
+  m.style.animationDelay=(i*0.05)+'s';
+});
+</script>
+</body>
+</html>
