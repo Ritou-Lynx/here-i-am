@@ -6,7 +6,7 @@ final _logger = getLogger('ConversationCaptureHandler');
 /// No-op handler for legacy `conversation_capture_task` payloads.
 ///
 /// Auto-capture has been removed in favor of explicit User-truth writes
-/// through [RecordOrganizerService]. We keep this handler registered so
+/// through the Memory V3 Record Organizer. We keep this handler registered so
 /// historical tasks still sitting in the queue from older builds drain
 /// instead of looping on "no handler" errors.
 Future<void> handleConversationCapture(

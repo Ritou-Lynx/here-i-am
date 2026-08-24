@@ -78,7 +78,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天和
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
 | Companion Chat / Voice | Chat 首页、文字/图片/语音、流式回复、来电与主动触达基础、春雨昼眠 Chat 首版 | Android 14/15 FGS 修复仍需最终真机 crash-signature Gate；部分语音和 UI 体验继续按真实 bad case 收口 |
-| Memory V3 / Dreaming | Memory Card 数据底座、Fragment / Episode / Saga、FTS 与 fallback、召回 trace、Project Memory 查询 | 需要至少 20 条新真实聊天的消息驱动与召回验收；显式记录入口仍需最终统一到 Record Organizer 契约 |
+| Memory V3 / Dreaming | Memory Card 数据底座、Fragment / Episode / Saga、FTS 与 fallback、召回 trace、Project Memory 查询；显式 User-truth 写入已统一到 `RecordOrganizerServiceV3` | 根据真实 bad case 继续收口召回反馈的跨话题误伤与排序质量，不再以 2026-07-13 的“重新积累 20 条聊天”事故清单作为当前产品 Gate |
 | Desktop Whiteboard | F0–F4 数据、卡片库、画布、链接入库、视频研读；UI-0 与安全恢复基线 | Bilibili 匿名字幕严格 Gate 仍为 0/18；平台不暴露匿名轨时必须诚实降级 |
 | AI Workbench Phase 1 | 普通 Runtime 对话、stop/resume、受限搜索、选区读取、分组连线与整批撤销、Artifact Core 最小恢复执行器均已合入 `v3-lab` | 通用卡片写工具、Memory V3 人格上下文、长期队列、Artifact 生产 adapter/renderer 尚未完成 |
 | TaskRoom 数据层 | TaskRooms / TaskArtifacts / TaskDecisions 和 service 已存在 | 旧 handoff 中的通用 Orchestrator / Agent 树不再作为方向；数据层只服务后续 P6 长任务队列 |
@@ -125,11 +125,10 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天和
 
 优先闭环：
 
-1. 按 `DREAMING_EVENT_DRIVEN_ACCEPTANCE.md` 从零积累至少 20 条真实聊天，验收消息驱动唤醒、Fragment / Episode / Saga 质量、命中、补位、反馈和零结果。
+1. 基于真实 recall trace、用户反馈和已出现的跑题 bad case，收口反馈 penalty 不区分话题造成的跨语境误伤；没有新证据不拍脑袋改阈值。
 2. 按 `MEMORY_DATA_SYNC_ACCEPTANCE.md` 完成私人电脑 → 工作电脑 → 私人电脑的配置与记忆数据往返，验证 safety snapshot 和失败恢复。
 3. 真机复核 Android 14/15 FGS 三类历史 crash signature 不再出现；失败时回到平台修复 Goal，不以“能安装”代替通过。
-4. 统一显式记录入口与 Record Organizer：普通聊天继续不写 User-truth，记录失败必须可见、可重试、不可静默污染。
-5. Project Memory 接 commit / DEVLOG 对账和 Review 展示，保持 Dev Room > Project Memory > Dreaming 的项目事实权威顺序。
+4. Project Memory 接 commit / DEVLOG 对账和 Review 展示，保持 Dev Room > Project Memory > Dreaming 的项目事实权威顺序。
 
 退出条件：真实样本与跨设备往返有验收记录；不存在已知静默丢数据、静默误记或恢复覆盖风险；Android 候选完成唯一 `hereIAmV3` 构建与真人签字。
 
@@ -168,7 +167,7 @@ P7/P8/P9 可以分别准备 provider、validator 和 scanner，但任何直接�
 | Artifact Core 最小执行器已通过；生产 adapter/renderer 待补 | P4 生产写入、P7/P8/P9 上板 | 只有契约或 staging 不得写成产物已落地 |
 | P4-T1 卡片命令和 Receipt/Undo | TaskArtifact 上板、批量组织 | AI 不能绕过人工入口和撤销语义 |
 | W4 匿名 Bilibili 字幕严格 Gate 0/18 | 自动字幕依赖功能 | 与字幕无关的 P4/P5/P6 可继续；登录 Cookie 需单独隐私 ADR |
-| Dreaming 真实样本验收 | 参数调优与更主动的关系召回 | 没有 bad case 不凭感觉改阈值 |
+| Dreaming 真实 bad case 与 recall trace | 参数调优与更主动的关系召回 | 旧“20 条新聊天”清单只作首次安装回归，不再充当当前阶段 Gate |
 | 双机记忆数据往返 | 自动同步、增量合并 | 当前禁止两端离线并发写后互相覆盖 |
 
 ---

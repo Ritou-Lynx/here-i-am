@@ -14,7 +14,6 @@ import 'package:memex/data/services/card_detail_notifier.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/dev_agent_bridge_service.dart';
-import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/data/services/sync/memory_data_sync_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
@@ -113,10 +112,7 @@ class MemexRouter {
       if (AppFlavor.isHereIAm) {
         SharedLifeMemoryService.init(AppDatabase.instance, userId);
         final sharedLifeMemory = SharedLifeMemoryService.instance;
-        // Record Organizer (V2 legacy — explicit user-truth write path).
-        RecordOrganizerService.init(sharedLifeMemory);
-        // Record Organizer V3 — new memory_v3 write path. Runs alongside V2
-        // until UI切换 (Phase 1.6 of MEMORY_V3_ROADMAP.md) is complete.
+        // Record Organizer V3 is the sole explicit User-truth write path.
         RecordOrganizerServiceV3.init(AppDatabase.instance);
         // One-time backfill: re-bridge finance memory cards to the shared
         // ledger for devices that recorded them while the transfer_direction

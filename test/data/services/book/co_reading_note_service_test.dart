@@ -5,9 +5,9 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/memory_v3/models/topic_thread_intent.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/data/services/book/co_reading_note_service.dart';
-import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -29,9 +29,10 @@ void main() {
       db,
       recordWriter: (input) async {
         recordInputs.add(input);
-        return const RecordResult(
-          entityIds: ['card-reading-1'],
-          entityTitles: ['阅读感受'],
+        return RecordPersistResult(
+          cardIds: const ['card-reading-1'],
+          entityIds: const [],
+          assetIds: const [],
           isEmpty: false,
         );
       },

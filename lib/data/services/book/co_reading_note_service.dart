@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
 import 'package:memex/data/memory_v3/models/topic_thread_intent.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
-import 'package:memex/data/services/record_organizer_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -15,7 +15,7 @@ import 'package:uuid/uuid.dart';
 
 import 'co_reading_continuity_prompt.dart';
 
-typedef CoReadingRecordWriter = Future<RecordResult> Function(
+typedef CoReadingRecordWriter = Future<RecordPersistResult> Function(
   CoReadingRecordInput input,
 );
 
@@ -381,7 +381,7 @@ class CoReadingNoteService {
             'chapterTitle': session.chapterTitle,
             'messageIds': messageIds,
           },
-          linkedCardIds: recordResult.entityIds,
+          linkedCardIds: recordResult.cardIds,
           authority: 'agent_inferred',
           occurredAt: DateTime.fromMillisecondsSinceEpoch(
             session.endedAt ?? session.startedAt,
@@ -408,7 +408,7 @@ class CoReadingNoteService {
       await _markProcessed(sessionId);
       return CoReadingProcessResult(
         messageCount: messages.length,
-        cardIds: recordResult.entityIds,
+        cardIds: recordResult.cardIds,
         threadSessionIds: threadSessionIds,
       );
     } catch (error) {
@@ -508,26 +508,48 @@ class CoReadingNoteService {
     return TopicThreadIntentItem.parseList(row?.intentsJson ?? '[]');
   }
 
-  Future<RecordResult> _recordWithOrganizer(CoReadingRecordInput input) async {
-    if (!RecordOrganizerService.isInitialized) {
-      return const RecordResult(entityIds: [], entityTitles: [], isEmpty: true);
+  Future<RecordPersistResult> _recordWithOrganizer(
+    CoReadingRecordInput input,
+  ) async {
+    if (!RecordOrganizerServiceV3.isInitialized) {
+      return RecordPersistResult(
+        cardIds: const [],
+        entityIds: const [],
+        assetIds: const [],
+        isEmpty: true,
+      );
     }
-    final userId = await UserStorage.getUserId();
-    if (userId == null) {
-      return const RecordResult(entityIds: [], entityTitles: [], isEmpty: true);
-    }
-    return RecordOrganizerService.instance.recordFromText(
-      userId: userId,
-      sourceCharacterId: input.session.characterId,
-      text: input.transcript,
-      sourceKind: 'co_reading',
-      sourceRef: jsonEncode({
-        'coReadingSessionId': input.session.id,
-        'workType': input.session.workType,
-        'workId': input.session.workId,
-        'chapterRef': input.session.chapterRef,
-      }),
-      sourceMessageIds: input.messageIds,
+    final messageRows = input.messageIds.isEmpty
+        ? const <PersonaChatMessage>[]
+        : await (_db.select(_db.personaChatMessages)
+              ..where((message) => message.id.isIn(input.messageIds)))
+            .get();
+    final messageSyncIds = messageRows
+        .map((message) => message.syncId)
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final resources = await UserStorage.getAgentLLMResources(
+      AgentDefinitions.recordOrganizerAgent,
+      defaultClientKey: LLMConfig.defaultClientKey,
+    );
+    return RecordOrganizerServiceV3.instance.organizeAndPersist(
+      client: resources.client,
+      modelConfig: resources.modelConfig,
+      source: RecordSource(
+        sourceKind: 'co_reading',
+        rawInput: input.transcript,
+        sourceRef: jsonEncode({
+          'coReadingSessionId': input.session.id,
+          'characterId': input.session.characterId,
+          'workType': input.session.workType,
+          'workId': input.session.workId,
+          'chapterRef': input.session.chapterRef,
+          'messageIds': input.messageIds,
+          if (messageSyncIds.isNotEmpty) 'messageSyncIds': messageSyncIds,
+        }),
+      ),
     );
   }
 

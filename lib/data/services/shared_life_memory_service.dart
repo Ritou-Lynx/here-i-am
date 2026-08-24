@@ -626,7 +626,7 @@ class SharedLifeMemoryService {
     );
   }
 
-  /// Apply multiple operations directly (e.g. RecordOrganizerService batch).
+  /// Apply multiple operations directly for legacy SharedLife callers.
   Future<SharedLifeApplyResult> applyDirectOperations({
     required String sourceCharacterId,
     required List<SharedLifeOperationDraft> operations,
@@ -1183,7 +1183,9 @@ bool _sameStringList(List<String> a, List<String> b) {
 
 void _mergePatch(Map<String, dynamic> target, Map<String, dynamic> patch) {
   for (final entry in patch.entries) {
-    if (_reservedPatchFields.contains(entry.key)) continue; // never enters state
+    if (_reservedPatchFields.contains(entry.key)) {
+      continue; // never enters state
+    }
     final existing = target[entry.key];
     if (entry.value == null) {
       target.remove(entry.key);
@@ -1199,7 +1201,9 @@ void _mergePatch(Map<String, dynamic> target, Map<String, dynamic> patch) {
 
 void _appendPatch(Map<String, dynamic> target, Map<String, dynamic> patch) {
   for (final entry in patch.entries) {
-    if (_reservedPatchFields.contains(entry.key)) continue; // never enters state
+    if (_reservedPatchFields.contains(entry.key)) {
+      continue; // never enters state
+    }
     final existing = target[entry.key];
     if (existing is List && entry.value is List) {
       target[entry.key] = [...existing, ...(entry.value as List)];
