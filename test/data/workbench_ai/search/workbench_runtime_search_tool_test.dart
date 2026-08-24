@@ -244,7 +244,6 @@ void main() {
   });
 
   test('host unavailable yields failed tool result', () async {
-    final runtime = _SearchConversationRuntime();
     final tool = WorkbenchRuntimeSearchTool(
       loadHost: () async {
         throw Exception('runtime host unreachable');

@@ -23,9 +23,6 @@ void main() {
 
   setUpAll(() {
     fts5Available = _checkFts5();
-    if (!fts5Available) {
-      print('[search-facade-test] FTS5 not available on this runtime.');
-    }
   });
 
   SearchHitRef hit({
@@ -213,7 +210,7 @@ void main() {
   test('real Memory V3 data can be matched through FTS-backed search', () async {
     if (!fts5Available) return;
     final db = AppDatabase.forTesting(NativeDatabase.memory());
-    await db.createFtsTables();
+    await db.searchDao.createFtsTables();
     await _insertMemoryCard(
       db,
       id: 'memory-card-needle',
@@ -222,16 +219,14 @@ void main() {
       label: '拿铁',
       text: '用户今天喝了一杯拿铁，下午更有精神。',
     );
-    final adapter = MemoryV3WorkbenchSearchAdapter(
-      MemoryCardQuerySearchReader(MemoryCardQueryService(db)),
-    );
+    final adapter = MemoryV3WorkbenchSearchAdapter(MemoryCardQueryService(db));
     final response = await WorkbenchSearchFacade(adapters: [adapter]).search(
       request: WorkbenchSearchRequest(
         requestId: 'trace-memory-real-hit',
         query: '咖啡',
         scopes: {SearchScope.memoryV3},
         budget:
-            const WorkbenchSearchBudget(maxResults: 1, maxResultsPerScope: 1),
+            WorkbenchSearchBudget(maxResults: 1, maxResultsPerScope: 1),
       ),
       authorization: SearchAuthorization(
         profileId: 'memory-v3-real',
@@ -257,7 +252,7 @@ void main() {
   test('real Memory V3 query returns empty when no matching card', () async {
     if (!fts5Available) return;
     final db = AppDatabase.forTesting(NativeDatabase.memory());
-    await db.createFtsTables();
+    await db.searchDao.createFtsTables();
     await _insertMemoryCard(
       db,
       id: 'memory-card-weather',
@@ -266,16 +261,14 @@ void main() {
       label: '晴天',
       text: '明天要下雨。',
     );
-    final adapter = MemoryV3WorkbenchSearchAdapter(
-      MemoryCardQuerySearchReader(MemoryCardQueryService(db)),
-    );
+    final adapter = MemoryV3WorkbenchSearchAdapter(MemoryCardQueryService(db));
     final response = await WorkbenchSearchFacade(adapters: [adapter]).search(
       request: WorkbenchSearchRequest(
         requestId: 'trace-memory-real-empty',
-        query: '记账',
+        query: 'unmatched_ledger_xyz',
         scopes: {SearchScope.memoryV3},
         budget:
-            const WorkbenchSearchBudget(maxResults: 1, maxResultsPerScope: 1),
+            WorkbenchSearchBudget(maxResults: 1, maxResultsPerScope: 1),
       ),
       authorization: SearchAuthorization(
         profileId: 'memory-v3-real-empty',
@@ -297,11 +290,8 @@ void main() {
   test(
     'adapter-level backend unavailability degrades to partial and returns no secrets',
     () async {
-      final db = AppDatabase.forTesting(NativeDatabase.memory());
-      final service = MemoryCardQueryService(db);
-      await db.close();
-      final adapter = MemoryV3WorkbenchSearchAdapter(
-        MemoryCardQuerySearchReader(service),
+      final adapter = MemoryV3WorkbenchSearchAdapter.withReader(
+        _ThrowingMemoryV3Reader(StateError('database secret')),
       );
       final response = await WorkbenchSearchFacade(adapters: [adapter]).search(
         request: WorkbenchSearchRequest(
@@ -325,7 +315,6 @@ void main() {
       expect(response.trace.failedScopes, [SearchScope.memoryV3]);
       expect(encoded, isNot(contains('MemoryCardQueryService')));
       expect(encoded, isNot(contains('database')));
-      await db.close();
     },
   );
 
@@ -647,6 +636,25 @@ class _FakeMemoryV3Reader implements MemoryV3SearchReader {
           ),
         )
         .toList(growable: false);
+  }
+}
+
+class _ThrowingMemoryV3Reader implements MemoryV3SearchReader {
+  _ThrowingMemoryV3Reader(this.error);
+
+  final Object error;
+
+  @override
+  Future<List<MemoryV3SearchCandidate>> search(
+    String query, {
+    required int limit,
+  }) async {
+    throw error;
+  }
+
+  @override
+  Future<List<MemoryV3SearchDocument>> readByIds(List<String> cardIds) async {
+    throw error;
   }
 }
 

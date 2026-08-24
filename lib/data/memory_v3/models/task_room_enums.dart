@@ -1,7 +1,5 @@
-/// Enums for TaskRooms schema.
-///
-/// These enums define allowed values for task types, statuses, artifact types,
-/// and decision types in the TaskRooms domain.
+// Enums for the TaskRooms schema. These define allowed values for task types,
+// statuses, artifact types, and decision types in the TaskRooms domain.
 
 /// Task type categories.
 enum TaskType {

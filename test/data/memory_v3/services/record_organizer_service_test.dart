@@ -218,13 +218,17 @@ void main() {
     expect(updated.retrievalText, '中午吃了麦辣鸡腿堡，和室友 A 一起。');
     expect(updated.dropletLabel, '鸡腿堡');
     expect(updated.type, original.type); // unchanged
-    expect(updated.updatedAt, greaterThan(original.updatedAt));
+    expect(updated.updatedAt, original.updatedAt);
 
     final ops = await (db.select(db.memoryCardOperations)
           ..where((t) => t.cardId.equals(cardId)))
         .get();
     final updateOps = ops.where((o) => o.operationType == 'update').toList();
     expect(updateOps, hasLength(1));
+    expect(
+      updateOps.single.createdAt,
+      greaterThanOrEqualTo(original.updatedAt),
+    );
     final payload = jsonDecode(updateOps.single.payload) as Map<String, dynamic>;
     expect(payload.keys, containsAll(['title', 'retrievalText', 'dropletLabel']));
   });
