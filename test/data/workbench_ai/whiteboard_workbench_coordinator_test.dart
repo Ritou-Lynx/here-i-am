@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
 
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,6 +10,7 @@ import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_coordinator.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_surface.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
+import 'package:memex/data/workbench_ai/workbench_action_reader.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
@@ -87,13 +90,34 @@ void main() {
       store: store,
       repositoryLoader: () async => repository,
       surfaceController: surfaceController,
-      addAction: (_, __, projection) async {
+      addAction: (characterId, content, projection) async {
         projections.add(WorkbenchActionProjection.fromJson(projection));
-        return 41;
+        return db.into(db.personaChatMessages).insert(
+              PersonaChatMessagesCompanion.insert(
+                characterId: characterId,
+                isFromCharacter: true,
+                content: content,
+                timestamp: DateTime.utc(2026, 8, 21, 10),
+                messageType: const Value('action'),
+                attachmentsJson: Value(jsonEncode([
+                  {'type': 'workbench_action', 'action': projection},
+                ])),
+              ),
+            );
       },
-      updateAction: (_, __, projection) async {
+      updateAction: (messageId, content, projection) async {
         projections.add(WorkbenchActionProjection.fromJson(projection));
+        await (db.update(db.personaChatMessages)
+              ..where((row) => row.id.equals(messageId)))
+            .write(PersonaChatMessagesCompanion(
+          content: Value(content),
+          attachmentsJson: Value(jsonEncode([
+            {'type': 'workbench_action', 'action': projection},
+          ])),
+        ));
       },
+      readActions: (characterId) =>
+          readPersistedWorkbenchActions(db, characterId),
       clock: () => DateTime.utc(2026, 8, 21, 10),
     );
 
@@ -195,13 +219,34 @@ void main() {
       store: store,
       repositoryLoader: () async => repository,
       surfaceController: surfaceController,
-      addAction: (_, __, projection) async {
+      addAction: (characterId, content, projection) async {
         projections.add(WorkbenchActionProjection.fromJson(projection));
-        return 41;
+        return db.into(db.personaChatMessages).insert(
+              PersonaChatMessagesCompanion.insert(
+                characterId: characterId,
+                isFromCharacter: true,
+                content: content,
+                timestamp: DateTime.utc(2026, 8, 21, 10),
+                messageType: const Value('action'),
+                attachmentsJson: Value(jsonEncode([
+                  {'type': 'workbench_action', 'action': projection},
+                ])),
+              ),
+            );
       },
-      updateAction: (_, __, projection) async {
+      updateAction: (messageId, content, projection) async {
         projections.add(WorkbenchActionProjection.fromJson(projection));
+        await (db.update(db.personaChatMessages)
+              ..where((row) => row.id.equals(messageId)))
+            .write(PersonaChatMessagesCompanion(
+          content: Value(content),
+          attachmentsJson: Value(jsonEncode([
+            {'type': 'workbench_action', 'action': projection},
+          ])),
+        ));
       },
+      readActions: (characterId) =>
+          readPersistedWorkbenchActions(db, characterId),
       clock: () => DateTime.utc(2026, 8, 21, 10),
     );
 
@@ -232,6 +277,8 @@ void main() {
       updateAction: (_, __, projection) async {
         reopenedProjections.add(WorkbenchActionProjection.fromJson(projection));
       },
+      readActions: (characterId) =>
+          readPersistedWorkbenchActions(db, characterId),
       clock: () => DateTime.utc(2026, 8, 21, 10),
     );
     surfaceController.attach(

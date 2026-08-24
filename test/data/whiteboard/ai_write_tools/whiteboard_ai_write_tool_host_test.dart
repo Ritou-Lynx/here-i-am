@@ -303,6 +303,44 @@ void main() {
     expect(snapshot.groups, hasLength(2));
   });
 
+  test('rejects an oversized persisted undo envelope before mutation',
+      () async {
+    var snapshot = _snapshot();
+    snapshot = _copySnapshot(
+      snapshot,
+      cards: [
+        CardContract(
+          cardId: 'card_1',
+          cardKind: CardKind.note,
+          body: List.filled(
+            WhiteboardAiWriteToolHost.hardMaxUndoEnvelopeUtf8Bytes + 1,
+            'x',
+          ).join(),
+          createdAt: DateTime.utc(2026, 8, 20),
+        ),
+        ...snapshot.cards.where((card) => card.cardId != 'card_1'),
+      ],
+    );
+    var saves = 0;
+    final fixture = _fixture(
+      now: now,
+      load: (_) async => snapshot,
+      save: (_, value) async {
+        saves++;
+        snapshot = value;
+        return true;
+      },
+    );
+
+    final receipt = await fixture.host.groupAndConnect(fixture.request);
+
+    expect(receipt.status, WhiteboardAiWriteStatus.invalidRequest);
+    expect(receipt.issues.single.code, 'undo_payload_too_large');
+    expect(saves, 0);
+    expect(snapshot.groups, isEmpty);
+    expect(snapshot.edges, isEmpty);
+  });
+
   test('invalid, duplicate, and pre-grouped plans fail without mutation',
       () async {
     var snapshot = _snapshot();
@@ -542,6 +580,7 @@ WhiteboardSnapshot _snapshot() {
 
 WhiteboardSnapshot _copySnapshot(
   WhiteboardSnapshot source, {
+  List<CardContract>? cards,
   List<Board>? boards,
   List<BoardItem>? boardItems,
   List<BoardGroup>? groups,
@@ -553,7 +592,7 @@ WhiteboardSnapshot _copySnapshot(
     schemaVersion: source.schemaVersion,
     sources: source.sources,
     sourceVersions: source.sourceVersions,
-    cards: source.cards,
+    cards: cards ?? source.cards,
     boards: boards ?? source.boards,
     boardItems: boardItems ?? source.boardItems,
     groups: groups ?? source.groups,

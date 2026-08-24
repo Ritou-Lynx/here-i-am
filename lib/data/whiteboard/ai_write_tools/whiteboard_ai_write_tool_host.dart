@@ -65,6 +65,7 @@ class WhiteboardAiWriteToolHost {
   static const hardMaxGroupNameRunes = 120;
   static const hardMaxEdgeLabelRunes = 200;
   static const hardMaxSemanticTypeRunes = 64;
+  static const hardMaxUndoEnvelopeUtf8Bytes = 128 * 1024;
 
   final WhiteboardPermissionBroker permissionBroker;
   final WhiteboardSnapshotLoader _loadSnapshot;
@@ -320,6 +321,23 @@ class WhiteboardAiWriteToolHost {
       operations: List.unmodifiable(operations),
       occurredAt: now,
     );
+    if (utf8
+            .encode(jsonEncode(receipt.toUndoReceiptEnvelope(
+              beforeSnapshot: before,
+            )))
+            .length >
+        hardMaxUndoEnvelopeUtf8Bytes) {
+      permissionBroker.release(
+        authorizationId: request.authorizationId,
+        operationBatchId: request.operationBatchId,
+      );
+      return _failure(
+        request: request,
+        status: WhiteboardAiWriteStatus.invalidRequest,
+        issue: const WhiteboardAiWriteIssue('undo_payload_too_large'),
+        now: now,
+      );
+    }
 
     var saved = false;
     try {

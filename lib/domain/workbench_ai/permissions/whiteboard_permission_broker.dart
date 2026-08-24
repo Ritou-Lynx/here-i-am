@@ -6,6 +6,12 @@ typedef WhiteboardPermissionClock = DateTime Function();
 typedef WhiteboardAuthorizationIdFactory = String Function();
 
 enum WhiteboardWriteCapability {
+  createCard('create_card'),
+  editCardBody('edit_card_body'),
+  setCardLabels('set_card_labels'),
+  movePlacement('move_placement'),
+  resizePlacement('resize_placement'),
+  removePlacement('remove_placement'),
   groupSelection('group_selection'),
   connectSelection('connect_selection');
 
@@ -33,6 +39,7 @@ class WhiteboardAuthorizationGrant {
     required this.userAuthorizationMessageId,
     required this.boardId,
     required this.selectedItemIds,
+    required this.selectedCardIds,
     required this.capabilities,
     required this.maxOperationCount,
     required this.issuedAt,
@@ -44,23 +51,25 @@ class WhiteboardAuthorizationGrant {
   final String userAuthorizationMessageId;
   final String boardId;
   final Set<String> selectedItemIds;
+  final Set<String> selectedCardIds;
   final Set<WhiteboardWriteCapability> capabilities;
   final int maxOperationCount;
   final DateTime issuedAt;
   final DateTime expiresAt;
 
   Map<String, dynamic> toAuditJson() => {
-        'authorization_id': authorizationId,
-        'runtime_turn_id': runtimeTurnId,
-        'user_authorization_message_id': userAuthorizationMessageId,
-        'board_id': boardId,
-        'selected_item_ids': selectedItemIds.toList()..sort(),
-        'capabilities': capabilities.map((value) => value.wireName).toList()
-          ..sort(),
-        'max_operation_count': maxOperationCount,
-        'issued_at': issuedAt.toUtc().toIso8601String(),
-        'expires_at': expiresAt.toUtc().toIso8601String(),
-      };
+    'authorization_id': authorizationId,
+    'runtime_turn_id': runtimeTurnId,
+    'user_authorization_message_id': userAuthorizationMessageId,
+    'board_id': boardId,
+    'selected_item_ids': selectedItemIds.toList()..sort(),
+    'selected_card_ids': selectedCardIds.toList()..sort(),
+    'capabilities': capabilities.map((value) => value.wireName).toList()
+      ..sort(),
+    'max_operation_count': maxOperationCount,
+    'issued_at': issuedAt.toUtc().toIso8601String(),
+    'expires_at': expiresAt.toUtc().toIso8601String(),
+  };
 }
 
 class WhiteboardPermissionDecision {
@@ -71,11 +80,11 @@ class WhiteboardPermissionDecision {
   });
 
   const WhiteboardPermissionDecision.allowed(WhiteboardAuthorizationGrant grant)
-      : this._(
-          allowed: true,
-          code: WhiteboardPermissionDecisionCode.allowed,
-          grant: grant,
-        );
+    : this._(
+        allowed: true,
+        code: WhiteboardPermissionDecisionCode.allowed,
+        grant: grant,
+      );
 
   const WhiteboardPermissionDecision.denied(
     WhiteboardPermissionDecisionCode code,
@@ -93,9 +102,9 @@ class WhiteboardPermissionBroker {
     this.authorizationTtl = const Duration(minutes: 15),
     this.hardMaxSelectedItems = 64,
     this.hardMaxOperationCount = 128,
-  })  : _clock = clock ?? (() => DateTime.now().toUtc()),
-        _authorizationIdFactory =
-            authorizationIdFactory ?? _defaultAuthorizationId;
+  }) : _clock = clock ?? (() => DateTime.now().toUtc()),
+       _authorizationIdFactory =
+           authorizationIdFactory ?? _defaultAuthorizationId;
 
   final WhiteboardPermissionClock _clock;
   final WhiteboardAuthorizationIdFactory _authorizationIdFactory;
@@ -110,20 +119,27 @@ class WhiteboardPermissionBroker {
     required String userAuthorizationMessageId,
     required String boardId,
     required Set<String> selectedItemIds,
+    Set<String> selectedCardIds = const {},
     required Set<WhiteboardWriteCapability> capabilities,
     int maxOperationCount = 64,
   }) {
     _requireId(runtimeTurnId, 'runtimeTurnId');
     _requireId(userAuthorizationMessageId, 'userAuthorizationMessageId');
     _requireId(boardId, 'boardId');
-    if (selectedItemIds.isEmpty ||
-        selectedItemIds.length > hardMaxSelectedItems) {
+    if (selectedItemIds.length > hardMaxSelectedItems ||
+        selectedCardIds.length > hardMaxSelectedItems ||
+        (selectedItemIds.isEmpty &&
+            selectedCardIds.isEmpty &&
+            !capabilities.contains(WhiteboardWriteCapability.createCard))) {
       throw ArgumentError(
-        'selectedItemIds must contain 1..$hardMaxSelectedItems stable ids',
+        'authorization scope is empty or exceeds $hardMaxSelectedItems ids',
       );
     }
     for (final itemId in selectedItemIds) {
       _requireId(itemId, 'selectedItemIds[]');
+    }
+    for (final cardId in selectedCardIds) {
+      _requireId(cardId, 'selectedCardIds[]');
     }
     if (capabilities.isEmpty) {
       throw ArgumentError('at least one write capability is required');
@@ -152,6 +168,7 @@ class WhiteboardPermissionBroker {
       userAuthorizationMessageId: userAuthorizationMessageId,
       boardId: boardId,
       selectedItemIds: Set.unmodifiable(selectedItemIds),
+      selectedCardIds: Set.unmodifiable(selectedCardIds),
       capabilities: Set.unmodifiable(capabilities),
       maxOperationCount: maxOperationCount,
       issuedAt: issuedAt,
@@ -167,6 +184,7 @@ class WhiteboardPermissionBroker {
     required String runtimeTurnId,
     required String boardId,
     required Set<String> targetItemIds,
+    Set<String> targetCardIds = const {},
     required Set<WhiteboardWriteCapability> requiredCapabilities,
     required int operationCount,
   }) {
@@ -209,6 +227,11 @@ class WhiteboardPermissionBroker {
       );
     }
     if (!state.grant.selectedItemIds.containsAll(targetItemIds)) {
+      return const WhiteboardPermissionDecision.denied(
+        WhiteboardPermissionDecisionCode.targetOutsideSelection,
+      );
+    }
+    if (!state.grant.selectedCardIds.containsAll(targetCardIds)) {
       return const WhiteboardPermissionDecision.denied(
         WhiteboardPermissionDecisionCode.targetOutsideSelection,
       );

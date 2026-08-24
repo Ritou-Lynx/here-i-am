@@ -7,12 +7,12 @@ enum WorkbenchActionStatus {
   undone;
 
   static WorkbenchActionStatus parse(Object? value) => switch (value) {
-        'running' => WorkbenchActionStatus.running,
-        'completed' => WorkbenchActionStatus.completed,
-        'failed' => WorkbenchActionStatus.failed,
-        'undone' => WorkbenchActionStatus.undone,
-        _ => throw const FormatException('Unknown workbench action status'),
-      };
+    'running' => WorkbenchActionStatus.running,
+    'completed' => WorkbenchActionStatus.completed,
+    'failed' => WorkbenchActionStatus.failed,
+    'undone' => WorkbenchActionStatus.undone,
+    _ => throw const FormatException('Unknown workbench action status'),
+  };
 }
 
 class WorkbenchActionProjection {
@@ -37,6 +37,8 @@ class WorkbenchActionProjection {
     this.afterSnapshotHash,
     this.undoToken,
     this.undoReceipt,
+    this.domainCommandBatch,
+    this.domainCommandReceipt,
     this.errorCode,
     this.tools = const [],
   }) {
@@ -100,6 +102,8 @@ class WorkbenchActionProjection {
       'after_snapshot_hash',
       'undo_token',
       'undo_receipt',
+      'domain_command_batch',
+      'domain_command_receipt',
       'error_code',
       'tools',
       'created_at',
@@ -123,12 +127,15 @@ class WorkbenchActionProjection {
       runtimeTurnId: _optionalString(json['runtime_turn_id']),
       operationBatchId: _optionalString(json['operation_batch_id']),
       authorizationId: _optionalString(json['authorization_id']),
-      userAuthorizationMessageId:
-          _optionalString(json['user_authorization_message_id']),
+      userAuthorizationMessageId: _optionalString(
+        json['user_authorization_message_id'],
+      ),
       beforeSnapshotHash: _optionalString(json['before_snapshot_hash']),
       afterSnapshotHash: _optionalString(json['after_snapshot_hash']),
       undoToken: _optionalString(json['undo_token']),
       undoReceipt: _optionalMap(json['undo_receipt']),
+      domainCommandBatch: _optionalMap(json['domain_command_batch']),
+      domainCommandReceipt: _optionalMap(json['domain_command_receipt']),
       errorCode: _optionalString(json['error_code']),
       tools: _stringList(json['tools']),
       createdAt: DateTime.parse(_string(json, 'created_at')).toUtc(),
@@ -154,6 +161,8 @@ class WorkbenchActionProjection {
   final String? afterSnapshotHash;
   final String? undoToken;
   final Map<String, dynamic>? undoReceipt;
+  final Map<String, dynamic>? domainCommandBatch;
+  final Map<String, dynamic>? domainCommandReceipt;
   final String? errorCode;
   final List<String> tools;
   final DateTime createdAt;
@@ -175,6 +184,8 @@ class WorkbenchActionProjection {
     String? afterSnapshotHash,
     String? undoToken,
     Map<String, dynamic>? undoReceipt,
+    Map<String, dynamic>? domainCommandBatch,
+    Map<String, dynamic>? domainCommandReceipt,
     String? errorCode,
     List<String>? tools,
     DateTime? updatedAt,
@@ -199,6 +210,8 @@ class WorkbenchActionProjection {
       afterSnapshotHash: afterSnapshotHash ?? this.afterSnapshotHash,
       undoToken: undoToken ?? this.undoToken,
       undoReceipt: undoReceipt ?? this.undoReceipt,
+      domainCommandBatch: domainCommandBatch ?? this.domainCommandBatch,
+      domainCommandReceipt: domainCommandReceipt ?? this.domainCommandReceipt,
       errorCode: errorCode ?? this.errorCode,
       tools: tools ?? this.tools,
       createdAt: createdAt,
@@ -207,32 +220,34 @@ class WorkbenchActionProjection {
   }
 
   Map<String, dynamic> toJson() => {
-        'schema_version': 1,
-        'action_id': actionId,
-        'action_type': actionType,
-        'title': title,
-        'status': status.name,
-        'board_id': boardId,
-        'selected_item_count': selectedItemCount,
-        'group_count': groupCount,
-        'edge_count': edgeCount,
-        'summary': summary,
-        if (runtimeSessionId != null) 'runtime_session_id': runtimeSessionId,
-        if (runtimeTurnId != null) 'runtime_turn_id': runtimeTurnId,
-        if (operationBatchId != null) 'operation_batch_id': operationBatchId,
-        if (authorizationId != null) 'authorization_id': authorizationId,
-        if (userAuthorizationMessageId != null)
-          'user_authorization_message_id': userAuthorizationMessageId,
-        if (beforeSnapshotHash != null)
-          'before_snapshot_hash': beforeSnapshotHash,
-        if (afterSnapshotHash != null) 'after_snapshot_hash': afterSnapshotHash,
-        if (undoToken != null) 'undo_token': undoToken,
-        if (undoReceipt != null) 'undo_receipt': undoReceipt,
-        if (errorCode != null) 'error_code': errorCode,
-        'tools': tools,
-        'created_at': createdAt.toUtc().toIso8601String(),
-        'updated_at': updatedAt.toUtc().toIso8601String(),
-      };
+    'schema_version': 1,
+    'action_id': actionId,
+    'action_type': actionType,
+    'title': title,
+    'status': status.name,
+    'board_id': boardId,
+    'selected_item_count': selectedItemCount,
+    'group_count': groupCount,
+    'edge_count': edgeCount,
+    'summary': summary,
+    if (runtimeSessionId != null) 'runtime_session_id': runtimeSessionId,
+    if (runtimeTurnId != null) 'runtime_turn_id': runtimeTurnId,
+    if (operationBatchId != null) 'operation_batch_id': operationBatchId,
+    if (authorizationId != null) 'authorization_id': authorizationId,
+    if (userAuthorizationMessageId != null)
+      'user_authorization_message_id': userAuthorizationMessageId,
+    if (beforeSnapshotHash != null) 'before_snapshot_hash': beforeSnapshotHash,
+    if (afterSnapshotHash != null) 'after_snapshot_hash': afterSnapshotHash,
+    if (undoToken != null) 'undo_token': undoToken,
+    if (undoReceipt != null) 'undo_receipt': undoReceipt,
+    if (domainCommandBatch != null) 'domain_command_batch': domainCommandBatch,
+    if (domainCommandReceipt != null)
+      'domain_command_receipt': domainCommandReceipt,
+    if (errorCode != null) 'error_code': errorCode,
+    'tools': tools,
+    'created_at': createdAt.toUtc().toIso8601String(),
+    'updated_at': updatedAt.toUtc().toIso8601String(),
+  };
 }
 
 String _string(Map<String, dynamic> json, String key) {

@@ -8,13 +8,19 @@ import 'package:memex/data/whiteboard/ai_read_tools/whiteboard_ai_read_models.da
 import 'package:memex/data/whiteboard/ai_read_tools/whiteboard_ai_read_tool_host.dart';
 import 'package:memex/data/whiteboard/ai_write_tools/whiteboard_ai_write_models.dart';
 import 'package:memex/data/whiteboard/ai_write_tools/whiteboard_ai_write_tool_host.dart';
+import 'package:memex/data/whiteboard/domain_commands/whiteboard_domain_command_executor.dart';
+import 'package:memex/data/whiteboard/domain_commands/whiteboard_domain_command_facade.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_surface.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
+import 'package:memex/data/workbench_ai/workbench_action_reader.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/domain_command.dart';
+import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
+import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/workbench_ai/action/workbench_action_projection.dart';
 import 'package:memex/domain/workbench_ai/permissions/whiteboard_permission_broker.dart';
@@ -38,6 +44,7 @@ class WhiteboardWorkbenchCoordinator {
     required WhiteboardWorkbenchSurfaceController surfaceController,
     required WorkbenchActionAdd addAction,
     required WorkbenchActionUpdate updateAction,
+    WorkbenchActionReader? readActions,
     WhiteboardPermissionBroker? permissionBroker,
     DateTime Function()? clock,
   })  : _runtime = runtime,
@@ -46,6 +53,11 @@ class WhiteboardWorkbenchCoordinator {
         _surfaceController = surfaceController,
         _addAction = addAction,
         _updateAction = updateAction,
+        _readActions = readActions ??
+            ((characterId) => readPersistedWorkbenchActions(
+                  AppDatabase.instance,
+                  characterId,
+                )),
         _permissionBroker = permissionBroker ?? WhiteboardPermissionBroker(),
         _clock = clock ?? (() => DateTime.now().toUtc());
 
@@ -54,18 +66,16 @@ class WhiteboardWorkbenchCoordinator {
     store: WhiteboardDriftStore(AppDatabase.instance),
     repositoryLoader: WhiteboardDataBootstrap.productionRepository,
     surfaceController: WhiteboardWorkbenchSurfaceController.instance,
-    addAction: (characterId, content, projection) =>
-        PersonaChatService.instance.addWorkbenchActionMessage(
-      characterId,
-      content,
-      projection,
-    ),
+    addAction: (characterId, content, projection) => PersonaChatService.instance
+        .addWorkbenchActionMessage(characterId, content, projection),
     updateAction: (messageId, content, projection) =>
         PersonaChatService.instance.updateWorkbenchActionMessage(
       messageId: messageId,
       content: content,
       projection: projection,
     ),
+    readActions: (characterId) =>
+        readPersistedWorkbenchActions(AppDatabase.instance, characterId),
   );
 
   static const readToolName = 'whiteboard_read_selection';
@@ -84,13 +94,74 @@ class WhiteboardWorkbenchCoordinator {
   final WhiteboardWorkbenchSurfaceController _surfaceController;
   final WorkbenchActionAdd _addAction;
   final WorkbenchActionUpdate _updateAction;
+  final WorkbenchActionReader _readActions;
   final WhiteboardPermissionBroker _permissionBroker;
   final DateTime Function() _clock;
   final Map<String, _UndoBinding> _undoBindings = {};
   final Set<String> _restoredCharacters = {};
+  WhiteboardDomainCommandFacade? _domainCommandFacade;
 
   bool _running = false;
   String? _activeCharacterId;
+
+  WhiteboardDomainCommandFacade get _domainCommands =>
+      _domainCommandFacade ??= WhiteboardDomainCommandFacade(
+        executor: WhiteboardDomainCommandExecutor.forDriftStore(
+          permissionBroker: _permissionBroker,
+          store: _store,
+        ),
+        permissionBroker: _permissionBroker,
+        addAction: _addAction,
+        updateAction: _updateAction,
+        readActions: _readActions,
+        clock: _clock,
+      );
+
+  /// Direct user mutations and Runtime tool mutations converge on the same
+  /// product-owned facade/executor. Callers cannot supply an alternate undo,
+  /// receipt, permission, or hash-conflict implementation.
+  Future<WhiteboardDomainCommandReceipt> executeUserDomainCommands({
+    required String characterId,
+    required WhiteboardDomainCommandBatch batch,
+    required String userAuthorizationMessageId,
+  }) =>
+      _domainCommands.executeUser(
+        characterId: characterId,
+        batch: batch,
+        userAuthorizationMessageId: userAuthorizationMessageId,
+      );
+
+  Future<WhiteboardDomainCommandReceipt> executeRuntimeDomainCommands({
+    required String characterId,
+    required WhiteboardDomainCommandBatch batch,
+    required String authorizationId,
+    required String runtimeTurnId,
+    required String userAuthorizationMessageId,
+  }) =>
+      _domainCommands.executeRuntime(
+        characterId: characterId,
+        batch: batch,
+        authorizationId: authorizationId,
+        runtimeTurnId: runtimeTurnId,
+        userAuthorizationMessageId: userAuthorizationMessageId,
+      );
+
+  WhiteboardAuthorizationGrant authorizeRuntimeDomainCommands({
+    required WhiteboardDomainCommandBatch batch,
+    required String runtimeTurnId,
+    required String userAuthorizationMessageId,
+  }) =>
+      _domainCommands.authorizeRuntime(
+        batch: batch,
+        runtimeTurnId: runtimeTurnId,
+        userAuthorizationMessageId: userAuthorizationMessageId,
+      );
+
+  Future<WhiteboardDomainCommandReceipt?> undoDomainCommands({
+    required String characterId,
+    required String actionId,
+  }) =>
+      _domainCommands.undo(characterId: characterId, actionId: actionId);
 
   bool matches(String text) {
     final normalized = text.trim();
@@ -295,8 +366,9 @@ class WhiteboardWorkbenchCoordinator {
         beforeSnapshotHash: receipt.beforeSnapshotHash,
         afterSnapshotHash: receipt.afterSnapshotHash,
         undoToken: receipt.undoToken,
-        undoReceipt:
-            receipt.toUndoReceiptEnvelope(beforeSnapshot: loaded.snapshot!),
+        undoReceipt: receipt.toUndoReceiptEnvelope(
+          beforeSnapshot: loaded.snapshot!,
+        ),
       );
       writeHost.restoreUndoReceipt(
         receipt: receipt,
@@ -365,10 +437,7 @@ class WhiteboardWorkbenchCoordinator {
     // the first useful provider response before either dynamic tool can run.
     final deadline = _clock().toUtc().add(const Duration(minutes: 3));
     while (_clock().toUtc().isBefore(deadline)) {
-      final batch = await _runtime.readEvents(
-        sessionId,
-        afterSequence: cursor,
-      );
+      final batch = await _runtime.readEvents(sessionId, afterSequence: cursor);
       cursor = batch.nextSequence;
       for (final event in batch.events) {
         if (event['turn_id'] != runtimeTurnId) continue;
@@ -439,10 +508,7 @@ class WhiteboardWorkbenchCoordinator {
       }
       await Future<void>.delayed(const Duration(milliseconds: 120));
     }
-    throw const _ProductActionFailure(
-      'runtime_timeout',
-      '电脑执行等待超时，白板保持不变。',
-    );
+    throw const _ProductActionFailure('runtime_timeout', '电脑执行等待超时，白板保持不变。');
   }
 
   Future<WhiteboardAiReadSnapshot> _readSelection({
@@ -477,42 +543,40 @@ class WhiteboardWorkbenchCoordinator {
   Future<void> _restoreUndoBindings(String characterId) async {
     if (_restoredCharacters.contains(characterId)) return;
     try {
-      final messages = await PersonaChatService.instance.getMessages(
-        characterId,
-        limit: 200,
-      );
-      for (final message in messages) {
-        for (final action in _extractWorkbenchActionProjections(message)) {
-          if (_undoBindings.containsKey(action.actionId)) continue;
-          if (action.status != WorkbenchActionStatus.completed) continue;
-          if (action.actionType != 'whiteboard_group_and_connect') continue;
-          if (action.undoToken == null ||
-              action.undoReceipt == null ||
-              action.runtimeTurnId == null) continue;
-          final beforeSnapshot = _undoReceiptBeforeSnapshot(action.undoReceipt!);
-          if (beforeSnapshot == null) continue;
-          final receipt = _restoreReceiptFromProjection(
-            action: action,
-            actionUndoReceipt: action.undoReceipt!,
-          );
-          if (receipt == null) continue;
-          final host = WhiteboardAiWriteToolHost.forDriftStore(
-            permissionBroker: _permissionBroker,
-            store: _store,
-          );
-          host.restoreUndoReceipt(
-            receipt: receipt,
-            beforeSnapshot: beforeSnapshot,
-          );
-          _undoBindings[action.actionId] = _UndoBinding(
-            messageId: message.id,
-            projection: action,
-            host: host,
-            runtimeTurnId: action.runtimeTurnId!,
-            undoToken: action.undoToken!,
-            reload: () => _reloadIfBoardOpen(action.boardId),
-          );
+      final actions = await _readActions(characterId);
+      for (final persisted in actions) {
+        final action = persisted.projection;
+        if (_undoBindings.containsKey(action.actionId)) continue;
+        if (action.status != WorkbenchActionStatus.completed) continue;
+        if (action.actionType != 'whiteboard_group_and_connect') continue;
+        if (action.undoToken == null ||
+            action.undoReceipt == null ||
+            action.runtimeTurnId == null) {
+          continue;
         }
+        final beforeSnapshot = _undoReceiptBeforeSnapshot(action.undoReceipt!);
+        if (beforeSnapshot == null) continue;
+        final receipt = _restoreReceiptFromProjection(
+          action: action,
+          actionUndoReceipt: action.undoReceipt!,
+        );
+        if (receipt == null) continue;
+        final host = WhiteboardAiWriteToolHost.forDriftStore(
+          permissionBroker: _permissionBroker,
+          store: _store,
+        );
+        host.restoreUndoReceipt(
+          receipt: receipt,
+          beforeSnapshot: beforeSnapshot,
+        );
+        _undoBindings[action.actionId] = _UndoBinding(
+          messageId: persisted.messageId,
+          projection: action,
+          host: host,
+          runtimeTurnId: action.runtimeTurnId!,
+          undoToken: action.undoToken!,
+          reload: () => _reloadIfBoardOpen(action.boardId),
+        );
       }
     } finally {
       _restoredCharacters.add(characterId);
@@ -621,11 +685,7 @@ class WhiteboardWorkbenchCoordinator {
     int messageId,
     WorkbenchActionProjection projection,
   ) =>
-      _updateAction(
-        messageId,
-        projection.summary,
-        projection.toJson(),
-      );
+      _updateAction(messageId, projection.summary, projection.toJson());
 
   static String _runtimeInstruction(
     String userText,
@@ -705,30 +765,6 @@ groups 必须完整划分以上选择：每个所选 item_id 必须且只能出�
   ];
 }
 
-Iterable<WorkbenchActionProjection> _extractWorkbenchActionProjections(
-  dynamic message,
-) {
-  final attachmentsRaw = message.attachmentsJson;
-  if (attachmentsRaw is! String || attachmentsRaw.trim().isEmpty) {
-    return const [];
-  }
-  final decoded = jsonDecode(attachmentsRaw);
-  if (decoded is! List) return const [];
-  final projections = <WorkbenchActionProjection>[];
-  for (final rawAttachment in decoded) {
-    if (rawAttachment is! Map) continue;
-    if (rawAttachment['type'] != 'workbench_action') continue;
-    final action = rawAttachment['action'];
-    if (action is! Map) continue;
-    try {
-      projections.add(
-        WorkbenchActionProjection.fromJson(Map<String, dynamic>.from(action)),
-      );
-    } catch (_) {}
-  }
-  return projections;
-}
-
 WhiteboardAiWriteReceipt? _restoreReceiptFromProjection({
   required WorkbenchActionProjection action,
   required Map<String, dynamic> actionUndoReceipt,
@@ -738,7 +774,8 @@ WhiteboardAiWriteReceipt? _restoreReceiptFromProjection({
       ..remove('before_snapshot');
     return WhiteboardAiWriteReceipt.fromJson({
       ...receiptMap,
-      'runtime_turn_id': action.runtimeTurnId ?? actionUndoReceipt['runtime_turn_id'],
+      'runtime_turn_id':
+          action.runtimeTurnId ?? actionUndoReceipt['runtime_turn_id'],
       'board_id': action.boardId,
       'operation_batch_id':
           action.operationBatchId ?? actionUndoReceipt['operation_batch_id'],
