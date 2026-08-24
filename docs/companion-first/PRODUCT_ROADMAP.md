@@ -95,7 +95,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天和
 
 这里的周数是容量估计，不是发布日期。任何波次只有在前一 Gate 真实通过后才进入下一波；如果真人验收暴露 blocker，路线按证据重排。
 
-### Wave 1 — AI 工作台基础能力波次（下一个 Goal 候选）
+### Wave 1 — AI 工作台基础能力波次（当前活动 Goal，待派发）
 
 目标：让林埃在桌面上从“能对话、能做一个固定白板动作”升级为“能安全操作通用卡片、按需读人格记忆、管理真正的长期任务”，同时清掉桌面主题泄漏。
 
@@ -196,15 +196,15 @@ P7/P8/P9 可以分别准备 provider、validator 和 scanner，但任何直接�
 
 ---
 
-## 7. 下一个 Goal 的唯一候选
+## 7. 当前活动 Goal
 
-Roadmap 完成后，下一验收主窗应首先提出：
+用户已于 2026-08-24 按修订确认并激活：
 
-> **AI 工作台基础能力波次：完成 UI-T、P4-T1/T2、P5、P6 的独立交付、W0 选择性集成、统一 Windows 构建和真人验收。**
+> **[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)：完成 UI-T、P4-T1/T2、P5、P6 的独立交付、W0 选择性集成、统一 Windows 构建和真人验收。**
 
-这只是 Goal 候选，不因写入 Roadmap 自动成为活动 Goal。用户确认后，主窗才创建 `docs/development/goals/GOAL-YYYYMMDD-<slug>.md`、登记工作包并执行派发。
+该 Goal 以 `v3-lab@f88537d72d08531252e2050784d71deba36a517f` 为 B0。状态页已创建，但派发仍等待用户最终授权；W4 字幕 0/18 只登记为非阻断红灯。
 
-如果用户决定先处理 Android 稳定性或 Memory 真实数据验收，必须先在本路线记录优先级调整，再生成对应 Goal；不要在已有活动 Goal 中静默换方向。
+如果用户决定先处理 Android 稳定性或 Memory 真实数据验收，必须先取消或取代当前 Goal，并在本路线记录优先级调整；不要在活动 Goal 中静默换方向。
 
 ---
 
