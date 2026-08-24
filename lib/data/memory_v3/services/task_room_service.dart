@@ -18,6 +18,17 @@ class TaskRoomService {
   final AppDatabase _db;
   final Logger _log = Logger('TaskRoomService');
   final Uuid _uuid = const Uuid();
+  static const int _defaultMaxRetries = 3;
+  static const String _queueContextKey = '__queue';
+  static const String _queueMaxRetriesKey = 'maxRetries';
+  static const String _queueRetryCountKey = 'retryCount';
+  static const String _queueFailedReasonKey = 'failedReason';
+  static const String _queueInterruptedReasonKey = 'interruptedReason';
+  static const String _queueLastStartedAtKey = 'lastStartedAt';
+  static const String _queueLastFailedAtKey = 'lastFailedAt';
+  static const String _queueLastRecoveredAtKey = 'lastRecoveredAt';
+  static const String _queuePausedReasonKey = 'pauseReason';
+  static const String _interruptedByRestartReason = 'interrupted_by_restart';
 
   static bool _initialized = false;
   static TaskRoomService? _instance;
@@ -51,9 +62,14 @@ class TaskRoomService {
     String? conversationId,
     String? parentTaskId,
     String? boardId,
+    int maxRetries = _defaultMaxRetries,
   }) async {
     final id = _uuid.v4();
     final now = DateTime.now().millisecondsSinceEpoch;
+    final normalizedContext = _withQueueContext(
+      context,
+      maxRetries: maxRetries,
+    );
 
     await _db.into(_db.taskRooms).insert(
           TaskRoomsCompanion.insert(
@@ -67,7 +83,7 @@ class TaskRoomService {
               permissions != null ? jsonEncode(permissions) : '{}',
             ),
             contextJson: Value(
-              context != null ? jsonEncode(context) : '{}',
+              jsonEncode(normalizedContext),
             ),
             progressPercent: const Value(0),
             currentStep: const Value(null),
@@ -84,12 +100,205 @@ class TaskRoomService {
     return id;
   }
 
+  /// 入队并初始化队列元信息。
+  ///
+  /// 当前实现复用 [createTaskRoom]，使用 `pending` 作为队列初始态。
+  Future<String> enqueueTaskRoom({
+    required String title,
+    required String goal,
+    required TaskType taskType,
+    String? executor, // claude-code / gpt-4v / self / manual
+    Map<String, dynamic>? permissions,
+    Map<String, dynamic>? context,
+    String? conversationId,
+    String? parentTaskId,
+    String? boardId,
+    int maxRetries = _defaultMaxRetries,
+  }) async {
+    return createTaskRoom(
+      title: title,
+      goal: goal,
+      taskType: taskType,
+      executor: executor,
+      permissions: permissions,
+      context: context,
+      conversationId: conversationId,
+      parentTaskId: parentTaskId,
+      boardId: boardId,
+      maxRetries: maxRetries,
+    );
+  }
+
   /// 获取单个任务房间
   Future<TaskRoom?> getTaskRoom(String id) async {
     final query = _db.select(_db.taskRooms)
       ..where((t) => t.id.equals(id))
       ..limit(1);
     return query.getSingleOrNull();
+  }
+
+  /// 获取任务当前状态。
+  ///
+  /// 若任务不存在，返回 [ArgumentError]。
+  Future<TaskStatus> getTaskStatus(String id) async {
+    final room = await getTaskRoom(id);
+    if (room == null) {
+      throw ArgumentError('Task room not found: $id');
+    }
+    return TaskStatus.fromString(room.status);
+  }
+
+  /// 继续执行（resume）暂停任务。
+  Future<void> resumeTaskRoom(String id) async {
+    final room = await getTaskRoom(id);
+    if (room == null) {
+      throw ArgumentError('Task room not found: $id');
+    }
+
+    final status = TaskStatus.fromString(room.status);
+    if (status == TaskStatus.blocked) {
+      await updateTaskStatus(id: id, status: TaskStatus.running);
+      await _clearQueueField(
+        taskId: id,
+        queueField: _queuePausedReasonKey,
+      );
+      return;
+    }
+
+    if (status == TaskStatus.running) {
+      return;
+    }
+
+    throw StateError('Cannot resume task in status ${status.value}.');
+  }
+
+  /// 暂停任务：转为 blocked，用于用户可控恢复。
+  Future<void> pauseTaskRoom({
+    required String id,
+    String? reason,
+  }) async {
+    final room = await getTaskRoom(id);
+    if (room == null) {
+      throw ArgumentError('Task room not found: $id');
+    }
+
+    final status = TaskStatus.fromString(room.status);
+    if (status == TaskStatus.blocked) {
+      if (reason != null) {
+        await _setQueueField(
+          taskId: id,
+          queueField: _queuePausedReasonKey,
+          value: reason,
+        );
+      }
+      return;
+    }
+
+    if (status != TaskStatus.running) {
+      throw StateError('Cannot pause task in status ${status.value}.');
+    }
+
+    await updateTaskStatus(id: id, status: TaskStatus.blocked);
+    if (reason != null) {
+      await _setQueueField(
+        taskId: id,
+        queueField: _queuePausedReasonKey,
+        value: reason,
+      );
+    }
+  }
+
+  /// 取消任务：终态外重复调用幂等。
+  Future<void> cancelTaskRoom(String id) async {
+    final room = await getTaskRoom(id);
+    if (room == null) {
+      throw ArgumentError('Task room not found: $id');
+    }
+
+    final status = TaskStatus.fromString(room.status);
+    if (status == TaskStatus.cancelled || status == TaskStatus.archived) {
+      return;
+    }
+    if (status == TaskStatus.completed) {
+      return;
+    }
+    if (status == TaskStatus.failed) {
+      return;
+    }
+
+    await updateTaskStatus(id: id, status: TaskStatus.cancelled);
+  }
+
+  /// 重试任务：从 failed 转回 pending，并递增重试计数。
+  Future<void> retryTaskRoom({
+    required String id,
+    String? failureReason,
+  }) async {
+    final room = await getTaskRoom(id);
+    if (room == null) {
+      throw ArgumentError('Task room not found: $id');
+    }
+
+    final status = TaskStatus.fromString(room.status);
+    if (status != TaskStatus.failed) {
+      throw StateError(
+        'Only failed tasks can be retried. Current status is ${status.value}.',
+      );
+    }
+
+    final queue = _readQueueMetadata(room);
+    final maxRetries = _coerceInt(queue[_queueMaxRetriesKey]) ?? _defaultMaxRetries;
+    final retryCount = _coerceInt(queue[_queueRetryCountKey]) ?? 0;
+
+    if (retryCount >= maxRetries) {
+      throw StateError(
+        'Task room $id exceeded max retries ($maxRetries).',
+      );
+    }
+
+    final nextRetryCount = retryCount + 1;
+    await _updateTaskQueueMetadata(
+      taskId: id,
+      metadataPatch: {
+        _queueRetryCountKey: nextRetryCount,
+        _queueFailedReasonKey: null,
+        _queueLastFailedAtKey: null,
+      },
+    );
+
+    await updateTaskStatus(
+      id: id,
+      status: TaskStatus.pending,
+      progressPercent: 0,
+      currentStep: failureReason != null ? null : 'retry',
+      failureReason: failureReason,
+    );
+  }
+
+  /// 重启/进程恢复：将运行中任务标记为可恢复暂停态。
+  Future<int> restoreInterruptedTaskRooms() async {
+    final interrupted = await (_db.select(_db.taskRooms)
+          ..where((t) => t.status.equals(TaskStatus.running.value)))
+        .get();
+
+    if (interrupted.isEmpty) return 0;
+
+    var restored = 0;
+    for (final room in interrupted) {
+      await updateTaskStatus(id: room.id, status: TaskStatus.blocked);
+      await _updateTaskQueueMetadata(
+        taskId: room.id,
+        metadataPatch: {
+          _queuePausedReasonKey: _interruptedByRestartReason,
+          _queueInterruptedReasonKey: _interruptedByRestartReason,
+          _queueLastRecoveredAtKey: DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+      restored += 1;
+    }
+
+    _log.info('Restored $restored interrupted task rooms');
+    return restored;
   }
 
   /// 列出任务房间（支持过滤和分页）
@@ -134,6 +343,7 @@ class TaskRoomService {
     required TaskStatus status,
     int? progressPercent,
     String? currentStep,
+    String? failureReason,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
 
@@ -191,6 +401,43 @@ class TaskRoomService {
 
     await (_db.update(_db.taskRooms)..where((t) => t.id.equals(id)))
         .write(updates);
+
+    if (status == TaskStatus.running) {
+      await _updateTaskQueueMetadata(
+        taskId: id,
+        metadataPatch: {
+          _queueLastStartedAtKey: now,
+          _queuePausedReasonKey: null,
+        },
+      );
+    }
+
+    if (status == TaskStatus.failed) {
+      await _updateTaskQueueMetadata(
+        taskId: id,
+        metadataPatch: {
+          _queueFailedReasonKey: failureReason ?? 'failed',
+          _queueLastFailedAtKey: now,
+          _queuePausedReasonKey: null,
+        },
+      );
+    } else if (status == TaskStatus.completed ||
+        status == TaskStatus.cancelled ||
+        status == TaskStatus.archived) {
+      await _updateTaskQueueMetadata(
+        taskId: id,
+        metadataPatch: {
+          _queueFailedReasonKey: null,
+          _queueLastFailedAtKey: null,
+        },
+      );
+    }
+
+    if (status == TaskStatus.cancelled ||
+        status == TaskStatus.completed ||
+        status == TaskStatus.archived) {
+      await _clearQueueField(taskId: id, queueField: _queuePausedReasonKey);
+    }
 
     _log.info('Updated task $id: status=${status.value} progress=$progressPercent');
   }
@@ -256,6 +503,117 @@ class TaskRoomService {
     });
 
     _log.info('Permanently deleted task room: $id (with artifacts and decisions)');
+  }
+
+  Map<String, dynamic> _withQueueContext(
+    Map<String, dynamic>? context, {
+    required int maxRetries,
+  }) {
+    final normalizedContext = Map<String, dynamic>.from(context ?? {});
+    final queueContext = normalizedContext[_queueContextKey];
+    final mergedQueue = <String, dynamic>{
+      _queueMaxRetriesKey: maxRetries,
+      _queueRetryCountKey: 0,
+      if (queueContext is Map<String, dynamic>) ...queueContext,
+    };
+
+    normalizedContext[_queueContextKey] = mergedQueue;
+    return normalizedContext;
+  }
+
+  Map<String, dynamic> _readContext(TaskRoom room) {
+    if (room.contextJson.trim().isEmpty) return {};
+    try {
+      final decoded = jsonDecode(room.contextJson);
+      if (decoded is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(decoded);
+      }
+      if (decoded is Map) {
+        return decoded.map((k, v) => MapEntry(k.toString(), v));
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  Map<String, dynamic> _readQueueMetadata(TaskRoom room) {
+    final context = _readContext(room);
+    final raw = context[_queueContextKey];
+    final maxRetries = _coerceInt(raw is Map && raw[_queueMaxRetriesKey] != null
+        ? raw[_queueMaxRetriesKey]
+        : null);
+
+    return {
+      _queueMaxRetriesKey: maxRetries ?? _defaultMaxRetries,
+      _queueRetryCountKey: raw is Map ? _coerceInt(raw[_queueRetryCountKey]) ?? 0 : 0,
+      if (raw is Map) ...raw.cast<String, dynamic>(),
+    };
+  }
+
+  int? _coerceInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return null;
+  }
+
+  Future<void> _setQueueField({
+    required String taskId,
+    required String queueField,
+    required Object? value,
+  }) async {
+    final room = await getTaskRoom(taskId);
+    if (room == null) {
+      throw ArgumentError('Task room not found: $taskId');
+    }
+
+    final context = _readContext(room);
+    final queue = Map<String, dynamic>.from(context[_queueContextKey] ?? {});
+    if (value == null) {
+      queue.remove(queueField);
+    } else {
+      queue[queueField] = value;
+    }
+    context[_queueContextKey] = queue;
+
+    await (_db.update(_db.taskRooms)..where((t) => t.id.equals(taskId)))
+        .write(TaskRoomsCompanion(
+          contextJson: Value(jsonEncode(context)),
+          updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        ));
+  }
+
+  Future<void> _clearQueueField({
+    required String taskId,
+    required String queueField,
+  }) async {
+    await _setQueueField(taskId: taskId, queueField: queueField, value: null);
+  }
+
+  Future<void> _updateTaskQueueMetadata({
+    required String taskId,
+    required Map<String, dynamic> metadataPatch,
+  }) async {
+    final room = await getTaskRoom(taskId);
+    if (room == null) {
+      throw ArgumentError('Task room not found: $taskId');
+    }
+
+    final context = _readContext(room);
+    final queue = Map<String, dynamic>.from(context[_queueContextKey] ?? {});
+    for (final entry in metadataPatch.entries) {
+      if (entry.value == null) {
+        queue.remove(entry.key);
+      } else {
+        queue[entry.key] = entry.value;
+      }
+    }
+    context[_queueContextKey] = queue;
+
+    await (_db.update(_db.taskRooms)..where((t) => t.id.equals(taskId))).write(
+          TaskRoomsCompanion(
+            contextJson: Value(jsonEncode(context)),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
   }
 
   // ========================================================================

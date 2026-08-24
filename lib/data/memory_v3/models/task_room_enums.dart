@@ -110,6 +110,7 @@ enum TaskStatus {
       TaskStatus.archived,
     },
     TaskStatus.failed: {
+      TaskStatus.pending,
       TaskStatus.archived,
     },
     TaskStatus.cancelled: {

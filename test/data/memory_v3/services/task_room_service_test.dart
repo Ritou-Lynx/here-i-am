@@ -1,8 +1,18 @@
+import 'dart:convert';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/memory_v3/services/task_room_service.dart';
 import 'package:memex/data/memory_v3/models/task_room_enums.dart';
+
+Map<String, dynamic> parseQueueContext(TaskRoom room) {
+  final decoded = jsonDecode(room.contextJson);
+  if (decoded is Map && decoded['__queue'] is Map) {
+    return Map<String, dynamic>.from(decoded['__queue']);
+  }
+  return {};
+}
 
 void main() {
   late AppDatabase db;
@@ -366,6 +376,149 @@ void main() {
 
       final decisions = await service.getTaskDecisions(taskId);
       expect(decisions, isEmpty);
+    });
+  });
+
+  group('TaskRoomService - Queue', () {
+    test('enqueueTaskRoom initializes queue metadata', () async {
+      final id = await service.enqueueTaskRoom(
+        title: 'Queue task',
+        goal: 'Demonstrate enqueue',
+        taskType: TaskType.contentGeneration,
+        maxRetries: 5,
+      );
+
+      final room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.pending.value);
+      final queue = parseQueueContext(room);
+      expect(queue['maxRetries'], 5);
+      expect(queue['retryCount'], 0);
+    });
+
+    test('getTaskStatus returns normalized status', () async {
+      final id = await service.createTaskRoom(
+        title: 'Status task',
+        goal: 'Check status',
+        taskType: TaskType.coding,
+      );
+
+      expect(await service.getTaskStatus(id), TaskStatus.pending);
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+      expect(await service.getTaskStatus(id), TaskStatus.running);
+    });
+
+    test('pause/resume support idempotent transitions and reason persistence', () async {
+      final id = await service.createTaskRoom(
+        title: 'Pause task',
+        goal: 'Testing pause and resume',
+        taskType: TaskType.planning,
+      );
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+
+      await service.pauseTaskRoom(id: id, reason: 'user requested');
+      var room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.blocked.value);
+      expect(parseQueueContext(room)['pauseReason'], 'user requested');
+
+      // resume is idempotent when already running
+      await service.resumeTaskRoom(id);
+      room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.running.value);
+      expect(parseQueueContext(room).containsKey('pauseReason'), isFalse);
+
+      await service.resumeTaskRoom(id);
+      room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.running.value);
+    });
+
+    test('cancelTaskRoom is idempotent in terminal or canceled states', () async {
+      final id = await service.createTaskRoom(
+        title: 'Cancel task',
+        goal: 'Testing cancel',
+        taskType: TaskType.debugging,
+      );
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+      await service.cancelTaskRoom(id);
+      await service.cancelTaskRoom(id);
+
+      final room = await service.getTaskRoom(id);
+      expect(room!.status, TaskStatus.cancelled.value);
+    });
+
+    test('retryTaskRoom enforces max retries and increments retryCount', () async {
+      final id = await service.createTaskRoom(
+        title: 'Retry task',
+        goal: 'Testing retry',
+        taskType: TaskType.media,
+        maxRetries: 1,
+      );
+
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+      await service.updateTaskStatus(id: id, status: TaskStatus.failed, failureReason: 'network');
+
+      var room = await service.getTaskRoom(id);
+      expect(TaskStatus.fromString(room!.status), TaskStatus.failed);
+      expect(parseQueueContext(room)['failedReason'], 'network');
+      expect(parseQueueContext(room)['retryCount'], 0);
+
+      await service.retryTaskRoom(id: id);
+      room = await service.getTaskRoom(id);
+      expect(TaskStatus.fromString(room!.status), TaskStatus.pending);
+      expect(parseQueueContext(room)['retryCount'], 1);
+      expect(parseQueueContext(room).containsKey('failedReason'), isFalse);
+
+      await service.updateTaskStatus(id: id, status: TaskStatus.running);
+      await service.updateTaskStatus(id: id, status: TaskStatus.failed, failureReason: 'again');
+      expect(
+        () => service.retryTaskRoom(id: id),
+        throwsStateError,
+      );
+    });
+
+    test('restoreInterruptedTaskRooms converts running tasks to blocked with recovery marker', () async {
+      final runningId = await service.createTaskRoom(
+        title: 'Running task',
+        goal: 'Need recovery',
+        taskType: TaskType.whiteboard,
+      );
+      await service.updateTaskStatus(id: runningId, status: TaskStatus.running);
+
+      final completedId = await service.createTaskRoom(
+        title: 'Done task',
+        goal: 'Should stay done',
+        taskType: TaskType.whiteboard,
+      );
+      await service.updateTaskStatus(id: completedId, status: TaskStatus.completed);
+
+      final restored = await service.restoreInterruptedTaskRooms();
+      expect(restored, 1);
+
+      final restoredRoom = await service.getTaskRoom(runningId);
+      expect(TaskStatus.fromString(restoredRoom!.status), TaskStatus.blocked);
+      expect(
+        parseQueueContext(restoredRoom)['pauseReason'],
+        'interrupted_by_restart',
+      );
+      expect(parseQueueContext(restoredRoom).containsKey('interruptedReason'), isTrue);
+
+      final untouchedRoom = await service.getTaskRoom(completedId);
+      expect(TaskStatus.fromString(untouchedRoom!.status), TaskStatus.completed);
+    });
+
+    test('非法状态不允许执行 queue 操作', () async {
+      final id = await service.createTaskRoom(
+        title: 'Illegal queue transition',
+        goal: 'Blocked case',
+        taskType: TaskType.coding,
+      );
+      await service.updateTaskStatus(id: id, status: TaskStatus.completed);
+
+      expect(() => service.resumeTaskRoom(id), throwsA(isA<StateError>()));
+      expect(
+        () => service.pauseTaskRoom(id: id),
+        throwsA(isA<StateError>()),
+      );
+      expect(() => service.retryTaskRoom(id: id), throwsA(isA<StateError>()));
     });
   });
 
