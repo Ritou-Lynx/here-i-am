@@ -1,652 +1,234 @@
 # Here I Am Product Roadmap
 
-Last updated: 2026-06-19
+> 状态：当前权威产品与执行路线
+>
+> 最后更新：2026-08-24
+>
+> 执行基线：`v3-lab`
+>
+> 规划跨度：未来 1–4 周的推进顺序 + 更长期产品方向
 
-本文档是 Here I Am 的权威产品路线图。2026-06-19 经全面整理，合并了功能梳理文档、旧 ROADMAP.md、PRD、UI 设计文档的内容，并落实了所有已确认的产品决策。
+本文档回答三个问题：Here I Am 最终是什么、当前真实基线在哪里、接下来按什么顺序推进。它不是任务清单，也不替代阶段 Goal；每次只从本路线提出一个可验收 Goal，Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
-它的目标不是列出所有想做的功能，而是把混乱的功能点重新归入同一条产品主线：Here I Am 是一个以角色对话为入口、以生活记忆为底座、以主动陪伴为表达方式的本地优先 AI companion。
+领域路线可以细化 Memory V3、AI Workbench、白板、阅读和跨设备，但不得覆盖本文档的产品边界、优先级和 Gate。若领域文档与本文冲突，以本文和 `AGENTS.md` 为准。
 
 ---
 
-## 1. 当前总判断
+## 1. 产品北极星
 
-### 1.1 产品主线
+Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天和工作；林埃在合适的时候理解、记住、提醒、帮忙，但不把用户变成数据库管理员，也不把产品变成一个暴露内部 Agent 结构的任务管理器。
 
-核心承诺：
+产品分成两个正式表面：
 
-> 用户自然生活和聊天；角色在合适的时候理解、记住、提醒、帮忙，但不把用户变成数据库管理员。
+| 表面 | 核心任务 | 当前边界 |
+|---|---|---|
+| Android Companion | 关系对话、语音、显式记录、生活记忆、主动陪伴、生活观察面 | 主力移动产品；包名固定为 `com.memexlab.hereiam.v3` |
+| Desktop AI Workbench | 同一个林埃入口、卡片库、白板、资料研读、受限 AI 操作 | 独立桌面信息架构和视觉；不复制手机页面 |
 
-这条主线分成四层：
+两端共享林埃身份以及明确约定的 Card / Source / Board / Memory / Project 等内容对象，但不共享页面结构，也不强行共用同一套视觉皮肤。
+
+长期能力仍按四层组织：
 
 | 层 | 作用 | 代表能力 |
 |---|---|---|
-| 角色关系层 | 用户与某个角色持续相处 | chat、语音、来电、私密关系记忆 |
-| User-truth 层 | 用户主动确认的真实生活资料 | 记忆卡、日程、任务、事实、穿衣历史 |
-| 生活产物层 | 从 User-truth 和外部数据中形成可查看产物 | Memory Review、Schedule、Ledger、Health、Interests、Project Memory |
-| 主动陪伴层 | 角色基于记忆和现实上下文主动触达 | checkin、提醒、出门建议、睡前陪伴、财务提醒 |
-
-### 1.2 根本性修改：卡片不再由 AI 实时裁判生成
-
-旧思路：
-
-```text
-所有聊天输入 -> AI 判断该不该记 -> 自动生成卡片 -> 用户错过 toast 就可能误记或漏记
-```
-
-新思路：
-
-```text
-角色聊天默认进入当前角色 sandbox
-用户显式记录 / 悬浮球保存 / 专门 capture 流程 -> User-truth
-User-truth 再生成 Memory Summary Card 和各类生活产物
-```
-
-这会砍掉或降级以下旧机制：
-
-- 不再把普通角色聊天当成默认自动卡片来源。
-- 不再依赖“AI 判断该不该记”的单一管道。
-- 不在对话流里频繁弹出卡片确认。
-- 不用 toast 作为“误记撤销”的主要保护。
-- 角色扮演、私密对话、关系叙事默认留在该角色 sandbox，不污染 User-truth。
-
-保留但重新定位：
-
-- `SharedLifeMemoryService` 仍是 User-truth / 生活记忆的核心底座。
-- `ConversationCaptureService` 需要从“自动裁判”转成“明确 scope 下的整理器”。
-- 旧 Timeline/Card/Insight 能力保留为兼容基础设施和模块素材，不再主导 Here I Am 的新记忆卡视觉。
-
-### 1.3 UI 的产品含义
-
-新 UI 不是单纯换皮。它已经把产品逻辑定下来了：
-
-- Chat 是主场，能力留在对话。
-- 圆柱屏 / 观察面承载生活产物。
-- Memory Review 不是无限 timeline，而是最近 1-2 天新记忆的质检台。
-- Schedule 是独立观察面，不塞在旧 Life Space 三页签里。
-- Personal / Settings 属于系统层，从 Chat 显式入口进入，不进入圆柱主屏。
-- Memory Card 只有统一的凝露外壳，视觉差异来自内容板块组装，不回到旧 30 多种模板外壳。
+| 角色关系层 | 用户与林埃持续相处 | Chat、语音、来电、关系记忆 |
+| User-truth 层 | 用户主动确认的真实生活资料 | Memory Card、日程、任务、事实、穿衣历史 |
+| 生活产物层 | 从 User-truth 和外部数据形成可查看产物 | Memory Review、Schedule、Ledger、Health、Interests、Project Memory |
+| 主动陪伴层 | 林埃基于记忆和现实上下文主动触达 | Check-in、提醒、出门建议、睡前陪伴 |
 
 ---
 
-## 2. 信息架构目标
+## 2. 不可回退的产品契约
 
-### 2.1 主导航
+### 2.1 记忆与身份
 
-第一版仍以点击为主，不强依赖 3D 手势。
+- 普通角色聊天默认不自动生成 User-truth。
+- User-truth 只从消息级“记录”、悬浮球保存、明确自然语言指令、外部数据流和专门学习循环进入。
+- Dreaming 的 Fragment / Episode / Saga 属于关系记忆整理，不等同于 User-truth。
+- Project Memory 是 Memory V3 的特殊 domain，不进入普通 User-truth，也不污染关系记忆。
+- 跨工具 closeout 先进入用户级隔离 Project Space；只有政策允许的投影才进入 Here I Am。
+- 林埃读取 User-truth 和 Project Memory 时按需检索，不把整库预加载进每轮对话。
 
-| 区域 | 第一版目标 | 后续目标 |
+### 2.2 UI 与产品表面
+
+- Chat 是 Android 首页；Observe / Life Space 承载 Memory Review、Schedule、Health、Ledger、Interests 等生活产物。
+- 手机当前唯一主力视觉是“春雨昼眠”。旧记忆云、圆柱大厅、坠落动画、暮雨玫瑰和 R0–R7 时辰色板均只作历史追溯。
+- Desktop 是独立产品表面，只保留首页、卡片库、白板和林埃入口；不得把手机生活页面和 Spring Rain 视觉整套搬过去。
+- 主题修复优先在主题边界统一收口，不在几十个调用点逐个补色。
+
+### 2.3 AI Workbench
+
+- Here I Am 持有产品上下文、权限、审计、撤销和结果落地；Codex App Server 是首个 RuntimeAdapter，不是第二人格。
+- 普通短 turn 不创建 TaskRoom。TaskRoom 只用于真正需要排队、暂停、恢复、取消、重试或跨时段运行的长期任务。
+- 模型 payload 不能扩权；搜索和白板写入能力由产品侧按 turn 授权。
+- 白板写操作必须复用人工入口的 DomainCommand / Receipt / Undo 语义；不能建立 AI 专用旁路。
+- 共享 schema、依赖升级、生成文件和跨领域语义由集成主窗裁决。
+
+### 2.4 工程与发布
+
+- 唯一日常开发与集成分支是 `v3-lab`；并行工作使用隔离 worktree 和临时 `codex/*` 分支。
+- 同一时刻只有一个活动 Goal、一个验收主窗和一个唯一构建候选。
+- 阶段完成必须经过：工作包交付 → 主窗审计 → 选择性集成 → 统一回归 → 真人验收 → 用户确认 push。
+- Android 只构建和安装 `hereIAmV3`；push、发布和破坏性操作不由“执行并派发”自动授权。
+
+---
+
+## 3. 2026-08-24 真实基线
+
+| 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| Chat home | 默认首页，保留现有文字、语音、图片、通话、任务胶囊、活动提示 | Presence ring、记忆沉淀、坠落入口 |
-| 观察面 / Hall | 从 Chat 进入的生活产物集合 | 圆柱大厅、屏幕转身、空间层级 |
-| Memory Review | 最近生成/提升的 User-truth 记忆质检台 | 与记忆云水珠联动 |
-| Schedule | 日程、任务、提醒、出门前准备 | 更强的日程聚合和通勤推算 |
-| Ledger | 财务记录和 AI 账本视图 | 角色财务意识和提醒 |
-| Health / Body | 运动、睡眠、身体状态 | 长期趋势和主动建议 |
-| Interests / Culture | 阅读、小红书、公众号、作品、兴趣 | 角色自然讲解与召回 |
-| Project Memory | 获准 Project Space 的进展、开发决策、模块状态和当前优先级；初期不做独立主入口 | 后续在 Dev Room / Observe 中查看项目时间线和当前态 |
-| Settings / Personal | 模型、权限、连接、备份、角色管理 | 系统层清晰稳定 |
+| Companion Chat / Voice | Chat 首页、文字/图片/语音、流式回复、来电与主动触达基础、春雨昼眠 Chat 首版 | Android 14/15 FGS 修复仍需最终真机 crash-signature Gate；部分语音和 UI 体验继续按真实 bad case 收口 |
+| Memory V3 / Dreaming | Memory Card 数据底座、Fragment / Episode / Saga、FTS 与 fallback、召回 trace、Project Memory 查询 | 需要至少 20 条新真实聊天的消息驱动与召回验收；显式记录入口仍需最终统一到 Record Organizer 契约 |
+| Desktop Whiteboard | F0–F4 数据、卡片库、画布、链接入库、视频研读；UI-0 与安全恢复基线 | Bilibili 匿名字幕严格 Gate 仍为 0/18；平台不暴露匿名轨时必须诚实降级 |
+| AI Workbench Phase 1 | 普通 Runtime 对话、stop/resume、受限搜索、选区读取、分组连线与整批撤销、Artifact Core 最小恢复执行器均已合入 `v3-lab` | 通用卡片写工具、Memory V3 人格上下文、长期队列、Artifact 生产 adapter/renderer 尚未完成 |
+| TaskRoom 数据层 | TaskRooms / TaskArtifacts / TaskDecisions 和 service 已存在 | 旧 handoff 中的通用 Orchestrator / Agent 树不再作为方向；数据层只服务后续 P6 长任务队列 |
+| i / Project Memory | 加密 closeout、幂等、Activity Index、项目隔离和 Dev Room closeout 闭环已建立 | commit / DEVLOG 对账、Review 展示和稳定的跨设备验收仍待推进 |
+| 阅读与共读 | 小说/漫画阅读、Topic Thread、划线批注基础版、Kokoro R0 音色实验室 | 真实作品共读验收、真机音色赛马、统一字符定位、可靠续播仍待完成 |
+| 配置与数据同步 | 配置加密文件、S3 推拉、记忆数据整包快照和恢复前 safety snapshot 已实现 | 私人电脑 → 工作电脑 → 私人电脑的真人往返尚未签字 |
+| 视觉一致性 | 手机全局主题已迁移到春雨昼眠；桌面有独立 `DesktopWorkspaceTheme` | 桌面主题只覆盖部分 `colorScheme`，SnackBar、Dialog、按钮、输入框和菜单仍可能继承紫色全局主题 |
 
-### 2.2 旧 Life Space 处理
-
-`CompanionLifeSpaceScreen` 当前是 Review / Schedule / Personal 三页签的过渡容器。目标是拆分：
-
-- Personal / Settings 移出 Life Space。
-- Memory Review 和 Schedule 进入观察面。
-- 旧 Memex timeline 从主路径移除，只作为兼容入口或历史数据源。
+基线事实以 [`AI_WORKBENCH_EXECUTION_ROADMAP_2026_08_23.md`](../development/whiteboard-workstreams/AI_WORKBENCH_EXECUTION_ROADMAP_2026_08_23.md)、[`I_PROJECT_STATE.md`](../development/I_PROJECT_STATE.md) 和相应 handoff 的最新验收记录为证据；Roadmap 不把“代码存在”写成“真人通过”。
 
 ---
 
-## 3. 数据与记忆模型路线
+## 4. 未来 1–4 周执行路线
 
-### 3.1 四类持久内容
+这里的周数是容量估计，不是发布日期。任何波次只有在前一 Gate 真实通过后才进入下一波；如果真人验收暴露 blocker，路线按证据重排。
 
-| 内容 | 来源 | 可见性 | 是否进 User-truth |
-|---|---|---|---|
-| 角色 sandbox | 每个角色聊天全量消息 | 用户可跨 sandbox 搜索；角色只能访问自己 | 默认不进 |
-| 关系 insights | 单角色关系叙事总结 | 当前角色 | 不可 promote 到 User-truth |
-| User-truth cards | 用户显式保存、提升或明确记录的事实 | 所有角色共享 | 是 |
-| User-truth insights | 跨 User-truth 的分析洞察 | 给用户看 | 不直接作为角色上下文 |
-| Project Memory | 获准项目的 commit、DEVLOG、Dev Room、Codex/Claude Code/Hermes closeout、项目状态文件、用户确认的项目决策 | 按 active project 与政策检索；普通生活聊天默认不注入 | 不进 User-truth，属于 Memory V3 特殊 domain |
+### Wave 1 — AI 工作台基础能力波次（下一个 Goal 候选）
 
-### 3.2 User-truth 写入入口
+目标：让林埃在桌面上从“能对话、能做一个固定白板动作”升级为“能安全操作通用卡片、按需读人格记忆、管理真正的长期任务”，同时清掉桌面主题泄漏。
 
-第一版建议只保留清晰入口：
+| 工作包 | 闭环 | 依赖与边界 |
+|---|---|---|
+| W0 集成与验收 | 冻结基线、派发、主动回收、审计、选择性集成、唯一 Windows 候选、真人 Gate | 不在主窗临时替 worker 补功能 |
+| UI-T Theme Integrity | 在 `DesktopWorkspaceTheme` 补全 SnackBar、Input、Outlined/Filled/Text/Icon Button、Dialog、PopupMenu 主题并回归九类泄漏路径 | 以 [`COLOR_LEAK_HANDOFF.md`](../development/whiteboard-workstreams/COLOR_LEAK_HANDOFF.md) 为准；不迁移手机视觉，不逐点打补丁 |
+| P4-T1/T2 | 创建卡片、编辑正文、标签、移动、缩放和移除摆放；复用 DomainCommand / Receipt / Undo | 退出画布后 Undo 历史丢失必须诚实收口或明确 Gate，不宣称跨 route 持久化已完成 |
+| P5 Memory V3 | 将人格与长期关系的只读 recall/context 接入桌面 Runtime | 复用已合入的受限搜索；不写 User-truth，不自动生成记忆卡 |
+| P6 Queue Core | enqueue / pause / resume / cancel / retry / status 的长期任务队列 | 复用既有 TaskRoom 数据层和 P1 韧性；普通短 turn 不创建 TaskRoom，TaskArtifact 上板等待 P4 与 Artifact 生产链 |
 
-1. 消息级“记录”按钮：把某条聊天消息提升为 User-truth。
-2. 悬浮球“保存”：从任何场景快速保存事实/想法/计划。
-3. 明确自然语言指令：用户说“记一下”“把这个作为事实”“这个加入日程”。
-4. 外部数据流：阅读分享、账单截图、健康数据、天气/通勤结果等，在明确功能场景下入库。
-5. 专门学习循环：如每日穿衣记录，用户回答后作为结构化偏好入库。
+并行关系：UI-T、P4、P5、P6 可从同一干净 `v3-lab` 基线进入不同 worktree；共享语义变更先回 W0。固定依赖为“已合入搜索 → P5”“已合入 Runtime 韧性 → P6 恢复验收”“Artifact Core + P4 命令 → TaskArtifact/生成物上板”。
 
-### 3.3 Conversation Capture 的新定位
+退出条件：
 
-短期不直接废弃现有捕获系统，但要收缩语义：
+- 四个工作包都有 commit、定向测试、changed-file analyze、handoff 和未完事项。
+- 主窗完成组合回归、`git diff --check`、唯一 Windows Debug 构建。
+- 真人确认九类桌面次级界面不再漏紫色。
+- 真人完成至少一次通用卡片操作及撤销/冲突路径。
+- P5 能命中和空结果诚实返回，且不能写 User-truth 或通过 payload 扩权。
+- P6 能完成排队、暂停/恢复、取消、重试和重启后的诚实状态，不把普通聊天污染成任务。
+- W4 字幕红灯继续单列，不被本波次伪装为通过。
 
-- 对普通角色聊天：只更新角色 sandbox 和必要的关系私密记忆候选。
-- 对用户显式记录的内容：整理成 User-truth operation。
-- 对外部 capture：在功能 scope 内提取结构化字段，例如 reading_item、finance ledger、outfit log。
-- 对“可能影响真实生活”的推断：标记为需确认，不直接扩散到日程、账本或跨角色记忆。
+### Wave 2 — Companion 可信性与数据恢复波次
 
-### 3.4 Project Memory 特殊领域
+目标：把已经存在的 Memory、后台任务和跨设备能力从“实现完成”推进到“真实生活可相信”。
 
-Project Memory 不另起一套记忆系统，而是 Memory V3 里的特殊 domain。它解决的问题是：林埃需要知道用户借助 Codex、Claude Code、Hermes 推进的个人或工作项目，但项目状态不等同于生活事实，也不应该污染关系记忆。Here I am 只是第一个 Project Space，不是整个 i 记忆世界的边界。
+优先闭环：
 
-跨工具连续性不能全部压进 Project Memory：工具 closeout 先进入用户级、隔离的 Project Space / Activity Index，只有项目政策允许的摘要才进入 Memory V3；用户在这些界面里直接与林埃进行的连续对话进入林埃 sandbox，再由 Dreaming 整理关系记忆；生活事实仍遵守显式 User-truth 写入。完整边界见 [`LIN_AI_CROSS_TOOL_CONTINUITY.md`](LIN_AI_CROSS_TOOL_CONTINUITY.md)。
+1. 按 `DREAMING_EVENT_DRIVEN_ACCEPTANCE.md` 从零积累至少 20 条真实聊天，验收消息驱动唤醒、Fragment / Episode / Saga 质量、命中、补位、反馈和零结果。
+2. 按 `MEMORY_DATA_SYNC_ACCEPTANCE.md` 完成私人电脑 → 工作电脑 → 私人电脑的配置与记忆数据往返，验证 safety snapshot 和失败恢复。
+3. 真机复核 Android 14/15 FGS 三类历史 crash signature 不再出现；失败时回到平台修复 Goal，不以“能安装”代替通过。
+4. 统一显式记录入口与 Record Organizer：普通聊天继续不写 User-truth，记录失败必须可见、可重试、不可静默污染。
+5. Project Memory 接 commit / DEVLOG 对账和 Review 展示，保持 Dev Room > Project Memory > Dreaming 的项目事实权威顺序。
 
-当前进度：用户级 Phase 2 加密 closeout ledger、幂等与 Activity Index 已完成；Memory V3 尚未接收这些事件，下一步只做政策允许的 Project Memory 专属投影。
+退出条件：真实样本与跨设备往返有验收记录；不存在已知静默丢数据、静默误记或恢复覆盖风险；Android 候选完成唯一 `hereIAmV3` 构建与真人签字。
 
-第一版只做数据和检索边界，不急着做独立 UI：
+### Wave 3 — 内容生成与白板组织波次
 
-- **当前态**：每个 Project Space 有自己的短快照；`I_PROJECT_STATE.md` 只代表 Here I am，不是全局项目清单。
-- **事件史**：commit、DEVLOG、Dev Room run、Codex / Claude Code / Hermes closeout 先形成带 project / policy / source 的事件。
-- **检索边界**：先按 active project 和数据政策过滤，再检索；只有用户明确问整体工作并完成本次确认时才查 Activity Index。
-- **数据驻留**：个人项目可进入 Project Memory；工作项目默认脱敏；`confidential_local / ephemeral` 不进入 Here I am。
-- **展示位置**：初期融合在 Dev Room / Observe / Memory Review 的项目过滤视图里；等数据稳定后再决定是否做独立 Project Memory 面板。
+依赖 Wave 1 的 P4 与 Artifact 生产 Gate。目标是让林埃能把资料变成可追溯、可恢复、可编辑的白板产物。
 
----
+顺序：
 
-## 4. Memory Card 新规则
+1. P4-T3/T4：建白板、批量摆放、分组、连线和搜索整理。
+2. P7 内容知识库：采集、来源追踪、多卡生成、建板、建组和连线；只调用既有 ingestion facade。
+3. P8 图片生成上板：provider → bytes 校验 → Artifact Core → 图片卡渲染。
+4. P9 HTML 原生展示：scanner、离线 runtime bundle、CSP/sandbox 和聚焦交互。
 
-### 4.1 两层视图
+P7/P8/P9 可以分别准备 provider、validator 和 scanner，但任何直接上板都必须等待 Artifact Core 生产 adapter/renderer 和对应 P4 命令。失败恢复、hash、provenance、权限与撤销是完成定义的一部分。
 
-| 视图 | 任务 |
-|---|---|
-| Memory Summary Card | 快速看懂这条记忆是什么，提供“聊聊”入口 |
-| Full Detail View | 展示来源证据、结构化字段、相关实体、修订历史 |
+### Wave 4 — 阅读与主动陪伴产品化
 
-Summary Card 不是旧 timeline card，也不是每条原始输入一张卡。它展示的是 User-truth 当前状态。
+目标：选少量高价值生活闭环做真实长期使用，不同时铺开所有观察面。
 
-### 4.2 字段命名方向
+候选顺序：
 
-| 概念 | 用途 |
-|---|---|
-| `dropletLabel` | 水珠上的 2-4 字短标识，不等于标签 |
-| `memorySummary` | 用户可读、可修正的记忆主体 |
-| `presentationModule` | 摘要的板块化呈现结果 |
-| `sourceExcerpts` | 原始对话或外部来源证据 |
-| `structuredFields` | 时间、地点、人物、金额、任务状态、健康指标等机器字段 |
-| `emotionCoordinates` | `valence`（-1.0~1.0）+ `arousal`（0.0~1.0），记忆当下的情绪坐标，用于 Summary Card 情绪角晕和未来记忆云可视化 |
-| `operationHistory` | create / append / update / correct / undo 等历史 |
-
-### 4.3 呈现规则
-
-Memory Card = 统一凝露外壳 + 活动板块组装。
-
-第一批活动板块：
-
-- Text
-- Quote
-- SubjectReference
-- Number
-- Table
-- Sparkline
-- ProgressBar
-- Media
-- LinkAttachment
-
-规则：
-
-- 语义类型不直接决定视觉外壳。
-- Event / Task / Reading / Finance / Health 等进入字段、tags、归属屏和检索。
-- Summary Card 不做完整趋势图、饼图、雷达图、可交互 checklist。
-- 聊天气泡里召回记忆时使用简化形态：去掉 Foot、状态块、情绪角晕，只保留活动板块。
-
-### 4.4 修正方式
-
-优先用“聊聊”修正：
-
-- 用户自然语言说明哪里错了。
-- 助手型角色同步修正摘要、字段、相关实体和必要 operation。
-- 影响日程、任务、关联记忆、账本等跨实体内容时再确认。
-
-手动编辑第一版只改 `memorySummary`，保存后标记结构复核。
+1. 小说/漫画各选一部真实作品完成 Topic Thread 共读接续验收。
+2. 完成 R0 真机音色赛马，再按“统一字符定位 → 前台听书 → 后台可靠续播 → 划线批注增强”推进。
+3. 继续每日出门提醒的相对体感学习闭环，验证穿衣反馈、天气和日程上下文，而不是新增泛天气播报。
+4. Memory Review / Schedule / Health / Interests 只围绕已有真实数据收口；Ledger 等尚无稳定数据闭环的页面不抢先做重视觉。
 
 ---
 
-## 5. 功能线整合
+## 5. 固定依赖与红灯
 
-### 5.1 主动陪伴
-
-已有基础：
-
-- checkin service
-- reminder queue
-- foreground service / WorkManager 唤醒链路
-- 高优先级通知频道
-- 语音来电和语音通话
-
-产品原则：
-
-- 对外发声尽量由角色说，不做冷冰冰系统通知。
-- 主动触达必须有明确上下文和频率边界。
-- 主动建议不应频繁打断普通聊天。
-
-近期优先级：
-
-1. 稳定主动触达基础设施。
-2. 把提醒结果写入聊天或角色可读记录。
-3. 对每类主动功能设置冷却、安静时段、失败重试和用户关闭入口。
-
-### 5.2 每日出门提醒
-
-这是主动陪伴的优先新功能，不是普通天气助手。
-
-核心差异：
-
-> 通用天气助手说“25 度适合短袖”；Here I Am 应该说“你昨天短袖加薄外套觉得差不多，今天比昨天暖 4 度，可以少穿那件外套”。
-
-#### 用户价值
-
-用户对绝对温度无感，但能理解相对体感：
-
-- 昨天穿了什么。
-- 昨天是否冷/热/刚好。
-- 今天比昨天冷几度或暖几度。
-- 今天是否有雨、风、紫外线、通勤暴露时间。
-
-#### 触发时机
-
-第一版：
-
-- 固定早晨提醒时间，例如用户设置的出门前 30-60 分钟。
-
-第二版：
-
-- 根据今日日程、通勤距离、当前位置、常用出发站点推算提醒时间。
-- 示例：北京立水桥站通勤场景，结合通勤方式和天气暴露程度。
-
-#### 数据源
-
-| 数据 | 来源 |
-|---|---|
-| 实时天气 | 高德天气 API / 和风天气 API |
-| 地理和通勤 | 高德地图 API |
-| 今日日程 | User-truth / Schedule |
-| 昨日穿着 | Outfit log |
-| 体感反馈 | 用户早晨回复和晚间可选反馈 |
-
-说明：实时天气不走 web_search，走正式 API。
-
-#### 数据模型
-
-建议新增 companion-owned 表或 SharedLife entity subtype：
-
-| 字段 | 含义 |
-|---|---|
-| `date` | 日期 |
-| `location` | 城市 / 区域 / 出发地 |
-| `weatherSnapshot` | 温度、湿度、风力、降水、紫外线 |
-| `outfitItems` | 短袖、外套、长裤、鞋、帽子等 |
-| `subjectiveFeeling` | 冷 / 刚好 / 热 / 潮 / 晒 / 风大 |
-| `commuteContext` | 步行、公交、地铁、打车、暴露时长 |
-| `sourceMessageId` | 用户回复证据 |
-
-第一版可以先用 `SharedLifeEntities` 的 `entityType = outfit_log` 或 `daily_preparation` 验证；稳定后再决定是否独立表。
-
-#### 推送内容
-
-由角色说，结构固定但语气角色化：
-
-1. 天气简报：温度、雨、晒、风。
-2. 装备清单：
-   - 降水概率 > 30%：带伞。
-   - 紫外线强：帽子 / 防晒。
-   - 风力大：薄外套防风。
-3. 交通建议：
-   - 极端天气 / 高温 / 暴雨：建议公交或打车，别硬走。
-4. 穿衣建议：
-   - 以昨日穿着和昨日体感为锚点。
-   - 输出相对变化，不输出泛泛“25 度穿短袖”。
-5. 学习问题：
-   - “你今天打算穿什么？”
-   - 用户回复后入库，作为第二天锚点。
-
-#### 分期
-
-| 阶段 | 目标 |
-|---|---|
-| O0 | 手动记录今日穿着，能查询昨日穿着 |
-| O1 | 固定时间天气提醒 + 穿着提问 |
-| O2 | 昨日锚点相对建议 |
-| O3 | 结合日程和通勤推算提醒时间 |
-| O4 | 多日学习，形成用户体感模型 |
-| O5 | 极端天气交通建议和个性化冷暖阈值 |
-
-### 5.3 Reading Companion
-
-当前状态：主链路基本打通。
-
-已具备：
-
-- Chat message addenda 基础设施。
-- 小红书 / 微信公众号 capture。
-- reading_item entity。
-- 正文抓取、封面、作者、摘要。
-- LoadReadingContent tool。
-- 角色可自然讲解，不需要按钮式 session。
-- 小说阅读器划线批注基础版：原生选区菜单、持续高亮、写 / 改 / 删批注、本书笔记与原文跳转。
-- 本地听书 R0 音色实验室：Kokoro v1.1 int8 可下载 / 校验 / 删除，三种匿名中文音色同稿盲听、变速评分和性能结果导出。
-
-后续重点：
-
-1. 完成 Kokoro 音色真机赛马，并补 MeloTTS / Android 系统 TTS 跨引擎决赛；据结果确定默认包和低性能兜底。
-2. 建立统一语义进度：屏幕阅读、听书、书架和林埃共用章节 + 字符定位；同时保留当前阅读位置、上次听书位置和最远进度。
-3. 支持暂停、精确续播、后台 / 锁屏 / 耳机控制，以及“从当前开始 / 继续上次暂停”的启动选择。
-4. 完成划线批注后续增强：章节内容变化后的锚点自动修复、“和林埃聊”与显式提升 Memory V3；原始笔记继续留在阅读域。
-5. 连续抓取失败后提示重新登录。
-6. Reading card 合并进 Memory Summary Card / LinkAttachment 体系。
-7. 在 Memory Review / Interests 屏里提供“聊聊”入口。
-8. 支持对阅读内容生成用户自己的感受记忆，而不是只保存链接本体。
-
-小说阅读器的详细定位、播放、数据边界和实施分期见
-`docs/companion-first/BOOK_READER_TTS_ANNOTATION_PLAN.md`。
-
-### 5.4 财务认知
-
-目标不是自动支付，而是角色拥有“自己的账本意识”。
-
-边界：
-
-- 不接真实支付 / 转账 / 代扣。
-- 所有钱仍然是用户的真实账。
-- AI 账本是从真实账派生的角色视图。
-- 角色可提醒“我攒到多少 / 欠你多少 / 该手动转账了”。
-
-路线：
-
-1. 统一收入 / 支出记录结构。
-2. 支持 AI 相关标签和贡献比例字段。
-3. 派生 AI ledger：结余 + 欠款两本，不用负数。
-4. 角色查询工具读取账本并用人设口吻表达。
-5. 达到阈值时由角色主动提醒。
-
-### 5.5 语音与通话
-
-已有基础：
-
-- 语音输入。
-- MiniMax / ElevenLabs TTS。
-- 语音通话、系统级来电、后台追说。
-- 蓝牙/媒体键相关路径。
-
-路线：
-
-1. 稳定 MiniMax TTS 中文音色和错误恢复。
-2. 语音通话中复用最新记忆边界，不把所有通话内容默认进 User-truth。
-3. 语音结束后按 scope 生成关系摘要或明确记录。
-4. Live conversation 优先服务角色关系层，而不是做成通用助手语音搜索。
-
-### 5.6 搜索与召回
-
-旧需求：
-
-- 聊天搜索：关键词、时间跳跃、语义搜索。
-- PKM 混合检索：FTS5 + vector。
-
-新定位：
-
-- 用户可以跨 sandbox 搜索。
-- 角色只能访问自己的 sandbox 和共享 User-truth。
-- User-truth、Reading、Finance、Schedule 都需要统一检索入口。
-
-分期：
-
-1. 角色聊天 FTS 搜索。
-2. User-truth / SharedLife FTS 搜索。
-3. 时间跳跃。
-4. 本地或自带 provider embedding 的混合检索。
-5. Agent 工具只返回 narrow retrieval，不整库塞上下文。
-
-### 5.7 健康、设备和行为辅助
-
-已有能力：
-
-- COROS / health data。
-- phone usage。
-- device app blocker / focus lock。
-- 成人设备控制相关实验能力。
-
-路线判断：
-
-- Health / Body 是观察面候选，不急着视觉化。
-- Focus / blocker 属于“行为辅助”，可以先放系统层设置和角色工具里。
-- 设备控制能力必须维持明确用户授权和边界，不进入主动陪伴默认策略。
+| 上游 Gate | 解锁 | 红灯处理 |
+|---|---|---|
+| Phase 1 Runtime 搜索已合入并通过真实授权拒绝 | P5 Memory V3 只读上下文 | 任何 payload 扩权都直接拒绝 |
+| P1 stop/resume 与 provider thread resume 已通过 | P6 长任务恢复 | 没有持久证据时不得显示“仍在运行” |
+| Artifact Core 最小执行器已通过；生产 adapter/renderer 待补 | P4 生产写入、P7/P8/P9 上板 | 只有契约或 staging 不得写成产物已落地 |
+| P4-T1 卡片命令和 Receipt/Undo | TaskArtifact 上板、批量组织 | AI 不能绕过人工入口和撤销语义 |
+| W4 匿名 Bilibili 字幕严格 Gate 0/18 | 自动字幕依赖功能 | 与字幕无关的 P4/P5/P6 可继续；登录 Cookie 需单独隐私 ADR |
+| Dreaming 真实样本验收 | 参数调优与更主动的关系召回 | 没有 bad case 不凭感觉改阈值 |
+| 双机记忆数据往返 | 自动同步、增量合并 | 当前禁止两端离线并发写后互相覆盖 |
 
 ---
 
-## 6. 阶段路线图
+## 6. 未来方向与 Parking Lot
 
-### Phase A：收束规则，停止继续扩散
+### 本路线之后
 
-目标：先让项目不再朝多个方向撕裂。
+- Memory Card 与 Observe 各生活面形成稳定产品入口。
+- 主动陪伴建立频率、安静时段、失败重试和用户关闭边界。
+- i / Project Memory 形成可靠的项目 Review，而不是另一套 User-truth。
+- Desktop 支持更多 RuntimeAdapter，但继续复用同一权限、审计与结果协议。
+- Android 稳定后再推进 iOS 与公开发布准备。
 
-产出：
+### 明确后置
 
-- 本 roadmap 成为后续决策入口。
-- 明确“普通聊天默认不自动生成 User-truth 卡片”。
-- 给当前 capture pipeline 加开关或 scope 策略。
-- 标出旧 Card Agent / Timeline / Insight 在 Here I Am 里的兼容地位。
+- W7 一起看视频、Spoiler Gate、模型共同观看会话。
+- 登录 Cookie 字幕增强、本机 ASR 主路径、直播、视频下载和 DRM 内容。
+- 记忆云、圆柱大厅、坠落动画和高成本 3D 空间化。
+- 泛化 Task Center、完整 Agent 树、自动项目经理和模型自行扩权。
+- 自动支付、真实转账或默认设备控制。
+- FlexNote 长尾、导出、手绘和高级双链。
 
-验收：
-
-- 新功能能回答“它属于角色关系、User-truth、生活产物还是主动陪伴”。
-- 新卡片能回答“它是 Summary Card、Full Detail View、聊天简化召回，还是 Insight Card”。
-
-### Phase B：记忆契约重构
-
-目标：实现角色 sandbox 与 User-truth 的明确边界。
-
-任务：
-
-- 每条角色聊天默认只进入对应 sandbox。
-- 消息级“记录”入口。
-- 悬浮球保存 / 发送的产品灰盒。
-- Assistant character / 助手型角色概念。
-- User-truth operation 支持显式 promote source。
-- 关系 insights 与 User-truth insights 分离。
-
-验收：
-
-- 用户能把某条聊天显式记录成共享记忆。
-- 普通私密/roleplay 聊天不会自动出现在 Memory Review。
-- 角色不能跨 sandbox 读取其他角色私密内容。
-
-### Phase C：Memory Card 体系落地
-
-目标：用新 Memory Summary Card 替换”旧 timeline 卡片思维”。
-
-任务：
-
-- 定义 `presentationModule` 数据结构。
-- 实现 Text / Quote / Number / Table / Media / LinkAttachment 第一批板块。
-- Summary Card 完整形态。
-- 聊天召回简化形态。
-- Full Detail View 展示来源和历史。
-- 悬浮球修正入口（悬浮球在卡片页面自动关联当前卡片上下文，替代独立”聊聊”按钮）。
-- **情绪坐标标注**：RecordOrganizerAnalyzer 在产出 `memorySummary` / `structuredFields` 时同时输出 `valence` / `arousal`，落入已有的 `SharedLifeEntities.valence` / `arousal` 字段。可视化留到 Phase G，但每条新记忆从 Phase C 开始就带坐标，避免历史空窗。
-
-验收：
-
-- 一条 User-truth 能在 Review 中以凝露卡显示。
-- 同一条记忆被角色召回时能用简化卡显示。
-- 用户能进入详情看到来源证据，而不是只看到 AI 改写。
-
-### Phase D：UI 第一版产品化
-
-目标：把 UI 设计从文档推进到可用页面。
-
-任务：
-
-- HereIam 主题 token。
-- Presence ring。
-- Chat surface。
-- Memory Review item。
-- Dew Card。
-- Settings hatch entry。
-- 拆分旧 Life Space。
-
-验收：
-
-- Chat 仍保留所有现有功能。
-- Personal / Settings 不再塞在生活空间三页签。
-- Memory Review 和 Schedule 有明确入口。
-
-### Phase E：主动陪伴第一批闭环
-
-目标：让主动功能从“能推送”变成“懂上下文、有学习循环”。
-
-设计细节见：`docs/companion-first/MAP_WEATHER_COMPANION_PLAN.md`。
-
-优先功能：
-
-1. 每日出门提醒 / 地图与天气陪伴。
-2. 睡前 / 起床类陪伴。
-3. 财务阈值提醒。
-4. 日程提醒和 schedule chip。
-
-每日出门提醒是本阶段样板，因为它同时验证：
-
-- API 数据接入。
-- User-truth 学习循环。
-- 相对体感模型。
-- 角色语气推送。
-- 日程和通勤上下文。
-
-当前进度（2026-08-10）：反馈学习最小闭环已接通。近期天气/穿衣建议后的衣物回复与冷暖、潮湿、风感反馈会形成当天 `outfit_log`，同时保存高德实时温湿度、风与预报；晨间快照和出门天气工具会查找相似条件，用用户自己的历史体感生成相对加减层建议。普通聊天仍不自动入库，完整衣橱推荐继续后置。
-
-地图与天气能力的产品承诺：
-
-- 记忆卡片来源地点 tag 默认走轻量 OSM / Nominatim，不追求高精度；实时地址解析失败时可用高德 Key 兜底。
-- 高德地图 API 用于门到门路线规划、公交地铁陪跑、POI、周边推荐和国内网络下的实时地址解析兜底。
-- 天气提醒不做全天播报，只在影响出门、带伞、温差、暴晒、长步行等行动决策时介入。
-- 角色用自然聊天语气表达路线和天气建议，不把用户推到系统式报告里。
-
-验收：
-
-- 用户连续记录几天穿着后，系统能基于昨日锚点给出相对建议。
-- 提醒里能区分天气装备、交通建议、穿衣建议。
-- 用户回复“今天穿什么”后能入库并被第二天使用。
-- 用户说从某个大厦到某个小区，角色能规划门到门路线，而不只处理公交地铁报站。
-- 用户出门前若返程时段有雨、温差大或路线有长步行，角色能自然提醒带伞、外套或调整交通方式。
-
-### Phase F：垂直生活面补齐
-
-目标：让生活产物真正分屏沉淀。
-
-任务：
-
-- Schedule：日程、任务、提醒、出门准备。
-- Ledger：真实账 + AI 账本视图。
-- Interests：Reading Companion 入口。
-- Health / Body：运动、睡眠、身体状态。
-- Search：跨 User-truth 和 sandbox 的用户搜索。
-
-验收：
-
-- 每个生活面有清楚的数据来源和入口。
-- 不再把所有产物塞进无限 timeline。
-
-### Phase G：高级空间化
-
-目标：核心流程稳定后再做高成本沉浸。
-
-任务：
-
-- 圆柱大厅正式化。
-- 记忆云。
-- 气泡水珠。
-- 坠落 / 回程动画。
-- 情绪坐标可视化（坐标本身在 Phase C 已开始标注，这里做记忆云、角晕等空间化呈现）。
-
-约束：
-
-- 不牺牲 Chat 主流程。
-- 不牺牲设置和列表可读性。
-- 必须有低性能降级版本。
+重新启动 Parking Lot 项目必须满足：当前主 Goal 已通过、依赖 Gate 已绿、用户重新提升优先级，并先更新本 Roadmap。
 
 ---
 
-## 7. 优先级建议
+## 7. 下一个 Goal 的唯一候选
 
-### 现在最应该做
+Roadmap 完成后，下一验收主窗应首先提出：
 
-1. 确认记忆契约重构为最高优先级。
-2. 在代码层给 capture pipeline 加 scope 边界，避免继续扩大“自动记卡片”。
-3. 先做 Memory Card 数据结构和 Summary Card 最小实现。
-4. 把每日出门提醒作为第一个“主动陪伴 + 学习循环”样板。
+> **AI 工作台基础能力波次：完成 UI-T、P4-T1/T2、P5、P6 的独立交付、W0 选择性集成、统一 Windows 构建和真人验收。**
 
-### 暂时不要投入太深
+这只是 Goal 候选，不因写入 Roadmap 自动成为活动 Goal。用户确认后，主窗才创建 `docs/development/goals/GOAL-YYYYMMDD-<slug>.md`、登记工作包并执行派发。
 
-- 完整 3D 圆柱大厅。
-- 完整记忆云。
-- 大量新卡片外壳。
-- 自动支付或任何真实资金动作。
-- 泛化过度的 agent 自动规划系统。
-
-### 可以保留但降级为基础设施
-
-- 旧 Memex timeline card templates。
-- Insight chart templates。
-- P.A.R.A / PKM。
-- Card Agent 自动类型匹配。
-- Comment Agent，后续更多服务 Moments 或社交表面。
+如果用户决定先处理 Android 稳定性或 Memory 真实数据验收，必须先在本路线记录优先级调整，再生成对应 Goal；不要在已有活动 Goal 中静默换方向。
 
 ---
 
-## 8. 新功能归属规则
+## 8. Roadmap 维护规则
 
-以后新增功能先问四个问题：
+在以下时机更新本文：
 
-1. 它产生的长期产物是什么？
-2. 产物应该进入哪个层：角色 sandbox、User-truth、Insight、Schedule、Ledger、Health、Interests？
-3. 它是否需要角色主动触达？如果需要，触发条件和冷却是什么？
-4. 它的 UI 是 Chat 中的能力、观察面中的产物，还是系统层设置？
+- 一个阶段 Goal 完成真人验收；
+- 产品优先级改变；
+- 重大基线、平台事实或依赖被推翻；
+- 专项 Roadmap 已无法解释真实工作。
 
-示例：
-
-| 功能 | 长期产物 | 归属 | 主动触达 |
-|---|---|---|---|
-| 每日出门提醒 | 穿衣历史、体感偏好、通勤上下文 | Schedule + User-truth | 是 |
-| Reading Companion | reading_item、读后感、摘录 | Interests + User-truth | 低频，可被动召回 |
-| AI 财务认知 | AI ledger 派生视图、提醒阈值 | Ledger | 是 |
-| 睡前陪伴 | 关系互动、睡眠状态候选 | 角色 sandbox + Health | 是 |
-| 小红书抓取 | 链接、正文、摘要、用户感受 | Interests | 否，除非用户要求 |
+普通 bug、单次 handoff 和单个 worker 进度只更新 Goal 状态表、`I_PROJECT_STATE.md` 或 DEVLOG，不重写总路线。Roadmap 只保留当前真实基线、未来 1–4 周顺序、长期方向和 Parking Lot，不积累流水账。
 
 ---
 
-## 9. 已确认决策（2026-06-19 整理会议）
+## 9. 领域权威文档
 
-以下问题已在 2026-06-19 的产品整理中确认：
-
-| 问题 | 决定 |
-|---|---|
-| 首页形态 | 聊天为首页，不做联系人列表 |
-| 角色切换交互 | 聊天主界面左右滑动切换角色，所有启用角色参与，按最近聊天排序 |
-| 记忆契约 | **最高优先级**。普通聊天不自动生成 User-truth，只处理用户显式记录 |
-| 悬浮球 vs “聊聊” | 悬浮球替代”聊聊”按钮，在卡片页面自动关联上下文 |
-| 角色访问全局记忆 | 通过 tool-call 按需检索 User-truth，不预加载 |
-| Agent 架构 | Capture + Card 合并为 Record Organizer；Insights 改 scope；PKM/旧Card 冻结 |
-| 模型配置 UI | 按任务类型分组（聊天/记忆整理/日程/内容分析），不按 Agent 名 |
-| 设置页清理 | 删除：memex洞察评论（含代码）、本地ASR开关、微信读书连接 |
-| 设置页整合 | 语音相关合并为”语音设置”；定位相关合并为”位置服务” |
-| 备份系统 | 完整备份（含角色头像/背景）+ 数据导出（User-truth JSON/CSV） |
-| 悬浮球保存/发送 | 默认保存（一键），长按/上滑切换为发送给助手角色 |
-
-## 10. 仍待确认问题
-
-- 角色记忆方案选型（需调研小红书等方案后决定）
-- 知识管理方案：P.A.R.A. 已放弃，标签保留，具体组织方式待定
-- `SharedLifeEntities.entityType` 是否扩展为 `outfit_log` / `daily_preparation`，还是新增独立穿衣表
-- 助手型角色默认指派规则
-- User-truth insights 是否进入角色上下文，还是仅给用户看
-- Memory Card 的 `presentationModule` 是否缓存，还是运行时从 stateJson 生成
-- 每日出门提醒第一版选高德还是和风天气作为默认 API
-- 通勤推算是否先只支持用户设置的固定地点，不做自动定位
-- **聊天消息环境元数据（候补，未排期）**：在每条用户消息气泡下附"时间 · 地点"标签。
-  时间来自 `PersonaChatMessage.timestamp`（已有，免费）。地点需要：
-  发消息时记录 GPS → 优先用 OpenStreetMap Nominatim 反向地理编码成地名，
-  失败且用户配置高德 Key 时用高德兜底 → 缓存复用。
-  涉及位置权限、网络节流（公共 Nominatim 1 req/s）、隐私权衡和服务商兜底透明展示。
-  价值：给角色一种"知道你在哪"的环境感，比强制用户写地点自然。
-  开口要谨慎，建议先做用户开关 + 同地点 dedup 才开放。
-
+- 协作生命周期：[`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)
+- Memory V3：[`MEMORY_V3_ROADMAP.md`](MEMORY_V3_ROADMAP.md)
+- AI 原生工作台架构：[`AI_NATIVE_WORKBENCH_CODEX_INTEGRATION_ARCHITECTURE.md`](../development/AI_NATIVE_WORKBENCH_CODEX_INTEGRATION_ARCHITECTURE.md)
+- 当前工作台执行路线：[`AI_WORKBENCH_EXECUTION_ROADMAP_2026_08_23.md`](../development/whiteboard-workstreams/AI_WORKBENCH_EXECUTION_ROADMAP_2026_08_23.md)
+- 白板并行契约：[`WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md`](../development/WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md)
+- 跨工具连续性：[`LIN_AI_CROSS_TOOL_CONTINUITY.md`](LIN_AI_CROSS_TOOL_CONTINUITY.md)
+- 阅读器：[`BOOK_READER_TTS_ANNOTATION_PLAN.md`](BOOK_READER_TTS_ANNOTATION_PLAN.md)
+- 主动出门陪伴：[`MAP_WEATHER_COMPANION_PLAN.md`](MAP_WEATHER_COMPANION_PLAN.md)
+- 当前项目态：[`I_PROJECT_STATE.md`](../development/I_PROJECT_STATE.md)
