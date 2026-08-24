@@ -99,8 +99,16 @@ void main() {
       scoped.snackBarTheme.contentTextStyle?.fontFamily,
       richTextCjkFamily,
     );
+    expect(scoped.snackBarTheme.contentTextStyle?.color, tokens.canvas);
     expect(scoped.inputDecorationTheme.fillColor, tokens.surfaceRaised);
     expect(scoped.inputDecorationTheme.prefixIconColor, tokens.textMuted);
+    expect(scoped.inputDecorationTheme.filled, isTrue);
+    expect(
+      (scoped.inputDecorationTheme.disabledBorder as OutlineInputBorder)
+          .borderSide
+          .color,
+      tokens.divider.withValues(alpha: 0.56),
+    );
     expect(
       (scoped.inputDecorationTheme.focusedBorder as OutlineInputBorder)
           .borderSide
@@ -110,6 +118,10 @@ void main() {
     expect(
       scoped.outlinedButtonTheme.style?.foregroundColor?.resolve({}),
       tokens.action,
+    );
+    expect(
+      scoped.outlinedButtonTheme.style?.side?.resolve({})?.color,
+      tokens.actionSecondary,
     );
     expect(
       scoped.filledButtonTheme.style?.backgroundColor?.resolve({}),
@@ -126,6 +138,7 @@ void main() {
     expect(scoped.dialogTheme.backgroundColor, tokens.surfaceRaised);
     expect(scoped.dialogTheme.titleTextStyle?.fontFamily, richTextCjkFamily);
     expect(scoped.popupMenuTheme.color, tokens.surfaceRaised);
+    expect(scoped.popupMenuTheme.textStyle?.color, tokens.textPrimary);
     expect(scoped.popupMenuTheme.textStyle?.fontFamily, richTextCjkFamily);
   });
 }
