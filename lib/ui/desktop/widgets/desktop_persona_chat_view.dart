@@ -196,34 +196,36 @@ class _DesktopMessageList extends StatelessWidget {
       );
     }
 
-    return SelectionArea(
-      child: ScrollConfiguration(
-        behavior: const _DesktopChatScrollBehavior(),
-        child: ListView.builder(
-          key: const ValueKey('desktop_chat_message_list'),
-          controller: scrollController,
-          reverse: true,
-          shrinkWrap: true,
-          physics: const ClampingScrollPhysics(),
-          padding: EdgeInsets.zero,
-          itemCount: itemCount,
-          itemBuilder: (context, index) {
-            if (hasStreamingItem && index == 0) {
-              final visible = streamingText.trim();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 9),
-                child: visible.isEmpty
-                    ? const _DesktopTypingBubble()
-                    : _DesktopCharacterTurn(text: visible),
-              );
-            }
-            final messageIndex = index - (hasStreamingItem ? 1 : 0);
-            final message = messagesNewestFirst[messageIndex];
-            final workbenchAction =
-                _workbenchActionProjection(message.attachmentsJson);
+    return ScrollConfiguration(
+      behavior: const _DesktopChatScrollBehavior(),
+      child: ListView.builder(
+        key: const ValueKey('desktop_chat_message_list'),
+        controller: scrollController,
+        reverse: true,
+        shrinkWrap: true,
+        physics: const ClampingScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          if (hasStreamingItem && index == 0) {
+            final visible = streamingText.trim();
             return Padding(
-              key: ValueKey('desktop_chat_message_${message.id}'),
               padding: const EdgeInsets.only(bottom: 9),
+              child: visible.isEmpty
+                  ? const _DesktopTypingBubble()
+                  : SelectionArea(
+                      child: _DesktopCharacterTurn(text: visible),
+                    ),
+            );
+          }
+          final messageIndex = index - (hasStreamingItem ? 1 : 0);
+          final message = messagesNewestFirst[messageIndex];
+          final workbenchAction =
+              _workbenchActionProjection(message.attachmentsJson);
+          return Padding(
+            key: ValueKey('desktop_chat_message_${message.id}'),
+            padding: const EdgeInsets.only(bottom: 9),
+            child: SelectionArea(
               child: workbenchAction != null
                   ? WorkbenchActionCard(
                       action: workbenchAction,
@@ -251,9 +253,9 @@ class _DesktopMessageList extends StatelessWidget {
                                   : message.content,
                               fromUser: true,
                             ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }

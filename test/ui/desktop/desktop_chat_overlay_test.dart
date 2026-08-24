@@ -1,5 +1,8 @@
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/db/app_database.dart';
@@ -343,8 +346,8 @@ void main() {
       expect(find.text('先帮我理一下。'), findsOneWidget);
       expect(
         find.byType(SelectionArea),
-        findsOneWidget,
-        reason: '桌面普通消息须支持鼠标选择与 Ctrl+C 复制。',
+        findsWidgets,
+        reason: '每条桌面消息都应有独立选区，避免反向滚动列表抢占拖选手势。',
       );
       expect(find.text('当前 · 来源研读 · 仅本次上下文'), findsOneWidget);
       expect(find.byKey(const ValueKey('desktop_chat_panel')), findsNothing);
@@ -353,6 +356,105 @@ void main() {
       await tester.pump();
       expect(sends, 1);
     },
+  );
+
+  testWidgets(
+    'desktop message supports mouse drag selection and Ctrl+C',
+    (tester) async {
+      Map<String, dynamic> clipboardData = {'text': 'empty'};
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardData = Map<String, dynamic>.from(
+              call.arguments as Map<dynamic, dynamic>,
+            );
+            return null;
+          case 'Clipboard.getData':
+            return clipboardData;
+          case 'Clipboard.hasStrings':
+            return {'value': (clipboardData['text'] as String).isNotEmpty};
+        }
+        return null;
+      });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final scrollController = ScrollController();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+      addTearDown(scrollController.dispose);
+
+      const reply = 'Desktop copy works';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 350,
+            height: 480,
+            child: DesktopPersonaChatView(
+              loading: false,
+              messagesNewestFirst: [
+                PersonaChatMessage(
+                  id: 22,
+                  characterId: 'i',
+                  isFromCharacter: true,
+                  content: reply,
+                  isRead: true,
+                  timestamp: DateTime(2026, 8, 24),
+                  messageType: 'chat',
+                ),
+              ],
+              isStreaming: false,
+              streamingText: '',
+              controller: controller,
+              composerFocusNode: focusNode,
+              scrollController: scrollController,
+              onSend: () async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(
+          of: find.byKey(const ValueKey('desktop_chat_message_22')),
+          matching: find.byType(RichText),
+        ),
+      );
+      Offset positionFor(int offset) {
+        const caret = Rect.fromLTWH(0, 0, 2, 20);
+        final local = paragraph.getOffsetForCaret(
+          TextPosition(offset: offset),
+          caret,
+        );
+        return paragraph.localToGlobal(
+          local + Offset(0, paragraph.preferredLineHeight / 2),
+        );
+      }
+
+      final gesture = await tester.startGesture(
+        positionFor(0),
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.moveTo(positionFor(reply.length));
+      await gesture.up();
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      expect(clipboardData['text'], reply);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
 
   testWidgets('desktop streaming state exposes stop without requiring text',

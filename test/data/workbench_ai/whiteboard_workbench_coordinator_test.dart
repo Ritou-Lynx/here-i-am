@@ -128,6 +128,21 @@ void main() {
     expect(applied.edges, hasLength(1));
     expect(reloads, 1);
 
+    final changedAfterAction = WhiteboardSnapshot.fromJson({
+      ...applied.toJson(),
+      'viewport': const BoardViewport(centerX: 24).toJson(),
+    });
+    expect(await store.save('board_1', changedAfterAction), isTrue);
+    await coordinator.undo(completed.actionId);
+    expect(projections.last.status, WorkbenchActionStatus.completed);
+    expect(projections.last.errorCode, 'snapshot_changed_after_batch');
+    expect(
+      coordinator.canUndo(completed.actionId),
+      isTrue,
+      reason: '后续改动只应阻止当次撤销，不应销毁重试资格。',
+    );
+    expect(await store.save('board_1', applied), isTrue);
+
     var reopenedFlushes = 0;
     var reopenedReloads = 0;
     surfaceController.detach(surfaceOwner);
@@ -175,6 +190,8 @@ void main() {
     expect(coordinator.matches('我们讨论一下分组和连线的设计'), isFalse);
     expect(coordinator.matches('按主题分组并连线'), isTrue);
     expect(coordinator.matches('请把所选卡片分组并连线'), isTrue);
+    expect(coordinator.matches('整理当前选中卡片并连线'), isTrue);
+    expect(coordinator.matches('整理一下这些卡片'), isFalse);
   });
 }
 

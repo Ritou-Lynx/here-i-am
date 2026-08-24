@@ -98,10 +98,10 @@ class WhiteboardWorkbenchCoordinator {
     final explicitTarget = RegExp(
       r'(所选|选中|这些卡片|这几张|帮我把|请把|把这些|将这些)',
     ).hasMatch(normalized);
-    return directAction ||
-        (explicitTarget &&
-            normalized.contains('分组') &&
-            normalized.contains('连线'));
+    final explicitSelectionAction = explicitTarget &&
+        normalized.contains('连线') &&
+        (normalized.contains('分组') || normalized.contains('整理'));
+    return directAction || explicitSelectionAction;
   }
 
   bool canUndo(String actionId) => _undoBindings.containsKey(actionId);
@@ -504,12 +504,16 @@ class WhiteboardWorkbenchCoordinator {
       return;
     }
     final updated = binding.projection.copyWith(
-      summary: '白板后来又有变化，不能安全撤销这次操作。',
+      summary: receipt.status == WhiteboardAiWriteStatus.conflict
+          ? '白板在这次整理后又有变化。请先撤销或恢复后续改动，再重试本次撤销。'
+          : '这次撤销暂时没有完成，可以稍后重试。',
       errorCode: receipt.issues.isEmpty
           ? 'undo_failed'
           : _portableErrorCode(receipt.issues.first.code),
     );
-    _undoBindings.remove(actionId);
+    final retryable = receipt.status == WhiteboardAiWriteStatus.conflict ||
+        receipt.status == WhiteboardAiWriteStatus.unavailable;
+    if (!retryable) _undoBindings.remove(actionId);
     await _updateProjection(binding.messageId, updated);
   }
 
