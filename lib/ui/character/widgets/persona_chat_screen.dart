@@ -7632,7 +7632,10 @@ class _PersonaChatSearchSheetState extends State<_PersonaChatSearchSheet> {
                                 color: _personaTextMuted,
                                 fontSize: 15,
                               ),
+                              filled: false,
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(
                                 vertical: 12,
                               ),
