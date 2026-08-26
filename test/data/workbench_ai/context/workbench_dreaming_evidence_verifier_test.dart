@@ -110,11 +110,31 @@ void main() {
       id: 'oversized',
       sourceMessageIds: jsonEncode(List.generate(17, (index) => index + 1)),
     );
+    final emptySyncWithValidLocal = await _insertFragment(
+      db,
+      id: 'empty-sync-valid-local',
+      sourceSyncIds: '',
+      sourceMessageIds: jsonEncode([messageId]),
+    );
+    final blankLocalWithValidSync = await _insertFragment(
+      db,
+      id: 'blank-local-valid-sync',
+      sourceSyncIds: jsonEncode(['i-sync']),
+      sourceMessageIds: '   ',
+    );
 
     expect(await verifier.fragmentBelongsToCharacter(valid, 'i'), isTrue);
     expect(await verifier.fragmentBelongsToCharacter(malformed, 'i'), isFalse);
     expect(await verifier.fragmentBelongsToCharacter(empty, 'i'), isFalse);
     expect(await verifier.fragmentBelongsToCharacter(oversized, 'i'), isFalse);
+    expect(
+      await verifier.fragmentBelongsToCharacter(emptySyncWithValidLocal, 'i'),
+      isFalse,
+    );
+    expect(
+      await verifier.fragmentBelongsToCharacter(blankLocalWithValidSync, 'i'),
+      isFalse,
+    );
   });
 }
 

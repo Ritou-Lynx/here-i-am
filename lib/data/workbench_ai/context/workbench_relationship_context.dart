@@ -668,9 +668,10 @@ class WorkbenchDreamingEvidenceVerifier {
     String? raw,
     T? Function(dynamic value) convert,
   ) {
-    if (raw == null || raw.trim().isEmpty) {
+    if (raw == null) {
       return const _EvidenceSet.absent();
     }
+    if (raw.trim().isEmpty) return const _EvidenceSet.invalid();
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List<dynamic> ||
