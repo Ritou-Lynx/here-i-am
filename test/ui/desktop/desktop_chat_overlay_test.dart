@@ -258,6 +258,37 @@ void main() {
   );
 
   testWidgets(
+    'production global chat host scopes its Overlay subtree to desktop tokens',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+          ),
+          home: const GlobalDesktopChatOverlayHost(characterId: 'i'),
+        ),
+      );
+      await tester.pump();
+
+      final hostTheme = Theme.of(
+        tester.element(find.byType(GlobalDesktopChatOverlay)),
+      );
+      expect(
+        hostTheme.colorScheme.primary,
+        DesktopWorkspaceTokens.lieflatPalm.action,
+      );
+      expect(
+        hostTheme.cardColor,
+        DesktopWorkspaceTokens.lieflatPalm.surfaceRaised,
+      );
+      expect(
+        hostTheme.popupMenuTheme.color,
+        DesktopWorkspaceTokens.lieflatPalm.surfaceRaised,
+      );
+    },
+  );
+
+  testWidgets(
     'fixed Here I am identity shows the desktop entry without DB resolution',
     (tester) async {
       var resolutionCalls = 0;
