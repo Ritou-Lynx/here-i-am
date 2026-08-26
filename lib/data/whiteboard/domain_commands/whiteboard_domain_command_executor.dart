@@ -76,13 +76,27 @@ class WhiteboardDomainCommandExecutor {
       .convert(utf8.encode(jsonEncode(_canonicalSnapshot(snapshot))))
       .toString();
 
-  void restoreAppliedAction({
+  bool restoreAppliedAction({
     required WhiteboardDomainCommandBatch batch,
     required WhiteboardDomainCommandReceipt receipt,
   }) {
     if (receipt.status != WhiteboardDomainCommandStatus.applied ||
-        receipt.undoReceipt == null) {
-      return;
+        receipt.undoReceipt == null ||
+        _validateBatch(batch) != null ||
+        receipt.operationBatchId != batch.operationBatchId ||
+        receipt.boardId != batch.boardId ||
+        receipt.commandIds.length != batch.commands.length ||
+        !_sameIds(
+          receipt.commandIds,
+          batch.commands.map((command) => command.commandId),
+        ) ||
+        receipt.afterSnapshotHash == null ||
+        receipt.afterSnapshotHash != receipt.undoReceipt!.afterSnapshotHash ||
+        receipt.undoReceipt!.operationBatchId != batch.operationBatchId ||
+        receipt.undoReceipt!.boardId != batch.boardId ||
+        utf8.encode(jsonEncode(receipt.undoReceipt!.toJson())).length >
+            hardMaxUndoUtf8Bytes) {
+      return false;
     }
     final hash = _hashJson(batch.toJson());
     _appliedBatches.putIfAbsent(
@@ -93,6 +107,7 @@ class WhiteboardDomainCommandExecutor {
       receipt.undoReceipt!.undoToken,
       () => receipt.undoReceipt!,
     );
+    return true;
   }
 
   Future<WhiteboardDomainCommandReceipt> execute(
@@ -830,6 +845,16 @@ Map<String, dynamic> _canonicalSnapshot(WhiteboardSnapshot snapshot) {
 
 String _hashJson(Map<String, dynamic> value) =>
     sha256.convert(utf8.encode(jsonEncode(value))).toString();
+
+bool _sameIds(Iterable<String> left, Iterable<String> right) {
+  final leftValues = left.toList(growable: false);
+  final rightValues = right.toList(growable: false);
+  if (leftValues.length != rightValues.length) return false;
+  for (var index = 0; index < leftValues.length; index++) {
+    if (leftValues[index] != rightValues[index]) return false;
+  }
+  return true;
+}
 
 DateTime _millisecondUtc(DateTime value) => DateTime.fromMillisecondsSinceEpoch(
       value.toUtc().millisecondsSinceEpoch,

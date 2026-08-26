@@ -13,6 +13,8 @@ import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
 import 'package:memex/data/workbench_ai/workbench_action_reader.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/domain_command.dart';
+import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/domain/workbench_ai/action/workbench_action_projection.dart';
 
@@ -267,6 +269,12 @@ void main() {
 
     surfaceController.detach(surfaceOwner);
     surfaceOwner = Object();
+    await db.close();
+    db = AppDatabase.forTesting(
+      NativeDatabase(File('${tempDir.path}/whiteboard.sqlite')),
+    );
+    store = WhiteboardDriftStore(db);
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
     final reopenedProjections = <WorkbenchActionProjection>[];
     final restartedCoordinator = WhiteboardWorkbenchCoordinator(
       runtime: _FakeRuntime(),
@@ -274,8 +282,16 @@ void main() {
       repositoryLoader: () async => repository,
       surfaceController: surfaceController,
       addAction: (_, __, ___) async => 41,
-      updateAction: (_, __, projection) async {
+      updateAction: (messageId, content, projection) async {
         reopenedProjections.add(WorkbenchActionProjection.fromJson(projection));
+        await (db.update(db.personaChatMessages)
+              ..where((row) => row.id.equals(messageId)))
+            .write(PersonaChatMessagesCompanion(
+          content: Value(content),
+          attachmentsJson: Value(jsonEncode([
+            {'type': 'workbench_action', 'action': projection},
+          ])),
+        ));
       },
       readActions: (characterId) =>
           readPersistedWorkbenchActions(db, characterId),
@@ -291,14 +307,150 @@ void main() {
       },
     );
 
+    expect(restartedCoordinator.canUndo(completed.actionId), isFalse);
+    await restartedCoordinator.hydrateUndo('i');
+    expect(restartedCoordinator.canUndo(completed.actionId), isTrue);
     await restartedCoordinator.undo(completed.actionId);
 
     expect(reopenedProjections.last.status, WorkbenchActionStatus.undone);
+    expect(restartedCoordinator.canUndo(completed.actionId), isFalse);
     expect(
       (await store.load('board_1')).snapshot!.groups,
       isEmpty,
     );
     expect(reloads, 2, reason: 'undo should trigger board reload once.');
+  });
+
+  test(
+      'hydrates and routes persisted domain undo across real database instances',
+      () async {
+    WhiteboardWorkbenchCoordinator coordinatorFor(
+      List<WorkbenchActionProjection> updates,
+    ) {
+      return WhiteboardWorkbenchCoordinator(
+        runtime: _FakeRuntime(),
+        store: store,
+        repositoryLoader: () async => repository,
+        surfaceController: surfaceController,
+        addAction: (characterId, content, projection) async {
+          updates.add(WorkbenchActionProjection.fromJson(projection));
+          return db.into(db.personaChatMessages).insert(
+                PersonaChatMessagesCompanion.insert(
+                  characterId: characterId,
+                  isFromCharacter: true,
+                  content: content,
+                  timestamp: DateTime.utc(2026, 8, 21, 10),
+                  messageType: const Value('action'),
+                  attachmentsJson: Value(jsonEncode([
+                    {'type': 'workbench_action', 'action': projection},
+                  ])),
+                ),
+              );
+        },
+        updateAction: (messageId, content, projection) async {
+          updates.add(WorkbenchActionProjection.fromJson(projection));
+          await (db.update(db.personaChatMessages)
+                ..where((row) => row.id.equals(messageId)))
+              .write(PersonaChatMessagesCompanion(
+            content: Value(content),
+            attachmentsJson: Value(jsonEncode([
+              {'type': 'workbench_action', 'action': projection},
+            ])),
+          ));
+        },
+        readActions: (characterId) =>
+            readPersistedWorkbenchActions(db, characterId),
+        clock: () => DateTime.utc(2026, 8, 21, 10),
+      );
+    }
+
+    const batch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_domain_reopen',
+      boardId: 'board_1',
+      commands: [
+        MovePlacementCommand(
+          commandId: 'cmd_move_reopen',
+          itemId: 'item_1',
+          x: 88,
+          y: 44,
+        ),
+      ],
+    );
+    final initialUpdates = <WorkbenchActionProjection>[];
+    final initialCoordinator = coordinatorFor(initialUpdates);
+    final appliedReceipt = await initialCoordinator.executeUserDomainCommands(
+      characterId: 'i',
+      batch: batch,
+      userAuthorizationMessageId: 'message_1',
+    );
+    expect(appliedReceipt.status, WhiteboardDomainCommandStatus.applied);
+    final appliedSnapshot = (await store.load('board_1')).snapshot!;
+    expect(
+      appliedSnapshot.boardItems
+          .singleWhere((item) => item.itemId == 'item_1')
+          .x,
+      88,
+    );
+
+    await db.close();
+    db = AppDatabase.forTesting(
+      NativeDatabase(File('${tempDir.path}/whiteboard.sqlite')),
+    );
+    store = WhiteboardDriftStore(db);
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    final conflictUpdates = <WorkbenchActionProjection>[];
+    final restartedCoordinator = coordinatorFor(conflictUpdates);
+    expect(restartedCoordinator.canUndo(batch.operationBatchId), isFalse);
+    await restartedCoordinator.hydrateUndo('i');
+    expect(restartedCoordinator.canUndo(batch.operationBatchId), isTrue);
+
+    final changedAfterAction = WhiteboardSnapshot.fromJson({
+      ...appliedSnapshot.toJson(),
+      'viewport': const BoardViewport(centerX: 24).toJson(),
+    });
+    expect(await store.save('board_1', changedAfterAction), isTrue);
+    await restartedCoordinator.undo(batch.operationBatchId);
+    expect(conflictUpdates.last.status, WorkbenchActionStatus.completed);
+    expect(
+      conflictUpdates.last.errorCode,
+      'snapshot_changed_after_batch',
+    );
+    expect(restartedCoordinator.canUndo(batch.operationBatchId), isTrue);
+
+    await db.close();
+    db = AppDatabase.forTesting(
+      NativeDatabase(File('${tempDir.path}/whiteboard.sqlite')),
+    );
+    store = WhiteboardDriftStore(db);
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    final finalUpdates = <WorkbenchActionProjection>[];
+      final finalCoordinator = coordinatorFor(finalUpdates);
+    await finalCoordinator.hydrateUndo('i');
+    expect(
+      finalCoordinator.canUndo(batch.operationBatchId),
+      isTrue,
+      reason:
+          'a retryable conflict must not erase the persisted applied receipt',
+    );
+    expect(await store.save('board_1', appliedSnapshot), isTrue);
+    await finalCoordinator.undo(batch.operationBatchId);
+    expect(finalUpdates.last.status, WorkbenchActionStatus.undone);
+    expect(finalCoordinator.canUndo(batch.operationBatchId), isFalse);
+    expect(
+      (await store.load('board_1'))
+          .snapshot!
+          .boardItems
+          .singleWhere((item) => item.itemId == 'item_1')
+          .x,
+      0,
+    );
+    final updatesAfterUndo = finalUpdates.length;
+    await finalCoordinator.undo(batch.operationBatchId);
+    expect(
+      finalUpdates,
+      hasLength(updatesAfterUndo),
+      reason: 'a repeated undo must not be projected as another success',
+    );
   });
 
   test('does not intercept an ordinary discussion of grouping and links',

@@ -1,5 +1,7 @@
 library;
 
+import 'dart:convert';
+
 import 'package:memex/data/whiteboard/domain_commands/whiteboard_domain_command_executor.dart';
 import 'package:memex/data/workbench_ai/workbench_action_reader.dart';
 import 'package:memex/domain/whiteboard/domain_command.dart';
@@ -42,6 +44,11 @@ class WhiteboardDomainCommandFacade {
   final DateTime Function() _clock;
   final Map<String, _DomainUndoBinding> _undoBindings = {};
   final Set<String> _restoredCharacters = {};
+
+  bool canUndo(String actionId) => _undoBindings.containsKey(actionId);
+
+  bool isRestored(String characterId) =>
+      _restoredCharacters.contains(characterId);
 
   WhiteboardAuthorizationGrant authorizeRuntime({
     required WhiteboardDomainCommandBatch batch,
@@ -165,16 +172,20 @@ class WhiteboardDomainCommandFacade {
     return receipt;
   }
 
-  Future<void> restore(String characterId) async {
+  Future<void> restore(
+    String characterId, {
+    List<PersistedWorkbenchAction>? persistedActions,
+  }) async {
     if (_restoredCharacters.contains(characterId)) return;
-    final persisted = await _readActions(characterId);
+    final persisted = persistedActions ?? await _readActions(characterId);
     for (final record in persisted) {
       final action = record.projection;
       if (action.actionType != 'whiteboard_domain_commands' ||
           action.status != WorkbenchActionStatus.completed ||
           action.domainCommandBatch == null ||
           action.domainCommandReceipt == null ||
-          action.undoToken == null) {
+          action.undoToken == null ||
+          action.undoReceipt == null) {
         continue;
       }
       try {
@@ -184,15 +195,28 @@ class WhiteboardDomainCommandFacade {
         final receipt = WhiteboardDomainCommandReceipt.fromJson(
           action.domainCommandReceipt!,
         );
+        final projectedUndo = WhiteboardDomainUndoReceipt.fromJson(
+          action.undoReceipt!,
+        );
         if (receipt.undoReceipt == null ||
-            receipt.undoReceipt!.undoToken != action.undoToken) {
+            receipt.undoReceipt!.undoToken != action.undoToken ||
+            jsonEncode(receipt.undoReceipt!.toJson()) !=
+                jsonEncode(projectedUndo.toJson()) ||
+            batch.operationBatchId != action.actionId ||
+            action.operationBatchId != batch.operationBatchId ||
+            batch.boardId != action.boardId ||
+            receipt.beforeSnapshotHash != action.beforeSnapshotHash ||
+            receipt.afterSnapshotHash != action.afterSnapshotHash ||
+            !executor.restoreAppliedAction(batch: batch, receipt: receipt)) {
           continue;
         }
-        executor.restoreAppliedAction(batch: batch, receipt: receipt);
-        _undoBindings[action.actionId] = _DomainUndoBinding(
-          messageId: record.messageId,
-          projection: action,
-          undoToken: action.undoToken!,
+        _undoBindings.putIfAbsent(
+          action.actionId,
+          () => _DomainUndoBinding(
+            messageId: record.messageId,
+            projection: action,
+            undoToken: action.undoToken!,
+          ),
         );
       } catch (_) {
         // Malformed historical records fail closed and do not create Undo.
@@ -216,7 +240,10 @@ class WhiteboardDomainCommandFacade {
       summary: receipt.status == WhiteboardDomainCommandStatus.undone
           ? '已撤销白板卡片操作。'
           : receipt.summary,
-      domainCommandReceipt: receipt.toJson(),
+      domainCommandReceipt:
+          receipt.status == WhiteboardDomainCommandStatus.undone
+              ? receipt.toJson()
+              : binding.projection.domainCommandReceipt,
       errorCode: receipt.succeeded || receipt.issues.isEmpty
           ? null
           : receipt.issues.first.code,

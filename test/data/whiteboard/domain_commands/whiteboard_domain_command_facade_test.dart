@@ -102,12 +102,22 @@ void main() {
     final reopenedPersistence = _ActionPersistence(db, now);
     final reopened = _fixture(store, reopenedPersistence, now);
     await reopened.facade.restore('i');
+    expect(reopened.facade.canUndo(batch.operationBatchId), isTrue);
     final undone = await reopened.facade.undo(
       characterId: 'i',
       actionId: batch.operationBatchId,
     );
 
     expect(undone?.status, WhiteboardDomainCommandStatus.undone);
+    expect(reopened.facade.canUndo(batch.operationBatchId), isFalse);
+    expect(
+      await reopened.facade.undo(
+        characterId: 'i',
+        actionId: batch.operationBatchId,
+      ),
+      isNull,
+      reason: 'a repeated undo must not report a second success',
+    );
     final restored = (await store.load('board_1')).snapshot!;
     final restoredCard =
         restored.cards.singleWhere((value) => value.cardId == 'card_1');
@@ -285,6 +295,62 @@ void main() {
       ),
       beforeHugeHash,
     );
+  });
+
+  test('malformed and oversized persisted undo records fail closed', () async {
+    final persistence = _ActionPersistence(db, now);
+    final fixture = _fixture(store, persistence, now);
+    final batch = _sixCommandBatch();
+    final receipt = await fixture.facade.executeUser(
+      characterId: 'i',
+      batch: batch,
+      userAuthorizationMessageId: 'message_1',
+    );
+    expect(receipt.status, WhiteboardDomainCommandStatus.applied);
+
+    final persisted =
+        (await readPersistedWorkbenchActions(db, 'i')).single.projection;
+    final oversizedUndo = <String, dynamic>{
+      ...persisted.undoReceipt!,
+      'inverse_steps': [
+        {
+          'kind': 'oversized_untrusted_inverse',
+          'payload': List.filled(
+            WhiteboardDomainCommandExecutor.hardMaxUndoUtf8Bytes + 1,
+            'x',
+          ).join(),
+        },
+      ],
+    };
+    final oversizedReceipt = <String, dynamic>{
+      ...persisted.domainCommandReceipt!,
+      'undo_receipt': oversizedUndo,
+    };
+    await persistence.update(
+      (await readPersistedWorkbenchActions(db, 'i')).single.messageId,
+      persisted.summary,
+      persisted
+          .copyWith(
+            undoReceipt: oversizedUndo,
+            domainCommandReceipt: oversizedReceipt,
+          )
+          .toJson(),
+    );
+    await persistence.add(
+      'i',
+      'malformed',
+      {
+        ...persisted.toJson(),
+        'action_id': 'batch_malformed',
+        'operation_batch_id': 'batch_malformed',
+        'domain_command_batch': {'bad': true},
+      },
+    );
+
+    final reopened = _fixture(store, _ActionPersistence(db, now), now);
+    await reopened.facade.restore('i');
+    expect(reopened.facade.canUndo(batch.operationBatchId), isFalse);
+    expect(reopened.facade.canUndo('batch_malformed'), isFalse);
   });
 }
 

@@ -1867,6 +1867,11 @@ only after you have written the goodbye you want the user to hear.''',
       _currentCharacterId,
       limit: _pageSize,
     );
+    if (widget.presentation == PersonaChatPresentation.desktopFloating) {
+      await WhiteboardWorkbenchCoordinator.instance.hydrateUndo(
+        _currentCharacterId,
+      );
+    }
     await _markCurrentChatRead();
 
     // If this is the first chat and the character has a greeting, deliver it.

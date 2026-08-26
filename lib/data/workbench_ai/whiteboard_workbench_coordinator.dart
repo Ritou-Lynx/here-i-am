@@ -160,8 +160,16 @@ class WhiteboardWorkbenchCoordinator {
   Future<WhiteboardDomainCommandReceipt?> undoDomainCommands({
     required String characterId,
     required String actionId,
-  }) =>
-      _domainCommands.undo(characterId: characterId, actionId: actionId);
+  }) async {
+    final receipt = await _domainCommands.undo(
+      characterId: characterId,
+      actionId: actionId,
+    );
+    if (receipt?.status == WhiteboardDomainCommandStatus.undone) {
+      await _reloadIfBoardOpen(receipt!.boardId);
+    }
+    return receipt;
+  }
 
   bool matches(String text) {
     final normalized = text.trim();
@@ -177,7 +185,30 @@ class WhiteboardWorkbenchCoordinator {
     return directAction || explicitSelectionAction;
   }
 
-  bool canUndo(String actionId) => _undoBindings.containsKey(actionId);
+  bool canUndo(String actionId) =>
+      _undoBindings.containsKey(actionId) || _domainCommands.canUndo(actionId);
+
+  /// Hydrates the synchronous action-card availability check from the real
+  /// persisted chat action stream. Both legacy group/connect actions and the
+  /// provider-neutral domain-command actions are routed by [actionType].
+  Future<void> hydrateUndo(String characterId) async {
+    final normalized = characterId.trim();
+    if (normalized.isEmpty) return;
+    _activeCharacterId = normalized;
+    if (_restoredCharacters.contains(normalized) &&
+        _domainCommands.isRestored(normalized)) {
+      return;
+    }
+    List<PersistedWorkbenchAction> actions;
+    try {
+      actions = await _readActions(normalized);
+    } catch (_) {
+      // Persistence failures fail closed. A later hydration call may retry.
+      return;
+    }
+    _restoreLegacyUndoBindings(normalized, actions);
+    await _domainCommands.restore(normalized, persistedActions: actions);
+  }
 
   Future<bool> run({
     required String characterId,
@@ -186,8 +217,7 @@ class WhiteboardWorkbenchCoordinator {
   }) async {
     final normalizedCharacterId = characterId.trim();
     if (normalizedCharacterId.isNotEmpty) {
-      _activeCharacterId = normalizedCharacterId;
-      await _restoreUndoBindings(normalizedCharacterId);
+      await hydrateUndo(normalizedCharacterId);
     }
     if (!matches(userText)) return false;
     final surface = _surfaceController.current;
@@ -540,18 +570,26 @@ class WhiteboardWorkbenchCoordinator {
     );
   }
 
-  Future<void> _restoreUndoBindings(String characterId) async {
+  void _restoreLegacyUndoBindings(
+    String characterId,
+    List<PersistedWorkbenchAction> actions,
+  ) {
     if (_restoredCharacters.contains(characterId)) return;
-    try {
-      final actions = await _readActions(characterId);
-      for (final persisted in actions) {
+    for (final persisted in actions) {
+      try {
         final action = persisted.projection;
         if (_undoBindings.containsKey(action.actionId)) continue;
         if (action.status != WorkbenchActionStatus.completed) continue;
         if (action.actionType != 'whiteboard_group_and_connect') continue;
         if (action.undoToken == null ||
             action.undoReceipt == null ||
-            action.runtimeTurnId == null) {
+            action.runtimeTurnId == null ||
+            action.operationBatchId == null ||
+            action.afterSnapshotHash == null) {
+          continue;
+        }
+        if (utf8.encode(jsonEncode(action.undoReceipt)).length >
+            WhiteboardAiWriteToolHost.hardMaxUndoEnvelopeUtf8Bytes) {
           continue;
         }
         final beforeSnapshot = _undoReceiptBeforeSnapshot(action.undoReceipt!);
@@ -560,7 +598,16 @@ class WhiteboardWorkbenchCoordinator {
           action: action,
           actionUndoReceipt: action.undoReceipt!,
         );
-        if (receipt == null) continue;
+        if (receipt == null ||
+            receipt.status != WhiteboardAiWriteStatus.applied ||
+            receipt.operationBatchId != action.operationBatchId ||
+            receipt.runtimeTurnId != action.runtimeTurnId ||
+            receipt.boardId != action.boardId ||
+            receipt.undoToken != action.undoToken ||
+            receipt.beforeSnapshotHash != action.beforeSnapshotHash ||
+            receipt.afterSnapshotHash != action.afterSnapshotHash) {
+          continue;
+        }
         final host = WhiteboardAiWriteToolHost.forDriftStore(
           permissionBroker: _permissionBroker,
           store: _store,
@@ -577,10 +624,11 @@ class WhiteboardWorkbenchCoordinator {
           undoToken: action.undoToken!,
           reload: () => _reloadIfBoardOpen(action.boardId),
         );
+      } catch (_) {
+        // Malformed or oversized historical records fail closed independently.
       }
-    } finally {
-      _restoredCharacters.add(characterId);
     }
+    _restoredCharacters.add(characterId);
   }
 
   Future<void> _reloadIfBoardOpen(String boardId) async {
@@ -592,9 +640,15 @@ class WhiteboardWorkbenchCoordinator {
 
   Future<void> undo(String actionId) async {
     final characterId = _activeCharacterId ?? 'i';
-    await _restoreUndoBindings(characterId);
+    await hydrateUndo(characterId);
     final binding = _undoBindings[actionId];
-    if (binding == null) return;
+    if (binding == null) {
+      await undoDomainCommands(
+        characterId: characterId,
+        actionId: actionId,
+      );
+      return;
+    }
     final activeSurface = _surfaceController.current;
     final activeBoardSurface = activeSurface != null &&
             activeSurface.boardId == binding.projection.boardId

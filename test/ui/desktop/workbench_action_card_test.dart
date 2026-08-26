@@ -73,19 +73,19 @@ void main() {
     expect(undone, 'action_1');
   });
 
-  testWidgets('desktop chat recognizes the structured action addendum',
+  testWidgets('desktop chat exposes hydrated undo for a domain action addendum',
       (tester) async {
     final now = DateTime.utc(2026, 8, 21);
     final action = WorkbenchActionProjection(
       actionId: 'action_chat',
-      actionType: 'whiteboard_group_and_connect',
-      title: '整理所选卡片',
+      actionType: 'whiteboard_domain_commands',
+      title: '白板卡片操作',
       status: WorkbenchActionStatus.completed,
       boardId: 'board_1',
       selectedItemCount: 2,
       groupCount: 1,
       edgeCount: 1,
-      summary: '已完成分组和连线。',
+      summary: '白板卡片操作已完成，可撤销。',
       undoToken: 'undo_1',
       createdAt: now,
       updatedAt: now,
