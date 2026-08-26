@@ -6,6 +6,63 @@ import 'package:uuid/uuid.dart';
 import '../../../db/app_database.dart';
 import '../models/task_room_enums.dart';
 
+/// Product-owned queue scope persisted inside `contextJson.__queue`.
+///
+/// Runtime/model payloads must never construct this value. A trusted product
+/// host supplies it separately when a long task is enqueued.
+class TaskQueueHostScope {
+  const TaskQueueHostScope({
+    required this.profileId,
+    required this.scopeType,
+    required this.scopeId,
+  });
+
+  final String profileId;
+  final String scopeType;
+  final String scopeId;
+}
+
+/// Provider-neutral, bounded projection of persisted queue state.
+class TaskQueueSnapshot {
+  const TaskQueueSnapshot({
+    required this.id,
+    required this.title,
+    required this.status,
+    required this.progressPercent,
+    required this.currentStep,
+    required this.maxRetries,
+    required this.retryCount,
+    required this.ownerProfileId,
+    required this.scopeType,
+    required this.scopeId,
+    required this.resumableState,
+    required this.failureReason,
+    required this.interruptedReason,
+  });
+
+  final String id;
+  final String title;
+  final TaskStatus status;
+  final int progressPercent;
+  final String? currentStep;
+  final int maxRetries;
+  final int retryCount;
+  final String? ownerProfileId;
+  final String? scopeType;
+  final String? scopeId;
+  final String? resumableState;
+  final String? failureReason;
+  final String? interruptedReason;
+
+  bool belongsTo(TaskQueueHostScope scope) =>
+      ownerProfileId == scope.profileId &&
+      scopeType == scope.scopeType &&
+      scopeId == scope.scopeId;
+
+  bool get isResumable =>
+      resumableState == 'paused' || resumableState == 'interrupted';
+}
+
 /// TaskRoomService: 管理任务房间、产物和决策
 ///
 /// 任务房间是用户与林埃协作完成复杂任务的空间，支持：
@@ -28,6 +85,9 @@ class TaskRoomService {
   static const String _queueLastRecoveredAtKey = 'lastRecoveredAt';
   static const String _queuePausedReasonKey = 'pauseReason';
   static const String _queueResumableStateKey = 'resumableState';
+  static const String _queueOwnerProfileKey = 'ownerProfile';
+  static const String _queueScopeTypeKey = 'scopeType';
+  static const String _queueScopeIdKey = 'scopeId';
   static const String _queuePausedState = 'paused';
   static const String _queueInterruptedState = 'interrupted';
   static const String _interruptedByRestartReason = 'interrupted_by_restart';
@@ -73,6 +133,7 @@ class TaskRoomService {
     String? parentTaskId,
     String? boardId,
     int maxRetries = _defaultMaxRetries,
+    TaskQueueHostScope? queueHostScope,
   }) async {
     if (maxRetries < 0) {
       throw ArgumentError.value(maxRetries, 'maxRetries', 'must not be negative');
@@ -83,6 +144,7 @@ class TaskRoomService {
     final normalizedContext = _withQueueContext(
       context,
       maxRetries: maxRetries,
+      hostScope: queueHostScope,
     );
 
     await _db.into(_db.taskRooms).insert(
@@ -128,6 +190,7 @@ class TaskRoomService {
     String? parentTaskId,
     String? boardId,
     int maxRetries = _defaultMaxRetries,
+    TaskQueueHostScope? queueHostScope,
   }) async {
     return createTaskRoom(
       title: title,
@@ -140,6 +203,7 @@ class TaskRoomService {
       parentTaskId: parentTaskId,
       boardId: boardId,
       maxRetries: maxRetries,
+      queueHostScope: queueHostScope,
     );
   }
 
@@ -160,6 +224,33 @@ class TaskRoomService {
       throw ArgumentError('Task room not found: $id');
     }
     return TaskStatus.fromString(room.status);
+  }
+
+  /// Returns a bounded queue projection without exposing raw context or
+  /// permissions JSON to a Runtime adapter.
+  Future<TaskQueueSnapshot?> getTaskQueueSnapshot(String id) async {
+    final room = await getTaskRoom(id);
+    return room == null ? null : _queueSnapshot(room);
+  }
+
+  /// Finds the latest task owned by an exact host scope.
+  ///
+  /// The conversation column narrows the production desktop lookup, while the
+  /// host-owned queue metadata is still required before a task is returned.
+  Future<TaskQueueSnapshot?> findLatestTaskQueueForScope(
+    TaskQueueHostScope scope,
+  ) async {
+    final query = _db.select(_db.taskRooms)
+      ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]);
+    if (scope.scopeType == 'conversation') {
+      query.where((t) => t.conversationId.equals(scope.scopeId));
+    }
+    final rooms = await query.get();
+    for (final room in rooms) {
+      final snapshot = _queueSnapshot(room);
+      if (snapshot.belongsTo(scope)) return snapshot;
+    }
+    return null;
   }
 
   /// 继续执行（resume）暂停任务。
@@ -494,6 +585,7 @@ class TaskRoomService {
   Map<String, dynamic> _withQueueContext(
     Map<String, dynamic>? context, {
     required int maxRetries,
+    TaskQueueHostScope? hostScope,
   }) {
     final normalizedContext = Map<String, dynamic>.from(context ?? {});
     if (maxRetries < 0) {
@@ -502,8 +594,37 @@ class TaskRoomService {
     normalizedContext[_queueContextKey] = <String, dynamic>{
       _queueMaxRetriesKey: maxRetries,
       _queueRetryCountKey: 0,
+      if (hostScope != null) ...{
+        _queueOwnerProfileKey: hostScope.profileId,
+        _queueScopeTypeKey: hostScope.scopeType,
+        _queueScopeIdKey: hostScope.scopeId,
+      },
     };
     return normalizedContext;
+  }
+
+  TaskQueueSnapshot _queueSnapshot(TaskRoom room) {
+    final queue = _queueForContext(_readContext(room));
+    String? stringValue(String key) {
+      final value = queue[key];
+      return value is String && value.isNotEmpty ? value : null;
+    }
+
+    return TaskQueueSnapshot(
+      id: room.id,
+      title: room.title,
+      status: TaskStatus.fromString(room.status),
+      progressPercent: room.progressPercent,
+      currentStep: room.currentStep,
+      maxRetries: queue[_queueMaxRetriesKey] as int,
+      retryCount: queue[_queueRetryCountKey] as int,
+      ownerProfileId: stringValue(_queueOwnerProfileKey),
+      scopeType: stringValue(_queueScopeTypeKey),
+      scopeId: stringValue(_queueScopeIdKey),
+      resumableState: stringValue(_queueResumableStateKey),
+      failureReason: stringValue(_queueFailedReasonKey),
+      interruptedReason: stringValue(_queueInterruptedReasonKey),
+    );
   }
 
   Map<String, dynamic> _readContext(TaskRoom room) {

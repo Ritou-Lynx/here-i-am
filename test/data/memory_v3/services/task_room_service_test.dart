@@ -407,6 +407,73 @@ void main() {
       );
     });
 
+    test('host queue scope round-trips while legacy queue stays compatible',
+        () async {
+      const scope = TaskQueueHostScope(
+        profileId: 'desktop_workbench_task_queue_v1',
+        scopeType: 'conversation',
+        scopeId: 'persona-i',
+      );
+      final scopedId = await service.enqueueTaskRoom(
+        title: 'Scoped queue task',
+        goal: 'Only the product-owned conversation can control this task',
+        taskType: TaskType.other,
+        conversationId: 'persona-i',
+        queueHostScope: scope,
+      );
+      final legacyId = await service.enqueueTaskRoom(
+        title: 'Legacy queue task',
+        goal: 'Keep the existing wire format valid',
+        taskType: TaskType.other,
+      );
+
+      final scoped = await service.getTaskQueueSnapshot(scopedId);
+      final legacy = await service.getTaskQueueSnapshot(legacyId);
+
+      expect(scoped, isNotNull);
+      expect(scoped!.belongsTo(scope), isTrue);
+      expect(scoped.status, TaskStatus.pending);
+      expect(scoped.retryCount, 0);
+      expect(legacy, isNotNull);
+      expect(legacy!.ownerProfileId, isNull);
+      expect(legacy.maxRetries, 3);
+      expect(legacy.retryCount, 0);
+    });
+
+    test('latest scoped lookup never returns another conversation task',
+        () async {
+      const scope = TaskQueueHostScope(
+        profileId: 'desktop_workbench_task_queue_v1',
+        scopeType: 'conversation',
+        scopeId: 'persona-i',
+      );
+      const otherScope = TaskQueueHostScope(
+        profileId: 'desktop_workbench_task_queue_v1',
+        scopeType: 'conversation',
+        scopeId: 'persona-other',
+      );
+      final ownedId = await service.enqueueTaskRoom(
+        title: 'Owned task',
+        goal: 'Stay in persona-i',
+        taskType: TaskType.other,
+        conversationId: 'persona-i',
+        queueHostScope: scope,
+      );
+      await service.enqueueTaskRoom(
+        title: 'Other task',
+        goal: 'Stay in persona-other',
+        taskType: TaskType.other,
+        conversationId: 'persona-other',
+        queueHostScope: otherScope,
+      );
+
+      expect((await service.findLatestTaskQueueForScope(scope))?.id, ownedId);
+      expect(
+        (await service.findLatestTaskQueueForScope(otherScope))?.scopeId,
+        'persona-other',
+      );
+    });
+
     test('getTaskStatus returns normalized status', () async {
       final id = await service.createTaskRoom(
         title: 'Status task',
