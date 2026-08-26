@@ -8,6 +8,7 @@ import {
   compileVoiceContextFromSnapshot,
   compileVoiceSessionFromSnapshot,
   compileVoiceTurnContext,
+  isVoiceWakeIntent,
   readAndroidVoiceContext,
 } from './i_voice_context.mjs';
 
@@ -100,6 +101,9 @@ test('compileVoiceContextFromSnapshot returns the active character tail and real
     assert.equal(result.source_stats.chat_messages, 26);
     assert.equal(result.source_stats.user_truth_cards, 2);
     assert.equal(result.phone_character_profile.yaml.includes('persona: ""'), true);
+    assert.equal(result.speech_delivery_contract.user_prompt_required, false);
+    assert.equal(result.speech_delivery_contract.repeat_every_turn, true);
+    assert.match(result.speech_delivery_contract.pace, /第一句.*慢于默认/);
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -139,6 +143,11 @@ test('compileVoiceSessionFromSnapshot caches bounded User-truth for later Voice 
       session.bootstrap.voice_session.response_contract.prohibit_commentary_status_and_preamble,
       true,
     );
+    assert.equal(
+      session.bootstrap.voice_session.response_contract.apply_speech_delivery_contract_before_answering,
+      true,
+    );
+    assert.match(session.bootstrap.voice_session.speech_delivery_contract.stability, /不.*自行加快/);
     assert.deepEqual(session.turnState.memory_cards.map((item) => item.card_id), ['card-2', 'card-1']);
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
@@ -164,6 +173,8 @@ test('compileVoiceTurnContext injects identity, time gap, and bounded lexical me
     assert.equal(result.turn_index, 1);
     assert.equal(result.usage_contract.zero_assistant_output_before_tool_call, true);
     assert.equal(result.usage_contract.one_final_answer_after_tool_result, true);
+    assert.equal(result.usage_contract.apply_speech_delivery_contract_before_answering, true);
+    assert.equal(result.speech_delivery_contract.repeat_every_turn, true);
     assert.equal(result.persona_anchor.assistant.name, '林埃');
     assert.equal(result.current_time_context.time_zone, 'Asia/Shanghai');
     assert.equal(result.time_gap_context.gap_seconds, 312);
@@ -172,6 +183,52 @@ test('compileVoiceTurnContext injects identity, time gap, and bounded lexical me
     assert.deepEqual(result.retrieved_memory_cards.items.map((item) => item.card_id), ['card-1']);
     assert.equal(session.turnState.last_turn_at, '2026-08-26T00:05:12.000Z');
     assert.equal(session.turnState.turn_index, 1);
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test('Voice wake intent accepts bounded ASR variants and rejects broad or embedded matches', () => {
+  for (const accepted of [
+    '老公，你在吗？',
+    '老公在吗',
+    '老公你在不在？',
+    '老公，你还在嘛',
+    '老公你再么',
+  ]) {
+    assert.equal(isVoiceWakeIntent(accepted), true, accepted);
+  }
+  for (const rejected of [
+    '老公',
+    '你在吗',
+    '林埃，回来一下',
+    '老公，回来一下',
+    '刚才我问老公你在吗，他没听见',
+    '老公你在吗我们继续聊',
+  ]) {
+    assert.equal(isVoiceWakeIntent(rejected), false, rejected);
+  }
+});
+
+test('a wake-like phrase inside an active Voice session stays on the same turn session', () => {
+  const fixture = createFixture();
+  try {
+    const session = compileVoiceSessionFromSnapshot({
+      dbPath: fixture.dbPath,
+      characterPath: fixture.characterPath,
+      identityCapsule,
+      now: () => new Date('2026-08-26T00:00:00.000Z'),
+    });
+    const result = compileVoiceTurnContext({
+      sessionState: session.turnState,
+      sessionToken: session.turnState.session_token,
+      userText: '老公在吗？',
+      now: () => new Date('2026-08-26T00:00:30.000Z'),
+    });
+    assert.equal(result.session_token, session.bootstrap.voice_session.session_token);
+    assert.equal(result.wake_intent.matched, true);
+    assert.equal(result.wake_intent.action, 'continue_active_session_without_rebootstrap');
+    assert.match(result.wake_intent.response_hint, /不要.*重置会话/);
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }

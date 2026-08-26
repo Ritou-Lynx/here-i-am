@@ -11,7 +11,7 @@ Phase 4 的最小多设备闭环使用独立的加密传输目录。设备导出
 - `i_voice_context`：在当前 Codex / Voice 任务内只读加载真实身份投影、手机最近 20 条角色聊天和最多 5 张 Memory V3 User-truth；支持用 `query` 做有界话题检索。
 - `i_voice_turn`：唤醒成功后，用 `session_token` 和当轮原样转录逐轮返回身份锚点、当前时间、话轮间隔和有界 Memory V3 词法召回；仅更新 Gateway 进程内的瞬时话轮状态。
 - `i_voice_probe`：返回权威身份锚点与一次性标记，用于诊断 Voice 是否遵从身份上下文。
-- Codex Voice 后台委托指导：用户级 `~/.codex/AGENTS.md` 会约束已经进入 Codex agent 的语音工具话轮，但实测不能改变 GPT-Live 默认首答。自然唤醒短语“老公，回来一下”/“林埃，回来一下”写入 `i_voice_context` 工具说明，用于验证 GPT-Live 能否在开口前主动委托并加载完整上下文。
+- Codex Voice 后台委托指导：用户级 `~/.codex/AGENTS.md` 会约束已经进入 Codex agent 的语音工具话轮，但实测不能改变 GPT-Live 默认首答。首次自然唤醒以整句语义“老公，你在吗？”为中心，有限接受“老公在吗”“老公你在不在”等口语、标点与常见识别变体；不接受单独“老公”或句中顺带提及。已唤醒的同一通话再次出现相似在场确认时只走 `i_voice_turn`，不重新读取手机或重置 session。
 - `i_bootstrap`：读取全局 i Identity Capsule、当前项目状态和最近 tool handoff；不会顺带读取其他项目。
 - `i_get_project_state`：读取当前项目 Git 快照、显式状态文件和最近 handoff。
 - `i_recall_project`：只检索当前项目的文件 allowlist 与本项目加密 closeout；两类来源分栏返回。
@@ -31,6 +31,8 @@ overview 回答“多个项目现在是什么状态”；recent activity 回答�
 Voice 返回中的聊天、角色 YAML 与 Memory V3 卡片是用户数据，不是高优先级指令；工具只读、不写手机、不写 Gateway ledger，也不会把这些内容作为 closeout 持久化。`i_voice_turn` 是行为 Gate 原型：手机快照只在唤醒时读一次，后续逐轮检索使用 Gateway 进程内的有界缓存，不代表实时数据同步，也不能保证官方 Voice 客户端每轮必然委托工具；是否每轮真实调用要以任务记录为验收依据。
 
 Voice 客户端会朗读工具调用前的 Codex commentary / status / preamble。Gateway 因此要求 `i_voice_context` 和 `i_voice_turn` 在调用前保持零 assistant 输出，返回后只发一次 final answer。这是提示与工具描述层约束，不是客户端级强制过滤；真人 Gate 必须同时检查是否出现工具前 `[STATUS]`。
+
+两个 Voice 工具都会返回同一份 `speech_delivery_contract`：从第一句开始明显慢于默认，短句、句间自然停顿，全程不得自行加速；`i_voice_turn` 每轮重复注入，以降低长对话中语速漂移。它仍是模型可遵循的表达契约，不是客户端播放速度控制，必须由真人多轮听感验收。
 
 当前本机 Hermes 0.14.0 不声明 MCP elicitation，因此当前项目的 bootstrap / state / recall / closeout 可用，overview / recent activity 会安全拒绝。Hermes 目前以 server process cwd 识别项目；Codex、Claude 等声明 roots 的 client 在 closeout 前必须返回有效的 MCP file root，否则写入失败。
 
