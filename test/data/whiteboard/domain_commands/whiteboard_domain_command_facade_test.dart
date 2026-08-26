@@ -115,7 +115,7 @@ void main() {
         characterId: 'i',
         actionId: batch.operationBatchId,
       ),
-      isNull,
+      equals(null),
       reason: 'a repeated undo must not report a second success',
     );
     final restored = (await store.load('board_1')).snapshot!;

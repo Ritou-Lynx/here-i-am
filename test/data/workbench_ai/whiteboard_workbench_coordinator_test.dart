@@ -424,7 +424,7 @@ void main() {
     store = WhiteboardDriftStore(db);
     repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
     final finalUpdates = <WorkbenchActionProjection>[];
-      final finalCoordinator = coordinatorFor(finalUpdates);
+    final finalCoordinator = coordinatorFor(finalUpdates);
     await finalCoordinator.hydrateUndo('i');
     expect(
       finalCoordinator.canUndo(batch.operationBatchId),
