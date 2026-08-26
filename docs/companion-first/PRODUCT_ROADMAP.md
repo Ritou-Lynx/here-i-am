@@ -6,7 +6,7 @@
 >
 > 执行基线：`v3-lab`
 >
-> 审计状态：多 AI 产品、架构与执行交叉审核已完成，用户已确认本版定稿；下一 Goal 尚未创建
+> 审计状态：多 AI 产品、架构与执行交叉审核已完成，用户已确认本版定稿；Goal 1 本轮候选真人验收未通过，下一 Goal 尚未创建
 
 本文回答四个问题：Here I Am 最终是什么、数据以哪里为准、当前真实基线在哪里、下一阶段按什么 Gate 推进。它不是无限任务清单，也不替代阶段 Goal。每次只从本路线提出一个可验收 Goal；Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
@@ -132,7 +132,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| 当前 AI 工作台 Goal | 活动 Goal 状态表记录 UI-T、P4、P5、P6 已进入返修候选并通过对应自动回归；实验 Runtime 已开启 | 唯一候选上的 UI、P4 持久 Undo、P5 权限、P6 重启恢复仍待真人复验；Goal 仍活动，细节以 Goal 状态表最新行而非历史状态段落为准 |
+| 当前 AI 工作台 Goal | UI-T、P4、P5、P6 已集成并形成唯一候选，对应自动回归曾通过；本轮候选人工验收已结束 | 候选未通过：UI-T 第三轮粘贴、Typeless / `Win + H` 与右键菜单主题失败；P4 重开后 Undo 不恢复；P5 未接真实人格与长期关系 Memory V3；P6 无生产 UI / Runtime 入口。Goal 仍活动并等待返修 |
 | Desktop Whiteboard | Card/Source/Board/Anchor 骨架、卡片库、画布、链接入库、视频研读、通用命令基础 | Markdown 权威迁移、完整删除/恢复、文件导入与外部编辑冲突、生产搜索和灾难恢复尚未形成统一 Gate |
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
 | Cross-device Core | 私人电脑唯一权威核心方向、稳定消息 ID、核心 API/change feed、手机 outbox 与部分同步链已存在 | 仍有旧“双机整包往返/last-writer-wins”验收叙事；需统一为单权威 Core、仅提交意图的客户端 outbox 和可防双活的灾难接管 |
@@ -151,16 +151,16 @@ Android 严重崩溃、Memory 真实误召回、数据损坏、安全漏洞和 P
 
 ### Gate 0 — 关闭当前活动 Goal
 
-当前唯一活动 Goal 仍是 [`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)。返修候选已经构建并推送，但 push 不等于完成。
+当前唯一活动 Goal 仍是 [`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)。返修候选已经构建并推送，本轮人工验收也已结束，但结论是候选未通过，不是 Goal 完成。
 
-必须先真人复验：
+返修硬阻断为：
 
-- UI-T 桌面次级界面与保存提示；
-- P4 创建、编辑、标签、移动/缩放、移除摆放、冲突与退出重开后的持久 Undo；
-- P5 Memory V3 命中、空结果、拒绝写入和 payload 扩权；
-- P6 排队、暂停/恢复、取消、重试及 Bridge/App 重启后的诚实状态。
+- UI-T：第三轮粘贴再次失效；Typeless / `Win + H` 失败；聊天右键菜单主题泄漏；
+- P4：退出重开后无法恢复 Undo；
+- P5：当前只读工作电脑本地数据库，没有接入真实人格与长期关系 Memory V3；
+- P6：只有底层队列服务，没有生产 UI 或 Runtime 入口，真人无法验收。
 
-W4 匿名字幕 `0/18` 和第二个 WebView2 播放器重建超时继续作为非阻断红灯，不伪称通过，也不阻塞与视频无关的底座工作。
+W4 匿名字幕 `0/18`、第二个 WebView2 播放器重建超时和时间轴拖动消失等缺陷继续作为非阻断红灯，不伪称通过，也不阻塞与视频无关的返修。
 
 **退出条件**：当前 Goal 状态页、`I_PROJECT_STATE.md`、DEVLOG、唯一候选和真人结果全部收口；未通过则返修或由用户正式取代，不能静默进入下一 Goal。
 
@@ -386,7 +386,7 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 ### 当前活动 Goal
 
-[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 保持活动，直到真人复验完成或用户按协议正式取消/取代。
+[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的本轮候选真人验收已经结束且未通过；Goal 保持活动并等待 UI-T / P4 / P5 / P6 返修。返修后必须重新审计、构建唯一候选并真人验收；在通过或被用户正式取消 / 取代前，不创建下一正式 Goal。
 
 ### 下一 Goal 候选（尚未创建）
 
