@@ -1022,8 +1022,61 @@ class AppDatabase extends _$AppDatabase {
             _logger
                 .warning('beforeOpen: transfer_direction backfill skipped: $e');
           }
+
+          // Defensive self-heal for the game schema. Two independent breakages
+          // are repaired here, both keyed off the actual sqlite objects rather
+          // than user_version, because affected devices already report a
+          // user_version past the migration that would have fixed them.
+          try {
+            await _ensureGameTables();
+          } catch (e) {
+            _logger.warning('beforeOpen: game tables self-heal skipped: $e');
+          }
         },
       );
+
+  /// Repair the game schema in place.
+  ///
+  /// Two distinct failure modes exist in the wild:
+  ///
+  /// 1. Missing tables — a device whose user_version jumped past 50 never ran
+  ///    the `if (from < 50)` block, so the tables were never created.
+  ///
+  /// 2. Stale `game_sessions` columns — the feature was refactored from
+  ///    `GameCharacterCards` + `card_id`/`card_title`/`card_snapshot_json` to
+  ///    `GameDefinitions` + `definition_id`/`definition_title`/
+  ///    `definition_snapshot_json`/`game_type`. The renamed *table*
+  ///    (`game_character_cards` → `game_definitions`) was picked up as a new
+  ///    table, but `game_sessions` kept its name, and `Migrator.createTable`
+  ///    is a no-op on an existing table. No ALTER was ever written, so devices
+  ///    that had played before the refactor still carry the old column names.
+  ///    Every session INSERT then fails with "no such column", which in the UI
+  ///    looks like a completely dead start button.
+  ///
+  /// Both checks are idempotent: a healthy database is left untouched.
+  Future<void> _ensureGameTables() async {
+    final m = createMigrator();
+    await _createTableIfMissing(m, gameDefinitions, 'game_definitions');
+    await _createTableIfMissing(m, gameSessions, 'game_sessions');
+    await _createTableIfMissing(m, gameMessages, 'game_messages');
+
+    // Rebuild game_sessions if it predates the definition_* rename.
+    final cols = await customSelect('PRAGMA table_info(game_sessions)').get();
+    final names = cols.map((row) => row.read<String>('name')).toSet();
+    if (names.isNotEmpty && !names.contains('definition_snapshot_json')) {
+      _logger.warning(
+          'beforeOpen: game_sessions has pre-refactor columns ($names) — rebuilding');
+      // Sessions written under the old schema cannot be replayed by the
+      // current agent (no game_type, different snapshot shape), and the
+      // refactor shipped before any release that could accumulate real saves,
+      // so the stale table is dropped rather than migrated column by column.
+      await customStatement('DROP TABLE IF EXISTS game_sessions');
+      await m.createTable(gameSessions);
+      _logger.info('beforeOpen: game_sessions rebuilt on current schema');
+    }
+
+    await _createGameIndices();
+  }
 
   Future<void> _createMemoryV3Tables(Migrator m) async {
     // 用户确认资料层

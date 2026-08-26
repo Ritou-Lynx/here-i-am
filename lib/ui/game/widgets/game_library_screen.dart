@@ -142,6 +142,11 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
         ),
       );
       await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('海龟汤开局失败：$e')),
+      );
     } finally {
       if (mounted) setState(() => _startingTurtleSoup = false);
     }
@@ -530,26 +535,40 @@ class _GameCharacterDetailScreenState extends State<GameCharacterDetailScreen> {
   }
 
   Future<void> _load() async {
-    final sessions =
-        await _games.listSessions(definitionId: widget.definition.id);
-    if (mounted) setState(() => _sessions = sessions);
+    try {
+      final sessions =
+          await _games.listSessions(definitionId: widget.definition.id);
+      if (mounted) setState(() => _sessions = sessions);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('读取故事列表失败：$e')),
+      );
+    }
   }
 
   Future<void> _start() async {
-    final session = await _games.createSession(
-      definitionId: widget.definition.id,
-      gameType: widget.definition.gameType,
-      definitionTitle: widget.definition.title,
-      definitionSnapshotJson: widget.definition.definitionJson,
-      firstMessage: _data['first_mes']?.toString(),
-    );
-    if (!mounted) return;
-    await Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => GamePlayScreen(
-                sessionId: session.id, definition: widget.definition)));
-    await _load();
+    try {
+      final session = await _games.createSession(
+        definitionId: widget.definition.id,
+        gameType: widget.definition.gameType,
+        definitionTitle: widget.definition.title,
+        definitionSnapshotJson: widget.definition.definitionJson,
+        firstMessage: _data['first_mes']?.toString(),
+      );
+      if (!mounted) return;
+      await Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => GamePlayScreen(
+                  sessionId: session.id, definition: widget.definition)));
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('开始故事失败：$e')),
+      );
+    }
   }
 
   Future<void> _remove() async {
@@ -858,6 +877,11 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         storySummary: '汤面：${puzzle.surface}\n汤底：${puzzle.solution}',
       );
       await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('揭晓汤底失败：$e')));
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -964,8 +988,6 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2)),
-                      SizedBox(width: 9),
-                      Text('林埃正在判断…')
                     ]));
               }
               final message = visible[index];
