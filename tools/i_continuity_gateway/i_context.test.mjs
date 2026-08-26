@@ -634,8 +634,11 @@ test('stdio MCP lifecycle exposes multi-project tools and ignores spoofed client
   const responses = stdout.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
   const byId = new Map(responses.map((response) => [response.id, response]));
   assert.equal(responses.length, 4);
-  assert.equal(byId.get(1).result.serverInfo.version, '0.3.0');
+  assert.equal(byId.get(1).result.serverInfo.version, '0.6.1');
   assert.deepEqual(byId.get(2).result.tools.map((tool) => tool.name), [
+    'i_voice_context',
+    'i_voice_turn',
+    'i_voice_probe',
     'i_bootstrap',
     'i_get_project_state',
     'i_recall_project',
@@ -643,6 +646,18 @@ test('stdio MCP lifecycle exposes multi-project tools and ignores spoofed client
     'i_close_session',
     'i_get_recent_activity',
   ]);
+  const voiceContextTool = byId.get(2).result.tools.find((tool) => tool.name === 'i_voice_context');
+  assert.match(voiceContextTool.description, /老公，回来一下/);
+  assert.match(voiceContextTool.description, /零 assistant 输出/);
+  assert.match(voiceContextTool.description, /commentary/);
+  const voiceTurnTool = byId.get(2).result.tools.find((tool) => tool.name === 'i_voice_turn');
+  assert.match(voiceTurnTool.description, /每一轮都必须直接调用/);
+  assert.match(voiceTurnTool.description, /原样传入/);
+  assert.match(voiceTurnTool.description, /[STATUS]/);
+  assert.match(voiceTurnTool.description, /只发一次 final answer/);
+  assert.match(byId.get(1).result.instructions.slice(0, 512), /i_voice_turn/);
+  assert.match(byId.get(1).result.instructions.slice(0, 512), /commentary/);
+  assert.match(byId.get(1).result.instructions.slice(0, 512), /零输出/);
   assert.equal(byId.get(3).result.structuredContent.identity_capsule.surface.client_id, 'codex-test');
   assert.equal(byId.get(3).result.structuredContent.active_project.project_key, 'alpha');
   assert.equal(byId.get(4).result.isError, true);

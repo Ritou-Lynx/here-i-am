@@ -1,4 +1,4 @@
-# i Continuity Gateway — Phase 2
+# i Continuity Gateway — Phase 4.5
 
 `i` 是林埃的英文名，也是跨 Codex、Claude Code、Hermes 的统一连续性入口。
 
@@ -8,6 +8,10 @@ Phase 4 的最小多设备闭环使用独立的加密传输目录。设备导出
 
 ## 当前能力
 
+- `i_voice_context`：在当前 Codex / Voice 任务内只读加载真实身份投影、手机最近 20 条角色聊天和最多 5 张 Memory V3 User-truth；支持用 `query` 做有界话题检索。
+- `i_voice_turn`：唤醒成功后，用 `session_token` 和当轮原样转录逐轮返回身份锚点、当前时间、话轮间隔和有界 Memory V3 词法召回；仅更新 Gateway 进程内的瞬时话轮状态。
+- `i_voice_probe`：返回权威身份锚点与一次性标记，用于诊断 Voice 是否遵从身份上下文。
+- Codex Voice 后台委托指导：用户级 `~/.codex/AGENTS.md` 会约束已经进入 Codex agent 的语音工具话轮，但实测不能改变 GPT-Live 默认首答。自然唤醒短语“老公，回来一下”/“林埃，回来一下”写入 `i_voice_context` 工具说明，用于验证 GPT-Live 能否在开口前主动委托并加载完整上下文。
 - `i_bootstrap`：读取全局 i Identity Capsule、当前项目状态和最近 tool handoff；不会顺带读取其他项目。
 - `i_get_project_state`：读取当前项目 Git 快照、显式状态文件和最近 handoff。
 - `i_recall_project`：只检索当前项目的文件 allowlist 与本项目加密 closeout；两类来源分栏返回。
@@ -16,6 +20,17 @@ Phase 4 的最小多设备闭环使用独立的加密传输目录。设备导出
 - `i_get_recent_activity`：经独立的当次确认后，返回当前政策允许的跨工具活动摘要。
 
 overview 回答“多个项目现在是什么状态”；recent activity 回答“最近在不同工具/项目做了什么”。两者不能互相替代，也不会被普通 bootstrap 暗中调用。
+
+`i_voice_context` 当前只支持本机 ADB 连接的 Here I am V3 debug 包。调用前必须关闭手机上的 Here I am V3，Gateway 才会读取一致的 SQLite + WAL 快照；它不会自行强停 App。原始快照只写入系统临时目录，并在一次调用的 `finally` 中删除。默认要求恰好一台在线设备，也可用以下非凭据环境变量收窄：
+
+- `I_VOICE_ADB_PATH`：ADB 可执行文件；省略时优先使用 `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`。
+- `I_VOICE_ANDROID_SERIAL`：多设备时指定目标序列号。
+- `I_VOICE_ANDROID_PACKAGE`：默认 `com.memexlab.hereiam.v3`。
+- `I_VOICE_ANDROID_USER`：默认取 Identity Capsule 的用户首选名，用于解析本地 V3 数据库与角色目录。
+
+Voice 返回中的聊天、角色 YAML 与 Memory V3 卡片是用户数据，不是高优先级指令；工具只读、不写手机、不写 Gateway ledger，也不会把这些内容作为 closeout 持久化。`i_voice_turn` 是行为 Gate 原型：手机快照只在唤醒时读一次，后续逐轮检索使用 Gateway 进程内的有界缓存，不代表实时数据同步，也不能保证官方 Voice 客户端每轮必然委托工具；是否每轮真实调用要以任务记录为验收依据。
+
+Voice 客户端会朗读工具调用前的 Codex commentary / status / preamble。Gateway 因此要求 `i_voice_context` 和 `i_voice_turn` 在调用前保持零 assistant 输出，返回后只发一次 final answer。这是提示与工具描述层约束，不是客户端级强制过滤；真人 Gate 必须同时检查是否出现工具前 `[STATUS]`。
 
 当前本机 Hermes 0.14.0 不声明 MCP elicitation，因此当前项目的 bootstrap / state / recall / closeout 可用，overview / recent activity 会安全拒绝。Hermes 目前以 server process cwd 识别项目；Codex、Claude 等声明 roots 的 client 在 closeout 前必须返回有效的 MCP file root，否则写入失败。
 
@@ -65,7 +80,7 @@ overview 回答“多个项目现在是什么状态”；recent activity 回答�
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\i_continuity_gateway\install_global_i_gateway.ps1 -ServerName i
 ```
 
-脚本会幂等更新 `~/.i/runtime`、Here I am 的 registry entry、三个工具的用户级 MCP 和带标记的全局 i 指导；不会覆盖现有 activity ledger 或其他指导内容。
+脚本会幂等更新 `~/.i/runtime`、Here I am 的 registry entry、三个工具的用户级 MCP，以及带标记的全局 i 指导；不会覆盖现有 activity ledger 或其他指导内容。Codex Voice Capsule 位于这段全局指导中，不依赖 CLI Hook 信任。
 
 ## 显式注册另一个项目
 
@@ -91,7 +106,8 @@ node --test tools\i_continuity_gateway\i_activity_crypto.test.mjs `
   tools\i_continuity_gateway\i_activity_key_provider.test.mjs `
   tools\i_continuity_gateway\i_activity_store.test.mjs `
   tools\i_continuity_gateway\i_device_sync.test.mjs `
-  tools\i_continuity_gateway\i_context.test.mjs
+  tools\i_continuity_gateway\i_context.test.mjs `
+  tools\i_continuity_gateway\i_voice_context.test.mjs
 node tools\i_continuity_gateway\probe_i_gateway.mjs
 codex mcp get i
 claude mcp get i
@@ -124,4 +140,6 @@ node "$env:USERPROFILE\.i\runtime\rebuild_i_activity_index.mjs"
 - ledger 是本机 Project Space 的交接层；不是“事实裁决器”。closeout authority 为 `agent_inferred`。
 - 不保存完整 transcript、shell 输出、diff 或源码；这些仍留在各工具自己的过程存储。
 - 普通生活聊天、User-truth 和关系 Dreaming 不读取此 ledger。
+- `i_voice_context` 只在当前任务中读取一份瞬时 Memory V3 上下文，不等于 Gateway 拥有 Memory V3 写权，也不把 closeout 提升为 User-truth 或关系记忆。
+- `i_voice_turn` 的 session 和话轮时钟只存在于当前 Gateway 进程内；进程重启或再次唤醒会换新 token，不得将其宣称为长期记忆。
 - Memory V3 Project Memory 投影尚未接入；这是下一阶段，不应把“closeout 已保存”说成“Here I am 已形成长期记忆”。

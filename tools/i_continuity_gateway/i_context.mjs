@@ -445,6 +445,9 @@ export function createIContextService({
         projection: compact ? 'compact' : 'expanded',
         coverage: 'active_project_snapshot_and_tool_closeouts',
         available_tools: [
+          'i_voice_context',
+          'i_voice_turn',
+          'i_voice_probe',
           'i_bootstrap',
           'i_get_project_state',
           'i_recall_project',

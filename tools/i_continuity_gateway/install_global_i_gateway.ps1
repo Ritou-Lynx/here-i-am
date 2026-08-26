@@ -22,6 +22,19 @@ $IdentityPath = Join-Path $IHome 'identity.json'
 $RegistryPath = Join-Path $IHome 'projects.json'
 $RuntimeServer = Join-Path $Runtime 'i_mcp_server.mjs'
 $Node = (Get-Command node -ErrorAction Stop).Source
+$Codex = $null
+if (-not $SkipCodex) {
+  $DesktopCodex = @(Get-Command codex -All -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.Source -match '\\WindowsApps\\OpenAI\.Codex_[^\\]+\\app\\resources\\codex\.exe$'
+    } |
+    Select-Object -First 1)
+  $Codex = if ($DesktopCodex.Count -gt 0) {
+    $DesktopCodex[0].Source
+  } else {
+    (Get-Command codex -ErrorAction Stop).Source
+  }
+}
 New-Item -ItemType Directory -Force -Path $Runtime | Out-Null
 
 foreach ($File in @(
@@ -31,6 +44,7 @@ foreach ($File in @(
   'i_activity_store.mjs',
   'i_device_sync.mjs',
   'i_context.mjs',
+  'i_voice_context.mjs',
   'i_mcp_server.mjs',
   'rebuild_i_activity_index.mjs',
   'validate_i_project_registry.mjs'
@@ -146,6 +160,69 @@ function Invoke-QuietRemove([scriptblock]$Command) {
   }
 }
 
+function Set-CodexMcpConfigDirect(
+  [string]$Name,
+  [string]$Command,
+  [string]$ServerPath,
+  [string]$HomePath
+) {
+  $ConfigPath = Join-Path $env:USERPROFILE '.codex\config.toml'
+  $ConfigDirectory = Split-Path -Parent $ConfigPath
+  New-Item -ItemType Directory -Force -Path $ConfigDirectory | Out-Null
+  $Current = if (Test-Path -LiteralPath $ConfigPath) {
+    [string](Get-Content -Raw -Encoding UTF8 $ConfigPath)
+  } else {
+    ''
+  }
+  $EscapeToml = {
+    param([string]$Value)
+    return $Value.Replace("'", "''")
+  }
+  $SafeCommand = & $EscapeToml $Command
+  $SafeServerPath = & $EscapeToml $ServerPath
+  $SafeHomePath = & $EscapeToml $HomePath
+  $Block = @"
+[mcp_servers.$Name]
+command = '$SafeCommand'
+args = ['$SafeServerPath']
+
+[mcp_servers.$Name.env]
+I_CLIENT_ID = 'codex'
+I_HOME = '$SafeHomePath'
+"@.Trim()
+  $EscapedName = [regex]::Escape($Name)
+  $Pattern = '(?ms)^\[mcp_servers\.' + $EscapedName +
+    '\]\r?\n.*?(?=^\[(?!mcp_servers\.' + $EscapedName +
+    '(?:\.|\]))[^\r\n]+\]\r?$|\z)'
+  if ([regex]::IsMatch($Current, $Pattern)) {
+    $Updated = [regex]::Replace($Current, $Pattern, $Block + "`n`n")
+  } else {
+    $Prefix = if ([string]::IsNullOrWhiteSpace($Current)) {
+      ''
+    } else {
+      $Current.TrimEnd() + "`n`n"
+    }
+    $Updated = $Prefix + $Block + "`n"
+  }
+  $ConfigTemp = "$ConfigPath.$PID.i.tmp"
+  $ConfigBackup = "$ConfigPath.$PID.i.bak"
+  try {
+    [System.IO.File]::WriteAllText($ConfigTemp, $Updated, $Utf8NoBom)
+    if (Test-Path -LiteralPath $ConfigPath) {
+      [System.IO.File]::Replace($ConfigTemp, $ConfigPath, $ConfigBackup)
+    } else {
+      [System.IO.File]::Move($ConfigTemp, $ConfigPath)
+    }
+    $ReadBack = [string](Get-Content -Raw -Encoding UTF8 $ConfigPath)
+    if ($ReadBack -notmatch ('(?m)^\[mcp_servers\.' + $EscapedName + '\]$')) {
+      throw "Codex MCP fallback write did not preserve the $Name server block."
+    }
+    Remove-Item -LiteralPath $ConfigBackup -Force -ErrorAction SilentlyContinue
+  } finally {
+    Remove-Item -LiteralPath $ConfigTemp -Force -ErrorAction SilentlyContinue
+  }
+}
+
 $PreviousIHome = $env:I_HOME
 try {
   $env:I_HOME = $IHome
@@ -161,9 +238,22 @@ try {
   }
 }
 if (-not $SkipCodex) {
-  Invoke-QuietRemove { codex mcp remove $ServerName }
-  & codex mcp add $ServerName --env "I_HOME=$IHome" --env 'I_CLIENT_ID=codex' -- $Node $RuntimeServer
-  if ($LASTEXITCODE -ne 0) { throw 'Failed to install the Codex user-level i MCP server.' }
+  $CodexInstalled = $false
+  try {
+    Invoke-QuietRemove { & $Codex mcp remove $ServerName }
+    & $Codex mcp add $ServerName --env "I_HOME=$IHome" --env 'I_CLIENT_ID=codex' -- $Node $RuntimeServer
+    if ($LASTEXITCODE -ne 0) { throw 'Codex CLI returned a non-zero exit code.' }
+    $CodexInstalled = $true
+  } catch {
+    Write-Warning "Codex CLI MCP registration failed; using the bounded config fallback: $($_.Exception.Message)"
+  }
+  if (-not $CodexInstalled) {
+    Set-CodexMcpConfigDirect `
+      -Name $ServerName `
+      -Command $Node `
+      -ServerPath $RuntimeServer `
+      -HomePath $IHome
+  }
 }
 if (-not $SkipClaude) {
   Invoke-QuietRemove { claude mcp remove $ServerName --scope user }
