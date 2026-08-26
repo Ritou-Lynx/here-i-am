@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "declaredFiles": ["manifest.json", "corpus.json"],
+  "purpose": "authority-preflight validate-only golden corpus"
+}

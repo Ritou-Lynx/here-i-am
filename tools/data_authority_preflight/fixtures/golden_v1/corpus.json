@@ -1,0 +1,18 @@
+{"cases":[
+{"id":"ordinary-card","stableId":"card-work-1","schemaVersion":1,"object":{"type":"card","content":{"title":"工作卡","body":null},"metadata":{"memoryScope":"user_truth"},"revision":{"id":"rev-2","parentRevisionId":"rev-1"}}},
+{"id":"memory-explicit","stableId":"memory-1","schemaVersion":1,"object":{"type":"memory_card","memory":{"scope":"user_truth","explicitSource":{"kind":"record_organizer","messageId":"msg-synthetic"}}}},
+{"id":"source-ok","stableId":"anchor-1","schemaVersion":1,"object":{"type":"source_anchor","source":{"sourceId":"src-1"},"version":{"versionId":"ver-1","contentHash":"abc"},"anchor":{"sourceId":"src-1","sourceVersionId":"ver-1","selector":{"start":0,"end":2}}}},
+{"id":"source-mismatch","stableId":"anchor-2","schemaVersion":1,"object":{"type":"source_anchor","source":{"sourceId":"src-2"},"version":{"versionId":"ver-2"},"anchor":{"sourceId":"src-2","sourceVersionId":"ver-1"}}},
+{"id":"richtext-unclassified","stableId":"rich-1","schemaVersion":1,"object":{"type":"rich_text","document":{"schemaVersion":1,"blocks":[{"type":"paragraph","text":"中文正文","marks":[{"type":"bold","start":0,"end":2}]}],"assetRefs":[{"assetId":"asset-1","kind":"image"}],"unclassified":[{"kind":"unknown_mark","raw":"x"}]}}},
+{"id":"duplicate-a","stableId":"duplicate-card","schemaVersion":1,"object":{"type":"card","content":{"title":"重复 A"},"metadata":{}}},
+{"id":"duplicate-b","stableId":"duplicate-card","schemaVersion":1,"object":{"type":"card","content":{"title":"重复 B"},"metadata":{}}},
+{"id":"invalid-metadata","stableId":"meta-1","schemaVersion":1,"object":{"type":"metadata","metadataValid":false,"parseError":"invalid yaml"}},
+{"id":"external-moved","stableId":"external-1","schemaVersion":1,"object":{"type":"external_file","state":"moved_or_deleted"}},
+{"id":"conflict","stableId":"conflict-1","schemaVersion":1,"object":{"type":"conflict","revisions":["app","external"]}},
+{"id":"dreaming","stableId":"dream-1","schemaVersion":1,"object":{"type":"dreaming","promotionRequested":true}},
+{"id":"evidence","stableId":"evidence-1","schemaVersion":1,"object":{"type":"evidence","claim":"synthetic"}},
+{"id":"task-unauthorized","stableId":"task-1","schemaVersion":1,"object":{"type":"task_artifact","promotionAuthorized":false}},
+{"id":"task-authorized","stableId":"task-2","schemaVersion":1,"object":{"type":"task_artifact","promotionAuthorized":true}},
+{"id":"unknown-schema","stableId":"unknown-schema-1","schemaVersion":99,"object":{"type":"card"}},
+{"id":"unknown-object","stableId":"unknown-object-1","schemaVersion":1,"object":{"type":"future_object"}}
+]}
