@@ -162,8 +162,10 @@ class WorkbenchRelationshipContext {
       ..writeln('persona_status: ${personaStatus.wireName}')
       ..writeln('recent_chat_status: ${recentStatus.wireName}')
       ..writeln('dreaming_status: ${dreamingStatus.wireName}')
-      ..writeln('character_id: $characterId');
-    if (reason != null) out.writeln('reason: $reason');
+      ..writeln('character_id: ${_safeField(characterId, 120)}');
+    if (reason != null) {
+      out.writeln('reason: ${_safeField(reason!, 160)}');
+    }
 
     if (personaPrompt.isNotEmpty) {
       out
@@ -177,7 +179,7 @@ class WorkbenchRelationshipContext {
         ..writeln('## Recent main relationship chat (bounded)');
       for (final message in recentMessages) {
         final role = message.isFromCharacter ? 'character' : 'user';
-        out.writeln('- $role: ${_bounded(message.content.trim(), 500)}');
+        out.writeln('- $role: ${_safeField(message.content, 500)}');
       }
     }
     if (!dreaming.isEmpty) {
@@ -186,20 +188,23 @@ class WorkbenchRelationshipContext {
         ..writeln('## Dreaming relationship recollections (not User-truth)');
       for (final saga in dreaming.sagas) {
         out.writeln(
-          '- saga/${saga.id}: ${_bounded(saga.title, 160)} — '
-          '${_bounded(saga.description, 900)}',
+          '- saga/${_safeField(saga.id, 120)}: '
+          '${_safeField(saga.title, 160)} — '
+          '${_safeField(saga.description, 900)}',
         );
       }
       for (final episode in dreaming.episodes) {
         out.writeln(
-          '- episode/${episode.id} (relevance=${episode.score}): '
-          '${_bounded(episode.narrative, 900)}',
+          '- episode/${_safeField(episode.id, 120)} '
+          '(relevance=${episode.score}): '
+          '${_safeField(episode.narrative, 900)}',
         );
       }
       for (final fragment in dreaming.fragments) {
         out.writeln(
-          '- fragment/${fragment.id} (relevance=${fragment.score}): '
-          '${_bounded(fragment.content, 300)}',
+          '- fragment/${_safeField(fragment.id, 120)} '
+          '(relevance=${fragment.score}): '
+          '${_safeField(fragment.content, 300)}',
         );
       }
     }
@@ -216,10 +221,30 @@ class WorkbenchRelationshipContext {
     return out.toString();
   }
 
-  static String _bounded(String value, int maxChars) {
-    if (value.length <= maxChars) return value;
-    return '${value.substring(0, maxChars - 1)}…';
+  static String _safeField(String value, int maxChars) {
+    final singleLine = value
+        .replaceAll('&', '＆')
+        .replaceAll('<', '‹')
+        .replaceAll('>', '›')
+        .replaceAll(RegExp(r'[\x00-\x1F\x7F\u2028\u2029]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (singleLine.length <= maxChars) return singleLine;
+    var end = maxChars - 1;
+    if (end > 0 &&
+        end < singleLine.length &&
+        _isHighSurrogate(singleLine.codeUnitAt(end - 1)) &&
+        _isLowSurrogate(singleLine.codeUnitAt(end))) {
+      end--;
+    }
+    return '${singleLine.substring(0, end)}…';
   }
+
+  static bool _isHighSurrogate(int codeUnit) =>
+      codeUnit >= 0xD800 && codeUnit <= 0xDBFF;
+
+  static bool _isLowSurrogate(int codeUnit) =>
+      codeUnit >= 0xDC00 && codeUnit <= 0xDFFF;
 }
 
 class WorkbenchRelationshipContextAssembler
@@ -379,13 +404,14 @@ class WorkbenchRelationshipContextAssembler
 class _ProductionWorkbenchRelationshipContextBackend
     implements WorkbenchRelationshipContextBackend {
   _ProductionWorkbenchRelationshipContextBackend(this._db)
-      : _dreaming = DreamingOrchestratorServiceV3(_db);
+      : _dreaming = DreamingOrchestratorServiceV3(_db),
+        _evidenceVerifier = WorkbenchDreamingEvidenceVerifier(_db);
 
   final AppDatabase _db;
   final DreamingOrchestratorServiceV3 _dreaming;
+  final WorkbenchDreamingEvidenceVerifier _evidenceVerifier;
   static const _maxEpisodeIdsPerSaga = 16;
   static const _maxFragmentIdsPerEpisode = 24;
-  static const _maxSourceMessagesPerFragment = 16;
   static const _maxExpandedEpisodeCandidates = 24;
   static const _maxExpandedFragmentCandidates = 96;
 
@@ -438,10 +464,12 @@ class _ProductionWorkbenchRelationshipContextBackend
       queryHint: query,
       episodeLimit: episodeLimit,
       recentFragmentLimit: fragmentLimit,
+      strictDiagnostics: true,
     );
     final sagaCandidates = await _dreaming.querySagasForContext(
       queryHint: query,
       limit: sagaLimit,
+      strictDiagnostics: true,
     );
 
     final candidateEpisodes = {
@@ -484,7 +512,10 @@ class _ProductionWorkbenchRelationshipContextBackend
 
     final validFragmentIds = <String>{};
     for (final fragment in candidateFragments.values) {
-      if (await _fragmentBelongsToCharacter(fragment, characterId)) {
+      if (await _evidenceVerifier.fragmentBelongsToCharacter(
+        fragment,
+        characterId,
+      )) {
         validFragmentIds.add(fragment.id);
       }
     }
@@ -545,56 +576,9 @@ class _ProductionWorkbenchRelationshipContextBackend
     );
   }
 
-  Future<bool> _fragmentBelongsToCharacter(
-    MemoryFragment fragment,
-    String characterId,
-  ) async {
-    if (!const {'main_chat', 'script_session'}.contains(fragment.sourceScope)) {
-      return false;
-    }
-    if (_idCount(fragment.sourceSyncIds) > _maxSourceMessagesPerFragment ||
-        _idCount(fragment.sourceMessageIds) > _maxSourceMessagesPerFragment) {
-      return false;
-    }
-    final syncIds = _stringIds(
-      fragment.sourceSyncIds,
-      limit: _maxSourceMessagesPerFragment,
-    );
-    if (syncIds.isNotEmpty) {
-      final rows = await (_db.select(_db.personaChatMessages)
-            ..where((table) =>
-                table.syncId.isIn(syncIds) &
-                table.characterId.equals(characterId) &
-                table.taskRoomId.isNull() &
-                table.messageType.equals('chat')))
-          .get();
-      return rows.map((row) => row.syncId).whereType<String>().toSet().length ==
-          syncIds.length;
-    }
-    final localIds = _intIds(
-      fragment.sourceMessageIds,
-      limit: _maxSourceMessagesPerFragment,
-    );
-    if (localIds.isEmpty) return false;
-    final rows = await (_db.select(_db.personaChatMessages)
-          ..where((table) =>
-              table.id.isIn(localIds) &
-              table.characterId.equals(characterId) &
-              table.taskRoomId.isNull() &
-              table.messageType.equals('chat')))
-        .get();
-    return rows.map((row) => row.id).toSet().length == localIds.length;
-  }
-
   static Set<String> _stringIds(String? json, {required int limit}) => _list(
         json,
       ).take(limit).map((value) => value.toString()).toSet();
-
-  static Set<int> _intIds(String? json, {required int limit}) => _list(json)
-      .take(limit)
-      .map((value) => value is int ? value : int.tryParse(value.toString()))
-      .whereType<int>()
-      .toSet();
 
   static int _idCount(String? json) => _list(json).length;
 
@@ -607,4 +591,123 @@ class _ProductionWorkbenchRelationshipContextBackend
       return const [];
     }
   }
+}
+
+/// Verifies every evidence reference a Dreaming fragment exposes before the
+/// Workbench may use it as relationship context.
+///
+/// Stable sync IDs can be a partial dual-write of legacy local IDs, so the two
+/// sets are deliberately verified independently rather than treated as
+/// alternatives. Any present but malformed, empty, oversized, duplicated, or
+/// unresolved set fails closed.
+class WorkbenchDreamingEvidenceVerifier {
+  WorkbenchDreamingEvidenceVerifier(this._db);
+
+  final AppDatabase _db;
+  static const maxSourceMessagesPerFragment = 16;
+
+  Future<bool> fragmentBelongsToCharacter(
+    MemoryFragment fragment,
+    String characterId,
+  ) async {
+    if (!const {'main_chat', 'script_session'}.contains(fragment.sourceScope)) {
+      return false;
+    }
+
+    final syncEvidence = _parseSyncIds(fragment.sourceSyncIds);
+    final localEvidence = _parseLocalIds(fragment.sourceMessageIds);
+    if (!syncEvidence.isValid || !localEvidence.isValid) return false;
+    if (!syncEvidence.isPresent && !localEvidence.isPresent) return false;
+
+    if (syncEvidence.isPresent) {
+      final syncIds = syncEvidence.values!;
+      final rows = await (_db.select(_db.personaChatMessages)
+            ..where((table) =>
+                table.syncId.isIn(syncIds) &
+                table.characterId.equals(characterId) &
+                table.taskRoomId.isNull() &
+                table.messageType.equals('chat')))
+          .get();
+      final resolved =
+          rows.map((row) => row.syncId).whereType<String>().toSet();
+      if (resolved.length != syncIds.length || !resolved.containsAll(syncIds)) {
+        return false;
+      }
+    }
+
+    if (localEvidence.isPresent) {
+      final localIds = localEvidence.values!;
+      final rows = await (_db.select(_db.personaChatMessages)
+            ..where((table) =>
+                table.id.isIn(localIds) &
+                table.characterId.equals(characterId) &
+                table.taskRoomId.isNull() &
+                table.messageType.equals('chat')))
+          .get();
+      final resolved = rows.map((row) => row.id).toSet();
+      if (resolved.length != localIds.length ||
+          !resolved.containsAll(localIds)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static _EvidenceSet<String> _parseSyncIds(String? raw) =>
+      _parseEvidence<String>(
+        raw,
+        (value) => value is String && value.trim().isNotEmpty ? value : null,
+      );
+
+  static _EvidenceSet<int> _parseLocalIds(String? raw) => _parseEvidence<int>(
+        raw,
+        (value) => value is int && value > 0 ? value : null,
+      );
+
+  static _EvidenceSet<T> _parseEvidence<T>(
+    String? raw,
+    T? Function(dynamic value) convert,
+  ) {
+    if (raw == null || raw.trim().isEmpty) {
+      return const _EvidenceSet.absent();
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List<dynamic> ||
+          decoded.isEmpty ||
+          decoded.length > maxSourceMessagesPerFragment) {
+        return const _EvidenceSet.invalid();
+      }
+      final values = <T>{};
+      for (final value in decoded) {
+        final converted = convert(value);
+        if (converted == null || !values.add(converted)) {
+          return const _EvidenceSet.invalid();
+        }
+      }
+      return _EvidenceSet.present(values);
+    } catch (_) {
+      return const _EvidenceSet.invalid();
+    }
+  }
+}
+
+class _EvidenceSet<T> {
+  const _EvidenceSet.absent()
+      : isPresent = false,
+        isValid = true,
+        values = null;
+
+  const _EvidenceSet.invalid()
+      : isPresent = true,
+        isValid = false,
+        values = null;
+
+  const _EvidenceSet.present(this.values)
+      : isPresent = true,
+        isValid = true;
+
+  final bool isPresent;
+  final bool isValid;
+  final Set<T>? values;
 }

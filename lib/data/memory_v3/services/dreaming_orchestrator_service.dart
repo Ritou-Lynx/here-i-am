@@ -171,6 +171,17 @@ class DreamingFragmentContextHit {
   final int score;
 }
 
+/// Signals that a diagnostic context query could not determine whether a
+/// Dreaming layer was empty because every deterministic recall path failed.
+class DreamingContextQueryException implements Exception {
+  const DreamingContextQueryException(this.layer);
+
+  final String layer;
+
+  @override
+  String toString() => 'DreamingContextQueryException(layer: $layer)';
+}
+
 class DreamingOrchestratorServiceV3 {
   DreamingOrchestratorServiceV3(this._db);
 
@@ -1696,16 +1707,19 @@ class DreamingOrchestratorServiceV3 {
     int episodeLimit = 8,
     int recentFragmentLimit = 12,
     int? currentChatMessageId,
+    bool strictDiagnostics = false,
   }) async {
     final trimmedHint = queryHint.trim();
 
     final episodeCandidates = await _queryEpisodesForContext(
       queryHint: trimmedHint,
       limit: episodeLimit * 3,
+      strictDiagnostics: strictDiagnostics,
     );
     final fragmentCandidates = await _queryFragmentsForContext(
       queryHint: trimmedHint,
       limit: recentFragmentLimit * 3,
+      strictDiagnostics: strictDiagnostics,
     );
     final traceService = MemoryRecallTraceService(_db);
     final episodeCounts = await traceService.recentRecallCounts(
@@ -1802,9 +1816,11 @@ class DreamingOrchestratorServiceV3 {
   Future<List<DreamingEpisodeContextHit>> _queryEpisodesForContext({
     required String queryHint,
     required int limit,
+    required bool strictDiagnostics,
   }) async {
     final ftsHits = <DreamingEpisodeContextHit>[];
     final seenIds = <String>{};
+    var deterministicPathSucceeded = false;
 
     if (queryHint.isNotEmpty) {
       try {
@@ -1834,6 +1850,7 @@ class DreamingOrchestratorServiceV3 {
             }
           }
         }
+        deterministicPathSucceeded = true;
       } catch (e, s) {
         _logger.warning(
             'Episode FTS search failed; falling back to recency', e, s);
@@ -1867,9 +1884,16 @@ class DreamingOrchestratorServiceV3 {
             }
           }
         }
+        deterministicPathSucceeded = true;
       } catch (e, s) {
         _logger.warning('Episode substring fallback failed', e, s);
       }
+    }
+
+    if (strictDiagnostics &&
+        queryHint.isNotEmpty &&
+        !deterministicPathSucceeded) {
+      throw const DreamingContextQueryException('episodes');
     }
 
     if (ftsHits.length >= limit) {
@@ -1917,9 +1941,11 @@ class DreamingOrchestratorServiceV3 {
   Future<List<DreamingFragmentContextHit>> _queryFragmentsForContext({
     required String queryHint,
     required int limit,
+    required bool strictDiagnostics,
   }) async {
     final allHits = <DreamingFragmentContextHit>[];
     final seenIds = <String>{};
+    var deterministicPathSucceeded = false;
 
     if (queryHint.isNotEmpty) {
       // ── Primary: embedding semantic search ──────────────────────────
@@ -1991,6 +2017,7 @@ class DreamingOrchestratorServiceV3 {
               }
             }
           }
+          deterministicPathSucceeded = true;
         } catch (e, s) {
           _logger.warning('Fragment FTS search failed', e, s);
         }
@@ -2019,10 +2046,18 @@ class DreamingOrchestratorServiceV3 {
               }
             }
           }
+          deterministicPathSucceeded = true;
         } catch (e, s) {
           _logger.warning('Fragment substring fallback failed', e, s);
         }
       }
+    }
+
+    if (strictDiagnostics &&
+        queryHint.isNotEmpty &&
+        !deterministicPathSucceeded &&
+        allHits.isEmpty) {
+      throw const DreamingContextQueryException('fragments');
     }
 
     // No recency fill for fragments: fragments have no topic_id to gate on,
@@ -2586,6 +2621,7 @@ class DreamingOrchestratorServiceV3 {
   Future<List<MemorySaga>> querySagasForContext({
     String queryHint = '',
     int limit = 3,
+    bool strictDiagnostics = false,
   }) async {
     final trimmedHint = queryHint.trim();
     final results = <MemorySaga>[];
@@ -2616,6 +2652,9 @@ class DreamingOrchestratorServiceV3 {
       } catch (e, s) {
         _logger.warning(
             'Saga FTS search failed; falling back to recency', e, s);
+        if (strictDiagnostics) {
+          throw const DreamingContextQueryException('sagas');
+        }
       }
     }
 
