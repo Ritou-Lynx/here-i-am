@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/ui/desktop/widgets/desktop_chat_overlay.dart';
 
@@ -91,16 +92,22 @@ class GlobalDesktopChatOverlayHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Overlay(
-      initialEntries: [
-        OverlayEntry(
-          builder: (_) => GlobalDesktopChatOverlay(
-            controller: controller,
-            characterId: characterId,
-            characterIdResolver: characterIdResolver,
+    // This host is a sibling of the routed desktop workspace in
+    // MaterialApp.router.builder. Scope the Overlay itself so SelectionArea's
+    // context-menu entry, Tooltip, and all other transient chat surfaces use
+    // the same Lieflat Palm ThemeData rather than the app-wide mobile theme.
+    return DesktopWorkspaceTheme(
+      child: Overlay(
+        initialEntries: [
+          OverlayEntry(
+            builder: (_) => GlobalDesktopChatOverlay(
+              controller: controller,
+              characterId: characterId,
+              characterIdResolver: characterIdResolver,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

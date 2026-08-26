@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
+import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/desktop/widgets/desktop_chat_overlay.dart';
 import 'package:memex/ui/desktop/widgets/desktop_brand_mark.dart';
 import 'package:memex/ui/desktop/widgets/desktop_persona_chat_view.dart';
@@ -253,6 +254,43 @@ void main() {
         findsOneWidget,
       );
       await tester.pump(const Duration(seconds: 2));
+    },
+  );
+
+  testWidgets(
+    'global chat overlay scopes SelectionArea menus to desktop theme tokens',
+    (tester) async {
+      late ThemeData overlayTheme;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+          ),
+          home: GlobalDesktopChatOverlayHost(
+            characterId: 'i',
+            characterIdResolver: () async => 'i',
+          ),
+        ),
+      );
+      await tester.pump();
+
+      overlayTheme = Theme.of(
+        tester.element(find.byType(GlobalDesktopChatOverlay)),
+      );
+
+      expect(
+        overlayTheme.colorScheme.primary,
+        DesktopWorkspaceTokens.lieflatPalm.action,
+      );
+      expect(
+        overlayTheme.popupMenuTheme.color,
+        DesktopWorkspaceTokens.lieflatPalm.surfaceRaised,
+      );
+      expect(
+        overlayTheme.textButtonTheme.style?.foregroundColor?.resolve({}),
+        DesktopWorkspaceTokens.lieflatPalm.action,
+      );
     },
   );
 
@@ -507,4 +545,74 @@ void main() {
     await tester.pump();
     expect(stops, 1);
   });
+
+  testWidgets(
+    'desktop composer keeps its native TextInput client through three pasted turns and streaming edits',
+    (tester) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final scrollController = ScrollController();
+      final streaming = ValueNotifier(false);
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+      addTearDown(scrollController.dispose);
+      addTearDown(streaming.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ValueListenableBuilder<bool>(
+            valueListenable: streaming,
+            builder: (context, isStreaming, _) => SizedBox(
+              width: 350,
+              height: 480,
+              child: DesktopPersonaChatView(
+                loading: false,
+                messagesNewestFirst: const [],
+                isStreaming: isStreaming,
+                streamingText: isStreaming ? '林埃正在回复' : '',
+                controller: controller,
+                composerFocusNode: focusNode,
+                scrollController: scrollController,
+                onSend: () async {},
+                onStop: () async {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final editable = find.descendant(
+        of: find.byKey(const ValueKey('desktop_chat_input')),
+        matching: find.byType(EditableText),
+      );
+      final originalState = tester.state<EditableTextState>(editable);
+
+      for (var turn = 1; turn <= 3; turn++) {
+        await tester.tap(find.byKey(const ValueKey('desktop_chat_input')));
+        tester.testTextInput.updateEditingValue(
+          TextEditingValue(
+            text: '第 $turn 轮粘贴',
+            selection: TextSelection.collapsed(offset: '第 $turn 轮粘贴'.length),
+          ),
+        );
+        await tester.pump();
+        expect(controller.text, '第 $turn 轮粘贴');
+        expect(tester.state<EditableTextState>(editable), same(originalState));
+
+        streaming.value = !streaming.value;
+        await tester.pump();
+        await tester.pump();
+        expect(
+          tester
+              .widget<TextField>(
+                find.byKey(const ValueKey('desktop_chat_input')),
+              )
+              .enabled,
+          isTrue,
+        );
+        expect(tester.state<EditableTextState>(editable), same(originalState));
+        controller.clear();
+      }
+    },
+  );
 }
