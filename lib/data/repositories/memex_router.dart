@@ -58,7 +58,6 @@ import 'package:memex/data/services/local_task_registry.dart';
 import 'package:memex/data/services/global_event_bus.dart';
 import 'package:memex/data/repositories/submit_input.dart'
     as submit_input_endpoint;
-import 'package:memex/data/repositories/reprocess_pending_cards.dart';
 import 'package:memex/data/services/custom_agent_config_service.dart';
 import 'package:memex/data/repositories/get_tags.dart';
 import 'package:memex/data/repositories/get_timeline_cards.dart';
@@ -66,7 +65,6 @@ import 'package:memex/data/repositories/get_aggregated_timeline.dart';
 import 'package:memex/data/repositories/get_cards_by_ids.dart';
 import 'package:memex/data/repositories/get_calendar_data.dart';
 import 'package:memex/data/repositories/card.dart';
-import 'package:memex/data/repositories/post_comment.dart';
 import 'package:memex/data/repositories/character.dart';
 import 'package:memex/data/repositories/health.dart' as health_endpoint;
 import 'package:memex/data/repositories/pkm.dart' as pkm_endpoint;
@@ -390,58 +388,20 @@ class MemexRouter {
       ),
     );
 
-    eventBus.subscribe(
-      eventType: SystemEventTypes.userInputSubmitted,
-      subscription: EventTaskSubscription(
-        subscriptionId: 'card_agent',
-        taskType: 'card_agent_task',
-        dependsOn: const ['analyze_assets'],
-        payloadBuilder: (_, event) {
-          final p = event.payload as UserInputSubmittedPayload;
-          return Future.value({
-            'fact_id': p.factId,
-            'combined_text': p.combinedText,
-            'markdown_entry': p.markdownEntry,
-            'created_at_ts': p.createdAtTs,
-            'location_context_reminder': p.locationContextReminder,
-          });
-        },
-      ),
-    );
-
-    eventBus.subscribe(
-      eventType: SystemEventTypes.userInputSubmitted,
-      subscription: EventTaskSubscription(
-        subscriptionId: 'pkm_agent',
-        taskType: 'pkm_agent_task',
-        dependsOn: const ['analyze_assets'],
-        payloadBuilder: (_, event) {
-          final p = event.payload as UserInputSubmittedPayload;
-          return Future.value({
-            'fact_id': p.factId,
-            'combined_text': p.combinedText,
-            'created_at_ts': p.pkmCreatedAtTs,
-            'location_context_reminder': p.locationContextReminder,
-          });
-        },
-        dependenciesBuilder: (_, __) async {
-          final lastPkmTaskId = await LocalTaskExecutor.instance
-              .getLastTaskByType('pkm_agent_task');
-          return lastPkmTaskId == null ? const [] : [lastPkmTaskId];
-        },
-      ),
-    );
-
-    // Removed: comment_agent_task subscription. Card comments are being
-    // migrated to the upcoming Moments feature. The comment_agent code and
-    // handler are preserved for reuse there.
+    // Removed: card_agent / pkm_agent / comment_agent subscriptions and the
+    // process_ai_reply (cardCommentPosted) subscription. The legacy Memex card
+    // pipeline (analyze_assets -> card_agent -> pkm_agent -> comment_agent ->
+    // AI reply) has been retired. User-truth is now written only via explicit
+    // Memory V3 record entrypoints (RecordOrganizerServiceV3). analyze_assets
+    // is kept because media analysis and the schedule refresh router still
+    // depend on it.
 
     eventBus.subscribe(
       eventType: SystemEventTypes.userInputSubmitted,
       subscription: EventTaskSubscription(
         subscriptionId: 'schedule_refresh_router',
         taskType: 'schedule_refresh_router_task',
-        dependsOn: const ['card_agent'],
+        dependsOn: const ['analyze_assets'],
         priority: -1,
         payloadBuilder: (_, event) {
           final p = event.payload as UserInputSubmittedPayload;
@@ -449,25 +409,6 @@ class MemexRouter {
             'fact_id': p.factId,
             'combined_text': p.combinedText,
             'created_at_ts': p.createdAtTs,
-          });
-        },
-      ),
-    );
-
-    eventBus.subscribe(
-      eventType: SystemEventTypes.cardCommentPosted,
-      subscription: EventTaskSubscription(
-        subscriptionId: 'ai_reply',
-        taskType: 'process_ai_reply',
-        payloadBuilder: (_, event) {
-          final p = event.payload as CardCommentPostedPayload;
-          return Future.value({
-            'card_id': p.cardId,
-            'content': p.content,
-            'comment_id': p.commentId,
-            if (p.createdAtTs != null) 'created_at_ts': p.createdAtTs,
-            if (p.replyToId != null) 'reply_to_id': p.replyToId,
-            'location_context_reminder': p.locationContextReminder,
           });
         },
       ),
@@ -760,32 +701,6 @@ class MemexRouter {
     await _ensureInitialized();
     _logger.info('LocalMode: fetchCardDetail called: cardId=$cardId');
     return getCardDetail(cardId);
-  }
-
-  Future<Map<String, dynamic>> postComment(
-    String cardId,
-    String content, {
-    String? replyToId,
-  }) async {
-    await _ensureInitialized();
-    _logger.info('LocalMode: postComment called: cardId=$cardId');
-
-    try {
-      final userId = await UserStorage.getUserId();
-      if (userId == null) {
-        throw Exception('User not logged in, cannot submit comment');
-      }
-
-      return await postCommentEndpoint(
-        cardId,
-        userId,
-        content,
-        replyToId: replyToId,
-      );
-    } catch (e) {
-      _logger.severe('Failed to post comment for card $cardId: $e');
-      rethrow;
-    }
   }
 
   Future<AppUpdateSettings> getAppUpdateSettings() {
@@ -1352,18 +1267,10 @@ class MemexRouter {
   }
 
   Future<void> saveLLMConfigs(List<LLMConfig> configs) async {
-    final previousConfigs = await UserStorage.getLLMConfigs();
-    final hadValidConfig = previousConfigs.any((c) => c.isValid);
-    final hasValidConfig = configs.any((c) => c.isValid);
-
     await UserStorage.saveLLMConfigs(configs);
-
-    if (!hadValidConfig && hasValidConfig) {
-      final userId = await UserStorage.getUserId();
-      if (userId != null) {
-        reprocessPendingCards(userId);
-      }
-    }
+    // Legacy: on first valid LLM config we used to call reprocessPendingCards()
+    // to re-run the Memex card pipeline (card -> pkm -> comment). That pipeline
+    // has been retired, so there is nothing to reprocess here anymore.
   }
 
   Future<void> resetLLMConfigs() => UserStorage.resetLLMConfigs();

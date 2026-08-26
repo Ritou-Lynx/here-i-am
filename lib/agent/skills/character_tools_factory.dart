@@ -10,7 +10,6 @@ import 'package:memex/agent/built_in_tools/coros_mcp_tool.dart';
 import 'package:memex/agent/built_in_tools/delegate_task_tool.dart';
 import 'package:memex/agent/built_in_tools/dev_session_tool.dart';
 import 'package:memex/agent/built_in_tools/device_app_blocker_tool.dart';
-import 'package:memex/agent/built_in_tools/file_tools.dart';
 import 'package:memex/agent/built_in_tools/get_current_location_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
 import 'package:memex/agent/built_in_tools/mobility_route_tool.dart';
@@ -27,8 +26,6 @@ import 'package:memex/agent/built_in_tools/memory_v3_query_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_update_card_tool.dart';
 import 'package:memex/agent/built_in_tools/project_memory_query_tool.dart';
 import 'package:memex/agent/built_in_tools/topic_thread_tool.dart';
-import 'package:memex/agent/security/file_permission_manager.dart';
-import 'package:memex/agent/skills/comment_agent/tools/comment_tools.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
@@ -166,44 +163,6 @@ class CharacterToolsFactory {
         beforeQueue: initiateCallPolicy,
       ));
     }
-    return tools;
-  }
-
-  static List<Tool> buildCommentTools({
-    required String userId,
-    required String workingDirectory,
-    required String factId,
-    String? characterId,
-    String? forcedReplyToId,
-    void Function()? onCommentSaved,
-    bool includeSaveCommentTool = true,
-    bool includeFileTools = true,
-  }) {
-    final tools = <Tool>[];
-
-    if (includeFileTools) {
-      final permissionManager = FilePermissionManager(userId, [
-        PermissionRule(rootPath: workingDirectory, access: FileAccessType.read),
-      ]);
-      final fileFactory = FileToolFactory(
-        permissionManager: permissionManager,
-        workingDirectory: workingDirectory,
-      );
-      tools.add(fileFactory.buildReadTool());
-      tools.add(fileFactory.buildGrepTool());
-    }
-
-    if (includeSaveCommentTool) {
-      final commentFactory = CommentToolFactory(
-        userId: userId,
-        cardId: factId,
-        characterId: characterId,
-        forcedReplyToId: forcedReplyToId,
-        onCommentSaved: onCommentSaved,
-      );
-      tools.add(commentFactory.buildSaveCommentTool());
-    }
-
     return tools;
   }
 
