@@ -105,10 +105,22 @@ class AudioRouteChannelHandler(private val context: Context) {
             // setSpeakerphoneOn() is protected and throws "Audio Settings
             // Permission Denial", silently leaving the route on the earpiece.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val devices = manager.availableCommunicationDevices
+                // If an external audio output (wired headset / Bluetooth / USB / ... )
+                // is already connected, do NOT force the built-in speaker / earpiece;
+                // the system already routes voice-call audio to that device.
+                val hasExternalOutput = devices.any {
+                    it.type != AudioDeviceInfo.TYPE_BUILTIN_SPEAKER &&
+                        it.type != AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+                }
+                if (hasExternalOutput) {
+                    Log.d(TAG, "external audio output connected, skip forced route")
+                    return
+                }
                 val device = if (enabled) {
-                    manager.availableCommunicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                    devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
                 } else {
-                    manager.availableCommunicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
+                    devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
                 }
                 val ok = if (device != null) manager.setCommunicationDevice(device) else false
                 if (ok) {
@@ -116,6 +128,15 @@ class AudioRouteChannelHandler(private val context: Context) {
                     return
                 }
                 Log.w(TAG, "setCommunicationDevice returned false; fallback setSpeakerphoneOn")
+            } else {
+                // API < 31: only force the legacy speakerphone flag when no wired
+                // headset / Bluetooth SCO device is attached.
+                val wired = manager.isWiredHeadsetOn
+                val bt = manager.isBluetoothScoOn || manager.isBluetoothA2dpOn
+                if (wired || bt) {
+                    Log.d(TAG, "external audio output connected, skip legacy setSpeakerphoneOn")
+                    return
+                }
             }
             manager.isSpeakerphoneOn = enabled
             Log.d(TAG, "setSpeakerphoneOn=$enabled")
