@@ -119,7 +119,15 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 - 手机当前唯一主力视觉仍是“春雨昼眠”；Desktop 保持独立信息架构和 `DesktopWorkspaceTheme`，不复制手机页面或整套视觉。
 - 记忆云、圆柱大厅、坠落动画、暮雨玫瑰和 R0–R7 时辰色板只作历史追溯。
 
-### 2.7 工程与发布
+### 2.7 外部平台内容采集契约
+
+- Here I Am 不使用非官方工具运营用户的平台账号；不得把只读、研究或临时试点包装成账号自动化的生产授权。
+- 用户分享链接、截图或文件，只授权处理该项内容，不授权搜索相关 Feed、评论区、用户主页或推荐内容。
+- 除非平台提供正式 API 和明确权限，否则禁止登录态自动搜索、翻页和批量读取；登录门槛、验证码或风控状态不是待绕过的技术故障。
+- 不通过随机等待、降低频率、UA、浏览器指纹、隐藏 WebView 或模拟真人操作绕过反爬与平台限制。
+- 捕获与解析分离：多链接可以在本地提取、规范化、去重并进入 Link Inbox；网络解析只按来源能力逐项、显式执行。待解析项不是 Card、Source 或 User-truth，解析成功并经确认前不得显示成已入库内容。
+
+### 2.8 工程与发布
 
 - 唯一日常开发与集成分支是 `v3-lab`；并行工作使用隔离 worktree 和临时 `codex/*` 分支。
 - 同一时刻只有一个活动 Goal、一个验收主窗和一个唯一构建候选。
@@ -139,7 +147,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
 | Cross-device Core | 私人电脑唯一权威核心方向、稳定消息 ID、核心 API/change feed、手机 outbox 与部分同步链已存在 | 仍有旧“双机整包往返/last-writer-wins”验收叙事；需统一为单权威 Core、仅提交意图的客户端 outbox 和可防双活的灾难接管 |
 | Backup / Restore | 配置加密、S3 推拉、记忆整包快照与恢复前 safety snapshot 已实现 | 现有实现不满足不可变 S3、四份副本、外部资料根、分阶段恢复、密钥恢复和真实灾难演练 |
-| Teacher Recruitment | 小红书只读 discovery Phase 0 已验证登录、检索和查询拆分；教材包已完成 OCR、结构、知识树与查询接口 | 尚未建立正式 Source/Evidence/Batch 数据层、全深圳轻量普查、深样本、看板和真人 Pilot Gate |
+| Teacher Recruitment | 历史 Phase 0 试点证明登录、检索和查询拆分在技术上曾可运行；教材包已完成 OCR、结构、知识树与查询接口。该试点保留为“技术验证完成、产品路线失效”的历史证据 | 2026-08-26 账号违规预警已推翻登录态 discovery 的生产可用性，登录态小红书 MCP 正式退役。当前可用基线是用户人工选材、链接导入、匿名单篇解析和教材 OCR；尚缺 Link Inbox、本地去重、逐项解析及 `needs_screenshot` 等诚实状态，也尚未建立正式 Source/Evidence/Batch 数据层、全深圳轻量普查、深样本、看板和真人 Pilot Gate |
 | Reading / Co-reading | 小说/漫画阅读、Topic Thread、划线批注基础和新调研输入已存在 | 统一 ReadingPackage、白板阅读窗、稳定跨格式 Anchor 与真实作品验收未闭环；主动品味系统明确延期 |
 | Mobile Companion | 主聊天、语音、显式记录、Memory V3 与便携捕获能力存在 | 手机新功能开发暂停；Android FGS、数据安全和严重故障修复仍按证据处理，统一卡片库移动视图和 Core 完整切换以后再做 |
 
@@ -186,12 +194,14 @@ W4 匿名字幕 `0/18`、第二个 WebView2 播放器重建超时和时间轴拖
 
 Gate 1A 是阶段 Gate，不是一个 Goal。它至少拆成以下连续停止点，任何时刻仍只创建一个活动 Goal：
 
-1. **1A-0 — Authority ADR & Migration Harness**：完成权威对象盘点、Card / User-truth / Source / Evidence / Dreaming / TaskArtifact 迁移矩阵、Markdown / RichText 数据流、物理 schema 比较、跨介质 commit/recovery 协议、golden corpus 和隔离迁移 harness；不切换默认运行权威；
+1. **1A-0 — Authority ADR & Migration Harness**：完成权威对象盘点、Card / User-truth / Source / Evidence / Dreaming / TaskArtifact / Capture / ImportCandidate / Link Inbox Item 迁移矩阵、Markdown / RichText 数据流、物理 schema 比较、跨介质 commit/recovery 协议、golden corpus 和隔离迁移 harness；不切换默认运行权威；
 2. **1A-1 — Neutral Card & User-truth Decoupling**：落地中性 Card catalog、User-truth 领域关系、Record Organizer 兼容和旧调用者适配；普通工作卡对 User-truth 检索必须零误升格；
 3. **1A-2 — Reversible Markdown Vault Cutover**：完成 Markdown revision、外部编辑最小安全集、历史/索引一致性、旧 → 新 → 旧 → 新无损往返和可恢复切换；
 4. **1A-3 — Core Intent, Epoch & Fencing Integration**：主电脑 Core 成为唯一权威写入者；客户端只通过版本化 API 提交意图并读取 accepted 状态。outbox 是有界、加密、耐久的提交日志，不是权威数据库；ADR 必须定义对象范围、容量/TTL、满载行为、幂等键、拒绝/过期/人工处理、协议版本以及 Core 接受前不得触发的下游事件。持久 Core epoch / instance id、fencing token、租约或权威登记位置、重新配对、change-feed epoch 和旧 token 失效必须通过故障注入与集成演练。
 
 每个停止点必须独立验收；任一项失败都保持当前停止点为红，返回同一 Goal 返修，不得启动下一项：
+
+`Capture / ImportCandidate / Link Inbox Item` 是捕获与待处理对象，不是 Card、Source 或 User-truth。1A-0 必须定义它们的稳定身份、URL / note id 去重、幂等、取消、失败、重启恢复、Core 接受边界，以及 Core 接受前不得触发的建卡、Source 入库、索引和下游事件；只交付 ADR、fixtures 与迁移盘点，不实现导入 UI，也不扩大成新功能 Goal。
 
 - **1A-0 通过**：ADR 已选择唯一正文权威、操作/领域状态边界和 commit/recovery 模型；迁移矩阵无未分类对象；golden corpus 与隔离 harness 可重复运行；生产运行权威未切换；
 - **1A-1 通过**：普通工作卡进入 User-truth 检索或召回的误升格为零；显式记录、主聊天、Memory Review 与既有召回契约连续；
@@ -269,7 +279,7 @@ Gate 1 通过后，不继续抽象建设泛化内容平台；直接围绕“拿�
 #### 2A. 范围
 
 - 只做采集 → SourceVersion → 原子 Evidence Claim → RecruitmentBatch / AssessmentEvent → 教材映射 → 档案与证据看板；
-- 使用官方来源、小红书第一手考生经验、其他可信考情来源和人工补充；
+- 使用官方来源、用户在小红书官方 App 中人工发现并主动交付的第一手经验链接 / 截图 / 导出材料、其他可信考情来源和人工补充；小红书仍是重要证据来源，但 Here I Am 不自动搜索；
 - `D:\textbook` 作为只读 `KnowledgePackage` 接入，不复制 2160 个节点为 Card，不重建稳定 node_id；
 - 默认映射到可靠 section/subsection，只有原文明确时才下钻 concept；
 - 招聘批次是统计去重单位，帖子数量只增加证据支持强度，不增加考试发生次数。
@@ -277,12 +287,13 @@ Gate 1 通过后，不继续抽象建设泛化内容平台；直接围绕“拿�
 
 #### 2B. 采集与样本
 
-- 先对深圳市直属及各区最近两届开展轻量官方普查，只建立候选总体与覆盖/缺失清单：招聘主体、年份、批次标识、学科、公告 URL、可获取状态、考试结构线索和缺失原因；普查阶段不要求全文抽取；
-- 再按考试结构、招聘主体、年份、区域和学科差异选择 5–8 个最大差异深样本；
-- 不预先指定行政区或每主体帖子配额。每个深样本至少包含一个官方 `SourceVersion`；第一手经验按独立 URL / note id 去重，帖子数量不充当批次覆盖度；
+- 先对深圳市直属及各区最近两届开展轻量官方普查，只建立候选总体与覆盖/缺失清单：招聘主体、年份、批次标识、学科、公告 URL、可获取状态、考试结构线索和缺失原因；普查阶段不要求全文抽取。官方网站和明确允许自动访问的公开来源可以使用搜索矩阵；
+- 小红书搜索矩阵只作为用户在官方 App 内的人工检索清单，不交给 Here I Am、MCP 或隐藏浏览器自动执行；
+- Here I Am 负责从用户主动交付的分享文案中进行多链接本地提取、规范化、URL / note id 去重并进入 Link Inbox；捕获成功不等于解析或入库成功；
+- 网络解析采用无登录态、单项、显式触发；评论只有在用户主动交付，或匿名公开页面直接提供时才处理。遇到登录门槛、验证码、风控或访问限制立即停止，转为请求截图、复制正文或人工摘录；
+- 再按考试结构、招聘主体、年份、区域和学科差异选择 5–8 个最大差异深样本；不预先指定行政区或每主体帖子配额。每个深样本至少包含一个官方 `SourceVersion`；第一手经验按独立 URL / note id 去重，帖子数量不充当批次覆盖度；
 - 连续两个按差异分层选择的深样本，不再产生新的高影响 `EvidenceClaim` 类型、`AssessmentEvent` 结构、教材映射规则或冲突结论时，可以报告“暂时饱和”；否则必须记录缺口和继续条件，由用户决定是否扩样；新官方规则会重新打开相应分层；
-- 官方优先，搜索矩阵拆分、多轮合并、URL/note id 去重；小红书正文、评论与反广告判断保留来源，低价值字段可以存但默认不展示。
-- Gate 2 Goal 在采集前必须声明人力/时间/来源数量上限、OCR/PDF 与 `D:\textbook` 的复用边界、小红书只读 discovery 的失败降级和人工补录路径；达到资源上限即停下报告不完整覆盖，不静默扩成全网采集工程。
+- Gate 2 Goal 在采集前必须声明用户人工选材数量、待解析数量、时间预算、OCR/PDF 与 `D:\textbook` 的复用边界和人工补录路径。多链接可以批量本地入队，但不批量并发访问小红书，不设置“多少条绝对安全”的伪阈值，不后台长跑、不自动重试；达到资源上限即停止并报告覆盖不完整。
 
 #### 2C. Evidence 与输出
 
@@ -300,9 +311,13 @@ Gate 1 通过后，不继续抽象建设泛化内容平台；直接围绕“拿�
 - 不自动修改教材知识树或把可能映射强行挂到 concept；
 - 不把 187 个未验证选项顺序的题页自动变成题库；
 - 不一次抓全网，不以漂亮百分比掩盖样本偏差；
+- 不恢复登录态小红书 MCP，不重新连接用户账号；
+- 不自动搜索、翻页、展开评论或读取推荐 Feed；
+- 不以降低频率、随机等待、UA / 指纹或模拟真人作为合规依据；
+- 不把待解析链接提前创建成成功 Card / Source，也不让失败项伪装成已入库内容；
 - 不在 Pilot 完成后自动进入下一阶段。
 
-**退出条件**：端到端 Pilot 报告能够回答样本各自考什么、证据是否一致、哪些模块出现于多少真实批次、哪些材料可映射教材、哪些仍冲突，以及数据模型需要如何调整。用户还必须能用真实资料完成三个任务：比较两个招聘批次的考核差异、把一个候选重点追溯到精确来源、识别一个证据不足而不应行动的信息空白；记录完成时间、错误归因和是否改变下一步人工备考选择。完成后必须暂停，由用户真人评审。
+**退出条件**：端到端 Pilot 报告能够回答样本各自考什么、证据是否一致、哪些模块出现于多少真实批次、哪些材料可映射教材、哪些仍冲突，以及数据模型需要如何调整。用户还必须能用真实资料完成四个任务：比较两个招聘批次的考核差异、把一个候选重点追溯到精确来源、识别一个证据不足而不应行动的信息空白；以及把一组日常刷到的小红书分享文案快速入队，由系统本地提取并去重，在白板通过“解析下一条”逐项处理，关闭重开后队列与状态仍准确，无法访问的项目明确请求截图。该任务验证导入快捷性与状态诚实性，不考验爬虫吞吐量。记录完成时间、错误归因和是否改变下一步人工备考选择；完成后必须暂停，由用户真人评审。
 
 ### Gate 3 — Pilot 后重新选择，而不是自动续跑
 
@@ -389,6 +404,7 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 | Gate 1A、1B、1C 全部真人通过 | 深圳教招 Evidence Pilot | 任何静默丢失、覆盖、双活或无法恢复都阻断需求纵线 |
 | 单权威 Core 与幂等 API已绿，且 Gate 2 真人评审后用户选择移动场景 | 手机完整统一卡片视图 | 禁止 raw SQLite 共享与多主覆盖，也不得绕过 Pilot 后重新选择 |
 | SourceVersion / Anchor / provenance | Evidence、阅读摘录、教材回源 | 无原文、无版本或无 Anchor 的判断不得伪装成确定证据 |
+| 外部平台账号边界与 Link Inbox 状态诚实性 | 用户选材后的逐项解析与 Gate 2 Evidence Pilot | 任何登录态或隐藏 WebView discovery、自动搜索 / 翻页 / 评论 / 推荐 Feed、验证码或风控后继续绕过，以及待解析项提前写成 Card / Source，均为固定红灯 |
 | Gate 2 教招 Evidence Pilot 真人评审 | Gate 3 中按需选择频率矩阵、学习/试讲、移动端 companion 或其他真实需求 | Pilot 完成后必须停止，不自动进入 Gate 3 的任何实现 |
 | W4 匿名 Bilibili 字幕严格 Gate `0/18` | 依赖匿名字幕的能力 | 与字幕无关的卡片、Evidence、阅读和数据安全工作可继续 |
 
@@ -406,7 +422,7 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 ### 下一正式 Goal 候选（尚未创建）
 
-> **Gate 1A-0 — Authority ADR & Migration Harness：完成权威对象盘点、Card / User-truth / Source / Evidence / Dreaming / TaskArtifact 迁移矩阵、Markdown / RichText 数据流、物理 schema 比较、跨介质 commit/recovery 协议、golden corpus 和隔离迁移 harness；不切换默认运行权威。**
+> **Gate 1A-0 — Authority ADR & Migration Harness：完成权威对象盘点、Card / User-truth / Source / Evidence / Dreaming / TaskArtifact / Capture / ImportCandidate / Link Inbox Item 迁移矩阵、Markdown / RichText 数据流、物理 schema 比较、跨介质 commit/recovery 协议、golden corpus 和隔离迁移 harness；不切换默认运行权威，也不实现导入 UI。**
 
 该候选只覆盖 Gate 1A 的第一个正式停止点，不承诺落地中性 Card schema、切换 Markdown 运行权威、完成 Core 接管、基本操作或四副本灾难恢复。它仍需在 Goal 1 通过或被用户正式取消 / 取代、临时预备 Goal 关闭后，由新的验收主窗提出并等待用户确认；`authority-preflight` 的材料可以复用，但不能替代正式 1A-0 Gate。1A-1/1A-2/1A-3、Gate 1B 与 Gate 1C 只在前一停止点真人通过后依次提案，不提前打包。
 
@@ -414,7 +430,7 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 ## 9. 已完成交叉审核与持续自查清单
 
-2026-08-26 的产品、架构和执行交叉审核已经完成，用户已确认将审计结论并入本版。以下问题继续作为每个相关 Goal 的硬自查；它们不是留给未来泛泛讨论的开放问题。第 1–4、10、11 项必须由 Gate 1A 的 ADR、fixtures 与连续性 Gate 给出证据，第 5–6 项由 Gate 1C 给出恢复证据，第 7–8 项由 Gate 2 给出 Pilot 证据：
+2026-08-26 的产品、架构和执行交叉审核已经完成，用户已确认将审计结论并入本版。以下问题继续作为每个相关 Goal 的硬自查；它们不是留给未来泛泛讨论的开放问题。第 1–4、10–12 项必须由 Gate 1A 的 ADR、fixtures 与连续性 Gate 给出证据，第 5–6 项由 Gate 1C 给出恢复证据，第 7–8、12–15 项还必须由 Gate 2 给出 Pilot 证据：
 
 1. 中性 Card catalog、User-truth 状态和现有 MemoryCards 之间的迁移边界是否清楚？是否仍有把“所有卡片”误当 User-truth 的隐性耦合？
 2. Markdown/YAML 作为 Card 正文权威，是否能无损覆盖现有 RichTextDocument、附件、中文 IME、版本和 Anchor？迁移与回滚是否充分？
@@ -427,6 +443,10 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 9. 白板嵌入式阅读窗是否继续遵守 BoardItem 只存布局/局部视图、原文归 ReadingPackage/Source 的边界？
 10. 当前活动 Goal 的产物有哪些可复用，哪些会被 Markdown Vault 迁移推翻？是否存在不必要返工？
 11. 暂停首页、手机扩张、主动品味与论文组稿后，近期路线是否仍能形成可被用户每天真实使用的产品闭环？
+12. 待解析 Capture / ImportCandidate / Link Inbox Item 是否被误写成 Source / Card，或在 Core 接受前触发了索引与下游事件？
+13. 是否存在任何登录态、隐藏 WebView 或自动 discovery 回退，包括自动搜索、翻页、评论展开和推荐 Feed 读取？
+14. 多链接入口是否只做本地提取、规范化、去重和入队，没有把批量收件偷换成批量网络访问？
+15. 登录门槛、验证码、风控或匿名访问失败时，是否诚实请求截图、复制正文或人工摘录，而不是继续绕过？
 
 任何一项没有可复核答案时，对应 Gate 保持红。后续修改权威 Roadmap、取消活动 Goal 或创建下一 Goal，仍需用户确认。
 
@@ -448,10 +468,13 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 - [`CROSS_DEVICE_I_WHITEBOARD_MVP_ROADMAP.md`](CROSS_DEVICE_I_WHITEBOARD_MVP_ROADMAP.md)：统一单权威 Core、灾难接管与手机开发优先级；
 - [`MEMORY_DATA_SYNC_ACCEPTANCE.md`](../development/MEMORY_DATA_SYNC_ACCEPTANCE.md)：旧两电脑 `.memexdata` / last-writer-wins 验收，不再作为日常 Core 同步或客户端合并契约；
-- [`WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md`](../development/WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md)：RichTextDocument → Markdown 权威迁移；
+- [`WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md`](../development/WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md)：RichTextDocument → Markdown 权威迁移，并补充平台账号自动化、登录态 discovery 与反爬绕过禁令；
 - [`whiteboard-ui-spine-contract.md`](../design/whiteboard-ui-spine-contract.md)：首页完成定义与白板内阅读窗；
 - [`whiteboard-requirements.md`](../design/whiteboard-requirements.md)：首页、日记、论文导出与旧 Draft 优先级；
-- [`teacher-recruitment/phase0/ARCHITECTURE.md`](../development/teacher-recruitment/phase0/ARCHITECTURE.md)：专项文档旧称 Phase 3A 的 Evidence Pilot、样本选择与停止 Gate；
+- [`teacher-recruitment/phase0/ARCHITECTURE.md`](../development/teacher-recruitment/phase0/ARCHITECTURE.md)：删除第 99 行“浏览器、WebSearch 或外置小红书 MCP 找链接”的现行建议；第 310 行起的 MCP 选择与真人试点章节整体改为历史试点、账号预警和退役原因；同时对齐 Evidence Pilot、样本选择与停止 Gate；
+- [`teacher-recruitment/phase0/XHS_MCP_READONLY_PILOT.md`](../development/teacher-recruitment/phase0/XHS_MCP_READONLY_PILOT.md)：标记为“历史技术验证完成、产品路线失效，禁止重新连接用户账号”；保留实验结果，不再作为生产接入依据；
+- [`WAVE1_LINK_IMPORT.md`](../development/whiteboard-workstreams/WAVE1_LINK_IMPORT.md)：从“多个链接选一个”升级为本地提取、URL / note id 去重并进入待解析 Link Inbox；
+- [`I_PROJECT_STATE.md`](../development/I_PROJECT_STATE.md) 与 [`DEVLOG.md`](../../DEVLOG.md)：**本次已同步**账号预警、登录态 discovery 退役、Link Inbox 边界和后续待对齐事项；
 - [`BOOK_READER_TTS_ANNOTATION_PLAN.md`](BOOK_READER_TTS_ANNOTATION_PLAN.md)：ReadingPackage、摘录卡与主动阅读延期。
 
 领域权威索引：
