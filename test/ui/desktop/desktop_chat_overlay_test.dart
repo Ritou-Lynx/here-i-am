@@ -258,43 +258,6 @@ void main() {
   );
 
   testWidgets(
-    'global chat overlay scopes SelectionArea menus to desktop theme tokens',
-    (tester) async {
-      late ThemeData overlayTheme;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-          ),
-          home: GlobalDesktopChatOverlayHost(
-            characterId: 'i',
-            characterIdResolver: () async => 'i',
-          ),
-        ),
-      );
-      await tester.pump();
-
-      overlayTheme = Theme.of(
-        tester.element(find.byType(GlobalDesktopChatOverlay)),
-      );
-
-      expect(
-        overlayTheme.colorScheme.primary,
-        DesktopWorkspaceTokens.lieflatPalm.action,
-      );
-      expect(
-        overlayTheme.popupMenuTheme.color,
-        DesktopWorkspaceTokens.lieflatPalm.surfaceRaised,
-      );
-      expect(
-        overlayTheme.textButtonTheme.style?.foregroundColor?.resolve({}),
-        DesktopWorkspaceTokens.lieflatPalm.action,
-      );
-    },
-  );
-
-  testWidgets(
     'fixed Here I am identity shows the desktop entry without DB resolution',
     (tester) async {
       var resolutionCalls = 0;
@@ -430,28 +393,33 @@ void main() {
       const reply = 'Desktop copy works';
       await tester.pumpWidget(
         MaterialApp(
-          home: SizedBox(
-            width: 350,
-            height: 480,
-            child: DesktopPersonaChatView(
-              loading: false,
-              messagesNewestFirst: [
-                PersonaChatMessage(
-                  id: 22,
-                  characterId: 'i',
-                  isFromCharacter: true,
-                  content: reply,
-                  isRead: true,
-                  timestamp: DateTime(2026, 8, 24),
-                  messageType: 'chat',
-                ),
-              ],
-              isStreaming: false,
-              streamingText: '',
-              controller: controller,
-              composerFocusNode: focusNode,
-              scrollController: scrollController,
-              onSend: () async {},
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+          ),
+          home: DesktopWorkspaceTheme(
+            child: SizedBox(
+              width: 350,
+              height: 480,
+              child: DesktopPersonaChatView(
+                loading: false,
+                messagesNewestFirst: [
+                  PersonaChatMessage(
+                    id: 22,
+                    characterId: 'i',
+                    isFromCharacter: true,
+                    content: reply,
+                    isRead: true,
+                    timestamp: DateTime(2026, 8, 24),
+                    messageType: 'chat',
+                  ),
+                ],
+                isStreaming: false,
+                streamingText: '',
+                controller: controller,
+                composerFocusNode: focusNode,
+                scrollController: scrollController,
+                onSend: () async {},
+              ),
             ),
           ),
         ),
@@ -484,6 +452,25 @@ void main() {
       await gesture.moveTo(positionFor(reply.length));
       await gesture.up();
       await tester.pump();
+
+      await tester.tapAt(
+        positionFor(1),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pump();
+
+      final toolbar = find.byType(DesktopTextSelectionToolbar);
+      expect(toolbar, findsOneWidget);
+      final toolbarTheme = Theme.of(tester.element(toolbar));
+      expect(
+        toolbarTheme.cardColor,
+        DesktopWorkspaceTokens.lieflatPalm.surfaceRaised,
+      );
+      expect(
+        toolbarTheme.textButtonTheme.style?.foregroundColor?.resolve({}),
+        DesktopWorkspaceTokens.lieflatPalm.action,
+      );
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
