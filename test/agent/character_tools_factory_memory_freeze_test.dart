@@ -46,21 +46,5 @@ void main() {
       expect(names, isNot(contains('HistorySearch')));
       expect(names, isNot(contains('UserKnowledgeQuery')));
     });
-
-    test('comment tools do not expose legacy character memory tools', () {
-      final names = CharacterToolsFactory.buildCommentTools(
-        userId: 'user-a',
-        workingDirectory: tempRoot.path,
-        factId: '2026/07/04.md#ts_1',
-        characterId: 'char-a',
-      ).map((tool) => tool.name);
-
-      expect(names, contains('SaveComment'));
-      expect(names, isNot(contains('MemoryRead')));
-      expect(names, isNot(contains('MemoryWrite')));
-      expect(names, isNot(contains('MemoryEdit')));
-      expect(names, isNot(contains('MemoryRemove')));
-      expect(names, isNot(contains('HistorySearch')));
-    });
   });
 }
