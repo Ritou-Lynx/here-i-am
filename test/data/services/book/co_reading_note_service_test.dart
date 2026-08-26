@@ -152,6 +152,57 @@ void main() {
     expect(row.status, 'processed');
   });
 
+  test('a drifted session of pure smalltalk produces no card', () async {
+    if (!fts5Available) return;
+    final threadId =
+        await TopicThreadService(db: db).createThread(title: '叙事节奏');
+    await _insertBook(db, threadId: threadId);
+    final handle = await service.startBookSession(
+      bookId: 'book-1',
+      bookTitle: '测试小说',
+      characterId: 'i',
+      chapterNumber: 4,
+      chapterTitle: '第四章',
+    );
+
+    // Reproduces 2026-08-26: a check-in pulled the user out of the book and
+    // the resulting chat had nothing to do with the work, yet it was recorded
+    // as User-truth ("摸鱼一下午看小说").
+    final chatterA = await _insertMessage(
+      db,
+      content: '在看小说呢',
+      isFromCharacter: false,
+    );
+    final reply = await _insertMessage(
+      db,
+      content: '那你慢慢看，我在这儿陪你。',
+      isFromCharacter: true,
+    );
+    final chatterB = await _insertMessage(
+      db,
+      content: '嗯',
+      isFromCharacter: false,
+    );
+    await service.recordMessages(
+      sessionId: handle.id,
+      messageIds: [chatterA, reply, chatterB],
+    );
+    await service.finishSession(handle.id, processNow: false);
+
+    final result = await service.processSession(handle.id);
+
+    expect(result.cardIds, isEmpty);
+    expect(result.threadSessionIds, isEmpty);
+    expect(recordInputs, isEmpty,
+        reason: 'smalltalk must never reach the record organizer');
+    expect(analysisInputs, isEmpty);
+    expect(await db.select(db.topicThreadSessions).get(), isEmpty);
+    final row = await (db.select(db.coReadingSessions)
+          ..where((session) => session.id.equals(handle.id)))
+        .getSingle();
+    expect(row.status, 'processed');
+  });
+
   test('intent analysis accepts fenced JSON and limits open questions', () {
     final analysis = CoReadingIntentAnalysis.parse('''```json
 {"relevant":true,"summary":"有推进","current_stage":"新阶段","open_questions":["一","二","三","四"]}

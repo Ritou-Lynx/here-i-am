@@ -4,6 +4,7 @@ import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/built_in_tools/ai_finance_tools.dart';
 import 'package:memex/agent/built_in_tools/ai_shopping_tools.dart';
 import 'package:memex/agent/built_in_tools/checkin_tool.dart';
+import 'package:memex/agent/companion_agent/record_request_matcher.dart';
 import 'package:memex/agent/built_in_tools/continuous_reply_tool.dart';
 import 'package:memex/agent/built_in_tools/coros_mcp_tool.dart';
 import 'package:memex/agent/built_in_tools/delegate_task_tool.dart';
@@ -59,6 +60,7 @@ class CharacterToolsFactory {
     ToyController? toyControlService,
     InitiateCallPolicy? initiateCallPolicy,
     List<String>? turnImageAnalyses,
+    String? currentUserMessageText,
   }) {
     final actionFactory = ActionMessageToolFactory(characterId: characterId);
     final financeService = AiFinanceService(db: AppDatabase.instance);
@@ -122,7 +124,8 @@ class CharacterToolsFactory {
     if (RecordOrganizerServiceV3.isInitialized) {
       tools.add(_buildLifeMemoryCaptureTool(
           currentUserMessageId: currentUserMessageId,
-          turnImageAnalyses: turnImageAnalyses));
+          turnImageAnalyses: turnImageAnalyses,
+          currentUserMessageText: currentUserMessageText));
       tools.add(
           buildMemoryV3QueryTool(currentUserMessageId: currentUserMessageId));
       tools.add(buildMemoryV3UpdateCardTool());
@@ -216,6 +219,7 @@ class CharacterToolsFactory {
   static Tool _buildLifeMemoryCaptureTool({
     int? currentUserMessageId,
     List<String>? turnImageAnalyses,
+    String? currentUserMessageText,
   }) {
     return Tool(
       name: 'LifeMemoryCapture',
@@ -256,6 +260,27 @@ class CharacterToolsFactory {
       parameterMode: ToolParameterMode.object,
       executable: (Map<String, dynamic> args) async {
         try {
+          // Hard gate on the User-truth write contract. The prompt already
+          // says "only when the user explicitly asks", but that is a soft
+          // constraint a model can ignore — and did, producing Memory Cards
+          // the user never requested. Ordinary chat must not be able to write
+          // User-truth even if the model decides to call this tool.
+          //
+          // Only gate when we actually know what the user said this turn. A
+          // null message text means a non-chat caller (voice call, checkin)
+          // where there is no turn text to check; those paths do not expose
+          // this tool with a message id anyway.
+          final userText = currentUserMessageText;
+          if (userText != null && !containsRecordRequest(userText)) {
+            return jsonEncode({
+              'success': false,
+              'error': 'not_explicitly_requested',
+              'reason': 'The user did not ask to record anything this turn. '
+                  'User-truth Memory Cards may only be written when the user '
+                  'explicitly asks (e.g. "记一下", "帮我记"). Do not retry, and '
+                  'do not tell the user something was recorded.',
+            });
+          }
           final text = args['text'] as String?;
           if (text == null || text.trim().isEmpty) {
             return jsonEncode({'success': false, 'error': 'empty text'});

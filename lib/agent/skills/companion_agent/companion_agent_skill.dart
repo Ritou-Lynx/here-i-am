@@ -15,6 +15,7 @@ class CompanionAgentSkill extends Skill {
     ToyController? toyControlService,
     InitiateCallPolicy? initiateCallPolicy,
     List<String>? turnImageAnalyses,
+    String? currentUserMessageText,
     super.forceActivate,
   }) : super(
           name: 'companion_chat',
@@ -33,6 +34,7 @@ class CompanionAgentSkill extends Skill {
             toyControlService: toyControlService,
             initiateCallPolicy: initiateCallPolicy,
             turnImageAnalyses: turnImageAnalyses,
+            currentUserMessageText: currentUserMessageText,
           ),
         );
 

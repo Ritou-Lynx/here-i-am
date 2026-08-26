@@ -3730,6 +3730,69 @@ only after you have written the goodbye you want the user to hear.''',
     });
   }
 
+  /// Confirm before writing a User-truth Memory Card from a double-tapped
+  /// bubble. Double-tap has no discoverable affordance, so an accidental tap
+  /// used to silently write a card. The explicit long-press popup and the
+  /// floating ball stay unconfirmed — those are already deliberate actions.
+  Future<bool> _confirmRecordMessage(PersonaChatMessage message) async {
+    final preview = message.content.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final shortened =
+        preview.length > 60 ? '${preview.substring(0, 60)}…' : preview;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: SpringRainUiTokens.daylight.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(SpringRainUiTokens.daylight.radius14),
+        ),
+        title: Text(
+          _chatUiText(zh: '记录这条消息？', en: 'Record this message?'),
+          style: TextStyle(
+            color: SpringRainUiTokens.daylight.textPrimary,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          shortened.isEmpty
+              ? _chatUiText(
+                  zh: '将这条消息整理为记忆卡片。',
+                  en: 'Organize this message into a Memory Card.')
+              : _chatUiText(
+                  zh: '将「$shortened」整理为记忆卡片。',
+                  en: 'Organize "$shortened" into a Memory Card.'),
+          style: TextStyle(
+            color: SpringRainUiTokens.daylight.textSecondary,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_chatUiText(zh: '取消', en: 'Cancel'),
+                style: TextStyle(
+                    color: SpringRainUiTokens.daylight.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(_chatUiText(zh: '记录', en: 'Record'),
+                style: TextStyle(color: _personaAccent)),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true && mounted;
+  }
+
+  Future<void> _recordMessageWithConfirm(PersonaChatMessage message) async {
+    if (!RecordOrganizerServiceV3.isInitialized) return;
+    if (_recordingMessageIds.contains(message.id)) return;
+    if (!await _confirmRecordMessage(message)) return;
+    await _recordMessage(message);
+  }
+
   Future<void> _recordMessage(PersonaChatMessage message) async {
     if (!RecordOrganizerServiceV3.isInitialized) return;
     // Guard against rapid double-taps re-firing while a record is in flight.
@@ -6481,7 +6544,7 @@ only after you have written the goodbye you want the user to hear.''',
                       }
                     : null,
                 onDoubleTap: userMessage != null && !_isSelecting
-                    ? () => _recordMessage(userMessage)
+                    ? () => _recordMessageWithConfirm(userMessage)
                     : null,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxWidth),
@@ -6563,7 +6626,7 @@ only after you have written the goodbye you want the user to hear.''',
                       }
                     : null,
                 onDoubleTap: userMessage != null && !_isSelecting
-                    ? () => _recordMessage(userMessage)
+                    ? () => _recordMessageWithConfirm(userMessage)
                     : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

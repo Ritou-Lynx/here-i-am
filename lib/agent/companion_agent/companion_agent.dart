@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:memex/agent/agent_controller.util.dart';
 import 'package:memex/agent/companion_agent/recent_activity_snapshot.dart';
+import 'package:memex/agent/companion_agent/record_request_matcher.dart';
 import 'package:memex/agent/companion_agent/sleep_companion_state.dart';
 import 'package:memex/agent/companion_agent/topic_thread_request_router.dart';
 
@@ -343,15 +344,10 @@ class CompanionAgent {
   // wrong tool (delegate_task card_ops) whose results never show up in the
   // Memory Review tab (2026-08-02 记账 bug report).
 
-  static final List<RegExp> _recordRequestPatterns = [
-    RegExp(
-        r'(记一下|帮我记|记录一下|保存一下|存一下|加到记录|记住这个|帮我记账|把.{0,10}记上|记上账|记一笔|记个账|记下来|记下这个|你帮我记|给我记|帮我存)'),
-    RegExp(r'(write.{0,8}down|record.{0,8}this|save.{0,8}this|note.{0,8}down)',
-        caseSensitive: false),
-  ];
-
+  // Patterns live in record_request_matcher.dart so the LifeMemoryCapture hard
+  // gate enforces exactly the same trigger set this directive reacts to.
   static bool _containsRecordRequest(String text) =>
-      _recordRequestPatterns.any((p) => p.hasMatch(text));
+      containsRecordRequest(text);
 
   @visibleForTesting
   static bool containsRecordRequestForTesting(String text) =>
@@ -750,6 +746,10 @@ class CompanionAgent {
     Future<String?> Function()? initiateCallPolicy,
     List<Tool> extraTools = const [],
     List<String>? turnImageAnalyses,
+    // Raw text the user actually sent this turn. Used to hard-gate
+    // `LifeMemoryCapture` so ordinary chat cannot write User-truth. Leave null
+    // for non-chat callers (voice, checkin) that have no user turn text.
+    String? currentUserMessageText,
   }) async {
     final character =
         await CharacterService.instance.getCharacter(userId, characterId);
@@ -798,6 +798,7 @@ class CompanionAgent {
       initiateCallPolicy: initiateCallPolicy,
       forceActivate: true,
       turnImageAnalyses: turnImageAnalyses,
+      currentUserMessageText: currentUserMessageText,
     );
 
     state.systemReminders.remove('character_world');
@@ -1670,6 +1671,7 @@ class CompanionAgent {
       toyControlService: toyControlService,
       extraTools: extraTools,
       turnImageAnalyses: turnImageAnalyses,
+      currentUserMessageText: userMessage,
     );
     if (agent == null) {
       yield 'Sorry, character not found.';

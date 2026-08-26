@@ -96,6 +96,22 @@ class RecentActivitySnapshot {
       }
     }
 
+    // --- Active co-reading scene (book/comic open right now) ---
+    // Checked before anything else so a check-in never yanks the user out of
+    // a reading session by mistake (2026-08-26: check-in during 落不下
+    // reading ignored the book and resumed a stale "resume tasks" thread).
+    try {
+      if (AppDatabase.isInitialized) {
+        final scene = await _buildActiveCoReadingSection(now: now);
+        if (scene.isNotEmpty) {
+          parts.add('');
+          parts.add(scene);
+        }
+      }
+    } catch (e) {
+      _logger.warning('Failed to load active co-reading scene: $e');
+    }
+
     // --- Last chat activity ---
     if (!skipChatHistory) {
       try {
@@ -338,6 +354,40 @@ class RecentActivitySnapshot {
         );
       }
     }
+    return lines.join('\n');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Active co-reading scene
+  // ---------------------------------------------------------------------------
+
+  /// Build a "user is reading X right now" section from any active
+  /// co-reading session (book or comic). Source of truth is the
+  /// `coReadingSessions` table (status='active'), which is reliable while
+  /// the reader is open — unlike progress timestamps, which go stale during
+  /// long quiet reading sessions.
+  static Future<String> _buildActiveCoReadingSection({
+    required DateTime now,
+  }) async {
+    final db = AppDatabase.instance;
+    final rows = await (db.select(db.coReadingSessions)
+          ..where((s) => s.status.equals('active'))
+          ..orderBy([(s) => OrderingTerm.desc(s.startedAt)])
+          ..limit(1))
+        .get();
+    if (rows.isEmpty) return '';
+    final s = rows.first;
+    final started = DateTime.fromMillisecondsSinceEpoch(s.startedAt);
+    final lines = <String>[
+      '## 用户正在共读（进行中场景）',
+      '《${s.workTitle}》 · ${s.workType == 'book' ? '第 ${s.chapterRef} 章' : ' chapter ${s.chapterRef}'}'
+          '${s.chapterTitle.isNotEmpty ? '（${s.chapterTitle}）' : ''}',
+      '开始于：${_fmtAgo(started, now)}',
+      '',
+      '用户此刻正开着这本书/这部漫画。除非本次 check-in 有真正紧急的提醒，',
+      '默认围绕共读自然开场，不要把话题拽到无关的工作或任务上；也不要',
+      '复述章节内容，只在用户主动聊剧情时回应。',
+    ];
     return lines.join('\n');
   }
 

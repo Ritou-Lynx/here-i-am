@@ -337,6 +337,24 @@ class CoReadingNoteService {
       final messageIds =
           messages.map((message) => message.id).toList(growable: false);
       final transcript = _formatTranscript(session, messages);
+
+      // Content gate: only organize a card when the session actually
+      // discusses the work. A co-reading session can drift into ordinary chat
+      // (e.g. a check-in pulled the user out of the book), and those sessions
+      // must not produce User-truth cards (2026-08-26: "摸鱼一下午看小说").
+      if (!_sessionDiscussesWork(messages, session)) {
+        _logger.info(
+          'Co-reading session $sessionId transcript has no work-related '
+          'discussion; skipping record and thread analysis',
+        );
+        await _markProcessed(sessionId);
+        return CoReadingProcessResult(
+          messageCount: messages.length,
+          cardIds: const [],
+          threadSessionIds: const [],
+        );
+      }
+
       final recordResult = await (_recordWriter ?? _recordWithOrganizer)(
         CoReadingRecordInput(
           session: session,
@@ -551,6 +569,45 @@ class CoReadingNoteService {
         }),
       ),
     );
+  }
+
+  /// Content gate for the record pipeline. Scans the USER messages and
+  /// returns true only when the user engaged with the work — meaning at
+  /// least one message has substance (not a bare acknowledgement or pure
+  /// smalltalk). A session can legitimately drift (a check-in pulled the
+  /// user out of the book); those sessions must not produce User-truth
+  /// cards (2026-08-26: "摸鱼一下午看小说" was recorded from a session
+  /// whose user messages were only "嗯，今天一直在摸鱼呢" / "在看小说呢").
+  ///
+  /// Conservative: a false negative just skips one optional card; a false
+  /// positive pollutes User-truth with ordinary chat.
+  bool _sessionDiscussesWork(
+    List<PersonaChatMessage> messages,
+    CoReadingSession session,
+  ) {
+    final userText = messages
+        .where((m) => !m.isFromCharacter)
+        .map((m) => m.content.trim())
+        .where((c) => c.isNotEmpty)
+        .toList();
+    if (userText.isEmpty) return false;
+
+    // Direct engagement with the work always counts.
+    if (userText.any((c) => c.contains(session.workTitle))) return true;
+    final ref = session.chapterRef.trim();
+    if (ref.isNotEmpty &&
+        userText.any((c) => c.contains('第$ref章') || c.contains(ref))) {
+      return true;
+    }
+    final title = session.chapterTitle.trim();
+    if (title.length > 8) {
+      final tail = title.substring(title.length - 8);
+      if (userText.any((c) => c.contains(tail))) return true;
+    }
+
+    // Otherwise require at least one substantive message — long enough to
+    // carry an actual reaction, not a one-liner like "在看小说呢".
+    return userText.any((c) => c.replaceAll(RegExp(r'\s'), '').length >= 12);
   }
 
   Future<CoReadingIntentAnalysis> _analyzeIntent(
