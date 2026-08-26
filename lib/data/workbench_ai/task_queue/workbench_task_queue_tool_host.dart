@@ -75,8 +75,30 @@ class DesktopWorkbenchTaskQueueAuthorizationFactory {
       'task queue',
     ]);
 
-    if (mentionsLongTask &&
-        _containsAny(text, const [
+    final enqueueRequested = mentionsLongTask &&
+        (_containsAny(text, const [
+          '作为',
+          '创建',
+          '启动',
+          '开始',
+          '排队',
+          '加入',
+          'enqueue',
+        ]) ||
+            _containsAny(text, const [
+              'queue this long task',
+              'queue this background task',
+              'queue as a long task',
+              'queue as a background task',
+              'create a long task',
+              'create the long task',
+              'create a background task',
+              'start a long task',
+              'start the long task',
+              'start a background task',
+            ]));
+    if (enqueueRequested &&
+        !_isNegated(text, const [
           '作为',
           '创建',
           '启动',
@@ -85,28 +107,43 @@ class DesktopWorkbenchTaskQueueAuthorizationFactory {
           '加入',
           'enqueue',
           'queue',
-          'start',
           'create',
+          'start',
         ])) {
       actions.add(WorkbenchTaskQueueAction.enqueue);
     }
     if (mentionsTask &&
-        _containsAny(text, const ['状态', '进度', 'status', 'progress'])) {
+        _containsAny(text, const ['状态', '进度', 'status', 'progress']) &&
+        !_isNegated(text, const [
+          '查看',
+          '看',
+          '查询',
+          '查',
+          '显示',
+          'check',
+          'show',
+          'get',
+        ])) {
       actions.add(WorkbenchTaskQueueAction.status);
     }
-    if (mentionsTask && _containsAny(text, const ['暂停', 'pause'])) {
+    if (mentionsTask &&
+        _containsAny(text, const ['暂停', 'pause']) &&
+        !_isNegated(text, const ['暂停', 'pause'])) {
       actions.add(WorkbenchTaskQueueAction.pause);
     }
     if (mentionsTask &&
-        _containsAny(text, const ['恢复', '继续', 'resume', 'continue'])) {
+        _containsAny(text, const ['恢复', '继续', 'resume', 'continue']) &&
+        !_isNegated(text, const ['恢复', '继续', 'resume', 'continue'])) {
       actions.add(WorkbenchTaskQueueAction.resume);
     }
     if (mentionsTask &&
-        _containsAny(text, const ['取消', '终止', 'cancel'])) {
+        _containsAny(text, const ['取消', '终止', 'cancel']) &&
+        !_isNegated(text, const ['取消', '终止', 'cancel'])) {
       actions.add(WorkbenchTaskQueueAction.cancel);
     }
     if (mentionsTask &&
-        _containsAny(text, const ['重试', '再试', 'retry'])) {
+        _containsAny(text, const ['重试', '再试', 'retry']) &&
+        !_isNegated(text, const ['重试', '再试', 'retry'])) {
       actions.add(WorkbenchTaskQueueAction.retry);
     }
 
@@ -119,6 +156,25 @@ class DesktopWorkbenchTaskQueueAuthorizationFactory {
 
   bool _containsAny(String text, List<String> phrases) =>
       phrases.any(text.contains);
+
+  bool _isNegated(String text, List<String> verbs) {
+    const prefixes = [
+      '不要',
+      '别',
+      '不',
+      '无需',
+      '不用',
+      '不能',
+      'do not ',
+      "don't ",
+      'dont ',
+      'never ',
+      'no need to ',
+    ];
+    return verbs.any(
+      (verb) => prefixes.any((prefix) => text.contains('$prefix$verb')),
+    );
+  }
 }
 
 /// Provider-neutral host boundary for the durable long-task queue.
@@ -195,7 +251,8 @@ class WorkbenchTaskQueueToolHost {
           'goal',
           maxGoalCharacters,
         );
-        final id = await _service.enqueueTaskRoom(
+        final enqueued = await _service.enqueueTaskRoomIdempotent(
+          requestId: requestId,
           title: title,
           goal: goal,
           taskType: TaskType.other,
@@ -208,15 +265,12 @@ class WorkbenchTaskQueueToolHost {
           conversationId: authorization.conversationId,
           queueHostScope: authorization.scope,
         );
-        final created = await _service.getTaskQueueSnapshot(id);
-        if (created == null) {
-          return _error(
-            requestId: requestId,
-            status: 'failed',
-            errorCode: 'task_queue_persistence_failed',
-          );
-        }
-        return _success(requestId, action, created, changed: true);
+        return _success(
+          requestId,
+          action,
+          enqueued.snapshot,
+          changed: enqueued.changed,
+        );
       }
 
       _expectAbsent(payload, const {'title', 'goal'});
@@ -267,6 +321,11 @@ class WorkbenchTaskQueueToolHost {
         );
       }
       return _success(requestId, action, updated, changed: true);
+    } on TaskQueueIdempotencyConflict {
+      return const {
+        'status': 'rejected',
+        'error_code': 'task_queue_request_conflict',
+      };
     } on FormatException {
       return const {
         'status': 'invalid_request',

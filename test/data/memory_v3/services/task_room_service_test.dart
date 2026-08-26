@@ -474,6 +474,69 @@ void main() {
       );
     });
 
+    test('idempotent enqueue persists request key and fails closed on conflict',
+        () async {
+      const scope = TaskQueueHostScope(
+        profileId: 'desktop_workbench_task_queue_v1',
+        scopeType: 'conversation',
+        scopeId: 'persona-i',
+      );
+      final first = await service.enqueueTaskRoomIdempotent(
+        requestId: 'stable-enqueue-1',
+        title: 'Stable task',
+        goal: 'Create exactly one task',
+        taskType: TaskType.other,
+        conversationId: 'persona-i',
+        queueHostScope: scope,
+      );
+      final repeated = await service.enqueueTaskRoomIdempotent(
+        requestId: 'stable-enqueue-1',
+        title: 'Stable task',
+        goal: 'Create exactly one task',
+        taskType: TaskType.other,
+        conversationId: 'persona-i',
+        queueHostScope: scope,
+      );
+      final restarted = TaskRoomService(db: db);
+      final afterRestart = await restarted.enqueueTaskRoomIdempotent(
+        requestId: 'stable-enqueue-1',
+        title: 'Stable task',
+        goal: 'Create exactly one task',
+        taskType: TaskType.other,
+        conversationId: 'persona-i',
+        queueHostScope: scope,
+      );
+
+      expect(first.changed, isTrue);
+      expect(repeated.changed, isFalse);
+      expect(afterRestart.changed, isFalse);
+      expect(repeated.snapshot.id, first.snapshot.id);
+      expect(afterRestart.snapshot.id, first.snapshot.id);
+      expect(first.snapshot.requestId, 'stable-enqueue-1');
+      expect(
+        (await service.findTaskQueueByRequestId(
+          scope: scope,
+          requestId: 'stable-enqueue-1',
+        ))
+            ?.id,
+        first.snapshot.id,
+      );
+      expect(await db.select(db.taskRooms).get(), hasLength(1));
+
+      await expectLater(
+        restarted.enqueueTaskRoomIdempotent(
+          requestId: 'stable-enqueue-1',
+          title: 'Changed task',
+          goal: 'Conflicting payload must not overwrite or duplicate',
+          taskType: TaskType.other,
+          conversationId: 'persona-i',
+          queueHostScope: scope,
+        ),
+        throwsA(isA<TaskQueueIdempotencyConflict>()),
+      );
+      expect(await db.select(db.taskRooms).get(), hasLength(1));
+    });
+
     test('getTaskStatus returns normalized status', () async {
       final id = await service.createTaskRoom(
         title: 'Status task',

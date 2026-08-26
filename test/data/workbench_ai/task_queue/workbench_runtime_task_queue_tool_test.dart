@@ -70,6 +70,85 @@ void main() {
           .allowedActions,
       isEmpty,
     );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: '不要创建长任务',
+          )
+          .allowedActions,
+      isEmpty,
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: '不要暂停任务，只查看任务状态',
+          )
+          .allowedActions,
+      {WorkbenchTaskQueueAction.status},
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: "don't retry the task, only check task status",
+          )
+          .allowedActions,
+      {WorkbenchTaskQueueAction.status},
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: 'do not queue this long task',
+          )
+          .allowedActions,
+      isEmpty,
+    );
+  });
+
+  test('enqueue request id is durable and conflicting payload fails closed',
+      () async {
+    final authorization = _authorization(
+      'persona-i',
+      {WorkbenchTaskQueueAction.enqueue},
+    );
+    const payload = {
+      'request_id': 'durable-runtime-request',
+      'action': 'enqueue',
+      'title': 'Durable idempotent task',
+      'goal': 'Return one stable TaskRoom across retries and restarts',
+    };
+
+    final first = await _invoke(tool, authorization, payload);
+    final repeated = await _invoke(tool, authorization, payload);
+    final restartedTool = WorkbenchRuntimeTaskQueueTool(
+      loadService: () async => TaskRoomService(db: db),
+    );
+    final afterRestart = await _invoke(
+      restartedTool,
+      authorization,
+      payload,
+    );
+
+    final firstTask = first['task'] as Map;
+    expect(first['changed'], isTrue);
+    expect(repeated['changed'], isFalse);
+    expect(afterRestart['changed'], isFalse);
+    expect((repeated['task'] as Map)['task_id'], firstTask['task_id']);
+    expect((afterRestart['task'] as Map)['task_id'], firstTask['task_id']);
+    expect(await db.select(db.taskRooms).get(), hasLength(1));
+
+    final conflict = await _invoke(restartedTool, authorization, {
+      ...payload,
+      'title': 'Changed title',
+    });
+    expect(conflict, {
+      'status': 'rejected',
+      'error_code': 'task_queue_request_conflict',
+    });
+    expect(await db.select(db.taskRooms).get(), hasLength(1));
   });
 
   test('host supports scoped full lifecycle and honest failure state',
@@ -261,12 +340,15 @@ void main() {
 
   test('coordinator rejects a model-enqueued TaskRoom on ordinary short chat',
       () async {
-    final runtime = _QueueConversationRuntime({
-      'request_id': 'runtime-overreach',
-      'action': 'enqueue',
-      'title': 'Unauthorized task',
-      'goal': 'Must not exist',
-    });
+    final runtime = _QueueConversationRuntime(
+      {
+        'request_id': 'runtime-overreach',
+        'action': 'enqueue',
+        'title': 'Unauthorized task',
+        'goal': 'Must not exist',
+      },
+      reply: '未执行队列操作。',
+    );
     final coordinator = WorkbenchConversationCoordinator(
       runtime: runtime,
       taskQueueTool: tool,
@@ -288,6 +370,39 @@ void main() {
     );
     expect(await db.select(db.taskRooms).get(), isEmpty);
     expect(runtime.startedInputs.single, contains('没有授权任何长任务队列动作'));
+  });
+
+  test('coordinator rejects a specifically negated enqueue without a write',
+      () async {
+    final runtime = _QueueConversationRuntime(
+      {
+        'request_id': 'runtime-negated-enqueue',
+        'action': 'enqueue',
+        'title': 'Negated task',
+        'goal': 'Must not exist',
+      },
+      reply: '未执行队列操作。',
+    );
+    final coordinator = WorkbenchConversationCoordinator(
+      runtime: runtime,
+      taskQueueTool: tool,
+      addReply: (_, __) async => 1,
+      pollInterval: Duration.zero,
+    );
+
+    await coordinator.send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '不要创建长任务，只查看任务状态',
+    );
+
+    expect(runtime.toolResponses.single.success, isFalse);
+    expect(
+      (jsonDecode(runtime.toolResponses.single.text) as Map)['error_code'],
+      'task_queue_action_not_authorized',
+    );
+    expect(await db.select(db.taskRooms).get(), isEmpty);
+    expect(runtime.startedInputs.single, contains('只授权长任务队列动作：status'));
   });
 }
 
@@ -312,9 +427,13 @@ Future<Map<String, dynamic>> _invoke(
 
 class _QueueConversationRuntime
     implements WorkbenchConversationRuntimeGateway {
-  _QueueConversationRuntime(this.arguments);
+  _QueueConversationRuntime(
+    this.arguments, {
+    this.reply = '长任务已排队。',
+  });
 
   final Map<String, dynamic> arguments;
+  final String reply;
   final List<List<Map<String, dynamic>>> startedTools = [];
   final List<String> startedInputs = [];
   final List<({bool success, String text})> toolResponses = [];
@@ -383,7 +502,7 @@ class _QueueConversationRuntime
           'turn_id': turnId,
           'kind': 'message_delta',
           'status': 'running',
-          'data': {'text': '长任务已排队。'},
+          'data': {'text': reply},
         },
         {
           'turn_id': turnId,

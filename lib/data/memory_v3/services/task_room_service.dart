@@ -32,6 +32,7 @@ class TaskQueueSnapshot {
     required this.currentStep,
     required this.maxRetries,
     required this.retryCount,
+    required this.requestId,
     required this.ownerProfileId,
     required this.scopeType,
     required this.scopeId,
@@ -47,6 +48,7 @@ class TaskQueueSnapshot {
   final String? currentStep;
   final int maxRetries;
   final int retryCount;
+  final String? requestId;
   final String? ownerProfileId;
   final String? scopeType;
   final String? scopeId;
@@ -61,6 +63,20 @@ class TaskQueueSnapshot {
 
   bool get isResumable =>
       resumableState == 'paused' || resumableState == 'interrupted';
+}
+
+class TaskQueueEnqueueResult {
+  const TaskQueueEnqueueResult({
+    required this.snapshot,
+    required this.changed,
+  });
+
+  final TaskQueueSnapshot snapshot;
+  final bool changed;
+}
+
+class TaskQueueIdempotencyConflict implements Exception {
+  const TaskQueueIdempotencyConflict();
 }
 
 /// TaskRoomService: 管理任务房间、产物和决策
@@ -88,6 +104,7 @@ class TaskRoomService {
   static const String _queueOwnerProfileKey = 'ownerProfile';
   static const String _queueScopeTypeKey = 'scopeType';
   static const String _queueScopeIdKey = 'scopeId';
+  static const String _queueRequestIdKey = 'requestId';
   static const String _queuePausedState = 'paused';
   static const String _queueInterruptedState = 'interrupted';
   static const String _interruptedByRestartReason = 'interrupted_by_restart';
@@ -207,6 +224,91 @@ class TaskRoomService {
     );
   }
 
+  /// Atomically enqueues a host-scoped task or returns the persisted task for
+  /// the same scope/request key.
+  ///
+  /// Reusing a key with different title/goal is a fixed conflict. The query and
+  /// insert share one Drift transaction so concurrent callers cannot create
+  /// duplicate rows, and the key survives a service/process restart.
+  Future<TaskQueueEnqueueResult> enqueueTaskRoomIdempotent({
+    required String requestId,
+    required String title,
+    required String goal,
+    required TaskType taskType,
+    required TaskQueueHostScope queueHostScope,
+    String? executor,
+    Map<String, dynamic>? permissions,
+    Map<String, dynamic>? context,
+    String? conversationId,
+    String? parentTaskId,
+    String? boardId,
+    int maxRetries = _defaultMaxRetries,
+  }) async {
+    final normalizedRequestId = requestId.trim();
+    if (normalizedRequestId.isEmpty) {
+      throw ArgumentError.value(requestId, 'requestId', 'must not be blank');
+    }
+    if (maxRetries < 0) {
+      throw ArgumentError.value(maxRetries, 'maxRetries', 'must not be negative');
+    }
+
+    return _db.transaction(() async {
+      final existing = await _findTaskQueueByRequestIdInTransaction(
+        scope: queueHostScope,
+        requestId: normalizedRequestId,
+      );
+      if (existing != null) {
+        final room = await _getTaskRoomInTransaction(existing.id);
+        if (room == null) {
+          throw StateError('Idempotent task disappeared inside transaction.');
+        }
+        if (room.title != title || room.goal != goal) {
+          throw const TaskQueueIdempotencyConflict();
+        }
+        return TaskQueueEnqueueResult(snapshot: existing, changed: false);
+      }
+
+      final id = _uuid.v4();
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final normalizedContext = _withQueueContext(
+        context,
+        maxRetries: maxRetries,
+        hostScope: queueHostScope,
+        requestId: normalizedRequestId,
+      );
+      await _db.into(_db.taskRooms).insert(
+            TaskRoomsCompanion.insert(
+              id: id,
+              title: title,
+              goal: goal,
+              taskType: taskType.value,
+              status: TaskStatus.pending.value,
+              executor: Value(executor),
+              permissionsJson: Value(
+                permissions != null ? jsonEncode(permissions) : '{}',
+              ),
+              contextJson: Value(jsonEncode(normalizedContext)),
+              progressPercent: const Value(0),
+              currentStep: const Value(null),
+              conversationId: Value(conversationId),
+              parentTaskId: Value(parentTaskId),
+              boardId: Value(boardId),
+              createdAt: now,
+              updatedAt: now,
+              completedAt: const Value(null),
+            ),
+          );
+      final room = await _getTaskRoomInTransaction(id);
+      if (room == null) {
+        throw StateError('Idempotent task insert was not readable.');
+      }
+      return TaskQueueEnqueueResult(
+        snapshot: _queueSnapshot(room),
+        changed: true,
+      );
+    });
+  }
+
   /// 获取单个任务房间
   Future<TaskRoom?> getTaskRoom(String id) async {
     final query = _db.select(_db.taskRooms)
@@ -252,6 +354,15 @@ class TaskRoomService {
     }
     return null;
   }
+
+  Future<TaskQueueSnapshot?> findTaskQueueByRequestId({
+    required TaskQueueHostScope scope,
+    required String requestId,
+  }) =>
+      _findTaskQueueByRequestIdInTransaction(
+        scope: scope,
+        requestId: requestId.trim(),
+      );
 
   /// 继续执行（resume）暂停任务。
   Future<void> resumeTaskRoom(String id) async {
@@ -586,6 +697,7 @@ class TaskRoomService {
     Map<String, dynamic>? context, {
     required int maxRetries,
     TaskQueueHostScope? hostScope,
+    String? requestId,
   }) {
     final normalizedContext = Map<String, dynamic>.from(context ?? {});
     if (maxRetries < 0) {
@@ -599,6 +711,7 @@ class TaskRoomService {
         _queueScopeTypeKey: hostScope.scopeType,
         _queueScopeIdKey: hostScope.scopeId,
       },
+      if (requestId != null) _queueRequestIdKey: requestId,
     };
     return normalizedContext;
   }
@@ -618,6 +731,7 @@ class TaskRoomService {
       currentStep: room.currentStep,
       maxRetries: queue[_queueMaxRetriesKey] as int,
       retryCount: queue[_queueRetryCountKey] as int,
+      requestId: stringValue(_queueRequestIdKey),
       ownerProfileId: stringValue(_queueOwnerProfileKey),
       scopeType: stringValue(_queueScopeTypeKey),
       scopeId: stringValue(_queueScopeIdKey),
@@ -720,6 +834,24 @@ class TaskRoomService {
           ..where((t) => t.id.equals(id))
           ..limit(1))
         .getSingleOrNull();
+  }
+
+  Future<TaskQueueSnapshot?> _findTaskQueueByRequestIdInTransaction({
+    required TaskQueueHostScope scope,
+    required String requestId,
+  }) async {
+    final query = _db.select(_db.taskRooms);
+    if (scope.scopeType == 'conversation') {
+      query.where((t) => t.conversationId.equals(scope.scopeId));
+    }
+    final rooms = await query.get();
+    for (final room in rooms) {
+      final snapshot = _queueSnapshot(room);
+      if (snapshot.belongsTo(scope) && snapshot.requestId == requestId) {
+        return snapshot;
+      }
+    }
+    return null;
   }
 
   Future<void> _writeTaskStatusAndContext({
