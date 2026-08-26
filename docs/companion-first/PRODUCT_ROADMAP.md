@@ -6,13 +6,13 @@
 >
 > 执行基线：`v3-lab`
 >
-> 审计状态：Goal 1 本轮候选真人验收未通过并因私人电脑暂不可用而阻塞；`authority-preflight` 临时 Goal 已于 2026-08-26 真人通过并关闭，当前无活动 Goal
+> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 已于 2026-08-26 恢复为唯一活动 Goal，但本轮只返修 UI-T / P4 / P6，P5 与最终真人 Gate 继续阻塞
 
 本文回答四个问题：Here I Am 最终是什么、数据以哪里为准、当前真实基线在哪里、下一阶段按什么 Gate 推进。它不是无限任务清单，也不替代阶段 Goal。每次只从本路线提出一个可验收 Goal；Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
 领域路线可以细化 Memory V3、白板、阅读、跨设备、教师招聘和数据恢复，但不得覆盖本文已经确认的目标边界与优先级。本文规定目标状态，不会仅凭文字立即改变当前运行 schema：任何数据权威迁移在 ADR、兼容、试迁移、回滚和真人 Gate 通过前，仍以当前运行代码及现行共享契约为唯一运行依据。
 
-2026-08-26 用户明确确认：Goal 1 不取消、不取代，转为阻塞；其间完成并真人关闭 `GOAL-20260826-authority-preflight`，以合成数据形成权威盘点与迁移证据预备。该例外没有使 Gate 0 关闭，不解锁正式 Gate 1A-0、1A-1 或任何生产迁移，也不授权 push 或发布。
+2026-08-26 用户明确确认：Goal 1 不取消、不取代；`GOAL-20260826-authority-preflight` 已关闭后，Goal 1 恢复为唯一活动 Goal。本轮只返修 UI-T、P4、P6 并完成隔离交付、审计、逐包本地集成、组合自动验证与单一 Windows Debug 集成构建；P5、最终真人 Gate、W4 红灯、push、发布以及正式 Gate 1A-0 继续阻塞。
 
 ---
 
@@ -141,7 +141,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| 阻塞的 AI 工作台 Goal | UI-T、P4、P5、P6 已集成并形成唯一候选，对应自动回归曾通过；本轮候选人工验收已结束 | 候选未通过：UI-T 第三轮粘贴、Typeless / `Win + H` 与右键菜单主题失败；P4 重开后 Undo 不恢复；P5 未接真实人格与长期关系 Memory V3；P6 无生产 UI / Runtime 入口。短期无法回私人电脑，Goal 1 已冻结 |
+| 已恢复的 AI 工作台 Goal | 历史候选未通过；当前仅返修 UI-T、P4、P6 | UI-T 修连续粘贴、Windows 文本接入和聊天菜单主题；P4 修重开后的持久 Undo hydration；P6 补受控生产 Runtime 入口。P5、最终真人 Gate、W4 红灯继续阻塞，本轮构建不等于完成 |
 | 已关闭的临时预备 Goal | `GOAL-20260826-authority-preflight` 已通过用户真人审阅并关闭，只使用代码实况与合成数据 | 已交付对象盘点、迁移矩阵、golden corpus 与隔离 harness 骨架；没有切换生产权威，也不证明 Gate 1A-0 通过 |
 | Desktop Whiteboard | Card/Source/Board/Anchor 骨架、卡片库、画布、链接入库、视频研读、通用命令基础 | Markdown 权威迁移、完整删除/恢复、文件导入与外部编辑冲突、生产搜索和灾难恢复尚未形成统一 Gate |
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
@@ -161,7 +161,7 @@ Android 严重崩溃、Memory 真实误召回、数据损坏、安全漏洞和 P
 
 ### Gate 0 — 关闭当前活动 Goal
 
-[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的返修候选已经构建并推送，本轮人工验收也已结束，但结论是候选未通过，不是 Goal 完成。由于用户短期无法回到私人电脑完成 P5 / P6，本 Goal 现为阻塞并冻结；Gate 0 继续保持红色。
+[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的历史返修候选已经构建并推送，但人工验收结论是候选未通过。2026-08-26 用户确认恢复本 Goal，仅返修 UI-T / P4 / P6；P5 与最终真人 Gate 不解锁，因此 Gate 0 继续保持红色，本轮自动 Gate 或 Windows 集成构建不能关闭它。
 
 返修硬阻断为：
 
@@ -412,13 +412,13 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 ## 8. 当前活动 Goal 与下一候选
 
-### 阻塞 Goal
+### 阻塞 Gate
 
-[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的本轮候选真人验收已经结束且未通过；当前因私人电脑暂不可用而阻塞、冻结。它没有完成、取消或被取代，恢复后仍须返修 UI-T / P4 / P5 / P6，重新审计、构建唯一候选并真人验收。
+P5 的真实人格 / 长期关系 Memory V3 接线与 Goal 1 最终真人 Gate 继续阻塞。W4 匿名字幕 `0/18`、第二个 WebView2 重建和时间轴缺陷仍是非阻断红灯，不进入本轮返修。
 
 ### 当前活动 Goal
 
-无。[`GOAL-20260826-authority-preflight`](../development/goals/GOAL-20260826-authority-preflight.md) 已于 2026-08-26 真人通过并关闭；其材料可供后续正式 Gate 复用，但不改变运行权威，也不解锁后续 Gate。Goal 1 仍为阻塞、冻结状态。
+[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 已恢复为唯一活动 Goal。本轮只派发 UI-T / P4 / P6，完成自动验证与单一 Windows Debug 集成构建后重新进入阻塞态，等待 P5 与最终真人 Gate。
 
 ### 下一正式 Goal 候选（尚未创建）
 
