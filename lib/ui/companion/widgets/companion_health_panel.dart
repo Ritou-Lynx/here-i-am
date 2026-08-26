@@ -768,14 +768,24 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
       final result = await CorosSyncService.syncDetailed(userId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message)),
+        SnackBar(
+          content: Text(
+            result.detail != null && result.detail!.isNotEmpty
+                ? '${result.message}\n${result.detail}'
+                : result.message,
+          ),
+          duration: const Duration(seconds: 5),
+        ),
       );
-      await _loadData();
+      if (result.synced) await _loadData();
     } catch (e) {
       _logger.warning('Failed to sync COROS MCP data: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('COROS MCP 同步失败：$e')),
+          SnackBar(
+            content: Text('COROS 同步异常：$e'),
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } finally {

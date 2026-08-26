@@ -1,5 +1,7 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:memex/agent/mcp/mcp_oauth.dart';
+import 'package:memex/data/services/coros_mcp_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -22,6 +24,7 @@ class CorosConnectPage extends StatefulWidget {
 class _CorosConnectPageState extends State<CorosConnectPage> {
   static const _serverUrl = 'https://mcpcn.coros.com/mcp';
   static const _redirectUri = 'http://localhost:8080/callback';
+  static final _logger = Logger('CorosConnectPage');
 
   bool _loading = true;
   bool _connected = false;
@@ -34,27 +37,31 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
   @override
   void initState() {
     super.initState();
-    _connected = widget.initiallyConnected;
-    if (_connected) {
-      _loading = false;
-      _verifyConnectionState();
-    } else {
-      _startAuth();
-    }
+    _loading = true;
+    _checkExistingToken();
   }
 
-  Future<void> _verifyConnectionState() async {
+  Future<void> _checkExistingToken() async {
     final userId = await UserStorage.getUserId();
-    final connected = userId != null
-        ? await McpTokenStorage(userId: userId).hasToken()
-        : false;
-    if (!mounted || connected == _connected) return;
+    final token = userId != null
+        ? await McpTokenStorage(userId: userId).load()
+        : null;
+    final hasValidToken = token != null && !token.isExpired;
+
+    if (!mounted) return;
 
     setState(() {
-      _connected = connected;
-      _loading = !connected;
+      _connected = hasValidToken;
+      _loading = false;
     });
-    if (!connected) {
+
+    if (hasValidToken) {
+      _logger.info('[COROS OAUTH] Existing valid token found, skipping auth');
+    } else if (token != null && token.isExpired) {
+      _logger.info('[COROS OAUTH] Token expired, starting auth');
+      _startAuth();
+    } else {
+      _logger.info('[COROS OAUTH] No token found, starting auth');
       _startAuth();
     }
   }
@@ -107,6 +114,7 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
         ..setNavigationDelegate(
           NavigationDelegate(
             onNavigationRequest: (request) {
+              _logger.fine('[COROS OAUTH] Navigation: ${request.url}');
               if (request.url.startsWith(_redirectUri)) {
                 _handleRedirect(
                     request.url, metadata, pkce.codeVerifier, clientId);
@@ -114,7 +122,12 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
               }
               return NavigationDecision.navigate;
             },
-            onPageFinished: (_) {
+            onWebResourceError: (error) {
+              _logger.warning(
+                  '[COROS OAUTH] WebView error: ${error.errorCode} ${error.description} url=${error.url}');
+            },
+            onPageFinished: (url) {
+              _logger.fine('[COROS OAUTH] Page finished: $url');
               if (_loading) setState(() => _loading = false);
             },
           ),
@@ -137,6 +150,7 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
     String codeVerifier,
     String clientId,
   ) async {
+    _logger.info('[COROS OAUTH] Redirect intercepted: $url');
     try {
       setState(() {
         _loading = true;
@@ -144,8 +158,10 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
       });
 
       final uri = Uri.parse(url);
+      _logger.info('[COROS OAUTH] Parsed query params: ${uri.queryParameters.keys.toList()}');
       final error = uri.queryParameters['error'];
       if (error != null) {
+        _logger.warning('[COROS OAUTH] OAuth error in redirect: $error');
         setState(() {
           _loading = false;
           _error = 'Authorization denied: $error';
@@ -155,6 +171,7 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
 
       final code = uri.queryParameters['code'];
       if (code == null) {
+        _logger.warning('[COROS OAUTH] No code in redirect URL: $uri');
         setState(() {
           _loading = false;
           _error = 'No authorization code received';
@@ -162,6 +179,7 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
         return;
       }
 
+      _logger.info('[COROS OAUTH] Got code, exchanging for token...');
       // 6. Exchange code for token
       setState(() => _statusText = 'Getting access token...');
       final token = await _oauth.exchangeCode(
@@ -171,6 +189,7 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
         clientId: clientId,
         redirectUri: _redirectUri,
       );
+      _logger.info('[COROS OAUTH] Token exchange OK, access token len=${token.accessToken.length}');
 
       // 7. Save token (with refresh metadata)
       final userId = await UserStorage.getUserId();
@@ -180,13 +199,51 @@ class _CorosConnectPageState extends State<CorosConnectPage> {
           clientId: clientId,
           tokenEndpoint: metadata.tokenEndpoint,
         );
+        _logger.info('[COROS OAUTH] Token saved for user=$userId');
+      } else {
+        _logger.warning('[COROS OAUTH] No userId, token not persisted');
+      }
+
+      // 8. Verify the token actually works by calling the MCP server.
+      setState(() => _statusText = 'Verifying connection...');
+      try {
+        final verifyClient = CorosMcpService.instance;
+        await verifyClient.disconnect();
+        await verifyClient.ensureConnected(userId: userId);
+        if (!verifyClient.isConnected) {
+          final detail = verifyClient.lastError ?? 'unknown error';
+          _logger.warning('[COROS OAUTH] Verification failed: $detail');
+          setState(() {
+            _loading = false;
+            _error = '连接验证失败：$detail\n\n'
+                '（token 已保存但无法建立 MCP 会话，可能已被 COROS 服务器撤销）';
+          });
+          return;
+        }
+        _logger.info('[COROS OAUTH] MCP verification OK');
+      } catch (e) {
+        _logger.warning('[COROS OAUTH] Verification exception: $e');
+        setState(() {
+          _loading = false;
+          _error = '连接验证异常：$e';
+        });
+        return;
       }
 
       if (mounted) {
-        setState(() => _connected = true);
-        Navigator.pop(context, true);
+        setState(() {
+          _connected = true;
+          _loading = false;
+        });
+        // Pop after a brief delay so the user can see the "已连接" state.
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+            Navigator.pop(context, true);
+          }
+        });
       }
-    } catch (e) {
+    } catch (e, stack) {
+      _logger.warning('[COROS OAUTH] Fatal error in _handleRedirect: $e\n$stack');
       setState(() {
         _loading = false;
         _error = 'Token exchange failed: $e';

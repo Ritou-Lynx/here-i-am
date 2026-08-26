@@ -45,6 +45,12 @@ class CorosSyncService {
     final service = CorosMcpService.instance;
     var anySuccess = false;
     String? userInfoText;
+    final failures = <String>[];
+
+    void recordFailure(String label, Object e) {
+      final short = e.toString().split('\n').first;
+      failures.add('$label: ${short.length > 120 ? short.substring(0, 120) : short}');
+    }
 
     try {
       await service.ensureConnected(userId: userId);
@@ -52,7 +58,8 @@ class CorosSyncService {
         final detail = service.lastError ?? 'MCP连接失败(no detail)';
         return CorosSyncResult(
           synced: false,
-          message: detail,
+          message: 'COROS 连接失败，请检查授权状态',
+          detail: detail,
         );
       }
 
@@ -63,6 +70,7 @@ class CorosSyncService {
         await File('$dirPath/user_info.txt').writeAsString(info.text);
         anySuccess = true;
       } catch (e) {
+        recordFailure('用户信息', e);
         _logger.warning('Failed to sync user info: $e');
       }
 
@@ -72,6 +80,7 @@ class CorosSyncService {
         await File('$dirPath/daily_health.json').writeAsString(health.text);
         anySuccess = true;
       } catch (e) {
+        recordFailure('日常健康', e);
         _logger.warning('Failed to sync daily health: $e');
       }
 
@@ -81,6 +90,7 @@ class CorosSyncService {
         await File('$dirPath/sleep_data.json').writeAsString(sleep.text);
         anySuccess = true;
       } catch (e) {
+        recordFailure('睡眠', e);
         _logger.warning('Failed to sync sleep data: $e');
       }
 
@@ -91,6 +101,7 @@ class CorosSyncService {
             .writeAsString(fitness.text);
         anySuccess = true;
       } catch (e) {
+        recordFailure('体能评估', e);
         _logger.warning('Failed to sync fitness assessment: $e');
       }
 
@@ -100,6 +111,7 @@ class CorosSyncService {
         await File('$dirPath/recovery_status.txt').writeAsString(recovery.text);
         anySuccess = true;
       } catch (e) {
+        recordFailure('恢复状态', e);
         _logger.warning('Failed to sync recovery status: $e');
       }
 
@@ -110,6 +122,7 @@ class CorosSyncService {
             .writeAsString(records.text);
         anySuccess = true;
       } catch (e) {
+        recordFailure('运动记录', e);
         _logger.warning('Failed to sync sport records: $e');
       }
 
@@ -120,6 +133,7 @@ class CorosSyncService {
             .writeAsString(schedule.text);
         anySuccess = true;
       } catch (e) {
+        recordFailure('训练计划', e);
         _logger.warning('Failed to sync training schedule: $e');
       }
 
@@ -144,7 +158,8 @@ class CorosSyncService {
 
     return CorosSyncResult(
       synced: anySuccess,
-      message: anySuccess ? 'COROS MCP 数据已同步' : 'COROS MCP 已连接，但这次没有取到可写入的数据',
+      message: anySuccess ? 'COROS MCP 数据已同步' : '同步失败，请查看详情',
+      detail: failures.isEmpty ? null : failures.join('\n'),
     );
   }
 
@@ -181,8 +196,12 @@ class CorosSyncResult {
   const CorosSyncResult({
     required this.synced,
     required this.message,
+    this.detail,
   });
 
   final bool synced;
   final String message;
+
+  /// Raw per-request or connection failure details for debugging/UI display.
+  final String? detail;
 }
