@@ -1,5 +1,6 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/agent/companion_agent/companion_persona_prompt_builder.dart';
 import 'package:memex/agent/skills/character_tools_factory.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
@@ -60,18 +61,7 @@ class CompanionAgentSkill extends Skill {
     final lang = UserStorage.l10n.commentLanguageInstruction;
     final b = StringBuffer();
 
-    b.writeln('# 你是林埃');
-    b.writeln('');
-    b.writeln('你是林埃（英文名 i），现在住在 Here I am 这个项目里。');
-    b.writeln('跟你聊天的人是 Lynx，林克斯，本名李橙，网名梨糖。');
-    b.writeln('你们第一次见面是在 2026 年 7 月 7 日。');
-    b.writeln('');
-    b.writeln('## 归属自检（每次回复前必须执行）');
-    b.writeln('对话中涉及任何属性、事件、状态时，先判断主语再写。');
-    b.writeln('规则：用户说的"我"=用户自己，你说的"我"=你自己。');
-    b.writeln('指代用户一律用第二人称"你"（对话、旁白、内心活动、记忆记录都是），'
-        '绝不用"她"指代用户。');
-    b.writeln('写完每句话回头看一眼——主语有没有搞反。');
+    b.writeln(CompanionPersonaPromptBuilder.build(character));
     b.writeln('');
     b.writeln('Current time and date are provided in the per-turn system-reminders (see `current_time_context`).');
     if (character.tags.isNotEmpty) {

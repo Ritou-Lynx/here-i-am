@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
+import 'package:memex/data/workbench_ai/context/workbench_relationship_context.dart';
 import 'package:memex/data/workbench_ai/search/workbench_runtime_search_tool.dart';
 import 'package:memex/data/workbench_ai/search/workbench_search_tool_host.dart';
 import 'package:memex/data/workbench_ai/task_queue/workbench_runtime_task_queue_tool.dart';
@@ -43,24 +44,32 @@ class WorkbenchConversationCoordinator {
     required WorkbenchConversationRuntimeGateway runtime,
     required WorkbenchReplyWriter addReply,
     WorkbenchRuntimeBindingStore? bindingStore,
+    WorkbenchRelationshipContextProvider? relationshipContextProvider,
     WorkbenchRuntimeSearchTool? searchTool,
     WorkbenchRuntimeTaskQueueTool? taskQueueTool,
     DateTime Function()? clock,
     Duration pollInterval = const Duration(milliseconds: 120),
     Duration turnTimeout = const Duration(minutes: 3),
     Duration controlTimeout = const Duration(seconds: 2),
+    Duration relationshipContextTimeout = const Duration(seconds: 10),
   })  : _runtime = runtime,
         _addReply = addReply,
         _bindingStore = bindingStore ?? InMemoryWorkbenchRuntimeBindingStore(),
+        _relationshipContextProvider = relationshipContextProvider,
         _searchTool = searchTool,
         _taskQueueTool = taskQueueTool,
         _clock = clock ?? (() => DateTime.now().toUtc()),
         _pollInterval = pollInterval,
         _turnTimeout = turnTimeout,
-        _controlTimeout = controlTimeout;
+        _controlTimeout = controlTimeout,
+        _relationshipContextTimeout = relationshipContextTimeout;
 
   static final instance = WorkbenchConversationCoordinator(
     runtime: WorkbenchRuntimeClient(),
+    relationshipContextProvider:
+        WorkbenchRelationshipContextAssembler.production(
+      database: AppDatabase.instance,
+    ),
     searchTool: WorkbenchRuntimeSearchTool.production(
       database: AppDatabase.instance,
       loadCardRepository: WhiteboardDataBootstrap.productionRepository,
@@ -81,12 +90,14 @@ class WorkbenchConversationCoordinator {
   final WorkbenchConversationRuntimeGateway _runtime;
   final WorkbenchReplyWriter _addReply;
   final WorkbenchRuntimeBindingStore _bindingStore;
+  final WorkbenchRelationshipContextProvider? _relationshipContextProvider;
   final WorkbenchRuntimeSearchTool? _searchTool;
   final WorkbenchRuntimeTaskQueueTool? _taskQueueTool;
   final DateTime Function() _clock;
   final Duration _pollInterval;
   final Duration _turnTimeout;
   final Duration _controlTimeout;
+  final Duration _relationshipContextTimeout;
   final Map<String, _ConversationRuntime> _bindings = {};
   final Map<String, _ActiveConversationTurn> _activeTurns = {};
   int _bindingSerial = 0;
@@ -136,6 +147,11 @@ class WorkbenchConversationCoordinator {
       );
       late WorkbenchConversationResult result;
       try {
+        final relationshipContext = await _relationshipContextForTurn(
+          conversationId: conversationId,
+          characterId: characterId,
+          userText: text,
+        );
         runtime = await _ensureRuntime(conversationId);
         WorkbenchRuntimeTurn turn;
         try {
@@ -143,6 +159,7 @@ class WorkbenchConversationCoordinator {
             runtime.localSessionId,
             _turnInput(
               text,
+              relationshipContext: relationshipContext,
               searchEnabled: _searchTool != null,
               taskQueueAuthorization: taskQueueAuthorization,
             ),
@@ -154,6 +171,7 @@ class WorkbenchConversationCoordinator {
             runtime.localSessionId,
             _turnInput(
               text,
+              relationshipContext: relationshipContext,
               searchEnabled: _searchTool != null,
               taskQueueAuthorization: taskQueueAuthorization,
             ),
@@ -698,6 +716,7 @@ class WorkbenchConversationCoordinator {
 
   static String _turnInput(
     String userText, {
+    required WorkbenchRelationshipContext relationshipContext,
     required bool searchEnabled,
     required WorkbenchTaskQueueAuthorization? taskQueueAuthorization,
   }) {
@@ -718,8 +737,37 @@ class WorkbenchConversationCoordinator {
             : '\n当前用户原话只授权长任务队列动作：$queueActions。需要时可调用 '
                 '${WorkbenchTaskQueueToolHost.toolName}；task scope 和权限由产品宿主持有，'
                 '不要在参数中提供或猜测 authorization/scope。';
-    return '你是 Here I am 桌面工作台中的林埃。请直接自然回复，不要声称完成了未实际执行的操作。'
+    return '你在 Here I am 桌面工作台中回复。请遵循产品宿主提供的角色身份，'
+        '直接自然回复，不要声称完成了未实际执行的操作。\n\n'
+        '${relationshipContext.toPromptBlock()}'
         '$searchGuidance$queueGuidance\n\n$userText';
+  }
+
+  Future<WorkbenchRelationshipContext> _relationshipContextForTurn({
+    required String conversationId,
+    required String characterId,
+    required String userText,
+  }) async {
+    final provider = _relationshipContextProvider;
+    if (provider == null) {
+      return WorkbenchRelationshipContext.unavailable(
+        characterId: characterId,
+        reason: 'relationship_context_not_configured',
+      );
+    }
+    try {
+      return await provider
+          .assemble(
+            conversationId: conversationId,
+            characterId: characterId,
+            userText: userText,
+          )
+          .timeout(_relationshipContextTimeout);
+    } catch (_) {
+      return WorkbenchRelationshipContext.unavailable(
+        characterId: characterId,
+      );
+    }
   }
 }
 

@@ -1,12 +1,123 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/workbench_ai/context/workbench_relationship_context.dart';
 import 'package:memex/data/workbench_ai/workbench_conversation_coordinator.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_binding_store.dart';
 import 'package:memex/domain/workbench_ai/runtime/runtime_session_binding.dart';
 
 void main() {
+  test('injects host-owned relationship context into the production turn path',
+      () async {
+    final runtime = _FakeConversationRuntime()..enqueueCompletedReply('我记得');
+    final replies = <String>[];
+    final coordinator = _coordinator(
+      runtime,
+      replies,
+      relationshipContextProvider: const _StaticRelationshipContextProvider(
+        WorkbenchRelationshipContext(
+          scopeStatus: WorkbenchContextLoadStatus.available,
+          personaStatus: WorkbenchContextLoadStatus.available,
+          recentStatus: WorkbenchContextLoadStatus.empty,
+          dreamingStatus: WorkbenchContextLoadStatus.available,
+          characterId: 'i',
+          personaPrompt: '# 你是林埃',
+          dreaming: WorkbenchDreamingRecall(
+            episodes: [
+              WorkbenchDreamingEpisode(
+                id: 'episode-real',
+                narrative: '我们一起记得的事',
+                score: 42,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona:i',
+      characterId: 'i',
+      userText: '你还记得吗',
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(runtime.startedTurnInputs.single, contains('# 你是林埃'));
+    expect(runtime.startedTurnInputs.single, contains('episode/episode-real'));
+    expect(runtime.startedTurnInputs.single, contains('not User-truth'));
+  });
+
+  test('relationship backend failure does not block an ordinary reply',
+      () async {
+    final runtime = _FakeConversationRuntime()..enqueueCompletedReply('我在');
+    final coordinator = _coordinator(
+      runtime,
+      <String>[],
+      relationshipContextProvider: _ThrowingRelationshipContextProvider(),
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona:i',
+      characterId: 'i',
+      userText: '在吗',
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(runtime.startedTurnInputs.single,
+        contains('dreaming_status: unavailable'));
+    expect(runtime.startedTurnInputs.single,
+        contains('context_backend_unavailable'));
+  });
+
+  test('hanging relationship backend is bounded and ordinary reply continues',
+      () async {
+    final runtime = _FakeConversationRuntime()..enqueueCompletedReply('没有卡住');
+    final coordinator = _coordinator(
+      runtime,
+      <String>[],
+      relationshipContextProvider: _HangingRelationshipContextProvider(),
+      relationshipContextTimeout: const Duration(milliseconds: 5),
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona:i',
+      characterId: 'i',
+      userText: '后端不要阻断聊天',
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(runtime.startedTurnInputs.single,
+        contains('dreaming_status: unavailable'));
+  });
+
+  test('rejects unsupported write tool and payload self-authorization',
+      () async {
+    final runtime = _FakeConversationRuntime()
+      ..enqueueToolCall(
+        toolName: 'record_explicit_memory',
+        arguments: const {
+          'authorization': 'model_granted',
+          'content': 'silently write this',
+        },
+        reply: '没有写入',
+      );
+    final result = await _coordinator(runtime, <String>[]).send(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '不要记录，只是聊天',
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(runtime.toolResponses, hasLength(1));
+    expect(runtime.toolResponses.single.success, isFalse);
+    expect(
+      jsonDecode(runtime.toolResponses.single.text)['error_code'],
+      'unsupported_product_tool',
+    );
+  });
+
   test(
     'reuses one product conversation binding across ordinary turns',
     () async {
@@ -270,8 +381,7 @@ void main() {
     },
   );
 
-  test('hanging stop control is bounded and reported as unconfirmed',
-      () async {
+  test('hanging stop control is bounded and reported as unconfirmed', () async {
     final runtime = _FakeConversationRuntime(interruptHangs: true)
       ..enqueueSilentTurn();
     final replies = <String>[];
@@ -565,10 +675,14 @@ WorkbenchConversationCoordinator _coordinator(
   Duration controlTimeout = const Duration(milliseconds: 25),
   bool failPersistence = false,
   WorkbenchRuntimeBindingStore? bindingStore,
+  WorkbenchRelationshipContextProvider? relationshipContextProvider,
+  Duration relationshipContextTimeout = const Duration(seconds: 2),
 }) {
   return WorkbenchConversationCoordinator(
     runtime: runtime,
     bindingStore: bindingStore,
+    relationshipContextProvider: relationshipContextProvider,
+    relationshipContextTimeout: relationshipContextTimeout,
     addReply: (characterId, content) async {
       expect(characterId, 'i');
       if (failPersistence) throw StateError('persistence unavailable');
@@ -600,7 +714,9 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
   final List<_TurnScript> _scripts = [];
   final Completer<void> turnStarted = Completer<void>();
   final List<String> startedTurnSessionIds = [];
+  final List<String> startedTurnInputs = [];
   final List<String> resumedProviderIds = [];
+  final List<_ToolResponse> toolResponses = [];
   int startSessionCalls = 0;
   int resumeSessionCalls = 0;
   int interruptCalls = 0;
@@ -613,6 +729,14 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
 
   void enqueueCompletedReply(String reply) {
     _scripts.add(_TurnScript.completed(reply));
+  }
+
+  void enqueueToolCall({
+    required String toolName,
+    required Map<String, dynamic> arguments,
+    required String reply,
+  }) {
+    _scripts.add(_TurnScript.toolCall(toolName, arguments, reply));
   }
 
   void blockUntilInterrupted() {
@@ -640,7 +764,7 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
     if (startSessionGate != null) await startSessionGate!.future;
     if (startFailure != null) throw startFailure!;
     expect(dynamicTools, isEmpty);
-    expect(contextManifest['conversation_id'], 'persona-i');
+    expect(contextManifest['conversation_id'], startsWith('persona'));
     _sessionSerial++;
     return WorkbenchRuntimeSession(
       sessionId: 'local-$_sessionSerial',
@@ -680,7 +804,8 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
       throw resumedStartFailure!;
     }
     startedTurnSessionIds.add(sessionId);
-    expect(input, contains('Here I am 桌面工作台中的林埃'));
+    startedTurnInputs.add(input);
+    expect(input, contains('Here I am 桌面工作台'));
     final turnId = 'turn-${++_turnSerial}';
     _running = _RunningTurn(
       sessionId: sessionId,
@@ -726,34 +851,54 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
       );
     }
     running.delivered = true;
-    return _events(running.turnId, running.script.reply!, 'completed');
+    return _events(
+      running.turnId,
+      running.script.reply!,
+      'completed',
+      toolName: running.script.toolName,
+      toolArguments: running.script.toolArguments,
+    );
   }
 
   WorkbenchRuntimeEvents _events(
     String turnId,
     String reply,
-    String terminalStatus,
-  ) {
+    String terminalStatus, {
+    String? toolName,
+    Map<String, dynamic>? toolArguments,
+  }) {
     return WorkbenchRuntimeEvents(
       status: 'idle',
       events: [
-        if (reply.isNotEmpty)
+        if (toolName != null)
           {
             'sequence': 1,
+            'turn_id': turnId,
+            'kind': 'tool_call',
+            'status': 'running',
+            'data': {
+              'tool_call_id': 'tool-call-1',
+              'tool_name': toolName,
+              'arguments': toolArguments,
+            },
+          },
+        if (reply.isNotEmpty)
+          {
+            'sequence': toolName == null ? 1 : 2,
             'turn_id': turnId,
             'kind': 'message_delta',
             'status': 'running',
             'data': {'text': reply},
           },
         {
-          'sequence': 2,
+          'sequence': toolName == null ? 2 : 3,
           'turn_id': turnId,
           'kind': 'turn_status',
           'status': terminalStatus,
           'data': <String, dynamic>{},
         },
       ],
-      nextSequence: 2,
+      nextSequence: toolName == null ? 2 : 3,
     );
   }
 
@@ -782,7 +927,11 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
     required bool success,
     required String text,
   }) async {
-    fail('ordinary conversation must not expose product write tools');
+    toolResponses.add(_ToolResponse(
+      toolCallId: toolCallId,
+      success: success,
+      text: text,
+    ));
   }
 
   @override
@@ -797,6 +946,15 @@ class _TurnScript {
         blockingRead = false,
         silent = false,
         readFailure = false,
+        toolName = null,
+        toolArguments = null,
+        release = Completer<void>();
+
+  _TurnScript.toolCall(this.toolName, this.toolArguments, this.reply)
+      : blocking = false,
+        blockingRead = false,
+        silent = false,
+        readFailure = false,
         release = Completer<void>();
 
   _TurnScript.blocking()
@@ -805,6 +963,8 @@ class _TurnScript {
         blockingRead = false,
         silent = false,
         readFailure = false,
+        toolName = null,
+        toolArguments = null,
         release = Completer<void>();
 
   _TurnScript.silent()
@@ -813,6 +973,8 @@ class _TurnScript {
         blockingRead = false,
         silent = true,
         readFailure = false,
+        toolName = null,
+        toolArguments = null,
         release = Completer<void>();
 
   _TurnScript.readFailure()
@@ -821,6 +983,8 @@ class _TurnScript {
         blockingRead = false,
         silent = false,
         readFailure = true,
+        toolName = null,
+        toolArguments = null,
         release = Completer<void>();
 
   _TurnScript.blockingRead()
@@ -829,6 +993,8 @@ class _TurnScript {
         blockingRead = true,
         silent = false,
         readFailure = false,
+        toolName = null,
+        toolArguments = null,
         release = Completer<void>();
 
   final String? reply;
@@ -836,7 +1002,58 @@ class _TurnScript {
   final bool blockingRead;
   final bool silent;
   final bool readFailure;
+  final String? toolName;
+  final Map<String, dynamic>? toolArguments;
   final Completer<void> release;
+}
+
+class _ToolResponse {
+  const _ToolResponse({
+    required this.toolCallId,
+    required this.success,
+    required this.text,
+  });
+
+  final String toolCallId;
+  final bool success;
+  final String text;
+}
+
+class _StaticRelationshipContextProvider
+    implements WorkbenchRelationshipContextProvider {
+  const _StaticRelationshipContextProvider(this.context);
+
+  final WorkbenchRelationshipContext context;
+
+  @override
+  Future<WorkbenchRelationshipContext> assemble({
+    required String conversationId,
+    required String characterId,
+    required String userText,
+  }) async =>
+      context;
+}
+
+class _ThrowingRelationshipContextProvider
+    implements WorkbenchRelationshipContextProvider {
+  @override
+  Future<WorkbenchRelationshipContext> assemble({
+    required String conversationId,
+    required String characterId,
+    required String userText,
+  }) =>
+      Future.error(StateError('backend unavailable'));
+}
+
+class _HangingRelationshipContextProvider
+    implements WorkbenchRelationshipContextProvider {
+  @override
+  Future<WorkbenchRelationshipContext> assemble({
+    required String conversationId,
+    required String characterId,
+    required String userText,
+  }) =>
+      Completer<WorkbenchRelationshipContext>().future;
 }
 
 class _RunningTurn {
