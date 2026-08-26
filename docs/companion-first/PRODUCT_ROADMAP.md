@@ -6,13 +6,13 @@
 >
 > 执行基线：`v3-lab`
 >
-> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 已于 2026-08-26 恢复为唯一活动 Goal，但本轮只返修 UI-T / P4 / P6，P5 与最终真人 Gate 继续阻塞
+> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T / P4 / P6 返修已完成自动审计、集成和 Windows Debug 构建，现重新阻塞于 P5 与最终真人 Gate
 
 本文回答四个问题：Here I Am 最终是什么、数据以哪里为准、当前真实基线在哪里、下一阶段按什么 Gate 推进。它不是无限任务清单，也不替代阶段 Goal。每次只从本路线提出一个可验收 Goal；Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
 领域路线可以细化 Memory V3、白板、阅读、跨设备、教师招聘和数据恢复，但不得覆盖本文已经确认的目标边界与优先级。本文规定目标状态，不会仅凭文字立即改变当前运行 schema：任何数据权威迁移在 ADR、兼容、试迁移、回滚和真人 Gate 通过前，仍以当前运行代码及现行共享契约为唯一运行依据。
 
-2026-08-26 用户明确确认：Goal 1 不取消、不取代；`GOAL-20260826-authority-preflight` 已关闭后，Goal 1 恢复为唯一活动 Goal。本轮只返修 UI-T、P4、P6 并完成隔离交付、审计、逐包本地集成、组合自动验证与单一 Windows Debug 集成构建；P5、最终真人 Gate、W4 红灯、push、发布以及正式 Gate 1A-0 继续阻塞。
+2026-08-26 用户明确确认：Goal 1 不取消、不取代；`GOAL-20260826-authority-preflight` 已关闭后，仅恢复 UI-T、P4、P6 返修。三包现已完成隔离交付、审计、逐包本地集成、`108/108` 组合自动验证与 `v3-lab@fad8b736` 的 Windows Debug 集成构建；这不是最终真人通过。Goal 1 已按约回到阻塞态，P5、最终真人 Gate、W4 红灯、push、发布以及正式 Gate 1A-0 均未解锁。
 
 ---
 
@@ -141,7 +141,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| 已恢复的 AI 工作台 Goal | 历史候选未通过；当前仅返修 UI-T、P4、P6 | UI-T 修连续粘贴、Windows 文本接入和聊天菜单主题；P4 修重开后的持久 Undo hydration；P6 补受控生产 Runtime 入口。P5、最终真人 Gate、W4 红灯继续阻塞，本轮构建不等于完成 |
+| 已恢复的 AI 工作台 Goal | UI-T 已补聊天 Overlay 主题与输入回归；P4 已补重开后的持久 Undo hydration；P6 已补 host-owned 生产 Runtime 队列入口、持久幂等和否定句拒绝；干净候选 `fad8b736` 组合 Gate `108/108`、Windows Debug 构建成功 | P5 真实人格 / 长期关系 Memory V3、UI-T/P4/P6 的最终真人复验、W4 红灯仍未通过；本轮构建不等于 Goal 完成，也未授权 push / 发布 |
 | 已关闭的临时预备 Goal | `GOAL-20260826-authority-preflight` 已通过用户真人审阅并关闭，只使用代码实况与合成数据 | 已交付对象盘点、迁移矩阵、golden corpus 与隔离 harness 骨架；没有切换生产权威，也不证明 Gate 1A-0 通过 |
 | Desktop Whiteboard | Card/Source/Board/Anchor 骨架、卡片库、画布、链接入库、视频研读、通用命令基础 | Markdown 权威迁移、完整删除/恢复、文件导入与外部编辑冲突、生产搜索和灾难恢复尚未形成统一 Gate |
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
@@ -161,14 +161,14 @@ Android 严重崩溃、Memory 真实误召回、数据损坏、安全漏洞和 P
 
 ### Gate 0 — 关闭当前活动 Goal
 
-[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的历史返修候选已经构建并推送，但人工验收结论是候选未通过。2026-08-26 用户确认恢复本 Goal，仅返修 UI-T / P4 / P6；P5 与最终真人 Gate 不解锁，因此 Gate 0 继续保持红色，本轮自动 Gate 或 Windows 集成构建不能关闭它。
+[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的历史候选人工验收未通过。2026-08-26 恢复的 UI-T / P4 / P6 返修已形成干净源码候选 `fad8b736`：组合自动 Gate `108/108`、关键守门 `3/3`，Windows Debug `memex.exe` 构建成功；最终真人 Gate 未启动，也没有 push。P5 仍未恢复，因此 Gate 0 与 Goal 1 继续保持红色。
 
-返修硬阻断为：
+历史失败与当前未完 Gate 为：
 
-- UI-T：第三轮粘贴再次失效；Typeless / `Win + H` 失败；聊天右键菜单主题泄漏；
-- P4：退出重开后无法恢复 Undo；
+- UI-T：代码与自动回归已返修聊天 Overlay 菜单主题及三轮编辑状态；真实系统剪贴板、Typeless / `Win + H` 尚未复验；
+- P4：持久 action reader 与桌面首屏 hydration 已覆盖真实 Drift 关闭 / 重开；真实窗口 Undo 尚未复验；
 - P5：当前只读工作电脑本地数据库，没有接入真实人格与长期关系 Memory V3；
-- P6：只有底层队列服务，没有生产 UI 或 Runtime 入口，真人无法验收。
+- P6：受控生产 Runtime 入口与全生命周期已经接入；真实 Bridge / App 重启与生命周期操作尚未真人复验。
 
 W4 匿名字幕 `0/18`、第二个 WebView2 播放器重建超时和时间轴拖动消失等缺陷继续作为非阻断红灯，不伪称通过，也不阻塞与视频无关的返修。
 
@@ -418,7 +418,7 @@ P5 的真实人格 / 长期关系 Memory V3 接线与 Goal 1 最终真人 Gate �
 
 ### 当前活动 Goal
 
-[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 已恢复为唯一活动 Goal。本轮只派发 UI-T / P4 / P6，完成自动验证与单一 Windows Debug 集成构建后重新进入阻塞态，等待 P5 与最终真人 Gate。
+当前没有可继续派发或集成的活动 Goal。[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的 UI-T / P4 / P6 返修波次已经完成自动验证与单一 Windows Debug 集成构建，并按约重新进入阻塞态；等待 P5 与最终真人 Gate。阻塞期间不得把 `fad8b736` 的自动证据或构建产物写成真人通过，也不得据此 push、发布或启动正式 Gate 1A-0。
 
 ### 下一正式 Goal 候选（尚未创建）
 
