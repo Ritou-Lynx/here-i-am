@@ -603,19 +603,17 @@ class _TaskModelAssignmentPageState extends State<TaskModelAssignmentPage> {
       items: [
         DropdownMenuItem(
           value: _inheritDefault,
-          child: _DropdownItem(
-            text: '继承默认 · ${_effectiveModelLabel(null)}',
-            status:
-                _connectivity[_defaultKey]?.status ?? _ConnectivityStatus.idle,
+          child: Text(
+            '继承默认 · ${_effectiveModelLabel(null)}',
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         for (final config in _configs)
           DropdownMenuItem(
             value: config.key,
-            child: _DropdownItem(
-              text: _configLabel(config),
-              status:
-                  _connectivity[config.key]?.status ?? _ConnectivityStatus.idle,
+            child: Text(
+              _configLabel(config),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
       ],
@@ -902,42 +900,5 @@ class _ConnectivityBadge extends StatelessWidget {
     message = message.replaceFirst(RegExp(r'^Exception:\s*'), '');
     if (message.length > 32) message = '${message.substring(0, 32)}…';
     return ' $message';
-  }
-}
-
-/// Dropdown menu item with a connectivity dot beside the model label.
-class _DropdownItem extends StatelessWidget {
-  const _DropdownItem({required this.text, required this.status});
-
-  final String text;
-  final _ConnectivityStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final dotColor = switch (status) {
-      _ConnectivityStatus.ok => const Color(0xFF5B8C5A),
-      _ConnectivityStatus.fail => const Color(0xFFC46B5A),
-      _ConnectivityStatus.testing => _TaskModelAssignmentPageState._accent,
-      _ConnectivityStatus.idle => _TaskModelAssignmentPageState._secondary,
-    };
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            text,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(
-            color: dotColor,
-            shape: BoxShape.circle,
-          ),
-        ),
-      ],
-    );
   }
 }
