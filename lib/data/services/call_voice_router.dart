@@ -49,6 +49,14 @@ class CallVoiceRouter {
   String? _activeCharacterName;
   String? _activeCharacterAvatar;
 
+  /// Monotonic timestamp generation that tags every `call_start` / `call_end`
+  /// message sent to the foreground-task isolate. Because [_queueOrSend]
+  /// re-delivers each message 3 times over 3 seconds, a late `call_end` from
+  /// the previous call can race a fresh `call_start` and kill the brand-new
+  /// session (the "flash open then back to chat" bug). Tagging both sides
+  /// with the generation they belong to lets the isolate drop stale endings.
+  int _callGeneration = 0;
+
   /// Fired on every isolate call-status push (listening / speaking + subtitle).
   void Function(CallVoiceStatus status)? onStatusChanged;
 
@@ -102,6 +110,10 @@ class CallVoiceRouter {
     _activeCharacterName ??= '林埃';
 
     _activeCharacterId = characterId;
+    final nowGeneration = DateTime.now().microsecondsSinceEpoch;
+    _callGeneration =
+        nowGeneration > _callGeneration ? nowGeneration : _callGeneration + 1;
+    final generation = _callGeneration;
     _status = 'starting';
     _lastTranscript = '';
     _lastIsReply = false;
@@ -144,6 +156,7 @@ class CallVoiceRouter {
       'type': 'call_start',
       'characterId': characterId,
       'speaker': speakerOn,
+      'generation': generation,
     });
   }
 
@@ -159,10 +172,14 @@ class CallVoiceRouter {
     // Close the local UI before the three background delivery retries. The
     // old ordering made the red button look dead for about 4.5 seconds.
     final callback = onCallEnded;
+    final generation = _callGeneration;
     _status = 'ended';
     _clearActive();
     callback?.call(null);
-    await _queueOrSend({'type': 'call_end'});
+    await _queueOrSend({
+      'type': 'call_end',
+      'generation': generation,
+    });
   }
 
   /// Mute / unmute the call mic (from the in-app overlay).
@@ -276,6 +293,13 @@ class CallVoiceRouter {
     if (version > 0) {
       if (version <= _lastBridgeVersion) return;
       _lastBridgeVersion = version;
+    }
+
+    final generation = data['generation'] as int?;
+    if (generation != null && generation != _callGeneration) {
+      _log.fine('task data ignored: stale generation '
+          '(got=$generation current=$_callGeneration type=$type)');
+      return;
     }
 
     switch (type) {

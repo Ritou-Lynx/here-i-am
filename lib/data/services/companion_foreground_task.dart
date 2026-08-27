@@ -85,13 +85,20 @@ class CompanionTaskHandler extends TaskHandler {
       case 'call_start':
         final characterId = data['characterId'] as String?;
         if (characterId == null) return;
+        final generation = data['generation'] as int?;
         await CallVoiceSession.instance.start(
           characterId,
           speakerOn: data['speaker'] as bool? ?? true,
+          generation: generation,
         );
       case 'call_end':
       case 'call_ended':
-        await CallVoiceSession.instance.end();
+        // Drop hang-ups that target an older generation. The router resends
+        // each message 3 times over 3 seconds; without the generation gate,
+        // a late call_end from the previous call can kill the brand-new one
+        // (the "overlay flashes open then back to chat" bug).
+        final generation = data['generation'] as int?;
+        await CallVoiceSession.instance.end(generation: generation);
       case 'call_mute':
         await CallVoiceSession.instance.setMuted(data['muted'] as bool? ?? true);
       case 'call_speaker':

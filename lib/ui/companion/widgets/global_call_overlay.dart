@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:memex/data/services/call_lifecycle_policy.dart';
 import 'package:memex/data/services/call_voice_router.dart';
 import 'package:memex/ui/core/widgets/local_image.dart';
 import 'package:memex/utils/logger.dart';
@@ -282,13 +283,14 @@ class _Avatar extends StatelessWidget {
         style: const TextStyle(color: Colors.white, fontSize: 32),
       ),
     );
-    if (avatar == null || avatar!.isEmpty) return fallback;
+    final value = avatar;
+    if (!isLoadableCallAvatar(value)) return fallback;
     return ClipOval(
       child: SizedBox(
         width: 88,
         height: 88,
         child: LocalImage(
-          url: avatar!,
+          url: value!,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => fallback,
         ),

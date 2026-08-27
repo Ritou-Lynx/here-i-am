@@ -11,6 +11,7 @@ import 'package:memex/agent/companion_agent/companion_agent.dart';
 import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/data/services/call_lifecycle_policy.dart';
 import 'package:memex/data/services/call_voice_state_bridge.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/notification_service.dart';
@@ -51,8 +52,6 @@ class CallVoiceSession {
 
   static final _log = getLogger('CallVoiceSession');
 
-  static const _defaultOpening = '喂，我在呢。';
-
   /// Host-app channels (registered on both the main and the foreground-task
   /// engines — see AudioRouteChannelHandler + HereIAmApplication).
   static const _audioRouteChannel =
@@ -66,6 +65,8 @@ class CallVoiceSession {
   bool _ready = false;
   bool _readyInProgress = false;
   int _runSerial = 0;
+  final CallGenerationTracker _generationTracker = CallGenerationTracker();
+  final CallLifecycleQueue _lifecycleQueue = CallLifecycleQueue();
   int _micRestartAttempts = 0;
   DateTime? _lastActivityAt;
   DateTime? _lastTtsEndAt;
@@ -161,17 +162,52 @@ class CallVoiceSession {
   }
 
   /// Start a continuous call for [characterId]. Idempotent.
-  Future<void> start(String characterId, {bool speakerOn = true}) =>
-      _startInternal(characterId, speakerOn: speakerOn);
+  Future<void> start(String characterId,
+          {bool speakerOn = true, int? generation}) =>
+      _startInternal(characterId, speakerOn: speakerOn, generation: generation);
 
   Future<void> _startInternal(String characterId,
-      {required bool speakerOn}) async {
-    if (_phase != CallVoicePhase.idle) {
-      _log.info('start ignored: already active (phase=$_phase)');
+      {required bool speakerOn, int? generation}) {
+    if (!_generationTracker.shouldStart(generation)) {
+      _log.info('start ignored: duplicate, stale, or already terminated '
+          '(got=$generation active=${_generationTracker.activeGeneration} '
+          'watermark=${_generationTracker.watermark} phase=$_phase)');
+      return Future.value();
+    }
+    final acceptedGeneration = _generationTracker.activeGeneration!;
+    return _lifecycleQueue.enqueue(
+      () => _startAccepted(
+        characterId,
+        speakerOn: speakerOn,
+        generation: acceptedGeneration,
+      ),
+    );
+  }
+
+  Future<void> _startAccepted(String characterId,
+      {required bool speakerOn, required int generation}) async {
+    if (_generationTracker.activeGeneration != generation) {
+      _log.info('start abandoned before initialization '
+          '(generation=$generation)');
       return;
     }
+    if (_phase != CallVoicePhase.idle) {
+      _log.info('start ignored: already active (phase=$_phase)');
+      _generationTracker.terminateActive();
+      return;
+    }
+    _phase = CallVoicePhase.starting;
     if (!await ensureReady()) {
-      await _failWith('通话初始化失败');
+      if (_generationTracker.activeGeneration == generation) {
+        await _failWith('通话初始化失败');
+      }
+      return;
+    }
+    // A matching end can arrive while the foreground isolate is still being
+    // prepared. Do not let the now-terminated start resume after that await.
+    if (_generationTracker.activeGeneration != generation) {
+      _log.info('start abandoned: generation ended during initialization '
+          '(generation=$generation)');
       return;
     }
     if (characterId != _characterId) {
@@ -180,16 +216,17 @@ class CallVoiceSession {
     }
 
     _runSerial++;
-    _phase = CallVoicePhase.starting;
     _ttsAudioActive = false;
     _micRestartAttempts = 0;
     _micMuted = false;
     _speakerOn = speakerOn;
     await _updateNotification('📞 通话中…');
+    if (_generationTracker.activeGeneration != generation) return;
 
     // Enter the VoIP call audio session BEFORE the mic opens so the platform
     // routes both mic + speaker through STREAM_VOICE_CALL (AEC applies).
     await VoiceCallAudioSession.instance.enter();
+    if (_generationTracker.activeGeneration != generation) return;
 
     // Tell the media-button bridge a call is active so it stops claiming
     // USAGE_MEDIA audio focus (route bouncing between earpiece and speaker).
@@ -198,8 +235,10 @@ class CallVoiceSession {
     } catch (e) {
       _log.warning('setCallActive failed: $e');
     }
+    if (_generationTracker.activeGeneration != generation) return;
 
     final ok = await _armMic();
+    if (_generationTracker.activeGeneration != generation) return;
     if (!ok) {
       await _failWith('麦克风不可用，通话已结束');
       return;
@@ -216,26 +255,38 @@ class CallVoiceSession {
     } catch (e) {
       _log.warning('setSpeakerphone failed: $e');
     }
+    if (_generationTracker.activeGeneration != generation) return;
 
-    // Clear the pending call bookkeeping — the call is now answered.
+    // Resolve the explicit queued opening before consuming the pending call.
+    // The record belongs to the agent-initiated incoming-call path; ordinary
+    // user dialing has no record and therefore no hard-coded greeting.
+    final opening = await _resolveOpening(characterId);
+    if (_generationTracker.activeGeneration != generation) return;
+
+    // Clear the pending call bookkeeping — the call is now answered and the
+    // opening has been safely copied into this session.
     try {
       await clearPendingCall(characterId: characterId);
     } catch (e) {
       _log.warning('clearPendingCall failed: $e');
     }
+    if (_generationTracker.activeGeneration != generation) return;
 
     _phase = CallVoicePhase.listening;
     await _updateNotification('📞 通话中…（随时可以说话）');
+    if (_generationTracker.activeGeneration != generation) return;
     _notifyMain({'type': 'call_status', 'status': 'listening'});
     await _showControlNotification();
+    if (_generationTracker.activeGeneration != generation) return;
 
-    // Opening line: read the queued opening message (agent-composed) or fall
-    // back to a default greeting. Spoken through TTS while the mic listens.
-    // IMPORTANT: fired outside the mutex — _speakAndPersist can take a long
-    // time (TTS synthesis + playback) and must not hold the lifecycle lock,
-    // otherwise a hang-up (end) queues behind it and feels dead.
-    final opening = await _resolveOpening();
-    unawaited(_speakAndPersist(opening, isOpening: true));
+    // Opening line: only spoken when an explicit opening was queued
+    // (agent-initiated incoming call). For user-initiated calls from the
+    // chat button there is no queued opening, and the old hard-coded
+    // "喂，我在呢。" greeting felt robotic — the call now just goes straight
+    // to listening.
+    if (opening != null) {
+      unawaited(_speakAndPersist(opening, isOpening: true));
+    }
   }
 
   /// Mute / unmute the call mic (the companion stops hearing the user).
@@ -309,9 +360,26 @@ class CallVoiceSession {
   }
 
   /// Handle a hang-up request (from the app UI or the CallKit notification).
-  Future<void> end() => _endInternal();
+  ///
+  /// When [generation] is supplied by the main-isolate router it must match
+  /// the currently active call's generation; otherwise the hang-up targets a
+  /// previous (already-torn-down) call and is dropped. Legacy senders that
+  /// don't tag a generation (the CallKit broadcast bridge) still force an
+  /// end, matching the previous behavior.
+  Future<void> end({int? generation}) {
+    final endedGeneration = _generationTracker.activeGeneration;
+    if (!_generationTracker.shouldEnd(generation)) {
+      _log.info('end ignored: stale or not-active generation '
+          '(got=$generation active=$endedGeneration '
+          'watermark=${_generationTracker.watermark}, phase=$_phase)');
+      return Future.value();
+    }
+    return _lifecycleQueue.enqueue(
+      () => _endInternal(generation: endedGeneration),
+    );
+  }
 
-  Future<void> _endInternal() async {
+  Future<void> _endInternal({int? generation}) async {
     _log.info('end (phase=$_phase)');
     _runSerial++;
     _activeIdentity = null;
@@ -363,7 +431,7 @@ class CallVoiceSession {
       _log.warning('endAllCalls failed: $e');
     }
     await _hideControlNotification();
-    _notifyMain({'type': 'call_ended'});
+    _notifyMain({'type': 'call_ended'}, generation: generation);
     await _restoreNotification();
   }
 
@@ -726,15 +794,21 @@ class CallVoiceSession {
 
   // ── Opening line ─────────────────────────────────────────────────────────
 
-  Future<String> _resolveOpening() async {
+  /// Returns the agent-composed opening for an incoming queued call, or null
+  /// for user-initiated calls (no hard-coded greeting — the call just goes
+  /// straight to listening; the companion's first reply to the user's actual
+  /// sentence will be the first thing spoken).
+  Future<String?> _resolveOpening(String characterId) async {
     try {
       final pending = await readPendingCall();
-      final opening = pending?.opening.trim() ?? '';
-      if (opening.isNotEmpty) return opening;
+      return resolvePendingCallOpening(
+        characterId: characterId,
+        pending: pending,
+      );
     } catch (e) {
       _log.warning('readPendingCall failed: $e');
     }
-    return _defaultOpening;
+    return null;
   }
 
   /// Speak [text] through TTS and persist it as a character message so the
@@ -797,6 +871,8 @@ class CallVoiceSession {
 
   Future<void> _failWith(String text) async {
     _log.warning('call failed: $text');
+    final failedGeneration = _generationTracker.activeGeneration;
+    _generationTracker.terminateActive();
     _phase = CallVoicePhase.idle;
     await _updateNotification(text);
     try {
@@ -810,7 +886,10 @@ class CallVoiceSession {
       _log.warning('setCallActive(false) on fail: $e');
     }
     await _hideControlNotification();
-    _notifyMain({'type': 'call_ended', 'reason': text});
+    _notifyMain(
+      {'type': 'call_ended', 'reason': text},
+      generation: failedGeneration,
+    );
     await _restoreNotification();
   }
 
@@ -859,9 +938,11 @@ class CallVoiceSession {
     }
   }
 
-  void _notifyMain(Map<String, dynamic> data) {
+  void _notifyMain(Map<String, dynamic> data, {int? generation}) {
+    final callGeneration = generation ?? _generationTracker.activeGeneration;
     final snapshot = <String, dynamic>{
       ...data,
+      if (callGeneration != null) 'generation': callGeneration,
       'version': DateTime.now().microsecondsSinceEpoch,
     };
     try {
