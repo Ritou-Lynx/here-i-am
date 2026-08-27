@@ -45,6 +45,7 @@ foreach ($File in @(
   'i_device_sync.mjs',
   'i_context.mjs',
   'i_voice_context.mjs',
+  'i_realtime_voice_startup_context.md',
   'i_mcp_server.mjs',
   'rebuild_i_activity_index.mjs',
   'validate_i_project_registry.mjs'
@@ -160,6 +161,57 @@ function Invoke-QuietRemove([scriptblock]$Command) {
   }
 }
 
+function Set-CodexRealtimeVoiceStartupContext(
+  [string]$ConfigPath,
+  [string]$Prompt
+) {
+  $ConfigDirectory = Split-Path -Parent $ConfigPath
+  New-Item -ItemType Directory -Force -Path $ConfigDirectory | Out-Null
+  $Start = '# i-realtime-voice:start'
+  $End = '# i-realtime-voice:end'
+  $ConfigKey = 'experimental_realtime_ws_startup_context'
+  $Prompt = $Prompt.Trim()
+  if ($Prompt.Contains("'''")) {
+    throw 'Codex Realtime Voice startup context cannot contain a TOML literal-string delimiter.'
+  }
+  $Block = "$Start`n$ConfigKey = '''`n$Prompt`n'''`n$End"
+  $Current = if (Test-Path -LiteralPath $ConfigPath) {
+    [string](Get-Content -Raw -Encoding UTF8 $ConfigPath)
+  } else {
+    ''
+  }
+  $Pattern = '(?s)' + [regex]::Escape($Start) + '.*?' + [regex]::Escape($End)
+  if ([regex]::IsMatch($Current, $Pattern)) {
+    $Updated = [regex]::Replace($Current, $Pattern, $Block)
+  } elseif ($Current -match ('(?m)^\s*' + [regex]::Escape($ConfigKey) + '\s*=')) {
+    throw "Existing unmanaged $ConfigKey was preserved; remove it or wrap it in the i managed block before installing."
+  } else {
+    $Suffix = if ([string]::IsNullOrWhiteSpace($Current)) {
+      ''
+    } else {
+      "`n`n" + $Current.TrimStart()
+    }
+    $Updated = $Block + $Suffix
+  }
+  $ConfigTemp = "$ConfigPath.$PID.i-voice.tmp"
+  $ConfigBackup = "$ConfigPath.$PID.i-voice.bak"
+  try {
+    [System.IO.File]::WriteAllText($ConfigTemp, $Updated, $Utf8NoBom)
+    if (Test-Path -LiteralPath $ConfigPath) {
+      [System.IO.File]::Replace($ConfigTemp, $ConfigPath, $ConfigBackup)
+    } else {
+      [System.IO.File]::Move($ConfigTemp, $ConfigPath)
+    }
+    $ReadBack = [string](Get-Content -Raw -Encoding UTF8 $ConfigPath)
+    if ($ReadBack -notmatch $Pattern) {
+      throw 'Codex Realtime Voice startup context was not preserved after the config write.'
+    }
+    Remove-Item -LiteralPath $ConfigBackup -Force -ErrorAction SilentlyContinue
+  } finally {
+    Remove-Item -LiteralPath $ConfigTemp -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Set-CodexMcpConfigDirect(
   [string]$Name,
   [string]$Command,
@@ -270,6 +322,12 @@ if (-not $SkipGuidance) {
   $Guidance = Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot 'i_global_guidance.md')
   if (-not $SkipCodex) {
     Update-ManagedBlock (Join-Path $env:USERPROFILE '.codex\AGENTS.md') $Guidance
+    $RealtimeVoicePrompt = Get-Content -Raw -Encoding UTF8 (
+      Join-Path $PSScriptRoot 'i_realtime_voice_startup_context.md'
+    )
+    Set-CodexRealtimeVoiceStartupContext `
+      -ConfigPath (Join-Path $env:USERPROFILE '.codex\config.toml') `
+      -Prompt $RealtimeVoicePrompt
   }
   if (-not $SkipClaude) {
     Update-ManagedBlock (Join-Path $env:USERPROFILE '.claude\CLAUDE.md') $Guidance
@@ -290,4 +348,9 @@ if (-not $SkipGuidance) {
   branch = $Branch
   mode = 'project_closeout_ingress'
   phase = '4.5'
+  codex_realtime_voice_startup_context = if (-not $SkipCodex -and -not $SkipGuidance) {
+    'installed'
+  } else {
+    'skipped'
+  }
 } | ConvertTo-Json

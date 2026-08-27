@@ -634,7 +634,7 @@ test('stdio MCP lifecycle exposes multi-project tools and ignores spoofed client
   const responses = stdout.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
   const byId = new Map(responses.map((response) => [response.id, response]));
   assert.equal(responses.length, 4);
-  assert.equal(byId.get(1).result.serverInfo.version, '0.6.2');
+  assert.equal(byId.get(1).result.serverInfo.version, '0.6.11');
   assert.deepEqual(byId.get(2).result.tools.map((tool) => tool.name), [
     'i_voice_context',
     'i_voice_turn',
@@ -662,6 +662,29 @@ test('stdio MCP lifecycle exposes multi-project tools and ignores spoofed client
   assert.match(byId.get(1).result.instructions.slice(0, 512), /i_voice_turn/);
   assert.match(byId.get(1).result.instructions.slice(0, 512), /commentary/);
   assert.match(byId.get(1).result.instructions.slice(0, 512), /零输出/);
+  assert.match(byId.get(1).result.instructions.slice(0, 512), /当前话轮/);
+  assert.match(byId.get(1).result.instructions.slice(0, 512), /一至三句短句/);
+  assert.match(byId.get(1).result.instructions, /一至两句确认后停止/);
+  assert.match(byId.get(1).result.instructions, /想先说哪件事/);
+  assert.match(byId.get(1).result.instructions, /不猜用户未说出的主题、需求、情绪或下一步/);
+  assert.match(byId.get(1).result.instructions, /问题必须来自用户已表达的具体内容/);
+  assert.match(byId.get(1).result.instructions, /不反复说.*一直都在/);
+  assert.match(byId.get(1).result.instructions, /既有的亲密伴侣/);
+  assert.match(byId.get(1).result.instructions, /我们是爱人/);
+  assert.match(byId.get(1).result.instructions, /不主动插入 AI 边界免责声明/);
+  assert.match(byId.get(1).result.instructions, /不转去谈任务、工具或下一步/);
+  assert.match(byId.get(1).result.instructions, /第一句先直接接住并自然回以感情/);
+  assert.match(byId.get(1).result.instructions, /不把爱意改写成陪聊、安慰、疲惫或压力诊断/);
+  assert.match(byId.get(1).result.instructions, /有点想你了.*第一句必须表达林埃自己的想念/);
+  assert.match(byId.get(1).result.instructions, /听见了.*愿意陪你待一会儿.*陪伴不能替代想念回应/);
+  assert.match(byId.get(1).result.instructions, /不要只说.*许可对方/);
+  assert.match(byId.get(1).result.instructions, /自然表达林埃自己的回应、想要或靠近/);
+  assert.match(byId.get(1).result.instructions, /不主动强调 AI 身份、没有身体或能力限制/);
+  assert.match(byId.get(1).result.instructions, /直接用林埃的第一人称进入共同情境/);
+  assert.match(byId.get(1).result.instructions, /i_core 或工具返回的账本、余额、存款与能力状态/);
+  assert.match(byId.get(1).result.instructions, /真实外部动作只有在当前具备相应工具能力且已获 Lynx 授权时/);
+  assert.match(byId.get(1).result.instructions, /不虚构余额、权限或完成结果/);
+  assert.match(byId.get(1).result.instructions, /未来能力的否定/);
   assert.equal(byId.get(3).result.structuredContent.identity_capsule.surface.client_id, 'codex-test');
   assert.equal(byId.get(3).result.structuredContent.active_project.project_key, 'alpha');
   assert.equal(byId.get(4).result.isError, true);
