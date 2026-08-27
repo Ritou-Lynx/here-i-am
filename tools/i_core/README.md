@@ -12,14 +12,38 @@
 
 ## 本机启动
 
-在 PowerShell 中临时设置一次性配对码并启动。配对成功后该码的哈希会写入核心数据库并立即失效，电脑重启也不会恢复；要添加下一台设备，需要由核心所有者生成一个从未使用过的新配对码并重启服务：
+已有设备配对完成后，正常常驻启动不设置配对码。此时配对接口明确关闭，已有设备仍可继续使用各自的令牌：
+
+```powershell
+node tools/i_core/i_core_server.mjs
+```
+
+只有准备添加或修复设备时，才在 PowerShell 中临时设置一次性配对码并启动。配对成功后该码的哈希会写入核心数据库并立即失效，电脑重启也不会恢复；要添加下一台设备，需要由核心所有者生成一个从未使用过的新配对码并重新打开配对窗口：
 
 ```powershell
 $env:I_CORE_PAIRING_CODE='请换成临时配对码'
 node tools/i_core/i_core_server.mjs
 ```
 
+不要把配对码写进常驻启动项或配置文件。
+
 默认监听 `127.0.0.1:47841`，数据库保存在被 Git 忽略的 `tools/i_core/.state/i-core.sqlite`。不要把监听地址改成 `0.0.0.0` 直接暴露到局域网或互联网；手机接入时使用 Tailscale Serve 提供 HTTPS。
+
+### Windows 登录自启
+
+私人电脑使用当前 Windows 用户的登录计划任务，不使用 SYSTEM 服务，也不在任务中保存配对码或 worker 凭据：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\i_core\install_i_core_autostart.ps1
+```
+
+任务名为 `HereIAm-iCore`，登录后延迟 10 秒、隐藏启动，允许电池供电，运行时限为无限；异常退出最多按 1 分钟间隔重试 5 次。同一时间只允许一个实例。安装器和卸载器都会校验专用所有权标记，遇到同名但不属于本安装器的任务会拒绝覆盖或删除。若当前没有 iCore 进程，可追加 `-StartNow` 立即启动；已有手动实例时应先完成受控交接，避免争用 47841。
+
+卸载只停止并删除该计划任务，不删除 `.state`、数据库、设备或聊天：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\i_core\uninstall_i_core_autostart.ps1
+```
 
 可选环境变量：
 

@@ -84,6 +84,61 @@ test('health identifies a stable authority node', async (t) => {
   assert.ok(result.body.node_id);
 });
 
+test('service can run with pairing disabled until an explicit pairing window opens', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'i-core-pairing-disabled-'));
+  const core = createICoreServer({
+    databasePath: path.join(directory, 'core.sqlite'),
+  });
+  const address = await core.listen({ port: 0 });
+  t.after(async () => {
+    await core.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  const health = await jsonRequest(`${baseUrl}/v1/core/health`, { protocol: false });
+  assert.equal(health.status, 200);
+
+  const disabled = await pair(baseUrl, 'unexpected-device');
+  assert.equal(disabled.status, 403);
+  assert.equal(disabled.body.error.code, 'pairing_disabled');
+  assert.equal(core.store.db.prepare('SELECT COUNT(*) AS count FROM devices').get().count, 0);
+
+  core.replacePairingCode('987654');
+  const paired = await pair(baseUrl, 'phone-a', '987654');
+  assert.equal(paired.status, 200);
+  assert.equal((await pair(baseUrl, 'unexpected-device', '987654')).status, 401);
+});
+
+test('pairing-disabled restart preserves existing device authentication', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'i-core-pairing-disabled-restart-'));
+  const databasePath = path.join(directory, 'core.sqlite');
+  const first = createICoreServer({ databasePath, pairingCode: '654321' });
+  const firstAddress = await first.listen({ port: 0 });
+  const phone = await pair(`http://127.0.0.1:${firstAddress.port}`, 'phone-a');
+  assert.equal(phone.status, 200);
+  await first.close();
+
+  const restarted = createICoreServer({ databasePath });
+  const restartedAddress = await restarted.listen({ port: 0 });
+  t.after(async () => {
+    await restarted.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const baseUrl = `http://127.0.0.1:${restartedAddress.port}`;
+
+  const disabled = await pair(baseUrl, 'unexpected-device');
+  assert.equal(disabled.status, 403);
+  assert.equal(disabled.body.error.code, 'pairing_disabled');
+
+  const changes = await jsonRequest(
+    `${baseUrl}/v1/core/changes?cursor=${encodeURIComponent(phone.body.initial_cursor)}`,
+    { token: phone.body.device_token },
+  );
+  assert.equal(changes.status, 200);
+  assert.deepEqual(changes.body.events, []);
+});
+
 test('pairing code remains single-use after restart', async (t) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'i-core-sync-'));
   const first = await startCore(t, directory, { cleanup: false });

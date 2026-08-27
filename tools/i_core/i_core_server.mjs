@@ -98,18 +98,21 @@ function requireWorker(request, workerSecret) {
 
 export function createICoreServer({
   databasePath,
-  pairingCode,
+  pairingCode = null,
   certPath = null,
   keyPath = null,
   workerSecret = null,
   companionReplyJobsEnabled = false,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
-  if (!pairingCode) throw new Error('pairingCode is required');
+  if (pairingCode !== null && (typeof pairingCode !== 'string' || !pairingCode.trim())) {
+    throw new Error('pairingCode must be null or a non-empty string');
+  }
   const store = new ICoreStore(databasePath, { companionReplyJobsEnabled });
-  let activePairingCode = store.isPairingCodeConsumed(pairingCode)
-    ? null
-    : pairingCode;
+  let pairingEndpointEnabled = pairingCode !== null;
+  let activePairingCode = pairingEndpointEnabled && !store.isPairingCodeConsumed(pairingCode)
+    ? pairingCode
+    : null;
 
   async function handle(request, response) {
     try {
@@ -119,6 +122,13 @@ export function createICoreServer({
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/devices/pair') {
+        if (!pairingEndpointEnabled) {
+          throw new CoreStoreError(
+            'pairing_disabled',
+            'Device pairing is disabled. Start a deliberate pairing window first.',
+            { status: 403 },
+          );
+        }
         const body = await readJson(request);
         if (!equalSecret(body.pairing_code, activePairingCode)) {
           throw new CoreStoreError('invalid_pairing_code', 'The pairing code is invalid.', { status: 401 });
@@ -216,6 +226,7 @@ export function createICoreServer({
       if (store.isPairingCodeConsumed(value)) {
         throw new Error('pairing code has already been consumed; generate a new code');
       }
+      pairingEndpointEnabled = true;
       activePairingCode = value;
     },
     async listen({ host = '127.0.0.1', port = 47841 } = {}) {
@@ -239,10 +250,9 @@ export function createICoreServer({
 
 async function main() {
   const databasePath = process.env.I_CORE_DATABASE ?? path.join(moduleDir, '.state', 'i-core.sqlite');
-  const pairingCode = process.env.I_CORE_PAIRING_CODE;
-  if (!pairingCode) {
-    throw new Error('I_CORE_PAIRING_CODE is required. Choose a temporary code before starting the core.');
-  }
+  const pairingCode = process.env.I_CORE_PAIRING_CODE?.trim()
+    ? process.env.I_CORE_PAIRING_CODE
+    : null;
   const host = process.env.I_CORE_HOST ?? '127.0.0.1';
   const port = Number(process.env.I_CORE_PORT ?? 47841);
   const core = createICoreServer({
@@ -256,6 +266,9 @@ async function main() {
   const address = await core.listen({ host, port });
   const protocol = process.env.I_CORE_CERT && process.env.I_CORE_KEY ? 'https' : 'http';
   console.log(`i core ${CORE_PROTOCOL_VERSION} listening on ${protocol}://${address.address}:${address.port}`);
+  if (!pairingCode) {
+    console.log('Device pairing is disabled. Existing paired devices can continue using their tokens.');
+  }
   if (protocol === 'http') {
     console.log('Keep this bound to loopback and expose it through Tailscale Serve for phone access.');
   }
