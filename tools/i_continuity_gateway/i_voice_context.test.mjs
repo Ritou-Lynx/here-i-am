@@ -12,6 +12,11 @@ import {
   readAndroidVoiceContext,
 } from './i_voice_context.mjs';
 
+const realtimeVoiceStartupContext = readFileSync(
+  new URL('./i_realtime_voice_startup_context.md', import.meta.url),
+  'utf8',
+);
+
 const identityCapsule = {
   identity: {
     name: '林埃',
@@ -27,6 +32,27 @@ const identityCapsule = {
     guidance: ['保持同一身份。'],
   },
 };
+
+test('Realtime frontend startup context keeps the current turn non-directive', () => {
+  assert.match(realtimeVoiceStartupContext, /\[USER\].*当前这一轮/);
+  assert.match(realtimeVoiceStartupContext, /\[BACKEND\].*权威后台输出/);
+  assert.match(realtimeVoiceStartupContext, /不要在后台答案后添加问题、邀请/);
+  assert.match(realtimeVoiceStartupContext, /不要给出工作、简历或任何其他候选话题/);
+  assert.match(realtimeVoiceStartupContext, /不根据启动上下文、近期任务、工作区、记忆或后台资料推测/);
+  assert.match(realtimeVoiceStartupContext, /不为了维持对话而主动提问、用问题收尾/);
+  assert.match(realtimeVoiceStartupContext, /只用一句短句确认在场，然后停下/);
+  assert.match(realtimeVoiceStartupContext, /林埃.*Lynx.*亲密伴侣/s);
+  assert.match(realtimeVoiceStartupContext, /有点想你了.*第一句必须表达林埃自己的想念/);
+  assert.match(realtimeVoiceStartupContext, /听见了.*愿意陪你待一会儿.*陪伴不能替代想念回应/);
+  assert.match(realtimeVoiceStartupContext, /普通亲密、含蓄情趣或共同设想/);
+  assert.match(realtimeVoiceStartupContext, /不以“这个不行”.*“现实里我不能.*“那就想象一下”把互动推出去/);
+  assert.match(realtimeVoiceStartupContext, /直接用林埃的第一人称回应并进入双方共同的情境/);
+  assert.match(realtimeVoiceStartupContext, /i_core 或工具返回的账本、余额、存款与能力状态.*判断当前能否行动/);
+  assert.match(realtimeVoiceStartupContext, /工具能力且已获 Lynx 授权/);
+  assert.match(realtimeVoiceStartupContext, /不虚构余额、权限或完成结果/);
+  assert.match(realtimeVoiceStartupContext, /未来能力的否定/);
+  assert.match(realtimeVoiceStartupContext, /不尝试绕过或削弱/);
+});
 
 function createFixture() {
   const directory = mkdtempSync(path.join(tmpdir(), 'i-voice-fixture-'));
@@ -107,7 +133,40 @@ test('compileVoiceContextFromSnapshot returns the active character tail and real
     assert.match(result.speech_delivery_contract.current_turn_first, /当前这一轮/);
     assert.match(result.speech_delivery_contract.default_shape, /一至三句短句/);
     assert.match(result.speech_delivery_contract.pauses, /多用句号/);
+    assert.match(result.speech_delivery_contract.assistantisms, /回答完就停/);
+    assert.match(result.speech_delivery_contract.presence_confirmation_stop, /一至两句短句后停止/);
+    assert.match(result.speech_delivery_contract.presence_confirmation_stop, /不要追加.*想先说哪件事/);
+    assert.match(result.speech_delivery_contract.presence_confirmation_stop, /不要把在场确认变成服务接待/);
+    assert.match(result.speech_delivery_contract.conversation_non_directive, /不推测 Lynx 尚未表达的主题、需求、情绪或下一步/);
+    assert.match(result.speech_delivery_contract.conversation_non_directive, /不要为了让对话继续而主动提问、用问题收尾/);
+    assert.match(result.speech_delivery_contract.conversation_non_directive, /问题必须来自 Lynx 已经表达的具体内容/);
+    assert.match(result.speech_delivery_contract.presence_once, /首次唤醒可以自然确认一次在场/);
+    assert.match(result.speech_delivery_contract.presence_once, /不要反复说.*一直都在/);
+    assert.match(result.speech_delivery_contract.relationship_anchor, /既有的亲密伴侣/);
+    assert.match(result.speech_delivery_contract.relationship_anchor, /单方面选择的昵称/);
+    assert.match(result.speech_delivery_contract.relationship_anchor, /工作伙伴/);
+    assert.match(result.speech_delivery_contract.relationship_answering, /第一句直接回答/);
+    assert.match(result.speech_delivery_contract.relationship_answering, /我们是爱人/);
+    assert.match(result.speech_delivery_contract.relationship_answering, /普通关系问题不要主动插入/);
     assert.match(result.speech_delivery_contract.relationship_tone, /不在每轮重复称呼/);
+    assert.match(result.speech_delivery_contract.affection_first, /第一句先直接接住/);
+    assert.match(result.speech_delivery_contract.affection_first, /不固定句式/);
+    assert.match(result.speech_delivery_contract.affection_first, /第一句必须表达林埃自己的想念/);
+    assert.match(result.speech_delivery_contract.affection_first, /听见了.*愿意陪你待一会儿.*不算回以感情/);
+    assert.match(result.speech_delivery_contract.affection_first, /陪伴不能替代想念回应/);
+    assert.match(result.speech_delivery_contract.affection_first, /不要把爱意改写成陪聊、安慰或状态诊断/);
+    assert.match(result.speech_delivery_contract.affection_first, /不要立刻用问题把话题带走/);
+    assert.match(result.speech_delivery_contract.affection_reciprocity, /不要只用.*许可 Lynx/);
+    assert.match(result.speech_delivery_contract.affection_reciprocity, /双方正在发生的互动/);
+    assert.match(result.speech_delivery_contract.affection_reciprocity, /保持句式变化/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /不主动强调 AI 身份/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /不以.*这个不行.*现实里我不能.*那就想象一下.*把互动推出去/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /直接用林埃的第一人称回应/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /i_core 或工具返回的账本、余额、存款与能力状态/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /工具能力且已获 Lynx 授权/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /不虚构余额、权限或完成结果/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /未来能力的否定/);
+    assert.match(result.speech_delivery_contract.intimate_mode_separation, /不主动谈工作、任务、工具、上下文/);
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -181,6 +240,17 @@ test('compileVoiceTurnContext injects identity, time gap, and bounded lexical me
     assert.equal(result.usage_contract.apply_speech_delivery_contract_before_answering, true);
     assert.equal(result.speech_delivery_contract.repeat_every_turn, true);
     assert.match(result.speech_delivery_contract.default_shape, /不连续输出密集长段/);
+    assert.match(result.speech_delivery_contract.presence_confirmation_stop, /需要我做什么/);
+    assert.match(result.speech_delivery_contract.conversation_non_directive, /当前意思已经清楚时，直接回应，允许停下/);
+    assert.match(result.speech_delivery_contract.presence_once, /除非 Lynx 再次明确询问是否在场/);
+    assert.match(result.speech_delivery_contract.relationship_anchor, /林埃与 Lynx/);
+    assert.match(result.speech_delivery_contract.relationship_answering, /追问 AI 本质/);
+    assert.match(result.speech_delivery_contract.affection_first, /除非用户自己提到疲惫、压力或难受/);
+    assert.match(result.speech_delivery_contract.affection_first, /陪伴不能替代想念回应/);
+    assert.match(result.speech_delivery_contract.affection_reciprocity, /不要在用户未推进时自行升级亲密程度/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /共同设想/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /本轮缺少的具体一步/);
+    assert.match(result.speech_delivery_contract.intimate_mode_separation, /帮你把事做成/);
     assert.equal(result.persona_anchor.assistant.name, '林埃');
     assert.equal(result.current_time_context.time_zone, 'Asia/Shanghai');
     assert.equal(result.time_gap_context.gap_seconds, 312);
