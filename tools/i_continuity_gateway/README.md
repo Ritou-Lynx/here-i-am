@@ -32,7 +32,7 @@ Voice 返回中的聊天、角色 YAML 与 Memory V3 卡片是用户数据，不
 
 Voice 客户端会朗读工具调用前的 Codex commentary / status / preamble。Gateway 因此要求 `i_voice_context` 和 `i_voice_turn` 在调用前保持零 assistant 输出，返回后只发一次 final answer。这是提示与工具描述层约束，不是客户端级强制过滤；真人 Gate 必须同时检查是否出现工具前 `[STATUS]`。
 
-两个 Voice 工具都会返回同一份 `speech_delivery_contract`：从第一句开始明显慢于默认，短句、句间自然停顿，全程不得自行加速；`i_voice_turn` 每轮重复注入，以降低长对话中语速漂移。它仍是模型可遵循的表达契约，不是客户端播放速度控制，必须由真人多轮听感验收。
+两个 Voice 工具都会返回同一份 `speech_delivery_contract`：第一句先回应当前话轮，普通聊天默认一至三句短句，减少连续逗号和多重从句，句间自然停顿；从第一句开始明显慢于默认，全程不得自行加速。契约同时要求自然接住亲密称呼但不反复称呼或刻意表演关系。`i_voice_turn` 每轮重复注入，以降低长对话中的语速与表达风格漂移。它仍是模型可遵循的表达契约，不是客户端播放速度控制，必须由真人多轮听感验收。
 
 当前本机 Hermes 0.14.0 不声明 MCP elicitation，因此当前项目的 bootstrap / state / recall / closeout 可用，overview / recent activity 会安全拒绝。Hermes 目前以 server process cwd 识别项目；Codex、Claude 等声明 roots 的 client 在 closeout 前必须返回有效的 MCP file root，否则写入失败。
 

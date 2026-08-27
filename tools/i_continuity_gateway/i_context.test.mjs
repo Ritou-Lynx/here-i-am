@@ -634,7 +634,7 @@ test('stdio MCP lifecycle exposes multi-project tools and ignores spoofed client
   const responses = stdout.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
   const byId = new Map(responses.map((response) => [response.id, response]));
   assert.equal(responses.length, 4);
-  assert.equal(byId.get(1).result.serverInfo.version, '0.6.2');
+  assert.equal(byId.get(1).result.serverInfo.version, '0.6.3');
   assert.deepEqual(byId.get(2).result.tools.map((tool) => tool.name), [
     'i_voice_context',
     'i_voice_turn',
@@ -662,6 +662,8 @@ test('stdio MCP lifecycle exposes multi-project tools and ignores spoofed client
   assert.match(byId.get(1).result.instructions.slice(0, 512), /i_voice_turn/);
   assert.match(byId.get(1).result.instructions.slice(0, 512), /commentary/);
   assert.match(byId.get(1).result.instructions.slice(0, 512), /零输出/);
+  assert.match(byId.get(1).result.instructions.slice(0, 512), /当前话轮/);
+  assert.match(byId.get(1).result.instructions.slice(0, 512), /一至三句短句/);
   assert.equal(byId.get(3).result.structuredContent.identity_capsule.surface.client_id, 'codex-test');
   assert.equal(byId.get(3).result.structuredContent.active_project.project_key, 'alpha');
   assert.equal(byId.get(4).result.isError, true);

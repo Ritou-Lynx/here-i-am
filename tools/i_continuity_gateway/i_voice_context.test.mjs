@@ -104,6 +104,10 @@ test('compileVoiceContextFromSnapshot returns the active character tail and real
     assert.equal(result.speech_delivery_contract.user_prompt_required, false);
     assert.equal(result.speech_delivery_contract.repeat_every_turn, true);
     assert.match(result.speech_delivery_contract.pace, /第一句.*慢于默认/);
+    assert.match(result.speech_delivery_contract.current_turn_first, /当前这一轮/);
+    assert.match(result.speech_delivery_contract.default_shape, /一至三句短句/);
+    assert.match(result.speech_delivery_contract.pauses, /多用句号/);
+    assert.match(result.speech_delivery_contract.relationship_tone, /不在每轮重复称呼/);
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -148,6 +152,7 @@ test('compileVoiceSessionFromSnapshot caches bounded User-truth for later Voice 
       true,
     );
     assert.match(session.bootstrap.voice_session.speech_delivery_contract.stability, /不.*自行加快/);
+    assert.match(session.bootstrap.voice_session.speech_delivery_contract.current_turn_first, /不要先补述上一轮/);
     assert.deepEqual(session.turnState.memory_cards.map((item) => item.card_id), ['card-2', 'card-1']);
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
@@ -175,6 +180,7 @@ test('compileVoiceTurnContext injects identity, time gap, and bounded lexical me
     assert.equal(result.usage_contract.one_final_answer_after_tool_result, true);
     assert.equal(result.usage_contract.apply_speech_delivery_contract_before_answering, true);
     assert.equal(result.speech_delivery_contract.repeat_every_turn, true);
+    assert.match(result.speech_delivery_contract.default_shape, /不连续输出密集长段/);
     assert.equal(result.persona_anchor.assistant.name, '林埃');
     assert.equal(result.current_time_context.time_zone, 'Asia/Shanghai');
     assert.equal(result.time_gap_context.gap_seconds, 312);
