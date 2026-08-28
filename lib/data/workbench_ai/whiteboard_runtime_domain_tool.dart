@@ -814,6 +814,11 @@ bool _isWhiteboardConsultation(String text) {
   if (_isExplicitDelegatedWhiteboardWrite(text)) {
     return false;
   }
+  if (RegExp(
+    r'(?:吗|么|呢|[？?])(?:$|[，,。！!；;])|会不会|有没有',
+  ).hasMatch(text)) {
+    return true;
+  }
   return RegExp(
     r'如何|怎么|怎样|介绍|说明|教程|请问|能否|可否|是否可以|'
     r'帮我看看|看看.*(?:卡片|内容)|查看|浏览|有什么办法|能不能[？?]?$|'

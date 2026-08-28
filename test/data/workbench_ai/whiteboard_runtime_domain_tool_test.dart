@@ -66,6 +66,15 @@ void main() {
       '白板卡片内容合适吗',
       '卡片标签对吗',
       '白板卡片大小合适吗',
+      '白板卡片创建了吗',
+      '白板卡片移动了吗',
+      '白板卡片需要移动吗',
+      '白板卡片可以移动吗',
+      '白板卡片缩放过吗',
+      '白板卡片移动了么',
+      '白板卡片现在移动呢？',
+      '白板卡片会不会移动',
+      '白板有没有创建卡片',
     ]) {
       expect(
         await harness.tool.prepareAuthorization(
@@ -108,6 +117,9 @@ void main() {
         WhiteboardWriteCapability.resizePlacement,
       },
       '能帮我把这张白板卡片移动到右边吗': {
+        WhiteboardWriteCapability.movePlacement,
+      },
+      '可以帮我把这张白板卡片移动到右边吗': {
         WhiteboardWriteCapability.movePlacement,
       },
       '请把白板卡片内容改成新的正文': {
