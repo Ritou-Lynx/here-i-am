@@ -491,6 +491,9 @@ String? _validateBatch(WhiteboardDomainCommandBatch batch) {
           !_validSize(command.width, command.height)) {
         return 'invalid_create_card';
       }
+    } else if (command is EditCardTitleCommand &&
+        command.title.runes.length > 500) {
+      return 'title_too_large';
     } else if (command is EditCardBodyCommand &&
         command.body.runes.length >
             WhiteboardDomainCommandExecutor.hardMaxBodyRunes) {
@@ -529,6 +532,7 @@ bool _validSize(double width, double height) =>
 WhiteboardWriteCapability _capability(WhiteboardDomainCommand command) =>
     switch (command) {
       CreateCardCommand() => WhiteboardWriteCapability.createCard,
+      EditCardTitleCommand() => WhiteboardWriteCapability.editCardTitle,
       EditCardBodyCommand() => WhiteboardWriteCapability.editCardBody,
       SetCardLabelsCommand() => WhiteboardWriteCapability.setCardLabels,
       MovePlacementCommand() => WhiteboardWriteCapability.movePlacement,
@@ -596,6 +600,19 @@ Map<String, dynamic> _apply(
         'kind': 'restore_body',
         'card_id': command.cardId,
         'body': card.body,
+      };
+    case EditCardTitleCommand():
+      final index = _cardIndex(snapshot.cards, command.cardId);
+      final card = snapshot.cards[index];
+      snapshot.cards[index] = _copyCard(
+        card,
+        title: command.title,
+        updatedAt: now,
+      );
+      return {
+        'kind': 'restore_title',
+        'card_id': command.cardId,
+        'title': card.title,
       };
     case SetCardLabelsCommand():
       final index = _cardIndex(snapshot.cards, command.cardId);
@@ -701,6 +718,13 @@ void _applyInverse(
         body: step['body'] as String,
         updatedAt: now,
       );
+    case 'restore_title':
+      final index = _cardIndex(snapshot.cards, step['card_id'] as String);
+      snapshot.cards[index] = _copyCard(
+        snapshot.cards[index],
+        title: step['title'] as String,
+        updatedAt: now,
+      );
     case 'restore_labels':
       final index = _cardIndex(snapshot.cards, step['card_id'] as String);
       snapshot.cards[index] = _copyCard(
@@ -788,6 +812,7 @@ List<String> _normalizeLabels(List<String> labels) {
 
 CardContract _copyCard(
   CardContract card, {
+  String? title,
   String? body,
   List<String>? tags,
   DateTime? updatedAt,
@@ -799,7 +824,7 @@ CardContract _copyCard(
       cardKind: card.cardKind,
       sourceId: card.sourceId,
       ownerSpace: card.ownerSpace,
-      title: card.title,
+      title: title ?? card.title,
       body: body ?? card.body,
       tags: tags ?? card.tags,
       presentation: card.presentation,

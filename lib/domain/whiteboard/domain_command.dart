@@ -17,6 +17,7 @@ sealed class WhiteboardDomainCommand {
     final kind = _requiredString(json, 'kind');
     return switch (kind) {
       'create_card' => CreateCardCommand.fromJson(json),
+      'edit_card_title' => EditCardTitleCommand.fromJson(json),
       'edit_card_body' => EditCardBodyCommand.fromJson(json),
       'set_card_labels' => SetCardLabelsCommand.fromJson(json),
       'move_placement' => MovePlacementCommand.fromJson(json),
@@ -92,20 +93,69 @@ class CreateCardCommand extends WhiteboardDomainCommand {
 
   @override
   Map<String, dynamic> toJson() => {
-    'kind': kind,
-    'command_id': commandId,
-    'card_id': cardId,
-    'item_id': itemId,
-    'title': title,
-    'body': body,
-    'labels': labels,
-    'x': x,
-    'y': y,
-    'width': width,
-    'height': height,
-  };
+        'kind': kind,
+        'command_id': commandId,
+        'card_id': cardId,
+        'item_id': itemId,
+        'title': title,
+        'body': body,
+        'labels': labels,
+        'x': x,
+        'y': y,
+        'width': width,
+        'height': height,
+      };
 }
 
+/// Manual-surface-only title mutation.
+///
+/// Runtime does not register this command kind and the facade rejects it at
+/// the Runtime authorization boundary. Keeping title separate from
+/// [EditCardBodyCommand] prevents a body grant from silently changing Card
+/// metadata.
+class EditCardTitleCommand extends WhiteboardDomainCommand {
+  const EditCardTitleCommand({
+    required super.commandId,
+    required this.cardId,
+    required this.title,
+  });
+
+  factory EditCardTitleCommand.fromJson(Map<String, dynamic> json) {
+    _requireKeys(
+      json,
+      const {'kind', 'command_id', 'card_id', 'title'},
+      const {'kind', 'command_id', 'card_id', 'title'},
+    );
+    return EditCardTitleCommand(
+      commandId: _requiredString(json, 'command_id'),
+      cardId: _requiredString(json, 'card_id'),
+      title: _requiredString(json, 'title', allowEmpty: true),
+    );
+  }
+
+  final String cardId;
+  final String title;
+
+  @override
+  String get kind => 'edit_card_title';
+  @override
+  List<String> get targetCardIds => [cardId];
+  @override
+  List<String> get targetItemIds => const [];
+  @override
+  Map<String, dynamic> toJson() => {
+        'kind': kind,
+        'command_id': commandId,
+        'card_id': cardId,
+        'title': title,
+      };
+}
+
+/// Replaces the Card's canonical plain-text body projection only.
+///
+/// It does not replace or rewrite RichTextDocument blocks, marks, or assets.
+/// Consumers validate any retained rich document against this projection and
+/// hide it as stale until a later body (including Undo) matches exactly.
 class EditCardBodyCommand extends WhiteboardDomainCommand {
   const EditCardBodyCommand({
     required super.commandId,
@@ -136,11 +186,11 @@ class EditCardBodyCommand extends WhiteboardDomainCommand {
   List<String> get targetItemIds => const [];
   @override
   Map<String, dynamic> toJson() => {
-    'kind': kind,
-    'command_id': commandId,
-    'card_id': cardId,
-    'body': body,
-  };
+        'kind': kind,
+        'command_id': commandId,
+        'card_id': cardId,
+        'body': body,
+      };
 }
 
 class SetCardLabelsCommand extends WhiteboardDomainCommand {
@@ -173,11 +223,11 @@ class SetCardLabelsCommand extends WhiteboardDomainCommand {
   List<String> get targetItemIds => const [];
   @override
   Map<String, dynamic> toJson() => {
-    'kind': kind,
-    'command_id': commandId,
-    'card_id': cardId,
-    'labels': labels,
-  };
+        'kind': kind,
+        'command_id': commandId,
+        'card_id': cardId,
+        'labels': labels,
+      };
 }
 
 class MovePlacementCommand extends WhiteboardDomainCommand {
@@ -213,12 +263,12 @@ class MovePlacementCommand extends WhiteboardDomainCommand {
   List<String> get targetItemIds => [itemId];
   @override
   Map<String, dynamic> toJson() => {
-    'kind': kind,
-    'command_id': commandId,
-    'item_id': itemId,
-    'x': x,
-    'y': y,
-  };
+        'kind': kind,
+        'command_id': commandId,
+        'item_id': itemId,
+        'x': x,
+        'y': y,
+      };
 }
 
 class ResizePlacementCommand extends WhiteboardDomainCommand {
@@ -254,12 +304,12 @@ class ResizePlacementCommand extends WhiteboardDomainCommand {
   List<String> get targetItemIds => [itemId];
   @override
   Map<String, dynamic> toJson() => {
-    'kind': kind,
-    'command_id': commandId,
-    'item_id': itemId,
-    'width': width,
-    'height': height,
-  };
+        'kind': kind,
+        'command_id': commandId,
+        'item_id': itemId,
+        'width': width,
+        'height': height,
+      };
 }
 
 class RemovePlacementCommand extends WhiteboardDomainCommand {
@@ -289,10 +339,10 @@ class RemovePlacementCommand extends WhiteboardDomainCommand {
   List<String> get targetItemIds => [itemId];
   @override
   Map<String, dynamic> toJson() => {
-    'kind': kind,
-    'command_id': commandId,
-    'item_id': itemId,
-  };
+        'kind': kind,
+        'command_id': commandId,
+        'item_id': itemId,
+      };
 }
 
 class WhiteboardDomainCommandBatch {
@@ -340,13 +390,13 @@ class WhiteboardDomainCommandBatch {
   final List<WhiteboardDomainCommand> commands;
 
   Map<String, dynamic> toJson() => {
-    'schema_version': 1,
-    'operation_batch_id': operationBatchId,
-    'board_id': boardId,
-    if (expectedSnapshotHash != null)
-      'expected_snapshot_hash': expectedSnapshotHash,
-    'commands': commands.map((command) => command.toJson()).toList(),
-  };
+        'schema_version': 1,
+        'operation_batch_id': operationBatchId,
+        'board_id': boardId,
+        if (expectedSnapshotHash != null)
+          'expected_snapshot_hash': expectedSnapshotHash,
+        'commands': commands.map((command) => command.toJson()).toList(),
+      };
 }
 
 String _requiredString(

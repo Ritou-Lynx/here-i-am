@@ -1,10 +1,14 @@
 import 'dart:math' as math;
+import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/native.dart';
 
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
@@ -16,6 +20,20 @@ void main() {
   testWidgets(
     'production canvas semantic commits route keyboard drag resize and compact edit',
     (tester) async {
+      final root = Directory.systemTemp.createTempSync('manual_port_card_');
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(() async {
+        await db.close();
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      await tester.runAsync(() => repository.createTextCard(
+            cardId: 'card_a',
+            title: 'Card A',
+            body: 'old body',
+            tags: const ['existing-label'],
+            createdAt: DateTime.utc(2026, 8, 28),
+          ));
       final port = _RecordingPort();
       final vm = WhiteboardCanvasViewModel(
         initialSnapshot: _snapshot(),
@@ -25,6 +43,7 @@ void main() {
         home: WhiteboardCanvasScreen(
           viewModel: vm,
           manualCommandPort: port,
+          cardRepository: repository,
         ),
       ));
       await tester.pump();
@@ -54,17 +73,34 @@ void main() {
       expect(port.resizes.single.width, greaterThan(180));
 
       await _doubleTapAt(tester, tester.getCenter(card));
-      await tester.pump();
-      expect(find.byKey(const Key('wb_domain_card_editor')), findsOneWidget);
+      for (var index = 0;
+          index < 50 &&
+              find
+                  .byKey(const Key('rich_text_continuous_document'))
+                  .evaluate()
+                  .isEmpty;
+          index++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      expect(find.byKey(const Key('wb_domain_card_editor')), findsNothing);
+      expect(find.byKey(const Key('wb_compact_card_editor')), findsOneWidget);
       await tester.enterText(
-        find.byKey(const Key('wb_domain_card_body')),
-        'domain body',
+        find.byKey(const Key('rich_text_continuous_document')),
+        'Domain title\ndomain body',
       );
-      await tester.tap(find.byKey(const Key('wb_domain_card_save')));
-      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      for (var index = 0; index < 50 && port.edits.isEmpty; index++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 40));
+      }
       expect(port.edits, hasLength(1));
+      expect(port.edits.single.title, 'Domain title');
       expect(port.edits.single.body, 'domain body');
-      expect(port.edits.single.labels, ['existing-label']);
     },
   );
 
@@ -166,7 +202,8 @@ Future<void> _doubleTapAt(WidgetTester tester, Offset point) async {
 
 class _RecordingPort implements WhiteboardManualCommandPort {
   final creates = <math.Point<double>>[];
-  final edits = <({String cardId, String body, List<String> labels})>[];
+  final edits = <({String cardId, String title, String body})>[];
+  final labels = <({String cardId, List<String> labels})>[];
   final moves = <Map<String, math.Point<double>>>[];
   final resizes = <({String itemId, double width, double height})>[];
   final removals = <List<String>>[];
@@ -188,10 +225,19 @@ class _RecordingPort implements WhiteboardManualCommandPort {
   @override
   Future<bool> editCard({
     required String cardId,
+    required String title,
     required String body,
+  }) async {
+    edits.add((cardId: cardId, title: title, body: body));
+    return true;
+  }
+
+  @override
+  Future<bool> setCardLabels({
+    required String cardId,
     required List<String> labels,
   }) async {
-    edits.add((cardId: cardId, body: body, labels: List.of(labels)));
+    this.labels.add((cardId: cardId, labels: List.of(labels)));
     return true;
   }
 

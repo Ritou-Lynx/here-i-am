@@ -37,6 +37,11 @@ void main() {
     final commands = WorkbenchRuntimeWhiteboardDomainTool
         .toolDefinition['input_schema']['properties']['commands'];
     expect(commands['items']['oneOf'], hasLength(6));
+    expect(
+      jsonEncode(WorkbenchRuntimeWhiteboardDomainTool.toolDefinition),
+      isNot(contains('edit_card_title')),
+      reason: 'title mutation is host/manual-only and never model-visible',
+    );
     for (final shape in commands['items']['oneOf'] as List) {
       expect(shape['additionalProperties'], isFalse);
       expect(shape['properties']['kind']['const'], isNotEmpty);

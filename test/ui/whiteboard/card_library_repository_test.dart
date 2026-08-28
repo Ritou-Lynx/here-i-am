@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:drift/native.dart';
@@ -13,6 +14,7 @@ import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
@@ -105,6 +107,56 @@ void main() {
     expect(
         find.byKey(const ValueKey('card-library-import-link')), findsOneWidget);
     expect(find.text('导入链接 / 视频'), findsOneWidget);
+  });
+
+  testWidgets('Card Library never renders a stale rich media fallback',
+      (tester) async {
+    late CardContract card;
+    late File assetFile;
+    await tester.runAsync(() async {
+      card = await repository.createTextCard(
+        cardId: 'stale_library',
+        title: '过期媒体卡',
+        body: 'A',
+      );
+      final objects = RichTextObjectStore(repository.richTextStorage.baseDir);
+      final ref = await objects.importBytes(
+        Uint8List.fromList([1, 2, 3]),
+        mimeType: 'image/png',
+        extension: 'png',
+      );
+      await repository.saveRichText(
+        card.cardId,
+        RichTextDocument(
+          blocks: [
+            const RichTextBlock(type: BlockType.paragraph, text: 'A'),
+            RichTextBlock(
+              type: BlockType.image,
+              attrs: {'asset_ref_id': ref.refId},
+            ),
+          ],
+          assetRefs: [ref],
+        ),
+        title: '过期媒体卡',
+      );
+      assetFile = objects.resolveFile(ref)!;
+      await repository.updateCardMetadata(card.cardId, body: 'B');
+    });
+
+    await pumpApp(tester, settle: false);
+    for (var i = 0; i < 50 && find.text('过期媒体卡').evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(find.text('过期媒体卡'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('card-library-thumbnail-card_stale_library')),
+      findsNothing,
+    );
+    expect(await tester.runAsync(assetFile.exists), isTrue);
+    expect(repository.richTextStorage.exists(card.cardId), isTrue);
   });
 
   testWidgets('default view lists real text and media cards with true previews',

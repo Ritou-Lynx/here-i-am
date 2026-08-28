@@ -140,6 +140,7 @@ class _CardLibraryScreenState extends State<CardLibraryScreen> {
             tags: _tag == null ? null : {_tag!},
             search: query,
             placedOnBoard: _placed,
+            loadDocuments: true,
           ),
         ),
         repository.listDistinctTags(),
@@ -1273,10 +1274,7 @@ class _CardLibraryHit {
     UnifiedCardRecord record,
     UnifiedCardRepository repository,
   ) {
-    final document = record.document ??
-        repository.richTextStorage
-            .loadWithStatusSync(record.card.cardId)
-            .document;
+    final document = record.document;
     final imageBlock = _firstImageBlock(document?.blocks ?? const []);
     final imageRef = imageBlock == null
         ? null

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,13 +19,329 @@ import 'package:memex/data/workbench_ai/workbench_action_reader.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/board.dart';
+import 'package:memex/domain/whiteboard/domain_command.dart';
+import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
+import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_snapshot_store.dart'
     show SnapshotLoadResult;
 
 void main() {
+  testWidgets(
+    'production blank double click keeps one transparent inline title body surface and viewport',
+    (tester) async {
+      final root = Directory.systemTemp.createTempSync('p4_inline_route_');
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(() async {
+        final owner =
+            WhiteboardWorkbenchSurfaceController.instance.current?.owner;
+        if (owner != null) {
+          WhiteboardWorkbenchSurfaceController.instance.detach(owner);
+        }
+        await db.close();
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      final store = _GatedStore(db);
+      final now = DateTime.utc(2026, 8, 28, 8);
+      expect(
+        await tester.runAsync(() => store.seed(
+              'board_route',
+              WhiteboardSnapshot(
+                boards: [
+                  Board(boardId: 'board_route', name: 'Route', createdAt: now),
+                ],
+                viewport: const BoardViewport(
+                  centerX: 380,
+                  centerY: -220,
+                  zoom: 1.4,
+                ),
+                updatedAt: now,
+              ),
+            )),
+        isTrue,
+      );
+      final coordinator = WhiteboardWorkbenchCoordinator(
+        runtime: _UnusedRuntime(),
+        store: store,
+        repositoryLoader: () async => repository,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        addAction: (characterId, content, projection) =>
+            _addAction(db, characterId, content, projection),
+        updateAction: (messageId, content, projection) =>
+            _updateAction(db, messageId, content, projection),
+        readActions: (characterId) =>
+            readPersistedWorkbenchActions(db, characterId),
+        clock: () => now,
+      );
+      final host = _RecordingManualHost(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        resolveCharacterId: () async => 'i',
+        clock: () => now,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasRouteScreen(
+          boardId: 'board_route',
+          store: store,
+          cardRepository: repository,
+          manualCommandHost: host,
+        ),
+      ));
+      await _pumpUntil(tester, find.byType(WhiteboardCanvasArea));
+      final area = tester.widget<WhiteboardCanvasArea>(
+        find.byType(WhiteboardCanvasArea),
+      );
+      await _pumpUntilCondition(
+        tester,
+        () =>
+            WhiteboardWorkbenchSurfaceController.instance.current?.boardId ==
+            'board_route',
+      );
+      final viewportBefore = area.viewModel.viewport;
+      expect(area.viewModel.isReadonly, isFalse);
+      store.saveCalls = 0;
+
+      await _doubleTapAt(tester, const Offset(700, 450));
+      List<PersistedWorkbenchAction>? createActions;
+      for (var index = 0; index < 80; index++) {
+        createActions = await tester.runAsync(
+          () => readPersistedWorkbenchActions(db, 'i'),
+        );
+        if (createActions?.isNotEmpty ?? false) break;
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(createActions, isNotNull);
+      expect(host.receipts, isNotEmpty);
+      expect(host.receipts.single.status.name, 'applied',
+          reason: host.receipts.single.summary);
+      expect(createActions, hasLength(1));
+      expect(createActions!.single.projection.status.name, 'completed');
+      SnapshotLoadResult? persistedAfterCreate;
+      for (var index = 0; index < 80; index++) {
+        persistedAfterCreate = await tester.runAsync(
+          () => store.loadPersisted('board_route'),
+        );
+        if (persistedAfterCreate?.snapshot?.boardItems.isNotEmpty ?? false) {
+          break;
+        }
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(persistedAfterCreate, isNotNull);
+      final persistedSnapshot = persistedAfterCreate!.snapshot!;
+      expect(persistedSnapshot.boardItems, hasLength(1));
+      expect(await tester.runAsync(repository.listCards), hasLength(1));
+      await _pumpUntilCondition(
+        tester,
+        () => area.viewModel.exportForSave().boardItems.isNotEmpty,
+      );
+      final createdItem = area.viewModel.exportForSave().boardItems.single;
+      expect(area.viewModel.exportForSave().cards, hasLength(1));
+      expect(find.byKey(Key('wb_card_${createdItem.itemId}')), findsOneWidget);
+      await _pumpUntil(
+        tester,
+        find.byKey(const Key('rich_text_continuous_document')),
+      );
+      final item = area.viewModel.exportForSave().boardItems.single;
+      final itemFinder = find.byKey(Key('wb_card_${item.itemId}'));
+      final editor = find.byKey(const Key('wb_compact_card_editor'));
+      final field = find.byKey(const Key('rich_text_continuous_document'));
+      expect(find.byKey(const Key('wb_domain_card_editor')), findsNothing);
+      expect(find.descendant(of: itemFinder, matching: editor), findsOneWidget);
+      expect(find.descendant(of: editor, matching: find.byType(TextField)),
+          findsOneWidget);
+      expect(find.byType(Dialog), findsNothing);
+      expect(tester.widget<Material>(editor).type, MaterialType.transparency);
+      final itemRect = tester.getRect(itemFinder);
+      final geometryBefore = item.toJson();
+      await tester.pump();
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+
+      await tester.enterText(field, '真人标题\n真人正文\n第二行');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _pumpUntilCondition(tester, () => store.saveCalls >= 2);
+      await _pumpUntilCondition(
+        tester,
+        () =>
+            find.byKey(const Key('wb_compact_card_editor')).evaluate().isEmpty,
+      );
+      final stored = (await tester.runAsync(
+        () => repository.getCard(item.cardId, loadDocument: false),
+      ))!;
+      expect(stored.card.title, '真人标题');
+      expect(stored.card.body, '真人正文\n第二行');
+      expect(area.viewModel.viewport.centerX, viewportBefore.centerX);
+      expect(area.viewModel.viewport.centerY, viewportBefore.centerY);
+      expect(area.viewModel.viewport.zoom, viewportBefore.zoom);
+      expect(area.viewModel.exportForSave().boardItems.single.toJson(),
+          geometryBefore);
+      expect(
+          tester.getRect(find.byKey(Key('wb_card_${item.itemId}'))), itemRect);
+
+      final actions = await _waitForActionCount(tester, db, 2);
+      expect(actions, hasLength(2));
+      final editBatch = actions
+          .map((action) => WhiteboardDomainCommandBatch.fromJson(
+                action.projection.domainCommandBatch!,
+              ))
+          .singleWhere(
+            (batch) => batch.commands.first.kind == 'edit_card_title',
+          );
+      expect(editBatch.commands.map((command) => command.kind), [
+        'edit_card_title',
+        'edit_card_body',
+      ]);
+
+      final labelClick = await tester.startGesture(
+        tester.getCenter(find.byKey(Key('wb_card_${item.itemId}'))),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await labelClick.up();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('编辑标签'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('wb_card_labels_field')),
+        'alpha, beta',
+      );
+      await tester.tap(find.byKey(const ValueKey('wb_card_labels_save')));
+      await _pumpUntilCondition(tester, () => store.saveCalls >= 3);
+      final actionsAfterLabels = await _waitForActionCount(tester, db, 3);
+      expect(actionsAfterLabels, hasLength(3));
+      final labelBatch = actionsAfterLabels
+          .map((action) => WhiteboardDomainCommandBatch.fromJson(
+                action.projection.domainCommandBatch!,
+              ))
+          .singleWhere(
+            (batch) => batch.commands.first.kind == 'set_card_labels',
+          );
+      expect(labelBatch.commands.map((command) => command.kind), [
+        'set_card_labels',
+      ]);
+      expect(
+        (await tester.runAsync(
+          () => repository.getCard(item.cardId, loadDocument: false),
+        ))!
+            .card
+            .tags,
+        ['alpha', 'beta'],
+      );
+    },
+  );
+
+  testWidgets(
+    'manual receipt reload preserves active viewport and committed geometry',
+    (tester) async {
+      final root = Directory.systemTemp.createTempSync('p4_viewport_route_');
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(() async {
+        final owner =
+            WhiteboardWorkbenchSurfaceController.instance.current?.owner;
+        if (owner != null) {
+          WhiteboardWorkbenchSurfaceController.instance.detach(owner);
+        }
+        await db.close();
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      final store = _GatedStore(db);
+      final now = DateTime.utc(2026, 8, 28, 9);
+      await tester.runAsync(() => repository.createTextCard(
+            cardId: 'card_a',
+            title: 'Card A',
+            body: 'Body A',
+            createdAt: now,
+          ));
+      expect(
+        await tester.runAsync(() => store.seed(
+              'board_route',
+              WhiteboardSnapshot(
+                boards: [
+                  Board(boardId: 'board_route', name: 'Route', createdAt: now),
+                ],
+                boardItems: const [
+                  BoardItem(
+                    itemId: 'item_a',
+                    boardId: 'board_route',
+                    cardId: 'card_a',
+                    x: -90,
+                    y: -70,
+                    width: 180,
+                    height: 140,
+                  ),
+                ],
+                viewport: const BoardViewport(
+                  centerX: -250,
+                  centerY: 175,
+                  zoom: 0.8,
+                ),
+                updatedAt: now,
+              ),
+            )),
+        isTrue,
+      );
+      final coordinator = WhiteboardWorkbenchCoordinator(
+        runtime: _UnusedRuntime(),
+        store: store,
+        repositoryLoader: () async => repository,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        addAction: (characterId, content, projection) =>
+            _addAction(db, characterId, content, projection),
+        updateAction: (messageId, content, projection) =>
+            _updateAction(db, messageId, content, projection),
+        readActions: (characterId) =>
+            readPersistedWorkbenchActions(db, characterId),
+        clock: () => now,
+      );
+      final host = WhiteboardManualDomainCommandHost(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        resolveCharacterId: () async => 'i',
+        clock: () => now,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasRouteScreen(
+          boardId: 'board_route',
+          store: store,
+          cardRepository: repository,
+          manualCommandHost: host,
+        ),
+      ));
+      await _pumpUntil(tester, find.text('Card A'));
+
+      final area = tester.widget<WhiteboardCanvasArea>(
+        find.byType(WhiteboardCanvasArea),
+      );
+      const activeViewport = BoardViewport(
+        centerX: 640,
+        centerY: -360,
+        zoom: 1.75,
+      );
+      await tester.tap(find.byKey(const Key('wb_card_item_a')));
+      area.viewModel.setViewport(activeViewport);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await _pumpUntilCondition(tester, () => store.saveCalls >= 1);
+
+      expect(area.viewModel.viewport.centerX, activeViewport.centerX);
+      expect(area.viewModel.viewport.centerY, activeViewport.centerY);
+      expect(area.viewModel.viewport.zoom, activeViewport.zoom);
+      expect(area.viewModel.exportForSave().boardItems.single.x, -82);
+      expect(area.viewModel.exportForSave().boardItems.single.y, -70);
+    },
+  );
+
   testWidgets(
     'desktop route holds save and second nudge behind the Domain commit',
     (tester) async {
@@ -271,9 +588,36 @@ void main() {
   );
 }
 
+Future<void> _doubleTapAt(WidgetTester tester, Offset point) async {
+  await tester.tapAt(point);
+  await tester.pump(const Duration(milliseconds: 70));
+  await tester.tapAt(point);
+  await tester.pump();
+}
+
 Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
   await _pumpUntilCondition(tester, () => finder.evaluate().isNotEmpty);
   expect(finder, findsOneWidget);
+}
+
+Future<List<PersistedWorkbenchAction>> _waitForActionCount(
+  WidgetTester tester,
+  AppDatabase db,
+  int count,
+) async {
+  var actions = <PersistedWorkbenchAction>[];
+  for (var index = 0; index < 80 && actions.length < count; index++) {
+    actions = (await tester.runAsync(
+      () => readPersistedWorkbenchActions(db, 'i'),
+    ))!;
+    if (actions.length >= count) break;
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  expect(actions, hasLength(count));
+  return actions;
 }
 
 Future<void> _pumpUntilCondition(
@@ -281,6 +625,9 @@ Future<void> _pumpUntilCondition(
   bool Function() condition,
 ) async {
   for (var index = 0; index < 80 && !condition(); index++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
     await tester.pump(const Duration(milliseconds: 50));
   }
   expect(condition(), isTrue);
@@ -364,6 +711,35 @@ class _GatedStore extends WhiteboardDriftStore {
       _release = null;
     }
     return super.save(boardId, snapshot);
+  }
+}
+
+class _RecordingManualHost extends WhiteboardManualDomainCommandHost {
+  _RecordingManualHost({
+    required super.store,
+    required super.coordinator,
+    required super.surfaceController,
+    required super.resolveCharacterId,
+    required super.clock,
+  });
+
+  final receipts = <WhiteboardDomainCommandReceipt>[];
+
+  @override
+  Future<WhiteboardDomainCommandReceipt> execute({
+    required Object surfaceOwner,
+    required String boardId,
+    required String operationBatchId,
+    required List<WhiteboardDomainCommand> commands,
+  }) async {
+    final receipt = await super.execute(
+      surfaceOwner: surfaceOwner,
+      boardId: boardId,
+      operationBatchId: operationBatchId,
+      commands: commands,
+    );
+    receipts.add(receipt);
+    return receipt;
   }
 }
 

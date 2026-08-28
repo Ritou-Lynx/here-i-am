@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:drift/drift.dart' hide isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/data/whiteboard/domain_commands/whiteboard_domain_command_executor.dart';
 import 'package:memex/data/whiteboard/domain_commands/whiteboard_domain_command_facade.dart';
+import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/workbench_ai/workbench_action_reader.dart';
 import 'package:memex/db/app_database.dart';
@@ -14,6 +15,8 @@ import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/domain_command.dart';
 import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
+import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/domain/workbench_ai/permissions/whiteboard_permission_broker.dart';
 
@@ -616,6 +619,205 @@ void main() {
     expect(retried.status, WhiteboardDomainCommandStatus.applied);
     expect(await readPersistedWorkbenchActions(db, 'i'), hasLength(1));
   });
+
+  test(
+      'manual title command round-trips and Undo restores title after real reopen',
+      () async {
+    const command = EditCardTitleCommand(
+      commandId: 'cmd_title',
+      cardId: 'card_1',
+      title: '新的标题',
+    );
+    final decoded = WhiteboardDomainCommand.fromJson(command.toJson());
+    expect(decoded, isA<EditCardTitleCommand>());
+    expect((decoded as EditCardTitleCommand).title, '新的标题');
+
+    final fixture = _fixture(store, _ActionPersistence(db, now), now);
+    const batch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_title',
+      boardId: 'board_1',
+      commands: [command],
+    );
+    final applied = await fixture.facade.executeUser(
+      characterId: 'i',
+      batch: batch,
+      userAuthorizationMessageId: 'ui-title-edit',
+    );
+    expect(applied.status, WhiteboardDomainCommandStatus.applied);
+    expect(
+      (await store.load('board_1'))
+          .snapshot!
+          .cards
+          .singleWhere((card) => card.cardId == 'card_1')
+          .title,
+      '新的标题',
+    );
+
+    await db.close();
+    databaseOpen = false;
+    await openDatabase();
+    final reopened = _fixture(store, _ActionPersistence(db, now), now);
+    await reopened.facade.restore('i');
+    expect(reopened.facade.canUndo(batch.operationBatchId), isTrue);
+    final undone = await reopened.facade.undo(
+      characterId: 'i',
+      actionId: batch.operationBatchId,
+    );
+    expect(undone?.status, WhiteboardDomainCommandStatus.undone);
+    expect(
+      (await store.load('board_1'))
+          .snapshot!
+          .cards
+          .singleWhere((card) => card.cardId == 'card_1')
+          .title,
+      'Card 1',
+    );
+  });
+
+  test(
+      'title and canonical body share one receipt while rich document survives restart Undo',
+      () async {
+    var repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    final objectStore = RichTextObjectStore(repository.richTextStorage.baseDir);
+    final asset = await objectStore.importBytes(
+      Uint8List.fromList([1, 2, 3, 4]),
+      mimeType: 'image/png',
+      extension: 'png',
+      alt: '',
+    );
+    final rich = RichTextDocument(
+      blocks: [
+        const RichTextBlock(
+          type: BlockType.paragraph,
+          text: 'original body',
+          marks: [
+            RichTextMark(type: MarkType.bold, start: 0, end: 8),
+          ],
+        ),
+        RichTextBlock(
+          type: BlockType.image,
+          attrs: {'asset_ref_id': asset.refId},
+        ),
+      ],
+      assetRefs: [asset],
+    );
+    await repository.saveRichText('card_1', rich, title: 'Card 1');
+    final richFile = File(
+      '${repository.richTextStorage.baseDir.path}${Platform.pathSeparator}'
+      'card_card_1${Platform.pathSeparator}rich_text.json',
+    );
+    final richBytes = await richFile.readAsBytes();
+    final assetFile = objectStore.resolveFile(asset)!;
+
+    final fixture = _fixture(store, _ActionPersistence(db, now), now);
+    const batch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_title_body',
+      boardId: 'board_1',
+      commands: [
+        EditCardTitleCommand(
+          commandId: 'cmd_title_body_title',
+          cardId: 'card_1',
+          title: 'B title',
+        ),
+        EditCardBodyCommand(
+          commandId: 'cmd_title_body_body',
+          cardId: 'card_1',
+          body: 'B body',
+        ),
+      ],
+    );
+    final applied = await fixture.facade.executeUser(
+      characterId: 'i',
+      batch: batch,
+      userAuthorizationMessageId: 'ui-title-body-edit',
+    );
+    expect(applied.status, WhiteboardDomainCommandStatus.applied);
+    expect(applied.commandIds, hasLength(2));
+    expect(await richFile.readAsBytes(), richBytes);
+    expect(await assetFile.exists(), isTrue);
+
+    await db.close();
+    databaseOpen = false;
+    await openDatabase();
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    final stale = await repository.getCard('card_1');
+    expect(stale!.card.title, 'B title');
+    expect(stale.card.body, 'B body');
+    expect(stale.documentState, CardDocumentState.stale);
+    expect(stale.document, isNull);
+
+    final reopened = _fixture(store, _ActionPersistence(db, now), now);
+    await reopened.facade.restore('i');
+    expect(reopened.facade.canUndo(batch.operationBatchId), isTrue);
+    expect(
+      (await reopened.facade.undo(
+        characterId: 'i',
+        actionId: batch.operationBatchId,
+      ))
+          ?.status,
+      WhiteboardDomainCommandStatus.undone,
+    );
+
+    await db.close();
+    databaseOpen = false;
+    await openDatabase();
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    final restored = await repository.getCard('card_1');
+    expect(restored!.card.title, 'Card 1');
+    expect(restored.card.body, 'original body');
+    expect(restored.documentState, CardDocumentState.available);
+    expect(restored.document!.toJson(), rich.toJson());
+    expect(await richFile.readAsBytes(), richBytes);
+    expect(await assetFile.exists(), isTrue);
+  });
+
+  test('title command is validated and cannot be authorized for Runtime',
+      () async {
+    final fixture = _fixture(store, _ActionPersistence(db, now), now);
+    final before = (await store.load('board_1')).snapshot!;
+    final oversized = await fixture.facade.executeUser(
+      characterId: 'i',
+      batch: WhiteboardDomainCommandBatch(
+        operationBatchId: 'batch_title_too_large',
+        boardId: 'board_1',
+        commands: [
+          EditCardTitleCommand(
+            commandId: 'cmd_title_too_large',
+            cardId: 'card_1',
+            title: List.filled(501, '字').join(),
+          ),
+        ],
+      ),
+      userAuthorizationMessageId: 'ui-title-edit',
+    );
+    expect(oversized.status, WhiteboardDomainCommandStatus.invalidRequest);
+    expect(oversized.issues.single.code, 'title_too_large');
+    expect(
+      WhiteboardDomainCommandExecutor.snapshotHash(
+        (await store.load('board_1')).snapshot!,
+      ),
+      WhiteboardDomainCommandExecutor.snapshotHash(before),
+    );
+
+    expect(
+      () => fixture.facade.authorizeRuntime(
+        batch: const WhiteboardDomainCommandBatch(
+          operationBatchId: 'batch_runtime_title',
+          boardId: 'board_1',
+          commands: [
+            EditCardTitleCommand(
+              commandId: 'cmd_runtime_title',
+              cardId: 'card_1',
+              title: 'forbidden',
+            ),
+          ],
+        ),
+        runtimeTurnId: 'turn_runtime_title',
+        userAuthorizationMessageId: 'chat-message-1',
+      ),
+      throwsArgumentError,
+    );
+  });
 }
 
 class _Fixture {
@@ -677,6 +879,8 @@ WhiteboardAuthorizationGrant _grant(
       capabilities: batch.commands
           .map((command) => switch (command) {
                 CreateCardCommand() => WhiteboardWriteCapability.createCard,
+                EditCardTitleCommand() =>
+                  WhiteboardWriteCapability.editCardTitle,
                 EditCardBodyCommand() => WhiteboardWriteCapability.editCardBody,
                 SetCardLabelsCommand() =>
                   WhiteboardWriteCapability.setCardLabels,

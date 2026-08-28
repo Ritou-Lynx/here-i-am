@@ -81,6 +81,82 @@ class _FailingSaveRepository extends UnifiedCardRepository {
 }
 
 void main() {
+  testWidgets(
+      'Domain inline surface accepts only canonical plain text and format media only creates no commit',
+      (tester) async {
+    final root = Directory.systemTemp.createTempSync('inline_domain_plain_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    addTearDown(() async {
+      await db.close();
+      if (root.existsSync()) root.deleteSync(recursive: true);
+    });
+    await tester.runAsync(() async {
+      await repository.createTextCard(
+        cardId: 'card_domain_plain',
+        title: '标题',
+      );
+      await repository.saveRichText(
+        'card_domain_plain',
+        const RichTextDocument(
+          blocks: [
+            RichTextBlock(
+              type: BlockType.paragraph,
+              text: '正文',
+              marks: [RichTextMark(type: MarkType.bold, start: 0, end: 2)],
+            ),
+            RichTextBlock(
+              type: BlockType.image,
+              attrs: {'asset_ref_id': 'asset_preserved'},
+            ),
+          ],
+        ),
+        title: '标题',
+      );
+    });
+    final richFile = File(
+      '${repository.richTextStorage.baseDir.path}${Platform.pathSeparator}'
+      'card_card_domain_plain${Platform.pathSeparator}rich_text.json',
+    );
+    final before = await tester.runAsync(richFile.readAsBytes);
+    var commits = 0;
+    var closed = false;
+    await tester.pumpWidget(MaterialApp(
+      home: SizedBox(
+        width: 280,
+        height: 190,
+        child: CompactCardEditor(
+          cardId: 'card_domain_plain',
+          repository: repository,
+          embedded: true,
+          domainSave: ({required cardId, required title, required body}) async {
+            commits++;
+            return (await repository.getCard(cardId, loadDocument: false))
+                ?.card;
+          },
+          onSaved: (_) {},
+          onClose: () => closed = true,
+          onExpand: (_) {},
+        ),
+      ),
+    ));
+    final field = find.byKey(const Key('rich_text_continuous_document'));
+    await _pumpUntil(tester, field);
+    expect(find.textContaining('插入图片'), findsNothing);
+    expect(find.byKey(const ValueKey('rich_text_toolbar')), findsNothing);
+    expect(tester.widget<TextField>(field).controller!.text, '标题\n正文');
+
+    await tester.enterText(field, '标题\n正文');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    for (var i = 0; i < 20 && !closed; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(closed, isTrue);
+    expect(commits, 0,
+        reason: 'format/media-only state is not a canonical body mutation');
+    expect(await tester.runAsync(richFile.readAsBytes), before);
+  });
+
   testWidgets('空标题与正文 H1 通过稳定 synthetic 边界无损编辑并重启恢复', (tester) async {
     final root = Directory.systemTemp.createTempSync('inline_card_restart_');
     final dbFile = File('${root.path}${Platform.pathSeparator}cards.sqlite');

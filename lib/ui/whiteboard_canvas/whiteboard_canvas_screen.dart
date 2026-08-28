@@ -416,6 +416,49 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     });
   }
 
+  Future<void> _editCardLabels(CardContract card) async {
+    final port = widget.manualCommandPort;
+    if (port == null || widget.viewModel.isReadonly) return;
+    var labelsText = card.tags.join(', ');
+    final labels = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('编辑标签'),
+        content: TextFormField(
+          key: const ValueKey('wb_card_labels_field'),
+          initialValue: labelsText,
+          onChanged: (value) => labelsText = value,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '用逗号分隔'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            key: const ValueKey('wb_card_labels_save'),
+            onPressed: () => Navigator.pop(
+              context,
+              labelsText
+                  .split(RegExp(r'[,，]'))
+                  .map((value) => value.trim())
+                  .where((value) => value.isNotEmpty)
+                  .toList(growable: false),
+            ),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || labels == null) return;
+    final saved = await port.setCardLabels(
+      cardId: card.cardId,
+      labels: labels,
+    );
+    if (!saved && mounted) _showDomainCommitFailure();
+  }
+
   Future<List<String>> _defaultImagePathPicker() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
@@ -848,16 +891,12 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     onOpenCard: widget.onOpenCard,
                     onEditCard: (itemId, card) =>
                         unawaited(_openCompactEditor(itemId, card)),
+                    onEditLabels: widget.manualCommandPort == null
+                        ? null
+                        : (card) => unawaited(_editCardLabels(card)),
                     editingItemId: _editingItemId,
                     editSurfaceBuilder: (context, card) {
                       final manualPort = widget.manualCommandPort;
-                      if (manualPort != null) {
-                        return _DomainCardEditSurface(
-                          card: card,
-                          port: manualPort,
-                          onClose: () => setState(() => _editingItemId = null),
-                        );
-                      }
                       final request = BoardItemEditRequest(
                         cardId: card.cardId,
                         isReadonly: vm.isReadonly,
@@ -878,6 +917,25 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                         repository: repository,
                         isReadonly: request.isReadonly,
                         embedded: true,
+                        domainSave: manualPort == null
+                            ? null
+                            : ({
+                                required cardId,
+                                required title,
+                                required body,
+                              }) async {
+                                final saved = await manualPort.editCard(
+                                  cardId: cardId,
+                                  title: title,
+                                  body: body,
+                                );
+                                if (!saved) return null;
+                                return (await repository.getCard(
+                                  cardId,
+                                  loadDocument: false,
+                                ))
+                                    ?.card;
+                              },
                         onSaved: request.onSaved,
                         onClose: request.onClose,
                         onExpand: request.onExpand,
@@ -1033,133 +1091,6 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DomainCardEditSurface extends StatefulWidget {
-  const _DomainCardEditSurface({
-    required this.card,
-    required this.port,
-    required this.onClose,
-  });
-
-  final CardContract card;
-  final WhiteboardManualCommandPort port;
-  final VoidCallback onClose;
-
-  @override
-  State<_DomainCardEditSurface> createState() => _DomainCardEditSurfaceState();
-}
-
-class _DomainCardEditSurfaceState extends State<_DomainCardEditSurface> {
-  late final TextEditingController _body =
-      TextEditingController(text: widget.card.body);
-  late final TextEditingController _labels =
-      TextEditingController(text: widget.card.tags.join(', '));
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _body.dispose();
-    _labels.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (_saving) return;
-    setState(() => _saving = true);
-    final ok = await widget.port.editCard(
-      cardId: widget.card.cardId,
-      body: _body.text,
-      labels: _labels.text
-          .split(RegExp(r'[,，]'))
-          .map((value) => value.trim())
-          .where((value) => value.isNotEmpty)
-          .toList(growable: false),
-    );
-    if (!mounted) return;
-    setState(() => _saving = false);
-    if (ok) {
-      widget.onClose();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('卡片没有保存，已恢复保存前内容。')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = WhiteboardCanvasTokens.of(context);
-    return Material(
-      key: const ValueKey('wb_domain_card_editor'),
-      color: colors.panelSurface,
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              widget.card.title.trim().isEmpty ? '文字卡片' : widget.card.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: whiteboardUiTextStyle(
-                color: colors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    TextField(
-                      key: const ValueKey('wb_domain_card_body'),
-                      controller: _body,
-                      enabled: !_saving,
-                      minLines: 3,
-                      maxLines: 8,
-                      decoration: const InputDecoration(
-                        hintText: '正文',
-                        isDense: true,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      key: const ValueKey('wb_domain_card_labels'),
-                      controller: _labels,
-                      enabled: !_saving,
-                      maxLines: 1,
-                      decoration: const InputDecoration(
-                        hintText: '标签（逗号分隔）',
-                        isDense: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: _saving ? null : widget.onClose,
-                  child: const Text('取消'),
-                ),
-                const SizedBox(width: 6),
-                FilledButton(
-                  key: const ValueKey('wb_domain_card_save'),
-                  onPressed: _saving ? null : _save,
-                  child: Text(_saving ? '保存中' : '保存'),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
     );
@@ -1333,6 +1264,7 @@ class WhiteboardCanvasArea extends StatefulWidget {
   final UnifiedCardRepository? cardRepository;
   final void Function(CardContract card)? onOpenCard;
   final void Function(String itemId, CardContract card)? onEditCard;
+  final void Function(CardContract card)? onEditLabels;
   final String? editingItemId;
   final Widget Function(BuildContext context, CardContract card)?
       editSurfaceBuilder;
@@ -1347,6 +1279,7 @@ class WhiteboardCanvasArea extends StatefulWidget {
     this.cardRepository,
     this.onOpenCard,
     this.onEditCard,
+    this.onEditLabels,
     this.editingItemId,
     this.editSurfaceBuilder,
     this.onCreateCardAt,
@@ -1855,6 +1788,11 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
           ),
           if (!readonly) ...[
             const PopupMenuDivider(),
+            if (widget.onEditLabels != null)
+              const PopupMenuItem(
+                value: _CardMenuAction.labels,
+                child: Text('编辑标签'),
+              ),
             const PopupMenuItem(
               value: _CardMenuAction.front,
               child: Text('置于顶层'),
@@ -1876,6 +1814,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
           }
         case _CardMenuAction.open:
           widget.onOpenCard?.call(card);
+        case _CardMenuAction.labels:
+          widget.onEditLabels?.call(card);
         case _CardMenuAction.front:
           widget.viewModel.bringSelectedItemToFront();
         case _CardMenuAction.remove:
@@ -2600,7 +2540,7 @@ class _GroupDragState {
       );
 }
 
-enum _CardMenuAction { quickEdit, open, front, remove }
+enum _CardMenuAction { quickEdit, open, labels, front, remove }
 
 enum _CanvasMenuAction { newCard, resetView }
 

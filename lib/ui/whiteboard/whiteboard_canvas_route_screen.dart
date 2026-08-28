@@ -19,6 +19,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_surface.dart';
 import 'package:memex/data/workbench_ai/whiteboard_manual_domain_command_host.dart';
+import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/domain_command.dart';
 import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
@@ -197,6 +198,7 @@ class _WhiteboardCanvasRouteScreenState
       await _load();
       return _viewModel != null && _error == null;
     }
+    final activeViewport = vm.viewport;
     try {
       final result = await _store.load(widget.boardId);
       if (!result.isSuccess || result.snapshot == null) {
@@ -217,7 +219,7 @@ class _WhiteboardCanvasRouteScreenState
         repository,
       );
       if (!mounted || !identical(vm, _viewModel)) return false;
-      vm.loadFromSnapshot(snapshot);
+      vm.loadFromSnapshot(_withViewport(snapshot, activeViewport));
       setState(() {
         _cardRepository = repository;
         _error = null;
@@ -237,6 +239,24 @@ class _WhiteboardCanvasRouteScreenState
       return false;
     }
   }
+
+  WhiteboardSnapshot _withViewport(
+    WhiteboardSnapshot snapshot,
+    BoardViewport viewport,
+  ) =>
+      WhiteboardSnapshot(
+        schemaVersion: snapshot.schemaVersion,
+        sources: snapshot.sources,
+        sourceVersions: snapshot.sourceVersions,
+        cards: snapshot.cards,
+        boards: snapshot.boards,
+        boardItems: snapshot.boardItems,
+        groups: snapshot.groups,
+        groupMembers: snapshot.groupMembers,
+        edges: snapshot.edges,
+        viewport: viewport,
+        updatedAt: snapshot.updatedAt,
+      );
 
   void _syncWorkbenchSelection() {
     final vm = _viewModel;
@@ -543,17 +563,35 @@ class _RouteManualCommandPort implements WhiteboardManualCommandPort {
   @override
   Future<bool> editCard({
     required String cardId,
+    required String title,
     required String body,
-    required List<String> labels,
   }) async {
     final receipt = await _execute(
       operationBatchId: StableId.generate('batch').value,
       commands: [
+        EditCardTitleCommand(
+          commandId: StableId.generate('command').value,
+          cardId: cardId,
+          title: title,
+        ),
         EditCardBodyCommand(
           commandId: StableId.generate('command').value,
           cardId: cardId,
           body: body,
         ),
+      ],
+    );
+    return receipt?.status == WhiteboardDomainCommandStatus.applied;
+  }
+
+  @override
+  Future<bool> setCardLabels({
+    required String cardId,
+    required List<String> labels,
+  }) async {
+    final receipt = await _execute(
+      operationBatchId: StableId.generate('batch').value,
+      commands: [
         SetCardLabelsCommand(
           commandId: StableId.generate('command').value,
           cardId: cardId,

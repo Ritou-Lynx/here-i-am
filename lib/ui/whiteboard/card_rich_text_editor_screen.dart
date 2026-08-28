@@ -93,6 +93,7 @@ class _EditorLoad {
     this.error,
     this.imageProjection,
     this.card,
+    this.documentReadOnly = false,
   });
 
   final RichTextStorage storage;
@@ -104,6 +105,7 @@ class _EditorLoad {
   final String? error;
   final CardLocalMediaProjection? imageProjection;
   final CardContract? card;
+  final bool documentReadOnly;
 }
 
 class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
@@ -178,6 +180,22 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
             tagSuggestions: tagSuggestions,
             message: record.card.body.isEmpty ? null : '富文本文件缺失，当前已用数据库正文投影恢复。',
           );
+        case CardDocumentState.stale:
+          return _EditorLoad(
+            storage: repository.richTextStorage,
+            repository: repository,
+            document: _projectionDocument(record.card.body),
+            tags: record.card.tags,
+            tagSuggestions: tagSuggestions,
+            documentReadOnly: true,
+            message: '富文本版本与当前正文不一致；旧文件和媒体已保留。当前仅显示数据库正文投影，可修改标签。',
+          );
+        case CardDocumentState.notLoaded:
+          return _EditorLoad(
+            storage: repository.richTextStorage,
+            repository: repository,
+            error: '富文本状态尚未验证，请重新打开卡片。',
+          );
       }
     } catch (error) {
       final storage = await CardRichTextEditorScreen.resolveStorage();
@@ -228,6 +246,8 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
           initialTags: load.tags,
           tagSuggestions: load.tagSuggestions,
           degradedMessage: load.message,
+          documentReadOnly: load.documentReadOnly,
+          loadFromStorageWhenInitialMissing: false,
           onExit: _exitEditor,
           onSaveDocument: load.repository == null
               ? null

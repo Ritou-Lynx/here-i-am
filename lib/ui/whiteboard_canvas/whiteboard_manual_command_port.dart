@@ -26,7 +26,12 @@ abstract interface class WhiteboardManualCommandPort {
 
   Future<bool> editCard({
     required String cardId,
+    required String title,
     required String body,
+  });
+
+  Future<bool> setCardLabels({
+    required String cardId,
     required List<String> labels,
   });
 

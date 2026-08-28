@@ -63,6 +63,30 @@ class WhiteboardDomainCommandFacade {
     Set<WhiteboardWriteCapability>? authorizedCapabilities,
     int? maxOperationCount,
     Map<WhiteboardWriteCapability, int>? maxOperationCountByCapability,
+  }) {
+    final capabilities =
+        authorizedCapabilities ?? batch.commands.map(_capability).toSet();
+    if (capabilities.contains(WhiteboardWriteCapability.editCardTitle) ||
+        batch.commands.any((command) => command is EditCardTitleCommand)) {
+      throw ArgumentError('edit_card_title is manual-only');
+    }
+    return _issueAuthorization(
+      batch: batch,
+      runtimeTurnId: runtimeTurnId,
+      userAuthorizationMessageId: userAuthorizationMessageId,
+      capabilities: capabilities,
+      maxOperationCount: maxOperationCount,
+      maxOperationCountByCapability: maxOperationCountByCapability,
+    );
+  }
+
+  WhiteboardAuthorizationGrant _issueAuthorization({
+    required WhiteboardDomainCommandBatch batch,
+    required String runtimeTurnId,
+    required String userAuthorizationMessageId,
+    required Set<WhiteboardWriteCapability> capabilities,
+    int? maxOperationCount,
+    Map<WhiteboardWriteCapability, int>? maxOperationCountByCapability,
   }) =>
       permissionBroker.issueSelectionAuthorization(
         runtimeTurnId: runtimeTurnId,
@@ -72,8 +96,7 @@ class WhiteboardDomainCommandFacade {
             batch.commands.expand((command) => command.targetItemIds).toSet(),
         selectedCardIds:
             batch.commands.expand((command) => command.targetCardIds).toSet(),
-        capabilities:
-            authorizedCapabilities ?? batch.commands.map(_capability).toSet(),
+        capabilities: capabilities,
         maxOperationCount: maxOperationCount ?? batch.commands.length,
         maxOperationCountByCapability: maxOperationCountByCapability ??
             _commandCountsByCapability(batch.commands),
@@ -85,10 +108,11 @@ class WhiteboardDomainCommandFacade {
     required String userAuthorizationMessageId,
   }) {
     final actorTurnId = 'user-${batch.operationBatchId}';
-    final grant = authorizeRuntime(
+    final grant = _issueAuthorization(
       batch: batch,
       runtimeTurnId: actorTurnId,
       userAuthorizationMessageId: userAuthorizationMessageId,
+      capabilities: batch.commands.map(_capability).toSet(),
     );
     return _executePersisted(
       characterId: characterId,
@@ -308,6 +332,7 @@ Future<T> _runWithoutTransaction<T>(Future<T> Function() body) => body();
 WhiteboardWriteCapability _capability(WhiteboardDomainCommand command) =>
     switch (command) {
       CreateCardCommand() => WhiteboardWriteCapability.createCard,
+      EditCardTitleCommand() => WhiteboardWriteCapability.editCardTitle,
       EditCardBodyCommand() => WhiteboardWriteCapability.editCardBody,
       SetCardLabelsCommand() => WhiteboardWriteCapability.setCardLabels,
       MovePlacementCommand() => WhiteboardWriteCapability.movePlacement,

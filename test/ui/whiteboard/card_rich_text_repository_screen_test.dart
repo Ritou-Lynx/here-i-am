@@ -1,11 +1,19 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
+import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
+import 'package:memex/ui/whiteboard/editor/card_rich_text_editor_screen.dart'
+    as editor;
+import 'package:memex/ui/whiteboard/widgets/card_local_media_preview.dart';
 
 void main() {
   late Directory root;
@@ -74,5 +82,132 @@ void main() {
       throwsStateError,
     );
     expect(repository.richTextStorage.exists('does_not_exist'), isFalse);
+  });
+
+  test('cached Card cannot make stale rich media current again', () async {
+    final card = await repository.createTextCard(
+      cardId: 'cached_media',
+      body: 'A',
+    );
+    final objects = RichTextObjectStore(repository.richTextStorage.baseDir);
+    final ref = await objects.importBytes(
+      Uint8List.fromList([1, 2, 3]),
+      mimeType: 'image/png',
+      extension: 'png',
+    );
+    await repository.saveRichText(
+      card.cardId,
+      RichTextDocument(
+        blocks: [
+          const RichTextBlock(type: BlockType.paragraph, text: 'A'),
+          RichTextBlock(
+            type: BlockType.image,
+            attrs: {'asset_ref_id': ref.refId},
+          ),
+        ],
+        assetRefs: [ref],
+      ),
+    );
+    final cachedA = (await repository.getCard(card.cardId))!.card;
+    final richFile = File(
+      '${repository.richTextStorage.baseDir.path}${Platform.pathSeparator}'
+      'card_${card.cardId}${Platform.pathSeparator}rich_text.json',
+    );
+    final bytes = await richFile.readAsBytes();
+    final assetFile = objects.resolveFile(ref)!;
+
+    await repository.updateCardMetadata(card.cardId, body: 'B');
+    final projection = await CardLocalMediaResolver(repository).resolve(
+      card.cardId,
+      card: cachedA,
+    );
+    expect(projection.state, CardLocalMediaState.none);
+    expect(await richFile.readAsBytes(), bytes);
+    expect(await assetFile.exists(), isTrue);
+  });
+
+  testWidgets('stale full editor saves labels without rewriting rich file',
+      (tester) async {
+    late CardContract card;
+    late File richFile;
+    late List<int> bytes;
+    await tester.runAsync(() async {
+      card = await repository.createTextCard(
+        cardId: 'stale_tags',
+        body: 'A',
+        tags: const ['old'],
+      );
+      await repository.saveRichText(
+        card.cardId,
+        const RichTextDocument(
+          blocks: [
+            RichTextBlock(
+              type: BlockType.paragraph,
+              text: 'A',
+              marks: [RichTextMark(type: MarkType.bold, start: 0, end: 1)],
+            ),
+          ],
+        ),
+      );
+      richFile = File(
+        '${repository.richTextStorage.baseDir.path}${Platform.pathSeparator}'
+        'card_${card.cardId}${Platform.pathSeparator}rich_text.json',
+      );
+      bytes = await richFile.readAsBytes();
+      await repository.updateCardMetadata(card.cardId, body: 'B');
+      final stale = await repository.getCard(card.cardId);
+      expect(stale!.documentState, CardDocumentState.stale);
+    });
+    CardRichTextEditorScreen.setRepositoryForTesting(repository);
+    addTearDown(
+      () => CardRichTextEditorScreen.setRepositoryForTesting(null),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: CardRichTextEditorScreen(cardId: card.cardId),
+    ));
+    for (var i = 0;
+        i < 50 &&
+            find.byKey(const ValueKey('card-tag-input')).evaluate().isEmpty;
+        i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    final loadedEditor = tester.widget<editor.CardRichTextEditorScreen>(
+      find.byType(editor.CardRichTextEditorScreen),
+    );
+    expect(loadedEditor.degradedMessage, contains('旧文件和媒体已保留'));
+    final notice = find.byKey(const ValueKey('rich_text_degraded_notice'));
+    expect(notice, findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+              find.descendant(of: notice, matching: find.byType(Text)))
+          .data,
+      contains('旧文件和媒体已保留'),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('card-tag-input')),
+      'new',
+    );
+    await tester.tap(find.byKey(const ValueKey('card-tag-add')));
+    await tester.tap(find.byKey(const ValueKey('rich_text_save_button')));
+    for (var i = 0; i < 50 && find.text('已保存').evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(find.text('已保存'), findsOneWidget);
+
+    expect(await tester.runAsync(richFile.readAsBytes), bytes);
+    final stored = await tester.runAsync(
+      () async => (await repository.getCard(card.cardId))!,
+    );
+    expect(stored!.card.body, 'B');
+    expect(stored.card.tags, ['old', 'new']);
+    expect(stored.documentState, CardDocumentState.stale);
   });
 }

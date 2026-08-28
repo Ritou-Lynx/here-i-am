@@ -507,7 +507,8 @@ void main() {
     expect(await repository.listCards(), hasLength(3));
   });
 
-  test('same object ref with different canonical identities survives one failure',
+  test(
+      'same object ref with different canonical identities survives one failure',
       () async {
     var failFirst = true;
     final firstRepository = UnifiedCardRepository(
@@ -559,7 +560,8 @@ void main() {
     expect(source!.provider, 'provider-b');
     expect(source.canonicalId, 'object-b');
     expect(source.metadata['canonical_url'], 'https://example.com/object/b');
-    final version = (await repository.listSourceVersions(source.sourceId)).single;
+    final version =
+        (await repository.listSourceVersions(source.sourceId)).single;
     final object = await repository.getSourceObject(version);
     expect(object.bodyText, '胜出来料');
     expect(object.payload!['canonical_url'], 'https://example.com/object/b');
@@ -606,14 +608,18 @@ void main() {
     final results = await Future.wait([first, second]);
     expect(results.where((item) => item.versionIsNew), hasLength(1));
 
-    final source = await repository.getSource('src_shared_object_two_successes');
+    final source =
+        await repository.getSource('src_shared_object_two_successes');
     expect(source!.provider, 'provider-first');
     expect(source.canonicalId, 'object-first');
-    expect(source.metadata['canonical_url'], 'https://example.com/object/first');
-    final version = (await repository.listSourceVersions(source.sourceId)).single;
+    expect(
+        source.metadata['canonical_url'], 'https://example.com/object/first');
+    final version =
+        (await repository.listSourceVersions(source.sourceId)).single;
     final object = await repository.getSourceObject(version);
     expect(object.bodyText, '第一胜者');
-    expect(object.payload!['canonical_url'], 'https://example.com/object/first');
+    expect(
+        object.payload!['canonical_url'], 'https://example.com/object/first');
     final card = await repository.getCardForSource(source.sourceId);
     expect(card!.body, '第一胜者');
   });
@@ -808,8 +814,7 @@ void main() {
       sourceId: validSourceId,
       canonicalUrl: 'https://example.com/intent/interrupted-valid',
     );
-    final validTarget =
-        _sourceObjectFile(tempDir, validSourceId, validHash);
+    final validTarget = _sourceObjectFile(tempDir, validSourceId, validHash);
     final crashing = UnifiedCardRepository(
       db: db,
       whiteboardRoot: tempDir,
@@ -827,8 +832,7 @@ void main() {
     );
     final validObjectRef =
         'objects/sources/$validSourceId/${validSourceId.replaceFirst('src_', 'ver_')}_$validHash.json';
-    final validIntent =
-        await _intentFileForObjectRef(tempDir, validObjectRef);
+    final validIntent = await _intentFileForObjectRef(tempDir, validObjectRef);
     final validJournal = await validIntent.readAsString();
     final interruptedTemp = File('${validIntent.path}.tmp');
     final residualBackup = File('${validIntent.path}.bak');
@@ -1158,7 +1162,8 @@ void main() {
     expect(committed.cardCreated, isTrue);
     expect(await db.select(db.whiteboardSourceVersions).get(), hasLength(1));
     expect(await _intentFiles(tempDir), isNotEmpty);
-    var payload = jsonDecode(await target.readAsString()) as Map<String, dynamic>;
+    var payload =
+        jsonDecode(await target.readAsString()) as Map<String, dynamic>;
     expect(payload['body_text'], '数据库与新对象必须一致');
     expect(payload.containsKey('old'), isFalse);
 
@@ -1555,6 +1560,76 @@ void main() {
     final corrupt = await repository.getCard(card.cardId);
     expect(corrupt!.documentState, CardDocumentState.corrupt);
     expect(corrupt.card.body, '数据库投影仍在');
+  });
+
+  test('validated rich document uses strict canonical plain-text equality',
+      () async {
+    final card = await repository.createTextCard(
+      cardId: 'strict_document',
+      title: '原题',
+      body: '正文\r\n第二行',
+      tags: const ['原标签'],
+    );
+    const document = RichTextDocument(blocks: [
+      RichTextBlock(type: BlockType.paragraph, text: '正文\r\n第二行'),
+    ]);
+    await repository.saveRichText(card.cardId, document, title: '原题');
+    expect(
+      (await repository.resolveCurrentDocument(card.cardId)).state,
+      CardDocumentState.available,
+    );
+
+    await repository.updateCardMetadata(
+      card.cardId,
+      title: '只改标题',
+      tags: const ['只改标签'],
+    );
+    expect(
+      (await repository.resolveCurrentDocument(card.cardId)).state,
+      CardDocumentState.available,
+      reason: 'title and labels are outside the plain-body freshness guard',
+    );
+
+    for (final mismatch in <String>[
+      '正文\n第二行',
+      '正文\r\n第二行 ',
+      '正文\r\n第二行é',
+      '正文\r\n第二行e\u0301',
+    ]) {
+      await repository.updateCardMetadata(card.cardId, body: mismatch);
+      final resolved = await repository.resolveCurrentDocument(card.cardId);
+      expect(resolved.state, CardDocumentState.stale,
+          reason: 'mismatch must remain strict: ${jsonEncode(mismatch)}');
+      expect(resolved.document, isNull);
+    }
+  });
+
+  test('notLoaded is distinct and stale validation ignores cached Card',
+      () async {
+    final cached = await repository.createTextCard(
+      cardId: 'cached_document',
+      body: 'A',
+    );
+    await repository.saveRichText(
+      cached.cardId,
+      const RichTextDocument(
+        blocks: [RichTextBlock(type: BlockType.paragraph, text: 'A')],
+      ),
+    );
+    final unloaded = await repository.listCards();
+    expect(unloaded.single.documentState, CardDocumentState.notLoaded);
+    expect(unloaded.single.document, isNull);
+
+    await repository.updateCardMetadata(cached.cardId, body: 'B');
+    final resolved = await repository.resolveCurrentDocument(cached.cardId);
+    expect(resolved.state, CardDocumentState.stale);
+    expect(resolved.document, isNull);
+
+    final loaded = await repository.listCards(
+      const CardLibraryQuery(loadDocuments: true),
+    );
+    expect(loaded.single.documentState, CardDocumentState.stale);
+    expect(loaded.single.document, isNull);
   });
 
   test('soft delete and restore preserve stable identity and files', () async {

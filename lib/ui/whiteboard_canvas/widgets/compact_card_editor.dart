@@ -1,9 +1,10 @@
 /// Transient, board-local Card editor.
 ///
-/// This surface edits the same [RichTextDocument] owned by
-/// [UnifiedCardRepository]. The Card title is projected into a synthetic,
-/// session-only first block so the embedded editor remains one continuous
-/// rich-text surface without changing the persisted body document.
+/// With [CompactCardEditor.domainSave], this is a continuous title + canonical
+/// plain-body projection and never reads or writes the preserved rich document.
+/// Legacy non-Domain callers still edit the repository-owned
+/// [RichTextDocument]. In both modes the title is projected into a synthetic,
+/// session-only first block so the surface stays continuous.
 library;
 
 import 'dart:async';
@@ -19,6 +20,12 @@ import 'package:memex/domain/whiteboard/rich_text_object_store.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor.dart';
 import 'package:memex/ui/whiteboard/fonts.dart';
+
+typedef CompactCardDomainSave = Future<CardContract?> Function({
+  required String cardId,
+  required String title,
+  required String body,
+});
 
 class InlineCardTextProjection {
   const InlineCardTextProjection({required this.title, required this.body});
@@ -74,6 +81,7 @@ class CompactCardEditor extends StatefulWidget {
     this.controller,
     this.isReadonly = false,
     this.embedded = false,
+    this.domainSave,
   });
 
   final String cardId;
@@ -84,6 +92,10 @@ class CompactCardEditor extends StatefulWidget {
   final CompactCardEditorController? controller;
   final bool isReadonly;
   final bool embedded;
+
+  /// Production whiteboard semantic save boundary. When present, the inline
+  /// editor projects canonical plain text only and never writes rich storage.
+  final CompactCardDomainSave? domainSave;
 
   @override
   State<CompactCardEditor> createState() => _CompactCardEditorState();
@@ -144,15 +156,16 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
         setState(() => _error = '卡片不存在或已经删除。');
         return;
       }
-      final bodyDocument = record.document ??
-          RichTextDocument(
-            blocks: [
-              RichTextBlock(
-                type: BlockType.paragraph,
-                text: record.card.body,
-              ),
-            ],
-          );
+      final bodyDocument = widget.domainSave == null && record.document != null
+          ? record.document!
+          : RichTextDocument(
+              blocks: [
+                RichTextBlock(
+                  type: BlockType.paragraph,
+                  text: record.card.body,
+                ),
+              ],
+            );
       final richText = RichTextEditingController(
         _InlineCardDocument.combine(
           title: record.card.title,
@@ -197,12 +210,35 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     setState(() => _saving = true);
     try {
       final edit = _InlineCardDocument.split(controller.flushToDocument());
-      final updated = await widget.repository.saveRichText(
-        widget.cardId,
-        edit.body,
-        title: edit.title,
-        preserveEmptyTitle: true,
-      );
+      final domainSave = widget.domainSave;
+      final CardContract? updated;
+      if (domainSave != null) {
+        if (!_isPlainInlineBody(edit.body)) {
+          throw StateError('白板内嵌编辑只支持纯文本正文');
+        }
+        final title = edit.title;
+        final body = edit.body.toPlainText().trim();
+        final original = _card;
+        if (original != null &&
+            title == original.title &&
+            body == original.body) {
+          controller.markSaved();
+          return original;
+        }
+        updated = await domainSave(
+          cardId: widget.cardId,
+          title: title,
+          body: body,
+        );
+        if (updated == null) return null;
+      } else {
+        updated = await widget.repository.saveRichText(
+          widget.cardId,
+          edit.body,
+          title: edit.title,
+          preserveEmptyTitle: true,
+        );
+      }
       if (!mounted) return updated;
       controller.markSaved();
       _card = updated;
@@ -219,6 +255,17 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  bool _isPlainInlineBody(RichTextDocument document) {
+    if (document.assetRefs.isNotEmpty) return false;
+    return document.blocks.every(
+      (block) =>
+          block.type == BlockType.paragraph &&
+          block.marks.isEmpty &&
+          block.attrs.isEmpty &&
+          block.children.isEmpty,
+    );
   }
 
   Future<void> _requestClose() async {

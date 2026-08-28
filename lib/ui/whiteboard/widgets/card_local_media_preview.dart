@@ -77,8 +77,8 @@ class CardLocalMediaResolver {
     String cardId, {
     CardContract? card,
   }) async {
-    final document =
-        repository.richTextStorage.loadWithStatusSync(cardId).document;
+    final resolved = await repository.resolveCurrentDocument(cardId);
+    final document = resolved.document;
     final imageBlock = document == null ? null : _firstImage(document.blocks);
     if (imageBlock != null) {
       final ref = document!.assetRefById(imageBlock.assetRefId ?? '');

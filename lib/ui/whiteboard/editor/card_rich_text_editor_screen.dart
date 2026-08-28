@@ -40,6 +40,8 @@ class CardRichTextEditorScreen extends StatefulWidget {
   final List<String> initialTags;
   final List<String> tagSuggestions;
   final String? degradedMessage;
+  final bool documentReadOnly;
+  final bool loadFromStorageWhenInitialMissing;
   final Future<void> Function()? onExit;
 
   /// Optional externally-owned controller. When provided, the screen uses it
@@ -63,6 +65,8 @@ class CardRichTextEditorScreen extends StatefulWidget {
     this.initialTags = const [],
     this.tagSuggestions = const [],
     this.degradedMessage,
+    this.documentReadOnly = false,
+    this.loadFromStorageWhenInitialMissing = true,
     this.onExit,
     this.controller,
     this.objectStore,
@@ -97,8 +101,10 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
         widget.objectStore ?? RichTextObjectStore(widget.storage.baseDir);
     // Card documents are small local JSON files; synchronous load keeps the
     // closed loop simple and testable without a fake-async stall.
-    final doc =
-        widget.initialDocument ?? widget.storage.loadSync(widget.cardId);
+    final doc = widget.initialDocument ??
+        (widget.loadFromStorageWhenInitialMissing
+            ? widget.storage.loadSync(widget.cardId)
+            : null);
     _controller.loadDocument(doc ?? RichTextDocument.empty());
     // Rebuild on controller changes so PopScope.canPop reflects the latest
     // dirty state (typing, save, undo/redo all notify).
@@ -123,16 +129,21 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
     if (_saving) return;
     setState(() => _saving = true);
     try {
-      final document = _controller.flushToDocument();
-      final save = widget.onSaveDocument;
-      if (save != null) {
-        await save(widget.cardId, document);
-      } else {
-        // Keep the injected standalone-storage seam synchronous: existing
-        // widget tests and offline callers expect the file to exist as soon
-        // as the button callback returns. Production Repository saves remain
-        // awaited through [onSaveDocument].
-        widget.storage.saveSync(widget.cardId, document);
+      if (_controller.isDirty) {
+        if (widget.documentReadOnly) {
+          throw StateError('当前富文本版本已保留，不能从过期投影覆盖');
+        }
+        final document = _controller.flushToDocument();
+        final save = widget.onSaveDocument;
+        if (save != null) {
+          await save(widget.cardId, document);
+        } else {
+          // Keep the injected standalone-storage seam synchronous: existing
+          // widget tests and offline callers expect the file to exist as soon
+          // as the button callback returns. Production Repository saves remain
+          // awaited through [onSaveDocument].
+          widget.storage.saveSync(widget.cardId, document);
+        }
       }
       final saveTags = widget.onSaveTags;
       if (_tagsDirty && saveTags != null) {
@@ -281,6 +292,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
                                   markSavedAfterCallback: false,
                                   showSaveInToolbar: false,
                                   inlineSurface: true,
+                                  readOnly: widget.documentReadOnly,
                                 ),
                               ),
                               const SizedBox(height: 14),
@@ -369,6 +381,7 @@ class _DegradedDocumentNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
     return Container(
+      key: const ValueKey('rich_text_degraded_notice'),
       margin: const EdgeInsets.fromLTRB(24, 0, 24, 12),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(

@@ -26,8 +26,16 @@ import 'package:memex/domain/whiteboard/source_content.dart';
 import 'package:memex/domain/whiteboard/video/time_range_anchor_spec.dart';
 import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 
-/// Filesystem availability of a card's rich-text body.
-enum CardDocumentState { available, missing, corrupt }
+/// Validated relationship between a Card's canonical plain-text body and its
+/// optional rich-text file.
+enum CardDocumentState { available, missing, corrupt, stale, notLoaded }
+
+class CardDocumentResolution {
+  const CardDocumentResolution({required this.state, this.document});
+
+  final CardDocumentState state;
+  final RichTextDocument? document;
+}
 
 /// Filesystem availability of an immutable SourceVersion object.
 enum SourceObjectState { available, missing, corrupt }
@@ -531,15 +539,40 @@ class UnifiedCardRepository {
         ? null
         : await _versionById(source!.currentVersionId!);
     final placed = await isCardPlaced(cardId);
-    final rich =
-        loadDocument ? await richTextStorage.loadWithStatus(cardId) : null;
+    final card = _toCard(row, extra);
+    final document = loadDocument
+        ? _validateCurrentDocument(
+            card,
+            await richTextStorage.loadWithStatus(cardId),
+          )
+        : const CardDocumentResolution(
+            state: CardDocumentState.notLoaded,
+          );
     return UnifiedCardRecord(
-      card: _toCard(row, extra),
+      card: card,
       source: source,
       currentSourceVersion: currentVersion,
-      document: rich?.document,
-      documentState: _documentState(rich?.status),
+      document: document.document,
+      documentState: document.state,
       isPlaced: placed,
+    );
+  }
+
+  /// Loads a rich document through the canonical Card projection guard.
+  ///
+  /// A stale file remains untouched on disk, but it is never returned to a
+  /// consumer until its exact plain-text projection matches [CardContract.body]
+  /// again (for example after persistent Undo).
+  Future<CardDocumentResolution> resolveCurrentDocument(
+    String cardId,
+  ) async {
+    final canonical = (await getCard(cardId, loadDocument: false))?.card;
+    if (canonical == null) {
+      return const CardDocumentResolution(state: CardDocumentState.missing);
+    }
+    return _validateCurrentDocument(
+      canonical,
+      await richTextStorage.loadWithStatus(cardId),
     );
   }
 
@@ -619,9 +652,14 @@ class UnifiedCardRepository {
       if (query.placedOnBoard != null && query.placedOnBoard != placed) {
         continue;
       }
-      final rich = query.loadDocuments
-          ? await richTextStorage.loadWithStatus(card.cardId)
-          : null;
+      final document = query.loadDocuments
+          ? _validateCurrentDocument(
+              card,
+              await richTextStorage.loadWithStatus(card.cardId),
+            )
+          : const CardDocumentResolution(
+              state: CardDocumentState.notLoaded,
+            );
       records.add(
         UnifiedCardRecord(
           card: card,
@@ -629,8 +667,8 @@ class UnifiedCardRepository {
           currentSourceVersion: source?.currentVersionId == null
               ? null
               : await _versionById(source!.currentVersionId!),
-          document: rich?.document,
-          documentState: _documentState(rich?.status),
+          document: document.document,
+          documentState: document.state,
           isPlaced: placed,
         ),
       );
@@ -1923,15 +1961,35 @@ class UnifiedCardRepository {
         deletedAt: setDeletedAt ? deletedAt : card.deletedAt,
       );
 
-  static CardDocumentState _documentState(RichTextLoadStatus? status) {
-    switch (status) {
+  static CardDocumentResolution _validateCurrentDocument(
+    CardContract card,
+    RichTextLoadResult rich,
+  ) {
+    switch (rich.status) {
       case RichTextLoadStatus.available:
-        return CardDocumentState.available;
+        final document = rich.document;
+        if (document == null) {
+          return const CardDocumentResolution(
+            state: CardDocumentState.corrupt,
+          );
+        }
+        if (document.toPlainText().trim() != card.body) {
+          return const CardDocumentResolution(
+            state: CardDocumentState.stale,
+          );
+        }
+        return CardDocumentResolution(
+          state: CardDocumentState.available,
+          document: document,
+        );
       case RichTextLoadStatus.corrupt:
-        return CardDocumentState.corrupt;
+        return const CardDocumentResolution(
+          state: CardDocumentState.corrupt,
+        );
       case RichTextLoadStatus.missing:
-      case null:
-        return CardDocumentState.missing;
+        return const CardDocumentResolution(
+          state: CardDocumentState.missing,
+        );
     }
   }
 
