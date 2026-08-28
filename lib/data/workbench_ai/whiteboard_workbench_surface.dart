@@ -4,6 +4,7 @@ import 'dart:async';
 
 typedef WhiteboardSurfaceFlush = Future<bool> Function();
 typedef WhiteboardSurfaceReload = Future<void> Function();
+typedef WhiteboardSurfaceInteractionLock = void Function(bool locked);
 
 class WhiteboardWorkbenchSurface {
   const WhiteboardWorkbenchSurface({
@@ -12,6 +13,7 @@ class WhiteboardWorkbenchSurface {
     required this.selectedItemIds,
     required this.flush,
     required this.reload,
+    required this.setInteractionLocked,
   });
 
   final Object owner;
@@ -19,6 +21,7 @@ class WhiteboardWorkbenchSurface {
   final Set<String> selectedItemIds;
   final WhiteboardSurfaceFlush flush;
   final WhiteboardSurfaceReload reload;
+  final WhiteboardSurfaceInteractionLock setInteractionLocked;
 
   WhiteboardWorkbenchSurface copyWith({Set<String>? selectedItemIds}) {
     return WhiteboardWorkbenchSurface(
@@ -28,6 +31,7 @@ class WhiteboardWorkbenchSurface {
           Set.unmodifiable(selectedItemIds ?? this.selectedItemIds),
       flush: flush,
       reload: reload,
+      setInteractionLocked: setInteractionLocked,
     );
   }
 }
@@ -50,6 +54,7 @@ class WhiteboardWorkbenchSurfaceController {
     required Set<String> selectedItemIds,
     required WhiteboardSurfaceFlush flush,
     required WhiteboardSurfaceReload reload,
+    WhiteboardSurfaceInteractionLock? setInteractionLocked,
   }) {
     _current = WhiteboardWorkbenchSurface(
       owner: owner,
@@ -57,6 +62,7 @@ class WhiteboardWorkbenchSurfaceController {
       selectedItemIds: Set.unmodifiable(selectedItemIds),
       flush: flush,
       reload: reload,
+      setInteractionLocked: setInteractionLocked ?? (_) {},
     );
   }
 

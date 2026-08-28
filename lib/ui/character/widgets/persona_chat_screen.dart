@@ -2526,6 +2526,7 @@ only after you have written the goodbye you want the user to hear.''',
         conversationId: conversationId,
         characterId: _currentCharacterId,
         userText: text,
+        userMessageId: userMessageId,
         onDelta: (accumulatedText) {
           if (!mounted || _currentCharacterId != _activeStreamingCharacterId) {
             return;

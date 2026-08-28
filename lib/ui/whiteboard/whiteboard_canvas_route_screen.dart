@@ -8,6 +8,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -17,12 +18,17 @@ import 'package:memex/data/whiteboard/whiteboard_data_bootstrap.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_surface.dart';
+import 'package:memex/data/workbench_ai/whiteboard_manual_domain_command_host.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
+import 'package:memex/domain/whiteboard/domain_command.dart';
+import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
+import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_tokens.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_view_model.dart';
+import 'package:memex/ui/whiteboard_canvas/whiteboard_manual_command_port.dart';
 
 /// Route screen for `/whiteboard/:boardId`. [store] is injectable for tests.
 class WhiteboardCanvasRouteScreen extends StatefulWidget {
@@ -32,6 +38,7 @@ class WhiteboardCanvasRouteScreen extends StatefulWidget {
   final Future<UnifiedCardRepository> Function()? repositoryLoader;
   final Future<bool> Function(String boardId, WhiteboardSnapshot snapshot)?
       saveSnapshot;
+  final WhiteboardManualDomainCommandHost? manualCommandHost;
 
   const WhiteboardCanvasRouteScreen({
     super.key,
@@ -40,6 +47,7 @@ class WhiteboardCanvasRouteScreen extends StatefulWidget {
     this.cardRepository,
     this.repositoryLoader,
     this.saveSnapshot,
+    this.manualCommandHost,
   });
 
   @override
@@ -58,7 +66,24 @@ class _WhiteboardCanvasRouteScreenState
   String? _saveError;
   bool _loaded = false;
   bool _saving = false;
+  Future<bool>? _pendingSave;
   final Object _workbenchSurfaceOwner = Object();
+  late final WhiteboardManualDomainCommandHost? _manualCommandHost =
+      widget.manualCommandHost ??
+          (widget.store == null &&
+                  widget.cardRepository == null &&
+                  widget.repositoryLoader == null &&
+                  widget.saveSnapshot == null
+              ? WhiteboardManualDomainCommandHost.production()
+              : null);
+  late final _RouteManualCommandPort? _manualCommandPort =
+      _manualCommandHost == null
+          ? null
+          : _RouteManualCommandPort(
+              boardId: widget.boardId,
+              surfaceOwner: _workbenchSurfaceOwner,
+              host: _manualCommandHost,
+            );
 
   @override
   void initState() {
@@ -145,6 +170,7 @@ class _WhiteboardCanvasRouteScreenState
       selectedItemIds: vm.selection.selectedItemIds,
       flush: () => _save(vm),
       reload: _reloadWorkbenchSurface,
+      setInteractionLocked: vm.setReadonly,
     );
   }
 
@@ -242,7 +268,23 @@ class _WhiteboardCanvasRouteScreenState
     WhiteboardCanvasViewModel vm, {
     bool announce = false,
   }) async {
-    if (_saving) return false;
+    await _manualCommandPort?.waitForIdle();
+    if (vm.isInLogicalAction) return false;
+    final existing = _pendingSave;
+    if (existing != null) return existing;
+    final operation = _performSave(vm, announce: announce);
+    _pendingSave = operation;
+    try {
+      return await operation;
+    } finally {
+      if (identical(_pendingSave, operation)) _pendingSave = null;
+    }
+  }
+
+  Future<bool> _performSave(
+    WhiteboardCanvasViewModel vm, {
+    required bool announce,
+  }) async {
     if (mounted) {
       setState(() {
         _saving = true;
@@ -352,6 +394,7 @@ class _WhiteboardCanvasRouteScreenState
           cardRepository: _cardRepository,
           onOpenCard: (card) => unawaited(_openCard(card)),
           onPersistSnapshot: () => _save(vm),
+          manualCommandPort: _manualCommandPort,
           onExit: () => unawaited(_handleExit()),
         ),
         if (_saving)
@@ -400,5 +443,152 @@ class _WhiteboardCanvasRouteScreenState
           ),
       ],
     );
+  }
+}
+
+class _RouteManualCommandPort implements WhiteboardManualCommandPort {
+  _RouteManualCommandPort({
+    required this.boardId,
+    required this.surfaceOwner,
+    required this.host,
+  });
+
+  final String boardId;
+  final Object surfaceOwner;
+  final WhiteboardManualDomainCommandHost host;
+  Future<void>? _pending;
+
+  Future<void> waitForIdle() async {
+    while (_pending != null) {
+      await _pending;
+    }
+  }
+
+  Future<WhiteboardDomainCommandReceipt?> _execute({
+    required String operationBatchId,
+    required List<WhiteboardDomainCommand> commands,
+  }) {
+    if (_pending != null) return Future.value(null);
+    final completer = Completer<void>();
+    _pending = completer.future;
+    return host
+        .execute(
+      surfaceOwner: surfaceOwner,
+      boardId: boardId,
+      operationBatchId: operationBatchId,
+      commands: commands,
+    )
+        .whenComplete(() {
+      _pending = null;
+      completer.complete();
+    });
+  }
+
+  @override
+  Future<WhiteboardManualCreateResult?> createNote({
+    required double x,
+    required double y,
+    double width = 260,
+    double height = 200,
+  }) async {
+    final operationId = StableId.generate('batch').value;
+    final cardId = StableId.generate('card').value;
+    final itemId = StableId.generate('item').value;
+    final receipt = await _execute(
+      operationBatchId: operationId,
+      commands: [
+        CreateCardCommand(
+          commandId: StableId.generate('command').value,
+          cardId: cardId,
+          itemId: itemId,
+          x: x,
+          y: y,
+          width: width,
+          height: height,
+        ),
+      ],
+    );
+    if (receipt?.status != WhiteboardDomainCommandStatus.applied) return null;
+    return WhiteboardManualCreateResult(cardId: cardId, itemId: itemId);
+  }
+
+  @override
+  Future<bool> editCard({
+    required String cardId,
+    required String body,
+    required List<String> labels,
+  }) async {
+    final receipt = await _execute(
+      operationBatchId: StableId.generate('batch').value,
+      commands: [
+        EditCardBodyCommand(
+          commandId: StableId.generate('command').value,
+          cardId: cardId,
+          body: body,
+        ),
+        SetCardLabelsCommand(
+          commandId: StableId.generate('command').value,
+          cardId: cardId,
+          labels: List.unmodifiable(labels),
+        ),
+      ],
+    );
+    return receipt?.status == WhiteboardDomainCommandStatus.applied;
+  }
+
+  @override
+  Future<bool> movePlacements(
+    Map<String, math.Point<double>> positions,
+  ) async {
+    if (positions.isEmpty) return true;
+    final receipt = await _execute(
+      operationBatchId: StableId.generate('batch').value,
+      commands: [
+        for (final entry in positions.entries)
+          MovePlacementCommand(
+            commandId: StableId.generate('command').value,
+            itemId: entry.key,
+            x: entry.value.x,
+            y: entry.value.y,
+          ),
+      ],
+    );
+    return receipt?.status == WhiteboardDomainCommandStatus.applied;
+  }
+
+  @override
+  Future<bool> resizePlacement({
+    required String itemId,
+    required double width,
+    required double height,
+  }) async {
+    final receipt = await _execute(
+      operationBatchId: StableId.generate('batch').value,
+      commands: [
+        ResizePlacementCommand(
+          commandId: StableId.generate('command').value,
+          itemId: itemId,
+          width: width,
+          height: height,
+        ),
+      ],
+    );
+    return receipt?.status == WhiteboardDomainCommandStatus.applied;
+  }
+
+  @override
+  Future<bool> removePlacements(List<String> itemIds) async {
+    if (itemIds.isEmpty) return true;
+    final receipt = await _execute(
+      operationBatchId: StableId.generate('batch').value,
+      commands: [
+        for (final itemId in itemIds)
+          RemovePlacementCommand(
+            commandId: StableId.generate('command').value,
+            itemId: itemId,
+          ),
+      ],
+    );
+    return receipt?.status == WhiteboardDomainCommandStatus.applied;
   }
 }

@@ -45,6 +45,7 @@ import 'widgets/board_item_edit_surface.dart';
 import 'widgets/compact_card_editor.dart';
 import 'whiteboard_canvas_tokens.dart';
 import 'whiteboard_canvas_view_model.dart';
+import 'whiteboard_manual_command_port.dart';
 
 /// Converts between screen and canvas coordinates.
 class CanvasTransform {
@@ -125,6 +126,7 @@ class WhiteboardCanvasScreen extends StatefulWidget {
   final Future<bool> Function()? onPersistSnapshot;
   final BoardItemEditSurfaceBuilder? cardEditSurfaceBuilder;
   final WhiteboardImagePathPicker? imagePathPicker;
+  final WhiteboardManualCommandPort? manualCommandPort;
 
   const WhiteboardCanvasScreen({
     super.key,
@@ -135,6 +137,7 @@ class WhiteboardCanvasScreen extends StatefulWidget {
     this.onPersistSnapshot,
     this.cardEditSurfaceBuilder,
     this.imagePathPicker,
+    this.manualCommandPort,
   });
 
   @override
@@ -237,7 +240,68 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   }
 
   void _nudge(double dx, double dy) {
-    widget.viewModel.handleIntent(NudgeSelectionIntent(dx: dx, dy: dy));
+    final vm = widget.viewModel;
+    final ids = vm.selection.selectedItemIds;
+    if (ids.isEmpty) return;
+    if (!vm.handleIntent(NudgeSelectionIntent(dx: dx, dy: dy))) return;
+    unawaited(_commitMoves(ids));
+  }
+
+  Future<void> _commitMoves(Set<String> itemIds) async {
+    final port = widget.manualCommandPort;
+    if (port == null) return;
+    final nodes = {
+      for (final node in widget.viewModel.boardState.nodes) node.itemId: node
+    };
+    final positions = <String, math.Point<double>>{
+      for (final itemId in itemIds)
+        if (nodes[itemId] != null)
+          itemId: math.Point(nodes[itemId]!.item.x, nodes[itemId]!.item.y),
+    };
+    final ok = await port.movePlacements(positions);
+    if (!ok && mounted) _showDomainCommitFailure();
+  }
+
+  Future<void> _commitResize(String itemId) async {
+    final port = widget.manualCommandPort;
+    if (port == null) return;
+    final node = widget.viewModel.boardState.nodes
+        .cast<CanvasCardNode?>()
+        .firstWhere((value) => value?.itemId == itemId, orElse: () => null);
+    if (node == null) return;
+    final ok = await port.resizePlacement(
+      itemId: itemId,
+      width: node.item.width,
+      height: node.item.height,
+    );
+    if (!ok && mounted) _showDomainCommitFailure();
+  }
+
+  Future<void> _removeSelectedPlacements() async {
+    final vm = widget.viewModel;
+    final ids = vm.selection.selectedItemIds.toList(growable: false);
+    if (ids.isEmpty) return;
+    final port = widget.manualCommandPort;
+    if (port == null) {
+      vm.removeSelectedItems();
+      return;
+    }
+    final ok = await port.removePlacements(ids);
+    if (!ok && mounted) _showDomainCommitFailure();
+  }
+
+  void _deleteSelection() {
+    if (widget.viewModel.selectedEdgeId != null) {
+      widget.viewModel.handleIntent(const DeleteSelectionIntent());
+      return;
+    }
+    unawaited(_removeSelectedPlacements());
+  }
+
+  void _showDomainCommitFailure() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('白板操作没有提交，已恢复保存前状态。')),
+    );
   }
 
   Map<ShortcutActivator, VoidCallback> _buildShortcuts() {
@@ -259,10 +323,8 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       },
       const SingleActivator(LogicalKeyboardKey.keyA, control: true): () =>
           vm.handleIntent(SelectAllIntent(exclude: hidden)),
-      const SingleActivator(LogicalKeyboardKey.delete): () =>
-          vm.handleIntent(const DeleteSelectionIntent()),
-      const SingleActivator(LogicalKeyboardKey.backspace): () =>
-          vm.handleIntent(const DeleteSelectionIntent()),
+      const SingleActivator(LogicalKeyboardKey.delete): _deleteSelection,
+      const SingleActivator(LogicalKeyboardKey.backspace): _deleteSelection,
       const SingleActivator(LogicalKeyboardKey.arrowUp): () => _nudge(0, -8),
       const SingleActivator(LogicalKeyboardKey.arrowDown): () => _nudge(0, 8),
       const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _nudge(-8, 0),
@@ -333,7 +395,8 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     }
     if (!_supportsCompactEdit(card.cardKind) ||
         (widget.cardRepository == null &&
-            widget.cardEditSurfaceBuilder == null)) {
+            widget.cardEditSurfaceBuilder == null &&
+            widget.manualCommandPort == null)) {
       widget.onOpenCard?.call(card);
       return;
     }
@@ -492,8 +555,28 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   }
 
   Future<void> _createNoteAt(Offset canvasPoint, Offset screenPoint) async {
-    final repository = widget.cardRepository;
     final vm = widget.viewModel;
+    final manualPort = widget.manualCommandPort;
+    if (manualPort != null) {
+      if (vm.isReadonly || _creatingCard) return;
+      _creatingCard = true;
+      try {
+        final created = await manualPort.createNote(
+          x: canvasPoint.dx - 130,
+          y: canvasPoint.dy - 100,
+        );
+        if (!mounted) return;
+        if (created == null) {
+          _showDomainCommitFailure();
+          return;
+        }
+        setState(() => _editingItemId = created.itemId);
+      } finally {
+        _creatingCard = false;
+      }
+      return;
+    }
+    final repository = widget.cardRepository;
     if (repository == null || vm.isReadonly || _creatingCard) return;
     _creatingCard = true;
     final generation = ++_createGeneration;
@@ -767,6 +850,14 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                         unawaited(_openCompactEditor(itemId, card)),
                     editingItemId: _editingItemId,
                     editSurfaceBuilder: (context, card) {
+                      final manualPort = widget.manualCommandPort;
+                      if (manualPort != null) {
+                        return _DomainCardEditSurface(
+                          card: card,
+                          port: manualPort,
+                          onClose: () => setState(() => _editingItemId = null),
+                        );
+                      }
                       final request = BoardItemEditRequest(
                         cardId: card.cardId,
                         isReadonly: vm.isReadonly,
@@ -794,6 +885,17 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     },
                     onCreateCardAt: (canvasPoint, screenPoint) =>
                         unawaited(_createNoteAt(canvasPoint, screenPoint)),
+                    onMoveCommit: _commitMoves,
+                    onResizeCommit: _commitResize,
+                    onRemovePlacements: (itemIds) async {
+                      final port = widget.manualCommandPort;
+                      if (port == null) {
+                        widget.viewModel.removeItems(itemIds);
+                        return;
+                      }
+                      final ok = await port.removePlacements(itemIds);
+                      if (!ok && mounted) _showDomainCommitFailure();
+                    },
                   ),
                 ),
                 if (!_navigationVisible)
@@ -820,6 +922,13 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                     onImportImages: () => unawaited(_importImagesAtViewport()),
                     onCreateGroup: _createGroupFromSelection,
                     onCreateEdge: _connectSelectedCards,
+                    onDeleteSelection: () {
+                      if (vm.selectedEdgeId != null) {
+                        vm.handleIntent(const DeleteSelectionIntent());
+                      } else {
+                        unawaited(_removeSelectedPlacements());
+                      }
+                    },
                     onClose: () => setState(() => _toolsVisible = false),
                   ),
                 if (_toolsVisible) _FloatingViewTools(viewModel: vm),
@@ -924,6 +1033,133 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DomainCardEditSurface extends StatefulWidget {
+  const _DomainCardEditSurface({
+    required this.card,
+    required this.port,
+    required this.onClose,
+  });
+
+  final CardContract card;
+  final WhiteboardManualCommandPort port;
+  final VoidCallback onClose;
+
+  @override
+  State<_DomainCardEditSurface> createState() => _DomainCardEditSurfaceState();
+}
+
+class _DomainCardEditSurfaceState extends State<_DomainCardEditSurface> {
+  late final TextEditingController _body =
+      TextEditingController(text: widget.card.body);
+  late final TextEditingController _labels =
+      TextEditingController(text: widget.card.tags.join(', '));
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _body.dispose();
+    _labels.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final ok = await widget.port.editCard(
+      cardId: widget.card.cardId,
+      body: _body.text,
+      labels: _labels.text
+          .split(RegExp(r'[,，]'))
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList(growable: false),
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (ok) {
+      widget.onClose();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('卡片没有保存，已恢复保存前内容。')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = WhiteboardCanvasTokens.of(context);
+    return Material(
+      key: const ValueKey('wb_domain_card_editor'),
+      color: colors.panelSurface,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.card.title.trim().isEmpty ? '文字卡片' : widget.card.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: whiteboardUiTextStyle(
+                color: colors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    TextField(
+                      key: const ValueKey('wb_domain_card_body'),
+                      controller: _body,
+                      enabled: !_saving,
+                      minLines: 3,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        hintText: '正文',
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      key: const ValueKey('wb_domain_card_labels'),
+                      controller: _labels,
+                      enabled: !_saving,
+                      maxLines: 1,
+                      decoration: const InputDecoration(
+                        hintText: '标签（逗号分隔）',
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _saving ? null : widget.onClose,
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 6),
+                FilledButton(
+                  key: const ValueKey('wb_domain_card_save'),
+                  onPressed: _saving ? null : _save,
+                  child: Text(_saving ? '保存中' : '保存'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -1101,6 +1337,9 @@ class WhiteboardCanvasArea extends StatefulWidget {
   final Widget Function(BuildContext context, CardContract card)?
       editSurfaceBuilder;
   final void Function(Offset canvasPoint, Offset screenPoint)? onCreateCardAt;
+  final Future<void> Function(Set<String> itemIds)? onMoveCommit;
+  final Future<void> Function(String itemId)? onResizeCommit;
+  final Future<void> Function(List<String> itemIds)? onRemovePlacements;
 
   const WhiteboardCanvasArea({
     super.key,
@@ -1111,6 +1350,9 @@ class WhiteboardCanvasArea extends StatefulWidget {
     this.editingItemId,
     this.editSurfaceBuilder,
     this.onCreateCardAt,
+    this.onMoveCommit,
+    this.onResizeCommit,
+    this.onRemovePlacements,
   });
 
   @override
@@ -1637,7 +1879,13 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         case _CardMenuAction.front:
           widget.viewModel.bringSelectedItemToFront();
         case _CardMenuAction.remove:
-          widget.viewModel.removeSelectedItems();
+          final ids = widget.viewModel.selection.selectedItemIds.toList();
+          final remove = widget.onRemovePlacements;
+          if (remove == null) {
+            widget.viewModel.removeSelectedItems();
+          } else {
+            unawaited(remove(ids));
+          }
       }
       return;
     }
@@ -1712,9 +1960,16 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   }
 
   void _onDragEnd() {
-    if (_dragState == null) return;
+    final drag = _dragState;
+    if (drag == null) return;
+    final vm = widget.viewModel;
+    final itemIds = vm.selection.isSelected(drag.itemId)
+        ? vm.selection.selectedItemIds
+        : {drag.itemId};
     _dragState = null;
-    widget.viewModel.endLogicalAction();
+    vm.endLogicalAction();
+    final commit = widget.onMoveCommit;
+    if (commit != null) unawaited(commit(itemIds));
   }
 
   void _onGroupDragStart(CanvasGroupNode group, Offset position) {
@@ -1744,9 +1999,12 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   }
 
   void _onGroupDragEnd() {
-    if (_groupDragState == null) return;
+    final drag = _groupDragState;
+    if (drag == null) return;
     _groupDragState = null;
     widget.viewModel.endLogicalAction();
+    final commit = widget.onMoveCommit;
+    if (commit != null) unawaited(commit(drag.itemIds));
   }
 
   void _onResizeStart(String itemId, Offset cornerScreenPos) {
@@ -1781,9 +2039,12 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
   }
 
   void _onResizeEnd() {
-    if (_resizeState == null) return;
+    final resize = _resizeState;
+    if (resize == null) return;
     _resizeState = null;
     widget.viewModel.endLogicalAction();
+    final commit = widget.onResizeCommit;
+    if (commit != null) unawaited(commit(resize.itemId));
   }
 
   void _onRotateStart(String itemId, Offset pointerScreenPos) {
@@ -3666,6 +3927,7 @@ class _FloatingActionTools extends StatelessWidget {
     required this.onImportImages,
     required this.onCreateGroup,
     required this.onCreateEdge,
+    required this.onDeleteSelection,
     required this.onClose,
   });
 
@@ -3676,6 +3938,7 @@ class _FloatingActionTools extends StatelessWidget {
   final VoidCallback onImportImages;
   final VoidCallback onCreateGroup;
   final VoidCallback onCreateEdge;
+  final VoidCallback onDeleteSelection;
   final VoidCallback onClose;
 
   @override
@@ -3764,6 +4027,7 @@ class _FloatingActionTools extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 _FloatingButton(
+                  key: const Key('wb_delete_selection_tool'),
                   icon: Icons.delete_outline,
                   tooltip: '删除选中 (Del)',
                   isEnabled:
@@ -3772,7 +4036,7 @@ class _FloatingActionTools extends StatelessWidget {
                   onTap:
                       (vm.selection.isNotEmpty || vm.selectedEdgeId != null) &&
                               !vm.isReadonly
-                          ? () => vm.handleIntent(const DeleteSelectionIntent())
+                          ? onDeleteSelection
                           : null,
                 ),
                 const SizedBox(width: 4),

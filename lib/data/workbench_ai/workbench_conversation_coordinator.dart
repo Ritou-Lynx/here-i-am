@@ -12,6 +12,7 @@ import 'package:memex/data/workbench_ai/task_queue/workbench_runtime_task_queue_
 import 'package:memex/data/workbench_ai/task_queue/workbench_task_queue_tool_host.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_binding_store.dart';
+import 'package:memex/data/workbench_ai/whiteboard_runtime_domain_tool.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/workbench_ai/runtime/runtime_session_binding.dart';
 
@@ -47,6 +48,7 @@ class WorkbenchConversationCoordinator {
     WorkbenchRelationshipContextProvider? relationshipContextProvider,
     WorkbenchRuntimeSearchTool? searchTool,
     WorkbenchRuntimeTaskQueueTool? taskQueueTool,
+    WorkbenchRuntimeWhiteboardDomainTool? whiteboardTool,
     DateTime Function()? clock,
     Duration pollInterval = const Duration(milliseconds: 120),
     Duration turnTimeout = const Duration(minutes: 3),
@@ -58,13 +60,48 @@ class WorkbenchConversationCoordinator {
         _relationshipContextProvider = relationshipContextProvider,
         _searchTool = searchTool,
         _taskQueueTool = taskQueueTool,
+        _whiteboardTool = whiteboardTool,
         _clock = clock ?? (() => DateTime.now().toUtc()),
         _pollInterval = pollInterval,
         _turnTimeout = turnTimeout,
         _controlTimeout = controlTimeout,
         _relationshipContextTimeout = relationshipContextTimeout;
 
-  static final instance = WorkbenchConversationCoordinator(
+  /// Authoritative desktop composition seam. Tests may replace transports and
+  /// repositories, but the whiteboard registration still occurs inside the
+  /// same composition used by [instance].
+  factory WorkbenchConversationCoordinator.productionComposition({
+    required WorkbenchConversationRuntimeGateway runtime,
+    required WorkbenchReplyWriter addReply,
+    required WorkbenchRuntimeWhiteboardDomainTool Function()
+        whiteboardToolFactory,
+    WorkbenchRuntimeBindingStore? bindingStore,
+    WorkbenchRelationshipContextProvider? relationshipContextProvider,
+    WorkbenchRuntimeSearchTool? searchTool,
+    WorkbenchRuntimeTaskQueueTool? taskQueueTool,
+    DateTime Function()? clock,
+    Duration pollInterval = const Duration(milliseconds: 120),
+    Duration turnTimeout = const Duration(minutes: 3),
+    Duration controlTimeout = const Duration(seconds: 2),
+    Duration relationshipContextTimeout = const Duration(seconds: 10),
+  }) =>
+      WorkbenchConversationCoordinator(
+        runtime: runtime,
+        addReply: addReply,
+        bindingStore: bindingStore,
+        relationshipContextProvider: relationshipContextProvider,
+        searchTool: searchTool,
+        taskQueueTool: taskQueueTool,
+        whiteboardTool: whiteboardToolFactory(),
+        clock: clock,
+        pollInterval: pollInterval,
+        turnTimeout: turnTimeout,
+        controlTimeout: controlTimeout,
+        relationshipContextTimeout: relationshipContextTimeout,
+      );
+
+  static final instance =
+      WorkbenchConversationCoordinator.productionComposition(
     runtime: WorkbenchRuntimeClient(),
     relationshipContextProvider:
         WorkbenchRelationshipContextAssembler.production(
@@ -75,6 +112,7 @@ class WorkbenchConversationCoordinator {
       loadCardRepository: WhiteboardDataBootstrap.productionRepository,
     ),
     taskQueueTool: WorkbenchRuntimeTaskQueueTool.production(),
+    whiteboardToolFactory: WorkbenchRuntimeWhiteboardDomainTool.production,
     addReply: (characterId, content) => PersonaChatService.instance
         .addCharacterMessage(characterId, content, isRead: true),
   );
@@ -93,6 +131,7 @@ class WorkbenchConversationCoordinator {
   final WorkbenchRelationshipContextProvider? _relationshipContextProvider;
   final WorkbenchRuntimeSearchTool? _searchTool;
   final WorkbenchRuntimeTaskQueueTool? _taskQueueTool;
+  final WorkbenchRuntimeWhiteboardDomainTool? _whiteboardTool;
   final DateTime Function() _clock;
   final Duration _pollInterval;
   final Duration _turnTimeout;
@@ -114,6 +153,7 @@ class WorkbenchConversationCoordinator {
     required String conversationId,
     required String characterId,
     required String userText,
+    int? userMessageId,
     WorkbenchReplyDelta? onDelta,
   }) async {
     final text = userText.trim();
@@ -145,6 +185,14 @@ class WorkbenchConversationCoordinator {
         conversationId: conversationId,
         userText: text,
       );
+      final whiteboardAuthorization =
+          await _whiteboardTool?.prepareAuthorization(
+        conversationId: conversationId,
+        characterId: characterId,
+        userText: text,
+        userAuthorizationMessageId:
+            userMessageId == null ? null : 'chat-message-$userMessageId',
+      );
       late WorkbenchConversationResult result;
       try {
         final relationshipContext = await _relationshipContextForTurn(
@@ -162,6 +210,7 @@ class WorkbenchConversationCoordinator {
               relationshipContext: relationshipContext,
               searchEnabled: _searchTool != null,
               taskQueueAuthorization: taskQueueAuthorization,
+              whiteboardAuthorization: whiteboardAuthorization,
             ),
           );
         } on WorkbenchRuntimeException catch (error) {
@@ -174,6 +223,7 @@ class WorkbenchConversationCoordinator {
               relationshipContext: relationshipContext,
               searchEnabled: _searchTool != null,
               taskQueueAuthorization: taskQueueAuthorization,
+              whiteboardAuthorization: whiteboardAuthorization,
             ),
           );
         }
@@ -200,6 +250,7 @@ class WorkbenchConversationCoordinator {
           turnId: turn.turnId,
           activeTurn: activeTurn,
           taskQueueAuthorization: taskQueueAuthorization,
+          whiteboardAuthorization: whiteboardAuthorization,
           onDelta: onDelta,
         );
         result = driven.result;
@@ -450,6 +501,7 @@ class WorkbenchConversationCoordinator {
     required String turnId,
     required _ActiveConversationTurn activeTurn,
     required WorkbenchTaskQueueAuthorization? taskQueueAuthorization,
+    required WhiteboardRuntimeTurnAuthorization? whiteboardAuthorization,
     WorkbenchReplyDelta? onDelta,
   }) async {
     var cursor = 0;
@@ -488,6 +540,8 @@ class WorkbenchConversationCoordinator {
               deadline: deadline,
               activeTurn: activeTurn,
               taskQueueAuthorization: taskQueueAuthorization,
+              whiteboardAuthorization: whiteboardAuthorization,
+              runtimeTurnId: turnId,
             );
           } on TimeoutException {
             return _timedOutTurn();
@@ -636,6 +690,7 @@ class WorkbenchConversationCoordinator {
   List<Map<String, dynamic>> get _dynamicTools => [
         if (_searchTool != null) _searchTool.dynamicToolDefinition,
         if (_taskQueueTool != null) _taskQueueTool.dynamicToolDefinition,
+        if (_whiteboardTool != null) _whiteboardTool.dynamicToolDefinition,
       ];
 
   Future<void> _dispatchToolCall(
@@ -643,6 +698,8 @@ class WorkbenchConversationCoordinator {
     required DateTime deadline,
     required _ActiveConversationTurn activeTurn,
     required WorkbenchTaskQueueAuthorization? taskQueueAuthorization,
+    required WhiteboardRuntimeTurnAuthorization? whiteboardAuthorization,
+    required String runtimeTurnId,
   }) async {
     final callId = _requiredRuntimeField(data, 'tool_call_id');
     final toolName = _requiredRuntimeField(data, 'tool_name');
@@ -687,6 +744,31 @@ class WorkbenchConversationCoordinator {
       );
       return;
     }
+    final whiteboardTool = _whiteboardTool;
+    if (whiteboardTool != null &&
+        whiteboardAuthorization != null &&
+        toolName == WorkbenchRuntimeWhiteboardDomainTool.toolName) {
+      final result = await _awaitAtomicToolOperation(
+        whiteboardTool.invoke(
+          data['arguments'],
+          authorization: whiteboardAuthorization,
+          runtimeTurnId: runtimeTurnId,
+          isCancelled: () => activeTurn.stopRequested || activeTurn.controlLost,
+        ),
+        deadline: deadline,
+        activeTurn: activeTurn,
+      );
+      await _awaitTurnOperation(
+        _runtime.respondToToolCall(
+          toolCallId: callId,
+          success: result.success,
+          text: result.text,
+        ),
+        deadline: deadline,
+        activeTurn: activeTurn,
+      );
+      return;
+    }
     await _awaitTurnOperation(
       _runtime.respondToToolCall(
         toolCallId: callId,
@@ -714,11 +796,33 @@ class WorkbenchConversationCoordinator {
     ]).timeout(remaining);
   }
 
+  Future<T> _awaitAtomicToolOperation<T>(
+    Future<T> operation, {
+    required DateTime deadline,
+    required _ActiveConversationTurn activeTurn,
+  }) async {
+    if (activeTurn.stopRequested || activeTurn.controlLost) {
+      throw _TurnStopRequested();
+    }
+    final remaining = deadline.difference(_clock().toUtc());
+    if (remaining <= Duration.zero) throw TimeoutException('turn timed out');
+    // A whiteboard Domain commit must never be detached after it starts. A
+    // stop or turn deadline may arrive while Drift is committing, but this
+    // coordinator waits for the receipt before reporting the interruption so
+    // no later background mutation can surprise the user.
+    final result = await operation;
+    if (activeTurn.stopRequested || activeTurn.controlLost) {
+      throw _TurnStopRequested();
+    }
+    return result;
+  }
+
   static String _turnInput(
     String userText, {
     required WorkbenchRelationshipContext relationshipContext,
     required bool searchEnabled,
     required WorkbenchTaskQueueAuthorization? taskQueueAuthorization,
+    required WhiteboardRuntimeTurnAuthorization? whiteboardAuthorization,
   }) {
     final searchGuidance = searchEnabled
         ? '\n需要时可以调用 ${WorkbenchSearchToolHost.toolName} '
@@ -737,10 +841,13 @@ class WorkbenchConversationCoordinator {
             : '\n当前用户原话只授权长任务队列动作：$queueActions。需要时可调用 '
                 '${WorkbenchTaskQueueToolHost.toolName}；task scope 和权限由产品宿主持有，'
                 '不要在参数中提供或猜测 authorization/scope。';
+    final whiteboardGuidance = whiteboardAuthorization == null
+        ? ''
+        : '\n${whiteboardAuthorization.toPromptBlock()}';
     return '你在 Here I am 桌面工作台中回复。请遵循产品宿主提供的角色身份，'
         '直接自然回复，不要声称完成了未实际执行的操作。\n\n'
         '${relationshipContext.toPromptBlock()}'
-        '$searchGuidance$queueGuidance\n\n$userText';
+        '$searchGuidance$queueGuidance$whiteboardGuidance\n\n$userText';
   }
 
   Future<WorkbenchRelationshipContext> _relationshipContextForTurn({
