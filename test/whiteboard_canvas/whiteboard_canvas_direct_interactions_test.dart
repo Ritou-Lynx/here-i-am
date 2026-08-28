@@ -118,8 +118,34 @@ class _RepoHarness {
 
   Future<void> dispose() async {
     await db.close();
-    if (root.existsSync()) root.deleteSync(recursive: true);
+    const windowsDeleteAttempts = 10;
+    final attempts = Platform.isWindows ? windowsDeleteAttempts : 1;
+    FileSystemException? lastError;
+    StackTrace? lastStackTrace;
+    for (var attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        if (await root.exists()) await root.delete(recursive: true);
+        return;
+      } on FileSystemException catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        if (attempt == attempts) break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+    Error.throwWithStackTrace(lastError!, lastStackTrace!);
   }
+}
+
+void _addRepoHarnessTearDown(
+  WidgetTester tester,
+  _RepoHarness harness,
+) {
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await harness.dispose();
+  });
 }
 
 class _TrackingRepository extends UnifiedCardRepository {
@@ -582,7 +608,7 @@ void main() {
 
   testWidgets('空白双击建真实 Card，移除 BoardItem 不删 Card', (tester) async {
     final harness = _RepoHarness.create();
-    addTearDown(harness.dispose);
+    _addRepoHarnessTearDown(tester, harness);
     final vm = WhiteboardCanvasViewModel(
       initialSnapshot: _emptySnapshot(),
       boardId: 'board_direct',
@@ -667,7 +693,10 @@ void main() {
       find.byKey(const Key('wb_compact_card_editor')),
     );
     final createdStored = (await tester.runAsync(
-      () => harness.repository.getCard(records!.single.card.cardId),
+      () => harness.repository.getCard(
+        records!.single.card.cardId,
+        loadDocument: false,
+      ),
     ))!;
     expect(createdStored.card.title, '新标题');
     expect(createdStored.card.body, '第一段\n第二段');
@@ -678,7 +707,11 @@ void main() {
     expect(vm.exportForSave().boardItems, isEmpty);
     expect(
       await tester.runAsync(
-          () => harness.repository.getCard(records!.single.card.cardId)),
+        () => harness.repository.getCard(
+          records!.single.card.cardId,
+          loadDocument: false,
+        ),
+      ),
       isNotNull,
     );
     final restarted = WhiteboardCanvasViewModel(
@@ -740,7 +773,7 @@ void main() {
 
   testWidgets('原位编辑的标题首行与正文共用单一无框输入面', (tester) async {
     final harness = _RepoHarness.create();
-    addTearDown(harness.dispose);
+    _addRepoHarnessTearDown(tester, harness);
     final original = (await tester.runAsync(
       () => harness.repository.createTextCard(
         cardId: 'card_escape_inline',
@@ -786,7 +819,10 @@ void main() {
     expect(itemAfter.width, itemBefore.width);
     expect(itemAfter.height, itemBefore.height);
     final stored = (await tester.runAsync(
-      () => harness.repository.getCard('card_escape_inline'),
+      () => harness.repository.getCard(
+        'card_escape_inline',
+        loadDocument: false,
+      ),
     ))!;
     expect(stored.card.title, '原位卡片');
     expect(stored.card.body, '编辑后正文');
@@ -801,7 +837,10 @@ void main() {
     );
 
     final titleStored = (await tester.runAsync(
-      () => harness.repository.getCard('card_escape_inline'),
+      () => harness.repository.getCard(
+        'card_escape_inline',
+        loadDocument: false,
+      ),
     ))!;
     expect(titleStored.card.title, '编辑后标题');
     expect(titleStored.card.body, '编辑后正文');
