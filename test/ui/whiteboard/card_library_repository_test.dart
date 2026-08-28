@@ -90,7 +90,7 @@ void main() {
     addTearDown(router.dispose);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     if (settle) {
-      await tester.pumpAndSettle();
+      await _pumpAndSettleLibrary(tester);
     } else {
       await tester.pump();
     }
@@ -221,7 +221,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
 
     expect(find.byKey(const ValueKey('card_library_desktop')), findsOneWidget);
     expect(find.byKey(const ValueKey('desktop_page_title')), findsOneWidget);
@@ -453,54 +453,54 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('最近白板'), findsOneWidget);
     await tester.tap(find.text('筛选目标板'));
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
 
     await tester.tap(find.byKey(const ValueKey('card-library-kind-filter')));
     await tester.pumpAndSettle();
     expect(find.text('原件卡'), findsOneWidget);
     await tester.tap(find.text('文字').last);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     expect(find.text('河边笔记'), findsOneWidget);
     expect(find.text('批注内容'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('card-library-tag-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('研究').last);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     await tester.enterText(
       find.byKey(const ValueKey('card-library-search')),
       '散步关键词',
     );
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     await tester.tap(find.byKey(const ValueKey('card-library-placed-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('已上板').last);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     expect(find.text('河边笔记'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('card-library-kind-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('全部').last);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     await tester.tap(find.byKey(const ValueKey('card-library-placed-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('全部').last);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     await tester.tap(find.byKey(const ValueKey('card-library-tag-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('全部').last);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     await tester.enterText(
       find.byKey(const ValueKey('card-library-search')),
       '',
     );
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     await tester.tap(find.byKey(const ValueKey('card-library-source-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('网页').last);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     expect(find.text('筛选网页'), findsOneWidget);
     expect(find.text('河边笔记'), findsNothing);
   });
@@ -609,7 +609,7 @@ void main() {
       '从卡片库新建',
     );
     await tester.tap(find.text('创建并放入'));
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
 
     final boards = await boardStore.listBoards();
     expect(boards, hasLength(1));
@@ -648,7 +648,7 @@ void main() {
     expect(find.byType(CardRichTextEditorScreen), findsOneWidget);
 
     router.go(AppRoutes.cardLibrary);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     tester
         .widget<InkWell>(find.descendant(
           of: find.byKey(ValueKey('card-library-card-${source.cardId}')),
@@ -659,7 +659,7 @@ void main() {
     expect(find.text('source:src_route'), findsOneWidget);
 
     router.go(AppRoutes.cardLibrary);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     await tester.tap(find.byKey(const ValueKey('card-library-import-link')));
     await tester.pumpAndSettle();
     expect(find.text('import-route'), findsOneWidget);
@@ -685,20 +685,20 @@ void main() {
     await tester.tap(find.text('保存').first);
     await _pumpUntilFound(tester, find.text('已保存'));
     router.pop();
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
 
     expect(find.text('重启恢复标题'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('card-library-tag-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('闭环标签').last);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     expect(find.text('重启恢复标题'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('card-library-search')),
       '搜索闭环关键词',
     );
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.pumpAndSettle();
+    await _pumpAndSettleLibrary(tester);
     expect(find.text('重启恢复标题'), findsOneWidget);
 
     tester
@@ -754,6 +754,33 @@ Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
     if (finder.evaluate().isNotEmpty) return;
   }
   expect(finder, findsWidgets, reason: 'widget did not appear after 2 seconds');
+}
+
+Future<void> _pumpUntilLibraryLoaded(WidgetTester tester) async {
+  final loading = find.descendant(
+    of: find.byType(CardLibraryScreen),
+    matching: find.byType(CircularProgressIndicator),
+  );
+  for (var i = 0; i < 80 && loading.evaluate().isNotEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 25)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  expect(
+    loading,
+    findsNothing,
+    reason: 'Card Library loading did not finish after 2 seconds',
+  );
+}
+
+Future<void> _pumpAndSettleLibrary(WidgetTester tester) async {
+  // Let the production callback expose its loading state, then advance real
+  // time while repository-owned rich document I/O completes. A fake-clock
+  // pumpAndSettle alone cannot make that filesystem work progress on Windows.
+  await tester.pump();
+  await _pumpUntilLibraryLoaded(tester);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
