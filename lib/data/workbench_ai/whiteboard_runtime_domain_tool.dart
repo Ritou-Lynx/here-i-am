@@ -811,27 +811,34 @@ Map<WhiteboardWriteCapability, int> _singleOperationLimits(
     Map.unmodifiable({for (final capability in capabilities) capability: 1});
 
 bool _isWhiteboardConsultation(String text) {
-  if (_isExplicitDelegatedWhiteboardWrite(text)) {
-    return false;
-  }
-  if (RegExp(
-    r'(?:吗|么|呢|[？?])(?:$|[，,。！!；;])|会不会|有没有',
-  ).hasMatch(text)) {
+  final delegatedWrite = _isExplicitDelegatedWhiteboardWrite(text);
+  if (_containsStrongWhiteboardQuestionMarker(text)) {
     return true;
   }
-  return RegExp(
-    r'如何|怎么|怎样|介绍|说明|教程|请问|能否|可否|是否可以|'
-    r'帮我看看|看看.*(?:卡片|内容)|查看|浏览|有什么办法|能不能[？?]?$|'
-    r'是什么|在哪(?:里|儿)?|有哪些|多少|有几|几(?:个|张|条|项|种)?[？?]?$|'
-    r'什么(?:内容|标签|位置)|多大|多宽|多高|合适吗|对吗',
-  ).hasMatch(text);
+  if (RegExp(r'[吗嘛么呢？?]').hasMatch(text)) {
+    return !(delegatedWrite && RegExp(r'吗[。！!]*$').hasMatch(text));
+  }
+  return false;
 }
+
+bool _containsStrongWhiteboardQuestionMarker(String text) => RegExp(
+      r'如何|怎么|怎样|介绍|说明|教程|请问|能否|可否|是否可以|'
+      r'是否|是不是|能不能|可不可以|有无|有没有|要不要|需不需要|'
+      r'该不该|应不应该|会不会|与否|还是.{0,12}不|了没(?:有)?|没有|'
+      r'为什么|为何|什么时候|何时|'
+      r'帮我看看|看看.*(?:卡片|内容)|查看|浏览|有什么办法|'
+      r'是什么|在哪(?:里|儿)?|有哪些|多少|有几|几(?:个|张|条|项|种)?[？?]?$|'
+      r'什么(?:内容|标签|位置)|多大|多宽|多高|合适吗|对吗',
+    ).hasMatch(text);
 
 bool _isExplicitDelegatedWhiteboardWrite(String text) => RegExp(
       r'(?:能帮我|可以帮我|请帮我)(?:把|将).{0,40}'
-      r'(?:新建|创建|添加|编辑|修改|改写|改成|设为|设置为|移动|挪动|'
-      r'移到|放到|调整|调宽|调高|变宽|变窄|缩放|放大|缩小|移除|'
-      r'移出|拿出)',
+      r'(?:移动到|移到|挪到|放到|'
+      r'(?:正文|内容).{0,12}(?:改成|改为|修改为|设为|设置为)|'
+      r'标签.{0,12}(?:改成|改为|修改为|设为|设置为|添加|增加|移除|删除|清除)|'
+      r'(?:宽度|高度|宽高|尺寸|大小).{0,12}'
+      r'(?:改成|改为|修改为|设为|设置为|调整(?:为|成)?)|'
+      r'调宽|调高|变宽|变窄|从白板移除|移出白板|移除摆放|拿出白板)',
     ).hasMatch(text);
 
 String? _surfaceScopeError(Set<String> ids) {

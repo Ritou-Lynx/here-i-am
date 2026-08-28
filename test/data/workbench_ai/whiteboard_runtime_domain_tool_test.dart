@@ -75,6 +75,26 @@ void main() {
       '白板卡片现在移动呢？',
       '白板卡片会不会移动',
       '白板有没有创建卡片',
+      '白板卡片是否移动',
+      '白板卡片是不是移动了',
+      '白板卡片能不能移动',
+      '白板卡片可不可以移动',
+      '白板卡片移动了没',
+      '白板卡片有无移动过',
+      '白板卡片要不要缩放',
+      '白板卡片需不需要移动',
+      '白板卡片该不该移动',
+      '白板卡片应不应该缩放',
+      '白板卡片移动与否',
+      '白板卡片还是不移动',
+      '白板卡片没有移动',
+      '为什么要创建白板卡片',
+      '为何移动白板卡片',
+      '什么时候缩放白板卡片',
+      '何时移动白板卡片',
+      '能帮我把这张白板卡片移动吗',
+      '可以帮我把这张白板卡片缩放吗',
+      '请帮我把这张白板卡片创建吗',
     ]) {
       expect(
         await harness.tool.prepareAuthorization(
@@ -121,6 +141,18 @@ void main() {
       },
       '可以帮我把这张白板卡片移动到右边吗': {
         WhiteboardWriteCapability.movePlacement,
+      },
+      '能帮我把白板卡片内容改成新正文吗': {
+        WhiteboardWriteCapability.editCardBody,
+      },
+      '可以帮我把白板卡片标签设为工作吗': {
+        WhiteboardWriteCapability.setCardLabels,
+      },
+      '请帮我把白板卡片宽度改为 300 吗': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '能帮我把这张卡片从白板移除吗': {
+        WhiteboardWriteCapability.removePlacement,
       },
       '请把白板卡片内容改成新的正文': {
         WhiteboardWriteCapability.editCardBody,
