@@ -768,14 +768,26 @@ Map<WhiteboardWriteCapability, int> _singleOperationLimits(
     Map.unmodifiable({for (final capability in capabilities) capability: 1});
 
 bool _isWhiteboardConsultation(String text) {
-  if (RegExp(r'能帮我(?:把|将)|可以帮我(?:把|将)|请帮我(?:把|将)').hasMatch(text)) {
+  if (_containsExplicitWhiteboardWriteDirective(text)) {
     return false;
   }
   return RegExp(
     r'如何|怎么|怎样|介绍|说明|教程|请问|能否|可否|是否可以|'
-    r'帮我看看|看看.*(?:卡片|内容)|查看|浏览|有什么办法|能不能[？?]?$',
+    r'帮我看看|看看.*(?:卡片|内容)|查看|浏览|有什么办法|能不能[？?]?$|'
+    r'是什么|在哪(?:里|儿)?|有哪些|多少|有几|几(?:个|张|条|项|种)?[？?]?$|'
+    r'什么(?:内容|标签|位置)|多大|多宽|多高',
   ).hasMatch(text);
 }
+
+bool _containsExplicitWhiteboardWriteDirective(String text) => RegExp(
+      r'(?:能帮我|可以帮我|请帮我|帮我|请|麻烦)?(?:把|将).{0,40}'
+      r'(?:新建|创建|添加|编辑|修改|改写|改成|设为|设置为|移动|挪动|'
+      r'移到|放到|调整|调宽|调高|变宽|变窄|缩放|放大|缩小|移除|'
+      r'移出|拿出)|'
+      r'(?:内容|正文|标签|位置|尺寸|大小|宽度|高度).{0,12}'
+      r'(?:改成|修改为|设为|设置为|移到|移动到|调整(?:为|成)?|调宽|'
+      r'调高|变宽|变窄)',
+    ).hasMatch(text);
 
 bool _containsNegatedWhiteboardWrite(String text) => RegExp(
       r'(?:不要|别|不许|禁止|请勿|无需|不用|不能|不可以|不准)'
