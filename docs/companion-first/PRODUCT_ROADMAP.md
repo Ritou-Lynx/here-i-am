@@ -16,6 +16,8 @@
 
 2026-08-28 真人复验推翻了“P4 只差重开 Undo”的旧判断：合并后唯一候选 `v3-lab@53d2dc91` 中，手动六类操作仍绕过 Domain Receipt / 持久 Undo，桌面 Runtime 也没有注册或分发六类 DomainCommand。父 Goal 因此阻塞，用户已创建窄返修 Goal [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)；它只补人工 / Runtime 共用生产纵切与退出重开 Undo，不扩张 P5、P6、W4 或 Gate 1A。
 
+2026-08-28 并行例外 Goal [`GOAL-20260828-legacy-cleanup-wave1`](../development/goals/GOAL-20260828-legacy-cleanup-wave1.md) 已验收通过并进入 `v3-lab@a29b212e`：第一批零注册 / 零调用孤岛与退役测试已删除，仍有效的 Tavern / Companion 覆盖已迁移或保留，全仓退役测试编译错误归零。该清理不改变产品路线、数据权威或 P4 主 Goal，也未触碰 SharedLife、CardCache、日程、UI 大簇、schema、依赖或用户数据。
+
 ---
 
 ## 1. 产品北极星与设备关系
