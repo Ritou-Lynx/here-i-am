@@ -40,7 +40,6 @@ import 'package:memex/data/services/app_update_service.dart';
 import 'package:memex/data/services/user_notification_service.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
-import 'package:memex/data/repositories/get_timeline_card.dart'; // Import for fetchTimelineCard
 import 'package:logging/logging.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/domain/models/card_model.dart';
@@ -689,12 +688,6 @@ class MemexRouter {
       );
       return getCalendarData(fromTimestamp, toTimestamp);
     });
-  }
-
-  Future<TimelineCardModel?> fetchTimelineCard(String cardId) async {
-    await _ensureInitialized();
-    _logger.info('LocalMode: fetchTimelineCard called: cardId=$cardId');
-    return getTimelineCard(cardId);
   }
 
   Future<CardDetailModel> fetchCardDetail(String cardId) async {
