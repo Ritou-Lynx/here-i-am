@@ -822,6 +822,8 @@ bool _isWhiteboardConsultation(String text) {
 }
 
 bool _containsStrongWhiteboardQuestionMarker(String text) => RegExp(
+      r'(?:已|已经|完成(?:了)?|成功(?:了)?|好了|了).{0,16}'
+      r'(?:对吧|是吧|吧)[。！!]*$|'
       r'如何|怎么|怎样|介绍|说明|教程|请问|能否|可否|是否可以|'
       r'是否|是不是|能不能|可不可以|有无|有没有|要不要|需不需要|'
       r'该不该|应不应该|会不会|与否|还是.{0,12}不|了没(?:有)?|没有|'
