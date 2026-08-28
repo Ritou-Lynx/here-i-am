@@ -300,7 +300,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
 
   void _showDomainCommitFailure() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('白板操作没有提交，已恢复保存前状态。')),
+      const SnackBar(content: Text('白板操作未完成；正在核对持久状态。')),
     );
   }
 

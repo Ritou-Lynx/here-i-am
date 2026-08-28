@@ -352,6 +352,270 @@ void main() {
     expect(reopened.facade.canUndo(batch.operationBatchId), isFalse);
     expect(reopened.facade.canUndo('batch_malformed'), isFalse);
   });
+
+  test(
+      'terminal update rollback leaves no board action or undo and same batch retries after reopen',
+      () async {
+    final persistence = _ActionPersistence(db, now)..failAfterUpdate = true;
+    final fixture = _fixture(store, persistence, now);
+    const batch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_atomic_retry',
+      boardId: 'board_1',
+      commands: [
+        MovePlacementCommand(
+          commandId: 'cmd_atomic_move',
+          itemId: 'item_1',
+          x: 777,
+          y: 333,
+        ),
+      ],
+    );
+    final beforeHash = WhiteboardDomainCommandExecutor.snapshotHash(
+      (await store.load('board_1')).snapshot!,
+    );
+
+    await expectLater(
+      fixture.facade.executeUser(
+        characterId: 'i',
+        batch: batch,
+        userAuthorizationMessageId: 'message_atomic',
+      ),
+      throwsStateError,
+    );
+    expect(
+      WhiteboardDomainCommandExecutor.snapshotHash(
+        (await store.load('board_1')).snapshot!,
+      ),
+      beforeHash,
+    );
+    expect(await readPersistedWorkbenchActions(db, 'i'), isEmpty);
+    expect(fixture.facade.canUndo(batch.operationBatchId), isFalse);
+
+    await db.close();
+    databaseOpen = false;
+    await openDatabase();
+    final retryPersistence = _ActionPersistence(db, now);
+    final retry = _fixture(store, retryPersistence, now);
+    final applied = await retry.facade.executeUser(
+      characterId: 'i',
+      batch: batch,
+      userAuthorizationMessageId: 'message_atomic',
+    );
+    expect(applied.status, WhiteboardDomainCommandStatus.applied);
+    expect((await store.load('board_1')).snapshot!.boardItems.first.x, 777);
+    expect(await readPersistedWorkbenchActions(db, 'i'), hasLength(1));
+  });
+
+  test(
+      'undo terminal update rollback preserves applied action and retryable undo after reopen',
+      () async {
+    final persistence = _ActionPersistence(db, now);
+    final fixture = _fixture(store, persistence, now);
+    const batch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_undo_atomic',
+      boardId: 'board_1',
+      commands: [
+        MovePlacementCommand(
+          commandId: 'cmd_undo_atomic',
+          itemId: 'item_1',
+          x: 888,
+          y: 444,
+        ),
+      ],
+    );
+    expect(
+      (await fixture.facade.executeUser(
+        characterId: 'i',
+        batch: batch,
+        userAuthorizationMessageId: 'message_undo_atomic',
+      ))
+          .status,
+      WhiteboardDomainCommandStatus.applied,
+    );
+    persistence.failAfterUpdate = true;
+    await expectLater(
+      fixture.facade.undo(characterId: 'i', actionId: batch.operationBatchId),
+      throwsStateError,
+    );
+    expect((await store.load('board_1')).snapshot!.boardItems.first.x, 888);
+    final action = (await readPersistedWorkbenchActions(db, 'i')).single;
+    expect(action.projection.status.name, 'completed');
+
+    await db.close();
+    databaseOpen = false;
+    await openDatabase();
+    final reopened = _fixture(store, _ActionPersistence(db, now), now);
+    await reopened.facade.restore('i');
+    expect(reopened.facade.canUndo(batch.operationBatchId), isTrue);
+    final undone = await reopened.facade.undo(
+      characterId: 'i',
+      actionId: batch.operationBatchId,
+    );
+    expect(undone?.status, WhiteboardDomainCommandStatus.undone);
+    expect((await store.load('board_1')).snapshot!.boardItems.first.x, 10);
+  });
+
+  test('same-database manual/runtime race applies at most one stale baseline',
+      () async {
+    final persistence = _ActionPersistence(db, now);
+    final fixture = _fixture(store, persistence, now);
+    final baseline = WhiteboardDomainCommandExecutor.snapshotHash(
+      (await store.load('board_1')).snapshot!,
+    );
+    const userBatch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_race_user',
+      boardId: 'board_1',
+      expectedSnapshotHash: null,
+      commands: [
+        MovePlacementCommand(
+          commandId: 'cmd_race_user',
+          itemId: 'item_1',
+          x: 111,
+          y: 111,
+        ),
+      ],
+    );
+    final runtimeBatch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_race_runtime',
+      boardId: 'board_1',
+      expectedSnapshotHash: baseline,
+      commands: const [
+        MovePlacementCommand(
+          commandId: 'cmd_race_runtime',
+          itemId: 'item_1',
+          x: 222,
+          y: 222,
+        ),
+      ],
+    );
+    final userWithBaseline = WhiteboardDomainCommandBatch(
+      operationBatchId: userBatch.operationBatchId,
+      boardId: userBatch.boardId,
+      expectedSnapshotHash: baseline,
+      commands: userBatch.commands,
+    );
+    final grant = _grant(fixture.broker, runtimeBatch, 'turn_race');
+    final receipts = await Future.wait([
+      fixture.facade.executeUser(
+        characterId: 'i',
+        batch: userWithBaseline,
+        userAuthorizationMessageId: 'message_race_user',
+      ),
+      fixture.facade.executeRuntime(
+        characterId: 'i',
+        batch: runtimeBatch,
+        authorizationId: grant.authorizationId,
+        runtimeTurnId: 'turn_race',
+        userAuthorizationMessageId: 'message_race_runtime',
+      ),
+    ]);
+    expect(
+      receipts.where(
+        (receipt) => receipt.status == WhiteboardDomainCommandStatus.applied,
+      ),
+      hasLength(1),
+    );
+    expect(
+      receipts.where(
+        (receipt) => receipt.status == WhiteboardDomainCommandStatus.conflict,
+      ),
+      hasLength(1),
+    );
+    expect(
+      (await store.load('board_1')).snapshot!.boardItems.first.x,
+      anyOf(111, 222),
+    );
+  });
+
+  test(
+      'pre-update zero-row permission-commit and transaction-end faults fully rollback',
+      () async {
+    final beforeHash = WhiteboardDomainCommandExecutor.snapshotHash(
+      (await store.load('board_1')).snapshot!,
+    );
+
+    Future<void> expectFaultRollback(
+      String suffix,
+      _Fixture fixture,
+    ) async {
+      await expectLater(
+        fixture.facade.executeUser(
+          characterId: 'i',
+          batch: WhiteboardDomainCommandBatch(
+            operationBatchId: 'batch_fault_$suffix',
+            boardId: 'board_1',
+            commands: [
+              MovePlacementCommand(
+                commandId: 'cmd_fault_$suffix',
+                itemId: 'item_1',
+                x: 500,
+                y: 500,
+              ),
+            ],
+          ),
+          userAuthorizationMessageId: 'message_fault_$suffix',
+        ),
+        throwsA(isA<Object>()),
+      );
+      expect(
+        WhiteboardDomainCommandExecutor.snapshotHash(
+          (await store.load('board_1')).snapshot!,
+        ),
+        beforeHash,
+      );
+      expect(await readPersistedWorkbenchActions(db, 'i'), isEmpty);
+    }
+
+    final beforeUpdate = _ActionPersistence(db, now)..failBeforeUpdate = true;
+    await expectFaultRollback(
+      'before_update',
+      _fixture(store, beforeUpdate, now),
+    );
+
+    final zeroRow = _ActionPersistence(db, now)..deleteBeforeUpdate = true;
+    await expectFaultRollback('zero_row', _fixture(store, zeroRow, now));
+
+    final throwingBroker = _CommitThrowingBroker(now);
+    await expectFaultRollback(
+      'permission_commit',
+      _fixture(
+        store,
+        _ActionPersistence(db, now),
+        now,
+        permissionBroker: throwingBroker,
+      ),
+    );
+
+    final transaction = _TransactionHarness(db)..crashAtEnd = true;
+    final transactionFixture = _fixture(
+      store,
+      _ActionPersistence(db, now),
+      now,
+      runTransaction: transaction.run,
+    );
+    await expectFaultRollback(
+      'transaction_end',
+      transactionFixture,
+    );
+    final retried = await transactionFixture.facade.executeUser(
+      characterId: 'i',
+      batch: const WhiteboardDomainCommandBatch(
+        operationBatchId: 'batch_fault_transaction_end',
+        boardId: 'board_1',
+        commands: [
+          MovePlacementCommand(
+            commandId: 'cmd_fault_transaction_end',
+            itemId: 'item_1',
+            x: 500,
+            y: 500,
+          ),
+        ],
+      ),
+      userAuthorizationMessageId: 'message_fault_transaction_end',
+    );
+    expect(retried.status, WhiteboardDomainCommandStatus.applied);
+    expect(await readPersistedWorkbenchActions(db, 'i'), hasLength(1));
+  });
 }
 
 class _Fixture {
@@ -363,9 +627,11 @@ class _Fixture {
 _Fixture _fixture(
   WhiteboardDriftStore store,
   _ActionPersistence persistence,
-  DateTime now,
-) {
-  final broker = _broker(now);
+  DateTime now, {
+  WhiteboardPermissionBroker? permissionBroker,
+  DomainDatabaseTransaction? runTransaction,
+}) {
+  final broker = permissionBroker ?? _broker(now);
   var nextId = 0;
   final executor = WhiteboardDomainCommandExecutor.forDriftStore(
     permissionBroker: broker,
@@ -380,6 +646,7 @@ _Fixture _fixture(
       addAction: persistence.add,
       updateAction: persistence.update,
       readActions: persistence.read,
+      runTransaction: runTransaction ?? store.db.transaction,
       clock: () => now,
     ),
     broker,
@@ -428,6 +695,9 @@ class _ActionPersistence {
   _ActionPersistence(this.db, this.now);
   final AppDatabase db;
   final DateTime now;
+  bool failBeforeUpdate = false;
+  bool failAfterUpdate = false;
+  bool deleteBeforeUpdate = false;
 
   Future<int> add(
     String characterId,
@@ -452,7 +722,17 @@ class _ActionPersistence {
     String content,
     Map<String, dynamic> projection,
   ) async {
-    await (db.update(db.personaChatMessages)
+    if (failBeforeUpdate) {
+      failBeforeUpdate = false;
+      throw StateError('injected pre-update failure');
+    }
+    if (deleteBeforeUpdate) {
+      deleteBeforeUpdate = false;
+      await (db.delete(db.personaChatMessages)
+            ..where((row) => row.id.equals(messageId)))
+          .go();
+    }
+    final affected = await (db.update(db.personaChatMessages)
           ..where((row) => row.id.equals(messageId)))
         .write(PersonaChatMessagesCompanion(
       content: Value(content),
@@ -460,10 +740,47 @@ class _ActionPersistence {
         {'type': 'workbench_action', 'action': projection},
       ])),
     ));
+    if (affected != 1) throw StateError('expected exactly one action row');
+    if (failAfterUpdate) {
+      failAfterUpdate = false;
+      throw StateError('injected terminal update failure');
+    }
   }
 
   Future<List<PersistedWorkbenchAction>> read(String characterId) =>
       readPersistedWorkbenchActions(db, characterId);
+}
+
+class _CommitThrowingBroker extends WhiteboardPermissionBroker {
+  _CommitThrowingBroker(DateTime now)
+      : super(
+          clock: () => now,
+          authorizationIdFactory: () => 'auth_throwing_commit',
+        );
+
+  @override
+  bool commit({
+    required String authorizationId,
+    required String operationBatchId,
+  }) {
+    throw StateError('injected permission commit failure');
+  }
+}
+
+class _TransactionHarness {
+  _TransactionHarness(this.db);
+
+  final AppDatabase db;
+  bool crashAtEnd = false;
+
+  Future<T> run<T>(Future<T> Function() body) => db.transaction(() async {
+        final result = await body();
+        if (crashAtEnd) {
+          crashAtEnd = false;
+          throw StateError('injected transaction-end failure');
+        }
+        return result;
+      });
 }
 
 WhiteboardDomainCommandBatch _sixCommandBatch() =>

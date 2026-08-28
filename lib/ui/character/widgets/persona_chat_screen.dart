@@ -359,6 +359,33 @@ Future<void> releaseDesktopComposerForWorkbenchAction(
   await (frameBarrier?.call() ?? WidgetsBinding.instance.endOfFrame);
 }
 
+/// Production desktop send boundary: the persisted user row is the only
+/// authorization evidence admitted to Runtime tools for this turn.
+@visibleForTesting
+Future<WorkbenchConversationResult> sendPersonaDesktopConversationEntry({
+  required PersonaChatService chatService,
+  required WorkbenchConversationCoordinator coordinator,
+  required String conversationId,
+  required String characterId,
+  required String userText,
+  Future<void> Function(int messageId)? afterPersist,
+  WorkbenchReplyDelta? onDelta,
+}) async {
+  final userMessageId = await chatService.addUserMessage(
+    characterId,
+    userText,
+    appendTimeline: false,
+  );
+  await afterPersist?.call(userMessageId);
+  return coordinator.send(
+    conversationId: conversationId,
+    characterId: characterId,
+    userText: userText,
+    userMessageId: userMessageId,
+    onDelta: onDelta,
+  );
+}
+
 class PersonaChatScreen extends StatefulWidget {
   final String characterId;
   final bool embedded;
@@ -2492,16 +2519,16 @@ only after you have written the goodbye you want the user to hear.''',
       if (!mounted) return;
     }
     _clearComposerText(staleText: text);
-    final userMessageId = await _chatService.addUserMessage(
-      _currentCharacterId,
-      text,
-      appendTimeline: false,
-    );
-    await _refreshMessagesFromStore(
-      autoRead: false,
-      scrollToBottom: true,
-    );
     if (isWorkbenchAction) {
+      final userMessageId = await _chatService.addUserMessage(
+        _currentCharacterId,
+        text,
+        appendTimeline: false,
+      );
+      await _refreshMessagesFromStore(
+        autoRead: false,
+        scrollToBottom: true,
+      );
       unawaited(
         actionCoordinator
           .run(
@@ -2515,18 +2542,26 @@ only after you have written the goodbye you want the user to hear.''',
     }
 
     final conversationId = 'persona:$_currentCharacterId';
-    setState(() {
-      _isStreaming = true;
-      _activeStreamingCharacterId = _currentCharacterId;
-      _streamingText = '';
-    });
     final coordinator = WorkbenchConversationCoordinator.instance;
     try {
-      await coordinator.send(
+      await sendPersonaDesktopConversationEntry(
+        chatService: _chatService,
+        coordinator: coordinator,
         conversationId: conversationId,
         characterId: _currentCharacterId,
         userText: text,
-        userMessageId: userMessageId,
+        afterPersist: (_) async {
+          await _refreshMessagesFromStore(
+            autoRead: false,
+            scrollToBottom: true,
+          );
+          if (!mounted) return;
+          setState(() {
+            _isStreaming = true;
+            _activeStreamingCharacterId = _currentCharacterId;
+            _streamingText = '';
+          });
+        },
         onDelta: (accumulatedText) {
           if (!mounted || _currentCharacterId != _activeStreamingCharacterId) {
             return;

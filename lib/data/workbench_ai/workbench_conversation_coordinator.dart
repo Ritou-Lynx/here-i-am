@@ -73,8 +73,7 @@ class WorkbenchConversationCoordinator {
   factory WorkbenchConversationCoordinator.productionComposition({
     required WorkbenchConversationRuntimeGateway runtime,
     required WorkbenchReplyWriter addReply,
-    required WorkbenchRuntimeWhiteboardDomainTool Function()
-        whiteboardToolFactory,
+    WorkbenchRuntimeWhiteboardDomainTool Function()? whiteboardToolFactory,
     WorkbenchRuntimeBindingStore? bindingStore,
     WorkbenchRelationshipContextProvider? relationshipContextProvider,
     WorkbenchRuntimeSearchTool? searchTool,
@@ -92,7 +91,9 @@ class WorkbenchConversationCoordinator {
         relationshipContextProvider: relationshipContextProvider,
         searchTool: searchTool,
         taskQueueTool: taskQueueTool,
-        whiteboardTool: whiteboardToolFactory(),
+        whiteboardTool: (whiteboardToolFactory ??
+                WorkbenchRuntimeWhiteboardDomainTool.production)
+            .call(),
         clock: clock,
         pollInterval: pollInterval,
         turnTimeout: turnTimeout,
@@ -549,6 +550,8 @@ class WorkbenchConversationCoordinator {
             return activeTurn.controlLost
                 ? _stopUnconfirmedTurn()
                 : _stoppedDuringToolTurn();
+          } on _WhiteboardCommitPending {
+            return _whiteboardCommitPendingTurn();
           }
         }
         final status = event['status'];
@@ -748,16 +751,19 @@ class WorkbenchConversationCoordinator {
     if (whiteboardTool != null &&
         whiteboardAuthorization != null &&
         toolName == WorkbenchRuntimeWhiteboardDomainTool.toolName) {
-      final result = await _awaitAtomicToolOperation(
-        whiteboardTool.invoke(
-          data['arguments'],
-          authorization: whiteboardAuthorization,
-          runtimeTurnId: runtimeTurnId,
-          isCancelled: () => activeTurn.stopRequested || activeTurn.controlLost,
-        ),
+      final result = await whiteboardTool.invoke(
+        data['arguments'],
+        authorization: whiteboardAuthorization,
+        runtimeTurnId: runtimeTurnId,
+        isCancelled: () => activeTurn.stopRequested || activeTurn.controlLost,
         deadline: deadline,
-        activeTurn: activeTurn,
       );
+      if (_isWhiteboardCommitPending(result.text)) {
+        throw _WhiteboardCommitPending();
+      }
+      if (activeTurn.stopRequested || activeTurn.controlLost) {
+        throw _TurnStopRequested();
+      }
       await _awaitTurnOperation(
         _runtime.respondToToolCall(
           toolCallId: callId,
@@ -794,27 +800,6 @@ class WorkbenchConversationCoordinator {
       operation,
       activeTurn.stopSignal.future.then<T>((_) => throw _TurnStopRequested()),
     ]).timeout(remaining);
-  }
-
-  Future<T> _awaitAtomicToolOperation<T>(
-    Future<T> operation, {
-    required DateTime deadline,
-    required _ActiveConversationTurn activeTurn,
-  }) async {
-    if (activeTurn.stopRequested || activeTurn.controlLost) {
-      throw _TurnStopRequested();
-    }
-    final remaining = deadline.difference(_clock().toUtc());
-    if (remaining <= Duration.zero) throw TimeoutException('turn timed out');
-    // A whiteboard Domain commit must never be detached after it starts. A
-    // stop or turn deadline may arrive while Drift is committing, but this
-    // coordinator waits for the receipt before reporting the interruption so
-    // no later background mutation can surprise the user.
-    final result = await operation;
-    if (activeTurn.stopRequested || activeTurn.controlLost) {
-      throw _TurnStopRequested();
-    }
-    return result;
   }
 
   static String _turnInput(
@@ -928,7 +913,28 @@ _DrivenConversationTurn _stoppedDuringToolTurn() =>
       ),
     );
 
+_DrivenConversationTurn _whiteboardCommitPendingTurn() =>
+    const _DrivenConversationTurn(
+      providerSettled: false,
+      result: WorkbenchConversationResult(
+        outcome: WorkbenchConversationOutcome.interrupted,
+        message: '白板提交仍在核对中；画布会保持锁定，确认持久结果后自动刷新。',
+        errorCode: 'whiteboard_commit_pending',
+      ),
+    );
+
 class _TurnStopRequested implements Exception {}
+
+class _WhiteboardCommitPending implements Exception {}
+
+bool _isWhiteboardCommitPending(String text) {
+  try {
+    final decoded = jsonDecode(text);
+    return decoded is Map && decoded['status'] == 'pending';
+  } catch (_) {
+    return false;
+  }
+}
 
 class _ActiveConversationTurn {
   _ActiveConversationTurn.pending();

@@ -42,6 +42,7 @@ class WhiteboardAuthorizationGrant {
     required this.selectedCardIds,
     required this.capabilities,
     required this.maxOperationCount,
+    required this.maxOperationCountByCapability,
     required this.issuedAt,
     required this.expiresAt,
   });
@@ -54,22 +55,27 @@ class WhiteboardAuthorizationGrant {
   final Set<String> selectedCardIds;
   final Set<WhiteboardWriteCapability> capabilities;
   final int maxOperationCount;
+  final Map<WhiteboardWriteCapability, int> maxOperationCountByCapability;
   final DateTime issuedAt;
   final DateTime expiresAt;
 
   Map<String, dynamic> toAuditJson() => {
-    'authorization_id': authorizationId,
-    'runtime_turn_id': runtimeTurnId,
-    'user_authorization_message_id': userAuthorizationMessageId,
-    'board_id': boardId,
-    'selected_item_ids': selectedItemIds.toList()..sort(),
-    'selected_card_ids': selectedCardIds.toList()..sort(),
-    'capabilities': capabilities.map((value) => value.wireName).toList()
-      ..sort(),
-    'max_operation_count': maxOperationCount,
-    'issued_at': issuedAt.toUtc().toIso8601String(),
-    'expires_at': expiresAt.toUtc().toIso8601String(),
-  };
+        'authorization_id': authorizationId,
+        'runtime_turn_id': runtimeTurnId,
+        'user_authorization_message_id': userAuthorizationMessageId,
+        'board_id': boardId,
+        'selected_item_ids': selectedItemIds.toList()..sort(),
+        'selected_card_ids': selectedCardIds.toList()..sort(),
+        'capabilities': capabilities.map((value) => value.wireName).toList()
+          ..sort(),
+        'max_operation_count': maxOperationCount,
+        'max_operation_count_by_capability': {
+          for (final entry in maxOperationCountByCapability.entries)
+            entry.key.wireName: entry.value,
+        },
+        'issued_at': issuedAt.toUtc().toIso8601String(),
+        'expires_at': expiresAt.toUtc().toIso8601String(),
+      };
 }
 
 class WhiteboardPermissionDecision {
@@ -80,11 +86,11 @@ class WhiteboardPermissionDecision {
   });
 
   const WhiteboardPermissionDecision.allowed(WhiteboardAuthorizationGrant grant)
-    : this._(
-        allowed: true,
-        code: WhiteboardPermissionDecisionCode.allowed,
-        grant: grant,
-      );
+      : this._(
+          allowed: true,
+          code: WhiteboardPermissionDecisionCode.allowed,
+          grant: grant,
+        );
 
   const WhiteboardPermissionDecision.denied(
     WhiteboardPermissionDecisionCode code,
@@ -102,9 +108,9 @@ class WhiteboardPermissionBroker {
     this.authorizationTtl = const Duration(minutes: 15),
     this.hardMaxSelectedItems = 64,
     this.hardMaxOperationCount = 128,
-  }) : _clock = clock ?? (() => DateTime.now().toUtc()),
-       _authorizationIdFactory =
-           authorizationIdFactory ?? _defaultAuthorizationId;
+  })  : _clock = clock ?? (() => DateTime.now().toUtc()),
+        _authorizationIdFactory =
+            authorizationIdFactory ?? _defaultAuthorizationId;
 
   final WhiteboardPermissionClock _clock;
   final WhiteboardAuthorizationIdFactory _authorizationIdFactory;
@@ -122,6 +128,7 @@ class WhiteboardPermissionBroker {
     Set<String> selectedCardIds = const {},
     required Set<WhiteboardWriteCapability> capabilities,
     int maxOperationCount = 64,
+    Map<WhiteboardWriteCapability, int>? maxOperationCountByCapability,
   }) {
     _requireId(runtimeTurnId, 'runtimeTurnId');
     _requireId(userAuthorizationMessageId, 'userAuthorizationMessageId');
@@ -152,6 +159,18 @@ class WhiteboardPermissionBroker {
         'maxOperationCount',
       );
     }
+    final perCapability = maxOperationCountByCapability ??
+        {for (final capability in capabilities) capability: maxOperationCount};
+    if (perCapability.keys.any((key) => !capabilities.contains(key)) ||
+        capabilities.any((key) => !perCapability.containsKey(key)) ||
+        perCapability.values.any(
+          (value) => value <= 0 || value > maxOperationCount,
+        )) {
+      throw ArgumentError(
+        'per-capability limits must cover only granted capabilities and fit '
+        'the total operation limit',
+      );
+    }
     if (authorizationTtl <= Duration.zero) {
       throw StateError('authorizationTtl must be positive');
     }
@@ -171,6 +190,7 @@ class WhiteboardPermissionBroker {
       selectedCardIds: Set.unmodifiable(selectedCardIds),
       capabilities: Set.unmodifiable(capabilities),
       maxOperationCount: maxOperationCount,
+      maxOperationCountByCapability: Map.unmodifiable(perCapability),
       issuedAt: issuedAt,
       expiresAt: issuedAt.add(authorizationTtl),
     );
@@ -187,6 +207,7 @@ class WhiteboardPermissionBroker {
     Set<String> targetCardIds = const {},
     required Set<WhiteboardWriteCapability> requiredCapabilities,
     required int operationCount,
+    Map<WhiteboardWriteCapability, int>? operationCountByCapability,
   }) {
     final state = _grants[authorizationId];
     if (state == null) {
@@ -241,6 +262,16 @@ class WhiteboardPermissionBroker {
         WhiteboardPermissionDecisionCode.operationLimitExceeded,
       );
     }
+    final perCapability = operationCountByCapability ??
+        {for (final capability in requiredCapabilities) capability: 1};
+    for (final entry in perCapability.entries) {
+      final allowed = state.grant.maxOperationCountByCapability[entry.key];
+      if (allowed == null || entry.value <= 0 || entry.value > allowed) {
+        return const WhiteboardPermissionDecision.denied(
+          WhiteboardPermissionDecisionCode.operationLimitExceeded,
+        );
+      }
+    }
     state.reservedBatchId = operationBatchId;
     return WhiteboardPermissionDecision.allowed(state.grant);
   }
@@ -266,6 +297,20 @@ class WhiteboardPermissionBroker {
     final state = _grants[authorizationId];
     if (state?.reservedBatchId == operationBatchId) {
       state!.reservedBatchId = null;
+    }
+  }
+
+  /// Reverts an in-memory permission commit when the enclosing durable
+  /// transaction rolls back after [commit] succeeded.
+  void rollbackCommit({
+    required String authorizationId,
+    required String operationBatchId,
+  }) {
+    final state = _grants[authorizationId];
+    if (state?.committedBatchId == operationBatchId) {
+      state!
+        ..committedBatchId = null
+        ..reservedBatchId = null;
     }
   }
 

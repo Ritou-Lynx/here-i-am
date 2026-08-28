@@ -83,6 +83,7 @@ void main() {
       flush: () async => true,
       reload: () async {
         reloads += 1;
+        return true;
       },
     );
     final runtime = _FakeRuntime();
@@ -183,6 +184,7 @@ void main() {
       },
       reload: () async {
         reopenedReloads += 1;
+        return true;
       },
     );
 
@@ -212,6 +214,7 @@ void main() {
       flush: () async => true,
       reload: () async {
         reloads += 1;
+        return true;
       },
     );
     final runtime = _FakeRuntime();
@@ -304,6 +307,7 @@ void main() {
       flush: () async => true,
       reload: () async {
         reloads += 1;
+        return true;
       },
     );
 

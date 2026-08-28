@@ -71,6 +71,8 @@ class WhiteboardDomainCommandExecutor {
   final Map<String, _AppliedDomainBatch> _appliedBatches = {};
   final Map<String, WhiteboardDomainUndoReceipt> _undoReceipts = {};
   final Map<String, WhiteboardDomainCommandReceipt> _completedUndos = {};
+  final Map<String, _PreparedAppliedDomainBatch> _preparedBatches = {};
+  final Map<String, WhiteboardDomainCommandReceipt> _preparedUndos = {};
 
   static String snapshotHash(WhiteboardSnapshot snapshot) => sha256
       .convert(utf8.encode(jsonEncode(_canonicalSnapshot(snapshot))))
@@ -111,8 +113,9 @@ class WhiteboardDomainCommandExecutor {
   }
 
   Future<WhiteboardDomainCommandReceipt> execute(
-    WhiteboardDomainExecutionRequest request,
-  ) async {
+    WhiteboardDomainExecutionRequest request, {
+    bool deferFinalization = false,
+  }) async {
     final now = _millisecondUtc(_clock());
     final batch = request.batch;
     final requestHash = _hashJson(batch.toJson());
@@ -137,6 +140,15 @@ class WhiteboardDomainCommandExecutor {
     }
 
     final capabilities = batch.commands.map(_capability).toSet();
+    final operationCountsByCapability = <WhiteboardWriteCapability, int>{};
+    for (final command in batch.commands) {
+      final capability = _capability(command);
+      operationCountsByCapability.update(
+        capability,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
+    }
     final targetCardIds = batch.commands.expand((c) => c.targetCardIds).toSet();
     final targetItemIds = batch.commands.expand((c) => c.targetItemIds).toSet();
     final decision = permissionBroker.reserve(
@@ -148,6 +160,7 @@ class WhiteboardDomainCommandExecutor {
       targetCardIds: targetCardIds,
       requiredCapabilities: capabilities,
       operationCount: batch.commands.length,
+      operationCountByCapability: operationCountsByCapability,
     );
     if (!decision.allowed) {
       return _failure(
@@ -283,16 +296,54 @@ class WhiteboardDomainCommandExecutor {
       undoReceipt: undo,
       occurredAt: now,
     );
-    _appliedBatches[batch.operationBatchId] = _AppliedDomainBatch(
-      requestHash,
-      receipt,
-    );
-    _undoReceipts[undoToken] = undo;
+    if (deferFinalization) {
+      _preparedBatches[batch.operationBatchId] = _PreparedAppliedDomainBatch(
+        requestHash: requestHash,
+        receipt: receipt,
+      );
+    } else {
+      _appliedBatches[batch.operationBatchId] = _AppliedDomainBatch(
+        requestHash,
+        receipt,
+      );
+      _undoReceipts[undoToken] = undo;
+    }
     return receipt;
+  }
+
+  /// Publishes idempotency and Undo state only after the caller's outer Drift
+  /// transaction has durably committed the board and terminal action row.
+  void finalizeExecute(String operationBatchId) {
+    final prepared = _preparedBatches.remove(operationBatchId);
+    if (prepared == null) return;
+    _appliedBatches[operationBatchId] = _AppliedDomainBatch(
+      prepared.requestHash,
+      prepared.receipt,
+    );
+    final undo = prepared.receipt.undoReceipt;
+    if (undo != null) _undoReceipts[undo.undoToken] = undo;
+  }
+
+  /// Clears provisional permission/cache state when the enclosing database
+  /// transaction aborts, so the identical batch can perform a real retry.
+  void rollbackExecute({
+    required String operationBatchId,
+    required String authorizationId,
+  }) {
+    _preparedBatches.remove(operationBatchId);
+    permissionBroker.rollbackCommit(
+      authorizationId: authorizationId,
+      operationBatchId: operationBatchId,
+    );
+    permissionBroker.release(
+      authorizationId: authorizationId,
+      operationBatchId: operationBatchId,
+    );
   }
 
   Future<WhiteboardDomainCommandReceipt> undo({
     required String undoToken,
+    bool deferFinalization = false,
   }) async {
     final completed = _completedUndos[undoToken];
     if (completed != null) return completed;
@@ -368,9 +419,24 @@ class WhiteboardDomainCommandExecutor {
       afterSnapshotHash: snapshotHash(restored),
       occurredAt: now,
     );
+    if (deferFinalization) {
+      _preparedUndos[undoToken] = receipt;
+    } else {
+      _completedUndos[undoToken] = receipt;
+      _undoReceipts.remove(undoToken);
+    }
+    return receipt;
+  }
+
+  void finalizeUndo(String undoToken) {
+    final receipt = _preparedUndos.remove(undoToken);
+    if (receipt == null) return;
     _completedUndos[undoToken] = receipt;
     _undoReceipts.remove(undoToken);
-    return receipt;
+  }
+
+  void rollbackUndo(String undoToken) {
+    _preparedUndos.remove(undoToken);
   }
 
   WhiteboardDomainCommandReceipt _failure(
@@ -863,6 +929,16 @@ DateTime _millisecondUtc(DateTime value) => DateTime.fromMillisecondsSinceEpoch(
 
 class _AppliedDomainBatch {
   const _AppliedDomainBatch(this.requestHash, this.receipt);
+  final String requestHash;
+  final WhiteboardDomainCommandReceipt receipt;
+}
+
+class _PreparedAppliedDomainBatch {
+  const _PreparedAppliedDomainBatch({
+    required this.requestHash,
+    required this.receipt,
+  });
+
   final String requestHash;
   final WhiteboardDomainCommandReceipt receipt;
 }

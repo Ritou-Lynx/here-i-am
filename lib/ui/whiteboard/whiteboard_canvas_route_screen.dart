@@ -66,6 +66,8 @@ class _WhiteboardCanvasRouteScreenState
   String? _saveError;
   bool _loaded = false;
   bool _saving = false;
+  bool _reconciliationRequired = false;
+  int _interactionLockCount = 0;
   Future<bool>? _pendingSave;
   final Object _workbenchSurfaceOwner = Object();
   late final WhiteboardManualDomainCommandHost? _manualCommandHost =
@@ -170,7 +172,18 @@ class _WhiteboardCanvasRouteScreenState
       selectedItemIds: vm.selection.selectedItemIds,
       flush: () => _save(vm),
       reload: _reloadWorkbenchSurface,
-      setInteractionLocked: vm.setReadonly,
+      setInteractionLocked: _setWorkbenchInteractionLocked,
+    );
+  }
+
+  void _setWorkbenchInteractionLocked(bool locked) {
+    if (locked) {
+      _interactionLockCount++;
+    } else if (_interactionLockCount > 0) {
+      _interactionLockCount--;
+    }
+    _viewModel?.setReadonly(
+      _reconciliationRequired || _interactionLockCount > 0,
     );
   }
 
@@ -178,18 +191,22 @@ class _WhiteboardCanvasRouteScreenState
   /// canvas route. Keeping the existing ViewModel and widget tree avoids a
   /// loading-screen flash and preserves stable Windows accessibility parents
   /// while workbench actions replace the persisted board snapshot.
-  Future<void> _reloadWorkbenchSurface() async {
+  Future<bool> _reloadWorkbenchSurface() async {
     final vm = _viewModel;
     if (vm == null) {
       await _load();
-      return;
+      return _viewModel != null && _error == null;
     }
     try {
       final result = await _store.load(widget.boardId);
       if (!result.isSuccess || result.snapshot == null) {
-        if (!mounted) return;
-        setState(() => _saveError = result.error ?? '重新加载白板失败，请重试。');
-        return;
+        if (!mounted) return false;
+        setState(() {
+          _reconciliationRequired = true;
+          _saveError = result.error ?? '持久状态核对失败；白板已锁定，请重试。';
+        });
+        vm.setReadonly(true);
+        return false;
       }
       final repository = _cardRepository ??
           widget.cardRepository ??
@@ -199,17 +216,25 @@ class _WhiteboardCanvasRouteScreenState
         result.snapshot!,
         repository,
       );
-      if (!mounted || !identical(vm, _viewModel)) return;
+      if (!mounted || !identical(vm, _viewModel)) return false;
       vm.loadFromSnapshot(snapshot);
       setState(() {
         _cardRepository = repository;
         _error = null;
         _saveError = null;
+        _reconciliationRequired = false;
       });
+      vm.setReadonly(_interactionLockCount > 0);
       _attachWorkbenchSurface(vm);
+      return true;
     } catch (_) {
-      if (!mounted || !identical(vm, _viewModel)) return;
-      setState(() => _saveError = '重新加载白板失败，请重试。');
+      if (!mounted || !identical(vm, _viewModel)) return false;
+      setState(() {
+        _reconciliationRequired = true;
+        _saveError = '持久状态核对失败；白板已锁定，请重试。';
+      });
+      vm.setReadonly(true);
+      return false;
     }
   }
 
@@ -268,8 +293,11 @@ class _WhiteboardCanvasRouteScreenState
     WhiteboardCanvasViewModel vm, {
     bool announce = false,
   }) async {
+    if (_reconciliationRequired) {
+      return _reloadWorkbenchSurface();
+    }
     await _manualCommandPort?.waitForIdle();
-    if (vm.isInLogicalAction) return false;
+    if (vm.isReadonly || vm.isInLogicalAction) return false;
     final existing = _pendingSave;
     if (existing != null) return existing;
     final operation = _performSave(vm, announce: announce);

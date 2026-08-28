@@ -114,6 +114,7 @@ class WhiteboardWorkbenchCoordinator {
         addAction: _addAction,
         updateAction: _updateAction,
         readActions: _readActions,
+        runTransaction: _store.db.transaction,
         clock: _clock,
       );
 
@@ -150,11 +151,17 @@ class WhiteboardWorkbenchCoordinator {
     required WhiteboardDomainCommandBatch batch,
     required String runtimeTurnId,
     required String userAuthorizationMessageId,
+    Set<WhiteboardWriteCapability>? authorizedCapabilities,
+    int? maxOperationCount,
+    Map<WhiteboardWriteCapability, int>? maxOperationCountByCapability,
   }) =>
       _domainCommands.authorizeRuntime(
         batch: batch,
         runtimeTurnId: runtimeTurnId,
         userAuthorizationMessageId: userAuthorizationMessageId,
+        authorizedCapabilities: authorizedCapabilities,
+        maxOperationCount: maxOperationCount,
+        maxOperationCountByCapability: maxOperationCountByCapability,
       );
 
   Future<WhiteboardDomainCommandReceipt?> undoDomainCommands({

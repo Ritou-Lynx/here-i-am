@@ -3,7 +3,7 @@ library;
 import 'dart:async';
 
 typedef WhiteboardSurfaceFlush = Future<bool> Function();
-typedef WhiteboardSurfaceReload = Future<void> Function();
+typedef WhiteboardSurfaceReload = Future<bool> Function();
 typedef WhiteboardSurfaceInteractionLock = void Function(bool locked);
 
 class WhiteboardWorkbenchSurface {

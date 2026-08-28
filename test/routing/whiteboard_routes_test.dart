@@ -21,6 +21,7 @@ import 'package:memex/ui/whiteboard/link_import_screen.dart';
 import 'package:memex/ui/whiteboard/source_study_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 import 'package:memex/ui/whiteboard/whiteboard_index_screen.dart';
+import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 
 /// W6 — whiteboard route registration & frozen parameter signature tests.
 ///
@@ -154,6 +155,15 @@ void main() {
     );
 
     expect(find.byType(WhiteboardCanvasRouteScreen), findsOneWidget);
+    expect(
+      tester
+          .widget<WhiteboardCanvasScreen>(
+            find.byType(WhiteboardCanvasScreen),
+          )
+          .manualCommandPort,
+      isNotNull,
+      reason: 'the zero-injection production route must auto-host Domain edits',
+    );
     // Loaded from Drift: the full-screen canvas appears (no persistent AppBar).
     expect(find.byType(AppBar), findsNothing);
     expect(

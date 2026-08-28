@@ -451,7 +451,7 @@ class PersonaChatService {
     required String content,
     required Map<String, dynamic> projection,
   }) async {
-    await (_db.update(_db.personaChatMessages)
+    final affectedRows = await (_db.update(_db.personaChatMessages)
           ..where((table) => table.id.equals(messageId)))
         .write(
       PersonaChatMessagesCompanion(
@@ -461,6 +461,12 @@ class PersonaChatService {
         ])),
       ),
     );
+    if (affectedRows != 1) {
+      throw StateError(
+        'Workbench action terminal update must affect exactly one row; '
+        'affected $affectedRows for message $messageId',
+      );
+    }
     final row = await getMessageById(messageId);
     if (row != null) _notifyMessageAdded(row.characterId);
   }

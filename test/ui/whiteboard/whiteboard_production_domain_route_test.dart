@@ -21,6 +21,8 @@ import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
+import 'package:memex/ui/whiteboard_canvas/whiteboard_snapshot_store.dart'
+    show SnapshotLoadResult;
 
 void main() {
   testWidgets(
@@ -154,6 +156,119 @@ void main() {
       expect(actions.single.projection.undoToken, isNotEmpty);
     },
   );
+
+  testWidgets(
+    'failed Domain commit plus reload failure locks stale preview out of save and exit',
+    (tester) async {
+      final root = Directory.systemTemp.createTempSync('p4_reconcile_route_');
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(() async {
+        final owner =
+            WhiteboardWorkbenchSurfaceController.instance.current?.owner;
+        if (owner != null) {
+          WhiteboardWorkbenchSurfaceController.instance.detach(owner);
+        }
+        await db.close();
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      final store = _GatedStore(db);
+      final now = DateTime.utc(2026, 8, 28, 11);
+      await tester.runAsync(() => repository.createTextCard(
+            cardId: 'card_a',
+            title: 'Card A',
+            body: 'Body A',
+            createdAt: now,
+          ));
+      expect(
+        await tester.runAsync(() => store.seed(
+              'board_route',
+              WhiteboardSnapshot(
+                boards: [
+                  Board(boardId: 'board_route', name: 'Route', createdAt: now),
+                ],
+                boardItems: const [
+                  BoardItem(
+                    itemId: 'item_a',
+                    boardId: 'board_route',
+                    cardId: 'card_a',
+                    x: -90,
+                    y: -70,
+                    width: 180,
+                    height: 140,
+                  ),
+                ],
+                updatedAt: now,
+              ),
+            )),
+        isTrue,
+      );
+      final coordinator = WhiteboardWorkbenchCoordinator(
+        runtime: _UnusedRuntime(),
+        store: store,
+        repositoryLoader: () async => repository,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        addAction: (characterId, content, projection) =>
+            _addAction(db, characterId, content, projection),
+        updateAction: (messageId, content, projection) =>
+            _updateAction(db, messageId, content, projection),
+        readActions: (characterId) =>
+            readPersistedWorkbenchActions(db, characterId),
+        clock: () => now,
+      );
+      final host = WhiteboardManualDomainCommandHost(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        resolveCharacterId: () async => 'i',
+        clock: () => now,
+      );
+      final router = GoRouter(
+        initialLocation: AppRoutes.whiteboardCanvasPath('board_route'),
+        routes: [
+          GoRoute(
+            path: AppRoutes.whiteboard,
+            builder: (_, __) => const Scaffold(body: Text('Board index')),
+          ),
+          GoRoute(
+            path: AppRoutes.whiteboardCanvas,
+            builder: (_, __) => WhiteboardCanvasRouteScreen(
+              boardId: 'board_route',
+              store: store,
+              cardRepository: repository,
+              manualCommandHost: host,
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await _pumpUntil(tester, find.text('Card A'));
+      await tester.tap(find.byKey(const Key('wb_card_item_a')));
+      await tester.pump();
+
+      store.failNextSaveAndReload = true;
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await _pumpUntil(
+        tester,
+        find.textContaining('持久状态核对失败'),
+      );
+      expect(store.saveCalls, 1);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.tap(find.byTooltip('退出白板 (Esc)'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(store.saveCalls, 1,
+          reason: 'stale preview must never reach the ordinary save path');
+      expect(find.text('Board index'), findsNothing,
+          reason: 'exit is refused while reconciliation cannot reload');
+      final persisted = (await store.loadPersisted('board_route')).snapshot!;
+      expect(persisted.boardItems.single.x, -90);
+    },
+  );
 }
 
 Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
@@ -212,9 +327,20 @@ class _GatedStore extends WhiteboardDriftStore {
   Completer<void> saveEntered = Completer<void>();
   Completer<void>? _release;
   int saveCalls = 0;
+  bool failNextSaveAndReload = false;
+  bool _failLoads = false;
 
   Future<bool> seed(String boardId, WhiteboardSnapshot snapshot) =>
       super.save(boardId, snapshot);
+
+  Future<SnapshotLoadResult> loadPersisted(String boardId) =>
+      super.load(boardId);
+
+  @override
+  Future<SnapshotLoadResult> load(String boardId) {
+    if (_failLoads) throw StateError('injected reload failure');
+    return super.load(boardId);
+  }
 
   void gateNextSave() {
     saveEntered = Completer<void>();
@@ -226,6 +352,11 @@ class _GatedStore extends WhiteboardDriftStore {
   @override
   Future<bool> save(String boardId, WhiteboardSnapshot snapshot) async {
     saveCalls += 1;
+    if (failNextSaveAndReload) {
+      failNextSaveAndReload = false;
+      _failLoads = true;
+      return false;
+    }
     final release = _release;
     if (release != null) {
       saveEntered.complete();

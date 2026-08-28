@@ -19,6 +19,9 @@ typedef DomainWorkbenchActionUpdate = Future<void> Function(
   String content,
   Map<String, dynamic> projection,
 );
+typedef DomainDatabaseTransaction = Future<T> Function<T>(
+  Future<T> Function() body,
+);
 
 /// The single product facade used by direct user actions and Runtime tools.
 /// Both paths persist the same command batch, receipt, bounded inverse payload,
@@ -30,10 +33,12 @@ class WhiteboardDomainCommandFacade {
     required DomainWorkbenchActionAdd addAction,
     required DomainWorkbenchActionUpdate updateAction,
     required WorkbenchActionReader readActions,
+    DomainDatabaseTransaction? runTransaction,
     DateTime Function()? clock,
   })  : _addAction = addAction,
         _updateAction = updateAction,
         _readActions = readActions,
+        _runTransaction = runTransaction ?? _runWithoutTransaction,
         _clock = clock ?? (() => DateTime.now().toUtc());
 
   final WhiteboardDomainCommandExecutor executor;
@@ -41,6 +46,7 @@ class WhiteboardDomainCommandFacade {
   final DomainWorkbenchActionAdd _addAction;
   final DomainWorkbenchActionUpdate _updateAction;
   final WorkbenchActionReader _readActions;
+  final DomainDatabaseTransaction _runTransaction;
   final DateTime Function() _clock;
   final Map<String, _DomainUndoBinding> _undoBindings = {};
   final Set<String> _restoredCharacters = {};
@@ -54,6 +60,9 @@ class WhiteboardDomainCommandFacade {
     required WhiteboardDomainCommandBatch batch,
     required String runtimeTurnId,
     required String userAuthorizationMessageId,
+    Set<WhiteboardWriteCapability>? authorizedCapabilities,
+    int? maxOperationCount,
+    Map<WhiteboardWriteCapability, int>? maxOperationCountByCapability,
   }) =>
       permissionBroker.issueSelectionAuthorization(
         runtimeTurnId: runtimeTurnId,
@@ -63,8 +72,11 @@ class WhiteboardDomainCommandFacade {
             batch.commands.expand((command) => command.targetItemIds).toSet(),
         selectedCardIds:
             batch.commands.expand((command) => command.targetCardIds).toSet(),
-        capabilities: batch.commands.map(_capability).toSet(),
-        maxOperationCount: batch.commands.length,
+        capabilities:
+            authorizedCapabilities ?? batch.commands.map(_capability).toSet(),
+        maxOperationCount: maxOperationCount ?? batch.commands.length,
+        maxOperationCountByCapability: maxOperationCountByCapability ??
+            _commandCountsByCapability(batch.commands),
       );
 
   Future<WhiteboardDomainCommandReceipt> executeUser({
@@ -133,34 +145,52 @@ class WhiteboardDomainCommandFacade {
       createdAt: now,
       updatedAt: now,
     );
-    final messageId = await _addAction(
-      characterId,
-      projection.summary,
-      projection.toJson(),
-    );
-    final receipt = await executor.execute(
-      WhiteboardDomainExecutionRequest(
-        batch: batch,
+    late int messageId;
+    late WhiteboardDomainCommandReceipt receipt;
+    try {
+      await _runTransaction(() async {
+        messageId = await _addAction(
+          characterId,
+          projection.summary,
+          projection.toJson(),
+        );
+        receipt = await executor.execute(
+          WhiteboardDomainExecutionRequest(
+            batch: batch,
+            authorizationId: authorizationId,
+            actorTurnId: actorTurnId,
+            actor: actor,
+          ),
+          deferFinalization: true,
+        );
+        projection = projection.copyWith(
+          status: receipt.status == WhiteboardDomainCommandStatus.applied
+              ? WorkbenchActionStatus.completed
+              : WorkbenchActionStatus.failed,
+          summary: receipt.succeeded ? '白板卡片操作已完成，可撤销。' : receipt.summary,
+          beforeSnapshotHash: receipt.beforeSnapshotHash,
+          afterSnapshotHash: receipt.afterSnapshotHash,
+          undoToken: receipt.undoReceipt?.undoToken,
+          undoReceipt: receipt.undoReceipt?.toJson(),
+          domainCommandReceipt: receipt.toJson(),
+          errorCode: receipt.succeeded || receipt.issues.isEmpty
+              ? null
+              : receipt.issues.first.code,
+        );
+        await _updateAction(
+          messageId,
+          projection.summary,
+          projection.toJson(),
+        );
+      });
+    } catch (_) {
+      executor.rollbackExecute(
+        operationBatchId: batch.operationBatchId,
         authorizationId: authorizationId,
-        actorTurnId: actorTurnId,
-        actor: actor,
-      ),
-    );
-    projection = projection.copyWith(
-      status: receipt.status == WhiteboardDomainCommandStatus.applied
-          ? WorkbenchActionStatus.completed
-          : WorkbenchActionStatus.failed,
-      summary: receipt.succeeded ? '白板卡片操作已完成，可撤销。' : receipt.summary,
-      beforeSnapshotHash: receipt.beforeSnapshotHash,
-      afterSnapshotHash: receipt.afterSnapshotHash,
-      undoToken: receipt.undoReceipt?.undoToken,
-      undoReceipt: receipt.undoReceipt?.toJson(),
-      domainCommandReceipt: receipt.toJson(),
-      errorCode: receipt.succeeded || receipt.issues.isEmpty
-          ? null
-          : receipt.issues.first.code,
-    );
-    await _updateAction(messageId, projection.summary, projection.toJson());
+      );
+      rethrow;
+    }
+    executor.finalizeExecute(batch.operationBatchId);
     if (receipt.status == WhiteboardDomainCommandStatus.applied &&
         receipt.undoReceipt != null) {
       _undoBindings[projection.actionId] = _DomainUndoBinding(
@@ -232,33 +262,48 @@ class WhiteboardDomainCommandFacade {
     await restore(characterId);
     final binding = _undoBindings[actionId];
     if (binding == null) return null;
-    final receipt = await executor.undo(undoToken: binding.undoToken);
-    final projection = binding.projection.copyWith(
-      status: receipt.status == WhiteboardDomainCommandStatus.undone
-          ? WorkbenchActionStatus.undone
-          : binding.projection.status,
-      summary: receipt.status == WhiteboardDomainCommandStatus.undone
-          ? '已撤销白板卡片操作。'
-          : receipt.summary,
-      domainCommandReceipt:
-          receipt.status == WhiteboardDomainCommandStatus.undone
-              ? receipt.toJson()
-              : binding.projection.domainCommandReceipt,
-      errorCode: receipt.succeeded || receipt.issues.isEmpty
-          ? null
-          : receipt.issues.first.code,
-    );
-    await _updateAction(
-      binding.messageId,
-      projection.summary,
-      projection.toJson(),
-    );
+    late WhiteboardDomainCommandReceipt receipt;
+    late WorkbenchActionProjection projection;
+    try {
+      await _runTransaction(() async {
+        receipt = await executor.undo(
+          undoToken: binding.undoToken,
+          deferFinalization: true,
+        );
+        projection = binding.projection.copyWith(
+          status: receipt.status == WhiteboardDomainCommandStatus.undone
+              ? WorkbenchActionStatus.undone
+              : binding.projection.status,
+          summary: receipt.status == WhiteboardDomainCommandStatus.undone
+              ? '已撤销白板卡片操作。'
+              : receipt.summary,
+          domainCommandReceipt:
+              receipt.status == WhiteboardDomainCommandStatus.undone
+                  ? receipt.toJson()
+                  : binding.projection.domainCommandReceipt,
+          errorCode: receipt.succeeded || receipt.issues.isEmpty
+              ? null
+              : receipt.issues.first.code,
+        );
+        await _updateAction(
+          binding.messageId,
+          projection.summary,
+          projection.toJson(),
+        );
+      });
+    } catch (_) {
+      executor.rollbackUndo(binding.undoToken);
+      rethrow;
+    }
+    executor.finalizeUndo(binding.undoToken);
     if (receipt.status == WhiteboardDomainCommandStatus.undone) {
       _undoBindings.remove(actionId);
     }
     return receipt;
   }
 }
+
+Future<T> _runWithoutTransaction<T>(Future<T> Function() body) => body();
 
 WhiteboardWriteCapability _capability(WhiteboardDomainCommand command) =>
     switch (command) {
@@ -269,6 +314,17 @@ WhiteboardWriteCapability _capability(WhiteboardDomainCommand command) =>
       ResizePlacementCommand() => WhiteboardWriteCapability.resizePlacement,
       RemovePlacementCommand() => WhiteboardWriteCapability.removePlacement,
     };
+
+Map<WhiteboardWriteCapability, int> _commandCountsByCapability(
+  Iterable<WhiteboardDomainCommand> commands,
+) {
+  final counts = <WhiteboardWriteCapability, int>{};
+  for (final command in commands) {
+    final capability = _capability(command);
+    counts.update(capability, (value) => value + 1, ifAbsent: () => 1);
+  }
+  return counts;
+}
 
 class _DomainUndoBinding {
   const _DomainUndoBinding({

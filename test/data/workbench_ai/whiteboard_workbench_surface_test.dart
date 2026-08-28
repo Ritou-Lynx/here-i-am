@@ -15,7 +15,7 @@ void main() {
       boardId: 'board_1',
       selectedItemIds: {'item_1'},
       flush: () async => true,
-      reload: () async {},
+      reload: () async => true,
     );
     controller.updateSelection(stranger, {'item_2'});
     expect(controller.current!.selectedItemIds, {'item_1'});

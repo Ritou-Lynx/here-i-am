@@ -25,6 +25,17 @@ void main() {
       await db.close();
     });
 
+    test('workbench action terminal update requires exactly one row', () async {
+      await expectLater(
+        service.updateWorkbenchActionMessage(
+          messageId: 999999,
+          content: 'terminal',
+          projection: const {'status': 'completed'},
+        ),
+        throwsStateError,
+      );
+    });
+
     test('searchMessages filters by character and content', () async {
       final base = DateTime(2026, 6, 14, 9);
       await db.into(db.personaChatMessages).insert(
