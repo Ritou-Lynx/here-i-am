@@ -1,9 +1,14 @@
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
+import 'package:memex/data/services/device_identity_service.dart';
+import 'package:memex/data/workbench_ai/workbench_conversation_coordinator.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUpAll(UserStorage.initL10n);
@@ -760,6 +765,90 @@ void main() {
       const ['对呀，晚上还要上课。 我这个周末真是对自己太差了。'],
     );
     debouncer.cancel();
+  });
+
+  testWidgets(
+      'desktop send button passes its persisted user row to production connector',
+      (tester) async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    SharedPreferences.setMockInitialValues({'user_id': 'widget-user'});
+    DeviceIdentityService.resetForTesting();
+    AppDatabase.setTestInstance(db);
+    final character = CharacterModel(
+      id: 'persona_widget_test',
+      name: 'Lin Ai Test',
+      tags: const [],
+      persona: 'test persona',
+      enabled: true,
+    );
+    int? connectorMessageId;
+    String? connectorText;
+
+    Future<WorkbenchConversationResult> connector({
+      required WorkbenchConversationCoordinator coordinator,
+      required String conversationId,
+      required String characterId,
+      required String userText,
+      required int userMessageId,
+      WorkbenchReplyDelta? onDelta,
+    }) async {
+      connectorMessageId = userMessageId;
+      connectorText = userText;
+      return const WorkbenchConversationResult(
+        outcome: WorkbenchConversationOutcome.completed,
+        message: 'connector completed',
+      );
+    }
+
+    await tester.pumpWidget(MaterialApp(
+      home: PersonaChatScreen(
+        characterId: character.id,
+        presentation: PersonaChatPresentation.desktopFloating,
+        desktopConversationConnector: connector,
+        initialCharacterForTesting: character,
+      ),
+    ));
+    for (var index = 0; index < 120; index++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (find
+          .byKey(const ValueKey('desktop_chat_input'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+    final input = find.byKey(const ValueKey('desktop_chat_input'));
+    expect(input, findsOneWidget);
+    await tester.enterText(input, 'ordinary desktop message');
+    await tester.pumpAndSettle(const Duration(milliseconds: 20));
+    final send = find.byKey(const ValueKey('desktop_chat_send'));
+    expect(send, findsOneWidget);
+    await tester.tap(send);
+    await tester.pump();
+    for (var index = 0; index < 100 && connectorMessageId == null; index++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+
+    final userRows = (await db.select(db.personaChatMessages).get())
+        .where((row) => !row.isFromCharacter)
+        .toList();
+    expect(userRows, hasLength(1));
+    expect(connectorMessageId, userRows.single.id);
+    expect(
+      'chat-message-$connectorMessageId',
+      'chat-message-${userRows.single.id}',
+    );
+    expect(connectorText, 'ordinary desktop message');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
+    await db.close();
   });
 }
 

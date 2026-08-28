@@ -103,6 +103,9 @@ class WorkbenchRuntimeWhiteboardDomainTool {
       );
 
   static const toolName = 'whiteboard_domain_commands';
+  static const maxSurfaceScopeIds = 64;
+  static const maxSurfaceScopeIdUtf8Bytes = 256;
+  static const maxPromptUtf8Bytes = 16 * 1024;
 
   static const toolDefinition = <String, dynamic>{
     'name': toolName,
@@ -247,6 +250,16 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         unavailableReason: 'whiteboard_not_open',
       );
     }
+    final itemScopeError = _surfaceScopeError(surface.selectedItemIds);
+    if (itemScopeError != null) {
+      return _unavailable(
+        conversationId,
+        characterId,
+        evidence,
+        capabilities,
+        itemScopeError,
+      );
+    }
     try {
       if (!await surface.flush()) {
         return _unavailable(
@@ -281,6 +294,16 @@ class WorkbenchRuntimeWhiteboardDomainTool {
                 selectedItems.contains(item.itemId))
             .map((item) => item.cardId),
       );
+      final cardScopeError = _surfaceScopeError(selectedCards);
+      if (cardScopeError != null) {
+        return _unavailable(
+          conversationId,
+          characterId,
+          evidence,
+          capabilities,
+          cardScopeError,
+        );
+      }
       var boardName = surface.boardId;
       for (final board in snapshot.boards) {
         if (board.boardId == surface.boardId) {
@@ -288,7 +311,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           break;
         }
       }
-      return WhiteboardRuntimeTurnAuthorization(
+      final authorization = WhiteboardRuntimeTurnAuthorization(
         conversationId: conversationId,
         characterId: characterId,
         userAuthorizationMessageId: evidence,
@@ -303,6 +326,17 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         expectedSnapshotHash:
             WhiteboardDomainCommandExecutor.snapshotHash(snapshot),
       );
+      if (utf8.encode(authorization.toPromptBlock()).length >
+          maxPromptUtf8Bytes) {
+        return _unavailable(
+          conversationId,
+          characterId,
+          evidence,
+          capabilities,
+          'whiteboard_context_too_large',
+        );
+      }
+      return authorization;
     } catch (_) {
       return _unavailable(
         conversationId,
@@ -742,17 +776,26 @@ Set<WhiteboardWriteCapability> _capabilitiesFromExplicitRequest(String text) {
   if (RegExp(r'新建|创建|添加.*卡片|加一张').hasMatch(normalized)) {
     result.add(WhiteboardWriteCapability.createCard);
   }
-  if (RegExp(r'编辑|修改|改写|正文|内容').hasMatch(normalized)) {
+  if (RegExp(
+    r'(?:编辑|修改|改写).{0,16}(?:正文|内容)|'
+    r'(?:正文|内容).{0,16}(?:编辑|修改|改写|改成|设为|设置为)',
+  ).hasMatch(normalized)) {
     result.add(WhiteboardWriteCapability.editCardBody);
   }
-  if (normalized.contains('标签')) {
+  if (RegExp(
+    r'(?:设置|修改|编辑|添加|删除|移除|清除).{0,16}标签|'
+    r'标签.{0,16}(?:设为|设置为|改成|修改为|添加|删除|移除|清除)',
+  ).hasMatch(normalized)) {
     result.add(WhiteboardWriteCapability.setCardLabels);
   }
-  if (RegExp(r'移动|挪动|位置|移到|放到').hasMatch(normalized)) {
+  if (RegExp(r'移动|挪动|移到|放到').hasMatch(normalized)) {
     result.add(WhiteboardWriteCapability.movePlacement);
   }
   if (RegExp(
-    r'缩放|放大|缩小|尺寸|大小|宽度调整|调宽|高度改成|调高|变宽|变窄',
+    r'缩放|放大|缩小|调宽|调高|变宽|变窄|'
+    r'(?:调整|修改|设置).{0,16}(?:尺寸|大小|宽度|高度)|'
+    r'(?:尺寸|大小|宽度|高度).{0,16}'
+    r'(?:调整|改成|改为|修改为|设为|设置为)',
   ).hasMatch(normalized)) {
     result.add(WhiteboardWriteCapability.resizePlacement);
   }
@@ -768,26 +811,37 @@ Map<WhiteboardWriteCapability, int> _singleOperationLimits(
     Map.unmodifiable({for (final capability in capabilities) capability: 1});
 
 bool _isWhiteboardConsultation(String text) {
-  if (_containsExplicitWhiteboardWriteDirective(text)) {
+  if (_isExplicitDelegatedWhiteboardWrite(text)) {
     return false;
   }
   return RegExp(
     r'如何|怎么|怎样|介绍|说明|教程|请问|能否|可否|是否可以|'
     r'帮我看看|看看.*(?:卡片|内容)|查看|浏览|有什么办法|能不能[？?]?$|'
     r'是什么|在哪(?:里|儿)?|有哪些|多少|有几|几(?:个|张|条|项|种)?[？?]?$|'
-    r'什么(?:内容|标签|位置)|多大|多宽|多高',
+    r'什么(?:内容|标签|位置)|多大|多宽|多高|合适吗|对吗',
   ).hasMatch(text);
 }
 
-bool _containsExplicitWhiteboardWriteDirective(String text) => RegExp(
-      r'(?:能帮我|可以帮我|请帮我|帮我|请|麻烦)?(?:把|将).{0,40}'
+bool _isExplicitDelegatedWhiteboardWrite(String text) => RegExp(
+      r'(?:能帮我|可以帮我|请帮我)(?:把|将).{0,40}'
       r'(?:新建|创建|添加|编辑|修改|改写|改成|设为|设置为|移动|挪动|'
       r'移到|放到|调整|调宽|调高|变宽|变窄|缩放|放大|缩小|移除|'
-      r'移出|拿出)|'
-      r'(?:内容|正文|标签|位置|尺寸|大小|宽度|高度).{0,12}'
-      r'(?:改成|修改为|设为|设置为|移到|移动到|调整(?:为|成)?|调宽|'
-      r'调高|变宽|变窄)',
+      r'移出|拿出)',
     ).hasMatch(text);
+
+String? _surfaceScopeError(Set<String> ids) {
+  if (ids.length > WorkbenchRuntimeWhiteboardDomainTool.maxSurfaceScopeIds) {
+    return 'whiteboard_scope_too_large';
+  }
+  for (final id in ids) {
+    if (utf8.encode(id).length >
+            WorkbenchRuntimeWhiteboardDomainTool.maxSurfaceScopeIdUtf8Bytes ||
+        !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]*$').hasMatch(id)) {
+      return 'whiteboard_scope_invalid';
+    }
+  }
+  return null;
+}
 
 bool _containsNegatedWhiteboardWrite(String text) => RegExp(
       r'(?:不要|别|不许|禁止|请勿|无需|不用|不能|不可以|不准)'

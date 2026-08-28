@@ -361,6 +361,32 @@ Future<void> releaseDesktopComposerForWorkbenchAction(
 
 /// Production desktop send boundary: the persisted user row is the only
 /// authorization evidence admitted to Runtime tools for this turn.
+typedef PersonaDesktopConversationConnector
+    = Future<WorkbenchConversationResult> Function({
+  required WorkbenchConversationCoordinator coordinator,
+  required String conversationId,
+  required String characterId,
+  required String userText,
+  required int userMessageId,
+  WorkbenchReplyDelta? onDelta,
+});
+
+Future<WorkbenchConversationResult> connectPersonaDesktopConversation({
+  required WorkbenchConversationCoordinator coordinator,
+  required String conversationId,
+  required String characterId,
+  required String userText,
+  required int userMessageId,
+  WorkbenchReplyDelta? onDelta,
+}) =>
+    coordinator.send(
+      conversationId: conversationId,
+      characterId: characterId,
+      userText: userText,
+      userMessageId: userMessageId,
+      onDelta: onDelta,
+    );
+
 @visibleForTesting
 Future<WorkbenchConversationResult> sendPersonaDesktopConversationEntry({
   required PersonaChatService chatService,
@@ -368,6 +394,8 @@ Future<WorkbenchConversationResult> sendPersonaDesktopConversationEntry({
   required String conversationId,
   required String characterId,
   required String userText,
+  PersonaDesktopConversationConnector connector =
+      connectPersonaDesktopConversation,
   Future<void> Function(int messageId)? afterPersist,
   WorkbenchReplyDelta? onDelta,
 }) async {
@@ -377,7 +405,8 @@ Future<WorkbenchConversationResult> sendPersonaDesktopConversationEntry({
     appendTimeline: false,
   );
   await afterPersist?.call(userMessageId);
-  return coordinator.send(
+  return connector(
+    coordinator: coordinator,
     conversationId: conversationId,
     characterId: characterId,
     userText: userText,
@@ -395,6 +424,9 @@ class PersonaChatScreen extends StatefulWidget {
   final String? temporaryContextLabel;
   final VoidCallback? onOpenSpaces;
   final VoidCallback? onReady;
+  final PersonaDesktopConversationConnector desktopConversationConnector;
+  @visibleForTesting
+  final CharacterModel? initialCharacterForTesting;
 
   const PersonaChatScreen({
     super.key,
@@ -406,6 +438,8 @@ class PersonaChatScreen extends StatefulWidget {
     this.temporaryContextLabel,
     this.onOpenSpaces,
     this.onReady,
+    this.desktopConversationConnector = connectPersonaDesktopConversation,
+    this.initialCharacterForTesting,
   });
 
   @override
@@ -1036,7 +1070,14 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
     CharacterService.instance.addListener(_onCharacterUpdated);
     unawaited(_initMediaButtons());
-    _init();
+    final initialCharacter = widget.initialCharacterForTesting;
+    if (initialCharacter == null) {
+      _init();
+    } else {
+      _character = initialCharacter;
+      _userId = 'widget-test-user';
+      _isLoading = false;
+    }
     _startMessageRefreshTimer();
     _scrollController.addListener(_onScroll);
     EventBusService.instance.addHandler(
@@ -2531,12 +2572,12 @@ only after you have written the goodbye you want the user to hear.''',
       );
       unawaited(
         actionCoordinator
-          .run(
-            characterId: _currentCharacterId,
-            userText: text,
-            userMessageId: userMessageId,
-          )
-          .catchError((Object _) => false),
+            .run(
+              characterId: _currentCharacterId,
+              userText: text,
+              userMessageId: userMessageId,
+            )
+            .catchError((Object _) => false),
       );
       return;
     }
@@ -2550,6 +2591,7 @@ only after you have written the goodbye you want the user to hear.''',
         conversationId: conversationId,
         characterId: _currentCharacterId,
         userText: text,
+        connector: widget.desktopConversationConnector,
         afterPersist: (_) async {
           await _refreshMessagesFromStore(
             autoRead: false,
@@ -5505,8 +5547,7 @@ only after you have written the goodbye you want the user to hear.''',
         temporaryContextLabel: widget.temporaryContextLabel,
         onSend: _sendDesktopMessage,
         onStop: _stopDesktopConversation,
-        canUndoWorkbenchAction:
-            WhiteboardWorkbenchCoordinator.instance.canUndo,
+        canUndoWorkbenchAction: WhiteboardWorkbenchCoordinator.instance.canUndo,
         onUndoWorkbenchAction: WhiteboardWorkbenchCoordinator.instance.undo,
       );
     }
@@ -6524,8 +6565,7 @@ only after you have written the goodbye you want the user to hear.''',
     String? fullMessageText,
   }) {
     final userColor = context.watch<SpringRainChatColorController>().userColor;
-    final isBubbleMode =
-        context.watch<ChatViewModeController>().isBubbleMode;
+    final isBubbleMode = context.watch<ChatViewModeController>().isBubbleMode;
     if (isCharacter) {
       return _buildCharacterBubble(
         text: text,
@@ -6766,8 +6806,7 @@ only after you have written the goodbye you want the user to hear.''',
         messageId != null && (segments.length > 1 || chatBubbleCount > 1);
     // 气泡模式下同一轮发言的句子气泡之间用更紧凑的间距，读起来像
     // 「先发一句、再发一句」的连续发言，而不是每句都隔一个换人空档。
-    final isBubbleMode =
-        context.watch<ChatViewModeController>().isBubbleMode;
+    final isBubbleMode = context.watch<ChatViewModeController>().isBubbleMode;
     final clusterTailSpacing = isBubbleMode ? 14.0 : 22.0;
     final clusterInnerSpacing = isBubbleMode ? 4.0 : 8.0;
 
