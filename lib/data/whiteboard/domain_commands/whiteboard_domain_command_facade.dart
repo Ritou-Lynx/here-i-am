@@ -66,10 +66,10 @@ class WhiteboardDomainCommandFacade {
   }) {
     final capabilities =
         authorizedCapabilities ?? batch.commands.map(_capability).toSet();
-    if (capabilities.contains(WhiteboardWriteCapability.editCardTitle) ||
-        batch.commands.any((command) => command is EditCardTitleCommand)) {
+    if (capabilities.contains(WhiteboardWriteCapability.editCardTitle)) {
       throw ArgumentError('edit_card_title is manual-only');
     }
+    _rejectManualOnlyRuntimeCommands(batch);
     return _issueAuthorization(
       batch: batch,
       runtimeTurnId: runtimeTurnId,
@@ -130,15 +130,17 @@ class WhiteboardDomainCommandFacade {
     required String authorizationId,
     required String runtimeTurnId,
     required String userAuthorizationMessageId,
-  }) =>
-      _executePersisted(
-        characterId: characterId,
-        batch: batch,
-        authorizationId: authorizationId,
-        actorTurnId: runtimeTurnId,
-        actor: WhiteboardDomainCommandActor.i,
-        userAuthorizationMessageId: userAuthorizationMessageId,
-      );
+  }) async {
+    _rejectManualOnlyRuntimeCommands(batch);
+    return _executePersisted(
+      characterId: characterId,
+      batch: batch,
+      authorizationId: authorizationId,
+      actorTurnId: runtimeTurnId,
+      actor: WhiteboardDomainCommandActor.i,
+      userAuthorizationMessageId: userAuthorizationMessageId,
+    );
+  }
 
   Future<WhiteboardDomainCommandReceipt> _executePersisted({
     required String characterId,
@@ -324,6 +326,12 @@ class WhiteboardDomainCommandFacade {
       _undoBindings.remove(actionId);
     }
     return receipt;
+  }
+}
+
+void _rejectManualOnlyRuntimeCommands(WhiteboardDomainCommandBatch batch) {
+  if (batch.commands.any((command) => command is EditCardTitleCommand)) {
+    throw ArgumentError('edit_card_title is manual-only');
   }
 }
 

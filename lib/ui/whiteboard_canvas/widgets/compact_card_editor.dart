@@ -230,7 +230,9 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
           title: title,
           body: body,
         );
-        if (updated == null) return null;
+        if (updated == null) {
+          throw StateError('白板操作未提交，请重试');
+        }
       } else {
         updated = await widget.repository.saveRichText(
           widget.cardId,

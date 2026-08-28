@@ -157,6 +157,67 @@ void main() {
     expect(await tester.runAsync(richFile.readAsBytes), before);
   });
 
+  testWidgets('Domain rejection shows failure and keeps the inline draft open',
+      (tester) async {
+    final root = Directory.systemTemp.createTempSync('inline_domain_failure_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    addTearDown(() async {
+      await db.close();
+      if (root.existsSync()) root.deleteSync(recursive: true);
+    });
+    await tester.runAsync(() => repository.createTextCard(
+          cardId: 'card_domain_failure',
+          title: '原标题',
+          body: '原正文',
+        ));
+    var saveAttempts = 0;
+    var savedCallbacks = 0;
+    var closed = false;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 280,
+          height: 190,
+          child: CompactCardEditor(
+            cardId: 'card_domain_failure',
+            repository: repository,
+            embedded: true,
+            domainSave: (
+                {required cardId, required title, required body}) async {
+              saveAttempts++;
+              return null;
+            },
+            onSaved: (_) => savedCallbacks++,
+            onClose: () => closed = true,
+            onExpand: (_) {},
+          ),
+        ),
+      ),
+    ));
+    final field = find.byKey(const Key('rich_text_continuous_document'));
+    await _pumpUntil(tester, field);
+    await tester.enterText(field, '草稿标题\n草稿正文');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    for (var i = 0;
+        i < 20 && find.textContaining('保存失败').evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+
+    expect(saveAttempts, 1);
+    expect(savedCallbacks, 0);
+    expect(closed, isFalse);
+    expect(find.byKey(const Key('wb_compact_card_editor')), findsOneWidget);
+    expect(find.textContaining('保存失败'), findsOneWidget);
+    expect(tester.widget<TextField>(field).controller!.text, '草稿标题\n草稿正文');
+    final persisted = (await tester.runAsync(
+      () => repository.getCard('card_domain_failure', loadDocument: false),
+    ))!;
+    expect(persisted.card.title, '原标题');
+    expect(persisted.card.body, '原正文');
+  });
+
   testWidgets('空标题与正文 H1 通过稳定 synthetic 边界无损编辑并重启恢复', (tester) async {
     final root = Directory.systemTemp.createTempSync('inline_card_restart_');
     final dbFile = File('${root.path}${Platform.pathSeparator}cards.sqlite');

@@ -818,6 +818,65 @@ void main() {
       throwsArgumentError,
     );
   });
+
+  test('Runtime execution rejects a broker-forged title grant before action',
+      () async {
+    final persistence = _ActionPersistence(db, now);
+    final fixture = _fixture(store, persistence, now);
+    const batch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_runtime_forged_title',
+      boardId: 'board_1',
+      commands: [
+        EditCardTitleCommand(
+          commandId: 'cmd_runtime_forged_title',
+          cardId: 'card_1',
+          title: 'must not persist',
+        ),
+      ],
+    );
+    final before = (await store.load('board_1')).snapshot!;
+    final grant = fixture.broker.issueSelectionAuthorization(
+      runtimeTurnId: 'turn_runtime_forged_title',
+      userAuthorizationMessageId: 'chat-message-forged-title',
+      boardId: batch.boardId,
+      selectedItemIds: const {},
+      selectedCardIds: const {'card_1'},
+      capabilities: const {WhiteboardWriteCapability.editCardTitle},
+      maxOperationCount: 1,
+      maxOperationCountByCapability: const {
+        WhiteboardWriteCapability.editCardTitle: 1,
+      },
+    );
+
+    await expectLater(
+      fixture.facade.executeRuntime(
+        characterId: 'i',
+        batch: batch,
+        authorizationId: grant.authorizationId,
+        runtimeTurnId: grant.runtimeTurnId,
+        userAuthorizationMessageId: grant.userAuthorizationMessageId,
+      ),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.message,
+          'message',
+          'edit_card_title is manual-only',
+        ),
+      ),
+    );
+
+    final after = (await store.load('board_1')).snapshot!;
+    expect(
+      WhiteboardDomainCommandExecutor.snapshotHash(after),
+      WhiteboardDomainCommandExecutor.snapshotHash(before),
+    );
+    expect(
+      after.cards.singleWhere((card) => card.cardId == 'card_1').title,
+      'Card 1',
+    );
+    expect(await readPersistedWorkbenchActions(db, 'i'), isEmpty);
+    expect(fixture.facade.canUndo(batch.operationBatchId), isFalse);
+  });
 }
 
 class _Fixture {
