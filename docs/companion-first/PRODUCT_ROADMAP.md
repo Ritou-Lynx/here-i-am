@@ -6,7 +6,7 @@
 >
 > 执行基线：`v3-lab`
 >
-> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过，但 P4 在合并后候选上暴露六类 DomainCommand 生产不可达并真人失败；当前活动 Goal 为 P4 生产接线窄返修，P5 / P6 与最终真人 Gate 继续阻塞
+> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过；P4 第八轮代码、独立审计、集成与自动 Gate 已完成，待构建新唯一候选并从人工第一项重启真人 Gate；P5 / P6 与最终真人 Gate 继续阻塞
 
 本文回答四个问题：Here I Am 最终是什么、数据以哪里为准、当前真实基线在哪里、下一阶段按什么 Gate 推进。它不是无限任务清单，也不替代阶段 Goal。每次只从本路线提出一个可验收 Goal；Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
@@ -15,6 +15,8 @@
 2026-08-26 用户明确确认：Goal 1 不取消、不取代；`GOAL-20260826-authority-preflight` 已关闭后，仅恢复 UI-T、P4、P6 返修。三包现已完成隔离交付、审计、逐包本地集成、`108/108` 组合自动验证与 `v3-lab@fad8b736` 的 Windows Debug 集成构建；这不是最终真人通过。Goal 1 已按约回到阻塞态，P5、最终真人 Gate、W4 红灯、push、发布以及正式 Gate 1A-0 均未解锁。
 
 2026-08-28 真人复验推翻了“P4 只差重开 Undo”的旧判断：合并后唯一候选 `v3-lab@53d2dc91` 中，手动六类操作仍绕过 Domain Receipt / 持久 Undo，桌面 Runtime 也没有注册或分发六类 DomainCommand。父 Goal 因此阻塞，用户已创建窄返修 Goal [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)；它只补人工 / Runtime 共用生产纵切与退出重开 Undo，不扩张 P5、P6、W4 或 Gate 1A。
+
+2026-08-29 真人 Gate 进一步推翻了“P4 只剩退出重开”的判断：`30a73ce3` 在人工第一项即把既有透明单面 `CompactCardEditor` 替换成异色表单，标题不可编辑；每次 Domain receipt 后的整板 reload 还用持久 viewport 覆盖用户当前 pan / zoom，造成白板跳位。该候选已作废。原 W1 第八轮现已恢复既有双击单面 UX、manual-only 标题与正文同 batch / Receipt / Undo、active viewport，并补 Runtime 执行侧标题防线和保存失败可见性；两轮 test-only 清理关闭 Windows teardown 与真实 rich I/O 等待不稳定。W0 完成独立复核、主线集成和核心 `73/73`、相邻最终 `107/107`、Repository `39/39`、Card Library `13/13` 等自动 Gate。Domain 正文仍严格限定为 canonical 纯文本替换；repository 计算型 stale 隐藏但保留投影不匹配的旧 RichTextDocument / assets，不新增跨 DB / filesystem journal，也不把 P4 扩大成 full rich-text authoring。新唯一候选和真人 Gate 完成前，P4 仍未通过。
 
 2026-08-28 并行例外 Goal [`GOAL-20260828-legacy-cleanup-wave1`](../development/goals/GOAL-20260828-legacy-cleanup-wave1.md) 已验收通过并进入 `v3-lab@a29b212e`：第一批零注册 / 零调用孤岛与退役测试已删除，仍有效的 Tavern / Companion 覆盖已迁移或保留，全仓退役测试编译错误归零。该清理不改变产品路线、数据权威或 P4 主 Goal，也未触碰 SharedLife、CardCache、日程、UI 大簇、schema、依赖或用户数据。
 
@@ -145,7 +147,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| 已恢复的 AI 工作台 Goal | UI-T 已真人通过；P4 已有六命令 facade / executor、真实 action reader 与重开 hydration 的自动证据；P6 已补 host-owned 生产 Runtime 队列入口；合并后候选 `53d2dc91` 的 exact Goal 组合串行 `112/112`、Windows Debug 构建成功 | P4 真人复验确认人工 UI 与桌面 Runtime 均未接入六命令生产纵切，现由 `GOAL-20260828-p4-production-reachability-repair` 返修；P5 / P6 真人 Gate、W4 红灯仍未通过，构建不等于完成，也未授权 push / 发布 |
+| 已恢复的 AI 工作台 Goal | UI-T 已真人通过；P4 第八轮已恢复既有双击单面编辑、manual-only 标题 Receipt / Undo 与 active viewport，并完成独立审计、主线集成及核心 `73/73`、相邻最终 `107/107` 等自动 Gate；P6 已补 host-owned 生产 Runtime 队列入口 | P4 待构建新唯一 Windows 候选，并等待从人工第一项重启完整真人 Gate；P5 / P6 真人 Gate、W4 红灯仍未通过，也未授权 push / 发布 |
 | 已关闭的临时预备 Goal | `GOAL-20260826-authority-preflight` 已通过用户真人审阅并关闭，只使用代码实况与合成数据 | 已交付对象盘点、迁移矩阵、golden corpus 与隔离 harness 骨架；没有切换生产权威，也不证明 Gate 1A-0 通过 |
 | Desktop Whiteboard | Card/Source/Board/Anchor 骨架、卡片库、画布、链接入库、视频研读、通用命令基础 | Markdown 权威迁移、完整删除/恢复、文件导入与外部编辑冲突、生产搜索和灾难恢复尚未形成统一 Gate |
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
@@ -165,12 +167,12 @@ Android 严重崩溃、Memory 真实误召回、数据损坏、安全漏洞和 P
 
 ### Gate 0 — 关闭当前活动 Goal
 
-[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 在合并后候选 `53d2dc91` 上通过 exact Goal 组合串行 `112/112`、关键守门 `3/3` 与 Windows Debug 构建；UI-T 真人结论继续有效。P4 真人复验随后确认六类 DomainCommand 没有生产调用者，人工 UI 与 Runtime 都未复用同一 Receipt / Undo，因此父 Goal 重新阻塞，并由 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md) 接管这一个窄返修。
+[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的 UI-T 真人结论继续有效。P4 旧候选 `53d2dc91` 暴露的生产不可达已由 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md) 接通，`30a73ce3` 暴露的 production-only 编辑面与 viewport 回归也已完成第八轮代码返修、独立审计、集成与自动 Gate；父 Goal 继续阻塞到新唯一候选完成全部真人 Gate。
 
 历史失败与当前未完 Gate 为：
 
 - UI-T：真实系统剪贴板、回复期间编辑、`Win + H` 与菜单主题真人通过；Typeless 2.3.1 不向 Flutter Windows 输入框注入，保留为非阻断外部兼容红灯；
-- P4：手动 UI 基础操作流畅，但不产生 Domain Receipt / 持久 Undo；桌面 Runtime 六命令未注册 / 分发，打开白板后仍不可达，当前返修 Goal 必须补生产纵切后重验；
+- P4：生产纵切、持久 Receipt / Undo、Runtime 注册以及双击单面编辑、标题 Receipt / Undo、active viewport 的第八轮自动证据已收口；当前等待新唯一候选，随后重跑人工六类、Runtime、行动卡 / Receipt、完全退出重开、Undo、再重开与冲突真人 Gate；
 - P5：真实人格 / 长期关系 Memory V3 代码已返修和自动验证，仍须等待 P4 后做真实命中、空、失败和扩权拒绝真人 Gate；
 - P6：受控生产 Runtime 入口与全生命周期已经接入；仍须等待 P4 / P5 后做真实 Bridge / App 重启与生命周期真人 Gate。
 
