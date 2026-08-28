@@ -41,6 +41,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <!-- Full-screen intent for incoming call-style notifications -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- Health Connect permissions removed to comply with Google Play policy.
@@ -80,6 +81,19 @@
             android:name="com.llfbandit.record.service.AudioRecordingService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
+        <service
+            android:name=".ble.BleHeartRateService"
+            android:foregroundServiceType="connectedDevice"
+            android:exported="false"
+            android:stopWithTask="false" />
+        <receiver
+            android:name=".ble.BleHeartRateBootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
         <service
             android:name=".FocusLockAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"

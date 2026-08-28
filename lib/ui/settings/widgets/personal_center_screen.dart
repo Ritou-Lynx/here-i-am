@@ -21,6 +21,7 @@ import 'package:memex/ui/settings/widgets/device_app_blocker_settings_page.dart'
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
 import 'package:memex/ui/settings/widgets/companion_share_settings_page.dart';
 import 'package:memex/ui/settings/widgets/image_generation_settings_page.dart';
+import 'package:memex/ui/settings/widgets/heart_rate_device_settings_page.dart';
 import 'package:memex/ui/settings/widgets/log_viewer_page.dart';
 import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
 import 'package:memex/ui/settings/widgets/model_stats_page.dart';
@@ -626,6 +627,12 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
               ),
             ]),
             _DestinationGroup('外部连接', [
+              _Destination(
+                icon: Icons.favorite_outline_rounded,
+                title: '实时心率设备',
+                subtitle: '标准蓝牙 HRS · 后台持续接收',
+                onTap: () => open(const HeartRateDeviceSettingsPage()),
+              ),
               _Destination(
                 icon: Icons.cloud_sync_outlined,
                 title: '林埃核心',

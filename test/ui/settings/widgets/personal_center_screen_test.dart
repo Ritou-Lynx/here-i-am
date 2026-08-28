@@ -153,4 +153,19 @@ void main() {
     expect(find.text('未测试'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('device connections exposes the realtime HRS entry',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: PersonalCenterScreen(
+          initialSection: PersonalCenterSection.connections,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('实时心率设备'), findsOneWidget);
+    expect(find.textContaining('标准蓝牙 HRS'), findsOneWidget);
+  });
 }

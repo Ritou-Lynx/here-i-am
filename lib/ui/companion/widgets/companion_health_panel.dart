@@ -9,14 +9,18 @@ import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/services/user_rhythm_service.dart';
 import 'package:memex/data/services/coros_mcp_service.dart';
 import 'package:memex/data/services/coros_sync_service.dart';
+import 'package:memex/data/services/ble_heart_rate_gateway.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/ui/companion/widgets/insight_strip.dart';
+import 'package:memex/ui/companion/widgets/live_heart_rate_card.dart';
+import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/memory/widgets/memory_card_detail_screen_v3.dart';
 import 'package:memex/ui/memory/widgets/memory_summary_card_v3.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
+import 'package:memex/ui/settings/widgets/heart_rate_device_settings_page.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 
@@ -39,7 +43,9 @@ const _healthInfo = Color(0xFF526E72);
 /// 2. Synced local files — fallback when API is unavailable
 /// 3. Health-related Memory V3 cards
 class CompanionHealthPanel extends StatefulWidget {
-  const CompanionHealthPanel({super.key});
+  const CompanionHealthPanel({super.key, this.heartRateGateway});
+
+  final BleHeartRateGateway? heartRateGateway;
 
   @override
   State<CompanionHealthPanel> createState() => _CompanionHealthPanelState();
@@ -805,15 +811,28 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
   Widget _buildBody() {
     if (_loading && _noData) {
-      return const Center(
-        child: CircularProgressIndicator(color: _healthAccent, strokeWidth: 2),
+      return ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        children: [
+          _buildLiveHeartRateCard(),
+          const SizedBox(height: 48),
+          const Center(
+            child: CircularProgressIndicator(
+              color: _healthAccent,
+              strokeWidth: 2,
+            ),
+          ),
+        ],
       );
     }
 
     if (_error != null && _noData) {
       return ListView(
         controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          _buildLiveHeartRateCard(),
           const SizedBox(height: 80),
           Center(
             child: Padding(
@@ -835,7 +854,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     if (_noData && _corosConnected) {
       return ListView(
         controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          _buildLiveHeartRateCard(),
           const SizedBox(height: 80),
           _buildNoDataPrompt(),
         ],
@@ -845,7 +866,9 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     if (_noData && !_corosConnected) {
       return ListView(
         controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          _buildLiveHeartRateCard(),
           const SizedBox(height: 80),
           _buildConnectPrompt(),
         ],
@@ -887,6 +910,10 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
 
   List<Widget> _buildCardList() {
     final items = <Widget>[];
+
+    // Native BLE HRS is independent from COROS cloud metrics and is always
+    // the first Health surface, including unconfigured/error states.
+    items.add(_buildLiveHeartRateCard());
 
     // ── Insight strip (Life Insights for health domain) ──
     items.add(InsightStrip(
@@ -1073,6 +1100,26 @@ class _CompanionHealthPanelState extends State<CompanionHealthPanel> {
     }
 
     return items;
+  }
+
+  Widget _buildLiveHeartRateCard() {
+    return LiveHeartRateCard(
+      gateway: widget.heartRateGateway,
+      onTap: _openHeartRateSettings,
+    );
+  }
+
+  Future<void> _openHeartRateSettings() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SpringRainUiScope(
+          child: HeartRateDeviceSettingsPage(
+            gateway: widget.heartRateGateway,
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _cachedIndicator() {
