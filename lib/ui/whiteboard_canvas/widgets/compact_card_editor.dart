@@ -9,6 +9,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 
@@ -26,6 +27,98 @@ typedef CompactCardDomainSave = Future<CardContract?> Function({
   required String title,
   required String body,
 });
+
+/// Preserves the surrounding scroll policy except for scrollbar decoration.
+///
+/// EditableText calls [copyWith] with `scrollbars: true` for multiline input,
+/// so a plain `behavior.copyWith(scrollbars: false)` is not sufficient here.
+/// Keeping the no-scrollbar decision in [buildScrollbar] makes it stable across
+/// descendant copies without changing scrolling, selection, or input policy.
+class _EmbeddedScrollbarFreeScrollBehavior extends ScrollBehavior {
+  const _EmbeddedScrollbarFreeScrollBehavior(this.delegate);
+
+  final ScrollBehavior delegate;
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => delegate.dragDevices;
+
+  @override
+  Set<LogicalKeyboardKey> get pointerAxisModifiers =>
+      delegate.pointerAxisModifiers;
+
+  @override
+  MultitouchDragStrategy getMultitouchDragStrategy(BuildContext context) =>
+      delegate.getMultitouchDragStrategy(context);
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) =>
+      child;
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) =>
+      delegate.buildOverscrollIndicator(context, child, details);
+
+  @override
+  ScrollBehavior copyWith({
+    bool? scrollbars,
+    bool? overscroll,
+    Set<PointerDeviceKind>? dragDevices,
+    MultitouchDragStrategy? multitouchDragStrategy,
+    Set<LogicalKeyboardKey>? pointerAxisModifiers,
+    ScrollPhysics? physics,
+    TargetPlatform? platform,
+    ScrollViewKeyboardDismissBehavior? keyboardDismissBehavior,
+  }) {
+    return _EmbeddedScrollbarFreeScrollBehavior(
+      delegate.copyWith(
+        scrollbars: scrollbars,
+        overscroll: overscroll,
+        dragDevices: dragDevices,
+        multitouchDragStrategy: multitouchDragStrategy,
+        pointerAxisModifiers: pointerAxisModifiers,
+        physics: physics,
+        platform: platform,
+        keyboardDismissBehavior: keyboardDismissBehavior,
+      ),
+    );
+  }
+
+  @override
+  TargetPlatform getPlatform(BuildContext context) =>
+      delegate.getPlatform(context);
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      delegate.getScrollPhysics(context);
+
+  @override
+  ScrollViewKeyboardDismissBehavior getKeyboardDismissBehavior(
+    BuildContext context,
+  ) =>
+      delegate.getKeyboardDismissBehavior(context);
+
+  @override
+  GestureVelocityTrackerBuilder velocityTrackerBuilder(
+    BuildContext context,
+  ) =>
+      delegate.velocityTrackerBuilder(context);
+
+  @override
+  bool shouldNotify(
+    covariant _EmbeddedScrollbarFreeScrollBehavior oldDelegate,
+  ) {
+    return delegate.runtimeType != oldDelegate.delegate.runtimeType ||
+        delegate.shouldNotify(oldDelegate.delegate);
+  }
+}
 
 class InlineCardTextProjection {
   const InlineCardTextProjection({required this.title, required this.body});
@@ -478,8 +571,8 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     required CardContract card,
     required RichTextEditingController richText,
   }) {
-    final scrollBehavior = ScrollConfiguration.of(context).copyWith(
-      scrollbars: false,
+    final scrollBehavior = _EmbeddedScrollbarFreeScrollBehavior(
+      ScrollConfiguration.of(context),
     );
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),

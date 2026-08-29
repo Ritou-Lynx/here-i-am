@@ -142,6 +142,8 @@ void main() {
     expect(
       find.descendant(of: embedded, matching: rawScrollbars),
       findsNothing,
+      reason:
+          'embedded behavior must resist EditableText copyWith(scrollbars: true)',
     );
     expect(
       find.descendant(
