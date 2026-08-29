@@ -28,6 +28,7 @@ import 'package:memex/ui/whiteboard/editor/card_rich_text_editor_screen.dart'
     as rich_editor;
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
+import 'package:memex/ui/whiteboard_canvas/interactions/ui_intent.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_snapshot_store.dart'
     show SnapshotLoadResult;
 
@@ -338,7 +339,33 @@ void main() {
         tester,
         find.byKey(Key('wb_card_${item.itemId}')),
       );
-      await tester.tap(find.byKey(Key('wb_card_${item.itemId}')));
+      final returnedCard = find.byKey(Key('wb_card_${item.itemId}'));
+      await _pumpUntilCondition(tester, () {
+        final elements = returnedCard.evaluate();
+        return elements.length == 1 &&
+            (ModalRoute.of(elements.single)?.isCurrent ?? false);
+      });
+      await tester.pumpAndSettle();
+      area.viewModel.handleIntent(const ClearSelectionIntent());
+      await tester.pump();
+      expect(area.viewModel.selection.selectedItemIds, isEmpty);
+      final interactiveCard = find.descendant(
+        of: returnedCard,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GestureDetector && widget.onTap != null,
+          description: 'interactive card GestureDetector',
+        ),
+      );
+      expect(interactiveCard, findsOneWidget);
+      final interactiveCenter = tester.getCenter(interactiveCard);
+      expect(interactiveCard.hitTestable(at: Alignment.center), findsOneWidget);
+      await tester.tapAt(
+        interactiveCenter,
+        kind: PointerDeviceKind.mouse,
+        buttons: kPrimaryMouseButton,
+      );
+      await tester.pump();
+      expect(area.viewModel.selection.selectedItemIds, {item.itemId});
       await tester.sendKeyEvent(LogicalKeyboardKey.delete);
       await _pumpUntilCondition(
         tester,

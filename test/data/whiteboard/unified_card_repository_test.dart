@@ -199,8 +199,29 @@ void main() {
 
   test('concurrent tag update and rich save preserve tags projection and kv',
       () async {
+    const gateTimeout = Duration(seconds: 2);
     final entered = Completer<void>();
     final release = Completer<void>();
+    Future<CardContract>? richSave;
+    Future<CardContract>? tagSave;
+    void releaseGate() {
+      if (!release.isCompleted) release.complete();
+    }
+
+    Future<void> settle(Future<CardContract>? pending) async {
+      if (pending == null) return;
+      try {
+        await pending.timeout(gateTimeout);
+      } catch (_) {
+        // The primary assertion reports the failure; teardown only drains it.
+      }
+    }
+
+    addTearDown(() async {
+      releaseGate();
+      await settle(richSave);
+      await settle(tagSave);
+    });
     final card = await repository.createTextCard(
       cardId: 'rich_tag_concurrency',
       title: '原标题',
@@ -220,31 +241,35 @@ void main() {
       },
     );
 
-    final richSave = gated.saveRichText(
-      card.cardId,
-      const RichTextDocument(
-        blocks: [
-          RichTextBlock(type: BlockType.paragraph, text: '并发新正文'),
-        ],
-      ),
-      title: '并发新标题',
-    );
-    await entered.future;
-    var tagCompleted = false;
-    final tagSave = repository.updateCardMetadata(card.cardId,
-        tags: const ['preserved']).whenComplete(() => tagCompleted = true);
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-    expect(tagCompleted, isFalse,
-        reason: 'metadata update waits for the rich transaction boundary');
-    release.complete();
-    await Future.wait([richSave, tagSave]);
+    try {
+      richSave = gated.saveRichText(
+        card.cardId,
+        const RichTextDocument(
+          blocks: [
+            RichTextBlock(type: BlockType.paragraph, text: '并发新正文'),
+          ],
+        ),
+        title: '并发新标题',
+      );
+      await entered.future.timeout(gateTimeout);
+      var tagCompleted = false;
+      tagSave = repository.updateCardMetadata(card.cardId,
+          tags: const ['preserved']).whenComplete(() => tagCompleted = true);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(tagCompleted, isFalse,
+          reason: 'metadata update waits for the rich transaction boundary');
+      releaseGate();
+      await Future.wait<CardContract>([richSave, tagSave]).timeout(gateTimeout);
 
-    final stored = (await repository.getCard(card.cardId))!;
-    expect(stored.card.title, '并发新标题');
-    expect(stored.card.body, '并发新正文');
-    expect(stored.card.tags, ['preserved']);
-    expect(stored.documentState, CardDocumentState.available);
-    expect(await _materializationEvidenceRow(db, card.cardId), isNotNull);
+      final stored = (await repository.getCard(card.cardId))!;
+      expect(stored.card.title, '并发新标题');
+      expect(stored.card.body, '并发新正文');
+      expect(stored.card.tags, ['preserved']);
+      expect(stored.documentState, CardDocumentState.available);
+      expect(await _materializationEvidenceRow(db, card.cardId), isNotNull);
+    } finally {
+      releaseGate();
+    }
   });
 
   test('fetch result creates no truth until explicitly committed', () async {

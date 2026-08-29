@@ -90,6 +90,17 @@ void main() {
       expect(record.documentState, CardDocumentState.missing);
       expect(record.hasRichTextMaterializationEvidence, isFalse,
           reason: '${invalid.bucket}: ${invalid.value}');
+      final resolved = await repository.resolveCurrentDocument(card.cardId);
+      expect(resolved.state, CardDocumentState.missing);
+      expect(resolved.hasRichTextMaterializationEvidence, isFalse,
+          reason: 'resolve: ${invalid.bucket}: ${invalid.value}');
+      final listed = (await repository.listCards(
+        const CardLibraryQuery(loadDocuments: true),
+      ))
+          .single;
+      expect(listed.documentState, CardDocumentState.missing);
+      expect(listed.hasRichTextMaterializationEvidence, isFalse,
+          reason: 'list: ${invalid.bucket}: ${invalid.value}');
     }
   });
 
@@ -143,6 +154,15 @@ void main() {
       expect(missing.card.body, isEmpty);
       expect(missing.documentState, CardDocumentState.missing);
       expect(missing.hasRichTextMaterializationEvidence, isTrue);
+      final resolved = await repository.resolveCurrentDocument(media.cardId);
+      expect(resolved.state, CardDocumentState.missing);
+      expect(resolved.hasRichTextMaterializationEvidence, isTrue);
+      final listed = (await repository.listCards(
+        const CardLibraryQuery(loadDocuments: true),
+      ))
+          .singleWhere((record) => record.card.cardId == media.cardId);
+      expect(listed.documentState, CardDocumentState.missing);
+      expect(listed.hasRichTextMaterializationEvidence, isTrue);
     });
     CardRichTextEditorScreen.setRepositoryForTesting(repository);
     addTearDown(
