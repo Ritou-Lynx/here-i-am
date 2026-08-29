@@ -27,6 +27,7 @@ class WhiteboardRuntimeTurnAuthorization {
     this.maxOperationCount = 1,
     this.maxOperationCountByCapability = const {},
     this.surfaceOwner,
+    this.surfaceInstance,
     this.boardId,
     this.boardName,
     this.selectedItemIds = const {},
@@ -44,6 +45,7 @@ class WhiteboardRuntimeTurnAuthorization {
   final String characterId;
   final String userAuthorizationMessageId;
   final Object? surfaceOwner;
+  final Object? surfaceInstance;
   final String? boardId;
   final String? boardName;
   final Set<String> selectedItemIds;
@@ -61,6 +63,7 @@ class WhiteboardRuntimeTurnAuthorization {
 
   bool get available =>
       surfaceOwner != null &&
+      surfaceInstance != null &&
       boardId != null &&
       expectedSnapshotHash != null &&
       unavailableReason == null;
@@ -321,6 +324,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
       if (!loaded.isSuccess ||
           snapshot == null ||
           current == null ||
+          !identical(current, surface) ||
           !identical(current.owner, surface.owner) ||
           current.boardId != surface.boardId) {
         return _unavailable(
@@ -414,6 +418,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         characterId: characterId,
         userAuthorizationMessageId: evidence,
         surfaceOwner: surface.owner,
+        surfaceInstance: surface,
         boardId: surface.boardId,
         boardName: boardName,
         selectedItemIds: selectedItems,
@@ -465,6 +470,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
     if (isCancelled()) return _failure('runtime_interrupted');
     final surface = _surfaceController.current;
     if (surface == null ||
+        !identical(surface, authorization.surfaceInstance) ||
         !identical(surface.owner, authorization.surfaceOwner) ||
         surface.boardId != authorization.boardId) {
       return _failure('whiteboard_surface_changed');
@@ -481,6 +487,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
       if (isCancelled()) return _failure('runtime_interrupted');
       final current = _surfaceController.current;
       if (current == null ||
+          !identical(current, surface) ||
           !identical(current.owner, authorization.surfaceOwner) ||
           current.boardId != authorization.boardId) {
         return _failure('whiteboard_surface_changed');
@@ -539,6 +546,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
     } finally {
       final current = _surfaceController.current;
       if (current != null &&
+          identical(current, surface) &&
           identical(current.owner, authorization.surfaceOwner) &&
           current.boardId == authorization.boardId) {
         try {
