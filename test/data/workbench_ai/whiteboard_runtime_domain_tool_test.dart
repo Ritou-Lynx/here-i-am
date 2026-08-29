@@ -57,6 +57,10 @@ void main() {
       '别把选中卡片移动到右边',
       '不许修改白板卡片正文',
       '不要修改白板卡片正文',
+      '不需要移动白板卡片',
+      '不必移动白板卡片',
+      '不想移动白板卡片',
+      '不希望移动白板卡片',
       '请勿从白板移除卡片',
       '介绍如何创建白板卡片',
       '请问怎么创建白板卡片',
@@ -185,6 +189,12 @@ void main() {
       '白板卡片标签设为工作': {
         WhiteboardWriteCapability.setCardLabels,
       },
+      '不需要移动白板卡片，编辑正文': {
+        WhiteboardWriteCapability.editCardBody,
+      },
+      '不必移动白板卡片，编辑正文': {
+        WhiteboardWriteCapability.editCardBody,
+      },
     };
     for (final entry in writeCases.entries) {
       final authorization = await harness.tool.prepareAuthorization(
@@ -196,6 +206,11 @@ void main() {
       expect(
         authorization?.allowedCapabilities,
         entry.value,
+        reason: entry.key,
+      );
+      expect(
+        authorization?.maxOperationCount,
+        entry.value.length,
         reason: entry.key,
       );
     }

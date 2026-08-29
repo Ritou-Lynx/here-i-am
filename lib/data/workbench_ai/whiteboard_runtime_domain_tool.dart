@@ -877,8 +877,9 @@ String? _surfaceScopeError(Set<String> ids) {
 Set<WhiteboardWriteCapability> _negatedCapabilities(String text) {
   final result = <WhiteboardWriteCapability>{};
   final clauses = RegExp(
-    r'(?:不要|别|不许|禁止|请勿|无需|不用|不能|不可以|不准)'
-    r'[^。！？!?;\n\r]*',
+    r'(?:不需要|不希望|不要|不必|不想|别|不许|禁止|请勿|无需|不用|'
+    r'不能|不可以|不准)'
+    r'[^，,。！？!?;\n\r]*',
   ).allMatches(text);
   for (final match in clauses) {
     final clause = match.group(0)!;
