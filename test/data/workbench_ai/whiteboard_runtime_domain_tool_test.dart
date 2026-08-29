@@ -56,6 +56,7 @@ void main() {
       '不要在白板创建卡片',
       '别把选中卡片移动到右边',
       '不许修改白板卡片正文',
+      '不要修改白板卡片正文',
       '请勿从白板移除卡片',
       '介绍如何创建白板卡片',
       '请问怎么创建白板卡片',
@@ -291,6 +292,26 @@ void main() {
     WhiteboardWorkbenchSurfaceController.instance.detach(switchedOwner);
   });
 
+  test('exact R15 request grants only one body edit', () async {
+    final authorization = await harness.tool.prepareAuthorization(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: _exactR15BodyEditRequest,
+      userAuthorizationMessageId: 'chat-message-r15-exact',
+    );
+
+    expect(authorization, isNotNull);
+    expect(
+      authorization!.allowedCapabilities,
+      {WhiteboardWriteCapability.editCardBody},
+    );
+    expect(authorization.maxOperationCount, 1);
+    expect(
+      authorization.maxOperationCountByCapability,
+      {WhiteboardWriteCapability.editCardBody: 1},
+    );
+  });
+
   test('prepareAuthorization rejects malformed or oversized host scope',
       () async {
     Future<WhiteboardRuntimeTurnAuthorization?> prepareWith(
@@ -400,6 +421,153 @@ void main() {
     expect(malformed.success, isFalse);
     expect(
         jsonDecode(malformed.text)['error_code'], 'invalid_whiteboard_request');
+  });
+
+  test(
+      'exact R15 request reaches production composition and changes only body',
+      () async {
+    await harness.repository.updateCardMetadata(
+      'card_a',
+      title: 'Runtime 创建验收 R14',
+      body: 'R14 Runtime 旧正文',
+      tags: const ['keep-label'],
+    );
+    final before = (await harness.store.load('board_1')).snapshot!;
+    final beforeCard =
+        before.cards.singleWhere((card) => card.cardId == 'card_a');
+    final beforeItem =
+        before.boardItems.singleWhere((item) => item.itemId == 'item_a');
+    SharedPreferences.setMockInitialValues({});
+    DeviceIdentityService.resetForTesting();
+    AppDatabase.setTestInstance(harness.db);
+    final runtime = _ToolCallRuntime(const {
+      'commands': [
+        {
+          'kind': 'edit_card_body',
+          'card_id': 'card_a',
+          'body': 'R15 Runtime 正文编辑通过',
+        },
+      ],
+    });
+    final conversation = WorkbenchConversationCoordinator.productionComposition(
+      runtime: runtime,
+      whiteboardToolFactory: () => harness.tool,
+      addReply: (_, __) async => 1,
+      pollInterval: Duration.zero,
+      turnTimeout: const Duration(seconds: 5),
+    );
+
+    final result = await sendPersonaDesktopConversationEntry(
+      chatService: PersonaChatService.instance,
+      coordinator: conversation,
+      conversationId: 'persona-r15-body-edit',
+      characterId: 'i',
+      userText: _exactR15BodyEditRequest,
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(runtime.responses, hasLength(1));
+    expect(runtime.responses.single.success, isTrue);
+    expect(jsonDecode(runtime.responses.single.text)['status'], 'applied');
+    final userRows = await (harness.db.select(harness.db.personaChatMessages)
+          ..where((row) => row.isFromCharacter.equals(false)))
+        .get();
+    expect(userRows, hasLength(1));
+    expect(userRows.single.content, _exactR15BodyEditRequest);
+    final actions = await harness.actions();
+    expect(actions, hasLength(1));
+    expect(actions.single.projection.status.name, 'completed');
+    expect(
+      actions.single.projection.userAuthorizationMessageId,
+      'chat-message-${userRows.single.id}',
+    );
+    final after = (await harness.store.load('board_1')).snapshot!;
+    final afterCard =
+        after.cards.singleWhere((card) => card.cardId == 'card_a');
+    final afterItem =
+        after.boardItems.singleWhere((item) => item.itemId == 'item_a');
+    expect(afterCard.body, 'R15 Runtime 正文编辑通过');
+    expect(afterCard.title, beforeCard.title);
+    expect(afterCard.tags, beforeCard.tags);
+    expect(afterItem.x, beforeItem.x);
+    expect(afterItem.y, beforeItem.y);
+    expect(afterItem.width, beforeItem.width);
+    expect(afterItem.height, beforeItem.height);
+  });
+
+  test('exact R15 request rejects mixed expansion with zero partial writes',
+      () async {
+    await harness.repository.updateCardMetadata(
+      'card_a',
+      title: 'Runtime 创建验收 R14',
+      body: 'R14 Runtime 旧正文',
+      tags: const ['keep-label'],
+    );
+    final before = (await harness.store.load('board_1')).snapshot!;
+    final beforeCard =
+        before.cards.singleWhere((card) => card.cardId == 'card_a');
+    final beforeItem =
+        before.boardItems.singleWhere((item) => item.itemId == 'item_a');
+    SharedPreferences.setMockInitialValues({});
+    DeviceIdentityService.resetForTesting();
+    AppDatabase.setTestInstance(harness.db);
+    final runtime = _ToolCallRuntime(const {
+      'commands': [
+        {
+          'kind': 'edit_card_body',
+          'card_id': 'card_a',
+          'body': 'R15 Runtime 正文编辑通过',
+        },
+        {
+          'kind': 'set_card_labels',
+          'card_id': 'card_a',
+          'labels': ['expanded'],
+        },
+        {'kind': 'move_placement', 'item_id': 'item_a', 'x': 88, 'y': 99},
+        {
+          'kind': 'resize_placement',
+          'item_id': 'item_a',
+          'width': 320,
+          'height': 240,
+        },
+      ],
+    });
+    final conversation = WorkbenchConversationCoordinator.productionComposition(
+      runtime: runtime,
+      whiteboardToolFactory: () => harness.tool,
+      addReply: (_, __) async => 1,
+      pollInterval: Duration.zero,
+      turnTimeout: const Duration(seconds: 5),
+    );
+
+    final result = await sendPersonaDesktopConversationEntry(
+      chatService: PersonaChatService.instance,
+      coordinator: conversation,
+      conversationId: 'persona-r15-mixed-expansion',
+      characterId: 'i',
+      userText: _exactR15BodyEditRequest,
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(runtime.responses, hasLength(1));
+    expect(runtime.responses.single.success, isFalse);
+    expect(
+      jsonDecode(runtime.responses.single.text)['error_code'],
+      'whiteboard_operation_limit_exceeded',
+    );
+    expect(await harness.actions(), isEmpty);
+    final after = (await harness.store.load('board_1')).snapshot!;
+    final afterCard =
+        after.cards.singleWhere((card) => card.cardId == 'card_a');
+    final afterItem =
+        after.boardItems.singleWhere((item) => item.itemId == 'item_a');
+    expect(afterCard.title, beforeCard.title);
+    expect(afterCard.body, beforeCard.body);
+    expect(afterCard.tags, beforeCard.tags);
+    expect(afterItem.x, beforeItem.x);
+    expect(afterItem.y, beforeItem.y);
+    expect(afterItem.width, beforeItem.width);
+    expect(afterItem.height, beforeItem.height);
   });
 
   test('omitted create position centers a custom card in active viewport',
@@ -897,6 +1065,10 @@ const _sixCommandPayload = {
     {'kind': 'remove_placement', 'item_id': 'item_a'},
   ],
 };
+
+const _exactR15BodyEditRequest =
+    '把当前白板上标题为「Runtime 创建验收 R14」的卡片正文改成「R15 Runtime 正文编辑通过」。'
+    '不要改标题、标签、位置或大小。';
 
 class _Harness {
   _Harness({

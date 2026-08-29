@@ -783,25 +783,28 @@ Set<WhiteboardWriteCapability> _capabilitiesFromExplicitRequest(String text) {
       !(normalized.contains('白板') || normalized.contains('卡片'))) {
     return const {};
   }
-  if (_containsNegatedWhiteboardWrite(normalized)) return const {};
   if (_isWhiteboardConsultation(normalized)) return const {};
+  final intent = normalized.replaceAll(
+    RegExp(r'「[^」]*」|“[^”]*”'),
+    '',
+  );
   final result = <WhiteboardWriteCapability>{};
-  if (RegExp(r'新建|创建|添加.*卡片|加一张').hasMatch(normalized)) {
+  if (RegExp(r'新建|创建|添加.*卡片|加一张').hasMatch(intent)) {
     result.add(WhiteboardWriteCapability.createCard);
   }
   if (RegExp(
     r'(?:编辑|修改|改写).{0,16}(?:正文|内容)|'
     r'(?:正文|内容).{0,16}(?:编辑|修改|改写|改成|设为|设置为)',
-  ).hasMatch(normalized)) {
+  ).hasMatch(intent)) {
     result.add(WhiteboardWriteCapability.editCardBody);
   }
   if (RegExp(
     r'(?:设置|修改|编辑|添加|删除|移除|清除).{0,16}标签|'
     r'标签.{0,16}(?:设为|设置为|改成|修改为|添加|删除|移除|清除)',
-  ).hasMatch(normalized)) {
+  ).hasMatch(intent)) {
     result.add(WhiteboardWriteCapability.setCardLabels);
   }
-  if (RegExp(r'移动|挪动|移到|放到').hasMatch(normalized)) {
+  if (RegExp(r'移动|挪动|移到|放到').hasMatch(intent)) {
     result.add(WhiteboardWriteCapability.movePlacement);
   }
   if (RegExp(
@@ -809,12 +812,13 @@ Set<WhiteboardWriteCapability> _capabilitiesFromExplicitRequest(String text) {
     r'(?:调整|修改|设置).{0,16}(?:尺寸|大小|宽度|高度)|'
     r'(?:尺寸|大小|宽度|高度).{0,16}'
     r'(?:调整|改成|改为|修改为|设为|设置为)',
-  ).hasMatch(normalized)) {
+  ).hasMatch(intent)) {
     result.add(WhiteboardWriteCapability.resizePlacement);
   }
-  if (RegExp(r'从白板移除|移出白板|移除摆放|拿出白板').hasMatch(normalized)) {
+  if (RegExp(r'从白板移除|移出白板|移除摆放|拿出白板').hasMatch(intent)) {
     result.add(WhiteboardWriteCapability.removePlacement);
   }
+  result.removeAll(_negatedCapabilities(normalized));
   return Set.unmodifiable(result);
 }
 
@@ -870,12 +874,35 @@ String? _surfaceScopeError(Set<String> ids) {
   return null;
 }
 
-bool _containsNegatedWhiteboardWrite(String text) => RegExp(
-      r'(?:不要|别|不许|禁止|请勿|无需|不用|不能|不可以|不准)'
-      r'.{0,24}'
-      r'(?:新建|创建|添加|编辑|修改|改写|正文|内容|标签|移动|挪动|'
-      r'移到|放到|缩放|放大|缩小|尺寸|大小|移除|移出|拿出)',
-    ).hasMatch(text);
+Set<WhiteboardWriteCapability> _negatedCapabilities(String text) {
+  final result = <WhiteboardWriteCapability>{};
+  final clauses = RegExp(
+    r'(?:不要|别|不许|禁止|请勿|无需|不用|不能|不可以|不准)'
+    r'[^。！？!?;\n\r]*',
+  ).allMatches(text);
+  for (final match in clauses) {
+    final clause = match.group(0)!;
+    if (RegExp(r'新建|创建|添加.{0,12}卡片|加一张').hasMatch(clause)) {
+      result.add(WhiteboardWriteCapability.createCard);
+    }
+    if (RegExp(r'正文|内容').hasMatch(clause)) {
+      result.add(WhiteboardWriteCapability.editCardBody);
+    }
+    if (clause.contains('标签')) {
+      result.add(WhiteboardWriteCapability.setCardLabels);
+    }
+    if (RegExp(r'移动|挪动|移到|放到|位置').hasMatch(clause)) {
+      result.add(WhiteboardWriteCapability.movePlacement);
+    }
+    if (RegExp(r'缩放|放大|缩小|尺寸|大小|宽度|高度').hasMatch(clause)) {
+      result.add(WhiteboardWriteCapability.resizePlacement);
+    }
+    if (RegExp(r'从白板移除|移出白板|移除摆放|拿出白板').hasMatch(clause)) {
+      result.add(WhiteboardWriteCapability.removePlacement);
+    }
+  }
+  return result;
+}
 
 WhiteboardWriteCapability? _capabilityForKind(Object? kind) => switch (kind) {
       'create_card' => WhiteboardWriteCapability.createCard,
