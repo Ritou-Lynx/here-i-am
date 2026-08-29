@@ -137,6 +137,89 @@ void main() {
     );
   });
 
+  test('short right-aligned user message keeps its action popup on-screen', () {
+    const overlaySize = Size(360, 800);
+    const popupSize = Size(280, 48);
+    const shortUserBubble = Rect.fromLTWH(306, 240, 38, 36);
+
+    final offset = personaChatBubbleActionPopupOffset(
+      overlaySize: overlaySize,
+      anchorRect: shortUserBubble,
+      popupSize: popupSize,
+      alignTrailing: true,
+    );
+    final popupRect = offset & popupSize;
+
+    expect(popupRect.left, greaterThanOrEqualTo(8));
+    expect(popupRect.right, lessThanOrEqualTo(352));
+    expect(popupRect.right, shortUserBubble.right);
+  });
+
+  test('message action popup flips above a bubble near the screen bottom', () {
+    const overlaySize = Size(360, 800);
+    const popupSize = Size(280, 48);
+    const bottomBubble = Rect.fromLTWH(306, 760, 38, 32);
+
+    final offset = personaChatBubbleActionPopupOffset(
+      overlaySize: overlaySize,
+      anchorRect: bottomBubble,
+      popupSize: popupSize,
+      alignTrailing: true,
+      safeInsets: const EdgeInsets.only(top: 24, bottom: 20),
+    );
+    final popupRect = offset & popupSize;
+
+    expect(popupRect.bottom, lessThan(bottomBubble.top));
+    expect(popupRect.bottom, lessThanOrEqualTo(772));
+    expect(popupRect.top, greaterThanOrEqualTo(32));
+  });
+
+  testWidgets(
+      'rendered short-user action popup stays inside the phone viewport',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const popupKey = ValueKey('rendered-user-message-action-popup');
+    const labels = ['复制', '召回', '撤回', '多选'];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Stack(
+          children: [
+            Positioned.fill(
+              child: PersonaChatBubbleActionPopup(
+                anchorRect: const Rect.fromLTWH(306, 240, 38, 36),
+                alignTrailing: true,
+                safeInsets: const EdgeInsets.only(top: 24, bottom: 20),
+                popupKey: popupKey,
+                actions: [
+                  for (final label in labels)
+                    SizedBox(
+                      width: 68,
+                      height: 36,
+                      child: Center(child: Text(label)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final popupRect = tester.getRect(find.byKey(popupKey));
+    expect(popupRect.left, greaterThanOrEqualTo(8));
+    expect(popupRect.right, lessThanOrEqualTo(352));
+    expect(popupRect.top, greaterThanOrEqualTo(32));
+    expect(popupRect.bottom, lessThanOrEqualTo(772));
+    for (final label in labels) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   Widget buildSubject({
     required TextEditingController controller,
     required bool isStreaming,
