@@ -45,6 +45,140 @@ void main() {
     expect(record.card.body, '数据库里的恢复正文');
   });
 
+  testWidgets(
+      'plain card uses neutral notice and tag-only save does not materialize rich text',
+      (tester) async {
+    await tester.runAsync(() => repository.createTextCard(
+          cardId: 'plain_tags',
+          title: '白板新卡',
+          body: '白板正文',
+          tags: const ['old'],
+        ));
+    CardRichTextEditorScreen.setRepositoryForTesting(repository);
+    addTearDown(
+      () => CardRichTextEditorScreen.setRepositoryForTesting(null),
+    );
+
+    await tester.pumpWidget(const MaterialApp(
+      home: CardRichTextEditorScreen(cardId: 'plain_tags'),
+    ));
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const ValueKey('card-tag-input')),
+    );
+
+    final editorWidget = tester.widget<editor.CardRichTextEditorScreen>(
+      find.byType(editor.CardRichTextEditorScreen),
+    );
+    expect(editorWidget.degradedMessage, contains('当前没有可用的富文本版本'));
+    expect(editorWidget.degradedMessage, isNot(contains('缺失')));
+    expect(editorWidget.degradedMessage, isNot(contains('恢复')));
+    expect(
+      find.byKey(const ValueKey('rich_text_degraded_notice')),
+      findsOneWidget,
+    );
+    expect(repository.richTextStorage.exists('plain_tags'), isFalse);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('card-tag-input')),
+      'new',
+    );
+    await tester.tap(find.byKey(const ValueKey('card-tag-add')));
+    await tester.tap(find.byKey(const ValueKey('rich_text_save_button')));
+    await _pumpUntilFound(tester, find.text('已保存'));
+
+    final stored = await tester.runAsync(
+      () async => (await repository.getCard('plain_tags'))!,
+    );
+    expect(stored!.card.tags, ['old', 'new']);
+    expect(stored.documentState, CardDocumentState.missing);
+    expect(repository.richTextStorage.exists('plain_tags'), isFalse);
+  });
+
+  testWidgets(
+      'first rich save materializes plain card and a later missing file warns honestly',
+      (tester) async {
+    await tester.runAsync(() => repository.createTextCard(
+          cardId: 'plain_materialize',
+          title: '白板新卡',
+          body: '白板正文',
+        ));
+    CardRichTextEditorScreen.setRepositoryForTesting(repository);
+    addTearDown(
+      () => CardRichTextEditorScreen.setRepositoryForTesting(null),
+    );
+
+    Future<void> openEditor() async {
+      await tester.pumpWidget(MaterialApp(
+        home: CardRichTextEditorScreen(
+          key: UniqueKey(),
+          cardId: 'plain_materialize',
+        ),
+      ));
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const ValueKey('rich_text_continuous_document')),
+      );
+    }
+
+    await openEditor();
+    final initialNotice = tester.widget<editor.CardRichTextEditorScreen>(
+      find.byType(editor.CardRichTextEditorScreen),
+    );
+    expect(initialNotice.degradedMessage, contains('当前没有可用的富文本版本'));
+    expect(initialNotice.degradedMessage, isNot(contains('缺失')));
+    expect(initialNotice.degradedMessage, isNot(contains('恢复')));
+    await tester.enterText(
+      find.byKey(const ValueKey('rich_text_continuous_document')),
+      '首次富文本保存',
+    );
+    await tester.tap(find.byKey(const ValueKey('rich_text_save_button')));
+    await _pumpUntilFound(tester, find.text('已保存'));
+    expect(
+      (await tester.runAsync(
+        () async => (await repository.getCard('plain_materialize'))!,
+      ))!
+          .documentState,
+      CardDocumentState.available,
+    );
+
+    await openEditor();
+    expect(
+      find.byKey(const ValueKey('rich_text_degraded_notice')),
+      findsNothing,
+    );
+    final richFile = File(
+      '${repository.richTextStorage.baseDir.path}${Platform.pathSeparator}'
+      'card_plain_materialize${Platform.pathSeparator}rich_text.json',
+    );
+    await tester.runAsync(richFile.delete);
+
+    await openEditor();
+    final missing = await tester.runAsync(
+      () async => (await repository.getCard('plain_materialize'))!,
+    );
+    expect(missing!.documentState, CardDocumentState.missing);
+    expect(
+      tester
+          .widget<editor.CardRichTextEditorScreen>(
+            find.byType(editor.CardRichTextEditorScreen),
+          )
+          .degradedMessage,
+      contains('当前没有可用的富文本版本'),
+    );
+    final missingMessage = tester
+        .widget<editor.CardRichTextEditorScreen>(
+          find.byType(editor.CardRichTextEditorScreen),
+        )
+        .degradedMessage;
+    expect(missingMessage, isNot(contains('缺失')));
+    expect(missingMessage, isNot(contains('恢复')));
+    expect(
+      find.byKey(const ValueKey('rich_text_degraded_notice')),
+      findsOneWidget,
+    );
+  });
+
   test('corrupt rich text is reported and saveRichText repairs it', () async {
     await repository.createTextCard(
       cardId: 'corrupt_doc',
@@ -210,4 +344,15 @@ void main() {
     expect(stored.card.tags, ['old', 'new']);
     expect(stored.documentState, CardDocumentState.stale);
   });
+}
+
+Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
+  for (var index = 0; index < 50; index++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    if (finder.evaluate().isNotEmpty) return;
+  }
+  expect(finder, findsWidgets, reason: 'widget did not appear after 2 seconds');
 }

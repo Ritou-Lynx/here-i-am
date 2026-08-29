@@ -23,6 +23,9 @@ import 'package:memex/domain/whiteboard/domain_command.dart';
 import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
+import 'package:memex/ui/whiteboard/editor/card_rich_text_editor_screen.dart'
+    as rich_editor;
 import 'package:memex/ui/whiteboard/whiteboard_canvas_route_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_canvas_screen.dart';
 import 'package:memex/ui/whiteboard_canvas/whiteboard_snapshot_store.dart'
@@ -44,6 +47,10 @@ void main() {
         if (await root.exists()) await root.delete(recursive: true);
       });
       final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      CardRichTextEditorScreen.setRepositoryForTesting(repository);
+      addTearDown(
+        () => CardRichTextEditorScreen.setRepositoryForTesting(null),
+      );
       final store = _GatedStore(db);
       final now = DateTime.utc(2026, 8, 28, 8);
       expect(
@@ -83,14 +90,28 @@ void main() {
         resolveCharacterId: () async => 'i',
         clock: () => now,
       );
-      await tester.pumpWidget(MaterialApp(
-        home: WhiteboardCanvasRouteScreen(
-          boardId: 'board_route',
-          store: store,
-          cardRepository: repository,
-          manualCommandHost: host,
-        ),
-      ));
+      final router = GoRouter(
+        initialLocation: AppRoutes.whiteboardCanvasPath('board_route'),
+        routes: [
+          GoRoute(
+            path: AppRoutes.whiteboardCanvas,
+            builder: (_, state) => WhiteboardCanvasRouteScreen(
+              boardId: state.pathParameters['boardId']!,
+              store: store,
+              cardRepository: repository,
+              manualCommandHost: host,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.cardEdit,
+            builder: (_, state) => CardRichTextEditorScreen(
+              cardId: state.pathParameters['cardId']!,
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await _pumpUntil(tester, find.byType(WhiteboardCanvasArea));
       final area = tester.widget<WhiteboardCanvasArea>(
         find.byType(WhiteboardCanvasArea),
@@ -236,6 +257,31 @@ void main() {
             .tags,
         ['alpha', 'beta'],
       );
+
+      final openClick = await tester.startGesture(
+        tester.getCenter(find.byKey(Key('wb_card_${item.itemId}'))),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await openClick.up();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('展开查看'));
+      await _pumpUntil(
+        tester,
+        find.byType(rich_editor.CardRichTextEditorScreen),
+      );
+      final fullDocument = tester.widget<TextField>(
+        find.byKey(const ValueKey('rich_text_continuous_document')),
+      );
+      expect(fullDocument.controller!.text, '真人正文\n第二行');
+      expect(
+        find.byKey(const ValueKey('rich_text_degraded_notice')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('当前没有可用的富文本版本'), findsOneWidget);
+      expect(find.textContaining('富文本文件缺失'), findsNothing);
+      expect(find.textContaining('正文投影恢复'), findsNothing);
+      expect(repository.richTextStorage.exists(item.cardId), isFalse);
     },
   );
 
