@@ -46,6 +46,87 @@ void main() {
   });
 
   testWidgets(
+      'empty plain and lost media-only rich cards both show the neutral notice',
+      (tester) async {
+    late File retainedMediaAsset;
+    await tester.runAsync(() async {
+      await repository.createTextCard(
+        cardId: 'fresh_empty_plain',
+        title: '空白新卡',
+      );
+      final media = await repository.createTextCard(
+        cardId: 'lost_media_only',
+        title: '媒体卡',
+      );
+      final objectStore = RichTextObjectStore(
+        repository.richTextStorage.baseDir,
+      );
+      final asset = await objectStore.importBytes(
+        Uint8List.fromList([1, 2, 3, 4]),
+        mimeType: 'image/png',
+        extension: 'png',
+      );
+      retainedMediaAsset = objectStore.resolveFile(asset)!;
+      expect(await retainedMediaAsset.exists(), isTrue);
+      await repository.saveRichText(
+        media.cardId,
+        RichTextDocument(
+          blocks: [
+            RichTextBlock(
+              type: BlockType.image,
+              attrs: {'asset_ref_id': asset.refId},
+            ),
+          ],
+          assetRefs: [asset],
+        ),
+        title: media.title,
+      );
+      expect(
+        (await repository.getCard(media.cardId))!.documentState,
+        CardDocumentState.available,
+      );
+      final cardDirectory = Directory(
+        '${repository.richTextStorage.baseDir.path}${Platform.pathSeparator}'
+        'card_${media.cardId}',
+      );
+      await cardDirectory.delete(recursive: true);
+      expect(await retainedMediaAsset.exists(), isTrue);
+      final missing = (await repository.getCard(media.cardId))!;
+      expect(missing.card.body, isEmpty);
+      expect(missing.documentState, CardDocumentState.missing);
+    });
+    CardRichTextEditorScreen.setRepositoryForTesting(repository);
+    addTearDown(
+      () => CardRichTextEditorScreen.setRepositoryForTesting(null),
+    );
+
+    Future<void> expectNeutralNotice(String cardId) async {
+      await tester.pumpWidget(MaterialApp(
+        home: CardRichTextEditorScreen(key: UniqueKey(), cardId: cardId),
+      ));
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const ValueKey('rich_text_degraded_notice')),
+      );
+      final message = tester
+          .widget<editor.CardRichTextEditorScreen>(
+            find.byType(editor.CardRichTextEditorScreen),
+          )
+          .degradedMessage;
+      expect(
+        message,
+        '当前没有可用的富文本版本，正在显示卡片正文；编辑正文并保存后会创建富文本版本。',
+      );
+      expect(message, isNot(contains('缺失')));
+      expect(message, isNot(contains('恢复')));
+    }
+
+    await expectNeutralNotice('fresh_empty_plain');
+    await expectNeutralNotice('lost_media_only');
+    expect(await tester.runAsync(retainedMediaAsset.exists), isTrue);
+  });
+
+  testWidgets(
       'plain card uses neutral notice and tag-only save does not materialize rich text',
       (tester) async {
     await tester.runAsync(() => repository.createTextCard(

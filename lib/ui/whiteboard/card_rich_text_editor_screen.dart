@@ -178,9 +178,7 @@ class _CardRichTextEditorScreenState extends State<CardRichTextEditorScreen> {
             document: _projectionDocument(record.card.body),
             tags: record.card.tags,
             tagSuggestions: tagSuggestions,
-            message: record.card.body.isEmpty
-                ? null
-                : '当前没有可用的富文本版本，正在显示卡片正文；编辑并保存后会创建富文本版本。',
+            message: '当前没有可用的富文本版本，正在显示卡片正文；编辑正文并保存后会创建富文本版本。',
           );
         case CardDocumentState.stale:
           return _EditorLoad(

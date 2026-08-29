@@ -126,7 +126,7 @@ void main() {
       expect(area.viewModel.isReadonly, isFalse);
       store.saveCalls = 0;
 
-      await _doubleTapAt(tester, const Offset(700, 450));
+      await _doubleClickMouseAt(tester, const Offset(700, 450));
       List<PersistedWorkbenchAction>? createActions;
       for (var index = 0; index < 80; index++) {
         createActions = await tester.runAsync(
@@ -279,6 +279,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('当前没有可用的富文本版本'), findsOneWidget);
+      expect(find.textContaining('编辑正文并保存后'), findsOneWidget);
       expect(find.textContaining('富文本文件缺失'), findsNothing);
       expect(find.textContaining('正文投影恢复'), findsNothing);
       expect(repository.richTextStorage.exists(item.cardId), isFalse);
@@ -634,10 +635,20 @@ void main() {
   );
 }
 
-Future<void> _doubleTapAt(WidgetTester tester, Offset point) async {
-  await tester.tapAt(point);
+Future<void> _doubleClickMouseAt(WidgetTester tester, Offset point) async {
+  final first = await tester.startGesture(
+    point,
+    kind: PointerDeviceKind.mouse,
+    buttons: kPrimaryMouseButton,
+  );
+  await first.up();
   await tester.pump(const Duration(milliseconds: 70));
-  await tester.tapAt(point);
+  final second = await tester.startGesture(
+    point,
+    kind: PointerDeviceKind.mouse,
+    buttons: kPrimaryMouseButton,
+  );
+  await second.up();
   await tester.pump();
 }
 
