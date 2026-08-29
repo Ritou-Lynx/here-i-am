@@ -701,7 +701,15 @@ void main() {
       ],
       assetRefs: [asset],
     );
+    const evidenceKey =
+        '${UnifiedCardRepository.richTextMaterializationKeyPrefix}card_1';
+    Future<KvStoreData?> readEvidence() =>
+        (db.select(db.kvStore)..where((row) => row.key.equals(evidenceKey)))
+            .getSingleOrNull();
+    expect(await readEvidence(), isNull,
+        reason: 'the seeded WhiteboardDriftStore snapshot must not create KV');
     await repository.saveRichText('card_1', rich, title: 'Card 1');
+    expect(await readEvidence(), isNotNull);
     final richFile = File(
       '${repository.richTextStorage.baseDir.path}${Platform.pathSeparator}'
       'card_card_1${Platform.pathSeparator}rich_text.json',
@@ -735,6 +743,8 @@ void main() {
     expect(applied.commandIds, hasLength(2));
     expect(await richFile.readAsBytes(), richBytes);
     expect(await assetFile.exists(), isTrue);
+    expect(await readEvidence(), isNotNull,
+        reason: 'DriftStore save must not delete rich evidence');
 
     await db.close();
     databaseOpen = false;
@@ -769,6 +779,8 @@ void main() {
     expect(restored.document!.toJson(), rich.toJson());
     expect(await richFile.readAsBytes(), richBytes);
     expect(await assetFile.exists(), isTrue);
+    expect(await readEvidence(), isNotNull,
+        reason: 'persistent Undo must not delete rich evidence');
   });
 
   test('title command is validated and cannot be authorized for Runtime',

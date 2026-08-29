@@ -82,6 +82,100 @@ class _FailingSaveRepository extends UnifiedCardRepository {
 
 void main() {
   testWidgets(
+      'Windows embedded surface hides only its scrollbar while text still scrolls and selects',
+      (tester) async {
+    final root = Directory.systemTemp.createTempSync('inline_scrollbar_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    addTearDown(() async {
+      await db.close();
+      if (root.existsSync()) root.deleteSync(recursive: true);
+    });
+    final longBody = List.generate(80, (index) => '正文行 $index').join('\n');
+    await tester.runAsync(() => repository.createTextCard(
+          cardId: 'card_windows_scroll',
+          title: '滚动测试',
+          body: longBody,
+        ));
+
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(platform: TargetPlatform.windows),
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        scrollbars: true,
+      ),
+      home: Scaffold(
+        body: Row(
+          children: [
+            SizedBox(
+              width: 280,
+              height: 190,
+              child: CompactCardEditor(
+                cardId: 'card_windows_scroll',
+                repository: repository,
+                embedded: true,
+                onSaved: (_) {},
+                onClose: () {},
+                onExpand: (_) {},
+              ),
+            ),
+            const SizedBox(
+              key: ValueKey('outside_scroll_surface'),
+              width: 120,
+              height: 190,
+              child: SingleChildScrollView(
+                child: SizedBox(height: 900, width: 80),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+    final field = find.byKey(const Key('rich_text_continuous_document'));
+    await _pumpUntil(tester, field);
+    await tester.pumpAndSettle();
+
+    final rawScrollbars = find.byWidgetPredicate(
+      (widget) => widget is RawScrollbar,
+      description: 'RawScrollbar or Scrollbar',
+    );
+    final embedded = find.byKey(const Key('wb_compact_card_editor'));
+    expect(
+      find.descendant(of: embedded, matching: rawScrollbars),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('outside_scroll_surface')),
+        matching: rawScrollbars,
+      ),
+      findsOneWidget,
+      reason: 'the app-level Windows scrollbar policy remains enabled',
+    );
+
+    final textScrollable = find.descendant(
+      of: field,
+      matching: find.byType(Scrollable),
+    );
+    expect(textScrollable, findsOneWidget);
+    final scrollState = tester.state<ScrollableState>(textScrollable);
+    expect(scrollState.position.maxScrollExtent, greaterThan(0));
+
+    await tester.tap(field);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    final controller = tester.widget<TextField>(field).controller!;
+    expect(
+      {controller.selection.baseOffset, controller.selection.extentOffset},
+      {0, controller.text.length},
+    );
+    scrollState.position.jumpTo(scrollState.position.maxScrollExtent);
+    await tester.pump();
+    expect(scrollState.position.pixels, scrollState.position.maxScrollExtent);
+  });
+
+  testWidgets(
       'Domain inline surface accepts only canonical plain text and format media only creates no commit',
       (tester) async {
     final root = Directory.systemTemp.createTempSync('inline_domain_plain_');

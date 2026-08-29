@@ -121,6 +121,17 @@ void main() {
     final saved = await repository.saveRichText(card.cardId, document);
     expect(saved.cardId, card.cardId);
     expect(saved.title, '新标题');
+    final evidenceBeforeRestart = await _materializationEvidenceRow(
+      db,
+      card.cardId,
+    );
+    expect(evidenceBeforeRestart, isNotNull);
+    expect(evidenceBeforeRestart!.bucket,
+        UnifiedCardRepository.richTextMaterializationBucket);
+    expect(
+      jsonDecode(evidenceBeforeRestart.value!)['card_created_at_ms'],
+      card.createdAt.millisecondsSinceEpoch,
+    );
     expect(
       await repository.listCards(
         const CardLibraryQuery(search: '正文关键词'),
@@ -139,6 +150,101 @@ void main() {
     expect(recovered!.card.cardId, card.cardId);
     expect(recovered.documentState, CardDocumentState.available);
     expect(recovered.document!.toPlainText(), contains('可搜索正文关键词'));
+    expect(
+      await _materializationEvidenceRow(db, card.cardId),
+      isNotNull,
+      reason: 'kv evidence must survive a database/repository reopen',
+    );
+  });
+
+  test('rich projection and kv evidence roll back together after file save',
+      () async {
+    final card = await repository.createTextCard(
+      cardId: 'rich_atomic_failure',
+      title: '旧标题',
+      body: '旧正文',
+    );
+    final faulting = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .richTextAfterProjectionBeforeEvidence) {
+          throw StateError('injected rich evidence failure');
+        }
+      },
+    );
+
+    await expectLater(
+      faulting.saveRichText(
+        card.cardId,
+        const RichTextDocument(
+          blocks: [
+            RichTextBlock(type: BlockType.paragraph, text: '新正文'),
+          ],
+        ),
+        title: '新标题',
+      ),
+      throwsStateError,
+    );
+
+    final stored = (await repository.getCard(card.cardId))!;
+    expect(stored.card.title, '旧标题');
+    expect(stored.card.body, '旧正文');
+    expect(stored.documentState, CardDocumentState.stale,
+        reason: 'the successful file write remains and is isolated as stale');
+    expect(await _materializationEvidenceRow(db, card.cardId), isNull);
+  });
+
+  test('concurrent tag update and rich save preserve tags projection and kv',
+      () async {
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    final card = await repository.createTextCard(
+      cardId: 'rich_tag_concurrency',
+      title: '原标题',
+      body: '原正文',
+      tags: const ['old'],
+    );
+    final gated = UnifiedCardRepository(
+      db: db,
+      whiteboardRoot: tempDir,
+      faultInjector: (point) async {
+        if (point ==
+            UnifiedCardRepositoryFaultPoint
+                .richTextAfterProjectionBeforeEvidence) {
+          if (!entered.isCompleted) entered.complete();
+          await release.future;
+        }
+      },
+    );
+
+    final richSave = gated.saveRichText(
+      card.cardId,
+      const RichTextDocument(
+        blocks: [
+          RichTextBlock(type: BlockType.paragraph, text: '并发新正文'),
+        ],
+      ),
+      title: '并发新标题',
+    );
+    await entered.future;
+    var tagCompleted = false;
+    final tagSave = repository.updateCardMetadata(card.cardId,
+        tags: const ['preserved']).whenComplete(() => tagCompleted = true);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(tagCompleted, isFalse,
+        reason: 'metadata update waits for the rich transaction boundary');
+    release.complete();
+    await Future.wait([richSave, tagSave]);
+
+    final stored = (await repository.getCard(card.cardId))!;
+    expect(stored.card.title, '并发新标题');
+    expect(stored.card.body, '并发新正文');
+    expect(stored.card.tags, ['preserved']);
+    expect(stored.documentState, CardDocumentState.available);
+    expect(await _materializationEvidenceRow(db, card.cardId), isNotNull);
   });
 
   test('fetch result creates no truth until explicitly committed', () async {
@@ -1776,6 +1882,18 @@ Future<List<File>> _intentFiles(Directory root) async {
       .cast<File>()
       .toList();
 }
+
+Future<KvStoreData?> _materializationEvidenceRow(
+  AppDatabase db,
+  String cardId,
+) =>
+    (db.select(db.kvStore)
+          ..where(
+            (row) => row.key.equals(
+              '${UnifiedCardRepository.richTextMaterializationKeyPrefix}$cardId',
+            ),
+          ))
+        .getSingleOrNull();
 
 File _sourceObjectFile(Directory root, String sourceId, String hash) {
   final versionId = '${sourceId.replaceFirst('src_', 'ver_')}_$hash';

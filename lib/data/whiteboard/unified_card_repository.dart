@@ -31,10 +31,15 @@ import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 enum CardDocumentState { available, missing, corrupt, stale, notLoaded }
 
 class CardDocumentResolution {
-  const CardDocumentResolution({required this.state, this.document});
+  const CardDocumentResolution({
+    required this.state,
+    this.document,
+    this.hasRichTextMaterializationEvidence = false,
+  });
 
   final CardDocumentState state;
   final RichTextDocument? document;
+  final bool hasRichTextMaterializationEvidence;
 }
 
 /// Filesystem availability of an immutable SourceVersion object.
@@ -61,6 +66,7 @@ class UnifiedCardRecord {
     this.currentSourceVersion,
     this.document,
     required this.documentState,
+    this.hasRichTextMaterializationEvidence = false,
     required this.isPlaced,
   });
 
@@ -69,6 +75,7 @@ class UnifiedCardRecord {
   final SourceVersion? currentSourceVersion;
   final RichTextDocument? document;
   final CardDocumentState documentState;
+  final bool hasRichTextMaterializationEvidence;
   final bool isPlaced;
 
   String? get thumbnail => card.presentation['thumbnail'] as String?;
@@ -126,6 +133,7 @@ enum UnifiedCardRepositoryFaultPoint {
   ingestionAfterObjectWriteBeforeVersionInsert,
   ingestionAfterVersionInsert,
   ingestionAfterTransactionCommitBeforeIntentCleanup,
+  richTextAfterProjectionBeforeEvidence,
 }
 
 typedef UnifiedCardRepositoryFaultInjector = Future<void> Function(
@@ -307,6 +315,12 @@ class _SourceObjectIntentReconciliation {
 /// The database is constructor-injected. This file intentionally has no
 /// dependency on MemexRouter or AppDatabase.instance.
 class UnifiedCardRepository {
+  static const richTextMaterializationBucket =
+      'whiteboard.rich_text_materialization';
+  static const richTextMaterializationKeyPrefix =
+      'whiteboard.rich_text.materialized.v1:';
+  static const richTextMaterializationSchemaVersion = 1;
+
   static final Map<String, Future<void>> _sourceObjectCommitLocks = {};
   static const int _maxSourceObjectIntentBytes = 12 * 1024 * 1024;
 
@@ -540,7 +554,7 @@ class UnifiedCardRepository {
         : await _versionById(source!.currentVersionId!);
     final placed = await isCardPlaced(cardId);
     final card = _toCard(row, extra);
-    final document = loadDocument
+    var document = loadDocument
         ? _validateCurrentDocument(
             card,
             await richTextStorage.loadWithStatus(cardId),
@@ -548,12 +562,17 @@ class UnifiedCardRepository {
         : const CardDocumentResolution(
             state: CardDocumentState.notLoaded,
           );
+    if (loadDocument) {
+      document = await _withMissingMaterializationEvidence(card, document);
+    }
     return UnifiedCardRecord(
       card: card,
       source: source,
       currentSourceVersion: currentVersion,
       document: document.document,
       documentState: document.state,
+      hasRichTextMaterializationEvidence:
+          document.hasRichTextMaterializationEvidence,
       isPlaced: placed,
     );
   }
@@ -570,9 +589,12 @@ class UnifiedCardRepository {
     if (canonical == null) {
       return const CardDocumentResolution(state: CardDocumentState.missing);
     }
-    return _validateCurrentDocument(
+    return _withMissingMaterializationEvidence(
       canonical,
-      await richTextStorage.loadWithStatus(cardId),
+      _validateCurrentDocument(
+        canonical,
+        await richTextStorage.loadWithStatus(cardId),
+      ),
     );
   }
 
@@ -652,7 +674,7 @@ class UnifiedCardRepository {
       if (query.placedOnBoard != null && query.placedOnBoard != placed) {
         continue;
       }
-      final document = query.loadDocuments
+      var document = query.loadDocuments
           ? _validateCurrentDocument(
               card,
               await richTextStorage.loadWithStatus(card.cardId),
@@ -660,6 +682,9 @@ class UnifiedCardRepository {
           : const CardDocumentResolution(
               state: CardDocumentState.notLoaded,
             );
+      if (query.loadDocuments) {
+        document = await _withMissingMaterializationEvidence(card, document);
+      }
       records.add(
         UnifiedCardRecord(
           card: card,
@@ -669,6 +694,8 @@ class UnifiedCardRepository {
               : await _versionById(source!.currentVersionId!),
           document: document.document,
           documentState: document.state,
+          hasRichTextMaterializationEvidence:
+              document.hasRichTextMaterializationEvidence,
           isPlaced: placed,
         ),
       );
@@ -828,27 +855,30 @@ class UnifiedCardRepository {
     CardKind? cardKind,
     Map<String, dynamic>? presentation,
   }) async {
-    final current = await getCard(cardId, loadDocument: false);
-    if (current == null) throw StateError('Card not found: $cardId');
-    final now = DateTime.now().toUtc();
-    final updated = _copyCard(
-      current.card,
-      title: title,
-      body: body,
-      tags: tags == null ? null : _normalizeTags(tags),
-      cardKind: cardKind,
-      presentation: presentation,
-      updatedAt: now,
-    );
-    await db.transaction(() => _updateExistingCard(updated));
-    return updated;
+    return db.transaction(() async {
+      final current = await getCard(cardId, loadDocument: false);
+      if (current == null) throw StateError('Card not found: $cardId');
+      final updated = _copyCard(
+        current.card,
+        title: title,
+        body: body,
+        tags: tags == null ? null : _normalizeTags(tags),
+        cardKind: cardKind,
+        presentation: presentation,
+        updatedAt: DateTime.now().toUtc(),
+      );
+      await _updateExistingCard(updated);
+      return updated;
+    });
   }
 
   /// Saves full rich text and synchronizes title/body/update projections.
   ///
   /// A Drift Card must already exist, so this path cannot create an orphan
   /// rich-text card id. The JSON is written atomically before the projection
-  /// transaction; a later read reports a missing/corrupt file honestly.
+  /// transaction. Positive materialization evidence is committed in kv_store
+  /// with that projection; no create, tag-only, snapshot, or Undo path writes
+  /// it. Evidence absence remains unknown for legacy/plain Cards.
   /// [preserveEmptyTitle] is reserved for a surface that edits Card title and
   /// body in one document: an explicit empty synthetic title remains empty
   /// instead of being replaced by the first body line. Existing callers keep
@@ -859,16 +889,36 @@ class UnifiedCardRepository {
     String? title,
     bool preserveEmptyTitle = false,
   }) async {
-    final current = await getCard(cardId, loadDocument: false);
-    if (current == null) throw StateError('Card not found: $cardId');
+    if (await getCard(cardId, loadDocument: false) == null) {
+      throw StateError('Card not found: $cardId');
+    }
     await richTextStorage.save(cardId, document);
     final projection = document.toPlainText().trim();
-    final projectedTitle = title != null && preserveEmptyTitle
-        ? title.trim()
-        : title?.trim().isNotEmpty == true
-            ? title!.trim()
-            : _firstNonEmptyLine(projection, fallback: current.card.title);
-    return updateCardMetadata(cardId, title: projectedTitle, body: projection);
+    return db.transaction(() async {
+      final current = await getCard(cardId, loadDocument: false);
+      if (current == null) throw StateError('Card not found: $cardId');
+      final projectedTitle = title != null && preserveEmptyTitle
+          ? title.trim()
+          : title?.trim().isNotEmpty == true
+              ? title!.trim()
+              : _firstNonEmptyLine(
+                  projection,
+                  fallback: current.card.title,
+                );
+      final now = DateTime.now().toUtc();
+      final updated = _copyCard(
+        current.card,
+        title: projectedTitle,
+        body: projection,
+        updatedAt: now,
+      );
+      await _updateExistingCard(updated);
+      await _injectFault(
+        UnifiedCardRepositoryFaultPoint.richTextAfterProjectionBeforeEvidence,
+      );
+      await _upsertRichTextMaterializationEvidence(updated, now);
+      return updated;
+    });
   }
 
   /// Associates an existing source with an existing card.
@@ -1991,6 +2041,66 @@ class UnifiedCardRepository {
           state: CardDocumentState.missing,
         );
     }
+  }
+
+  Future<CardDocumentResolution> _withMissingMaterializationEvidence(
+    CardContract card,
+    CardDocumentResolution resolution,
+  ) async {
+    if (resolution.state != CardDocumentState.missing) return resolution;
+    return CardDocumentResolution(
+      state: resolution.state,
+      document: resolution.document,
+      hasRichTextMaterializationEvidence:
+          await _hasValidRichTextMaterializationEvidence(card),
+    );
+  }
+
+  Future<bool> _hasValidRichTextMaterializationEvidence(
+    CardContract card,
+  ) async {
+    final row = await (db.select(db.kvStore)
+          ..where(
+            (table) => table.key.equals(
+              '$richTextMaterializationKeyPrefix${card.cardId}',
+            ),
+          ))
+        .getSingleOrNull();
+    if (row == null || row.bucket != richTextMaterializationBucket) {
+      return false;
+    }
+    final raw = row.value;
+    if (raw == null) return false;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return false;
+      return decoded['schema_version'] ==
+              richTextMaterializationSchemaVersion &&
+          decoded['card_id'] == card.cardId &&
+          decoded['card_created_at_ms'] == _millis(card.createdAt);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _upsertRichTextMaterializationEvidence(
+    CardContract card,
+    DateTime now,
+  ) async {
+    await db.into(db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: '$richTextMaterializationKeyPrefix${card.cardId}',
+            bucket: const Value(richTextMaterializationBucket),
+            value: Value(
+              jsonEncode({
+                'schema_version': richTextMaterializationSchemaVersion,
+                'card_id': card.cardId,
+                'card_created_at_ms': _millis(card.createdAt),
+              }),
+            ),
+            updatedAt: Value(_millis(now)),
+          ),
+        );
   }
 
   static Map<String, dynamic>? _decodeMap(String? raw) {

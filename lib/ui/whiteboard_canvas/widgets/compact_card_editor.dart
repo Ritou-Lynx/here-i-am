@@ -478,25 +478,31 @@ class _CompactCardEditorState extends State<CompactCardEditor> {
     required CardContract card,
     required RichTextEditingController richText,
   }) {
+    final scrollBehavior = ScrollConfiguration.of(context).copyWith(
+      scrollbars: false,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: ClipRect(
         child: AbsorbPointer(
           absorbing: widget.isReadonly,
-          child: CardRichTextEditor(
-            controller: richText,
-            cardId: card.cardId,
-            objectStore: RichTextObjectStore(
-              widget.repository.richTextStorage.baseDir,
+          child: ScrollConfiguration(
+            behavior: scrollBehavior,
+            child: CardRichTextEditor(
+              controller: richText,
+              cardId: card.cardId,
+              objectStore: RichTextObjectStore(
+                widget.repository.richTextStorage.baseDir,
+              ),
+              onSave: (_) => _save(),
+              showToolbar: false,
+              compact: true,
+              readOnly: widget.isReadonly,
+              inlineSurface: true,
+              autofocus: !widget.isReadonly,
+              showSaveInToolbar: false,
+              markSavedAfterCallback: false,
             ),
-            onSave: (_) => _save(),
-            showToolbar: false,
-            compact: true,
-            readOnly: widget.isReadonly,
-            inlineSurface: true,
-            autofocus: !widget.isReadonly,
-            showSaveInToolbar: false,
-            markSavedAfterCallback: false,
           ),
         ),
       ),

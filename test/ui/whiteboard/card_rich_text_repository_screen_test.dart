@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:drift/drift.dart' as drift;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,8 +46,55 @@ void main() {
     expect(record.card.body, '数据库里的恢复正文');
   });
 
+  test('bad or mismatched kv evidence fails closed for a missing document',
+      () async {
+    final card = await repository.createTextCard(
+      cardId: 'bad_evidence',
+      title: '无证据卡',
+      createdAt: DateTime.utc(2026, 8, 29, 1),
+    );
+    final key =
+        '${UnifiedCardRepository.richTextMaterializationKeyPrefix}${card.cardId}';
+    final invalidRows = <({String? bucket, String? value})>[
+      (bucket: 'wrong.bucket', value: '{}'),
+      (
+        bucket: UnifiedCardRepository.richTextMaterializationBucket,
+        value: '{broken',
+      ),
+      (
+        bucket: UnifiedCardRepository.richTextMaterializationBucket,
+        value: '{"schema_version":2,"card_id":"bad_evidence",'
+            '"card_created_at_ms":${card.createdAt.millisecondsSinceEpoch}}',
+      ),
+      (
+        bucket: UnifiedCardRepository.richTextMaterializationBucket,
+        value: '{"schema_version":1,"card_id":"another_card",'
+            '"card_created_at_ms":${card.createdAt.millisecondsSinceEpoch}}',
+      ),
+      (
+        bucket: UnifiedCardRepository.richTextMaterializationBucket,
+        value: '{"schema_version":1,"card_id":"bad_evidence",'
+            '"card_created_at_ms":${card.createdAt.millisecondsSinceEpoch + 1}}',
+      ),
+    ];
+
+    for (final invalid in invalidRows) {
+      await db.into(db.kvStore).insertOnConflictUpdate(
+            KvStoreCompanion.insert(
+              key: key,
+              bucket: drift.Value(invalid.bucket),
+              value: drift.Value(invalid.value),
+            ),
+          );
+      final record = (await repository.getCard(card.cardId))!;
+      expect(record.documentState, CardDocumentState.missing);
+      expect(record.hasRichTextMaterializationEvidence, isFalse,
+          reason: '${invalid.bucket}: ${invalid.value}');
+    }
+  });
+
   testWidgets(
-      'empty plain and lost media-only rich cards both show the neutral notice',
+      'legacy absent evidence is unknown and silent while lost media evidence warns',
       (tester) async {
     late File retainedMediaAsset;
     await tester.runAsync(() async {
@@ -94,40 +142,44 @@ void main() {
       final missing = (await repository.getCard(media.cardId))!;
       expect(missing.card.body, isEmpty);
       expect(missing.documentState, CardDocumentState.missing);
+      expect(missing.hasRichTextMaterializationEvidence, isTrue);
     });
     CardRichTextEditorScreen.setRepositoryForTesting(repository);
     addTearDown(
       () => CardRichTextEditorScreen.setRepositoryForTesting(null),
     );
 
-    Future<void> expectNeutralNotice(String cardId) async {
+    Future<editor.CardRichTextEditorScreen> openEditor(String cardId) async {
       await tester.pumpWidget(MaterialApp(
         home: CardRichTextEditorScreen(key: UniqueKey(), cardId: cardId),
       ));
       await _pumpUntilFound(
         tester,
-        find.byKey(const ValueKey('rich_text_degraded_notice')),
+        find.byType(editor.CardRichTextEditorScreen),
       );
-      final message = tester
-          .widget<editor.CardRichTextEditorScreen>(
-            find.byType(editor.CardRichTextEditorScreen),
-          )
-          .degradedMessage;
-      expect(
-        message,
-        '当前没有可用的富文本版本，正在显示卡片正文；编辑正文并保存后会创建富文本版本。',
+      return tester.widget<editor.CardRichTextEditorScreen>(
+        find.byType(editor.CardRichTextEditorScreen),
       );
-      expect(message, isNot(contains('缺失')));
-      expect(message, isNot(contains('恢复')));
     }
 
-    await expectNeutralNotice('fresh_empty_plain');
-    await expectNeutralNotice('lost_media_only');
+    final unknown = await openEditor('fresh_empty_plain');
+    expect(unknown.degradedMessage, isNull);
+    expect(
+      find.byKey(const ValueKey('rich_text_degraded_notice')),
+      findsNothing,
+    );
+
+    final evidencedMissing = await openEditor('lost_media_only');
+    expect(evidencedMissing.degradedMessage, contains('曾保存过富文本版本'));
+    expect(evidencedMissing.degradedMessage, contains('格式或媒体内容可能缺失'));
+    expect(
+      find.byKey(const ValueKey('rich_text_degraded_notice')),
+      findsOneWidget,
+    );
     expect(await tester.runAsync(retainedMediaAsset.exists), isTrue);
   });
 
-  testWidgets(
-      'plain card uses neutral notice and tag-only save does not materialize rich text',
+  testWidgets('fresh plain card is silent and tag-only save writes no evidence',
       (tester) async {
     await tester.runAsync(() => repository.createTextCard(
           cardId: 'plain_tags',
@@ -151,12 +203,10 @@ void main() {
     final editorWidget = tester.widget<editor.CardRichTextEditorScreen>(
       find.byType(editor.CardRichTextEditorScreen),
     );
-    expect(editorWidget.degradedMessage, contains('当前没有可用的富文本版本'));
-    expect(editorWidget.degradedMessage, isNot(contains('缺失')));
-    expect(editorWidget.degradedMessage, isNot(contains('恢复')));
+    expect(editorWidget.degradedMessage, isNull);
     expect(
       find.byKey(const ValueKey('rich_text_degraded_notice')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(repository.richTextStorage.exists('plain_tags'), isFalse);
 
@@ -173,7 +223,12 @@ void main() {
     );
     expect(stored!.card.tags, ['old', 'new']);
     expect(stored.documentState, CardDocumentState.missing);
+    expect(stored.hasRichTextMaterializationEvidence, isFalse);
     expect(repository.richTextStorage.exists('plain_tags'), isFalse);
+    expect(
+      await _materializationEvidenceRow(db, 'plain_tags'),
+      isNull,
+    );
   });
 
   testWidgets(
@@ -206,9 +261,11 @@ void main() {
     final initialNotice = tester.widget<editor.CardRichTextEditorScreen>(
       find.byType(editor.CardRichTextEditorScreen),
     );
-    expect(initialNotice.degradedMessage, contains('当前没有可用的富文本版本'));
-    expect(initialNotice.degradedMessage, isNot(contains('缺失')));
-    expect(initialNotice.degradedMessage, isNot(contains('恢复')));
+    expect(initialNotice.degradedMessage, isNull);
+    expect(
+      find.byKey(const ValueKey('rich_text_degraded_notice')),
+      findsNothing,
+    );
     await tester.enterText(
       find.byKey(const ValueKey('rich_text_continuous_document')),
       '首次富文本保存',
@@ -221,6 +278,12 @@ void main() {
       ))!
           .documentState,
       CardDocumentState.available,
+    );
+    expect(
+      await tester.runAsync(
+        () => _materializationEvidenceRow(db, 'plain_materialize'),
+      ),
+      isNotNull,
     );
 
     await openEditor();
@@ -245,15 +308,14 @@ void main() {
             find.byType(editor.CardRichTextEditorScreen),
           )
           .degradedMessage,
-      contains('当前没有可用的富文本版本'),
+      contains('曾保存过富文本版本'),
     );
     final missingMessage = tester
         .widget<editor.CardRichTextEditorScreen>(
           find.byType(editor.CardRichTextEditorScreen),
         )
         .degradedMessage;
-    expect(missingMessage, isNot(contains('缺失')));
-    expect(missingMessage, isNot(contains('恢复')));
+    expect(missingMessage, contains('格式或媒体内容可能缺失'));
     expect(
       find.byKey(const ValueKey('rich_text_degraded_notice')),
       findsOneWidget,
@@ -437,3 +499,15 @@ Future<void> _pumpUntilFound(WidgetTester tester, Finder finder) async {
   }
   expect(finder, findsWidgets, reason: 'widget did not appear after 2 seconds');
 }
+
+Future<KvStoreData?> _materializationEvidenceRow(
+  AppDatabase db,
+  String cardId,
+) =>
+    (db.select(db.kvStore)
+          ..where(
+            (row) => row.key.equals(
+              '${UnifiedCardRepository.richTextMaterializationKeyPrefix}$cardId',
+            ),
+          ))
+        .getSingleOrNull();

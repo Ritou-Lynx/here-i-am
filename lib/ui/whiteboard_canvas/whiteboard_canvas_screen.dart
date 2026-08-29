@@ -305,6 +305,11 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   }
 
   Map<ShortcutActivator, VoidCallback> _buildShortcuts() {
+    if (_editingItemId != null) {
+      return {
+        const SingleActivator(LogicalKeyboardKey.escape): _handleEscape,
+      };
+    }
     final vm = widget.viewModel;
     final hidden = _hiddenItemIds(vm.boardState);
     return {
@@ -338,9 +343,8 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true): () =>
           _nudge(32, 0),
       const SingleActivator(LogicalKeyboardKey.escape): _handleEscape,
-      if (_editingItemId == null)
-        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
-            vm.onSaveRequested?.call(),
+      const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
+          vm.onSaveRequested?.call(),
     };
   }
 

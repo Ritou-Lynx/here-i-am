@@ -33,7 +33,7 @@ import 'package:memex/ui/whiteboard_canvas/whiteboard_snapshot_store.dart'
 
 void main() {
   testWidgets(
-    'production blank double click keeps one transparent inline title body surface and viewport',
+    'production mouse inline editor owns text keys until Escape then selection Delete removes placement',
     (tester) async {
       final root = Directory.systemTemp.createTempSync('p4_inline_route_');
       final db = AppDatabase.forTesting(NativeDatabase.memory());
@@ -187,6 +187,56 @@ void main() {
       await tester.pump();
       expect(tester.testTextInput.hasAnyClients, isTrue);
 
+      await tester.enterText(field, 'ABC');
+      final textController = tester.widget<TextField>(field).controller!;
+      textController.selection = const TextSelection.collapsed(offset: 3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+      await tester.pump();
+      expect(textController.text, 'AB');
+      textController.selection = const TextSelection.collapsed(offset: 0);
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pump();
+      expect(textController.text, 'B');
+      expect(
+          area.viewModel.exportForSave().boardItems.single.itemId, item.itemId);
+      expect(host.receipts, hasLength(1),
+          reason: 'editing Delete/Backspace must not reach the remove port');
+
+      await tester.enterText(field, '选择测试\n正文');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(
+        {
+          textController.selection.baseOffset,
+          textController.selection.extentOffset,
+        },
+        {0, textController.text.length},
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(textController.selection.isCollapsed, isFalse);
+      expect(area.viewModel.exportForSave().boardItems.single.toJson(),
+          geometryBefore);
+      expect(host.receipts, hasLength(1),
+          reason: 'editing selection/arrows must not select or nudge canvas');
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyY);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(
+          area.viewModel.exportForSave().boardItems.single.itemId, item.itemId);
+      expect(host.receipts, hasLength(1),
+          reason: 'editing Ctrl+Z/Y must remain inside the text editor');
+
       await tester.enterText(field, '真人标题\n真人正文\n第二行');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await _pumpUntilCondition(tester, () => store.saveCalls >= 2);
@@ -276,13 +326,37 @@ void main() {
       expect(fullDocument.controller!.text, '真人正文\n第二行');
       expect(
         find.byKey(const ValueKey('rich_text_degraded_notice')),
-        findsOneWidget,
+        findsNothing,
       );
-      expect(find.textContaining('当前没有可用的富文本版本'), findsOneWidget);
-      expect(find.textContaining('编辑正文并保存后'), findsOneWidget);
+      expect(find.textContaining('当前没有可用的富文本版本'), findsNothing);
       expect(find.textContaining('富文本文件缺失'), findsNothing);
       expect(find.textContaining('正文投影恢复'), findsNothing);
       expect(repository.richTextStorage.exists(item.cardId), isFalse);
+
+      await tester.tap(find.byKey(const ValueKey('desktop_page_back')));
+      await _pumpUntil(
+        tester,
+        find.byKey(Key('wb_card_${item.itemId}')),
+      );
+      await tester.tap(find.byKey(Key('wb_card_${item.itemId}')));
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await _pumpUntilCondition(
+        tester,
+        () => find.byKey(Key('wb_card_${item.itemId}')).evaluate().isEmpty,
+      );
+      expect(await tester.runAsync(() => repository.getCard(item.cardId)),
+          isNotNull,
+          reason: 'post-edit Delete removes only the BoardItem');
+      final removeActions = await _waitForActionCount(tester, db, 4);
+      expect(
+        removeActions
+            .map((action) => WhiteboardDomainCommandBatch.fromJson(
+                  action.projection.domainCommandBatch!,
+                ))
+            .expand((batch) => batch.commands)
+            .where((command) => command.kind == 'remove_placement'),
+        hasLength(1),
+      );
     },
   );
 
