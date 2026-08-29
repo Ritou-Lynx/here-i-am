@@ -12,12 +12,30 @@ class WhiteboardManualCreateResult {
   final String itemId;
 }
 
+class WhiteboardManualPlacementResult {
+  const WhiteboardManualPlacementResult({
+    required this.cardId,
+    required this.itemId,
+  });
+
+  final String cardId;
+  final String itemId;
+}
+
 /// Semantic commit boundary used only by the production whiteboard route.
 /// Tests and disposable canvas fixtures may omit it and keep their in-memory
 /// adapter behavior; a real desktop route always supplies the Domain-backed
 /// implementation.
 abstract interface class WhiteboardManualCommandPort {
   Future<WhiteboardManualCreateResult?> createNote({
+    required double x,
+    required double y,
+    double width = 260,
+    double height = 200,
+  });
+
+  Future<WhiteboardManualPlacementResult?> placeExistingCard({
+    required String cardId,
     required double x,
     required double y,
     double width = 260,

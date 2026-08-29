@@ -100,6 +100,12 @@ class WhiteboardCardDragData {
 }
 
 typedef WhiteboardImagePathPicker = Future<List<String>> Function();
+typedef WhiteboardPlaceExistingCard =
+    Future<WhiteboardManualPlacementResult?> Function({
+  required String cardId,
+  required double x,
+  required double y,
+});
 
 class _EdgeDraft {
   const _EdgeDraft({required this.direction, required this.label});
@@ -288,6 +294,44 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     }
     final ok = await port.removePlacements(ids);
     if (!ok && mounted) _showDomainCommitFailure();
+  }
+
+  Future<WhiteboardManualPlacementResult?> _placeExistingCard({
+    required String cardId,
+    required double x,
+    required double y,
+  }) async {
+    final vm = widget.viewModel;
+    if (vm.isReadonly) return null;
+    final port = widget.manualCommandPort;
+    if (port == null) {
+      final item = vm.placeCardOnBoard(
+        cardId: cardId,
+        boardId: vm.boardId,
+        x: x,
+        y: y,
+      );
+      return item == null
+          ? null
+          : WhiteboardManualPlacementResult(
+              cardId: cardId,
+              itemId: item.itemId,
+            );
+    }
+    final placed = await port.placeExistingCard(
+      cardId: cardId,
+      x: x,
+      y: y,
+    );
+    if (!mounted) return placed;
+    if (placed == null) {
+      _showDomainCommitFailure();
+      return null;
+    }
+    if (vm.boardState.nodes.any((node) => node.itemId == placed.itemId)) {
+      vm.handleIntent(SelectItemIntent(itemId: placed.itemId));
+    }
+    return placed;
   }
 
   void _deleteSelection() {
@@ -958,6 +1002,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                       final ok = await port.removePlacements(itemIds);
                       if (!ok && mounted) _showDomainCommitFailure();
                     },
+                    onPlaceExistingCard: _placeExistingCard,
                   ),
                 ),
                 if (!_navigationVisible)
@@ -1005,6 +1050,14 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                       });
                     },
                     onOpenBoardPicker: _openBoardPicker,
+                    onPlaceCurrentBoard: (cardId) async {
+                      final viewport = vm.viewport;
+                      await _placeExistingCard(
+                        cardId: cardId,
+                        x: viewport.centerX - 130,
+                        y: viewport.centerY - 100,
+                      );
+                    },
                   ),
                 if (_pickerCardId != null) ...[
                   // Click-outside barrier for the popover.
@@ -1276,6 +1329,7 @@ class WhiteboardCanvasArea extends StatefulWidget {
   final Future<void> Function(Set<String> itemIds)? onMoveCommit;
   final Future<void> Function(String itemId)? onResizeCommit;
   final Future<void> Function(List<String> itemIds)? onRemovePlacements;
+  final WhiteboardPlaceExistingCard? onPlaceExistingCard;
 
   const WhiteboardCanvasArea({
     super.key,
@@ -1290,6 +1344,7 @@ class WhiteboardCanvasArea extends StatefulWidget {
     this.onMoveCommit,
     this.onResizeCommit,
     this.onRemovePlacements,
+    this.onPlaceExistingCard,
   });
 
   @override
@@ -1861,7 +1916,10 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
 
   // ── Card-library drag & drop ────────────────────────────────────────
 
-  void _handleCardDrop(WhiteboardCardDragData data, Offset globalPosition) {
+  Future<void> _handleCardDrop(
+    WhiteboardCardDragData data,
+    Offset globalPosition,
+  ) async {
     final vm = widget.viewModel;
     if (vm.isReadonly) return;
     final box = _canvasAreaKey.currentContext?.findRenderObject() as RenderBox?;
@@ -1871,11 +1929,18 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     final local = box.globalToLocal(globalPosition);
     final canvasPoint = transform.screenToCanvas(local);
     final zoom = vm.viewport.zoom;
+    final x = math.max(0, canvasPoint.dx - data.grabOffset.dx / zoom).toDouble();
+    final y = math.max(0, canvasPoint.dy - data.grabOffset.dy / zoom).toDouble();
+    final place = widget.onPlaceExistingCard;
+    if (place != null) {
+      await place(cardId: data.cardId, x: x, y: y);
+      return;
+    }
     vm.placeCardOnBoard(
       cardId: data.cardId,
       boardId: vm.boardId,
-      x: math.max(0, canvasPoint.dx - data.grabOffset.dx / zoom),
-      y: math.max(0, canvasPoint.dy - data.grabOffset.dy / zoom),
+      x: x,
+      y: y,
     );
   }
 
@@ -4118,12 +4183,14 @@ class _CardLibraryPanel extends StatefulWidget {
 
   /// Opens the BoardTargetPicker for a card (target-board switching).
   final void Function(String cardId, String cardTitle) onOpenBoardPicker;
+  final Future<void> Function(String cardId) onPlaceCurrentBoard;
 
   const _CardLibraryPanel({
     required this.viewModel,
     this.repository,
     this.onClose,
     required this.onOpenBoardPicker,
+    required this.onPlaceCurrentBoard,
   });
 
   @override
@@ -4400,14 +4467,7 @@ class _CardLibraryPanelState extends State<_CardLibraryPanel> {
         borderRadius: BorderRadius.circular(8),
         onTap: vm.isReadonly
             ? null
-            : () {
-                final vp = vm.viewport;
-                vm.placeCard(
-                  cardId: cardId,
-                  x: vp.centerX - 130,
-                  y: vp.centerY - 100,
-                );
-              },
+            : () => unawaited(widget.onPlaceCurrentBoard(cardId)),
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Column(

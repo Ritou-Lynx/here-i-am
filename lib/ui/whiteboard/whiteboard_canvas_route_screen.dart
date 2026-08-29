@@ -561,6 +561,33 @@ class _RouteManualCommandPort implements WhiteboardManualCommandPort {
   }
 
   @override
+  Future<WhiteboardManualPlacementResult?> placeExistingCard({
+    required String cardId,
+    required double x,
+    required double y,
+    double width = 260,
+    double height = 200,
+  }) async {
+    final itemId = StableId.generate('item').value;
+    final receipt = await _execute(
+      operationBatchId: StableId.generate('batch').value,
+      commands: [
+        PlaceExistingCardCommand(
+          commandId: StableId.generate('command').value,
+          cardId: cardId,
+          itemId: itemId,
+          x: x,
+          y: y,
+          width: width,
+          height: height,
+        ),
+      ],
+    );
+    if (receipt?.status != WhiteboardDomainCommandStatus.applied) return null;
+    return WhiteboardManualPlacementResult(cardId: cardId, itemId: itemId);
+  }
+
+  @override
   Future<bool> editCard({
     required String cardId,
     required String title,

@@ -66,8 +66,9 @@ class WhiteboardDomainCommandFacade {
   }) {
     final capabilities =
         authorizedCapabilities ?? batch.commands.map(_capability).toSet();
-    if (capabilities.contains(WhiteboardWriteCapability.editCardTitle)) {
-      throw ArgumentError('edit_card_title is manual-only');
+    if (capabilities.contains(WhiteboardWriteCapability.editCardTitle) ||
+        capabilities.contains(WhiteboardWriteCapability.placeExistingCard)) {
+      throw ArgumentError('manual-only whiteboard capability');
     }
     _rejectManualOnlyRuntimeCommands(batch);
     return _issueAuthorization(
@@ -330,8 +331,13 @@ class WhiteboardDomainCommandFacade {
 }
 
 void _rejectManualOnlyRuntimeCommands(WhiteboardDomainCommandBatch batch) {
-  if (batch.commands.any((command) => command is EditCardTitleCommand)) {
-    throw ArgumentError('edit_card_title is manual-only');
+  for (final command in batch.commands) {
+    if (command is EditCardTitleCommand) {
+      throw ArgumentError('edit_card_title is manual-only');
+    }
+    if (command is PlaceExistingCardCommand) {
+      throw ArgumentError('place_existing_card is manual-only');
+    }
   }
 }
 
@@ -340,6 +346,8 @@ Future<T> _runWithoutTransaction<T>(Future<T> Function() body) => body();
 WhiteboardWriteCapability _capability(WhiteboardDomainCommand command) =>
     switch (command) {
       CreateCardCommand() => WhiteboardWriteCapability.createCard,
+      PlaceExistingCardCommand() =>
+        WhiteboardWriteCapability.placeExistingCard,
       EditCardTitleCommand() => WhiteboardWriteCapability.editCardTitle,
       EditCardBodyCommand() => WhiteboardWriteCapability.editCardBody,
       SetCardLabelsCommand() => WhiteboardWriteCapability.setCardLabels,

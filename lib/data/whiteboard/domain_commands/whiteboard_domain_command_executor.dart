@@ -484,12 +484,32 @@ String? _validateBatch(WhiteboardDomainCommandBatch batch) {
   for (final command in batch.commands) {
     if (!ids.add(command.commandId)) return 'duplicate_command_id';
     if (command is CreateCardCommand) {
-      if (command.title.runes.length > 500 ||
+      if (!_isSafeNewEntityId(command.cardId)) {
+        return 'unsafe_create_card_id';
+      }
+      if (!_isSafeNewEntityId(command.itemId)) {
+        return 'unsafe_create_item_id';
+      }
+      if (!command.x.isFinite ||
+          !command.y.isFinite ||
+          command.title.runes.length > 500 ||
           command.body.runes.length >
               WhiteboardDomainCommandExecutor.hardMaxBodyRunes ||
           !_validLabels(command.labels) ||
           !_validSize(command.width, command.height)) {
         return 'invalid_create_card';
+      }
+    } else if (command is PlaceExistingCardCommand) {
+      if (!_isSafeExistingCardId(command.cardId)) {
+        return 'unsafe_existing_card_id';
+      }
+      if (!_isSafeNewEntityId(command.itemId)) {
+        return 'unsafe_place_item_id';
+      }
+      if (!command.x.isFinite ||
+          !command.y.isFinite ||
+          !_validSize(command.width, command.height)) {
+        return 'invalid_place_existing_card';
       }
     } else if (command is EditCardTitleCommand &&
         command.title.runes.length > 500) {
@@ -529,9 +549,25 @@ bool _validSize(double width, double height) =>
     width <= 3000 &&
     height <= 3000;
 
+final RegExp _legacyRuntimeCardId = RegExp(r'^card:[0-9a-f]{24}:[0-9]+$');
+
+bool _isSafeExistingCardId(String value) =>
+    _isSafeNewEntityId(value) || _legacyRuntimeCardId.hasMatch(value);
+
+bool _isSafeNewEntityId(String value) =>
+    value.isNotEmpty &&
+    value.trim() == value &&
+    value.runes.length <= 256 &&
+    !value.contains(':') &&
+    !value.contains('/') &&
+    !value.contains('\\') &&
+    !value.contains('..');
+
 WhiteboardWriteCapability _capability(WhiteboardDomainCommand command) =>
     switch (command) {
       CreateCardCommand() => WhiteboardWriteCapability.createCard,
+      PlaceExistingCardCommand() =>
+        WhiteboardWriteCapability.placeExistingCard,
       EditCardTitleCommand() => WhiteboardWriteCapability.editCardTitle,
       EditCardBodyCommand() => WhiteboardWriteCapability.editCardBody,
       SetCardLabelsCommand() => WhiteboardWriteCapability.setCardLabels,
@@ -586,6 +622,30 @@ Map<String, dynamic> _apply(
       return {
         'kind': 'remove_created_card',
         'card_id': command.cardId,
+        'item_id': command.itemId,
+      };
+    case PlaceExistingCardCommand():
+      _cardIndex(snapshot.cards, command.cardId);
+      if (snapshot.items.any((item) => item.itemId == command.itemId)) {
+        throw const _DomainCommandException(
+          'placement_id_exists',
+          conflict: true,
+        );
+      }
+      snapshot.items.add(
+        BoardItem(
+          itemId: command.itemId,
+          boardId: boardId,
+          cardId: command.cardId,
+          x: command.x,
+          y: command.y,
+          width: command.width,
+          height: command.height,
+          zIndex: _nextZIndex(snapshot.items, boardId),
+        ),
+      );
+      return {
+        'kind': 'remove_existing_placement',
         'item_id': command.itemId,
       };
     case EditCardBodyCommand():
@@ -711,6 +771,12 @@ void _applyInverse(
         setDeletedAt: true,
         updatedAt: now,
       );
+    case 'remove_existing_placement':
+      final index = snapshot.items.indexWhere(
+        (item) => item.itemId == step['item_id'],
+      );
+      if (index < 0) throw StateError('item missing');
+      snapshot.items.removeAt(index);
     case 'restore_body':
       final index = _cardIndex(snapshot.cards, step['card_id'] as String);
       snapshot.cards[index] = _copyCard(
@@ -800,6 +866,16 @@ int _itemIndex(List<BoardItem> items, String itemId, String boardId) {
     throw const _DomainCommandException('placement_not_found', conflict: true);
   }
   return index;
+}
+
+int _nextZIndex(List<BoardItem> items, String boardId) {
+  var next = 0;
+  for (final item in items) {
+    if (item.boardId == boardId && item.zIndex >= next) {
+      next = item.zIndex + 1;
+    }
+  }
+  return next;
 }
 
 List<String> _normalizeLabels(List<String> labels) {

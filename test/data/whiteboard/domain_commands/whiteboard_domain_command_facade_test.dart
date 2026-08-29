@@ -783,6 +783,244 @@ void main() {
         reason: 'persistent Undo must not delete rich evidence');
   });
 
+  test('manual place-existing persists, moves/resizes, reopens and undoes',
+      () async {
+    var fixture = _fixture(store, _ActionPersistence(db, now), now);
+    const place = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_place_library',
+      boardId: 'board_1',
+      commands: [
+        PlaceExistingCardCommand(
+          commandId: 'cmd_place_library',
+          cardId: 'card_1',
+          itemId: 'item_library',
+          x: 120,
+          y: 140,
+          width: 280,
+          height: 210,
+        ),
+      ],
+    );
+    expect(
+      (await fixture.facade.executeUser(
+        characterId: 'i',
+        batch: place,
+        userAuthorizationMessageId: 'ui-library-click',
+      ))
+          .status,
+      WhiteboardDomainCommandStatus.applied,
+    );
+    const geometry = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_place_geometry',
+      boardId: 'board_1',
+      commands: [
+        MovePlacementCommand(
+          commandId: 'cmd_place_move',
+          itemId: 'item_library',
+          x: 480,
+          y: 360,
+        ),
+        ResizePlacementCommand(
+          commandId: 'cmd_place_resize',
+          itemId: 'item_library',
+          width: 520,
+          height: 330,
+        ),
+      ],
+    );
+    expect(
+      (await fixture.facade.executeUser(
+        characterId: 'i',
+        batch: geometry,
+        userAuthorizationMessageId: 'ui-library-geometry',
+      ))
+          .status,
+      WhiteboardDomainCommandStatus.applied,
+    );
+    expect(await readPersistedWorkbenchActions(db, 'i'), hasLength(2));
+
+    await db.close();
+    databaseOpen = false;
+    await openDatabase();
+    fixture = _fixture(store, _ActionPersistence(db, now), now);
+    await fixture.facade.restore('i');
+    final reopened = (await store.load('board_1')).snapshot!;
+    final item = reopened.boardItems.singleWhere(
+      (value) => value.itemId == 'item_library',
+    );
+    expect([item.x, item.y, item.width, item.height], [480, 360, 520, 330]);
+    expect(
+      (await fixture.facade.undo(
+        characterId: 'i',
+        actionId: geometry.operationBatchId,
+      ))
+          ?.status,
+      WhiteboardDomainCommandStatus.undone,
+    );
+    await db.close();
+    databaseOpen = false;
+    await openDatabase();
+    final restored = (await store.load('board_1')).snapshot!.boardItems
+        .singleWhere((value) => value.itemId == 'item_library');
+    expect(
+      [restored.x, restored.y, restored.width, restored.height],
+      [120, 140, 280, 210],
+    );
+  });
+
+  test('unsafe new ids reject but exact legacy existing card places and undoes',
+      () async {
+    final initial = (await store.load('board_1')).snapshot!;
+    const legacyId = 'card:0123456789abcdef01234567:4';
+    expect(
+      await store.save(
+        'board_1',
+        WhiteboardSnapshot.fromJson({
+          ...initial.toJson(),
+          'cards': [
+            ...initial.cards.map((card) => card.toJson()),
+            CardContract(
+              cardId: legacyId,
+              cardKind: CardKind.note,
+              title: 'Legacy',
+              createdBy: CardCreatedBy.i,
+              createdAt: now,
+              updatedAt: now,
+            ).toJson(),
+          ],
+        }),
+      ),
+      isTrue,
+    );
+    final fixture = _fixture(store, _ActionPersistence(db, now), now);
+    final invalidCases = <(WhiteboardDomainCommandBatch, String)>[
+      (
+        const WhiteboardDomainCommandBatch(
+          operationBatchId: 'bad_create_card',
+          boardId: 'board_1',
+          commands: [
+            CreateCardCommand(
+              commandId: 'bad_create_card_cmd',
+              cardId: 'card:unsafe',
+              itemId: 'item_safe',
+              title: '',
+              body: '',
+              x: 0,
+              y: 0,
+            ),
+          ],
+        ),
+        'unsafe_create_card_id',
+      ),
+      (
+        const WhiteboardDomainCommandBatch(
+          operationBatchId: 'bad_create_item',
+          boardId: 'board_1',
+          commands: [
+            CreateCardCommand(
+              commandId: 'bad_create_item_cmd',
+              cardId: 'card_safe',
+              itemId: 'item:unsafe',
+              title: '',
+              body: '',
+              x: 0,
+              y: 0,
+            ),
+          ],
+        ),
+        'unsafe_create_item_id',
+      ),
+      (
+        const WhiteboardDomainCommandBatch(
+          operationBatchId: 'bad_place_card',
+          boardId: 'board_1',
+          commands: [
+            PlaceExistingCardCommand(
+              commandId: 'bad_place_card_cmd',
+              cardId: 'card:arbitrary:unsafe',
+              itemId: 'item_safe_place',
+              x: 0,
+              y: 0,
+            ),
+          ],
+        ),
+        'unsafe_existing_card_id',
+      ),
+      (
+        const WhiteboardDomainCommandBatch(
+          operationBatchId: 'bad_place_item',
+          boardId: 'board_1',
+          commands: [
+            PlaceExistingCardCommand(
+              commandId: 'bad_place_item_cmd',
+              cardId: legacyId,
+              itemId: 'item:unsafe',
+              x: 0,
+              y: 0,
+            ),
+          ],
+        ),
+        'unsafe_place_item_id',
+      ),
+    ];
+    for (final (batch, issue) in invalidCases) {
+      final receipt = await fixture.facade.executeUser(
+        characterId: 'i',
+        batch: batch,
+        userAuthorizationMessageId: 'ui-invalid-id',
+      );
+      expect(receipt.status, WhiteboardDomainCommandStatus.invalidRequest);
+      expect(receipt.issues.single.code, issue);
+    }
+
+    const legacyPlace = WhiteboardDomainCommandBatch(
+      operationBatchId: 'place_legacy',
+      boardId: 'board_1',
+      commands: [
+        PlaceExistingCardCommand(
+          commandId: 'place_legacy_cmd',
+          cardId: legacyId,
+          itemId: 'item_legacy',
+          x: 50,
+          y: 60,
+        ),
+      ],
+    );
+    expect(
+      (await fixture.facade.executeUser(
+        characterId: 'i',
+        batch: legacyPlace,
+        userAuthorizationMessageId: 'ui-place-legacy',
+      ))
+          .status,
+      WhiteboardDomainCommandStatus.applied,
+    );
+    expect(
+      (await fixture.facade.undo(
+        characterId: 'i',
+        actionId: legacyPlace.operationBatchId,
+      ))
+          ?.status,
+      WhiteboardDomainCommandStatus.undone,
+    );
+    expect(
+      (await store.load('board_1'))
+          .snapshot!
+          .boardItems
+          .any((item) => item.itemId == 'item_legacy'),
+      isFalse,
+    );
+
+    expect(
+      () => fixture.facade.authorizeRuntime(
+        batch: legacyPlace,
+        runtimeTurnId: 'runtime-place',
+        userAuthorizationMessageId: 'chat-runtime-place',
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test('title command is validated and cannot be authorized for Runtime',
       () async {
     final fixture = _fixture(store, _ActionPersistence(db, now), now);
@@ -950,6 +1188,8 @@ WhiteboardAuthorizationGrant _grant(
       capabilities: batch.commands
           .map((command) => switch (command) {
                 CreateCardCommand() => WhiteboardWriteCapability.createCard,
+                PlaceExistingCardCommand() =>
+                  WhiteboardWriteCapability.placeExistingCard,
                 EditCardTitleCommand() =>
                   WhiteboardWriteCapability.editCardTitle,
                 EditCardBodyCommand() => WhiteboardWriteCapability.editCardBody,

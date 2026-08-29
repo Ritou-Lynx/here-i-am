@@ -105,7 +105,7 @@ void main() {
   );
 
   testWidgets(
-    'right click create/remove and floating/keyboard delete route the port',
+    'right click create/remove and floating delete route the port',
     (tester) async {
       final port = _RecordingPort();
       final vm = WhiteboardCanvasViewModel(
@@ -136,6 +136,8 @@ void main() {
       expect(port.creates, hasLength(2));
 
       final card = find.byKey(const Key('wb_card_item_a'));
+      vm.selectItem('item_a');
+      await tester.pump();
       final removeClick = await tester.startGesture(
         tester.getCenter(card),
         kind: PointerDeviceKind.mouse,
@@ -144,24 +146,102 @@ void main() {
       await removeClick.up();
       await tester.pumpAndSettle();
       await tester.tap(find.text('从白板移除'));
-      await tester.pump();
-      expect(port.removals, [
-        ['item_a'],
-      ]);
-
-      await tester.tap(card);
-      await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
-      await tester.pump();
-      expect(port.removals, hasLength(2));
+      await tester.pumpAndSettle();
+      expect(port.removals, hasLength(1));
 
       expect(find.byKey(const Key('wb_action_tools')), findsOneWidget);
       await tester.tap(find.byKey(const Key('wb_delete_selection_tool')));
       await tester.pump();
-      expect(port.removals, hasLength(3));
+      expect(port.removals, hasLength(2));
       expect(port.removals.every((ids) => ids.single == 'item_a'), isTrue);
     },
   );
+
+  testWidgets('keyboard delete routes the port on a fresh focused canvas',
+      (tester) async {
+    final port = _RecordingPort();
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_port',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        manualCommandPort: port,
+      ),
+    ));
+    await tester.pump();
+    final card = find.byKey(const Key('wb_card_item_a'));
+    await tester.tap(card);
+    await tester.pump();
+    expect(vm.selection.selectedItemIds, contains('item_a'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+    await tester.pump();
+    expect(port.removals, [
+      ['item_a'],
+    ]);
+  });
+
+  testWidgets('card library click and drag route place-existing port',
+      (tester) async {
+    final root = Directory.systemTemp.createTempSync('manual_port_library_');
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(() async {
+      await db.close();
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    await tester.runAsync(() => repository.createTextCard(
+          cardId: 'card_library',
+          title: 'Library card',
+          createdAt: DateTime.utc(2026, 8, 28),
+        ));
+    final port = _RecordingPort();
+    final vm = WhiteboardCanvasViewModel(
+      initialSnapshot: _snapshot(),
+      boardId: 'board_port',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WhiteboardCanvasScreen(
+        viewModel: vm,
+        manualCommandPort: port,
+        cardRepository: repository,
+      ),
+    ));
+    await tester.tap(find.byKey(const Key('wb_open_card_library_tool')));
+    for (var index = 0;
+        index < 50 &&
+            find.byKey(const Key('wb_lib_row_card_library')).evaluate().isEmpty;
+        index++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    final row = find.byKey(const Key('wb_lib_row_card_library'));
+    expect(row, findsOneWidget);
+    await tester.tap(row);
+    await tester.pump();
+    expect(port.placements, hasLength(1));
+    expect(
+      vm.exportForSave().boardItems.any((item) => item.cardId == 'card_library'),
+      isFalse,
+      reason: 'UI must wait for host reload rather than create a ghost',
+    );
+
+    await tester.dragFrom(tester.getCenter(row), const Offset(420, 260));
+    await tester.pump();
+    expect(port.placements, hasLength(2));
+
+    port.placementSucceeds = false;
+    await tester.tap(row);
+    await tester.pump();
+    expect(port.placements, hasLength(3));
+    expect(
+      vm.exportForSave().boardItems.any((item) => item.cardId == 'card_library'),
+      isFalse,
+    );
+  });
 }
 
 WhiteboardSnapshot _snapshot() {
@@ -201,12 +281,14 @@ Future<void> _doubleTapAt(WidgetTester tester, Offset point) async {
 }
 
 class _RecordingPort implements WhiteboardManualCommandPort {
+  bool placementSucceeds = true;
   final creates = <math.Point<double>>[];
   final edits = <({String cardId, String title, String body})>[];
   final labels = <({String cardId, List<String> labels})>[];
   final moves = <Map<String, math.Point<double>>>[];
   final resizes = <({String itemId, double width, double height})>[];
   final removals = <List<String>>[];
+  final placements = <({String cardId, double x, double y})>[];
 
   @override
   Future<WhiteboardManualCreateResult?> createNote({
@@ -219,6 +301,22 @@ class _RecordingPort implements WhiteboardManualCommandPort {
     return const WhiteboardManualCreateResult(
       cardId: 'new_card',
       itemId: 'new_item',
+    );
+  }
+
+  @override
+  Future<WhiteboardManualPlacementResult?> placeExistingCard({
+    required String cardId,
+    required double x,
+    required double y,
+    double width = 260,
+    double height = 200,
+  }) async {
+    placements.add((cardId: cardId, x: x, y: y));
+    if (!placementSucceeds) return null;
+    return WhiteboardManualPlacementResult(
+      cardId: cardId,
+      itemId: 'placed_${placements.length}',
     );
   }
 

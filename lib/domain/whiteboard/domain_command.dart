@@ -17,6 +17,7 @@ sealed class WhiteboardDomainCommand {
     final kind = _requiredString(json, 'kind');
     return switch (kind) {
       'create_card' => CreateCardCommand.fromJson(json),
+      'place_existing_card' => PlaceExistingCardCommand.fromJson(json),
       'edit_card_title' => EditCardTitleCommand.fromJson(json),
       'edit_card_body' => EditCardBodyCommand.fromJson(json),
       'set_card_labels' => SetCardLabelsCommand.fromJson(json),
@@ -100,6 +101,74 @@ class CreateCardCommand extends WhiteboardDomainCommand {
         'title': title,
         'body': body,
         'labels': labels,
+        'x': x,
+        'y': y,
+        'width': width,
+        'height': height,
+      };
+}
+
+/// Places an existing Card on a board without copying or editing the Card.
+///
+/// This is a manual-surface-only mutation. Runtime deliberately has no schema
+/// or capability for it; the host generates [itemId] and owns board scope.
+class PlaceExistingCardCommand extends WhiteboardDomainCommand {
+  const PlaceExistingCardCommand({
+    required super.commandId,
+    required this.cardId,
+    required this.itemId,
+    required this.x,
+    required this.y,
+    this.width = 260,
+    this.height = 200,
+  });
+
+  factory PlaceExistingCardCommand.fromJson(Map<String, dynamic> json) {
+    _requireKeys(
+      json,
+      const {
+        'kind',
+        'command_id',
+        'card_id',
+        'item_id',
+        'x',
+        'y',
+        'width',
+        'height',
+      },
+      const {'kind', 'command_id', 'card_id', 'item_id', 'x', 'y'},
+    );
+    return PlaceExistingCardCommand(
+      commandId: _requiredString(json, 'command_id'),
+      cardId: _requiredString(json, 'card_id'),
+      itemId: _requiredString(json, 'item_id'),
+      x: _requiredNumber(json, 'x'),
+      y: _requiredNumber(json, 'y'),
+      width: _number(json['width'], 260),
+      height: _number(json['height'], 200),
+    );
+  }
+
+  final String cardId;
+  final String itemId;
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+
+  @override
+  String get kind => 'place_existing_card';
+  @override
+  List<String> get targetCardIds => [cardId];
+  @override
+  List<String> get targetItemIds => [itemId];
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'kind': kind,
+        'command_id': commandId,
+        'card_id': cardId,
+        'item_id': itemId,
         'x': x,
         'y': y,
         'width': width,

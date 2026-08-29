@@ -7,6 +7,7 @@ typedef WhiteboardAuthorizationIdFactory = String Function();
 
 enum WhiteboardWriteCapability {
   createCard('create_card'),
+  placeExistingCard('place_existing_card'),
   editCardTitle('edit_card_title'),
   editCardBody('edit_card_body'),
   setCardLabels('set_card_labels'),
