@@ -1127,6 +1127,70 @@ void main() {
     expect(await readPersistedWorkbenchActions(db, 'i'), isEmpty);
     expect(fixture.facade.canUndo(batch.operationBatchId), isFalse);
   });
+
+  test(
+      'Runtime execution rejects a broker-forged place-existing grant before action',
+      () async {
+    final persistence = _ActionPersistence(db, now);
+    final fixture = _fixture(store, persistence, now);
+    const batch = WhiteboardDomainCommandBatch(
+      operationBatchId: 'batch_runtime_forged_place_existing',
+      boardId: 'board_1',
+      commands: [
+        PlaceExistingCardCommand(
+          commandId: 'cmd_runtime_forged_place_existing',
+          cardId: 'card_1',
+          itemId: 'item_runtime_forged_place_existing',
+          x: 120,
+          y: 140,
+        ),
+      ],
+    );
+    final before = (await store.load('board_1')).snapshot!;
+    final grant = fixture.broker.issueSelectionAuthorization(
+      runtimeTurnId: 'turn_runtime_forged_place_existing',
+      userAuthorizationMessageId: 'chat-message-forged-place-existing',
+      boardId: batch.boardId,
+      selectedItemIds: const {'item_runtime_forged_place_existing'},
+      selectedCardIds: const {'card_1'},
+      capabilities: const {WhiteboardWriteCapability.placeExistingCard},
+      maxOperationCount: 1,
+      maxOperationCountByCapability: const {
+        WhiteboardWriteCapability.placeExistingCard: 1,
+      },
+    );
+
+    await expectLater(
+      fixture.facade.executeRuntime(
+        characterId: 'i',
+        batch: batch,
+        authorizationId: grant.authorizationId,
+        runtimeTurnId: grant.runtimeTurnId,
+        userAuthorizationMessageId: grant.userAuthorizationMessageId,
+      ),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.message,
+          'message',
+          'place_existing_card is manual-only',
+        ),
+      ),
+    );
+
+    final after = (await store.load('board_1')).snapshot!;
+    expect(
+      WhiteboardDomainCommandExecutor.snapshotHash(after),
+      WhiteboardDomainCommandExecutor.snapshotHash(before),
+    );
+    expect(
+      after.boardItems.any(
+        (item) => item.itemId == 'item_runtime_forged_place_existing',
+      ),
+      isFalse,
+    );
+    expect(await readPersistedWorkbenchActions(db, 'i'), isEmpty);
+    expect(fixture.facade.canUndo(batch.operationBatchId), isFalse);
+  });
 }
 
 class _Fixture {

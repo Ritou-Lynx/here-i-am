@@ -388,6 +388,306 @@ void main() {
   );
 
   testWidgets(
+    'production route Card Library click and drag persist through SQLite reload',
+    (tester) async {
+      final root = Directory.systemTemp.createTempSync('p4_library_route_');
+      final databaseFile = File('${root.path}/whiteboard.sqlite');
+      var db = AppDatabase.forTesting(NativeDatabase(databaseFile));
+      var databaseOpen = true;
+      addTearDown(() async {
+        final owner =
+            WhiteboardWorkbenchSurfaceController.instance.current?.owner;
+        if (owner != null) {
+          WhiteboardWorkbenchSurfaceController.instance.detach(owner);
+        }
+        if (databaseOpen) await db.close();
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      var repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      var store = _GatedStore(db);
+      final now = DateTime.utc(2026, 8, 29, 8);
+      await tester.runAsync(() => repository.createTextCard(
+            cardId: 'card_library_route',
+            title: 'Library route card',
+            body: 'Persistent body',
+            createdAt: now,
+          ));
+      expect(
+        await tester.runAsync(() => store.seed(
+              'board_route',
+              WhiteboardSnapshot(
+                boards: [
+                  Board(boardId: 'board_route', name: 'Route', createdAt: now),
+                ],
+                updatedAt: now,
+              ),
+            )),
+        isTrue,
+      );
+      var coordinator = _testCoordinator(
+        db: db,
+        store: store,
+        repository: repository,
+        now: now,
+      );
+      var host = WhiteboardManualDomainCommandHost(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        resolveCharacterId: () async => 'i',
+        clock: () => now,
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasRouteScreen(
+          boardId: 'board_route',
+          store: store,
+          cardRepository: repository,
+          manualCommandHost: host,
+        ),
+      ));
+      await _pumpUntil(tester, find.byType(WhiteboardCanvasArea));
+      final area = tester.widget<WhiteboardCanvasArea>(
+        find.byType(WhiteboardCanvasArea),
+      );
+      await tester.tap(find.byKey(const Key('wb_open_card_library_tool')));
+      final row = find.byKey(const Key('wb_lib_row_card_library_route'));
+      await _pumpUntil(tester, row);
+
+      await tester.tap(row);
+      await _pumpUntilCondition(
+        tester,
+        () => area.viewModel.exportForSave().boardItems.length == 1,
+      );
+      final clickedItem = area.viewModel.exportForSave().boardItems.single;
+      expect(clickedItem.cardId, 'card_library_route');
+      expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
+      expect(find.byKey(Key('wb_card_${clickedItem.itemId}')), findsOneWidget);
+      var actions = await _waitForActionCount(tester, db, 1);
+      expect(
+        WhiteboardDomainCommandBatch.fromJson(
+          actions.single.projection.domainCommandBatch!,
+        ).commands.single.kind,
+        'place_existing_card',
+      );
+
+      final beforeMove = clickedItem;
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      actions = await _waitForActionCount(tester, db, 2);
+      await _pumpUntilCondition(tester, () {
+        final items = area.viewModel.exportForSave().boardItems;
+        return items.singleWhere((item) => item.itemId == clickedItem.itemId).x ==
+            beforeMove.x + 8;
+      });
+
+      await tester.tap(find.byKey(Key('wb_card_${clickedItem.itemId}')));
+      await tester.pump();
+      expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
+      await tester.drag(
+        find.byKey(Key('wb_resize_${clickedItem.itemId}')),
+        const Offset(40, 30),
+      );
+      actions = await _waitForActionCount(tester, db, 3);
+      await _pumpUntilCondition(tester, () {
+        final item = area.viewModel.exportForSave().boardItems.singleWhere(
+              (value) => value.itemId == clickedItem.itemId,
+            );
+        return item.width > beforeMove.width && item.height > beforeMove.height;
+      });
+
+      await tester.dragFrom(
+        tester.getCenter(row),
+        const Offset(420, 260),
+      );
+      actions = await _waitForActionCount(tester, db, 4);
+      await _pumpUntilCondition(
+        tester,
+        () => area.viewModel.exportForSave().boardItems.length == 2,
+      );
+      final actionKinds = actions
+          .map((action) => WhiteboardDomainCommandBatch.fromJson(
+                action.projection.domainCommandBatch!,
+              ).commands.single.kind)
+          .toList();
+      expect(
+        actionKinds.where((kind) => kind == 'place_existing_card'),
+        hasLength(2),
+      );
+      expect(
+        actionKinds.where((kind) => kind == 'move_placement'),
+        hasLength(1),
+      );
+      expect(
+        actionKinds.where((kind) => kind == 'resize_placement'),
+        hasLength(1),
+      );
+      expect(
+        actions.every(
+          (action) =>
+              action.projection.status.name == 'completed' &&
+              (action.projection.undoToken?.isNotEmpty ?? false),
+        ),
+        isTrue,
+      );
+      final beforeReopen = area.viewModel.exportForSave().boardItems;
+      expect(
+        beforeReopen.where((item) => item.cardId == 'card_library_route'),
+        hasLength(2),
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await db.close();
+      databaseOpen = false;
+
+      db = AppDatabase.forTesting(NativeDatabase(databaseFile));
+      databaseOpen = true;
+      repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      store = _GatedStore(db);
+      coordinator = _testCoordinator(
+        db: db,
+        store: store,
+        repository: repository,
+        now: now,
+      );
+      host = WhiteboardManualDomainCommandHost(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        resolveCharacterId: () async => 'i',
+        clock: () => now,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasRouteScreen(
+          boardId: 'board_route',
+          store: store,
+          cardRepository: repository,
+          manualCommandHost: host,
+        ),
+      ));
+      await _pumpUntil(tester, find.byType(WhiteboardCanvasArea));
+      final reopenedArea = tester.widget<WhiteboardCanvasArea>(
+        find.byType(WhiteboardCanvasArea),
+      );
+      final reopenedItems = reopenedArea.viewModel.exportForSave().boardItems;
+      expect(reopenedItems, hasLength(2));
+      for (final expected in beforeReopen) {
+        final actual = reopenedItems.singleWhere(
+          (item) => item.itemId == expected.itemId,
+        );
+        expect(
+          [actual.cardId, actual.x, actual.y, actual.width, actual.height],
+          [
+            expected.cardId,
+            expected.x,
+            expected.y,
+            expected.width,
+            expected.height,
+          ],
+        );
+        expect(find.byKey(Key('wb_card_${actual.itemId}')), findsOneWidget);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'production route Card Library surface change leaves no placement or ghost',
+    (tester) async {
+      final root = Directory.systemTemp.createTempSync('p4_library_failure_');
+      final databaseFile = File('${root.path}/whiteboard.sqlite');
+      final db = AppDatabase.forTesting(NativeDatabase(databaseFile));
+      addTearDown(() async {
+        final owner =
+            WhiteboardWorkbenchSurfaceController.instance.current?.owner;
+        if (owner != null) {
+          WhiteboardWorkbenchSurfaceController.instance.detach(owner);
+        }
+        await db.close();
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      final store = _GatedStore(db);
+      final now = DateTime.utc(2026, 8, 29, 9);
+      await tester.runAsync(() => repository.createTextCard(
+            cardId: 'card_library_failure',
+            title: 'Failure card',
+            createdAt: now,
+          ));
+      expect(
+        await tester.runAsync(() => store.seed(
+              'board_route',
+              WhiteboardSnapshot(
+                boards: [
+                  Board(boardId: 'board_route', name: 'Route', createdAt: now),
+                ],
+                updatedAt: now,
+              ),
+            )),
+        isTrue,
+      );
+      final coordinator = _testCoordinator(
+        db: db,
+        store: store,
+        repository: repository,
+        now: now,
+      );
+      final host = WhiteboardManualDomainCommandHost(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        resolveCharacterId: () async => 'i',
+        clock: () => now,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasRouteScreen(
+          boardId: 'board_route',
+          store: store,
+          cardRepository: repository,
+          manualCommandHost: host,
+        ),
+      ));
+      await _pumpUntil(tester, find.byType(WhiteboardCanvasArea));
+      final area = tester.widget<WhiteboardCanvasArea>(
+        find.byType(WhiteboardCanvasArea),
+      );
+      await tester.tap(find.byKey(const Key('wb_open_card_library_tool')));
+      final row = find.byKey(const Key('wb_lib_row_card_library_failure'));
+      await _pumpUntil(tester, row);
+
+      final switchedOwner = Object();
+      WhiteboardWorkbenchSurfaceController.instance.attach(
+        owner: switchedOwner,
+        boardId: 'board_switched',
+        selectedItemIds: const {},
+        flush: () async => true,
+        reload: () async => true,
+        setInteractionLocked: (_) {},
+      );
+      await tester.tap(row);
+      await _pumpUntil(
+        tester,
+        find.text('白板操作未完成；正在核对持久状态。'),
+      );
+
+      expect(area.viewModel.exportForSave().boardItems, isEmpty);
+      expect(
+        (await tester.runAsync(() => store.loadPersisted('board_route')))
+            ?.snapshot
+            ?.boardItems,
+        isEmpty,
+      );
+      expect(
+        await tester.runAsync(() => readPersistedWorkbenchActions(db, 'i')),
+        isEmpty,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
     'manual receipt reload preserves active viewport and committed geometry',
     (tester) async {
       final root = Directory.systemTemp.createTempSync('p4_viewport_route_');
@@ -825,6 +1125,26 @@ Future<void> _updateAction(
     ])),
   ));
 }
+
+WhiteboardWorkbenchCoordinator _testCoordinator({
+  required AppDatabase db,
+  required WhiteboardDriftStore store,
+  required UnifiedCardRepository repository,
+  required DateTime now,
+}) =>
+    WhiteboardWorkbenchCoordinator(
+      runtime: _UnusedRuntime(),
+      store: store,
+      repositoryLoader: () async => repository,
+      surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+      addAction: (characterId, content, projection) =>
+          _addAction(db, characterId, content, projection),
+      updateAction: (messageId, content, projection) =>
+          _updateAction(db, messageId, content, projection),
+      readActions: (characterId) =>
+          readPersistedWorkbenchActions(db, characterId),
+      clock: () => now,
+    );
 
 class _GatedStore extends WhiteboardDriftStore {
   _GatedStore(super.db);
