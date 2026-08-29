@@ -762,6 +762,138 @@ void main() {
   );
 
   testWidgets(
+    'applied manual command does not restore captured selection after surface switch',
+    (tester) async {
+      final root = Directory.systemTemp.createTempSync('p4_selection_switch_');
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(() async {
+        final owner =
+            WhiteboardWorkbenchSurfaceController.instance.current?.owner;
+        if (owner != null) {
+          WhiteboardWorkbenchSurfaceController.instance.detach(owner);
+        }
+        await db.close();
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      final store = _GatedStore(db);
+      final now = DateTime.utc(2026, 8, 29, 10);
+      await tester.runAsync(() => repository.createTextCard(
+            cardId: 'card_surface_selection',
+            title: 'Surface selection',
+            createdAt: now,
+          ));
+      expect(
+        await tester.runAsync(() => store.seed(
+              'board_route',
+              WhiteboardSnapshot(
+                boards: [
+                  Board(boardId: 'board_route', name: 'Route', createdAt: now),
+                ],
+                boardItems: const [
+                  BoardItem(
+                    itemId: 'item_surface_selection',
+                    boardId: 'board_route',
+                    cardId: 'card_surface_selection',
+                    x: -90,
+                    y: -70,
+                    width: 180,
+                    height: 140,
+                  ),
+                ],
+                updatedAt: now,
+              ),
+            )),
+        isTrue,
+      );
+      final coordinator = _testCoordinator(
+        db: db,
+        store: store,
+        repository: repository,
+        now: now,
+      );
+      final host = WhiteboardManualDomainCommandHost(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        resolveCharacterId: () async => 'i',
+        clock: () => now,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasRouteScreen(
+          boardId: 'board_route',
+          store: store,
+          cardRepository: repository,
+          manualCommandHost: host,
+        ),
+      ));
+      await _pumpUntil(
+        tester,
+        find.byKey(const Key('wb_card_item_surface_selection')),
+      );
+      final area = tester.widget<WhiteboardCanvasArea>(
+        find.byType(WhiteboardCanvasArea),
+      );
+      await tester.tap(
+        find.byKey(const Key('wb_card_item_surface_selection')),
+      );
+      await tester.pump();
+      expect(
+        area.viewModel.selection.selectedItemIds,
+        {'item_surface_selection'},
+      );
+
+      store.gateNextSave();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.runAsync(
+        () => store.saveEntered.future.timeout(const Duration(seconds: 3)),
+      );
+      expect(area.viewModel.isReadonly, isTrue);
+      expect(
+        area.viewModel.selection.selectedItemIds,
+        isEmpty,
+        reason: 'the production lock clears selection after the port captures it',
+      );
+
+      final switchedOwner = Object();
+      WhiteboardWorkbenchSurfaceController.instance.attach(
+        owner: switchedOwner,
+        boardId: 'board_switched',
+        selectedItemIds: const {},
+        flush: () async => true,
+        reload: () async => true,
+        setInteractionLocked: (_) {},
+      );
+      await tester.pump();
+      expect(area.viewModel.selection.selectedItemIds, isEmpty);
+
+      store.releaseSave();
+      await _pumpUntilCondition(tester, () => !area.viewModel.isReadonly);
+      final actions = await _waitForActionCount(tester, db, 1);
+      expect(
+        WhiteboardWorkbenchSurfaceController.instance.current?.boardId,
+        'board_switched',
+      );
+      expect(
+        area.viewModel.selection.selectedItemIds,
+        isEmpty,
+        reason: 'the old route must not restore selection for a stale surface',
+      );
+      final persisted =
+          (await tester.runAsync(() => store.loadPersisted('board_route')))!
+              .snapshot!;
+      expect(persisted.boardItems.single.x, -82);
+      expect(actions.single.projection.status.name, 'completed');
+      expect(
+        WhiteboardDomainCommandBatch.fromJson(
+          actions.single.projection.domainCommandBatch!,
+        ).commands.single.kind,
+        'move_placement',
+      );
+    },
+  );
+
+  testWidgets(
     'manual receipt reload preserves active viewport and committed geometry',
     (tester) async {
       final root = Directory.systemTemp.createTempSync('p4_viewport_route_');
