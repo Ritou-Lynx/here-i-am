@@ -68,6 +68,22 @@ void main() {
     expect(prompt, contains('unless the user explicitly asks for emoji'));
   });
 
+  test('companion prompt requires fresh heart-rate tool evidence', () {
+    final prompt = CompanionAgentSkill.buildSystemPromptForTesting(
+      character: CharacterModel(
+        id: 'i',
+        name: 'I',
+        tags: const [],
+        persona: '',
+        enabled: true,
+      ),
+    );
+
+    expect(prompt, contains('LiveHeartRateSnapshot'));
+    expect(prompt, contains('instead of relying on old chat'));
+    expect(prompt, contains('Never treat one BPM sample as proof of sleep'));
+  });
+
   test('default Chinese characters avoid current forbidden response terms', () {
     final defaults = AppLocalizationsExtZh().defaultCharacters;
     final rendered =

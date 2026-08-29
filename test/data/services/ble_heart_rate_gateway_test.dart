@@ -156,6 +156,9 @@ class FakeBleHeartRateGateway implements BleHeartRateGateway {
     'bluetoothState': 'on',
   };
   bool permissionRequestOpened = true;
+  int selectAndEnableCalls = 0;
+  BleHeartRateDevice? lastSelectedDevice;
+  String? lastSnapshotUserId;
 
   @override
   Stream<BleHeartRateGatewayEvent> get events => controller.stream;
@@ -165,10 +168,17 @@ class FakeBleHeartRateGateway implements BleHeartRateGateway {
     controller.add(BleHeartRateSnapshotEvent(value));
   }
 
+  void emitScanResult(BleHeartRateDevice device) {
+    controller.add(BleHeartRateScanResultEvent(device));
+  }
+
   Future<void> dispose() => controller.close();
 
   @override
-  Future<BleHeartRateSnapshot> getSnapshot(String userId) async => current;
+  Future<BleHeartRateSnapshot> getSnapshot(String userId) async {
+    lastSnapshotUserId = userId;
+    return current;
+  }
 
   @override
   Future<Map<String, dynamic>> getPlatformState() async => platformState;
@@ -193,8 +203,11 @@ class FakeBleHeartRateGateway implements BleHeartRateGateway {
   Future<BleHeartRateSnapshot> selectAndEnable(
     String userId,
     BleHeartRateDevice device,
-  ) async =>
-      current;
+  ) async {
+    selectAndEnableCalls += 1;
+    lastSelectedDevice = device;
+    return current;
+  }
 
   @override
   Future<BleHeartRateSnapshot> stop(String userId) async => current;

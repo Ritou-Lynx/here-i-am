@@ -12,6 +12,7 @@ import 'package:memex/agent/built_in_tools/dev_session_tool.dart';
 import 'package:memex/agent/built_in_tools/device_app_blocker_tool.dart';
 import 'package:memex/agent/built_in_tools/get_current_location_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/agent/built_in_tools/live_heart_rate_snapshot_tool.dart';
 import 'package:memex/agent/built_in_tools/mobility_route_tool.dart';
 import 'package:memex/agent/built_in_tools/phone_usage_tool.dart';
 import 'package:memex/agent/built_in_tools/reading_content_tool.dart';
@@ -89,6 +90,7 @@ class CharacterToolsFactory {
       buildAiFinanceDeleteTool(
           characterId: characterId, service: financeService),
       buildCorosMcpTool(),
+      buildLiveHeartRateSnapshotTool(userId: userId),
       buildPhoneUsageQueryTool(),
       buildWebSearchTool(),
       buildGenerateImageTool(characterId: characterId),

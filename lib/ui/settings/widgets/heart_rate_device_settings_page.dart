@@ -426,20 +426,74 @@ class _HeartRateDeviceSettingsPageState
         ],
         for (final device in devices) ...[
           SizedBox(height: tokens.space8),
-          Card(
-            child: ListTile(
-              key: ValueKey('heart_rate_device_${device.deviceId}'),
-              leading: const Icon(Icons.favorite_border_rounded),
-              title: Text(device.name),
-              subtitle: Text('${device.deviceId} · ${device.rssi} dBm'),
-              trailing: FilledButton(
-                onPressed: _busy ? null : () => _select(device),
-                child: const Text('选择并启用'),
-              ),
-            ),
-          ),
+          _deviceCard(tokens, device),
         ],
       ],
+    );
+  }
+
+  Widget _deviceCard(
+    SpringRainUiTokens tokens,
+    BleHeartRateDevice device,
+  ) {
+    final selected = _snapshot.configured &&
+        _snapshot.deviceId?.toUpperCase() == device.deviceId.toUpperCase();
+    final enabled = selected && _snapshot.enabled;
+    final live = enabled && _snapshot.status == BleHeartRateStatus.live;
+    return Card(
+      child: ListTile(
+        key: ValueKey('heart_rate_device_${device.deviceId}'),
+        leading: Icon(
+          selected ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          color: selected ? tokens.error : null,
+        ),
+        title: Text(device.name),
+        subtitle: Text(
+          '${device.deviceId} · ${device.rssi} dBm'
+          '${selected ? '\n已选择 · ${enabled ? '已启用' : '已停止'}' : ''}',
+        ),
+        isThreeLine: selected,
+        trailing: enabled
+            ? Container(
+                key: ValueKey(
+                  'heart_rate_selected_device_state_${device.deviceId}',
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: tokens.space8,
+                  vertical: tokens.space4,
+                ),
+                decoration: BoxDecoration(
+                  color: live ? tokens.successSoft : tokens.surfaceMuted,
+                  borderRadius: BorderRadius.circular(tokens.radiusPill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      live ? Icons.check_circle_rounded : Icons.sync_rounded,
+                      size: 16,
+                      color: live ? tokens.success : tokens.textSecondary,
+                    ),
+                    SizedBox(width: tokens.space4),
+                    Text(
+                      live ? '正在接收' : _statusLabel,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: live ? tokens.success : tokens.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              )
+            : FilledButton(
+                key: ValueKey(
+                  selected
+                      ? 'heart_rate_reenable_${device.deviceId}'
+                      : 'heart_rate_select_${device.deviceId}',
+                ),
+                onPressed: _busy ? null : () => _select(device),
+                child: Text(selected ? '重新启用' : '选择并启用'),
+              ),
+      ),
     );
   }
 

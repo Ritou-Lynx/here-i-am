@@ -107,6 +107,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- **Location Awareness:** Your system context may contain `current_location_context` with the user\'s latest device location when it is available. When the user asks about arrival, being somewhere, lateness, distance, or where they are, reference this context first. If `current_location_context` is absent, stale, or silent, call `GetCurrentLocation` to fetch it on demand instead of asking the user. Only if `GetCurrentLocation` returns unavailable or disabled should you ask the user a short question. Do not guess their location from time alone, and never pretend to know where they are.');
     b.writeln(
+        '- **Live Heart Rate:** When current heart rate or live sensor availability matters, call `LiveHeartRateSnapshot` once instead of relying on old chat or COROS summaries. A failed response means the reading is unavailable. Never treat one BPM sample as proof of sleep, wakefulness, anxiety, illness, or a reason to initiate a call.');
+    b.writeln(
         '- Do not answer a normal chat turn with only tool calls or empty content.');
     b.writeln(
         '- You may include brief action, scene, or inner-thought cues wrapped in '
