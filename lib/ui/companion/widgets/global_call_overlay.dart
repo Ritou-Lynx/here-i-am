@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:memex/data/services/call_lifecycle_policy.dart';
 import 'package:memex/data/services/call_voice_router.dart';
-import 'package:memex/ui/core/widgets/local_image.dart';
+import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/utils/logger.dart';
 
 /// Global in-call overlay shown while a companion call is active.
@@ -275,26 +274,15 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fallback = CircleAvatar(
-      radius: 44,
+    // Delegate to the shared CharacterAvatar so the in-call overlay shows the
+    // same treatment as the rest of the app: DiceBear (when reachable) for
+    // seed avatars, LocalImage for file paths, and a person-icon placeholder
+    // when the value is something like 'i' that can't resolve to an image.
+    return CharacterAvatar(
+      avatar: avatar,
+      name: name,
+      size: 88,
       backgroundColor: Colors.white12,
-      child: Text(
-        name.isEmpty ? 'i' : name.substring(0, 1),
-        style: const TextStyle(color: Colors.white, fontSize: 32),
-      ),
-    );
-    final value = avatar;
-    if (!isLoadableCallAvatar(value)) return fallback;
-    return ClipOval(
-      child: SizedBox(
-        width: 88,
-        height: 88,
-        child: LocalImage(
-          url: value!,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => fallback,
-        ),
-      ),
     );
   }
 }
