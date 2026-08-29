@@ -86,6 +86,9 @@ class _WhiteboardCanvasRouteScreenState
               boardId: widget.boardId,
               surfaceOwner: _workbenchSurfaceOwner,
               host: _manualCommandHost,
+              selectedItemIds: () =>
+                  _viewModel?.selection.selectedItemIds ?? const <String>{},
+              restoreAppliedSelection: _restoreAppliedSelection,
             );
 
   @override
@@ -264,6 +267,24 @@ class _WhiteboardCanvasRouteScreenState
     WhiteboardWorkbenchSurfaceController.instance.updateSelection(
       _workbenchSurfaceOwner,
       vm.selection.selectedItemIds,
+    );
+  }
+
+  void _restoreAppliedSelection(Set<String> candidateItemIds) {
+    if (!mounted || _reconciliationRequired) return;
+    final surface = WhiteboardWorkbenchSurfaceController.instance.current;
+    if (surface == null ||
+        !identical(surface.owner, _workbenchSurfaceOwner) ||
+        surface.boardId != widget.boardId) {
+      return;
+    }
+    final vm = _viewModel;
+    if (vm == null || vm.isReadonly) return;
+    final persistedItemIds = {
+      for (final node in vm.boardState.nodes) node.itemId,
+    };
+    vm.selection.selectAll(
+      candidateItemIds.where(persistedItemIds.contains),
     );
   }
 
@@ -499,11 +520,15 @@ class _RouteManualCommandPort implements WhiteboardManualCommandPort {
     required this.boardId,
     required this.surfaceOwner,
     required this.host,
+    required this.selectedItemIds,
+    required this.restoreAppliedSelection,
   });
 
   final String boardId;
   final Object surfaceOwner;
   final WhiteboardManualDomainCommandHost host;
+  final Set<String> Function() selectedItemIds;
+  final void Function(Set<String> itemIds) restoreAppliedSelection;
   Future<void>? _pending;
 
   Future<void> waitForIdle() async {
@@ -515,21 +540,26 @@ class _RouteManualCommandPort implements WhiteboardManualCommandPort {
   Future<WhiteboardDomainCommandReceipt?> _execute({
     required String operationBatchId,
     required List<WhiteboardDomainCommand> commands,
-  }) {
-    if (_pending != null) return Future.value(null);
+  }) async {
+    if (_pending != null) return null;
+    final selectionBeforeCommit = Set<String>.of(selectedItemIds());
     final completer = Completer<void>();
     _pending = completer.future;
-    return host
-        .execute(
-      surfaceOwner: surfaceOwner,
-      boardId: boardId,
-      operationBatchId: operationBatchId,
-      commands: commands,
-    )
-        .whenComplete(() {
+    try {
+      final receipt = await host.execute(
+        surfaceOwner: surfaceOwner,
+        boardId: boardId,
+        operationBatchId: operationBatchId,
+        commands: commands,
+      );
+      if (receipt.status == WhiteboardDomainCommandStatus.applied) {
+        restoreAppliedSelection(selectionBeforeCommit);
+      }
+      return receipt;
+    } finally {
       _pending = null;
       completer.complete();
-    });
+    }
   }
 
   @override

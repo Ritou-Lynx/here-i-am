@@ -153,6 +153,8 @@ class WhiteboardCanvasScreen extends StatefulWidget {
 class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   final CompactCardEditorController _compactEditorController =
       CompactCardEditorController();
+  final FocusNode _canvasFocusNode =
+      FocusNode(debugLabel: 'whiteboard-canvas');
   bool _navigationVisible = true;
   bool _toolsVisible = true;
   bool _showCardLibrary = false;
@@ -178,6 +180,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
   void dispose() {
     _createGeneration++;
     widget.viewModel.removeListener(_onVmChanged);
+    _canvasFocusNode.dispose();
     super.dispose();
   }
 
@@ -245,6 +248,16 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     });
   }
 
+  void _requestCanvasFocus() {
+    if (!mounted ||
+        _editingItemId != null ||
+        widget.viewModel.isReadonly ||
+        !_canvasFocusNode.canRequestFocus) {
+      return;
+    }
+    _canvasFocusNode.requestFocus();
+  }
+
   void _nudge(double dx, double dy) {
     final vm = widget.viewModel;
     final ids = vm.selection.selectedItemIds;
@@ -265,7 +278,12 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
           itemId: math.Point(nodes[itemId]!.item.x, nodes[itemId]!.item.y),
     };
     final ok = await port.movePlacements(positions);
-    if (!ok && mounted) _showDomainCommitFailure();
+    if (!mounted) return;
+    if (ok) {
+      _requestCanvasFocus();
+    } else {
+      _showDomainCommitFailure();
+    }
   }
 
   Future<void> _commitResize(String itemId) async {
@@ -280,7 +298,12 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       width: node.item.width,
       height: node.item.height,
     );
-    if (!ok && mounted) _showDomainCommitFailure();
+    if (!mounted) return;
+    if (ok) {
+      _requestCanvasFocus();
+    } else {
+      _showDomainCommitFailure();
+    }
   }
 
   Future<void> _removeSelectedPlacements() async {
@@ -330,6 +353,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
     }
     if (vm.boardState.nodes.any((node) => node.itemId == placed.itemId)) {
       vm.handleIntent(SelectItemIntent(itemId: placed.itemId));
+      _requestCanvasFocus();
     }
     return placed;
   }
@@ -927,6 +951,8 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
       body: CallbackShortcuts(
         bindings: _buildShortcuts(),
         child: Focus(
+          key: const ValueKey('wb_canvas_focus'),
+          focusNode: _canvasFocusNode,
           autofocus: true,
           child: SizedBox.expand(
             key: const Key('wb_fullscreen_canvas'),
@@ -1003,6 +1029,7 @@ class _WhiteboardCanvasScreenState extends State<WhiteboardCanvasScreen> {
                       if (!ok && mounted) _showDomainCommitFailure();
                     },
                     onPlaceExistingCard: _placeExistingCard,
+                    onCanvasFocusRequested: _requestCanvasFocus,
                   ),
                 ),
                 if (!_navigationVisible)
@@ -1330,6 +1357,7 @@ class WhiteboardCanvasArea extends StatefulWidget {
   final Future<void> Function(String itemId)? onResizeCommit;
   final Future<void> Function(List<String> itemIds)? onRemovePlacements;
   final WhiteboardPlaceExistingCard? onPlaceExistingCard;
+  final VoidCallback? onCanvasFocusRequested;
 
   const WhiteboardCanvasArea({
     super.key,
@@ -1345,6 +1373,7 @@ class WhiteboardCanvasArea extends StatefulWidget {
     this.onResizeCommit,
     this.onRemovePlacements,
     this.onPlaceExistingCard,
+    this.onCanvasFocusRequested,
   });
 
   @override
@@ -1404,9 +1433,10 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
         keyboard.isShiftPressed ||
         keyboard.isMetaPressed;
     if (additiveSelection) {
-      widget.viewModel.handleIntent(
+      final handled = widget.viewModel.handleIntent(
         ToggleItemSelectionIntent(itemId: node.itemId),
       );
+      if (handled) widget.onCanvasFocusRequested?.call();
       _lastClickedItemId = null;
       _lastClickAt = null;
       return;
@@ -1414,7 +1444,9 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
     final isDoubleClick = _lastClickedItemId == node.itemId &&
         _lastClickAt != null &&
         now.difference(_lastClickAt!) <= _doubleClickWindow;
-    widget.viewModel.handleIntent(SelectItemIntent(itemId: node.itemId));
+    final handled =
+        widget.viewModel.handleIntent(SelectItemIntent(itemId: node.itemId));
+    if (handled) widget.onCanvasFocusRequested?.call();
     if (isDoubleClick && node.card != null) {
       _lastClickedItemId = null;
       _lastClickAt = null;
@@ -1786,7 +1818,8 @@ class _WhiteboardCanvasAreaState extends State<WhiteboardCanvasArea> {
       canvasBottomRight.dx - canvasTopLeft.dx,
       canvasBottomRight.dy - canvasTopLeft.dy,
     );
-    vm.handleIntent(MarqueeSelectIntent(canvasRect: canvasRect));
+    final handled = vm.handleIntent(MarqueeSelectIntent(canvasRect: canvasRect));
+    if (handled) widget.onCanvasFocusRequested?.call();
   }
 
   void _handleBlankClick(Offset screenPosition, CanvasTransform transform) {

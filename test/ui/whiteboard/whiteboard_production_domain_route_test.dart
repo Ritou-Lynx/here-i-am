@@ -23,6 +23,7 @@ import 'package:memex/domain/whiteboard/domain_command.dart';
 import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/ui/desktop/widgets/desktop_persona_chat_view.dart';
 import 'package:memex/ui/whiteboard/card_rich_text_editor_screen.dart';
 import 'package:memex/ui/whiteboard/editor/card_rich_text_editor_screen.dart'
     as rich_editor;
@@ -36,6 +37,12 @@ void main() {
   testWidgets(
     'production mouse inline editor owns text keys until Escape then selection Delete removes placement',
     (tester) async {
+      final composerFocusNode = FocusNode(debugLabel: 'test-desktop-composer');
+      final composerController = TextEditingController();
+      final composerScrollController = ScrollController();
+      addTearDown(composerFocusNode.dispose);
+      addTearDown(composerController.dispose);
+      addTearDown(composerScrollController.dispose);
       final root = Directory.systemTemp.createTempSync('p4_inline_route_');
       final db = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(() async {
@@ -112,7 +119,36 @@ void main() {
         ],
       );
       addTearDown(router.dispose);
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(MaterialApp.router(
+        routerConfig: router,
+        builder: (context, child) => Overlay(
+          initialEntries: [
+            OverlayEntry(
+              builder: (context) => Stack(
+                children: [
+                  child!,
+                  Positioned(
+                    left: 8,
+                    bottom: 8,
+                    width: 280,
+                    height: 160,
+                    child: DesktopPersonaChatView(
+                      loading: false,
+                      messagesNewestFirst: const [],
+                      isStreaming: false,
+                      streamingText: '',
+                      controller: composerController,
+                      composerFocusNode: composerFocusNode,
+                      scrollController: composerScrollController,
+                      onSend: () async {},
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ));
       await _pumpUntil(tester, find.byType(WhiteboardCanvasArea));
       final area = tester.widget<WhiteboardCanvasArea>(
         find.byType(WhiteboardCanvasArea),
@@ -187,6 +223,10 @@ void main() {
       final geometryBefore = item.toJson();
       await tester.pump();
       expect(tester.testTextInput.hasAnyClients, isTrue);
+      final canvasFocusNode = tester
+          .widget<Focus>(find.byKey(const ValueKey('wb_canvas_focus')))
+          .focusNode!;
+      expect(FocusManager.instance.primaryFocus, isNot(same(canvasFocusNode)));
 
       await tester.enterText(field, 'ABC');
       final textController = tester.widget<TextField>(field).controller!;
@@ -349,6 +389,9 @@ void main() {
       area.viewModel.handleIntent(const ClearSelectionIntent());
       await tester.pump();
       expect(area.viewModel.selection.selectedItemIds, isEmpty);
+      await tester.tap(find.byKey(const ValueKey('desktop_chat_input')));
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, same(composerFocusNode));
       final interactiveCard = find.descendant(
         of: returnedCard,
         matching: find.byWidgetPredicate(
@@ -366,10 +409,16 @@ void main() {
       );
       await tester.pump();
       expect(area.viewModel.selection.selectedItemIds, {item.itemId});
+      expect(FocusManager.instance.primaryFocus, same(canvasFocusNode));
       await tester.sendKeyEvent(LogicalKeyboardKey.delete);
       await _pumpUntilCondition(
         tester,
         () => find.byKey(Key('wb_card_${item.itemId}')).evaluate().isEmpty,
+      );
+      expect(
+        area.viewModel.selection.selectedItemIds,
+        isEmpty,
+        reason: 'an applied remove must not restore an item absent after reload',
       );
       expect(await tester.runAsync(() => repository.getCard(item.cardId)),
           isNotNull,
@@ -450,6 +499,9 @@ void main() {
       final area = tester.widget<WhiteboardCanvasArea>(
         find.byType(WhiteboardCanvasArea),
       );
+      final canvasFocusNode = tester
+          .widget<Focus>(find.byKey(const ValueKey('wb_canvas_focus')))
+          .focusNode!;
       await tester.tap(find.byKey(const Key('wb_open_card_library_tool')));
       final row = find.byKey(const Key('wb_lib_row_card_library_route'));
       await _pumpUntil(tester, row);
@@ -462,6 +514,7 @@ void main() {
       final clickedItem = area.viewModel.exportForSave().boardItems.single;
       expect(clickedItem.cardId, 'card_library_route');
       expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
+      expect(FocusManager.instance.primaryFocus, same(canvasFocusNode));
       expect(find.byKey(Key('wb_card_${clickedItem.itemId}')), findsOneWidget);
       var actions = await _waitForActionCount(tester, db, 1);
       expect(
@@ -479,31 +532,47 @@ void main() {
         return items.singleWhere((item) => item.itemId == clickedItem.itemId).x ==
             beforeMove.x + 8;
       });
-
-      await tester.tap(find.byKey(Key('wb_card_${clickedItem.itemId}')));
-      await tester.pump();
       expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
+      expect(FocusManager.instance.primaryFocus, same(canvasFocusNode));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      actions = await _waitForActionCount(tester, db, 3);
+      await _pumpUntilCondition(tester, () {
+        final items = area.viewModel.exportForSave().boardItems;
+        return items.singleWhere((item) => item.itemId == clickedItem.itemId).x ==
+            beforeMove.x + 16;
+      });
+      expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
+      expect(FocusManager.instance.primaryFocus, same(canvasFocusNode));
+
       await tester.drag(
         find.byKey(Key('wb_resize_${clickedItem.itemId}')),
         const Offset(40, 30),
       );
-      actions = await _waitForActionCount(tester, db, 3);
+      actions = await _waitForActionCount(tester, db, 4);
       await _pumpUntilCondition(tester, () {
         final item = area.viewModel.exportForSave().boardItems.singleWhere(
               (value) => value.itemId == clickedItem.itemId,
             );
         return item.width > beforeMove.width && item.height > beforeMove.height;
       });
+      expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
+      expect(FocusManager.instance.primaryFocus, same(canvasFocusNode));
 
       await tester.dragFrom(
         tester.getCenter(row),
         const Offset(420, 260),
       );
-      actions = await _waitForActionCount(tester, db, 4);
+      actions = await _waitForActionCount(tester, db, 5);
       await _pumpUntilCondition(
         tester,
         () => area.viewModel.exportForSave().boardItems.length == 2,
       );
+      final draggedItem = area.viewModel.exportForSave().boardItems.singleWhere(
+            (item) => item.itemId != clickedItem.itemId,
+          );
+      expect(area.viewModel.selection.selectedItemIds, {draggedItem.itemId});
+      expect(FocusManager.instance.primaryFocus, same(canvasFocusNode));
       final actionKinds = actions
           .map((action) => WhiteboardDomainCommandBatch.fromJson(
                 action.projection.domainCommandBatch!,
@@ -515,7 +584,7 @@ void main() {
       );
       expect(
         actionKinds.where((kind) => kind == 'move_placement'),
-        hasLength(1),
+        hasLength(2),
       );
       expect(
         actionKinds.where((kind) => kind == 'resize_placement'),
@@ -528,6 +597,10 @@ void main() {
               (action.projection.undoToken?.isNotEmpty ?? false),
         ),
         isTrue,
+      );
+      expect(
+        actionKinds.reversed.take(3),
+        ['place_existing_card', 'move_placement', 'move_placement'],
       );
       final beforeReopen = area.viewModel.exportForSave().boardItems;
       expect(
@@ -672,6 +745,7 @@ void main() {
       );
 
       expect(area.viewModel.exportForSave().boardItems, isEmpty);
+      expect(area.viewModel.selection.selectedItemIds, isEmpty);
       expect(
         (await tester.runAsync(() => store.loadPersisted('board_route')))
             ?.snapshot
@@ -1019,6 +1093,15 @@ void main() {
         find.textContaining('持久状态核对失败'),
       );
       expect(store.saveCalls, 1);
+      expect(
+        tester
+            .widget<WhiteboardCanvasArea>(find.byType(WhiteboardCanvasArea))
+            .viewModel
+            .selection
+            .selectedItemIds,
+        isEmpty,
+        reason: 'a failed commit must not restore the pre-lock selection',
+      );
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
