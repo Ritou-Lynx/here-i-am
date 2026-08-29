@@ -995,6 +995,120 @@ class _ExplicitTitleTarget {
   final String? errorCode;
 }
 
+class _QuotedLiteralSpan {
+  const _QuotedLiteralSpan(this.start, this.end);
+
+  final int start;
+  final int end;
+
+  bool contains(int offset) => start <= offset && offset < end;
+}
+
+class _QuotedLiteralScan {
+  const _QuotedLiteralScan.valid(this.spans) : isValid = true;
+
+  const _QuotedLiteralScan.invalid()
+      : spans = const [],
+        isValid = false;
+
+  final List<_QuotedLiteralSpan> spans;
+  final bool isValid;
+
+  bool contains(int offset) => spans.any((span) => span.contains(offset));
+}
+
+_QuotedLiteralScan _scanQuotedLiterals(String text) {
+  const quotePairs = {
+    '「': '」',
+    '『': '』',
+    '“': '”',
+    '‘': '’',
+    '"': '"',
+  };
+  const asymmetricClosers = {'」', '』', '”', '’'};
+  final spans = <_QuotedLiteralSpan>[];
+  String? opener;
+  String? closer;
+  int? start;
+  for (var offset = 0; offset < text.length; offset++) {
+    final character = text[offset];
+    if (closer == null) {
+      final matchingCloser = quotePairs[character];
+      if (matchingCloser != null) {
+        opener = character;
+        closer = matchingCloser;
+        start = offset;
+      } else if (asymmetricClosers.contains(character)) {
+        return const _QuotedLiteralScan.invalid();
+      }
+      continue;
+    }
+    if (character == closer) {
+      spans.add(_QuotedLiteralSpan(start!, offset + 1));
+      opener = null;
+      closer = null;
+      start = null;
+    } else if (character == opener) {
+      return const _QuotedLiteralScan.invalid();
+    }
+  }
+  if (closer != null) return const _QuotedLiteralScan.invalid();
+  return _QuotedLiteralScan.valid(List.unmodifiable(spans));
+}
+
+bool _hasTargetOperationAfter(
+  String text,
+  int targetEnd,
+  Set<WhiteboardWriteCapability> capabilities,
+) {
+  final suffix = text.substring(targetEnd);
+  const prefix = r'^[\s，,。；;：:、]*(?:(?:的|把|将)\s*)?';
+  if (capabilities.contains(WhiteboardWriteCapability.editCardBody) &&
+      RegExp(
+        '$prefix'
+        r'(?:编辑|修改|改写)\s*(?:正文|内容)|'
+        '$prefix'
+            r'(?:正文|内容)\s*'
+            r'(?:改成|改为|修改为|设为|设置为)',
+      ).hasMatch(suffix)) {
+    return true;
+  }
+  if (capabilities.contains(WhiteboardWriteCapability.setCardLabels) &&
+      RegExp(
+        '$prefix'
+        r'(?:设置|修改|编辑|添加|删除|移除|清除)\s*标签|'
+        '$prefix'
+            r'标签\s*'
+            r'(?:设为|设置为|改成|改为|修改为|添加|删除|移除|清除)',
+      ).hasMatch(suffix)) {
+    return true;
+  }
+  if (capabilities.contains(WhiteboardWriteCapability.movePlacement) &&
+      RegExp('$prefix(?:移动到|挪动到|移到|放到)').hasMatch(suffix)) {
+    return true;
+  }
+  if (capabilities.contains(WhiteboardWriteCapability.resizePlacement) &&
+      RegExp(
+        '$prefix'
+        r'(?:缩放|放大|缩小|调宽|调高|变宽|变窄)\s*(?:为|成|到)|'
+        '$prefix'
+            r'(?:调整|修改|设置)\s*(?:尺寸|大小|宽度|高度)\s*'
+            r'(?:为|成|到)|'
+        '$prefix'
+            r'(?:尺寸|大小|宽度|高度)\s*'
+            r'(?:调整为|调整成|改成|改为|修改为|设为|设置为)',
+      ).hasMatch(suffix)) {
+    return true;
+  }
+  return capabilities.contains(WhiteboardWriteCapability.removePlacement) &&
+      RegExp('$prefix(?:从白板移除|移出白板|移除摆放|拿出白板)')
+          .hasMatch(suffix);
+}
+
+bool _hasDirectTitleTargetPrefix(String text, int markerStart) => RegExp(
+      r'^\s*(?:(?:请\s*)?(?:(?:帮我\s*)?(?:把|将)))?\s*$',
+    ).hasMatch(text.substring(0, markerStart));
+
 _ExplicitTitleTarget _explicitTitleTargetFromRequest(
   String text, {
   required Set<WhiteboardWriteCapability> capabilities,
@@ -1009,15 +1123,34 @@ _ExplicitTitleTarget _explicitTitleTargetFromRequest(
   if (!capabilities.any(targetDependentCapabilities.contains)) {
     return const _ExplicitTitleTarget.none();
   }
-  final markers = RegExp(
+  final markerPattern = RegExp(
     r'(?:当前白板上|白板上)\s*标题\s*(?:为|是|叫)',
-  ).allMatches(text).toList();
+  );
+  final quoteScan = _scanQuotedLiterals(text);
+  if (!quoteScan.isValid) {
+    return markerPattern.hasMatch(text)
+        ? const _ExplicitTitleTarget.invalid()
+        : const _ExplicitTitleTarget.none();
+  }
+  final markers = markerPattern
+      .allMatches(text)
+      .where((match) => !quoteScan.contains(match.start))
+      .toList();
   if (markers.isEmpty) return const _ExplicitTitleTarget.none();
+  if (markers.length != 1 ||
+      !_hasDirectTitleTargetPrefix(text, markers.single.start)) {
+    return const _ExplicitTitleTarget.invalid();
+  }
   final matches = RegExp(
     r'(?:当前白板上|白板上)\s*标题\s*(?:为|是|叫)\s*'
     r'(?:「([^」]*)」|“([^”]*)”)\s*的卡片',
-  ).allMatches(text).toList();
-  if (markers.length != 1 || matches.length != 1) {
+  )
+      .allMatches(text)
+      .where((match) =>
+          !quoteScan.contains(match.start) &&
+          _hasTargetOperationAfter(text, match.end, capabilities))
+      .toList();
+  if (matches.length != 1) {
     return const _ExplicitTitleTarget.invalid();
   }
   final title = matches.single.group(1) ?? matches.single.group(2)!;

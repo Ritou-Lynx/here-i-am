@@ -346,6 +346,22 @@ void main() {
       'card_ids': ['card_a'],
       'placement_ambiguous': false,
     });
+
+    final curlyQuoteAuthorization = await harness.authorize(
+      '把当前白板上标题为“Runtime 创建验收 R14”的卡片正文改成「new」。',
+      messageId: 'chat-message-r15-curly-quote-target',
+    );
+    expect(curlyQuoteAuthorization, isNotNull);
+    expect(curlyQuoteAuthorization!.hasExplicitTitleTarget, isTrue);
+    expect(curlyQuoteAuthorization.hostResolvedTargetCardIds, {'card_a'});
+
+    final courteousAuthorization = await harness.authorize(
+      '请帮我把当前白板上标题为「Runtime 创建验收 R14」的卡片正文改成「new」。',
+      messageId: 'chat-message-r15-courteous-prefix',
+    );
+    expect(courteousAuthorization, isNotNull);
+    expect(courteousAuthorization!.hasExplicitTitleTarget, isTrue);
+    expect(courteousAuthorization.hostResolvedTargetCardIds, {'card_a'});
   });
 
   test('exact R14 create stays selection-free and does not resolve a target',
@@ -395,6 +411,34 @@ void main() {
         hasLength(1));
   });
 
+  test('canonical direct title operations remain resolvable', () async {
+    const cases = <String, WhiteboardWriteCapability>{
+      '把当前白板上标题为「Card A」的卡片标签设为「new」。':
+          WhiteboardWriteCapability.setCardLabels,
+      '把当前白板上标题为「Card A」的卡片移动到右边。':
+          WhiteboardWriteCapability.movePlacement,
+      '把当前白板上标题为「Card A」的卡片大小改为 320。':
+          WhiteboardWriteCapability.resizePlacement,
+      '把当前白板上标题为「Card A」的卡片从白板移除。':
+          WhiteboardWriteCapability.removePlacement,
+    };
+    var index = 0;
+    for (final entry in cases.entries) {
+      final authorization = await harness.authorize(
+        entry.key,
+        messageId: 'chat-message-canonical-title-${index++}',
+      );
+      expect(authorization, isNotNull, reason: entry.key);
+      expect(authorization!.allowedCapabilities, {entry.value},
+          reason: entry.key);
+      expect(authorization.hasExplicitTitleTarget, isTrue, reason: entry.key);
+      expect(authorization.hostResolvedTargetCardIds, {'card_a'},
+          reason: entry.key);
+      expect(authorization.hostResolvedTargetItemIds, {'item_a'},
+          reason: entry.key);
+    }
+  });
+
   test('new-card and body literals do not start existing-title resolution',
       () async {
     harness.detachSurface();
@@ -416,6 +460,230 @@ void main() {
     expect(body, isNotNull);
     expect(body!.hasExplicitTitleTarget, isFalse);
     expect(body.selectedCardIds, {'card_a'});
+  });
+
+  test('complete title-target syntax inside body literal keeps selection scope',
+      () async {
+    const literal = '当前白板上标题为“Unique Target”的卡片';
+    const request = '把白板选中卡片正文改成「$literal」';
+    await harness.addCard(
+      cardId: 'card_target',
+      title: 'Unique Target',
+      body: 'target body',
+      placements: const [
+        BoardItem(
+          itemId: 'item_target',
+          boardId: 'board_1',
+          cardId: 'card_target',
+        ),
+      ],
+    );
+    final authorization = await harness.authorize(
+      request,
+      messageId: 'chat-message-body-complete-target-literal',
+    );
+    expect(authorization, isNotNull);
+    expect(authorization!.hasExplicitTitleTarget, isFalse);
+    expect(authorization.selectedCardIds, {'card_a'});
+    expect(authorization.hostResolvedTargetCardIds, isEmpty);
+
+    final result = await harness.tool.invoke(
+      const {
+        'commands': [
+          {
+            'kind': 'edit_card_body',
+            'card_id': 'card_a',
+            'body': literal,
+          },
+        ],
+      },
+      authorization: authorization,
+      runtimeTurnId: 'turn-body-complete-target-literal',
+      isCancelled: () => false,
+    );
+    expect(result.success, isTrue, reason: result.text);
+    final after = (await harness.store.load('board_1')).snapshot!;
+    expect(after.cards.singleWhere((card) => card.cardId == 'card_a').body,
+        literal);
+    expect(
+      after.cards.singleWhere((card) => card.cardId == 'card_target').body,
+      'target body',
+    );
+  });
+
+  test('all supported outer quote pairs keep body target syntax opaque',
+      () async {
+    await harness.addCard(
+      cardId: 'card_target',
+      title: 'Unique Target',
+      body: 'target body',
+      placements: const [
+        BoardItem(
+          itemId: 'item_target',
+          boardId: 'board_1',
+          cardId: 'card_target',
+        ),
+      ],
+    );
+    const quoteCases = <List<String>>[
+      ['「', '」', '当前白板上标题为“Unique Target”的卡片'],
+      ['『', '』', '当前白板上标题为「Unique Target」的卡片'],
+      ['“', '”', '当前白板上标题为「Unique Target」的卡片'],
+      ['‘', '’', '当前白板上标题为「Unique Target」的卡片'],
+      ['"', '"', '当前白板上标题为「Unique Target」的卡片'],
+    ];
+    for (var index = 0; index < quoteCases.length; index++) {
+      final quoteCase = quoteCases[index];
+      final literal = quoteCase[2];
+      final body = '$literal #$index';
+      final request =
+          '把白板选中卡片正文改成${quoteCase[0]}$body${quoteCase[1]}';
+      final authorization = await harness.authorize(
+        request,
+        messageId: 'chat-message-opaque-quote-$index',
+      );
+      expect(authorization, isNotNull, reason: request);
+      expect(authorization!.hasExplicitTitleTarget, isFalse, reason: request);
+      expect(authorization.selectedCardIds, {'card_a'}, reason: request);
+      expect(authorization.hostResolvedTargetCardIds, isEmpty,
+          reason: request);
+
+      final result = await harness.tool.invoke(
+        {
+          'commands': [
+            {
+              'kind': 'edit_card_body',
+              'card_id': 'card_a',
+              'body': body,
+            },
+          ],
+        },
+        authorization: authorization,
+        runtimeTurnId: 'turn-opaque-quote-$index',
+        isCancelled: () => false,
+      );
+      expect(result.success, isTrue, reason: '$request\n${result.text}');
+      final after = (await harness.store.load('board_1')).snapshot!;
+      expect(
+        after.cards.singleWhere((card) => card.cardId == 'card_a').body,
+        body,
+        reason: request,
+      );
+      expect(
+        after.cards.singleWhere((card) => card.cardId == 'card_target').body,
+        'target body',
+        reason: request,
+      );
+    }
+  });
+
+  test('body target syntax with empty selection never resolves any quote pair',
+      () async {
+    await harness.addCard(
+      cardId: 'card_target',
+      title: 'Unique Target',
+      body: 'target body',
+      placements: const [
+        BoardItem(
+          itemId: 'item_target',
+          boardId: 'board_1',
+          cardId: 'card_target',
+        ),
+      ],
+    );
+    harness.detachSurface();
+    harness.attachSurface(selectedItemIds: const {});
+    const quoteCases = <List<String>>[
+      ['「', '」', '当前白板上标题为“Unique Target”的卡片'],
+      ['『', '』', '当前白板上标题为「Unique Target」的卡片'],
+      ['“', '”', '当前白板上标题为「Unique Target」的卡片'],
+      ['‘', '’', '当前白板上标题为「Unique Target」的卡片'],
+      ['"', '"', '当前白板上标题为「Unique Target」的卡片'],
+    ];
+    for (var index = 0; index < quoteCases.length; index++) {
+      final quoteCase = quoteCases[index];
+      final literal = quoteCase[2];
+      final request =
+          '把白板选中卡片正文改成${quoteCase[0]}$literal${quoteCase[1]}';
+      final authorization = await harness.authorize(
+        request,
+        messageId: 'chat-message-empty-selection-quote-$index',
+      );
+      expect(authorization, isNotNull, reason: request);
+      expect(authorization!.hasExplicitTitleTarget, isFalse, reason: request);
+      expect(authorization.selectedCardIds, isEmpty, reason: request);
+      expect(authorization.hostResolvedTargetCardIds, isEmpty,
+          reason: request);
+
+      final result = await harness.tool.invoke(
+        {
+          'commands': [
+            {
+              'kind': 'edit_card_body',
+              'card_id': 'card_target',
+              'body': literal,
+            },
+          ],
+        },
+        authorization: authorization,
+        runtimeTurnId: 'turn-empty-selection-quote-$index',
+        isCancelled: () => false,
+      );
+      expect(
+        jsonDecode(result.text)['error_code'],
+        'whiteboard_target_outside_scope',
+        reason: request,
+      );
+    }
+    expect(await harness.actions(), isEmpty);
+    final after = (await harness.store.load('board_1')).snapshot!;
+    expect(
+      after.cards.singleWhere((card) => card.cardId == 'card_target').body,
+      'target body',
+    );
+  });
+
+  test('unquoted target syntax after the body operation fails closed',
+      () async {
+    await harness.addCard(
+      cardId: 'card_target',
+      title: 'Unique Target',
+      body: 'target body',
+      placements: const [
+        BoardItem(
+          itemId: 'item_target',
+          boardId: 'board_1',
+          cardId: 'card_target',
+        ),
+      ],
+    );
+    final before = (await harness.store.load('board_1')).snapshot!;
+    for (final request in [
+      '把白板选中卡片正文改成 当前白板上标题为「Unique Target」的卡片',
+      '把白板选中卡片正文改成 当前白板上标题为「Unique Target」的卡片（正文修改后保留换行）',
+      '把白板选中卡片正文改成 当前白板上标题为「Unique Target」的卡片，正文修改后保留换行',
+      '把白板选中卡片正文改成 当前白板上标题为「Unique Target」的卡片，然后再修改正文',
+      '把白板选中卡片标签改成 当前白板上标题为「Unique Target」的卡片，标签修改后保留原值',
+      '把白板选中卡片大小改成 当前白板上标题为「Unique Target」的卡片，大小调整后保持比例',
+      '把白板选中卡片正文改成 当前白板上标题为「Unique Target」的卡片，移动后保留换行',
+      '把白板选中卡片正文改成 当前白板上标题为「Unique Target」的卡片，放大后保持比例',
+      '选中卡片保持不变；把当前白板上标题为「Unique Target」的卡片正文改成「new」',
+    ]) {
+      final authorization = await harness.authorize(
+        request,
+        messageId: 'chat-message-unquoted-target-after-operation',
+      );
+      expect(
+        authorization?.unavailableReason,
+        'whiteboard_title_target_invalid',
+        reason: request,
+      );
+    }
+    expect(await harness.actions(), isEmpty);
+    expect(
+      (await harness.store.load('board_1')).snapshot!.toJson(),
+      before.toJson(),
+    );
   });
 
   test('prepareAuthorization rejects malformed or oversized host scope',
@@ -728,6 +996,20 @@ void main() {
       messageId: 'chat-message-malformed-title',
     );
     expect(malformed?.unavailableReason, 'whiteboard_title_target_invalid');
+    for (final request in [
+      '请编辑白板卡片正文；把当前白板上标题为「Card A 的卡片',
+      '请编辑白板卡片正文；把当前白板上标题为「Card「A」」的卡片',
+    ]) {
+      final ambiguousQuote = await harness.authorize(
+        request,
+        messageId: 'chat-message-ambiguous-quote',
+      );
+      expect(
+        ambiguousQuote?.unavailableReason,
+        'whiteboard_title_target_invalid',
+        reason: request,
+      );
+    }
     final tooLongTitle = List.filled(
       WorkbenchRuntimeWhiteboardDomainTool.maxExplicitTitleTargetRunes + 1,
       '长',
