@@ -11,6 +11,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/whiteboard/card_contract.dart';
 import 'package:memex/domain/whiteboard/ingestion_result.dart';
 import 'package:memex/domain/whiteboard/rich_text_document.dart';
+import 'package:memex/domain/whiteboard/rich_text_storage.dart';
 import 'package:memex/domain/whiteboard/source_content.dart';
 
 class _RecordingThumbnailResolver implements ThumbnailResolver {
@@ -155,6 +156,77 @@ void main() {
       isNotNull,
       reason: 'kv evidence must survive a database/repository reopen',
     );
+  });
+
+  test('legacy card supports get/list/first rich save and reopen', () async {
+    const legacyId = 'card:0123456789abcdef01234567:2';
+    await repository.createTextCard(
+      cardId: legacyId,
+      title: 'Legacy runtime',
+      body: '',
+    );
+    expect((await repository.getCard(legacyId))!.documentState,
+        CardDocumentState.missing);
+    const document = RichTextDocument(blocks: [
+      RichTextBlock(type: BlockType.paragraph, text: 'legacy rich body'),
+    ]);
+    await repository.saveRichText(legacyId, document);
+    final listed = await repository.listCards(
+      const CardLibraryQuery(loadDocuments: true),
+    );
+    expect(
+      listed.singleWhere((item) => item.card.cardId == legacyId).documentState,
+      CardDocumentState.available,
+    );
+
+    await db.close();
+    db = AppDatabase.forTesting(NativeDatabase(dbFile));
+    repository = UnifiedCardRepository(db: db, whiteboardRoot: tempDir);
+    final reopened = await repository.getCard(legacyId);
+    expect(reopened!.document!.toPlainText(), 'legacy rich body');
+  });
+
+  test('unsafe card degrades alone in global rich list', () async {
+    await repository.createTextCard(cardId: 'safe_card', title: 'Safe');
+    await repository.createTextCard(
+      cardId: 'card:arbitrary:unsafe',
+      title: 'Unsafe',
+    );
+    final listed = await repository.listCards(
+      const CardLibraryQuery(loadDocuments: true),
+    );
+    expect(listed, hasLength(2));
+    expect(
+      listed.singleWhere((item) => item.card.cardId == 'safe_card').documentState,
+      CardDocumentState.missing,
+    );
+    expect(
+      listed
+          .singleWhere((item) => item.card.cardId == 'card:arbitrary:unsafe')
+          .documentState,
+      CardDocumentState.corrupt,
+    );
+  });
+
+  test('unrelated ArgumentError and I/O errors still propagate', () async {
+    await repository.createTextCard(cardId: 'safe_card', title: 'Safe');
+    for (final error in <Object>[
+      ArgumentError('programming fault'),
+      const FileSystemException('injected read failure'),
+    ]) {
+      final throwing = UnifiedCardRepository(
+        db: db,
+        whiteboardRoot: tempDir,
+        richTextStorage: _ThrowingRichTextStorage(
+          Directory('${tempDir.path}/throwing-rich'),
+          error,
+        ),
+      );
+      await expectLater(
+        throwing.listCards(const CardLibraryQuery(loadDocuments: true)),
+        throwsA(isA<Object>().having((_) => _.runtimeType, 'type', error.runtimeType)),
+      );
+    }
   });
 
   test('rich projection and kv evidence roll back together after file save',
@@ -1956,4 +2028,14 @@ Future<List<List<int>?>> _readFileExchange(File target) async {
     result.add(await file.exists() ? await file.readAsBytes() : null);
   }
   return result;
+}
+
+class _ThrowingRichTextStorage extends RichTextStorage {
+  _ThrowingRichTextStorage(super.baseDir, this.error);
+
+  final Object error;
+
+  @override
+  Future<RichTextLoadResult> loadWithStatus(String cardId) =>
+      Future<RichTextLoadResult>.error(error);
 }

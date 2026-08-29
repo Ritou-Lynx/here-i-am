@@ -555,10 +555,7 @@ class UnifiedCardRepository {
     final placed = await isCardPlaced(cardId);
     final card = _toCard(row, extra);
     var document = loadDocument
-        ? _validateCurrentDocument(
-            card,
-            await richTextStorage.loadWithStatus(cardId),
-          )
+        ? await _loadCurrentDocument(card)
         : const CardDocumentResolution(
             state: CardDocumentState.notLoaded,
           );
@@ -591,10 +588,7 @@ class UnifiedCardRepository {
     }
     return _withMissingMaterializationEvidence(
       canonical,
-      _validateCurrentDocument(
-        canonical,
-        await richTextStorage.loadWithStatus(cardId),
-      ),
+      await _loadCurrentDocument(canonical),
     );
   }
 
@@ -675,10 +669,7 @@ class UnifiedCardRepository {
         continue;
       }
       var document = query.loadDocuments
-          ? _validateCurrentDocument(
-              card,
-              await richTextStorage.loadWithStatus(card.cardId),
-            )
+          ? await _loadCurrentDocument(card)
           : const CardDocumentResolution(
               state: CardDocumentState.notLoaded,
             );
@@ -2040,6 +2031,21 @@ class UnifiedCardRepository {
         return const CardDocumentResolution(
           state: CardDocumentState.missing,
         );
+    }
+  }
+
+  Future<CardDocumentResolution> _loadCurrentDocument(
+    CardContract card,
+  ) async {
+    try {
+      return _validateCurrentDocument(
+        card,
+        await richTextStorage.loadWithStatus(card.cardId),
+      );
+    } on RichTextUnsafeCardIdError {
+      return const CardDocumentResolution(
+        state: CardDocumentState.corrupt,
+      );
     }
   }
 

@@ -143,6 +143,68 @@ void main() {
       expect(storage.exists('card_del'), isFalse);
     });
 
+    test('legacy save/reopen/recoverAll/delete is isolated from lookalike id',
+        () async {
+      const legacyId = 'card:0123456789abcdef01234567:3';
+      const normalId = 'legacy_runtime_0123456789abcdef01234567_3';
+      const legacyOld = RichTextDocument(blocks: [
+        RichTextBlock(type: BlockType.paragraph, text: 'legacy old'),
+      ]);
+      const legacyRecovered = RichTextDocument(blocks: [
+        RichTextBlock(type: BlockType.paragraph, text: 'legacy recovered'),
+      ]);
+      const normalDocument = RichTextDocument(blocks: [
+        RichTextBlock(type: BlockType.paragraph, text: 'normal document'),
+      ]);
+      await storage.save(legacyId, legacyOld);
+      await storage.save(normalId, normalDocument);
+      final mappedDir = Directory(
+        '${tempDir.path}${Platform.pathSeparator}'
+        'legacy_runtime_cards${Platform.pathSeparator}'
+        'card_0123456789abcdef01234567_3',
+      );
+      final normalDir = Directory(
+        '${tempDir.path}${Platform.pathSeparator}'
+        'card_legacy_runtime_0123456789abcdef01234567_3',
+      );
+      expect(mappedDir.existsSync(), isTrue);
+      expect(normalDir.existsSync(), isTrue);
+
+      final reopened = RichTextStorage(tempDir);
+      expect((await reopened.load(legacyId))!.toPlainText(), 'legacy old');
+      expect((await reopened.load(normalId))!.toPlainText(), 'normal document');
+      final target = File(
+        '${mappedDir.path}${Platform.pathSeparator}rich_text.json',
+      );
+      await target.rename('${target.path}.bak');
+      await File('${target.path}.tmp')
+          .writeAsString(jsonEncode(legacyRecovered.toJson()), flush: true);
+
+      await reopened.recoverAll();
+      expect((await reopened.load(legacyId))!.toPlainText(), 'legacy recovered');
+      expect(File('${target.path}.tmp').existsSync(), isFalse);
+      expect(File('${target.path}.bak').existsSync(), isFalse);
+      await reopened.delete(legacyId);
+      expect(reopened.exists(legacyId), isFalse);
+      expect(reopened.exists(normalId), isTrue);
+      expect((await reopened.load(normalId))!.toPlainText(), 'normal document');
+    });
+
+    test('arbitrary unsafe ids remain rejected by the dedicated error', () {
+      for (final cardId in const [
+        'card:not-legacy:0',
+        'card/escape',
+        r'card\escape',
+        'card..escape',
+      ]) {
+        expect(
+          () => storage.exists(cardId),
+          throwsA(isA<RichTextUnsafeCardIdError>()),
+          reason: cardId,
+        );
+      }
+    });
+
     test('sync load works', () {
       storage.saveSync(
           'card_sync',

@@ -16,6 +16,11 @@ import 'rich_text_migration.dart';
 
 enum RichTextLoadStatus { available, missing, corrupt }
 
+class RichTextUnsafeCardIdError extends ArgumentError {
+  RichTextUnsafeCardIdError(String cardId)
+      : super.value(cardId, 'cardId', 'unsafe card id');
+}
+
 class RichTextLoadResult {
   const RichTextLoadResult({required this.status, this.document, this.error});
 
@@ -26,12 +31,24 @@ class RichTextLoadResult {
 
 /// Saves and loads [RichTextDocument]s as JSON files.
 class RichTextStorage {
+  static final RegExp _legacyRuntimeCardId = RegExp(
+    r'^card:([0-9a-f]{24}):([0-9]+)$',
+  );
+  static const String _legacyRuntimeDirectory = 'legacy_runtime_cards';
+
   final Directory baseDir;
 
   RichTextStorage(this.baseDir);
 
   /// The directory for a given card id.
   Directory _cardDir(String cardId) {
+    final legacy = _legacyRuntimeCardId.firstMatch(cardId);
+    if (legacy != null) {
+      return Directory(
+        '${baseDir.path}${Platform.pathSeparator}$_legacyRuntimeDirectory'
+        '${Platform.pathSeparator}card_${legacy.group(1)}_${legacy.group(2)}',
+      );
+    }
     _validateCardId(cardId);
     return Directory('${baseDir.path}${Platform.pathSeparator}card_$cardId');
   }
@@ -152,16 +169,34 @@ class RichTextStorage {
       if (entity is! Directory) continue;
       final name =
           entity.uri.pathSegments.where((segment) => segment.isNotEmpty).last;
-      if (!name.startsWith('card_')) continue;
-      final cardId = name.substring('card_'.length);
-      try {
-        await RecoverableFileExchange.recover(
-          _file(cardId),
-          validator: _isValidDocument,
-        );
-      } catch (_) {
-        // One damaged card must not block recovery of the remaining cards.
+      if (name.startsWith('card_')) {
+        await _recoverDirectory(entity);
+        continue;
       }
+      if (name == _legacyRuntimeDirectory) {
+        await for (final legacyDir in entity.list(followLinks: false)) {
+          if (legacyDir is! Directory) continue;
+          final legacyName = legacyDir.uri.pathSegments
+              .where((segment) => segment.isNotEmpty)
+              .last;
+          if (!RegExp(r'^card_[0-9a-f]{24}_[0-9]+$')
+              .hasMatch(legacyName)) {
+            continue;
+          }
+          await _recoverDirectory(legacyDir);
+        }
+      }
+    }
+  }
+
+  Future<void> _recoverDirectory(Directory directory) async {
+    try {
+      await RecoverableFileExchange.recover(
+        File('${directory.path}${Platform.pathSeparator}rich_text.json'),
+        validator: _isValidDocument,
+      );
+    } catch (_) {
+      // One damaged card must not block recovery of the remaining cards.
     }
   }
 
@@ -189,7 +224,7 @@ class RichTextStorage {
         cardId.contains('\\') ||
         cardId.contains('..') ||
         cardId.contains(':')) {
-      throw ArgumentError.value(cardId, 'cardId', 'unsafe card id');
+      throw RichTextUnsafeCardIdError(cardId);
     }
   }
 }

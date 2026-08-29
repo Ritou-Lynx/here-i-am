@@ -42,6 +42,11 @@ void main() {
       isNot(contains('edit_card_title')),
       reason: 'title mutation is host/manual-only and never model-visible',
     );
+    expect(
+      jsonEncode(WorkbenchRuntimeWhiteboardDomainTool.toolDefinition),
+      isNot(contains('place_existing_card')),
+      reason: 'library placement is manual-only and never model-visible',
+    );
     for (final shape in commands['items']['oneOf'] as List) {
       expect(shape['additionalProperties'], isFalse);
       expect(shape['properties']['kind']['const'], isNotEmpty);
@@ -368,7 +373,7 @@ void main() {
     expect(receipt['command_ids'], hasLength(6));
     final snapshot = (await harness.store.load('board_1')).snapshot!;
     expect(snapshot.boardItems, hasLength(1));
-    expect(snapshot.boardItems.single.cardId, startsWith('card:'));
+    expect(snapshot.boardItems.single.cardId, startsWith('card_'));
     expect(snapshot.cards.any((card) => card.cardId == 'card_a'), isTrue,
         reason: 'remove placement must not delete the existing Card truth');
     expect(await harness.repository.getCard('card_a'), isNotNull);
@@ -395,6 +400,88 @@ void main() {
     expect(malformed.success, isFalse);
     expect(
         jsonDecode(malformed.text)['error_code'], 'invalid_whiteboard_request');
+  });
+
+  test('omitted create position centers a custom card in active viewport',
+      () async {
+    final current = (await harness.store.load('board_1')).snapshot!;
+    expect(
+      await harness.store.seed(
+        'board_1',
+        WhiteboardSnapshot.fromJson({
+          ...current.toJson(),
+          'viewport': const BoardViewport(
+            centerX: 905,
+            centerY: 1503,
+            zoom: 0.25,
+          ).toJson(),
+        }),
+      ),
+      isTrue,
+    );
+    var reloads = 0;
+    harness.detachSurface();
+    harness.attachSurface(reload: () async {
+      reloads++;
+      return true;
+    });
+    final authorization = await harness.authorize(
+      '请在白板创建一张卡片',
+      messageId: 'chat-message-centered-create',
+    );
+    final result = await harness.tool.invoke(
+      const {
+        'commands': [
+          {
+            'kind': 'create_card',
+            'title': 'Centered custom card',
+            'body': 'visible body',
+            'width': 300,
+            'height': 240,
+          },
+        ],
+      },
+      authorization: authorization!,
+      runtimeTurnId: 'turn-centered-create',
+      isCancelled: () => false,
+    );
+    expect(result.success, isTrue, reason: result.text);
+    expect(reloads, 1);
+    final snapshot = (await harness.store.load('board_1')).snapshot!;
+    final card = snapshot.cards.singleWhere(
+      (value) => value.title == 'Centered custom card',
+    );
+    final item = snapshot.boardItems.singleWhere(
+      (value) => value.cardId == card.cardId,
+    );
+    expect(card.cardId, matches(r'^card_[0-9a-f]{24}_0$'));
+    expect(item.itemId, matches(r'^item_[0-9a-f]{24}_0$'));
+    expect(item.x, 755);
+    expect(item.y, 1383);
+    expect(item.width, 300);
+    expect(item.height, 240);
+    expect(
+      await harness.repository.listCards(
+        const CardLibraryQuery(loadDocuments: true),
+      ),
+      isNotEmpty,
+    );
+
+    final partialAuthorization = await harness.authorize(
+      '请在白板创建一张卡片',
+      messageId: 'chat-message-partial-create',
+    );
+    final partial = await harness.tool.invoke(
+      const {
+        'commands': [
+          {'kind': 'create_card', 'title': 'invalid', 'x': 1},
+        ],
+      },
+      authorization: partialAuthorization!,
+      runtimeTurnId: 'turn-partial-create',
+      isCancelled: () => false,
+    );
+    expect(jsonDecode(partial.text)['error_code'], 'invalid_whiteboard_request');
   });
 
   test('production composition registers whiteboard tool without factory',

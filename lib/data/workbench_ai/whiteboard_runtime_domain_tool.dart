@@ -13,6 +13,7 @@ import 'package:memex/data/workbench_ai/search/workbench_runtime_search_tool.dar
 import 'package:memex/data/workbench_ai/whiteboard_workbench_coordinator.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_surface.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/domain/whiteboard/board.dart';
 import 'package:memex/domain/whiteboard/domain_command.dart';
 import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
 import 'package:memex/domain/workbench_ai/permissions/whiteboard_permission_broker.dart';
@@ -30,6 +31,7 @@ class WhiteboardRuntimeTurnAuthorization {
     this.boardName,
     this.selectedItemIds = const {},
     this.selectedCardIds = const {},
+    this.activeViewport = const BoardViewport(),
     this.expectedSnapshotHash,
     this.unavailableReason,
   });
@@ -42,6 +44,7 @@ class WhiteboardRuntimeTurnAuthorization {
   final String? boardName;
   final Set<String> selectedItemIds;
   final Set<String> selectedCardIds;
+  final BoardViewport activeViewport;
   final Set<WhiteboardWriteCapability> allowedCapabilities;
   final int maxOperationCount;
   final Map<WhiteboardWriteCapability, int> maxOperationCountByCapability;
@@ -320,6 +323,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         boardName: boardName,
         selectedItemIds: selectedItems,
         selectedCardIds: selectedCards,
+        activeViewport: snapshot.viewport,
         allowedCapabilities: capabilities,
         maxOperationCount: capabilities.length,
         maxOperationCountByCapability: _singleOperationLimits(capabilities),
@@ -608,10 +612,15 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           })) {
             return 'invalid_whiteboard_request';
           }
-          final cardId = 'card:${seed.substring(0, 24)}:$index';
-          final itemId = 'item:${seed.substring(0, 24)}:$index';
+          final hasX = command.containsKey('x');
+          final hasY = command.containsKey('y');
+          if (hasX != hasY) return 'invalid_whiteboard_request';
+          final cardId = 'card_${seed.substring(0, 24)}_$index';
+          final itemId = 'item_${seed.substring(0, 24)}_$index';
           final labels = _stringList(command['labels']);
           if (labels == null) return 'invalid_whiteboard_request';
+          final width = _number(command['width'], 260);
+          final height = _number(command['height'], 200);
           commands.add(CreateCardCommand(
             commandId: commandId,
             cardId: cardId,
@@ -619,10 +628,14 @@ class WorkbenchRuntimeWhiteboardDomainTool {
             title: _optionalString(command['title']) ?? '',
             body: _optionalString(command['body']) ?? '',
             labels: labels,
-            x: _number(command['x'], 0),
-            y: _number(command['y'], 0),
-            width: _number(command['width'], 260),
-            height: _number(command['height'], 200),
+            x: hasX
+                ? _requiredNumber(command['x'])
+                : authorization.activeViewport.centerX - (width / 2),
+            y: hasY
+                ? _requiredNumber(command['y'])
+                : authorization.activeViewport.centerY - (height / 2),
+            width: width,
+            height: height,
           ));
           allowedCards.add(cardId);
           allowedItems.add(itemId);
