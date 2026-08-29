@@ -31,6 +31,10 @@ class WhiteboardRuntimeTurnAuthorization {
     this.boardName,
     this.selectedItemIds = const {},
     this.selectedCardIds = const {},
+    this.hasExplicitTitleTarget = false,
+    this.hostResolvedTargetItemIds = const {},
+    this.hostResolvedTargetCardIds = const {},
+    this.hostResolvedPlacementAmbiguous = false,
     this.activeViewport = const BoardViewport(),
     this.expectedSnapshotHash,
     this.unavailableReason,
@@ -44,6 +48,10 @@ class WhiteboardRuntimeTurnAuthorization {
   final String? boardName;
   final Set<String> selectedItemIds;
   final Set<String> selectedCardIds;
+  final bool hasExplicitTitleTarget;
+  final Set<String> hostResolvedTargetItemIds;
+  final Set<String> hostResolvedTargetCardIds;
+  final bool hostResolvedPlacementAmbiguous;
   final BoardViewport activeViewport;
   final Set<WhiteboardWriteCapability> allowedCapabilities;
   final int maxOperationCount;
@@ -68,6 +76,25 @@ class WhiteboardRuntimeTurnAuthorization {
       'capabilities': capabilities,
       'selected_item_ids': selectedItemIds.toList()..sort(),
       'selected_card_ids': selectedCardIds.toList()..sort(),
+      'target_scope_source': hasExplicitTitleTarget
+          ? 'host_resolved_current_board_exact_title'
+          : 'selection',
+      'target_item_ids': (hasExplicitTitleTarget
+              ? hostResolvedTargetItemIds
+              : selectedItemIds)
+          .toList()
+        ..sort(),
+      'target_card_ids': (hasExplicitTitleTarget
+              ? hostResolvedTargetCardIds
+              : selectedCardIds)
+          .toList()
+        ..sort(),
+      if (hasExplicitTitleTarget)
+        'host_resolved_target': {
+          'item_ids': hostResolvedTargetItemIds.toList()..sort(),
+          'card_ids': hostResolvedTargetCardIds.toList()..sort(),
+          'placement_ambiguous': hostResolvedPlacementAmbiguous,
+        },
       'max_operation_count': maxOperationCount,
       'max_operation_count_by_capability': {
         for (final entry in maxOperationCountByCapability.entries)
@@ -85,8 +112,9 @@ class WhiteboardRuntimeTurnAuthorization {
 /// Runtime adapter for the six frozen provider-neutral DomainCommands.
 ///
 /// Provider payloads describe only the requested command data. Board scope,
-/// selected targets, baseline hash, actor turn, authorization and message
-/// evidence are captured and enforced by the desktop host.
+/// selected or exact-title-resolved targets, baseline hash, actor turn,
+/// authorization and message evidence are captured and enforced by the
+/// desktop host.
 class WorkbenchRuntimeWhiteboardDomainTool {
   WorkbenchRuntimeWhiteboardDomainTool({
     required WhiteboardDriftStore store,
@@ -109,6 +137,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
   static const maxSurfaceScopeIds = 64;
   static const maxSurfaceScopeIdUtf8Bytes = 256;
   static const maxPromptUtf8Bytes = 16 * 1024;
+  static const maxExplicitTitleTargetRunes = 500;
 
   static const toolDefinition = <String, dynamic>{
     'name': toolName,
@@ -241,6 +270,19 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         unavailableReason: 'authorization_evidence_missing',
       );
     }
+    final explicitTitleTarget = _explicitTitleTargetFromRequest(
+      userText,
+      capabilities: capabilities,
+    );
+    if (explicitTitleTarget.errorCode != null) {
+      return _unavailable(
+        conversationId,
+        characterId,
+        evidence,
+        capabilities,
+        explicitTitleTarget.errorCode!,
+      );
+    }
     final surface = _surfaceController.current;
     if (surface == null) {
       return WhiteboardRuntimeTurnAuthorization(
@@ -307,6 +349,59 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           cardScopeError,
         );
       }
+      var resolvedTargetItems = const <String>{};
+      var resolvedTargetCards = const <String>{};
+      var resolvedPlacementAmbiguous = false;
+      if (explicitTitleTarget.specified) {
+        final cardsById = {
+          for (final card in snapshot.cards) card.cardId: card,
+        };
+        final matchingItems = snapshot.boardItems
+            .where((item) => item.boardId == surface.boardId)
+            .where((item) =>
+                cardsById[item.cardId]?.title == explicitTitleTarget.title)
+            .toList(growable: false);
+        final distinctCardIds = {
+          for (final item in matchingItems) item.cardId,
+        };
+        if (distinctCardIds.isEmpty) {
+          return _unavailable(
+            conversationId,
+            characterId,
+            evidence,
+            capabilities,
+            'whiteboard_title_target_not_found',
+          );
+        }
+        if (distinctCardIds.length != 1) {
+          return _unavailable(
+            conversationId,
+            characterId,
+            evidence,
+            capabilities,
+            'whiteboard_title_target_ambiguous',
+          );
+        }
+        resolvedTargetCards = Set<String>.unmodifiable(distinctCardIds);
+        final distinctItemIds = {
+          for (final item in matchingItems) item.itemId,
+        };
+        resolvedPlacementAmbiguous = distinctItemIds.length != 1;
+        resolvedTargetItems = resolvedPlacementAmbiguous
+            ? const <String>{}
+            : Set<String>.unmodifiable(distinctItemIds);
+        final resolvedCardScopeError = _surfaceScopeError(resolvedTargetCards);
+        final resolvedItemScopeError = _surfaceScopeError(resolvedTargetItems);
+        if (resolvedCardScopeError != null || resolvedItemScopeError != null) {
+          return _unavailable(
+            conversationId,
+            characterId,
+            evidence,
+            capabilities,
+            resolvedCardScopeError ?? resolvedItemScopeError!,
+          );
+        }
+      }
       var boardName = surface.boardId;
       for (final board in snapshot.boards) {
         if (board.boardId == surface.boardId) {
@@ -323,6 +418,10 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         boardName: boardName,
         selectedItemIds: selectedItems,
         selectedCardIds: selectedCards,
+        hasExplicitTitleTarget: explicitTitleTarget.specified,
+        hostResolvedTargetItemIds: resolvedTargetItems,
+        hostResolvedTargetCardIds: resolvedTargetCards,
+        hostResolvedPlacementAmbiguous: resolvedPlacementAmbiguous,
         activeViewport: snapshot.viewport,
         allowedCapabilities: capabilities,
         maxOperationCount: capabilities.length,
@@ -574,8 +673,16 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           '${authorization.userAuthorizationMessageId}|$canonical',
         ))
         .toString();
-    final allowedItems = {...authorization.selectedItemIds};
-    final allowedCards = {...authorization.selectedCardIds};
+    final allowedItems = {
+      ...(authorization.hasExplicitTitleTarget
+          ? authorization.hostResolvedTargetItemIds
+          : authorization.selectedItemIds),
+    };
+    final allowedCards = {
+      ...(authorization.hasExplicitTitleTarget
+          ? authorization.hostResolvedTargetCardIds
+          : authorization.selectedCardIds),
+    };
     final commands = <WhiteboardDomainCommand>[];
     final counts = <WhiteboardWriteCapability, int>{};
     for (var index = 0; index < rawCommands.length; index++) {
@@ -859,6 +966,61 @@ bool _isExplicitDelegatedWhiteboardWrite(String text) => RegExp(
       r'(?:改成|改为|修改为|设为|设置为|调整(?:为|成)?)|'
       r'调宽|调高|变宽|变窄|从白板移除|移出白板|移除摆放|拿出白板)',
     ).hasMatch(text);
+
+class _ExplicitTitleTarget {
+  const _ExplicitTitleTarget.none()
+      : specified = false,
+        title = null,
+        errorCode = null;
+
+  const _ExplicitTitleTarget.value(this.title)
+      : specified = true,
+        errorCode = null;
+
+  const _ExplicitTitleTarget.invalid()
+      : specified = true,
+        title = null,
+        errorCode = 'whiteboard_title_target_invalid';
+
+  final bool specified;
+  final String? title;
+  final String? errorCode;
+}
+
+_ExplicitTitleTarget _explicitTitleTargetFromRequest(
+  String text, {
+  required Set<WhiteboardWriteCapability> capabilities,
+}) {
+  const targetDependentCapabilities = {
+    WhiteboardWriteCapability.editCardBody,
+    WhiteboardWriteCapability.setCardLabels,
+    WhiteboardWriteCapability.movePlacement,
+    WhiteboardWriteCapability.resizePlacement,
+    WhiteboardWriteCapability.removePlacement,
+  };
+  if (!capabilities.any(targetDependentCapabilities.contains)) {
+    return const _ExplicitTitleTarget.none();
+  }
+  final markers = RegExp(
+    r'(?:当前白板上|白板上)\s*标题\s*(?:为|是|叫)',
+  ).allMatches(text).toList();
+  if (markers.isEmpty) return const _ExplicitTitleTarget.none();
+  final matches = RegExp(
+    r'(?:当前白板上|白板上)\s*标题\s*(?:为|是|叫)\s*'
+    r'(?:「([^」]*)」|“([^”]*)”)\s*的卡片',
+  ).allMatches(text).toList();
+  if (markers.length != 1 || matches.length != 1) {
+    return const _ExplicitTitleTarget.invalid();
+  }
+  final title = matches.single.group(1) ?? matches.single.group(2)!;
+  if (title.trim().isEmpty ||
+      title.runes.length >
+          WorkbenchRuntimeWhiteboardDomainTool.maxExplicitTitleTargetRunes ||
+      RegExp(r'[\u0000-\u001F\u007F]').hasMatch(title)) {
+    return const _ExplicitTitleTarget.invalid();
+  }
+  return _ExplicitTitleTarget.value(title);
+}
 
 String? _surfaceScopeError(Set<String> ids) {
   if (ids.length > WorkbenchRuntimeWhiteboardDomainTool.maxSurfaceScopeIds) {
