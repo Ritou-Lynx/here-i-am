@@ -868,6 +868,113 @@ void main() {
     );
   });
 
+  test('domain executor enforces shared placement geometry boundaries',
+      () async {
+    var snapshot = (await store.load('board_1')).snapshot!;
+    var saves = 0;
+    final broker = _broker(now);
+    final executor = WhiteboardDomainCommandExecutor(
+      permissionBroker: broker,
+      loadSnapshot: (_) async => snapshot,
+      saveSnapshot: (_, value) async {
+        saves++;
+        snapshot = value;
+        return true;
+      },
+      clock: () => now,
+      idFactory: (prefix) => '${prefix}_geometry',
+    );
+
+    Future<WhiteboardDomainCommandReceipt> execute(
+      WhiteboardDomainCommandBatch batch,
+      String turnId,
+    ) {
+      final grant = _grant(broker, batch, turnId);
+      return executor.execute(
+        WhiteboardDomainExecutionRequest(
+          batch: batch,
+          authorizationId: grant.authorizationId,
+          actorTurnId: turnId,
+          actor: WhiteboardDomainCommandActor.i,
+        ),
+      );
+    }
+
+    final sizeCases = <double, bool>{
+      1: false,
+      79: false,
+      80: true,
+      3000: true,
+      3001: false,
+    };
+    var index = 0;
+    for (final entry in sizeCases.entries) {
+      final batch = WhiteboardDomainCommandBatch(
+        operationBatchId: 'domain_size_${index}_batch',
+        boardId: 'board_1',
+        commands: [
+          ResizePlacementCommand(
+            commandId: 'domain_size_${index}_command',
+            itemId: 'item_1',
+            width: entry.key,
+            height: 200,
+          ),
+        ],
+      );
+      final savesBefore = saves;
+      final receipt = await execute(batch, 'domain_size_$index');
+      expect(
+        receipt.status,
+        entry.value
+            ? WhiteboardDomainCommandStatus.applied
+            : WhiteboardDomainCommandStatus.invalidRequest,
+      );
+      expect(saves - savesBefore, entry.value ? 1 : 0);
+      expect(receipt.undoReceipt, entry.value ? isNotNull : isNull);
+      if (!entry.value) expect(receipt.issues.single.code, 'invalid_size');
+      index++;
+    }
+
+    const limit = WhiteboardPlacementGeometryPolicy.maxAbsoluteCoordinate;
+    final coordinateCases = <(double, bool)>[
+      (-25, true),
+      (limit, true),
+      (-limit, true),
+      (limit + 1, false),
+      (-limit - 1, false),
+      (double.maxFinite, false),
+      (-double.maxFinite, false),
+      (double.nan, false),
+    ];
+    index = 0;
+    for (final (x, accepted) in coordinateCases) {
+      final batch = WhiteboardDomainCommandBatch(
+        operationBatchId: 'domain_coordinate_${index}_batch',
+        boardId: 'board_1',
+        commands: [
+          MovePlacementCommand(
+            commandId: 'domain_coordinate_${index}_command',
+            itemId: 'item_1',
+            x: x,
+            y: -20,
+          ),
+        ],
+      );
+      final savesBefore = saves;
+      final receipt = await execute(batch, 'domain_coordinate_$index');
+      expect(
+        receipt.status,
+        accepted
+            ? WhiteboardDomainCommandStatus.applied
+            : WhiteboardDomainCommandStatus.invalidRequest,
+      );
+      expect(saves - savesBefore, accepted ? 1 : 0);
+      expect(receipt.undoReceipt, accepted ? isNotNull : isNull);
+      if (!accepted) expect(receipt.issues.single.code, 'invalid_position');
+      index++;
+    }
+  });
+
   test('unsafe new ids reject but exact legacy existing card places and undoes',
       () async {
     final initial = (await store.load('board_1')).snapshot!;

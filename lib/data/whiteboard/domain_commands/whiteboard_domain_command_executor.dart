@@ -15,6 +15,41 @@ import 'package:memex/domain/whiteboard/whiteboard_ids.dart';
 import 'package:memex/domain/whiteboard/whiteboard_snapshot.dart';
 import 'package:memex/domain/workbench_ai/permissions/whiteboard_permission_broker.dart';
 
+/// Shared durable geometry policy for every whiteboard command ingress.
+///
+/// The canvas transforms coordinates with `(canvas - viewportCenter) * zoom`
+/// and supports zoom down to 0.25. Keeping absolute coordinates within one
+/// million leaves a broad 250,000-pixel working range at minimum zoom while
+/// avoiding unstable extreme-double persistence and renderer arithmetic.
+abstract final class WhiteboardPlacementGeometryPolicy {
+  static const minWidth = 80.0;
+  static const minHeight = 60.0;
+  static const maxExtent = 3000.0;
+  static const maxAbsoluteCoordinate = 1000000.0;
+
+  static bool isValidCoordinate(double value) =>
+      value.isFinite && value.abs() <= maxAbsoluteCoordinate;
+
+  static bool isValidPosition(double x, double y) =>
+      isValidCoordinate(x) && isValidCoordinate(y);
+
+  static bool isValidSize(double width, double height) =>
+      width.isFinite &&
+      height.isFinite &&
+      width >= minWidth &&
+      height >= minHeight &&
+      width <= maxExtent &&
+      height <= maxExtent;
+
+  static bool isValidGeometry({
+    required double x,
+    required double y,
+    required double width,
+    required double height,
+  }) =>
+      isValidPosition(x, y) && isValidSize(width, height);
+}
+
 typedef WhiteboardDomainClock = DateTime Function();
 typedef WhiteboardDomainIdFactory = String Function(String prefix);
 typedef WhiteboardDomainSnapshotLoader = Future<WhiteboardSnapshot> Function(
@@ -118,6 +153,15 @@ class WhiteboardDomainCommandExecutor {
   }) async {
     final now = _millisecondUtc(_clock());
     final batch = request.batch;
+    final validationIssue = _validateBatch(batch);
+    if (validationIssue != null) {
+      return _failure(
+        request,
+        WhiteboardDomainCommandStatus.invalidRequest,
+        validationIssue,
+        now,
+      );
+    }
     final requestHash = _hashJson(batch.toJson());
     final applied = _appliedBatches[batch.operationBatchId];
     if (applied != null) {
@@ -129,16 +173,6 @@ class WhiteboardDomainCommandExecutor {
         now,
       );
     }
-    final validationIssue = _validateBatch(batch);
-    if (validationIssue != null) {
-      return _failure(
-        request,
-        WhiteboardDomainCommandStatus.invalidRequest,
-        validationIssue,
-        now,
-      );
-    }
-
     final capabilities = batch.commands.map(_capability).toSet();
     final operationCountsByCapability = <WhiteboardWriteCapability, int>{};
     for (final command in batch.commands) {
@@ -490,13 +524,18 @@ String? _validateBatch(WhiteboardDomainCommandBatch batch) {
       if (!_isSafeNewEntityId(command.itemId)) {
         return 'unsafe_create_item_id';
       }
-      if (!command.x.isFinite ||
-          !command.y.isFinite ||
+      if (!WhiteboardPlacementGeometryPolicy.isValidPosition(
+            command.x,
+            command.y,
+          ) ||
           command.title.runes.length > 500 ||
           command.body.runes.length >
               WhiteboardDomainCommandExecutor.hardMaxBodyRunes ||
           !_validLabels(command.labels) ||
-          !_validSize(command.width, command.height)) {
+          !WhiteboardPlacementGeometryPolicy.isValidSize(
+            command.width,
+            command.height,
+          )) {
         return 'invalid_create_card';
       }
     } else if (command is PlaceExistingCardCommand) {
@@ -506,9 +545,14 @@ String? _validateBatch(WhiteboardDomainCommandBatch batch) {
       if (!_isSafeNewEntityId(command.itemId)) {
         return 'unsafe_place_item_id';
       }
-      if (!command.x.isFinite ||
-          !command.y.isFinite ||
-          !_validSize(command.width, command.height)) {
+      if (!WhiteboardPlacementGeometryPolicy.isValidPosition(
+            command.x,
+            command.y,
+          ) ||
+          !WhiteboardPlacementGeometryPolicy.isValidSize(
+            command.width,
+            command.height,
+          )) {
         return 'invalid_place_existing_card';
       }
     } else if (command is EditCardTitleCommand &&
@@ -522,10 +566,16 @@ String? _validateBatch(WhiteboardDomainCommandBatch batch) {
         !_validLabels(command.labels)) {
       return 'invalid_labels';
     } else if (command is MovePlacementCommand &&
-        (!command.x.isFinite || !command.y.isFinite)) {
+        !WhiteboardPlacementGeometryPolicy.isValidPosition(
+          command.x,
+          command.y,
+        )) {
       return 'invalid_position';
     } else if (command is ResizePlacementCommand &&
-        !_validSize(command.width, command.height)) {
+        !WhiteboardPlacementGeometryPolicy.isValidSize(
+          command.width,
+          command.height,
+        )) {
       return 'invalid_size';
     }
   }
@@ -540,14 +590,6 @@ bool _validLabels(List<String> labels) =>
           label.runes.length <=
               WhiteboardDomainCommandExecutor.hardMaxLabelRunes,
     );
-
-bool _validSize(double width, double height) =>
-    width.isFinite &&
-    height.isFinite &&
-    width >= 80 &&
-    height >= 60 &&
-    width <= 3000 &&
-    height <= 3000;
 
 final RegExp _legacyRuntimeCardId = RegExp(r'^card:[0-9a-f]{24}:[0-9]+$');
 

@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:memex/data/whiteboard/domain_commands/whiteboard_domain_command_executor.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/services/device_identity_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
@@ -543,6 +544,154 @@ void main() {
     final item =
         after.boardItems.singleWhere((value) => value.itemId == 'item_a');
     expect([item.x, item.y, item.width, item.height], [0, 0, 180, 140]);
+  });
+
+  test('runtime geometry boundary matrix rejects before durable writes',
+      () async {
+    final sizeCases = <double, bool>{
+      1: false,
+      79: false,
+      80: true,
+      3000: true,
+      3001: false,
+    };
+    for (final entry in sizeCases.entries) {
+      final authorization = await harness.authorize(
+        '把选中的白板卡片大小改为 ${entry.key}。',
+        messageId: 'chat-message-size-${entry.key}',
+      );
+      expect(authorization?.available, isTrue);
+      final actionsBefore = (await harness.actions()).length;
+      final savesBefore = harness.store.saveCalls;
+      final result = await harness.tool.invoke(
+        {
+          'commands': [
+            {
+              'kind': 'resize_placement',
+              'item_id': 'item_a',
+              'width': entry.key,
+              'height': 140,
+            },
+          ],
+        },
+        authorization: authorization!,
+        runtimeTurnId: 'turn-size-${entry.key}',
+        isCancelled: () => false,
+      );
+      expect(result.success, entry.value, reason: result.text);
+      expect(
+        (await harness.actions()).length - actionsBefore,
+        entry.value ? 1 : 0,
+      );
+      expect(harness.store.saveCalls - savesBefore, entry.value ? 1 : 0);
+      if (!entry.value) {
+        expect(
+          jsonDecode(result.text)['error_code'],
+          'invalid_whiteboard_request',
+        );
+      }
+    }
+
+    const limit = WhiteboardPlacementGeometryPolicy.maxAbsoluteCoordinate;
+    final coordinateCases = <(double, bool, String)>[
+      (-25, true, 'negative'),
+      (limit, true, 'positive-boundary'),
+      (-limit, true, 'negative-boundary'),
+      (limit + 1, false, 'positive-outside'),
+      (-limit - 1, false, 'negative-outside'),
+      (double.maxFinite, false, 'positive-max-finite'),
+      (-double.maxFinite, false, 'negative-max-finite'),
+      (double.nan, false, 'nan'),
+    ];
+    for (final (x, accepted, label) in coordinateCases) {
+      final authorization = await harness.authorize(
+        '把选中的白板卡片移动到新位置。',
+        messageId: 'chat-message-coordinate-$label',
+      );
+      expect(authorization?.available, isTrue);
+      final actionsBefore = (await harness.actions()).length;
+      final savesBefore = harness.store.saveCalls;
+      final result = await harness.tool.invoke(
+        {
+          'commands': [
+            {
+              'kind': 'move_placement',
+              'item_id': 'item_a',
+              'x': x,
+              'y': -20,
+            },
+          ],
+        },
+        authorization: authorization!,
+        runtimeTurnId: 'turn-coordinate-$label',
+        isCancelled: () => false,
+      );
+      expect(result.success, accepted, reason: '$label: ${result.text}');
+      expect(
+        (await harness.actions()).length - actionsBefore,
+        accepted ? 1 : 0,
+      );
+      expect(harness.store.saveCalls - savesBefore, accepted ? 1 : 0);
+      if (!accepted) {
+        expect(
+          jsonDecode(result.text)['error_code'],
+          'invalid_whiteboard_request',
+        );
+      }
+    }
+  });
+
+  test('over-bound persisted geometry is unavailable and never enters prompt',
+      () async {
+    final original = (await harness.store.load('board_1')).snapshot!;
+    final originalItem = original.boardItems.single;
+    final cases = <(double, double, double, String)>[
+      (
+        WhiteboardPlacementGeometryPolicy.maxAbsoluteCoordinate + 1,
+        originalItem.width,
+        originalItem.height,
+        'coordinate',
+      ),
+      (originalItem.x, 1, originalItem.height, 'width-below-minimum'),
+      (originalItem.x, 3001, originalItem.height, 'width-above-maximum'),
+    ];
+    for (final (x, width, height, label) in cases) {
+      expect(
+        await harness.store.seed(
+          'board_1',
+          WhiteboardSnapshot.fromJson({
+            ...original.toJson(),
+            'board_items': [
+              BoardItem(
+                itemId: originalItem.itemId,
+                boardId: originalItem.boardId,
+                cardId: originalItem.cardId,
+                x: x,
+                y: originalItem.y,
+                width: width,
+                height: height,
+              ).toJson(),
+            ],
+          }),
+        ),
+        isTrue,
+      );
+      final authorization = await harness.authorize(
+        '把选中的白板卡片移动到当前位置右侧 120 像素。',
+        messageId: 'chat-message-existing-$label',
+      );
+      expect(authorization, isNotNull);
+      expect(authorization!.available, isFalse);
+      expect(
+        authorization.unavailableReason,
+        'whiteboard_placement_geometry_invalid',
+      );
+      expect(authorization.targetPlacementGeometry, isEmpty);
+      expect(
+        authorization.toPromptBlock(),
+        isNot(contains('target_placement_geometry')),
+      );
+    }
   });
 
   test('exact R14 create stays selection-free and does not resolve a target',
@@ -2294,6 +2443,7 @@ class _GatedStore extends WhiteboardDriftStore {
   Completer<void> saveEntered = Completer<void>();
   Completer<void>? _release;
   bool failNextSave = false;
+  int saveCalls = 0;
 
   Future<bool> seed(String boardId, WhiteboardSnapshot snapshot) =>
       super.save(boardId, snapshot);
@@ -2307,6 +2457,7 @@ class _GatedStore extends WhiteboardDriftStore {
 
   @override
   Future<bool> save(String boardId, WhiteboardSnapshot snapshot) async {
+    saveCalls++;
     if (failNextSave) {
       failNextSave = false;
       return false;

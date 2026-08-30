@@ -207,10 +207,30 @@ class WorkbenchRuntimeWhiteboardDomainTool {
                     'type': 'array',
                     'items': {'type': 'string'},
                   },
-                  'x': {'type': 'number'},
-                  'y': {'type': 'number'},
-                  'width': {'type': 'number', 'exclusiveMinimum': 0},
-                  'height': {'type': 'number', 'exclusiveMinimum': 0},
+                  'x': {
+                    'type': 'number',
+                    'minimum': -WhiteboardPlacementGeometryPolicy
+                        .maxAbsoluteCoordinate,
+                    'maximum':
+                        WhiteboardPlacementGeometryPolicy.maxAbsoluteCoordinate,
+                  },
+                  'y': {
+                    'type': 'number',
+                    'minimum': -WhiteboardPlacementGeometryPolicy
+                        .maxAbsoluteCoordinate,
+                    'maximum':
+                        WhiteboardPlacementGeometryPolicy.maxAbsoluteCoordinate,
+                  },
+                  'width': {
+                    'type': 'number',
+                    'minimum': WhiteboardPlacementGeometryPolicy.minWidth,
+                    'maximum': WhiteboardPlacementGeometryPolicy.maxExtent,
+                  },
+                  'height': {
+                    'type': 'number',
+                    'minimum': WhiteboardPlacementGeometryPolicy.minHeight,
+                    'maximum': WhiteboardPlacementGeometryPolicy.maxExtent,
+                  },
                 },
               },
               {
@@ -243,8 +263,20 @@ class WorkbenchRuntimeWhiteboardDomainTool {
                 'properties': {
                   'kind': {'const': 'move_placement'},
                   'item_id': {'type': 'string', 'minLength': 1},
-                  'x': {'type': 'number'},
-                  'y': {'type': 'number'},
+                  'x': {
+                    'type': 'number',
+                    'minimum': -WhiteboardPlacementGeometryPolicy
+                        .maxAbsoluteCoordinate,
+                    'maximum':
+                        WhiteboardPlacementGeometryPolicy.maxAbsoluteCoordinate,
+                  },
+                  'y': {
+                    'type': 'number',
+                    'minimum': -WhiteboardPlacementGeometryPolicy
+                        .maxAbsoluteCoordinate,
+                    'maximum':
+                        WhiteboardPlacementGeometryPolicy.maxAbsoluteCoordinate,
+                  },
                 },
               },
               {
@@ -254,8 +286,16 @@ class WorkbenchRuntimeWhiteboardDomainTool {
                 'properties': {
                   'kind': {'const': 'resize_placement'},
                   'item_id': {'type': 'string', 'minLength': 1},
-                  'width': {'type': 'number', 'exclusiveMinimum': 0},
-                  'height': {'type': 'number', 'exclusiveMinimum': 0},
+                  'width': {
+                    'type': 'number',
+                    'minimum': WhiteboardPlacementGeometryPolicy.minWidth,
+                    'maximum': WhiteboardPlacementGeometryPolicy.maxExtent,
+                  },
+                  'height': {
+                    'type': 'number',
+                    'minimum': WhiteboardPlacementGeometryPolicy.minHeight,
+                    'maximum': WhiteboardPlacementGeometryPolicy.maxExtent,
+                  },
                 },
               },
               {
@@ -460,13 +500,13 @@ class WorkbenchRuntimeWhiteboardDomainTool {
                 targetItemIds.contains(item.itemId))
             .toList(growable: false)
           ..sort((left, right) => left.itemId.compareTo(right.itemId));
-        if (targetItems.any((item) =>
-            !item.x.isFinite ||
-            !item.y.isFinite ||
-            !item.width.isFinite ||
-            !item.height.isFinite ||
-            item.width <= 0 ||
-            item.height <= 0)) {
+        if (targetItems
+            .any((item) => !WhiteboardPlacementGeometryPolicy.isValidGeometry(
+                  x: item.x,
+                  y: item.y,
+                  width: item.width,
+                  height: item.height,
+                ))) {
           return _unavailable(
             conversationId,
             characterId,
@@ -754,6 +794,9 @@ class WorkbenchRuntimeWhiteboardDomainTool {
     if (rawCommands.length > authorization.maxOperationCount) {
       return 'whiteboard_operation_limit_exceeded';
     }
+    if (_containsUnsupportedNumber(payload)) {
+      return 'invalid_whiteboard_request';
+    }
     final canonical = jsonEncode(_canonicalJson(payload));
     final seed = sha256
         .convert(utf8.encode(
@@ -814,8 +857,22 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           final itemId = 'item_${seed.substring(0, 24)}_$index';
           final labels = _stringList(command['labels']);
           if (labels == null) return 'invalid_whiteboard_request';
-          final width = _positiveNumber(command['width'], 260);
-          final height = _positiveNumber(command['height'], 200);
+          final width = _number(command['width'], 260);
+          final height = _number(command['height'], 200);
+          final x = hasX
+              ? _requiredNumber(command['x'])
+              : authorization.activeViewport.centerX - (width / 2);
+          final y = hasY
+              ? _requiredNumber(command['y'])
+              : authorization.activeViewport.centerY - (height / 2);
+          if (!WhiteboardPlacementGeometryPolicy.isValidGeometry(
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+          )) {
+            return 'invalid_whiteboard_request';
+          }
           commands.add(CreateCardCommand(
             commandId: commandId,
             cardId: cardId,
@@ -823,12 +880,8 @@ class WorkbenchRuntimeWhiteboardDomainTool {
             title: _optionalString(command['title']) ?? '',
             body: _optionalString(command['body']) ?? '',
             labels: labels,
-            x: hasX
-                ? _requiredNumber(command['x'])
-                : authorization.activeViewport.centerX - (width / 2),
-            y: hasY
-                ? _requiredNumber(command['y'])
-                : authorization.activeViewport.centerY - (height / 2),
+            x: x,
+            y: y,
             width: width,
             height: height,
           ));
@@ -877,11 +930,16 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           if (itemId == null || !allowedItems.contains(itemId)) {
             return 'whiteboard_target_outside_scope';
           }
+          final x = _requiredNumber(command['x']);
+          final y = _requiredNumber(command['y']);
+          if (!WhiteboardPlacementGeometryPolicy.isValidPosition(x, y)) {
+            return 'invalid_whiteboard_request';
+          }
           commands.add(MovePlacementCommand(
             commandId: commandId,
             itemId: itemId,
-            x: _requiredNumber(command['x']),
-            y: _requiredNumber(command['y']),
+            x: x,
+            y: y,
           ));
           continue;
         case 'resize_placement':
@@ -897,11 +955,16 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           if (itemId == null || !allowedItems.contains(itemId)) {
             return 'whiteboard_target_outside_scope';
           }
+          final width = _requiredNumber(command['width']);
+          final height = _requiredNumber(command['height']);
+          if (!WhiteboardPlacementGeometryPolicy.isValidSize(width, height)) {
+            return 'invalid_whiteboard_request';
+          }
           commands.add(ResizePlacementCommand(
             commandId: commandId,
             itemId: itemId,
-            width: _requiredPositiveNumber(command['width']),
-            height: _requiredPositiveNumber(command['height']),
+            width: width,
+            height: height,
           ));
           continue;
         case 'remove_placement':
@@ -1323,14 +1386,15 @@ double _requiredNumber(Object? value) {
   return value.toDouble();
 }
 
-double _requiredPositiveNumber(Object? value) {
-  final number = _requiredNumber(value);
-  if (number <= 0) throw const FormatException('Expected positive number');
-  return number;
-}
+double _number(Object? value, double fallback) =>
+    value == null ? fallback : _requiredNumber(value);
 
-double _positiveNumber(Object? value, double fallback) =>
-    value == null ? fallback : _requiredPositiveNumber(value);
+bool _containsUnsupportedNumber(Object? value) {
+  if (value is num) return !value.isFinite;
+  if (value is Map) return value.values.any(_containsUnsupportedNumber);
+  if (value is List) return value.any(_containsUnsupportedNumber);
+  return false;
+}
 
 Object? _canonicalJson(Object? value) {
   if (value is Map) {
