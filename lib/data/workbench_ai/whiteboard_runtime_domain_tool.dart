@@ -338,15 +338,25 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         !(normalized.contains('白板') || normalized.contains('卡片'))) {
       return null;
     }
-    final quoteScan = _scanQuotedLiterals(userText);
+    final quoteScan = _scanQuotedLiterals(normalized);
     if (!quoteScan.isValid) {
+      final trustedPrefix = _textBeforeFirstQuoteBoundary(normalized);
       final hasTitleTargetMarker = RegExp(
         r'(?:当前白板上|白板上)\s*标题\s*(?:为|是|叫)',
       ).hasMatch(userText);
       final prefixCapabilities = _capabilitiesFromExplicitRequest(
-        _textBeforeFirstQuoteBoundary(normalized),
+        trustedPrefix,
       );
-      if (!hasTitleTargetMarker && prefixCapabilities.isEmpty) return null;
+      final trustedTitleMarker = RegExp(
+        r'(?:当前白板上|白板上)\s*标题\s*(?:为|是|叫)',
+      ).firstMatch(trustedPrefix);
+      final hasDirectTitleWritePrefix = trustedTitleMarker != null &&
+          trustedPrefix.substring(trustedTitleMarker.end).trim().isEmpty &&
+          _hasDirectTitleTargetPrefix(
+            trustedPrefix,
+            trustedTitleMarker.start,
+          );
+      if (prefixCapabilities.isEmpty && !hasDirectTitleWritePrefix) return null;
       return WhiteboardRuntimeTurnAuthorization(
         conversationId: conversationId,
         characterId: characterId,
@@ -544,6 +554,17 @@ class WorkbenchRuntimeWhiteboardDomainTool {
                 targetItemIds.contains(item.itemId))
             .toList(growable: false)
           ..sort((left, right) => left.itemId.compareTo(right.itemId));
+        if (selectionBoundRelativeResize && targetItems.length != 1) {
+          return _unavailable(
+            conversationId,
+            characterId,
+            evidence,
+            capabilities,
+            targetItems.isEmpty
+                ? 'whiteboard_selection_required'
+                : 'whiteboard_selection_ambiguous',
+          );
+        }
         if (targetItems
             .any((item) => !WhiteboardPlacementGeometryPolicy.isValidGeometry(
                   x: item.x,

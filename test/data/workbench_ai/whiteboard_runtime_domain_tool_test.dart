@@ -214,6 +214,9 @@ void main() {
       '把白板卡片正文改成"卡片宽度增加 120 像素"': {
         WhiteboardWriteCapability.editCardBody,
       },
+      '  把白板卡片正文改成「卡片宽度增加 120 像素」  ': {
+        WhiteboardWriteCapability.editCardBody,
+      },
       '能帮我把这张白板卡片移动到右边吗': {
         WhiteboardWriteCapability.movePlacement,
       },
@@ -287,6 +290,45 @@ void main() {
       'whiteboard_quoted_literal_invalid',
     );
     expect(await harness.actions(), isEmpty);
+    final savesBeforeMalformedRouting = harness.store.saveCalls;
+    expect(
+      await harness.tool.prepareAuthorization(
+        conversationId: 'persona-i',
+        characterId: 'i',
+        userText: '为什么当前白板上标题为「Card A 的卡片不能移动？',
+        userAuthorizationMessageId: 'chat-message-malformed-consultation',
+      ),
+      isNull,
+    );
+    final malformedBodyWrite = await harness.tool.prepareAuthorization(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '把白板卡片正文改成「为什么还没完成',
+      userAuthorizationMessageId: 'chat-message-malformed-body-write',
+    );
+    expect(malformedBodyWrite, isNotNull);
+    expect(malformedBodyWrite!.available, isFalse);
+    expect(malformedBodyWrite.allowedCapabilities, isEmpty);
+    expect(
+      malformedBodyWrite.unavailableReason,
+      'whiteboard_quoted_literal_invalid',
+    );
+    final malformedDirectTitleWrite =
+        await harness.tool.prepareAuthorization(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '当前白板上标题为「Card A 的卡片正文改成 new',
+      userAuthorizationMessageId: 'chat-message-malformed-direct-title-write',
+    );
+    expect(malformedDirectTitleWrite, isNotNull);
+    expect(malformedDirectTitleWrite!.available, isFalse);
+    expect(malformedDirectTitleWrite.allowedCapabilities, isEmpty);
+    expect(
+      malformedDirectTitleWrite.unavailableReason,
+      'whiteboard_title_target_invalid',
+    );
+    expect(await harness.actions(), isEmpty);
+    expect(harness.store.saveCalls, savesBeforeMalformedRouting);
     for (final text in [
       '我今天说了"hello',
       '我只是在讨论白板卡片「还没说完',
@@ -741,6 +783,19 @@ void main() {
     expect(ambiguous.unavailableReason, 'whiteboard_selection_ambiguous');
     expect(await harness.actions(), isEmpty);
     expect(harness.store.saveCalls, savesBefore);
+
+    harness.detachSurface();
+    harness.attachSurface(selectedItemIds: const {'item_stale'});
+    final stale = await harness.authorize(
+      _exactR19RelativeWidthRequest,
+      messageId: 'chat-message-r19-stale-selection',
+    );
+    expect(stale, isNotNull);
+    expect(stale!.available, isFalse);
+    expect(stale.unavailableReason, 'whiteboard_selection_required');
+    expect(stale.targetPlacementGeometry, isEmpty);
+    expect(stale.toPromptBlock(), isNot(contains('target_placement_geometry')));
+    expect(await harness.actions(), isEmpty);
   });
 
   test('relative geometry never expands scope and invalid numbers write nothing',
