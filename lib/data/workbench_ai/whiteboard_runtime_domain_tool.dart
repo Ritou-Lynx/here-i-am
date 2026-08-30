@@ -333,6 +333,35 @@ class WorkbenchRuntimeWhiteboardDomainTool {
     required String userText,
     required String? userAuthorizationMessageId,
   }) async {
+    final normalized = userText.trim().toLowerCase();
+    if (normalized.isEmpty ||
+        !(normalized.contains('白板') || normalized.contains('卡片'))) {
+      return null;
+    }
+    final quoteScan = _scanQuotedLiterals(userText);
+    if (!quoteScan.isValid) {
+      final hasTitleTargetMarker = RegExp(
+        r'(?:当前白板上|白板上)\s*标题\s*(?:为|是|叫)',
+      ).hasMatch(userText);
+      final prefixCapabilities = _capabilitiesFromExplicitRequest(
+        _textBeforeFirstQuoteBoundary(normalized),
+      );
+      if (!hasTitleTargetMarker && prefixCapabilities.isEmpty) return null;
+      return WhiteboardRuntimeTurnAuthorization(
+        conversationId: conversationId,
+        characterId: characterId,
+        userAuthorizationMessageId:
+            userAuthorizationMessageId?.trim().isNotEmpty == true
+                ? userAuthorizationMessageId!.trim()
+                : 'missing',
+        allowedCapabilities: const {},
+        maxOperationCount: 0,
+        maxOperationCountByCapability: const {},
+        unavailableReason: hasTitleTargetMarker
+            ? 'whiteboard_title_target_invalid'
+            : 'whiteboard_quoted_literal_invalid',
+      );
+    }
     final capabilities = _capabilitiesFromExplicitRequest(userText);
     if (capabilities.isEmpty) return null;
     final evidence = userAuthorizationMessageId?.trim();
@@ -380,6 +409,21 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         evidence,
         capabilities,
         itemScopeError,
+      );
+    }
+    final selectionBoundRelativeResize = !explicitTitleTarget.specified &&
+        _hasRelativeResizeIntent(
+          _textOutsideQuotedLiterals(normalized, quoteScan.spans),
+        );
+    if (selectionBoundRelativeResize && surface.selectedItemIds.length != 1) {
+      return _unavailable(
+        conversationId,
+        characterId,
+        evidence,
+        capabilities,
+        surface.selectedItemIds.isEmpty
+            ? 'whiteboard_selection_required'
+            : 'whiteboard_selection_ambiguous',
       );
     }
     try {
@@ -1042,10 +1086,9 @@ Set<WhiteboardWriteCapability> _capabilitiesFromExplicitRequest(String text) {
     return const {};
   }
   if (_isWhiteboardConsultation(normalized)) return const {};
-  final intent = normalized.replaceAll(
-    RegExp(r'「[^」]*」|“[^”]*”'),
-    '',
-  );
+  final quoteScan = _scanQuotedLiterals(normalized);
+  if (!quoteScan.isValid) return const {};
+  final intent = _textOutsideQuotedLiterals(normalized, quoteScan.spans);
   final result = <WhiteboardWriteCapability>{};
   if (RegExp(r'新建|创建|添加.*卡片|加一张').hasMatch(intent)) {
     result.add(WhiteboardWriteCapability.createCard);
@@ -1070,7 +1113,8 @@ Set<WhiteboardWriteCapability> _capabilitiesFromExplicitRequest(String text) {
     r'(?:调整|修改|设置).{0,16}(?:尺寸|大小|宽度|高度)|'
     r'(?:尺寸|大小|宽度|高度).{0,16}'
     r'(?:调整|改成|改为|修改为|设为|设置为)',
-  ).hasMatch(intent)) {
+  ).hasMatch(intent) ||
+      _hasRelativeResizeIntent(intent)) {
     result.add(WhiteboardWriteCapability.resizePlacement);
   }
   if (RegExp(r'从白板移除|移出白板|移除摆放|拿出白板').hasMatch(intent)) {
@@ -1108,7 +1152,8 @@ bool _containsStrongWhiteboardQuestionMarker(String text) => RegExp(
       r'什么(?:内容|标签|位置)|多大|多宽|多高|合适吗|对吗',
     ).hasMatch(text);
 
-bool _isExplicitDelegatedWhiteboardWrite(String text) => RegExp(
+bool _isExplicitDelegatedWhiteboardWrite(String text) =>
+    RegExp(
       r'(?:能帮我|可以帮我|请帮我)(?:把|将).{0,40}'
       r'(?:移动到|移到|挪到|放到|'
       r'(?:正文|内容).{0,12}(?:改成|改为|修改为|设为|设置为)|'
@@ -1116,7 +1161,21 @@ bool _isExplicitDelegatedWhiteboardWrite(String text) => RegExp(
       r'(?:宽度|高度|宽高|尺寸|大小).{0,12}'
       r'(?:改成|改为|修改为|设为|设置为|调整(?:为|成)?)|'
       r'调宽|调高|变宽|变窄|从白板移除|移出白板|移除摆放|拿出白板)',
+    ).hasMatch(text) ||
+    RegExp(
+      r'(?:能帮我|可以帮我|请帮我)(?:把|将)'
+      r'[^，,。！？!?；;\n\r]{0,40}'
+      '$_relativeResizeIntentPattern',
     ).hasMatch(text);
+
+const _relativeResizeIntentPattern =
+    r'(?:尺寸|大小|宽度|高度)[ \t]*(?:增加|减少)[ \t]*'
+    r'[0-9]+(?:\.[0-9]+)?'
+    r'(?:[ \t]*(?:个[ \t]*)?(?:像素|px))?'
+    r'(?=[ \t]*(?:[，,。！？!?；;：:]|吗|吧|$))';
+
+bool _hasRelativeResizeIntent(String text) =>
+    RegExp(_relativeResizeIntentPattern).hasMatch(text);
 
 class _ExplicitTitleTarget {
   const _ExplicitTitleTarget.none()
@@ -1158,6 +1217,27 @@ class _QuotedLiteralScan {
   final bool isValid;
 
   bool contains(int offset) => spans.any((span) => span.contains(offset));
+}
+
+String _textOutsideQuotedLiterals(
+  String text,
+  List<_QuotedLiteralSpan> spans,
+) {
+  final output = StringBuffer();
+  var cursor = 0;
+  for (final span in spans) {
+    output
+      ..write(text.substring(cursor, span.start))
+      ..write(' ');
+    cursor = span.end;
+  }
+  output.write(text.substring(cursor));
+  return output.toString();
+}
+
+String _textBeforeFirstQuoteBoundary(String text) {
+  final firstBoundary = text.indexOf(RegExp(r'[「」『』“”‘’"]'));
+  return firstBoundary < 0 ? text : text.substring(0, firstBoundary);
 }
 
 _QuotedLiteralScan _scanQuotedLiterals(String text) {
@@ -1231,16 +1311,17 @@ bool _hasTargetOperationAfter(
     return true;
   }
   if (capabilities.contains(WhiteboardWriteCapability.resizePlacement) &&
-      RegExp(
-        '$prefix'
-        r'(?:缩放|放大|缩小|调宽|调高|变宽|变窄)\s*(?:为|成|到)|'
-        '$prefix'
-            r'(?:调整|修改|设置)\s*(?:尺寸|大小|宽度|高度)\s*'
-            r'(?:为|成|到)|'
-        '$prefix'
-            r'(?:尺寸|大小|宽度|高度)\s*'
-            r'(?:调整为|调整成|改成|改为|修改为|设为|设置为)',
-      ).hasMatch(suffix)) {
+      (RegExp(
+            '$prefix'
+            r'(?:缩放|放大|缩小|调宽|调高|变宽|变窄)\s*(?:为|成|到)|'
+            '$prefix'
+                r'(?:调整|修改|设置)\s*(?:尺寸|大小|宽度|高度)\s*'
+                r'(?:为|成|到)|'
+            '$prefix'
+                r'(?:尺寸|大小|宽度|高度)\s*'
+                r'(?:调整为|调整成|改成|改为|修改为|设为|设置为)',
+          ).hasMatch(suffix) ||
+          RegExp('$prefix$_relativeResizeIntentPattern').hasMatch(suffix))) {
     return true;
   }
   return capabilities.contains(WhiteboardWriteCapability.removePlacement) &&
@@ -1341,7 +1422,8 @@ Set<WhiteboardWriteCapability> _negatedCapabilities(String text) {
     if (RegExp(r'移动|挪动|移到|放到|位置').hasMatch(clause)) {
       result.add(WhiteboardWriteCapability.movePlacement);
     }
-    if (RegExp(r'缩放|放大|缩小|尺寸|大小|宽度|高度').hasMatch(clause)) {
+    if (_hasRelativeResizeIntent(clause) ||
+        RegExp(r'缩放|放大|缩小|尺寸|大小|宽度|高度').hasMatch(clause)) {
       result.add(WhiteboardWriteCapability.resizePlacement);
     }
     if (RegExp(r'从白板移除|移出白板|移除摆放|拿出白板').hasMatch(clause)) {

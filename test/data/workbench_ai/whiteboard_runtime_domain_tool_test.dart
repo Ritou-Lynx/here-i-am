@@ -116,6 +116,12 @@ void main() {
       '白板卡片已移动好了吧',
       '白板卡片移动成功了吧',
       '白板卡片移动了是吧',
+      '当前选中卡片宽度增加 120 像素吗',
+      '不要把选中白板卡片宽度增加 120 像素',
+      '把选中白板卡片宽度增加一点',
+      '把选中白板卡片宽度增加一些',
+      '把选中白板卡片宽度增加一百二十像素',
+      '把选中白板卡片宽度增加 120%',
     ]) {
       expect(
         await harness.tool.prepareAuthorization(
@@ -156,6 +162,57 @@ void main() {
       },
       '请调整白板卡片宽度': {
         WhiteboardWriteCapability.resizePlacement,
+      },
+      '当前选中卡片宽度增加 120 像素': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '把选中卡片卡片宽度增加 120 像素': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '把选中白板卡片宽度减少 40 像素': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '把选中白板卡片高度增加 80 像素': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '把选中白板卡片高度减少 20 像素': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '把选中白板卡片大小增加 120': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '把选中白板卡片尺寸减少 20 px': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '能帮我把当前选中卡片宽度增加 120 像素吗': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '把选中白板卡片宽度增加 120 像素，不要移动': {
+        WhiteboardWriteCapability.resizePlacement,
+      },
+      '不要把选中白板卡片宽度增加 120 像素，移动到右边': {
+        WhiteboardWriteCapability.movePlacement,
+      },
+      '把选中白板卡片移动 120 像素': {
+        WhiteboardWriteCapability.movePlacement,
+      },
+      '给白板卡片添加标签「宽度 120 像素」': {
+        WhiteboardWriteCapability.setCardLabels,
+      },
+      '把白板卡片正文改成「卡片宽度增加 120 像素」': {
+        WhiteboardWriteCapability.editCardBody,
+      },
+      '把白板卡片正文改成『卡片宽度增加 120 像素』': {
+        WhiteboardWriteCapability.editCardBody,
+      },
+      '把白板卡片正文改成“卡片宽度增加 120 像素”': {
+        WhiteboardWriteCapability.editCardBody,
+      },
+      '把白板卡片正文改成‘卡片宽度增加 120 像素’': {
+        WhiteboardWriteCapability.editCardBody,
+      },
+      '把白板卡片正文改成"卡片宽度增加 120 像素"': {
+        WhiteboardWriteCapability.editCardBody,
       },
       '能帮我把这张白板卡片移动到右边吗': {
         WhiteboardWriteCapability.movePlacement,
@@ -213,6 +270,36 @@ void main() {
         authorization?.maxOperationCount,
         entry.value.length,
         reason: entry.key,
+      );
+    }
+
+    final malformedQuote = await harness.tool.prepareAuthorization(
+      conversationId: 'persona-i',
+      characterId: 'i',
+      userText: '当前选中卡片宽度增加 120 像素，正文改成「未闭合',
+      userAuthorizationMessageId: 'chat-message-malformed-relative-resize',
+    );
+    expect(malformedQuote, isNotNull);
+    expect(malformedQuote!.available, isFalse);
+    expect(malformedQuote.allowedCapabilities, isEmpty);
+    expect(
+      malformedQuote.unavailableReason,
+      'whiteboard_quoted_literal_invalid',
+    );
+    expect(await harness.actions(), isEmpty);
+    for (final text in [
+      '我今天说了"hello',
+      '我只是在讨论白板卡片「还没说完',
+    ]) {
+      expect(
+        await harness.tool.prepareAuthorization(
+          conversationId: 'persona-i',
+          characterId: 'i',
+          userText: text,
+          userAuthorizationMessageId: 'chat-message-malformed-non-write',
+        ),
+        isNull,
+        reason: text,
       );
     }
 
@@ -473,6 +560,187 @@ void main() {
     expect(afterCard.title, beforeCard.title);
     expect(afterCard.body, beforeCard.body);
     expect(afterCard.tags, beforeCard.tags);
+  });
+
+  test(
+      'exact R19 relative width resize uses selected geometry and changes only width',
+      () async {
+    await harness.repository.updateCardMetadata(
+      'card_a',
+      title: 'Runtime 创建验收 R14',
+      body: 'R15 Runtime 正文编辑通过',
+      tags: const ['runtime验收'],
+    );
+    final seeded = (await harness.store.load('board_1')).snapshot!;
+    final seededItem =
+        seeded.boardItems.singleWhere((item) => item.itemId == 'item_a');
+    expect(
+      await harness.store.seed(
+        'board_1',
+        WhiteboardSnapshot.fromJson({
+          ...seeded.toJson(),
+          'board_items': [
+            BoardItem(
+              itemId: seededItem.itemId,
+              boardId: seededItem.boardId,
+              cardId: seededItem.cardId,
+              x: 1039.862130884688,
+              y: 1045.1693417620572,
+              width: 887.5555555555558,
+              height: 740.4444444444441,
+            ).toJson(),
+          ],
+        }),
+      ),
+      isTrue,
+    );
+    final before = (await harness.store.load('board_1')).snapshot!;
+    final beforeCard =
+        before.cards.singleWhere((card) => card.cardId == 'card_a');
+    final beforeItem =
+        before.boardItems.singleWhere((item) => item.itemId == 'item_a');
+    SharedPreferences.setMockInitialValues({});
+    DeviceIdentityService.resetForTesting();
+    AppDatabase.setTestInstance(harness.db);
+    final runtime = _ToolCallRuntime.fromInput((input) {
+      final context = _whiteboardContextFromPrompt(input);
+      expect(context['capabilities'], ['resize_placement']);
+      expect(context['target_scope_source'], 'selection');
+      expect(context['selected_item_ids'], ['item_a']);
+      expect(context['selected_card_ids'], ['card_a']);
+      expect(context['target_item_ids'], ['item_a']);
+      expect(context['target_card_ids'], ['card_a']);
+      expect(
+        context['target_placement_geometry_source'],
+        'host_authoritative_snapshot_for_absolute_move_or_resize',
+      );
+      final geometry =
+          (context['target_placement_geometry'] as List).single as Map;
+      expect(geometry, {
+        'item_id': 'item_a',
+        'x': beforeItem.x,
+        'y': beforeItem.y,
+        'width': beforeItem.width,
+        'height': beforeItem.height,
+      });
+      return {
+        'commands': [
+          {
+            'kind': 'resize_placement',
+            'item_id': geometry['item_id'],
+            'width': (geometry['width'] as num) + 120,
+            'height': geometry['height'],
+          },
+        ],
+      };
+    });
+    final conversation = WorkbenchConversationCoordinator.productionComposition(
+      runtime: runtime,
+      whiteboardToolFactory: () => harness.tool,
+      addReply: (_, __) async => 1,
+      pollInterval: Duration.zero,
+      turnTimeout: const Duration(seconds: 5),
+    );
+    final result = await sendPersonaDesktopConversationEntry(
+      chatService: PersonaChatService.instance,
+      coordinator: conversation,
+      conversationId: 'persona-r19-relative-resize',
+      characterId: 'i',
+      userText: _exactR19RelativeWidthRequest,
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(runtime.responses, hasLength(1));
+    expect(runtime.responses.single.success, isTrue,
+        reason: runtime.responses.single.text);
+    expect(jsonDecode(runtime.responses.single.text)['status'], 'applied');
+    expect(runtime.dynamicTools.map((tool) => tool['name']),
+        contains(WorkbenchRuntimeWhiteboardDomainTool.toolName));
+    final actions = await harness.actions();
+    expect(actions, hasLength(1));
+    expect(actions.single.projection.status.name, 'completed');
+    final after = (await harness.store.load('board_1')).snapshot!;
+    final afterCard =
+        after.cards.singleWhere((card) => card.cardId == 'card_a');
+    final afterItem =
+        after.boardItems.singleWhere((item) => item.itemId == 'item_a');
+    expect(afterItem.width, beforeItem.width + 120);
+    expect(afterItem.height, beforeItem.height);
+    expect(afterItem.x, beforeItem.x);
+    expect(afterItem.y, beforeItem.y);
+    expect(afterCard.title, beforeCard.title);
+    expect(afterCard.body, beforeCard.body);
+    expect(afterCard.tags, beforeCard.tags);
+  });
+
+  test('exact R19 relative resize with no selection rejects before writes',
+      () async {
+    harness.detachSurface();
+    harness.attachSurface(selectedItemIds: const {});
+    final before = (await harness.store.load('board_1')).snapshot!;
+    final savesBefore = harness.store.saveCalls;
+    final authorization = await harness.authorize(
+      _exactR19RelativeWidthRequest,
+      messageId: 'chat-message-r19-no-selection',
+    );
+
+    expect(authorization, isNotNull);
+    expect(
+      authorization!.allowedCapabilities,
+      {WhiteboardWriteCapability.resizePlacement},
+    );
+    expect(authorization.available, isFalse);
+    expect(authorization.unavailableReason, 'whiteboard_selection_required');
+    expect(authorization.selectedItemIds, isEmpty);
+    expect(authorization.selectedCardIds, isEmpty);
+    expect(authorization.targetPlacementGeometry, isEmpty);
+    expect(
+      authorization.toPromptBlock(),
+      contains('whiteboard_selection_required'),
+    );
+    expect(
+      authorization.toPromptBlock(),
+      isNot(contains('target_placement_geometry')),
+    );
+
+    final rejected = await harness.tool.invoke(
+      const {
+        'commands': [
+          {
+            'kind': 'resize_placement',
+            'item_id': 'item_a',
+            'width': 1007.5555555555558,
+            'height': 740.4444444444441,
+          },
+        ],
+      },
+      authorization: authorization,
+      runtimeTurnId: 'turn-r19-no-selection',
+      isCancelled: () => false,
+    );
+
+    expect(jsonDecode(rejected.text)['error_code'],
+        'whiteboard_selection_required');
+    expect(await harness.actions(), isEmpty);
+    expect(harness.store.saveCalls, savesBefore);
+    expect(
+      WhiteboardDomainCommandExecutor.snapshotHash(
+        (await harness.store.load('board_1')).snapshot!,
+      ),
+      WhiteboardDomainCommandExecutor.snapshotHash(before),
+    );
+
+    harness.detachSurface();
+    harness.attachSurface(selectedItemIds: const {'item_a', 'item_stale'});
+    final ambiguous = await harness.authorize(
+      _exactR19RelativeWidthRequest,
+      messageId: 'chat-message-r19-ambiguous-selection',
+    );
+    expect(ambiguous, isNotNull);
+    expect(ambiguous!.available, isFalse);
+    expect(ambiguous.unavailableReason, 'whiteboard_selection_ambiguous');
+    expect(await harness.actions(), isEmpty);
+    expect(harness.store.saveCalls, savesBefore);
   });
 
   test('relative geometry never expands scope and invalid numbers write nothing',
@@ -748,6 +1016,8 @@ void main() {
       '把当前白板上标题为「Card A」的卡片移动到右边。':
           WhiteboardWriteCapability.movePlacement,
       '把当前白板上标题为「Card A」的卡片大小改为 320。':
+          WhiteboardWriteCapability.resizePlacement,
+      '把当前白板上标题为「Card A」的卡片宽度增加 120 像素。':
           WhiteboardWriteCapability.resizePlacement,
       '把当前白板上标题为「Card A」的卡片从白板移除。':
           WhiteboardWriteCapability.removePlacement,
@@ -2232,6 +2502,8 @@ const _exactR15BodyEditRequest =
 const _exactR18RelativeMoveRequest =
     '把当前白板上标题为「Runtime 创建验收 R14」的卡片移动到当前位置右侧 120 像素。'
     '标题、正文、标签和大小保持不变。';
+
+const _exactR19RelativeWidthRequest = '当前选中卡片宽度增加 120 像素';
 
 const _exactR14CreateRequest =
     '请在当前白板创建一张标题为「Runtime 创建验收 R14」、正文为「R14 Runtime 旧正文」的卡片。';
