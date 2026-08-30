@@ -2,11 +2,11 @@
 
 > 状态：当前权威产品与执行路线
 >
-> 最后更新：2026-08-28
+> 最后更新：2026-08-30
 >
 > 执行基线：`v3-lab`
 >
-> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过；P4 第八轮代码、独立审计、集成与自动 Gate 已完成，待构建新唯一候选并从人工第一项重启真人 Gate；P5 / P6 与最终真人 Gate 继续阻塞
+> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过；P4 R18 已交付、双轮审计、集成并通过主线 `99/99`，正在构建新的 Runtime 移动候选；P5 / P6 与最终真人 Gate 继续阻塞
 
 本文回答四个问题：Here I Am 最终是什么、数据以哪里为准、当前真实基线在哪里、下一阶段按什么 Gate 推进。它不是无限任务清单，也不替代阶段 Goal。每次只从本路线提出一个可验收 Goal；Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
@@ -16,7 +16,33 @@
 
 2026-08-28 真人复验推翻了“P4 只差重开 Undo”的旧判断：合并后唯一候选 `v3-lab@53d2dc91` 中，手动六类操作仍绕过 Domain Receipt / 持久 Undo，桌面 Runtime 也没有注册或分发六类 DomainCommand。父 Goal 因此阻塞，用户已创建窄返修 Goal [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)；它只补人工 / Runtime 共用生产纵切与退出重开 Undo，不扩张 P5、P6、W4 或 Gate 1A。
 
-2026-08-29 真人 Gate 进一步推翻了“P4 只剩退出重开”的判断：`30a73ce3` 在人工第一项即把既有透明单面 `CompactCardEditor` 替换成异色表单，标题不可编辑；每次 Domain receipt 后的整板 reload 还用持久 viewport 覆盖用户当前 pan / zoom，造成白板跳位。该候选已作废。原 W1 第八轮现已恢复既有双击单面 UX、manual-only 标题与正文同 batch / Receipt / Undo、active viewport，并补 Runtime 执行侧标题防线和保存失败可见性；两轮 test-only 清理关闭 Windows teardown 与真实 rich I/O 等待不稳定。W0 完成独立复核、主线集成和核心 `73/73`、相邻最终 `107/107`、Repository `39/39`、Card Library `13/13` 等自动 Gate。Domain 正文仍严格限定为 canonical 纯文本替换；repository 计算型 stale 隐藏但保留投影不匹配的旧 RichTextDocument / assets，不新增跨 DB / filesystem journal，也不把 P4 扩大成 full rich-text authoring。新唯一候选和真人 Gate 完成前，P4 仍未通过。
+2026-08-29 真人 Gate 进一步推翻了“P4 只剩退出重开”的判断：`30a73ce3` 在人工第一项即把既有透明单面 `CompactCardEditor` 替换成异色表单，标题不可编辑；每次 Domain receipt 后的整板 reload 还用持久 viewport 覆盖用户当前 pan / zoom，造成白板跳位。该候选已作废。原 W1 第八轮现已恢复既有双击单面 UX、manual-only 标题与正文同 batch / Receipt / Undo、active viewport，并补 Runtime 执行侧标题防线和保存失败可见性；两轮 test-only 清理关闭 Windows teardown 与真实 rich I/O 等待不稳定。W0 完成独立复核、主线集成和核心 `73/73`、相邻最终 `107/107`、Repository `39/39`、Card Library `13/13` 等自动 Gate。Domain 正文仍严格限定为 canonical 纯文本替换；repository 计算型 stale 隐藏但保留投影不匹配的旧 RichTextDocument / assets，不新增跨 DB / filesystem journal，也不把 P4 扩大成 full rich-text authoring。新唯一候选 `77949971` 已从 detached clean Worktree 构建、指纹化并启动；真人 Gate 完成前，P4 仍未通过。
+
+2026-08-29 `77949971` 的人工双击编辑、标题 / 正文、viewport 与右键标签曾通过，但进入白板直接新建卡片的 full editor 时，系统把正常尚无 rich 文件的 canonical plain Card 错误宣告为“富文本文件缺失 / 数据库正文投影恢复”。第九 / 十轮改成中性通知并集成为 `526db238`，自动 Gate 全绿，但新候选真人第 1 项再次失败：内嵌编辑右侧出现滚动条，Delete / Backspace 被画布快捷键抢占并直接移除 BoardItem；回卡片库全屏编辑时，中性 rich 物化通知本身仍是正常新卡不应出现的内部噪声。候选已冻结，旧真人通过项不沿用；P4-R 必须让编辑态键盘事件归输入框、退出编辑后 Delete 才移除摆放，并让正常新卡无通知，corrupt / stale 继续可见。
+
+第十一至十三轮现已关闭这三项回归：编辑态仅保留画布 Escape，文字删除 / 选择 / 导航与 Undo 归输入框；内嵌编辑不再绘制 Windows scrollbar；既有 KV 以 Card incarnation 记录 rich materialization evidence，使正常 plain missing 静默、真实曾物化后丢失才告警，corrupt / stale 仍可见。worker `f7407823..08b112e8` 经独立复审后集成为 `a8ef84d9..7fa6cbb9`，集成态定向 `57/57` 与关键守门通过。exact `7fa6cbb9` Windows 候选已构建并健康运行，完整真人 Gate 从第 1 项重新开始；full-rich 并发、物理删除孤儿清理与 rich root 备份仍是后续债。
+
+`7fa6cbb9` 的人工 create / edit / labels / move / resize / remove 六类真人操作随后全部通过，但 Runtime create 首项再次推翻自动绿灯：Domain action 与 Card / BoardItem 已成功落库，Runtime host 却生成富文本文件系统拒绝的冒号 ID，并把未指定坐标默认写在远离 active viewport 的 `(0,0)`；快捷卡片库的 drag / click 又只生成未落盘的 ViewModel placement，后续写操作返回 `placement_not_found`，单张 unsafe Card 还能中止全局卡片库加载。该候选已冻结，真实数据只读取证后保持原样；同一 P4-R Goal 已派发第十四轮，只补 safe ID 与精确 legacy 映射、host-owned 可见落点、manual-only 持久 place command 和按卡失败隔离，不改 schema 或新增 Runtime capability。
+
+第十四轮已把这三条断链收回同一权威路径：Runtime 使用确定性 safe ID，缺省坐标按 active viewport 可见居中；精确 legacy 冒号 ID 只进入隔离安全目录，其它非法 ID 仍 fail closed；快捷卡片库 click / drag 通过 manual-only DomainCommand 落入 Drift / Receipt / reload，失败不留幽灵 placement，Runtime capability 不扩张。worker `5f515512..715be434` 经两份独立复核后集成为 `v3-lab@caecf05e..884dcd80`，自动 Gate 与关键守门通过；exact `884dcd80` detached clean Windows Debug 候选已构建、指纹化并启动，App / Bridge / Runtime 健康，真人从 Runtime create 首项重验。
+
+`884dcd80` 的 Runtime create 首项现已真人通过：新卡立即出现在当前视口。后续操作暴露一个跨焦点缺口——用户从聊天输入切回白板、单击卡片后 Delete 未到达画布；它不推翻创建与持久化结论，但必须在 P4 关闭前形成真实 Gate。另有一项非阻断呈现债：手动白板操作当前也把可撤销行动卡逐条持久投到主关系对话；底层 Receipt / Undo / append-only 审计继续保留，手动过程提示应迁往白板操作历史或撤销表面，主对话只保留用户需要的授权、失败与结果摘要。
+
+随后全局卡片库真人 Gate 通过：桌面侧栏独立卡片库可正常加载，没有再因 legacy unsafe Card 导致 `Unsafe card ID` 或全库失败，并能检索到“Runtime 创建验收 R14”。当前只继续验证白板内快捷卡片库是否通过 manual-only DomainCommand 形成持久 placement，而不是再次混测全局检索。
+
+白板内快捷库的下一项真人 Gate 随即失败：单击 R14 卡后新摆放出现，但 ArrowRight 没有可确认右移且 selection 消失。两份只读审计确认 production manual command 的 lock / reload 会清空 selection，而既有测试等待时序过强且没有断言真实鼠标焦点与 reload 后 selection 连续性。`884dcd80` 因此冻结；create / global library 仅保留为已观察证据，不能把快捷库持久移动、Receipt 或 restart 宣称通过。R15 只修 W1 交互连续性与 production route 证据，不改共享领域契约。
+
+R15 现已在 production route/manual UI 边界恢复“仅限持久 reload 后仍存在 BoardItem”的 selection，并让画布在真实鼠标选择及成功 placement / move / resize 后显式收回焦点；失败、目标已移除、reconciliation failure 或 surface/route 已切换时仍不恢复陈旧 selection。worker `245af967` 与审计补强 `bf134301` 经独立复核后集成为 `v3-lab@372885cb..a36e5236`；主窗 production route `7/7`、三文件 analyze、critical `3/3` 与 diff check 均通过。exact `a36e5236` detached clean Windows Debug 候选已构建、指纹化并启动，App / Bridge / Runtime 健康。快捷库新摆放后连续两次 ArrowRight 已真人通过，逻辑 selection 保留；每次移动的选中框短暂闪烁后恢复，登记为非阻断视觉抖动。聊天输入拿过焦点后，单击卡片再按 Delete 也已正确移除 BoardItem，R15 两项真人返修闭环。当前恢复 Runtime 剩余五类操作，先验正文编辑；行动卡占用主关系对话仍是非阻断呈现路由债，本轮没有顺带修改。
+
+Runtime 正文编辑首项随即失败：用户明确要求把 R14 卡片正文改为新值，同时限定“不改标题、标签、位置或大小”，产品回复 `unsupported_product_tool`，并只读确认所有字段均未误改。两份独立审计和运行时输入证据共同确认：全局否定短路先于正向能力提取，尾句对其它字段的限制把 `edit_card_body` 授权也整体清空；因此标准白板工具调用在 conversation dispatcher 被拒，未进入 adapter / facade / Drift。`a36e5236` 候选冻结，后续 Receipt / restart / Undo / conflict Gate 停止；同一 P4-R 已派发 R16 独立任务 `01a04d7d-d383-79b2-a7ce-865f80761452`，只做 capability 级授权解析与 exact 真人原句回归，不扩六类能力或共享领域契约。
+
+R16 已把授权解析改为“先识别逐项正向能力，再减去同一局部子句内的否定能力”，并先剥离引号内容，避免正文示例文本干扰授权。worker 首轮 `4a15faad..e5d22ad0` 经 Terra medium 独立复核发现“不需要 / 不必”仍可能越权；follow-up `2ad8c134..daaa1e47` 补齐“不想 / 不希望”和中英文逗号边界后复审无阻断。W0 选择性集成为 `v3-lab@2778478a..66017099`；Runtime `14/14`、coordinator `23/23`、目标 analyze、critical `3/3` 与 diff check 均通过。exact `66017099e54ac6015949eb2419bf9a92e1dc7d55` detached clean Windows Debug 候选已构建并启动（PID `56408`），App / Bridge / Runtime 健康；现在只用原句重测正文编辑，真人结果出来前不恢复后续 Gate，也未 push 或发布。
+
+原句在 `66017099` 上已越过 capability 授权，却被 `whiteboard_target_outside_scope` 拒绝；所有字段仍零误改。该轮真实 host context 直接显示 `selected_item_ids` / `selected_card_ids` 均为空，而 R16 exact production 测试固定预选 `item_a` 且让 fake Runtime 预知 `card_a`，因此漏掉“当前白板上标题为…”的自然语言目标链。两份独立审计确认生产没有 current-board title resolver，只有 selection-derived scope；不能靠隐藏点击顺序把原句判绿。`66017099` 冻结后，同一 P4-R 已派发 Sol high R17 `01a04de1-94ba-7c63-b685-0e88301b9468`，只补 host-owned、当前板、精确唯一标题到稳定目标的 fail-closed 解析；不开放整板 / 全局库 / 模糊匹配，不改六命令或共享领域契约。
+
+R17 已把未预选场景收回 host-owned 当前板边界：仅对直接目标句做精确唯一标题解析，0 / 多义 / 跨板 / 仅卡片库全部拒绝；Card 多 placement 时正文 / 标签可按 Card 写，placement 操作因 item 多义拒绝。授权同时绑定 exact surface 实例，flush、invoke 与 durable 前任一重挂或切板都 fail closed；正文引号 literal 不参与标题作用域解析。worker `f026b23b..a7a6b3da` 经独立复核关闭三项 P1 后，W0 集成为 `v3-lab@21ade156..1f77633a`；Runtime + coordinator `51/51`、目标 analyze、critical `3/3` 与 diff check 均通过。清除 process-memory binding 后，2026-08-30 正文与标签真人通过；真实状态是标题仍为“Runtime 创建验收 R14”、正文为“R15 Runtime 正文编辑通过”、标签为小写“runtime验收”。随后“右移 120 像素”turn 已获得唯一目标与 `move_placement` 授权，却因上下文缺当前 `x/y`、动态白板工具仅为软提示而没有调用产品工具，`180084ms` 后 `runtime_timeout`；零 payload、host result、Receipt 与写入。`1f77633a` 候选已冻结，R18 只补 bounded placement geometry 并真实探测 App Server required-tool wire；P5 / P6、其它 P4 Gate、push 与发布仍未解锁。
+
+R18 已只向本轮获准 move / resize 的 exact target 注入同一 authoritative snapshot 的 `item_id/x/y/width/height`，geometry 不参与 scope，0 / 多义 / forged target 仍 fail closed；领域与 Runtime 共用坐标 ±1,000,000、宽 `80..3000`、高 `60..3000` 的唯一边界。首轮独立复核拦下极端 finite 坐标可持久化和非法尺寸先建 action 两项 P1，follow-up 后终审无 P0/P1/P2。真实 `codex-cli 0.151.0-alpha.7.2` schema 证明 `TurnStartParams` 没有 per-turn `toolChoice` / `requiredTool` / `allowedTools` / `dynamicTools`，因此不猜字段、不伪造强制工具能力。worker `9297fd1c..c7d38601` 已选择性集成为 `v3-lab@2b2275d4..eec22abb`；主线 Runtime + Domain `49/49`、coordinator + client `25/25`、Bridge `25/25`，合计 `99/99`，四文件 analyze clean、critical `3/3`、diff check PASS。当前只差从受控提交构建新唯一 Windows 候选并重测移动；其它 Gate 仍未解锁。
 
 2026-08-28 并行例外 Goal [`GOAL-20260828-legacy-cleanup-wave1`](../development/goals/GOAL-20260828-legacy-cleanup-wave1.md) 已验收通过并进入 `v3-lab@a29b212e`：第一批零注册 / 零调用孤岛与退役测试已删除，仍有效的 Tavern / Companion 覆盖已迁移或保留，全仓退役测试编译错误归零。该清理不改变产品路线、数据权威或 P4 主 Goal，也未触碰 SharedLife、CardCache、日程、UI 大簇、schema、依赖或用户数据。
 
@@ -147,7 +173,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| 已恢复的 AI 工作台 Goal | UI-T 已真人通过；P4 第八轮已恢复既有双击单面编辑、manual-only 标题 Receipt / Undo 与 active viewport，并完成独立审计、主线集成及核心 `73/73`、相邻最终 `107/107` 等自动 Gate；P6 已补 host-owned 生产 Runtime 队列入口 | P4 待构建新唯一 Windows 候选，并等待从人工第一项重启完整真人 Gate；P5 / P6 真人 Gate、W4 红灯仍未通过，也未授权 push / 发布 |
+| 已恢复的 AI 工作台 Goal | UI-T、P4 人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动与聊天切回 Delete、R17 精确标题正文与标签编辑均已真人通过；R16 capability、R17 current-board exact-title scope 与 R18 bounded geometry 已独立复核并集成；P6 已补 host-owned 生产 Runtime 队列入口 | R18 自动 Gate 已通过，新的 Runtime move Windows 候选构建中；通过前不继续 resize / remove、Receipt / restart / Undo / conflict；P5 / P6、W4、push / 发布仍阻塞 |
 | 已关闭的临时预备 Goal | `GOAL-20260826-authority-preflight` 已通过用户真人审阅并关闭，只使用代码实况与合成数据 | 已交付对象盘点、迁移矩阵、golden corpus 与隔离 harness 骨架；没有切换生产权威，也不证明 Gate 1A-0 通过 |
 | Desktop Whiteboard | Card/Source/Board/Anchor 骨架、卡片库、画布、链接入库、视频研读、通用命令基础 | Markdown 权威迁移、完整删除/恢复、文件导入与外部编辑冲突、生产搜索和灾难恢复尚未形成统一 Gate |
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
@@ -156,6 +182,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 | Teacher Recruitment | 历史 Phase 0 试点证明登录、检索和查询拆分在技术上曾可运行；教材包已完成 OCR、结构、知识树与查询接口。该试点保留为“技术验证完成、产品路线失效”的历史证据 | 2026-08-26 账号违规预警已推翻登录态 discovery 的生产可用性，登录态小红书 MCP 正式退役。当前可用基线是用户人工选材、链接导入、匿名单篇解析和教材 OCR；尚缺 Link Inbox、本地去重、逐项解析及 `needs_screenshot` 等诚实状态，也尚未建立正式 Source/Evidence/Batch 数据层、全深圳轻量普查、深样本、看板和真人 Pilot Gate |
 | Reading / Co-reading | 小说/漫画阅读、Topic Thread、划线批注基础和新调研输入已存在 | 统一 ReadingPackage、白板阅读窗、稳定跨格式 Anchor 与真实作品验收未闭环；主动品味系统明确延期 |
 | Mobile Companion | 主聊天、语音、显式记录、Memory V3 与便携捕获能力存在 | 手机新功能开发暂停；Android FGS、数据安全和严重故障修复仍按证据处理，统一卡片库移动视图和 Core 完整切换以后再做 |
+| Health / 多端活动检测 | Android 已有按需 UsageStats、App 前台心跳、标准 BLE HRS 软件闭环、Health 状态面与通知/来电基础；iCore 已有设备配对和 token | COROS 实物整夜 Gate 未完成；没有活动事件域、write-only probe、Windows/第二 Android/iPhone 探针、保守清醒状态机或受控介入 Gate，现状不能实时判断用户是否仍清醒 |
 
 当前状态以 [`GOAL-20260824-ai-workbench-wave1.md`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)、[`I_PROJECT_STATE.md`](../development/I_PROJECT_STATE.md) 和当前可达提交为证据。Roadmap 不把“代码存在、自动 Gate 通过或已经 push”写成“真人通过”。
 
@@ -167,12 +194,12 @@ Android 严重崩溃、Memory 真实误召回、数据损坏、安全漏洞和 P
 
 ### Gate 0 — 关闭当前活动 Goal
 
-[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的 UI-T 真人结论继续有效。P4 旧候选 `53d2dc91` 暴露的生产不可达已由 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md) 接通，`30a73ce3` 暴露的 production-only 编辑面与 viewport 回归也已完成第八轮代码返修、独立审计、集成与自动 Gate；父 Goal 继续阻塞到新唯一候选完成全部真人 Gate。
+[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的 UI-T 真人结论继续有效。P4 旧候选陆续暴露的生产不可达、编辑态键盘 / 滚动条、正常新卡 full editor 通知、safe ID、可见落点、快捷库持久写、selection / focus、capability、current-board title scope 与相对移动几何缺口，均已在 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md) 中逐轮返修。exact `1f77633a` 的精确标题正文与标签编辑已真人通过，移动超时现场也已由 R18 交付、审计、集成和 `99/99` 自动 Gate 收住；新的 Windows 候选构建完成前没有可继续真人验收的版本。
 
 历史失败与当前未完 Gate 为：
 
 - UI-T：真实系统剪贴板、回复期间编辑、`Win + H` 与菜单主题真人通过；Typeless 2.3.1 不向 Flutter Windows 输入框注入，保留为非阻断外部兼容红灯；
-- P4：生产纵切、持久 Receipt / Undo、Runtime 注册以及双击单面编辑、标题 Receipt / Undo、active viewport 的第八轮自动证据已收口；当前等待新唯一候选，随后重跑人工六类、Runtime、行动卡 / Receipt、完全退出重开、Undo、再重开与冲突真人 Gate；
+- P4：人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动 / 聊天切回 Delete 与 R17 精确标题正文、标签编辑均已真人通过；R16 capability、R17 当前板精确唯一标题目标与 R18 bounded geometry 修复均已审计并集成。R18 主线 `99/99` 自动 Gate 已通过，新的移动真人候选构建完成前不继续 resize / remove、Receipt / restart / Undo / conflict。选中框瞬时闪烁和手动行动卡主对话噪声仍为非阻断呈现债；
 - P5：真实人格 / 长期关系 Memory V3 代码已返修和自动验证，仍须等待 P4 后做真实命中、空、失败和扩权拒绝真人 Gate；
 - P6：受控生产 Runtime 入口与全生命周期已经接入；仍须等待 P4 / P5 后做真实 Bridge / App 重启与生命周期真人 Gate。
 
@@ -372,6 +399,14 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 - 普通“论文大纲”Markdown 卡用有序链接组稿的方案保留为后续候选；
 - 脚注、参考文献样式、DOCX 编译与 Word 修改回收只在真实写作瓶颈出现时立项。
 
+### 5.5 多端活动检测与保守睡眠守护
+
+- 用户已明确提出这是高频 companion 需求；专项路线见 [`MULTI_DEVICE_ACTIVITY_ROADMAP.md`](MULTI_DEVICE_ACTIVITY_ROADMAP.md)。建立路线不等于当前活动 Goal 已切换，也不覆盖 P4 真人 Gate 或下一正式 Gate 1A-0；
+- 完整 Here I am 仍只安装在主 Android。Windows 使用轻探针，第二 Android 优先 Tasker/旁路探针，iPhone 在无自研 App 时只提供 Shortcuts 离散事件；各端不复制 Here I am 数据库；
+- 首版必须先完成活动专用 write-only 凭据、事件/TTL/`unknown` 语义、设备撤销与隐私保留，再做 Windows + 主 Android 纵切；Tailscale 在线、App 前台心跳和单一心率均不得冒充用户清醒或已睡；
+- 活动专用控制面仍受 Gate 1A 的权威 ADR、Core 接受边界和单写者/epoch/fencing 契约约束；并行设计不得先落生产 schema 绕过 Gate 1A-0/1A-3；
+- 推断先 shadow，之后才按真人 Gate 逐级开放一次通知、短对话和未来可选来电。2026-06-30 已删除的高频催睡、无回复确认、锁机与罚款机制不得恢复。
+
 ---
 
 ## 6. 明确暂停与 Parking Lot
@@ -424,7 +459,7 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 ### 当前活动 Goal
 
-当前唯一活动 Goal 是 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)，执行与派发已经用户授权，正在固化不含主工作区 Voice 并行改动的控制面基线。它只把人工与 Runtime 的 create / edit / labels / move / resize / remove 接入同一 DomainCommand / Receipt / Undo，并完成应用退出重开的真人 Gate；不实现 P5、P6、W4 或 Gate 1A。父 [`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 在此期间保持阻塞。
+当前唯一活动 Goal 是 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)，执行与派发已经用户授权。R17 正文与标签 Gate 通过后的真实卡片状态为标题“Runtime 创建验收 R14”、正文“R15 Runtime 正文编辑通过”、标签小写“runtime验收”；随后移动 turn `01a05107-88e4-7160-b57c-3c5903296cb7` 在未调用白板产品工具的情况下运行 `180084ms` 并超时，零 Receipt 与写入。R18 `01a05185-dbe9-7313-8e2c-d02fd40f051e` 已补 host-bounded exact geometry，经两轮独立复核后集成为 `v3-lab@2b2275d4..eec22abb`；主线 `99/99`、四文件 analyze、critical `3/3` 与 diff check 均通过。当前正在构建新唯一 Windows 候选，只恢复右移 120 像素 Gate；父 [`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)、P5 / P6、W4、push 与发布保持阻塞。
 
 ### 下一正式 Goal 候选（尚未创建）
 
@@ -491,4 +526,6 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 - 当前工作台执行路线：[`AI_WORKBENCH_EXECUTION_ROADMAP_2026_08_23.md`](../development/whiteboard-workstreams/AI_WORKBENCH_EXECUTION_ROADMAP_2026_08_23.md)
 - 白板并行契约：[`WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md`](../development/WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md)
 - 跨工具连续性：[`LIN_AI_CROSS_TOOL_CONTINUITY.md`](LIN_AI_CROSS_TOOL_CONTINUITY.md)
+- Codex Voice 连续性与 iCore 接入：[`CODEX_VOICE_ROADMAP.md`](CODEX_VOICE_ROADMAP.md)
+- 多端活动检测与保守睡眠守护：[`MULTI_DEVICE_ACTIVITY_ROADMAP.md`](MULTI_DEVICE_ACTIVITY_ROADMAP.md)
 - 当前项目态：[`I_PROJECT_STATE.md`](../development/I_PROJECT_STATE.md)
