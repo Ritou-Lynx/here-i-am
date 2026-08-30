@@ -18,6 +18,30 @@ import 'package:memex/domain/whiteboard/domain_command.dart';
 import 'package:memex/domain/whiteboard/domain_command_receipt.dart';
 import 'package:memex/domain/workbench_ai/permissions/whiteboard_permission_broker.dart';
 
+class WhiteboardRuntimePlacementGeometry {
+  const WhiteboardRuntimePlacementGeometry({
+    required this.itemId,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  final String itemId;
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+
+  Map<String, dynamic> toPromptJson() => {
+        'item_id': itemId,
+        'x': x,
+        'y': y,
+        'width': width,
+        'height': height,
+      };
+}
+
 class WhiteboardRuntimeTurnAuthorization {
   const WhiteboardRuntimeTurnAuthorization({
     required this.conversationId,
@@ -36,6 +60,7 @@ class WhiteboardRuntimeTurnAuthorization {
     this.hostResolvedTargetItemIds = const {},
     this.hostResolvedTargetCardIds = const {},
     this.hostResolvedPlacementAmbiguous = false,
+    this.targetPlacementGeometry = const [],
     this.activeViewport = const BoardViewport(),
     this.expectedSnapshotHash,
     this.unavailableReason,
@@ -54,6 +79,7 @@ class WhiteboardRuntimeTurnAuthorization {
   final Set<String> hostResolvedTargetItemIds;
   final Set<String> hostResolvedTargetCardIds;
   final bool hostResolvedPlacementAmbiguous;
+  final List<WhiteboardRuntimePlacementGeometry> targetPlacementGeometry;
   final BoardViewport activeViewport;
   final Set<WhiteboardWriteCapability> allowedCapabilities;
   final int maxOperationCount;
@@ -98,6 +124,14 @@ class WhiteboardRuntimeTurnAuthorization {
           'card_ids': hostResolvedTargetCardIds.toList()..sort(),
           'placement_ambiguous': hostResolvedPlacementAmbiguous,
         },
+      if (targetPlacementGeometry.isNotEmpty)
+        'target_placement_geometry_source':
+            'host_authoritative_snapshot_for_absolute_move_or_resize',
+      if (targetPlacementGeometry.isNotEmpty)
+        'target_placement_geometry': [
+          for (final geometry in targetPlacementGeometry)
+            geometry.toPromptJson(),
+        ],
       'max_operation_count': maxOperationCount,
       'max_operation_count_by_capability': {
         for (final entry in maxOperationCountByCapability.entries)
@@ -413,6 +447,46 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           break;
         }
       }
+      final targetItemIds = explicitTitleTarget.specified
+          ? resolvedTargetItems
+          : selectedItems;
+      var targetPlacementGeometry =
+          const <WhiteboardRuntimePlacementGeometry>[];
+      if (capabilities.contains(WhiteboardWriteCapability.movePlacement) ||
+          capabilities.contains(WhiteboardWriteCapability.resizePlacement)) {
+        final targetItems = snapshot.boardItems
+            .where((item) =>
+                item.boardId == surface.boardId &&
+                targetItemIds.contains(item.itemId))
+            .toList(growable: false)
+          ..sort((left, right) => left.itemId.compareTo(right.itemId));
+        if (targetItems.any((item) =>
+            !item.x.isFinite ||
+            !item.y.isFinite ||
+            !item.width.isFinite ||
+            !item.height.isFinite ||
+            item.width <= 0 ||
+            item.height <= 0)) {
+          return _unavailable(
+            conversationId,
+            characterId,
+            evidence,
+            capabilities,
+            'whiteboard_placement_geometry_invalid',
+          );
+        }
+        targetPlacementGeometry = List.unmodifiable(
+          targetItems.map(
+            (item) => WhiteboardRuntimePlacementGeometry(
+              itemId: item.itemId,
+              x: item.x,
+              y: item.y,
+              width: item.width,
+              height: item.height,
+            ),
+          ),
+        );
+      }
       final authorization = WhiteboardRuntimeTurnAuthorization(
         conversationId: conversationId,
         characterId: characterId,
@@ -427,6 +501,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         hostResolvedTargetItemIds: resolvedTargetItems,
         hostResolvedTargetCardIds: resolvedTargetCards,
         hostResolvedPlacementAmbiguous: resolvedPlacementAmbiguous,
+        targetPlacementGeometry: targetPlacementGeometry,
         activeViewport: snapshot.viewport,
         allowedCapabilities: capabilities,
         maxOperationCount: capabilities.length,
@@ -478,11 +553,16 @@ class WorkbenchRuntimeWhiteboardDomainTool {
     surface.setInteractionLocked(true);
     var durableStarted = false;
     try {
-      final parsed = _parseBatch(
-        arguments,
-        authorization: authorization,
-        runtimeTurnId: runtimeTurnId,
-      );
+      late final Object parsed;
+      try {
+        parsed = _parseBatch(
+          arguments,
+          authorization: authorization,
+          runtimeTurnId: runtimeTurnId,
+        );
+      } on FormatException {
+        return _failure('invalid_whiteboard_request', invalid: true);
+      }
       if (parsed is String) return _failure(parsed, invalid: true);
       if (isCancelled()) return _failure('runtime_interrupted');
       final current = _surfaceController.current;
@@ -734,8 +814,8 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           final itemId = 'item_${seed.substring(0, 24)}_$index';
           final labels = _stringList(command['labels']);
           if (labels == null) return 'invalid_whiteboard_request';
-          final width = _number(command['width'], 260);
-          final height = _number(command['height'], 200);
+          final width = _positiveNumber(command['width'], 260);
+          final height = _positiveNumber(command['height'], 200);
           commands.add(CreateCardCommand(
             commandId: commandId,
             cardId: cardId,
@@ -820,8 +900,8 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           commands.add(ResizePlacementCommand(
             commandId: commandId,
             itemId: itemId,
-            width: _requiredNumber(command['width']),
-            height: _requiredNumber(command['height']),
+            width: _requiredPositiveNumber(command['width']),
+            height: _requiredPositiveNumber(command['height']),
           ));
           continue;
         case 'remove_placement':
@@ -1243,8 +1323,14 @@ double _requiredNumber(Object? value) {
   return value.toDouble();
 }
 
-double _number(Object? value, double fallback) =>
-    value == null ? fallback : _requiredNumber(value);
+double _requiredPositiveNumber(Object? value) {
+  final number = _requiredNumber(value);
+  if (number <= 0) throw const FormatException('Expected positive number');
+  return number;
+}
+
+double _positiveNumber(Object? value, double fallback) =>
+    value == null ? fallback : _requiredPositiveNumber(value);
 
 Object? _canonicalJson(Object? value) {
   if (value is Map) {
