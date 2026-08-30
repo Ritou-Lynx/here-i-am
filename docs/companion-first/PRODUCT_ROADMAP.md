@@ -6,7 +6,7 @@
 >
 > 执行基线：`v3-lab`
 >
-> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过；P4 R18 exact `2ed4b015` 的 Runtime 移动已真人通过、落盘审计通过，同一候选已重启，当前只验跨重启保留；P5 / P6 与最终真人 Gate 继续阻塞
+> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过；P4 R18 exact `2ed4b015` 的 Runtime 移动、落盘审计与跨重启保留均通过，当前只验持久 Undo；P5 / P6 与最终真人 Gate 继续阻塞
 
 本文回答四个问题：Here I Am 最终是什么、数据以哪里为准、当前真实基线在哪里、下一阶段按什么 Gate 推进。它不是无限任务清单，也不替代阶段 Goal。每次只从本路线提出一个可验收 Goal；Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
@@ -42,7 +42,7 @@ R16 已把授权解析改为“先识别逐项正向能力，再减去同一局�
 
 R17 已把未预选场景收回 host-owned 当前板边界：仅对直接目标句做精确唯一标题解析，0 / 多义 / 跨板 / 仅卡片库全部拒绝；Card 多 placement 时正文 / 标签可按 Card 写，placement 操作因 item 多义拒绝。授权同时绑定 exact surface 实例，flush、invoke 与 durable 前任一重挂或切板都 fail closed；正文引号 literal 不参与标题作用域解析。worker `f026b23b..a7a6b3da` 经独立复核关闭三项 P1 后，W0 集成为 `v3-lab@21ade156..1f77633a`；Runtime + coordinator `51/51`、目标 analyze、critical `3/3` 与 diff check 均通过。清除 process-memory binding 后，2026-08-30 正文与标签真人通过；真实状态是标题仍为“Runtime 创建验收 R14”、正文为“R15 Runtime 正文编辑通过”、标签为小写“runtime验收”。随后“右移 120 像素”turn 已获得唯一目标与 `move_placement` 授权，却因上下文缺当前 `x/y`、动态白板工具仅为软提示而没有调用产品工具，`180084ms` 后 `runtime_timeout`；零 payload、host result、Receipt 与写入。`1f77633a` 候选已冻结，R18 只补 bounded placement geometry 并真实探测 App Server required-tool wire；P5 / P6、其它 P4 Gate、push 与发布仍未解锁。
 
-R18 已只向本轮获准 move / resize 的 exact target 注入同一 authoritative snapshot 的 `item_id/x/y/width/height`，geometry 不参与 scope，0 / 多义 / forged target 仍 fail closed；领域与 Runtime 共用坐标 ±1,000,000、宽 `80..3000`、高 `60..3000` 的唯一边界。首轮独立复核拦下极端 finite 坐标可持久化和非法尺寸先建 action 两项 P1，follow-up 后终审无 P0/P1/P2。真实 `codex-cli 0.151.0-alpha.7.2` schema 证明 `TurnStartParams` 没有 per-turn `toolChoice` / `requiredTool` / `allowedTools` / `dynamicTools`，因此不猜字段、不伪造强制工具能力。worker `9297fd1c..c7d38601` 已选择性集成为 `v3-lab@2b2275d4..eec22abb`；主线 `99/99`、四文件 analyze clean、critical `3/3`、diff check PASS。exact `2ed4b015` detached clean Windows Debug 候选随后构建成功（228.3s），exe `33F10A94…2B017`、kernel `C5BF7E43…21BB0`。真人移动已通过：唯一 `move_placement` 把 x 精确增加 120、y 不变，host `applied` / 零 issues；只读数据库副本确认其它 Card / placement 字段未变，Receipt 与 Undo 已持久化。原 App PID `37380` 已退出，同一候选重开为 PID `36600`，Bridge PID `32764` 保持；当前只验跨重启保留，尚未执行 Undo。
+R18 已只向本轮获准 move / resize 的 exact target 注入同一 authoritative snapshot 的 `item_id/x/y/width/height`，geometry 不参与 scope，0 / 多义 / forged target 仍 fail closed；领域与 Runtime 共用坐标 ±1,000,000、宽 `80..3000`、高 `60..3000` 的唯一边界。首轮独立复核拦下极端 finite 坐标可持久化和非法尺寸先建 action 两项 P1，follow-up 后终审无 P0/P1/P2。真实 `codex-cli 0.151.0-alpha.7.2` schema 证明 `TurnStartParams` 没有 per-turn `toolChoice` / `requiredTool` / `allowedTools` / `dynamicTools`，因此不猜字段、不伪造强制工具能力。worker `9297fd1c..c7d38601` 已选择性集成为 `v3-lab@2b2275d4..eec22abb`；主线 `99/99`、四文件 analyze clean、critical `3/3`、diff check PASS。exact `2ed4b015` detached clean Windows Debug 候选随后构建成功（228.3s），exe `33F10A94…2B017`、kernel `C5BF7E43…21BB0`。真人移动已通过：唯一 `move_placement` 把 x 精确增加 120、y 不变，host `applied` / 零 issues；只读数据库副本确认其它 Card / placement 字段未变，Receipt 与 Undo 已持久化。原 App PID `37380` 已退出，同一候选重开为 PID `36600`，Bridge PID `32764` 保持；Lynx 确认卡片仍在右移后位置，跨重启保留通过。当前只验这条持久 Receipt 的 Undo。
 
 2026-08-28 并行例外 Goal [`GOAL-20260828-legacy-cleanup-wave1`](../development/goals/GOAL-20260828-legacy-cleanup-wave1.md) 已验收通过并进入 `v3-lab@a29b212e`：第一批零注册 / 零调用孤岛与退役测试已删除，仍有效的 Tavern / Companion 覆盖已迁移或保留，全仓退役测试编译错误归零。该清理不改变产品路线、数据权威或 P4 主 Goal，也未触碰 SharedLife、CardCache、日程、UI 大簇、schema、依赖或用户数据。
 
@@ -173,7 +173,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| 已恢复的 AI 工作台 Goal | UI-T、P4 人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动与聊天切回 Delete、R17 精确标题正文与标签编辑、R18 Runtime 移动均已真人通过；R18 落盘另经生产 DB 副本审计通过；R16 capability、R17 current-board exact-title scope 与 R18 bounded geometry 已独立复核并集成；P6 已补 host-owned 生产 Runtime 队列入口 | R18 exact `2ed4b015` 已重启，当前只验移动结果跨重启保留；通过前不继续 resize / remove / Undo / conflict；P5 / P6、W4、push / 发布仍阻塞 |
+| 已恢复的 AI 工作台 Goal | UI-T、P4 人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动与聊天切回 Delete、R17 精确标题正文与标签编辑、R18 Runtime 移动及跨重启保留均已真人通过；R18 落盘另经生产 DB 副本审计通过；R16 capability、R17 current-board exact-title scope 与 R18 bounded geometry 已独立复核并集成；P6 已补 host-owned 生产 Runtime 队列入口 | R18 exact `2ed4b015` 当前只验持久 Undo；通过前不继续 resize / remove / conflict；P5 / P6、W4、push / 发布仍阻塞 |
 | 已关闭的临时预备 Goal | `GOAL-20260826-authority-preflight` 已通过用户真人审阅并关闭，只使用代码实况与合成数据 | 已交付对象盘点、迁移矩阵、golden corpus 与隔离 harness 骨架；没有切换生产权威，也不证明 Gate 1A-0 通过 |
 | Desktop Whiteboard | Card/Source/Board/Anchor 骨架、卡片库、画布、链接入库、视频研读、通用命令基础 | Markdown 权威迁移、完整删除/恢复、文件导入与外部编辑冲突、生产搜索和灾难恢复尚未形成统一 Gate |
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
@@ -199,7 +199,7 @@ Android 严重崩溃、Memory 真实误召回、数据损坏、安全漏洞和 P
 历史失败与当前未完 Gate 为：
 
 - UI-T：真实系统剪贴板、回复期间编辑、`Win + H` 与菜单主题真人通过；Typeless 2.3.1 不向 Flutter Windows 输入框注入，保留为非阻断外部兼容红灯；
-- P4：人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动 / 聊天切回 Delete、R17 精确标题正文 / 标签编辑与 R18 Runtime 移动均已真人通过，R18 落盘另经生产 DB 副本审计通过；R16 capability、R17 当前板精确唯一标题目标与 R18 bounded geometry 修复均已审计并集成。R18 exact `2ed4b015` 已重启，当前只验移动结果跨重启保留；通过前不继续 resize / remove / Undo / conflict。选中框瞬时闪烁和手动行动卡主对话噪声仍为非阻断呈现债；
+- P4：人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动 / 聊天切回 Delete、R17 精确标题正文 / 标签编辑、R18 Runtime 移动与跨重启保留均已真人通过，R18 落盘另经生产 DB 副本审计通过；R16 capability、R17 当前板精确唯一标题目标与 R18 bounded geometry 修复均已审计并集成。R18 exact `2ed4b015` 当前只验持久 Undo；通过前不继续 resize / remove / conflict。选中框瞬时闪烁和手动行动卡主对话噪声仍为非阻断呈现债；
 - P5：真实人格 / 长期关系 Memory V3 代码已返修和自动验证，仍须等待 P4 后做真实命中、空、失败和扩权拒绝真人 Gate；
 - P6：受控生产 Runtime 入口与全生命周期已经接入；仍须等待 P4 / P5 后做真实 Bridge / App 重启与生命周期真人 Gate。
 
