@@ -9,6 +9,7 @@ typedef WhiteboardSurfaceInteractionLock = void Function(bool locked);
 class WhiteboardWorkbenchSurface {
   const WhiteboardWorkbenchSurface({
     required this.owner,
+    required this.attachmentIdentity,
     required this.boardId,
     required this.selectedItemIds,
     required this.flush,
@@ -17,6 +18,11 @@ class WhiteboardWorkbenchSurface {
   });
 
   final Object owner;
+
+  /// Stable for selection-only snapshots, fresh for every route attachment.
+  /// This lets Runtime distinguish the production lock clearing selection
+  /// from a same-owner, same-board route replacement.
+  final Object attachmentIdentity;
   final String boardId;
   final Set<String> selectedItemIds;
   final WhiteboardSurfaceFlush flush;
@@ -26,6 +32,7 @@ class WhiteboardWorkbenchSurface {
   WhiteboardWorkbenchSurface copyWith({Set<String>? selectedItemIds}) {
     return WhiteboardWorkbenchSurface(
       owner: owner,
+      attachmentIdentity: attachmentIdentity,
       boardId: boardId,
       selectedItemIds:
           Set.unmodifiable(selectedItemIds ?? this.selectedItemIds),
@@ -58,6 +65,7 @@ class WhiteboardWorkbenchSurfaceController {
   }) {
     _current = WhiteboardWorkbenchSurface(
       owner: owner,
+      attachmentIdentity: Object(),
       boardId: boardId,
       selectedItemIds: Set.unmodifiable(selectedItemIds),
       flush: flush,

@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/data/whiteboard/whiteboard_drift_store.dart';
 import 'package:memex/data/workbench_ai/whiteboard_manual_domain_command_host.dart';
+import 'package:memex/data/workbench_ai/whiteboard_runtime_domain_tool.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_coordinator.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_surface.dart';
 import 'package:memex/data/workbench_ai/workbench_action_reader.dart';
@@ -418,7 +419,8 @@ void main() {
       expect(
         area.viewModel.selection.selectedItemIds,
         isEmpty,
-        reason: 'an applied remove must not restore an item absent after reload',
+        reason:
+            'an applied remove must not restore an item absent after reload',
       );
       expect(await tester.runAsync(() => repository.getCard(item.cardId)),
           isNotNull,
@@ -529,7 +531,9 @@ void main() {
       actions = await _waitForActionCount(tester, db, 2);
       await _pumpUntilCondition(tester, () {
         final items = area.viewModel.exportForSave().boardItems;
-        return items.singleWhere((item) => item.itemId == clickedItem.itemId).x ==
+        return items
+                .singleWhere((item) => item.itemId == clickedItem.itemId)
+                .x ==
             beforeMove.x + 8;
       });
       expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
@@ -539,7 +543,9 @@ void main() {
       actions = await _waitForActionCount(tester, db, 3);
       await _pumpUntilCondition(tester, () {
         final items = area.viewModel.exportForSave().boardItems;
-        return items.singleWhere((item) => item.itemId == clickedItem.itemId).x ==
+        return items
+                .singleWhere((item) => item.itemId == clickedItem.itemId)
+                .x ==
             beforeMove.x + 16;
       });
       expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
@@ -852,7 +858,8 @@ void main() {
       expect(
         area.viewModel.selection.selectedItemIds,
         isEmpty,
-        reason: 'the production lock clears selection after the port captures it',
+        reason:
+            'the production lock clears selection after the port captures it',
       );
 
       final switchedOwner = Object();
@@ -890,6 +897,161 @@ void main() {
         ).commands.single.kind,
         'move_placement',
       );
+    },
+  );
+
+  testWidgets(
+    'runtime resize survives production route lock clearing selection',
+    (tester) async {
+      final root =
+          Directory.systemTemp.createTempSync('p4_runtime_lock_route_');
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(() async {
+        final owner =
+            WhiteboardWorkbenchSurfaceController.instance.current?.owner;
+        if (owner != null) {
+          WhiteboardWorkbenchSurfaceController.instance.detach(owner);
+        }
+        await db.close();
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+      final store = _GatedStore(db);
+      final now = DateTime.utc(2026, 8, 28, 10);
+      await tester.runAsync(() => repository.createTextCard(
+            cardId: 'card_runtime_resize',
+            title: 'Runtime 创建验收 R14',
+            body: 'R15 Runtime 正文编辑通过',
+            tags: const ['runtime验收'],
+            createdAt: now,
+          ));
+      expect(
+        await tester.runAsync(() => store.seed(
+              'board_route',
+              WhiteboardSnapshot(
+                boards: [
+                  Board(boardId: 'board_route', name: 'Route', createdAt: now),
+                ],
+                boardItems: const [
+                  BoardItem(
+                    itemId: 'item_runtime_resize',
+                    boardId: 'board_route',
+                    cardId: 'card_runtime_resize',
+                    x: 1039.862130884688,
+                    y: 1045.1693417620572,
+                    width: 887.5555555555558,
+                    height: 740.4444444444441,
+                  ),
+                ],
+                viewport: const BoardViewport(
+                  centerX: 1039.862130884688,
+                  centerY: 1045.1693417620572,
+                ),
+                updatedAt: now,
+              ),
+            )),
+        isTrue,
+      );
+      final coordinator = _testCoordinator(
+        db: db,
+        store: store,
+        repository: repository,
+        now: now,
+      );
+      final host = WhiteboardManualDomainCommandHost(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        resolveCharacterId: () async => 'i',
+        clock: () => now,
+      );
+      final tool = WorkbenchRuntimeWhiteboardDomainTool(
+        store: store,
+        coordinator: coordinator,
+        surfaceController: WhiteboardWorkbenchSurfaceController.instance,
+        clock: () => now,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: WhiteboardCanvasRouteScreen(
+          boardId: 'board_route',
+          store: store,
+          cardRepository: repository,
+          manualCommandHost: host,
+        ),
+      ));
+      await _pumpUntil(
+        tester,
+        find.byKey(const Key('wb_card_item_runtime_resize')),
+      );
+      final area = tester.widget<WhiteboardCanvasArea>(
+        find.byType(WhiteboardCanvasArea),
+      );
+      await tester.tapAt(const Offset(450, 350));
+      await tester.pump();
+      expect(
+        area.viewModel.selection.selectedItemIds,
+        {'item_runtime_resize'},
+      );
+      final authorization = await tester.runAsync(
+        () => tool.prepareAuthorization(
+          conversationId: 'persona-runtime-route',
+          characterId: 'i',
+          userText: '把选中卡片卡片宽度增加 120 像素',
+          userAuthorizationMessageId: 'chat-message-runtime-route',
+        ),
+      );
+      expect(authorization?.available, isTrue);
+      expect(authorization?.selectedItemIds, {'item_runtime_resize'});
+
+      final result = await tester.runAsync(
+        () => tool.invoke(
+          const {
+            'commands': [
+              {
+                'kind': 'resize_placement',
+                'item_id': 'item_runtime_resize',
+                'width': 1007.5555555555558,
+                'height': 740.4444444444441,
+              },
+            ],
+          },
+          authorization: authorization!,
+          runtimeTurnId: 'turn-runtime-route-lock',
+          isCancelled: () => false,
+        ),
+      );
+      await tester.pump();
+
+      expect(result?.success, isTrue, reason: result?.text);
+      expect(jsonDecode(result!.text)['status'], 'applied');
+      expect(area.viewModel.isReadonly, isFalse);
+      expect(area.viewModel.selection.selectedItemIds, isEmpty,
+          reason: 'the production lock intentionally clears selection');
+      final visibleItem = area.viewModel.exportForSave().boardItems.single;
+      expect(visibleItem.width, 1007.5555555555558);
+      expect(visibleItem.height, 740.4444444444441);
+      expect(visibleItem.x, 1039.862130884688);
+      expect(visibleItem.y, 1045.1693417620572);
+      final persisted =
+          (await tester.runAsync(() => store.loadPersisted('board_route')))!
+              .snapshot!;
+      final persistedItem = persisted.boardItems.single;
+      expect(persistedItem.width, 1007.5555555555558);
+      expect(persistedItem.height, 740.4444444444441);
+      expect(persistedItem.x, 1039.862130884688);
+      expect(persistedItem.y, 1045.1693417620572);
+      final card = (await tester.runAsync(() => repository.getCard(
+                'card_runtime_resize',
+                loadDocument: false,
+              )))!
+          .card;
+      expect(card.title, 'Runtime 创建验收 R14');
+      expect(card.body, 'R15 Runtime 正文编辑通过');
+      expect(card.tags, ['runtime验收']);
+      final actions = await _waitForActionCount(tester, db, 1);
+      expect(actions.single.projection.status.name, 'completed');
+      expect(
+          actions.single.projection.domainCommandReceipt?['status'], 'applied');
     },
   );
 

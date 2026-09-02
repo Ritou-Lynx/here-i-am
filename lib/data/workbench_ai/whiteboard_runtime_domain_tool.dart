@@ -52,6 +52,7 @@ class WhiteboardRuntimeTurnAuthorization {
     this.maxOperationCountByCapability = const {},
     this.surfaceOwner,
     this.surfaceInstance,
+    this.surfaceAttachmentIdentity,
     this.boardId,
     this.boardName,
     this.selectedItemIds = const {},
@@ -71,6 +72,7 @@ class WhiteboardRuntimeTurnAuthorization {
   final String userAuthorizationMessageId;
   final Object? surfaceOwner;
   final Object? surfaceInstance;
+  final Object? surfaceAttachmentIdentity;
   final String? boardId;
   final String? boardName;
   final Set<String> selectedItemIds;
@@ -90,6 +92,7 @@ class WhiteboardRuntimeTurnAuthorization {
   bool get available =>
       surfaceOwner != null &&
       surfaceInstance != null &&
+      surfaceAttachmentIdentity != null &&
       boardId != null &&
       expectedSnapshotHash != null &&
       unavailableReason == null;
@@ -108,16 +111,14 @@ class WhiteboardRuntimeTurnAuthorization {
       'target_scope_source': hasExplicitTitleTarget
           ? 'host_resolved_current_board_exact_title'
           : 'selection',
-      'target_item_ids': (hasExplicitTitleTarget
-              ? hostResolvedTargetItemIds
-              : selectedItemIds)
-          .toList()
-        ..sort(),
-      'target_card_ids': (hasExplicitTitleTarget
-              ? hostResolvedTargetCardIds
-              : selectedCardIds)
-          .toList()
-        ..sort(),
+      'target_item_ids':
+          (hasExplicitTitleTarget ? hostResolvedTargetItemIds : selectedItemIds)
+              .toList()
+            ..sort(),
+      'target_card_ids':
+          (hasExplicitTitleTarget ? hostResolvedTargetCardIds : selectedCardIds)
+              .toList()
+            ..sort(),
       if (hasExplicitTitleTarget)
         'host_resolved_target': {
           'item_ids': hostResolvedTargetItemIds.toList()..sort(),
@@ -541,9 +542,8 @@ class WorkbenchRuntimeWhiteboardDomainTool {
           break;
         }
       }
-      final targetItemIds = explicitTitleTarget.specified
-          ? resolvedTargetItems
-          : selectedItems;
+      final targetItemIds =
+          explicitTitleTarget.specified ? resolvedTargetItems : selectedItems;
       var targetPlacementGeometry =
           const <WhiteboardRuntimePlacementGeometry>[];
       if (capabilities.contains(WhiteboardWriteCapability.movePlacement) ||
@@ -598,6 +598,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
         userAuthorizationMessageId: evidence,
         surfaceOwner: surface.owner,
         surfaceInstance: surface,
+        surfaceAttachmentIdentity: surface.attachmentIdentity,
         boardId: surface.boardId,
         boardName: boardName,
         selectedItemIds: selectedItems,
@@ -652,12 +653,34 @@ class WorkbenchRuntimeWhiteboardDomainTool {
     if (surface == null ||
         !identical(surface, authorization.surfaceInstance) ||
         !identical(surface.owner, authorization.surfaceOwner) ||
+        !identical(
+          surface.attachmentIdentity,
+          authorization.surfaceAttachmentIdentity,
+        ) ||
         surface.boardId != authorization.boardId) {
       return _failure('whiteboard_surface_changed');
     }
     surface.setInteractionLocked(true);
+    var lockedSurface = surface;
     var durableStarted = false;
     try {
+      // The production route synchronously clears selection while entering
+      // readonly mode. That publishes one new selection snapshot for the same
+      // attachment; any non-empty replacement or fresh attachment remains a
+      // fail-closed surface change.
+      final afterLock = _surfaceController.current;
+      if (afterLock == null ||
+          !identical(afterLock.owner, authorization.surfaceOwner) ||
+          !identical(
+            afterLock.attachmentIdentity,
+            authorization.surfaceAttachmentIdentity,
+          ) ||
+          afterLock.boardId != authorization.boardId ||
+          (!identical(afterLock, surface) &&
+              afterLock.selectedItemIds.isNotEmpty)) {
+        return _failure('whiteboard_surface_changed');
+      }
+      lockedSurface = afterLock;
       late final Object parsed;
       try {
         parsed = _parseBatch(
@@ -672,8 +695,12 @@ class WorkbenchRuntimeWhiteboardDomainTool {
       if (isCancelled()) return _failure('runtime_interrupted');
       final current = _surfaceController.current;
       if (current == null ||
-          !identical(current, surface) ||
+          !identical(current, lockedSurface) ||
           !identical(current.owner, authorization.surfaceOwner) ||
+          !identical(
+            current.attachmentIdentity,
+            authorization.surfaceAttachmentIdentity,
+          ) ||
           current.boardId != authorization.boardId) {
         return _failure('whiteboard_surface_changed');
       }
@@ -692,7 +719,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
       );
       if (!durableStarted) return await operation;
       final durableOperation = _finishDurableInvocation(
-        surface: surface,
+        surface: lockedSurface,
         authorization: authorization,
         operation: operation,
       );
@@ -713,7 +740,7 @@ class WorkbenchRuntimeWhiteboardDomainTool {
       // [_finishDurableInvocation]. Pre-durable returns are unlocked below.
       if (!durableStarted) {
         try {
-          surface.setInteractionLocked(false);
+          lockedSurface.setInteractionLocked(false);
         } catch (_) {}
       }
     }
@@ -733,6 +760,10 @@ class WorkbenchRuntimeWhiteboardDomainTool {
       if (current != null &&
           identical(current, surface) &&
           identical(current.owner, authorization.surfaceOwner) &&
+          identical(
+            current.attachmentIdentity,
+            authorization.surfaceAttachmentIdentity,
+          ) &&
           current.boardId == authorization.boardId) {
         try {
           await current.reload();
@@ -1130,11 +1161,11 @@ Set<WhiteboardWriteCapability> _capabilitiesFromExplicitRequest(String text) {
     result.add(WhiteboardWriteCapability.movePlacement);
   }
   if (RegExp(
-    r'缩放|放大|缩小|调宽|调高|变宽|变窄|'
-    r'(?:调整|修改|设置).{0,16}(?:尺寸|大小|宽度|高度)|'
-    r'(?:尺寸|大小|宽度|高度).{0,16}'
-    r'(?:调整|改成|改为|修改为|设为|设置为)',
-  ).hasMatch(intent) ||
+        r'缩放|放大|缩小|调宽|调高|变宽|变窄|'
+        r'(?:调整|修改|设置).{0,16}(?:尺寸|大小|宽度|高度)|'
+        r'(?:尺寸|大小|宽度|高度).{0,16}'
+        r'(?:调整|改成|改为|修改为|设为|设置为)',
+      ).hasMatch(intent) ||
       _hasRelativeResizeIntent(intent)) {
     result.add(WhiteboardWriteCapability.resizePlacement);
   }
@@ -1189,8 +1220,7 @@ bool _isExplicitDelegatedWhiteboardWrite(String text) =>
       '$_relativeResizeIntentPattern',
     ).hasMatch(text);
 
-const _relativeResizeIntentPattern =
-    r'(?:尺寸|大小|宽度|高度)[ \t]*(?:增加|减少)[ \t]*'
+const _relativeResizeIntentPattern = r'(?:尺寸|大小|宽度|高度)[ \t]*(?:增加|减少)[ \t]*'
     r'[0-9]+(?:\.[0-9]+)?'
     r'(?:[ \t]*(?:个[ \t]*)?(?:像素|px))?'
     r'(?=[ \t]*(?:[，,。！？!?；;：:]|吗|吧|$))';
@@ -1312,8 +1342,8 @@ bool _hasTargetOperationAfter(
         '$prefix'
         r'(?:编辑|修改|改写)\s*(?:正文|内容)|'
         '$prefix'
-            r'(?:正文|内容)\s*'
-            r'(?:改成|改为|修改为|设为|设置为)',
+        r'(?:正文|内容)\s*'
+        r'(?:改成|改为|修改为|设为|设置为)',
       ).hasMatch(suffix)) {
     return true;
   }
@@ -1322,8 +1352,8 @@ bool _hasTargetOperationAfter(
         '$prefix'
         r'(?:设置|修改|编辑|添加|删除|移除|清除)\s*标签|'
         '$prefix'
-            r'标签\s*'
-            r'(?:设为|设置为|改成|改为|修改为|添加|删除|移除|清除)',
+        r'标签\s*'
+        r'(?:设为|设置为|改成|改为|修改为|添加|删除|移除|清除)',
       ).hasMatch(suffix)) {
     return true;
   }
@@ -1336,18 +1366,17 @@ bool _hasTargetOperationAfter(
             '$prefix'
             r'(?:缩放|放大|缩小|调宽|调高|变宽|变窄)\s*(?:为|成|到)|'
             '$prefix'
-                r'(?:调整|修改|设置)\s*(?:尺寸|大小|宽度|高度)\s*'
-                r'(?:为|成|到)|'
+            r'(?:调整|修改|设置)\s*(?:尺寸|大小|宽度|高度)\s*'
+            r'(?:为|成|到)|'
             '$prefix'
-                r'(?:尺寸|大小|宽度|高度)\s*'
-                r'(?:调整为|调整成|改成|改为|修改为|设为|设置为)',
+            r'(?:尺寸|大小|宽度|高度)\s*'
+            r'(?:调整为|调整成|改成|改为|修改为|设为|设置为)',
           ).hasMatch(suffix) ||
           RegExp('$prefix$_relativeResizeIntentPattern').hasMatch(suffix))) {
     return true;
   }
   return capabilities.contains(WhiteboardWriteCapability.removePlacement) &&
-      RegExp('$prefix(?:从白板移除|移出白板|移除摆放|拿出白板)')
-          .hasMatch(suffix);
+      RegExp('$prefix(?:从白板移除|移出白板|移除摆放|拿出白板)').hasMatch(suffix);
 }
 
 bool _hasDirectTitleTargetPrefix(String text, int markerStart) => RegExp(
