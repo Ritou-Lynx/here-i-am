@@ -10,17 +10,27 @@ const read = (name) => readFileSync(path.join(directory, name), 'utf8');
 test('service launcher is loopback-only and clears all cutover credentials', () => {
   const script = read('start_i_core_service.ps1');
   assert.match(script, /\$env:I_CORE_HOST\s*=\s*'127\.0\.0\.1'/);
-  assert.match(script, /\$env:I_CORE_PORT\s*=\s*'47841'/);
-  assert.match(script, /\.state\\i-core\.sqlite/);
+  assert.match(script, /\[ValidateRange\(1, 65535\)\]\[int\]\$CorePort = 47841/);
+  assert.match(script, /\$env:I_CORE_PORT\s*=\s*\[string\]\$CorePort/);
+  assert.match(script, /Join-Path \$StateDirectory 'i-core\.sqlite'/);
   for (const name of [
     'I_CORE_PAIRING_CODE',
     'I_CORE_CERT',
     'I_CORE_KEY',
     'I_CORE_WORKER_SECRET',
     'I_CORE_COMPANION_REPLY_JOBS',
+    'I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED',
   ]) {
     assert.match(script, new RegExp(`Remove-Item Env:${name}`));
   }
+  assert.match(script, /Join-Path \$StateDirectory 'shortcut-mail-relay\.enabled'/);
+  assert.match(script, /Join-Path \$StateDirectory 'shortcut-mail-relay\.configure\.lock'/);
+  assert.match(script, /Join-Path \$StateDirectory 'shortcut-mail-relay\.runtime\.lock'/);
+  assert.match(script, /FileMode\]::OpenOrCreate/);
+  assert.match(script, /FileShare\]::None/);
+  assert.match(script, /Test-Path -LiteralPath \$shortcutMailEnableMarker -PathType Leaf/);
+  assert.match(script, /Test-Path -LiteralPath \$shortcutMailConfigureLock -PathType Leaf/);
+  assert.match(script, /\$env:I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED\s*=\s*'1'/);
   assert.match(script, /& \$resolvedNode \$serverPath/);
   assert.match(script, /exit \$exitCode/);
 });

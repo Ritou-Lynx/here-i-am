@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
@@ -9,6 +9,11 @@ import {
   CoreStoreError,
   ICoreStore,
 } from './i_core_store.mjs';
+import {
+  SHORTCUT_WORKFLOW,
+  ShortcutMailRelayError,
+  createConfiguredShortcutMailRelay,
+} from './shortcut_mail_relay.mjs';
 
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = path.dirname(modulePath);
@@ -96,6 +101,58 @@ function requireWorker(request, workerSecret) {
   }
 }
 
+function requireShortcutMailRelay(request, relay) {
+  requireProtocol(request);
+  if (!relay) {
+    throw new CoreStoreError(
+      'shortcut_mail_disabled',
+      'The manual Shortcut mail test is not configured on this core.',
+      { status: 503 },
+    );
+  }
+  const token = bearerToken(request);
+  if (!token) {
+    throw new CoreStoreError(
+      'shortcut_mail_unauthorized',
+      'A scoped Shortcut mail test token is required.',
+      { status: 401 },
+    );
+  }
+  return token;
+}
+
+function shortcutMailTestBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new CoreStoreError('invalid_request', 'Request body must be an object.');
+  }
+  const keys = Object.keys(body);
+  if (keys.length !== 1 || keys[0] !== 'trigger') {
+    throw new CoreStoreError(
+      'fixed_template_only',
+      'The manual Shortcut mail test accepts only the fixed trigger.',
+    );
+  }
+  if (body.trigger !== SHORTCUT_WORKFLOW) {
+    throw new CoreStoreError(
+      'unsupported_workflow',
+      `trigger must be ${SHORTCUT_WORKFLOW}.`,
+      { status: 403 },
+    );
+  }
+  return body.trigger;
+}
+
+function idempotencyKey(request) {
+  const value = request.headers['idempotency-key'];
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new CoreStoreError(
+      'invalid_request',
+      'Idempotency-Key is required for this manual test.',
+    );
+  }
+  return value.trim();
+}
+
 export function createICoreServer({
   databasePath,
   pairingCode = null,
@@ -103,6 +160,7 @@ export function createICoreServer({
   keyPath = null,
   workerSecret = null,
   companionReplyJobsEnabled = false,
+  shortcutMailRelay = null,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
   if (pairingCode !== null && (typeof pairingCode !== 'string' || !pairingCode.trim())) {
@@ -158,6 +216,44 @@ export function createICoreServer({
         json(response, 200, store.acknowledgeCursor(device.device_id, await readJson(request)));
         return;
       }
+      if (
+        request.method === 'POST'
+        && url.pathname === '/v1/core/actions/shortcut-email/manual-test'
+      ) {
+        const token = requireShortcutMailRelay(request, shortcutMailRelay);
+        const workflow = shortcutMailTestBody(await readJson(request, 1024));
+        const receipt = await shortcutMailRelay.send({
+          workflow,
+          token,
+          idempotency_key: idempotencyKey(request),
+        });
+        json(response, 200, { receipt });
+        return;
+      }
+      const shortcutReceiptPrefix =
+        '/v1/core/actions/shortcut-email/manual-test/receipts/';
+      if (
+        request.method === 'GET'
+        && url.pathname.startsWith(shortcutReceiptPrefix)
+      ) {
+        const token = requireShortcutMailRelay(request, shortcutMailRelay);
+        const encodedKey = url.pathname.slice(shortcutReceiptPrefix.length);
+        let key;
+        try {
+          key = decodeURIComponent(encodedKey);
+        } catch (_) {
+          throw new CoreStoreError(
+            'invalid_request',
+            'The receipt idempotency key is not valid URL encoding.',
+          );
+        }
+        const receipt = await shortcutMailRelay.getReceipt({
+          token,
+          idempotency_key: key,
+        });
+        json(response, 200, { receipt });
+        return;
+      }
       if (url.pathname === '/v1/core/workers/leases') {
         requireWorker(request, workerSecret);
         if (request.method === 'GET') {
@@ -203,7 +299,13 @@ export function createICoreServer({
     } catch (error) {
       const known = error instanceof CoreStoreError
         ? error
-        : new CoreStoreError('core_error', error instanceof Error ? error.message : String(error), { status: 500 });
+        : error instanceof ShortcutMailRelayError
+          ? new CoreStoreError(error.code, error.message, {
+              status: error.status,
+              retryable: false,
+              details: error.details,
+            })
+          : new CoreStoreError('core_error', error instanceof Error ? error.message : String(error), { status: 500 });
       json(response, known.status, errorBody(known));
     }
   }
@@ -243,9 +345,14 @@ export function createICoreServer({
         server.closeIdleConnections?.();
         await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       }
+      shortcutMailRelay?.close();
       store.close();
     },
   };
+}
+
+export function isShortcutMailManualTestEnabled(environment = process.env) {
+  return environment.I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED === '1';
 }
 
 async function main() {
@@ -255,6 +362,23 @@ async function main() {
     : null;
   const host = process.env.I_CORE_HOST ?? '127.0.0.1';
   const port = Number(process.env.I_CORE_PORT ?? 47841);
+  const shortcutMailConfigPath = process.env.I_CORE_SHORTCUT_MAIL_CONFIG
+    ?? path.join(moduleDir, '.state', 'shortcut-mail-relay.json');
+  const shortcutMailDatabasePath = process.env.I_CORE_SHORTCUT_MAIL_DATABASE
+    ?? path.join(moduleDir, '.state', 'shortcut-mail-journal.sqlite');
+  let shortcutMailRelay = null;
+  if (isShortcutMailManualTestEnabled() && existsSync(shortcutMailConfigPath)) {
+    try {
+      shortcutMailRelay = createConfiguredShortcutMailRelay({
+        configPath: shortcutMailConfigPath,
+        databasePath: shortcutMailDatabasePath,
+      });
+    } catch (error) {
+      console.error(
+        `Shortcut mail relay is disabled because its local configuration is invalid: ${error.message}`,
+      );
+    }
+  }
   const core = createICoreServer({
     databasePath,
     pairingCode,
@@ -262,6 +386,7 @@ async function main() {
     keyPath: process.env.I_CORE_KEY ?? null,
     workerSecret: process.env.I_CORE_WORKER_SECRET ?? null,
     companionReplyJobsEnabled: process.env.I_CORE_COMPANION_REPLY_JOBS === '1',
+    shortcutMailRelay,
   });
   const address = await core.listen({ host, port });
   const protocol = process.env.I_CORE_CERT && process.env.I_CORE_KEY ? 'https' : 'http';
@@ -269,6 +394,11 @@ async function main() {
   if (!pairingCode) {
     console.log('Device pairing is disabled. Existing paired devices can continue using their tokens.');
   }
+  console.log(
+    shortcutMailRelay
+      ? 'Manual Shortcut mail test relay is enabled.'
+      : 'Manual Shortcut mail test relay is disabled.',
+  );
   if (protocol === 'http') {
     console.log('Keep this bound to loopback and expose it through Tailscale Serve for phone access.');
   }

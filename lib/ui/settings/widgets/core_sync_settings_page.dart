@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/sync/core_sync_runtime_service.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
+import 'package:memex/ui/settings/widgets/sleep_takeover_debug_page.dart';
 import 'package:memex/utils/toast_helper.dart';
 
 class CoreSyncSettingsPage extends StatefulWidget {
@@ -183,6 +185,24 @@ class _CoreSyncSettingsPageState extends State<CoreSyncSettingsPage> {
               onPressed: _busy ? null : _disconnect,
               child: const Text('断开这台设备'),
             ),
+            if (kDebugMode) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.bedtime_outlined),
+                title: const Text('睡眠接管邮件测试'),
+                subtitle: const Text('固定“哄睡聊天”邮件 · 仅手动 · 不接睡眠判断'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _busy
+                    ? null
+                    : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const SleepTakeoverDebugPage(),
+                          ),
+                        ),
+              ),
+            ],
           ],
         ],
       ),

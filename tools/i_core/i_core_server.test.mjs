@@ -1,19 +1,26 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { createICoreServer } from './i_core_server.mjs';
+import {
+  createICoreServer,
+  isShortcutMailManualTestEnabled,
+} from './i_core_server.mjs';
+import { ShortcutMailRelay } from './shortcut_mail_relay.mjs';
 
 async function startCore(t, directory, {
   cleanup = true,
   companionReplyJobsEnabled = false,
+  shortcutMailRelay = null,
 } = {}) {
   const core = createICoreServer({
     databasePath: path.join(directory, 'core.sqlite'),
     pairingCode: '654321',
     workerSecret: 'worker-secret',
     companionReplyJobsEnabled,
+    shortcutMailRelay,
   });
   const address = await core.listen({ port: 0 });
   t.after(async () => {
@@ -23,17 +30,38 @@ async function startCore(t, directory, {
   return { core, baseUrl: `http://127.0.0.1:${address.port}` };
 }
 
-async function jsonRequest(url, { method = 'GET', token, body, protocol = true } = {}) {
+async function jsonRequest(url, {
+  method = 'GET',
+  token,
+  body,
+  protocol = true,
+  headers = {},
+} = {}) {
   const response = await fetch(url, {
     method,
     headers: {
       ...(protocol ? { 'x-core-protocol': '0.1' } : {}),
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(body ? { 'content-type': 'application/json' } : {}),
+      ...headers,
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   return { status: response.status, body: await response.json() };
+}
+
+function shortcutMailRelay(directory, dispatches) {
+  return new ShortcutMailRelay({
+    databasePath: path.join(directory, 'shortcut-mail.sqlite'),
+    tokenHash: createHash('sha256').update('shortcut-scoped-token').digest('hex'),
+    receiverHint: 'l***@icloud.com',
+    minIntervalMs: 0,
+    dailyLimit: 3,
+    dispatcher: async (request) => {
+      dispatches.push(request);
+      return { accepted: true };
+    },
+  });
 }
 
 async function pair(baseUrl, deviceId, pairingCode = '654321') {
@@ -82,6 +110,91 @@ test('health identifies a stable authority node', async (t) => {
   assert.equal(result.body.role, 'authority');
   assert.equal(result.body.protocol_version, '0.1');
   assert.ok(result.body.node_id);
+});
+
+test('manual Shortcut mail server feature gate is strict and defaults closed', () => {
+  assert.equal(isShortcutMailManualTestEnabled({}), false);
+  assert.equal(isShortcutMailManualTestEnabled({ I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED: 'true' }), false);
+  assert.equal(isShortcutMailManualTestEnabled({ I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED: '1' }), true);
+});
+
+test('manual Shortcut mail action stays disabled until local relay configuration exists', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'i-core-shortcut-disabled-'));
+  const { baseUrl } = await startCore(t, directory);
+  const result = await jsonRequest(
+    `${baseUrl}/v1/core/actions/shortcut-email/manual-test`,
+    {
+      method: 'POST',
+      token: 'shortcut-scoped-token',
+      headers: { 'idempotency-key': 'cbe57d5e-66f8-41aa-81a2-9f68380f94c7' },
+      body: { trigger: 'ios_shortcut_test_v0' },
+    },
+  );
+  assert.equal(result.status, 503);
+  assert.equal(result.body.error.code, 'shortcut_mail_disabled');
+});
+
+test('manual Shortcut mail action is scoped, fixed-template and idempotent', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'i-core-shortcut-mail-'));
+  const dispatches = [];
+  const relay = shortcutMailRelay(directory, dispatches);
+  const { baseUrl } = await startCore(t, directory, { shortcutMailRelay: relay });
+  const endpoint = `${baseUrl}/v1/core/actions/shortcut-email/manual-test`;
+  const key = 'cbe57d5e-66f8-41aa-81a2-9f68380f94c7';
+  const request = {
+    method: 'POST',
+    token: 'shortcut-scoped-token',
+    headers: { 'idempotency-key': key },
+    body: { trigger: 'ios_shortcut_test_v0' },
+  };
+
+  const accepted = await jsonRequest(endpoint, request);
+  const replay = await jsonRequest(endpoint, request);
+  assert.equal(accepted.status, 200);
+  assert.equal(accepted.body.receipt.status, 'provider_accepted');
+  assert.equal(accepted.body.receipt.idempotency_key, key);
+  assert.equal(accepted.body.receipt.receiver_hint, 'l***@icloud.com');
+  assert.equal(accepted.body.receipt.subject_code, 'sleep_chat_v0');
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.receipt.replay, true);
+  assert.equal(replay.body.receipt.receipt_id, accepted.body.receipt.receipt_id);
+  assert.equal(dispatches.length, 1);
+
+  const consumedToken = await jsonRequest(endpoint, {
+    ...request,
+    headers: { 'idempotency-key': 'e1729dad-4e82-42d1-90b6-c5a78385a699' },
+  });
+  assert.equal(consumedToken.status, 409);
+  assert.equal(consumedToken.body.error.code, 'token_consumed');
+  assert.equal(dispatches.length, 1);
+
+  const queried = await jsonRequest(
+    `${endpoint}/receipts/${encodeURIComponent(key)}`,
+    { token: 'shortcut-scoped-token' },
+  );
+  assert.equal(queried.status, 200);
+  assert.equal(queried.body.receipt.receipt_id, accepted.body.receipt.receipt_id);
+  assert.equal(queried.body.receipt.receiver_hint, 'l***@icloud.com');
+
+  const wrongToken = await jsonRequest(endpoint, {
+    ...request,
+    token: 'not-the-shortcut-token',
+    headers: { 'idempotency-key': 'e1729dad-4e82-42d1-90b6-c5a78385a699' },
+  });
+  assert.equal(wrongToken.status, 401);
+  assert.equal(wrongToken.body.error.code, 'unauthorized');
+
+  const callerSelectedContent = await jsonRequest(endpoint, {
+    ...request,
+    headers: { 'idempotency-key': 'e1729dad-4e82-42d1-90b6-c5a78385a699' },
+    body: {
+      trigger: 'ios_shortcut_test_v0',
+      subject: 'attacker-selected',
+    },
+  });
+  assert.equal(callerSelectedContent.status, 400);
+  assert.equal(callerSelectedContent.body.error.code, 'fixed_template_only');
+  assert.equal(dispatches.length, 1);
 });
 
 test('service can run with pairing disabled until an explicit pairing window opens', async (t) => {
