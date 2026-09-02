@@ -6,7 +6,7 @@
 >
 > 执行基线：`v3-lab`
 >
-> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过；P4 R18 的 Runtime 移动、持久 Undo 与两次重启真人闭环已通过；旧 `2ed4b015` 候选的 resize 现场零写超时，R19 已审计、集成并通过自动 Gate，当前等待新唯一候选与 Runtime resize 真人 Gate；P5 / P6 与最终真人 Gate 继续阻塞
+> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过；P4 R18 的 Runtime 移动、持久 Undo 与两次重启真人闭环已通过；R19 exact `722a646d` 的 resize 真人两次因 production lock 清空 selection 被误判为 surface 重挂而零写失败，R20 已审计、集成并通过自动 Gate，当前等待新唯一候选与 Runtime resize 真人 Gate；P5 / P6 与最终真人 Gate 继续阻塞
 
 本文回答四个问题：Here I Am 最终是什么、数据以哪里为准、当前真实基线在哪里、下一阶段按什么 Gate 推进。它不是无限任务清单，也不替代阶段 Goal。每次只从本路线提出一个可验收 Goal；Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
@@ -45,6 +45,8 @@ R17 已把未预选场景收回 host-owned 当前板边界：仅对直接目标�
 R18 已只向本轮获准 move / resize 的 exact target 注入同一 authoritative snapshot 的 `item_id/x/y/width/height`，geometry 不参与 scope，0 / 多义 / forged target 仍 fail closed；领域与 Runtime 共用坐标 ±1,000,000、宽 `80..3000`、高 `60..3000` 的唯一边界。首轮独立复核拦下极端 finite 坐标可持久化和非法尺寸先建 action 两项 P1，follow-up 后终审无 P0/P1/P2。真实 `codex-cli 0.151.0-alpha.7.2` schema 证明 `TurnStartParams` 没有 per-turn required / allow-only tool 字段。exact `2ed4b015` 的唯一 move 把 x 精确增加 120、y 不变，真人移动与首次重启保留通过；持久 Undo 把 x 恢复原值，Card 三字段与尺寸未变，第二次重启仍 `undone` 且不可重复。Lynx 最终确认行动卡显示“已撤销”、按钮消失，故 persistent Undo 真人闭环通过。无 busy / Toast 的即时反馈仍登记为非阻断债。当前只恢复 Runtime resize；remove / conflict 尚未放行。
 
 随后在同一旧候选输入“当前选中卡片宽度增加 120 像素”，宿主没有生成白板授权上下文，provider 在本地探索约 180 秒后超时；零白板工具、action、Receipt 与持久写入，原 geometry 保持不变。R19 `01a052f1-da65-7ad2-8f44-15a9ead2d80f` 只补严格相对尺寸意图、完整 quoted-literal 隔离和 selection / authoritative snapshot 双重 fail-closed；独立复核先拦下 malformed exact-title 咨询劫持、trim 后 quote offset 越界与 stale selection 空 geometry 三项阻断，follow-up 后确认可集成。worker `37c77acd..523ec22a` 已选择性集成为 `v3-lab@2a75a7c0..158158dc`；主线 Runtime `34/34`、coordinator `23/23`、critical `3/3`、两文件 analyze 与 diff check 均通过。自动证据不代替真人 Gate；当前尚无 R19 新候选，remove / conflict 继续冻结。
+
+exact `722a646d` R19 候选随后完成构建并健康启动，但真人连续两次宽度 `+120` 均返回 `whiteboard_surface_changed`，零 action / Receipt / 持久写。根因不是用户未选中，而是 production route 进入 readonly 时同步清空 selection 并发布同 attachment 新 snapshot，R17 的严格实例 gate 将其误判为真实重挂。R20 只新增 host-owned attachment token：selection-only snapshot 保留 token，每次 fresh attach 更新 token；lock 后仅允许同 token 的空 selection，非空 replacement、换 owner / board 与后续竞态继续 fail closed。两份独立复审无 P0/P1，worker `591caf3a + 3c6265c7` 与 handoff `cdf01946` 已集成为 `v3-lab@3674548b..03c2afd9`；主线 Runtime + coordinator `59/59`、真实 production route `8/8`、目标 analyze、critical `3/3` 与 diff check 全绿。当前尚未构建 R20 新候选，remove / conflict 继续冻结。
 
 2026-08-28 并行例外 Goal [`GOAL-20260828-legacy-cleanup-wave1`](../development/goals/GOAL-20260828-legacy-cleanup-wave1.md) 已验收通过并进入 `v3-lab@a29b212e`：第一批零注册 / 零调用孤岛与退役测试已删除，仍有效的 Tavern / Companion 覆盖已迁移或保留，全仓退役测试编译错误归零。该清理不改变产品路线、数据权威或 P4 主 Goal，也未触碰 SharedLife、CardCache、日程、UI 大簇、schema、依赖或用户数据。
 
@@ -175,7 +177,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| 已恢复的 AI 工作台 Goal | UI-T、P4 人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动与聊天切回 Delete、R17 精确标题正文与标签编辑、R18 Runtime move / persistent Undo / restart 均已真人通过；R16 capability、R17 current-board exact-title scope、R18 bounded geometry 与 R19 relative resize intent 已独立复核并集成；P6 已补 host-owned 生产 Runtime 队列入口 | R19 自动 Gate 已通过，等待新唯一候选与 Runtime resize 真人 Gate；通过前不继续 remove / conflict；P5 / P6、W4、push / 发布仍阻塞 |
+| 已恢复的 AI 工作台 Goal | UI-T、P4 人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动与聊天切回 Delete、R17 精确标题正文与标签编辑、R18 Runtime move / persistent Undo / restart 均已真人通过；R16 capability、R17 current-board exact-title scope、R18 bounded geometry、R19 relative resize intent 与 R20 attachment lifecycle 已独立复核并集成；P6 已补 host-owned 生产 Runtime 队列入口 | R19 真人 resize 因 lock selection-clear 误判零写失败；R20 自动 Gate 已通过，等待新唯一候选与 Runtime resize 真人 Gate；通过前不继续 remove / conflict；P5 / P6、W4、push / 发布仍阻塞 |
 | 已关闭的临时预备 Goal | `GOAL-20260826-authority-preflight` 已通过用户真人审阅并关闭，只使用代码实况与合成数据 | 已交付对象盘点、迁移矩阵、golden corpus 与隔离 harness 骨架；没有切换生产权威，也不证明 Gate 1A-0 通过 |
 | Desktop Whiteboard | Card/Source/Board/Anchor 骨架、卡片库、画布、链接入库、视频研读、通用命令基础 | Markdown 权威迁移、完整删除/恢复、文件导入与外部编辑冲突、生产搜索和灾难恢复尚未形成统一 Gate |
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
@@ -201,7 +203,7 @@ Android 严重崩溃、Memory 真实误召回、数据损坏、安全漏洞和 P
 历史失败与当前未完 Gate 为：
 
 - UI-T：真实系统剪贴板、回复期间编辑、`Win + H` 与菜单主题真人通过；Typeless 2.3.1 不向 Flutter Windows 输入框注入，保留为非阻断外部兼容红灯；
-- P4：人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动 / 聊天切回 Delete、R17 精确标题正文 / 标签编辑、R18 Runtime move / persistent Undo / restart 均已真人通过。旧候选的 resize 现场零写超时，R19 自动返修已审计并集成；当前等待新唯一候选与 Runtime resize 真人 Gate，通过前不继续 remove / conflict。选中框瞬时闪烁、手动行动卡主对话噪声和 Undo 无即时成功提示仍为非阻断呈现债；
+- P4：人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动 / 聊天切回 Delete、R17 精确标题正文 / 标签编辑、R18 Runtime move / persistent Undo / restart 均已真人通过。R19 候选的 resize 真人两次因 lock selection-clear 误判为 surface 重挂而零写失败；R20 已审计、集成并通过自动 Gate，当前等待新唯一候选与 Runtime resize 真人 Gate，通过前不继续 remove / conflict。选中框瞬时闪烁、手动行动卡主对话噪声和 Undo 无即时成功提示仍为非阻断呈现债；
 - P5：真实人格 / 长期关系 Memory V3 代码已返修和自动验证，仍须等待 P4 后做真实命中、空、失败和扩权拒绝真人 Gate；
 - P6：受控生产 Runtime 入口与全生命周期已经接入；仍须等待 P4 / P5 后做真实 Bridge / App 重启与生命周期真人 Gate。
 
@@ -461,7 +463,7 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 ### 当前活动 Goal
 
-当前唯一活动 Goal 是 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)，执行与派发已经用户授权。R18 `01a05185-dbe9-7313-8e2c-d02fd40f051e` 的 host-bounded geometry 让 exact `2ed4b015` 完成 Runtime move、persistent Undo 与两次重启真人闭环；随后 resize 句在没有白板授权上下文和产品工具调用的情况下运行约 180 秒并零写超时，该候选已冻结。R19 `01a052f1-da65-7ad2-8f44-15a9ead2d80f` 已把严格相对尺寸授权、quoted-literal 与 stale selection fail-closed 收口，经独立复审后集成为 `v3-lab@2a75a7c0..158158dc`，主线 Runtime `34/34`、coordinator `23/23`、critical `3/3` 与目标 analyze 全绿。当前等待从新集成基线构建唯一 Windows 候选，再只恢复 Runtime resize 真人 Gate；父 [`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)、P5 / P6、W4、push 与发布保持阻塞。
+当前唯一活动 Goal 是 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)，执行与派发已经用户授权。R18 exact `2ed4b015` 的 Runtime move、persistent Undo 与两次重启真人闭环成立；R19 exact `722a646d` 虽恢复了 relative resize 授权，但真人两次在 production readonly 同步清空 selection 后被误报 `whiteboard_surface_changed`，均零 action / Receipt / 持久写。R20 以 host-owned attachment token 区分同 attachment selection snapshot 与 fresh reattach，保持其它 surface / scope 竞态 fail closed；两份独立复审无 P0/P1，已集成为 `v3-lab@3674548b..03c2afd9`，主线 `59/59 + 8/8`、critical `3/3` 与目标 analyze 全绿。当前等待从该基线构建唯一 Windows 候选，再只恢复 Runtime resize 真人 Gate；父 [`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)、P5 / P6、W4、push 与发布保持阻塞。
 
 ### 下一正式 Goal 候选（尚未创建）
 
