@@ -419,8 +419,7 @@ void main() {
       expect(
         area.viewModel.selection.selectedItemIds,
         isEmpty,
-        reason:
-            'an applied remove must not restore an item absent after reload',
+        reason: 'an applied remove must not restore an item absent after reload',
       );
       expect(await tester.runAsync(() => repository.getCard(item.cardId)),
           isNotNull,
@@ -531,9 +530,7 @@ void main() {
       actions = await _waitForActionCount(tester, db, 2);
       await _pumpUntilCondition(tester, () {
         final items = area.viewModel.exportForSave().boardItems;
-        return items
-                .singleWhere((item) => item.itemId == clickedItem.itemId)
-                .x ==
+        return items.singleWhere((item) => item.itemId == clickedItem.itemId).x ==
             beforeMove.x + 8;
       });
       expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
@@ -543,9 +540,7 @@ void main() {
       actions = await _waitForActionCount(tester, db, 3);
       await _pumpUntilCondition(tester, () {
         final items = area.viewModel.exportForSave().boardItems;
-        return items
-                .singleWhere((item) => item.itemId == clickedItem.itemId)
-                .x ==
+        return items.singleWhere((item) => item.itemId == clickedItem.itemId).x ==
             beforeMove.x + 16;
       });
       expect(area.viewModel.selection.selectedItemIds, {clickedItem.itemId});
@@ -858,8 +853,7 @@ void main() {
       expect(
         area.viewModel.selection.selectedItemIds,
         isEmpty,
-        reason:
-            'the production lock clears selection after the port captures it',
+        reason: 'the production lock clears selection after the port captures it',
       );
 
       final switchedOwner = Object();
