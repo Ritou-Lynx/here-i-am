@@ -23,14 +23,44 @@ Here I Am 选择把**唯一主伴侣的 Chat 放在首页**：用户先自然分
 | 语音如何成为同步陪伴，而不只是文字输入替代？ | 围绕 PTT、ASR、TTS、流式播放、打断与系统来电持续迭代，并把实时语音表面与身份、记忆分层。 | 已有工程原型和真机路径；仍非面向公众的稳定服务。 |
 | AI 如何从“知道”走向“共同完成”？ | 在共享工作台中加入限定授权、结果 Receipt 与 persistent Undo，并验证卡片创建、编辑、移动和跨重启撤销。 | 目前只证明了受限垂直闭环，不等于通用自主代理。 |
 
-<!-- PORTFOLIO_SCREENSHOTS_START
-真机截图通过隐私复核后插入这里：
-1. Chat 首页
-2. 显式记录动作
-3. Memory Review
-4. 语音 / 系统来电
-5. Desktop AI Workbench（可选）
-PORTFOLIO_SCREENSHOTS_END -->
+## 春雨昼眠：开屏与真机画面
+
+<p align="center">
+  <img src="assets/images/%E6%98%A5%E9%9B%A8%E6%98%BC%E7%9C%A0_%E5%BC%80%E5%B1%8F.gif" width="320" alt="春雨昼眠开屏动画预览">
+</p>
+
+<p align="center"><em>“春雨昼眠”开屏动效：大面积留白、细雨、窗帘与缓慢呼吸的植物，共同建立安静而持续的陪伴感。</em></p>
+
+上图直接复用仓库中最初接入产品的 GIF 动效。当前 Android 冷启动运行态已经升级为[同一视觉方案的 V6 MP4](assets/images/spring_rain_daydream_splash_v6.mp4)，修复了冷启动白屏与首帧抖动，并在应用进入可交互状态后结束，而不是播放固定时长的广告页。
+
+以下画面来自 Android 真机上的 `hereIAmV3`（`com.memexlab.hereiam.v3`，v1.0.30）。演示消息为虚构内容；截图不包含真实聊天、联系人、位置、健康或账户资料。
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/portfolio/screenshots/chat-home-device.jpg" alt="Here I Am Chat 首页真机画面"><br>
+      <strong>Chat 就是首页</strong><br>
+      打开应用时先面对一个具体、持续的关系主体，而不是待填写的工具面板。
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/portfolio/screenshots/explicit-record-device.jpg" alt="显式记录确认真机画面"><br>
+      <strong>显式记录，而非后台擅自捕获</strong><br>
+      一条聊天消息只有经过用户确认，才会被整理为 User-truth 记忆卡片。
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/portfolio/screenshots/memory-center-device.jpg" alt="记忆中心真机画面"><br>
+      <strong>分层的记忆中心</strong><br>
+      主动记录、聊天碎片、共同经历与长期记忆保持不同来源和权威边界。
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/portfolio/screenshots/character-profile-device.jpg" alt="角色关系页真机画面"><br>
+      <strong>关系与记忆从同一个角色展开</strong><br>
+      用户可以回到角色关系页查看最近整理结果，并进入记忆与生活空间。
+    </td>
+  </tr>
+</table>
 
 ## 为什么从“日记”转向“关系”
 
