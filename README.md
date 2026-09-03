@@ -51,7 +51,7 @@ PORTFOLIO_SCREENSHOTS_END -->
 
 ### 我的产品重构与扩展
 
-2026-06-01，本仓库正式确立 [Companion-First 产品主线](https://github.com/Ritou-Lynx/here-i-am/commit/f63990ee4f86b386c0876a94c021b28be59dd3fb)。这个节点适合表示产品方向的分界，但**不是**“此前都属于上游、此后每一行都由我原创”的代码切点。
+2026-06-01，本仓库正式确立 [Companion-First 产品主线](https://github.com/Ritou-Lynx/here-i-am/commit/26798d907eebac2137b7792dab61a1cc9234c439)。这个节点适合表示产品方向的分界，但**不是**“此前都属于上游、此后每一行都由我原创”的代码切点。
 
 我负责的核心迭代包括：
 
@@ -65,10 +65,12 @@ PORTFOLIO_SCREENSHOTS_END -->
 为了让归属可核查，建议结合以下入口阅读：
 
 - [上游 Memex](https://github.com/memex-lab/memex)
-- [Companion-First 主线确立提交](https://github.com/Ritou-Lynx/here-i-am/commit/f63990ee4f86b386c0876a94c021b28be59dd3fb)
-- [从产品主线确立至当前分支的演进](https://github.com/Ritou-Lynx/here-i-am/compare/f63990ee4f86b386c0876a94c021b28be59dd3fb...v3-lab)
+- [Companion-First 主线确立提交](https://github.com/Ritou-Lynx/here-i-am/commit/26798d907eebac2137b7792dab61a1cc9234c439)
+- [从产品主线确立至当前分支的演进](https://github.com/Ritou-Lynx/here-i-am/compare/26798d907eebac2137b7792dab61a1cc9234c439...v3-lab)
 
 > GitHub 的差异统计只适合辅助技术审阅，不能把所有新增 / 删除行机械等同为个人原创代码；仓库中仍包含上游历史、第三方组件、历史合并与协作提交。
+
+> 为保护真实聊天、设备记录、账户与内部协作资料，公开历史移除了私人运行数据并替换了机器专属信息。提交数量、作者归属、日期、说明和分支拓扑被保留；因此部分旧 commit SHA 与外部旧链接会失效。
 
 ### 归属说明
 
