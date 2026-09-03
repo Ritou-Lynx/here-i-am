@@ -148,6 +148,8 @@ flutter:
     - assets/stickers/manifest.json
     - assets/stickers/zhedog/
     - assets/branding/hereiam_v3_logo/
+    - assets/fonts/LXGWWenKai-OFL.txt
+    - assets/fonts/Inter/OFL.txt
     - assets/fonts/whiteboard/CascadiaCode-OFL.txt
 
   fonts:
@@ -167,10 +169,6 @@ flutter:
           weight: 600
         - asset: assets/fonts/Inter/Inter-Bold.ttf
           weight: 700
-    # 白板生产字体——汇文明朝体（CC0，已接入；子集化待优化）：
-    - family: Huiwen-mincho
-      fonts:
-        - asset: assets/fonts/whiteboard/HuiwenMingChao-Regular.ttf
     # Cascadia Code 2407.24（Microsoft 官方发行，SIL OFL 1.1）：
     - family: Cascadia Code
       fonts:

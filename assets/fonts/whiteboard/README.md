@@ -7,7 +7,7 @@
 
 | 字体 | 用途 | 许可证 | 当前状态 |
 |---|---|---|---|
-| 汇文明朝体（Huiwen Mingchao） | 中文正文 / 页面标题 | CC0 1.0 | 已接入；当前全量文件 24.9 MB，仍待独立子集化 |
+| 霞鹜文楷（LXGW WenKai） | 中文正文 / 页面标题 | SIL Open Font License 1.1 | 复用 `assets/fonts/LXGWWenKai-Regular.ttf`；许可副本位于上级目录 |
 | Cascadia Code 2407.24 Regular | 英文、数字、时间码、代码 | SIL Open Font License 1.1 | 已接入并由 Flutter / Windows 产物验证 |
 
 ### Cascadia Code 可追溯信息
@@ -29,9 +29,9 @@ WOFF2 或可变字体。当前文件是 Microsoft 原始发行文件，未修改
 
 ```yaml
   fonts:
-    - family: Huiwen-mincho
+    - family: LXGW WenKai
       fonts:
-        - asset: assets/fonts/whiteboard/HuiwenMingChao-Regular.ttf
+        - asset: assets/fonts/LXGWWenKai-Regular.ttf
     - family: Cascadia Code
       fonts:
         - asset: assets/fonts/whiteboard/CascadiaCode-Regular.ttf
@@ -40,9 +40,8 @@ WOFF2 或可变字体。当前文件是 Microsoft 原始发行文件，未修改
 `Cascadia Code` 中的空格不能删除；它必须与字体内部 family 以及
 `richTextCodeFamily` 一致。缺字回退顺序继续由 `fonts.dart` 控制。
 
-## 汇文明朝体后续子集化边界
+## 中文字体边界
 
-汇文明朝体当前文件较大，后续应在独立资产批次中按产品文案、常用 CJK、标点
-和白板 fixture 生成子集，并对全部生产文案做 glyph 覆盖扫描。子集化会修改
-字体数据，必须重新核对其许可证、内部 family、生成命令、文件哈希与 Windows
-真机标点 / 缺字表现；不得用霞鹜文楷等其它字体冒充目标字体。
+白板复用应用已注册的霞鹜文楷原始文件。若未来对子集或字形做修改，必须重新
+核对 SIL OFL、Reserved Font Name、内部 family、生成命令、文件哈希与桌面端
+标点 / 缺字表现。
