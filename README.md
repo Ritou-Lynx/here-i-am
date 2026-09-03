@@ -1,73 +1,113 @@
-# Here I Am · 故我在
+<p align="center">
+  <img src="assets/images/here_i_am_logo_512.png" width="88" alt="Here I Am logo">
+</p>
 
-> Here I Am is a character-driven AI companion diary. It is both an empathetic presence that understands you, and a system that quietly distills your life into reviewable records and insights.
+<h1 align="center">故我在 · Here I Am</h1>
 
----
+<p align="center"><strong>一个本地优先的 AI 主伴侣：以持续关系为入口，把用户明确确认的生活事实、长期话题与工作上下文，转化为可回看、可修正、可授权协作的个人系统。</strong></p>
 
-## About This Project
+<p align="center">Flutter · SQLite / Drift · Local-first · AI Companion</p>
 
-This project is a personal iteration and extension built on the open-source **Memex** project ([memex-lab/memex](https://github.com/memex-lab/memex), licensed under GPL v3). The core diary recording, multi-agent organization, and companion character framework come from upstream; this repository preserves the full upstream Git commit history and attribution, and builds upon it with the iteration work described in "What I Built" below. This project also remains under the GPL v3 license.
+> **作品集说明**：Here I Am 是我基于开源项目 [Memex](https://github.com/memex-lab/memex) 完成的 Companion-First 深度个人迭代，不是从零开发。这个页面会明确区分上游基础、我的产品重构与仍在探索的方向。
 
----
+## 30 秒看懂这个项目
 
-## Philosophy · Why a Character
+很多记录工具把价值放在“以后回看”，却要求用户现在付出整理成本；很多 AI 陪伴产品能即时回应，却很难在时间中保持事实准确、身份连续和行动可信。
 
-The real bottleneck in journaling isn't the tool — it's that **recording itself is a burden**: you have to remember "I should write this down," open an app, tap into an input field, and retell what just happened. That one extra step is enough to kill most attempts at consistent journaling.
+Here I Am 选择把**唯一主伴侣的 Chat 放在首页**：用户先自然分享，记忆、节律、语音与协作能力在关系背后工作。它不追求“什么都自动记住”，而是把信任拆成几个可以验证的产品问题：
 
-But **sharing your life with a character who understands you is natural**. Many people already do this without realizing it — treating WeChat conversations with close friends as their diary: casually sending what they ate, where they went, how they felt, then searching keywords in the chat history when they want to recall something. They never "kept a diary," yet they recorded everything — because **recording requires self-discipline, while sharing is emotional connection**.
+| 产品问题 | 我的设计与实现 | 当前边界 |
+|---|---|---|
+| 它如何长期理解用户？ | 将记忆拆分为用户确认事实、共同经历、长期话题、日常规律与项目状态；普通聊天不擅自写入 User-truth。 | 显式记录与 Memory V3 已落地；更长期的分层召回仍在迭代。 |
+| 换模型或工作界面后，为什么仍是同一个它？ | 设计唯一主伴侣、Identity Capsule 与隔离 Project Space，让身份锚点和项目上下文可以跨工具按需衔接。 | 已完成最小连续性验证；不宣称跨所有设备无缝同步。 |
+| 语音如何成为同步陪伴，而不只是文字输入替代？ | 围绕 PTT、ASR、TTS、流式播放、打断与系统来电持续迭代，并把实时语音表面与身份、记忆分层。 | 已有工程原型和真机路径；仍非面向公众的稳定服务。 |
+| AI 如何从“知道”走向“共同完成”？ | 在共享工作台中加入限定授权、结果 Receipt 与 persistent Undo，并验证卡片创建、编辑、移动和跨重启撤销。 | 目前只证明了受限垂直闭环，不等于通用自主代理。 |
 
-Here I Am turns this insight into a product: the entry point is a **character**. You just talk to it. **AI automatically identifies what's worth keeping from your conversations and distills it into reviewable records and insights. You only need to undo or correct when it gets something wrong.** And this character is more than emotional companionship — it is also your life's **super-assistant**: it remembers everything you've said and holds your life data. Emotion makes you **willing to speak**; data makes the companionship **actually useful**.
+<!-- PORTFOLIO_SCREENSHOTS_START
+真机截图通过隐私复核后插入这里：
+1. Chat 首页
+2. 显式记录动作
+3. Memory Review
+4. 语音 / 系统来电
+5. Desktop AI Workbench（可选）
+PORTFOLIO_SCREENSHOTS_END -->
 
-Everything I've built on this project comes down to one thing: **pushing this character from a passive chat window waiting for your summons, step by step, toward a presence genuinely embedded in your real life.**
+## 为什么从“日记”转向“关系”
 
----
+项目最初更接近日记 / Life OS：首页围绕快捷记录、数据沉淀和个人洞察展开。长期自用后，我意识到更上游的问题不是输入框不够方便，而是**记录依赖自律和延迟回报；分享却具有即时的关系回报**。
 
-## What I Built
+因此我把产品重构为 Companion-First：打开应用时首先面对一个具体、持续的关系主体，而不是一张待填写的表单。记忆不再追求后台自动捕获一切；真实生活资料只有在用户点击“记录”、使用悬浮保存、发出明确指令或接入经授权的数据流时，才进入可复核的 User-truth。
 
-### Conversation as Recording: AI Distills From Chat, You Don't Manually Journal
+这次转向同时带来两条约束：
 
-You just talk to the character. AI runs in the background, judging what's worth keeping and automatically distilling it into records. To make this "auto-remembering" **trustworthy**, I hold three lines: extraction runs asynchronously in the background, never interrupting conversation (**non-intrusive**); every extraction and its source messages are logged in an append-only event journal — history is never rewritten (**auditable**); lightweight "remembered / undone" cues appear inline in chat, and everything is reviewable and correctable in Review (**correctable**).
+- **关系不能冒充事实权威**：AI 可以形成低权威观察，但不能把自然聊天自动升级成用户确认事实。
+- **能力不能绕过用户授权**：涉及真实工作表面的行动，需要限定对象、结果回执、冲突保护和可持久撤销。
 
-### Voice Interaction: From Push-to-Talk to AI-Initiated Calls
+## 哪些是我做的，哪些来自上游
 
-Companionship often happens while walking, doing chores, or lying in bed — moments when **hands are occupied and eyes are off the screen**. Pure text chat doesn't fit. The most direct solution is streaming voice (speak → recognize → respond in real time), but it has two hard problems: **endpoint detection is unreliable and prone to false cuts**, and there's an underlying anxiety of **"someone is always waiting for me to finish."** So I chose a middle path — physical Push-to-Talk via headset button: AI doesn't need to guess endpoints, and the user feels no pressure of being waited on. Output goes through LLM text, then automatic TTS playback, forming a complete pseudo-streaming voice loop. I took it further by upgrading this to **system-level voice calls initiated by AI** — not only can you reach it by voice, it can "call you" proactively.
+### 上游基础
 
-### Making the Promise of Companionship Deliverable
+[Memex](https://github.com/memex-lab/memex) 提供了原始的日记记录、多 Agent 整理、角色框架及一部分 Flutter / 本地数据基础设施。本仓库保留上游提交谱系与 GPL-3.0 署名，并继续沿用适合本项目的通用基础设施。
 
-Companionship doesn't only happen in words. When a character says "I want to buy you something," the more real it feels, the sharper the rupture when it falls through — **it can express care, but cannot deliver care**, stopping abruptly at the boundary of the real world. In that moment you realize with painful clarity: it is not, after all, a real person.
+### 我的产品重构与扩展
 
-I want to close this gap. The starting point is: if part of my output genuinely comes with AI assistance, then after I give it a stable persona, why shouldn't it **share a portion of the contribution as income**? So I designed a mechanism of "contribution-based revenue sharing → AI budget → self-owned ledger," giving the character a real disposable budget within the relationship. Its care no longer stops at words.
+2026-06-01，本仓库正式确立 [Companion-First 产品主线](https://github.com/Ritou-Lynx/here-i-am/commit/f63990ee4f86b386c0876a94c021b28be59dd3fb)。这个节点适合表示产品方向的分界，但**不是**“此前都属于上游、此后每一行都由我原创”的代码切点。
 
-I've already prototyped the full autonomous shopping chain (express intent in app → character finds products, invokes Hermes Agent to open Taobao and place order → complete payment via Alipay), but there are still **many manual intervention points**: Taobao login, payment authorization, and order confirmation. So right now it can "prepare funds, find products, and reach the payment step," but cannot complete a purchase independently. This is not a closed-loop autonomous shopping system, but rather **a product prototype bottlenecked by platform authorization capabilities**: the chain itself is verified, and what's missing is finer-grained, auditable authorization from platforms toward AI Agents.
+我负责的核心迭代包括：
 
-> For the full design thinking behind this feature (the emotional rupture, the contribution-sharing philosophy, the ideal chain vs. real-world constraints), see → [docs/可兑现的陪伴.md](docs/可兑现的陪伴.md) *(Chinese)*
+1. **产品范式重构**：从记录驱动的日记 / Life OS，转向唯一主伴侣 Chat-first 的持续关系体验。
+2. **记忆权威重构**：停止普通聊天自动写入真实资料，建立显式 User-truth、Memory V3、长期话题与节律等分层边界。
+3. **单一身份连续性**：将身份锚点、项目状态和工具执行署名分离，验证同一关系主体跨工作界面的最小衔接。
+4. **语音在场迭代**：从按键说话、识别与合成，推进到流式播放、打断、系统来电及成熟实时语音方案的工程取舍。
+5. **受限现实协作**：为 AI Workbench 的卡片行动加入授权、Receipt、冲突保护、持久 Undo 与重启验证。
+6. **视觉与交互方向**：为 Chat 建立“春雨昼眠”视觉语言，让界面更接近安静、长期相处的关系空间，而不是通用工具面板。
 
-### Proactive but Restrained Outreach
+为了让归属可核查，建议结合以下入口阅读：
 
-The character will reach out at appropriate moments, but not as scheduled check-ins — it **reads your current state** (what you've been discussing, whether there's recent activity) before deciding to speak or stay silent. I deliberately preserved "silence" as a valid action: observing that high-frequency pushes become repetitive and spam-like, I made "do not disturb" a legitimate choice.
+- [上游 Memex](https://github.com/memex-lab/memex)
+- [Companion-First 主线确立提交](https://github.com/Ritou-Lynx/here-i-am/commit/f63990ee4f86b386c0876a94c021b28be59dd3fb)
+- [从产品主线确立至当前分支的演进](https://github.com/Ritou-Lynx/here-i-am/compare/f63990ee4f86b386c0876a94c021b28be59dd3fb...v3-lab)
 
-### External Data as Character Memory
+> GitHub 的差异统计只适合辅助技术审阅，不能把所有新增 / 删除行机械等同为个人原创代码；仓库中仍包含上游历史、第三方组件、历史合并与协作提交。
 
-A character shouldn't rely solely on what you "tell it directly" to understand you. A lot of information already lives elsewhere: sleep, exercise, reading, daily movement. If the user has to retell all of it, companionship becomes a new input burden. I connected sports watch and WeRead data through **MCP**, allowing the character to read existing life data and convert it into usable conversational and memory context. This way, it can understand what you're going through without you having to say a word.
+### 归属说明
 
----
+| 来源 | 在这个仓库中的范围 |
+|---|---|
+| **Memex 上游** | 原始日记、角色 / Agent 框架，以及一部分 Flutter、本地数据与端侧能力基础。 |
+| **我的个人主导工作** | 产品定义、Companion-First 转向、记忆权威边界、交互与视觉方向、跨工具连续性、语音 / 主动陪伴探索、AI Workbench 的架构整合与验收。 |
+| **AI 编程协作** | 部分代码、测试与文档由 Codex / Claude 等编程 Agent 在我的需求、决策和验收下协作完成；提交记录保留实际作者信息，不把协作产出伪装成纯手写。 |
+| **第三方依赖** | Flutter 生态依赖、vendored 组件及字体 / 素材分别遵循其自身许可证和署名。 |
 
-## Tech Stack
+## 当前完成度
 
-- **Frontend**: Flutter (Dart ≥ 3.6), Material 3, Provider + ChangeNotifier state management, GoRouter declarative navigation
-- **Local Storage**: Drift (SQLite) for structured data + shared_preferences for key-value storage
-- **Full-Text Search**: SQLite FTS5
-- **Voice**: sherpa_onnx on-device ASR, Alibaba Cloud ASR (optional), ElevenLabs / MiniMax TTS
-- **On-Device ML**: Google MLKit (text recognition, image labeling) — from upstream Memex
-- **MCP**: Custom MCP client (with OAuth support), integrated with COROS sports watches and WeRead
-- **Multi-Model**: Google Gemini and third-party OpenAI-compatible LLM providers, dart_agent_core agent framework
-- **Background Tasks**: WorkManager + flutter_foreground_task, persistent background execution
-- **VoIP**: flutter_callkit_incoming (vendored fork), system-level incoming call UI
-- **Maps & Charts**: flutter_map + fl_chart
-- **AI Tooling**: TODO: to be filled in by the author
+这是一个**长期自用、持续开发中的 Android 个人原型**，不是已经商业发布的完整产品。
 
----
+- **已落地**：单角色 Chat 首页、显式 User-truth 写入路径、Memory V3 主线、本地数据与模型配置基础。
+- **已做受限验证**：跨工具身份 / 项目上下文衔接；白板卡片的授权执行、Receipt、persistent Undo 与重启恢复。
+- **工程探索中**：实时语音与主动来电、跨设备连续性、生活数据接入、桌面 AI Workbench 的完整产品闭环。
+- **尚未作为成果声明**：AI 独立 attention / taste、全面健康 / 财务 / 日程接管、无人工授权的真实支付与购物。
+
+## 技术实现
+
+- **客户端**：Flutter、Dart、Material 3、Provider / ChangeNotifier、GoRouter
+- **本地数据**：Drift / SQLite、FTS5、append-only 操作记录与可重建 projection
+- **AI 与工具**：多模型 provider、Agent / tool calling、自建 MCP 客户端
+- **语音**：端侧与云端 ASR、TTS、流式音频、系统来电界面
+- **后台与设备**：WorkManager、前台服务、Android 原生能力桥接
+- **协作表面**：Desktop AI Workbench、白板领域操作、Receipt / Undo
+
+> **隐私说明**：Local-first 不等于所有能力永远离线；外部模型、语音或数据服务只在用户配置与授权范围内使用。作品集截图只应使用虚构演示数据，不展示真实聊天、联系人、位置、健康、账户或设备信息。
+
+## 阅读入口
+
+- [产品路线与当前边界](docs/companion-first/PRODUCT_ROADMAP.md)
+- [Companion-First 开发策略](docs/companion-first/DEVELOPMENT_STRATEGY.md)
+- [Memory V3 研究与设计](docs/memory-research/MEMORY_PROPOSAL_V3.md)
+- [AI Workbench 架构](docs/development/AI_NATIVE_WORKBENCH_CODEX_INTEGRATION_ARCHITECTURE.md)
 
 ## License & Attribution
 
-This project is built on [memex-lab/memex](https://github.com/memex-lab/memex) and remains under the **GPL v3** license; the `LICENSE` file is preserved as-is. The repository retains the full upstream Git history for clear provenance. "What I Built" above describes my personal iteration focus on top of that upstream foundation.
+Here I Am 是 [Memex](https://github.com/memex-lab/memex) 的修改与扩展版本，继续遵循 **GNU GPL v3**。根目录 [`LICENSE`](LICENSE) 保留上游许可证；第三方与 vendored 组件继续遵循各自许可证与署名要求。
+
+个人产品方向与主要迭代：[@Ritou-Lynx](https://github.com/Ritou-Lynx)
