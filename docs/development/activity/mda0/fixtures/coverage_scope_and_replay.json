@@ -1,0 +1,69 @@
+{
+  "contract": "device.activity.v1",
+  "schema_version": 1,
+  "fixture_format_version": 2,
+  "proposal_revision": 5,
+  "cases": [
+    {
+      "name": "no_coverage_silence",
+      "execution": "projection_contract",
+      "projection_input": {"coverage": {"mode": "unknown"}, "last_activity_event": null, "elapsed_without_event_ms": 28800000},
+      "expected": {"outcome": "unknown_no_coverage", "projection_state": "unknown", "forbidden_states": ["quiet_observed", "resting_candidate", "sleep_candidate"]}
+    },
+    {
+      "name": "wrong_scope",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut", "display_name": "synthetic-probe", "source": "iphone_shortcuts", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["focus.sleep_on"]}
+      },
+      "request": {"method": "GET", "path": "/v1/core/activity/summary", "credential_ref": "primary"},
+      "expected": {"outcome": "forbidden_scope", "http": {"status": 403, "error_code": "scope_denied"}, "acceptance_mutated": false}
+    },
+    {
+      "name": "write_token_chat_read_denied",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut", "display_name": "synthetic-probe", "source": "iphone_shortcuts", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["focus.sleep_on"]}
+      },
+      "request": {"method": "GET", "path": "/v1/core/changes", "credential_ref": "primary"},
+      "expected": {"outcome": "chat_read_forbidden", "http": {"status": 403, "error_code": "chat_read_forbidden"}, "resource_lookup_performed": false, "private_data_returned": false}
+    },
+    {
+      "name": "probe_admin_escalation",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-android-b", "probe_id": "probe-synthetic-tasker", "display_name": "synthetic-probe", "source": "android_tasker", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["screen.interactive"], "capabilities": ["activity.admin"]}
+      },
+      "request": {"method": "POST", "path": "/v1/core/activity/readers/pair", "credential_ref": "primary", "body": {"installation_id": "reader-synthetic", "display_name": "synthetic-reader", "capabilities": []}},
+      "expected": {"outcome": "admin_escalation_forbidden", "http": {"status": 403, "error_code": "admin_escalation_forbidden"}, "server_assigned_scopes_unchanged": true, "acceptance_mutated": false}
+    },
+    {
+      "name": "revoked_replay",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut", "display_name": "synthetic-probe", "source": "iphone_shortcuts", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["focus.sleep_on"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [
+        {
+          "operation": "submit_events",
+          "capture_materialized_event_as": "accepted_event",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut", "origin_sequence": 8, "kind": "focus.sleep_on", "signal_at_ms": 1760000200000, "ttl_ms": 300000, "confidence": "medium", "source": "iphone_shortcuts", "coverage": {"mode": "discrete_best_effort", "window_start_ms": 1760000200000, "window_end_ms": 1760000200000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}}
+        },
+        {"operation": "revoke_probe", "principal_ref": "primary", "revoked_at_ms": 1760000300000, "expected": {"outcome": "accepted", "http": {"status": 200}}},
+        {"operation": "submit_events", "materialized_event_ref": "accepted_event", "expected": {"outcome": "credential_revoked", "http": {"status": 401, "error_code": "revoked_replay"}, "idempotency_lookup_after_revocation": false, "acceptance_mutated": false}}
+      ]
+    },
+    {
+      "name": "cross_device_impersonation",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-android-b", "probe_id": "probe-synthetic-tasker", "display_name": "synthetic-probe", "source": "android_tasker", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [{
+        "operation": "submit_events",
+        "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 9, "kind": "session.locked", "signal_at_ms": 1760000400000, "ttl_ms": 60000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000390000, "window_end_ms": 1760000400000, "expected_report_interval_ms": 30000}, "payload": {}},
+        "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+        "expected": {"outcome": "origin_mismatch", "http": {"status": 403, "error_code": "identity_binding_mismatch"}, "acceptance_mutated": false}
+      }]
+    }
+  ]
+}

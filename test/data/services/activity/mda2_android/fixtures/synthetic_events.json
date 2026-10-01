@@ -1,0 +1,480 @@
+{
+  "synthetic_only": true,
+  "origin": "existing ActivityControlPlane.pairProbe with deterministic test prefix factory; Dart normalizer output",
+  "registrations": [
+    {
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "display_name": "Synthetic Android probe",
+      "source": "android_usage_events",
+      "coverage_mode": "discrete_best_effort",
+      "expected_report_interval_ms": 30000,
+      "expiry_slo_ms": 300000,
+      "allowed_kinds": [
+        "app.category_active",
+        "probe.permission_changed",
+        "probe.error",
+        "probe.heartbeat"
+      ],
+      "capabilities": [
+        "usage_events",
+        "probe_error.collection_failed"
+      ],
+      "event_id_prefix": "AAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-screen",
+      "display_name": "Synthetic Android probe",
+      "source": "android_screen_state",
+      "coverage_mode": "discrete_best_effort",
+      "expected_report_interval_ms": 30000,
+      "expiry_slo_ms": 300000,
+      "allowed_kinds": [
+        "screen.interactive",
+        "screen.non_interactive",
+        "session.unlocked",
+        "probe.error",
+        "probe.heartbeat"
+      ],
+      "capabilities": [
+        "probe_error.collection_failed"
+      ],
+      "event_id_prefix": "BBBBBBBBBBBBBBBBBBBBBB"
+    }
+  ],
+  "events": [
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.1",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 1,
+      "kind": "probe.permission_changed",
+      "signal_at_ms": 2000000,
+      "ttl_ms": 300000,
+      "confidence": "high",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000000,
+        "window_end_ms": 2000000,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "capability": "usage_events",
+        "available": false
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.2",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 2,
+      "kind": "probe.permission_changed",
+      "signal_at_ms": 2000010,
+      "ttl_ms": 300000,
+      "confidence": "high",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000010,
+        "window_end_ms": 2000010,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "capability": "usage_events",
+        "available": true
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.3",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 3,
+      "kind": "app.category_active",
+      "signal_at_ms": 2000020,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000020,
+        "window_end_ms": 2000020,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "category": "chat"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.4",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 4,
+      "kind": "app.category_active",
+      "signal_at_ms": 2000030,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000030,
+        "window_end_ms": 2000030,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "category": "social"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.5",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 5,
+      "kind": "app.category_active",
+      "signal_at_ms": 2000040,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000040,
+        "window_end_ms": 2000040,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "category": "video"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.6",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 6,
+      "kind": "app.category_active",
+      "signal_at_ms": 2000050,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000050,
+        "window_end_ms": 2000050,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "category": "reading"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.7",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 7,
+      "kind": "app.category_active",
+      "signal_at_ms": 2000060,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000060,
+        "window_end_ms": 2000060,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "category": "work"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.8",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 8,
+      "kind": "app.category_active",
+      "signal_at_ms": 2000070,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000070,
+        "window_end_ms": 2000070,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "category": "other"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.9",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 9,
+      "kind": "probe.permission_changed",
+      "signal_at_ms": 2000080,
+      "ttl_ms": 300000,
+      "confidence": "high",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000080,
+        "window_end_ms": 2000080,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "capability": "usage_events",
+        "available": false
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.10",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 10,
+      "kind": "probe.permission_changed",
+      "signal_at_ms": 2000090,
+      "ttl_ms": 300000,
+      "confidence": "high",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000090,
+        "window_end_ms": 2000090,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "capability": "usage_events",
+        "available": true
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.11",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 11,
+      "kind": "app.category_active",
+      "signal_at_ms": 2000100,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000100,
+        "window_end_ms": 2000100,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "category": "reading"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.12",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 12,
+      "kind": "probe.error",
+      "signal_at_ms": 2000110,
+      "ttl_ms": 300000,
+      "confidence": "high",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000110,
+        "window_end_ms": 2000110,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "code": "collection_failed"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.13",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 13,
+      "kind": "probe.heartbeat",
+      "signal_at_ms": 2000120,
+      "ttl_ms": 300000,
+      "confidence": "low",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000120,
+        "window_end_ms": 2000120,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {}
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "AAAAAAAAAAAAAAAAAAAAAA.14",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-usage",
+      "origin_sequence": 14,
+      "kind": "app.category_active",
+      "signal_at_ms": 2000130,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_usage_events",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000130,
+        "window_end_ms": 2000130,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "category": "work"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "BBBBBBBBBBBBBBBBBBBBBB.1",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-screen",
+      "origin_sequence": 1,
+      "kind": "screen.interactive",
+      "signal_at_ms": 2000000,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_screen_state",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000000,
+        "window_end_ms": 2000000,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {}
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "BBBBBBBBBBBBBBBBBBBBBB.2",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-screen",
+      "origin_sequence": 2,
+      "kind": "session.unlocked",
+      "signal_at_ms": 2000010,
+      "ttl_ms": 300000,
+      "confidence": "high",
+      "source": "android_screen_state",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000010,
+        "window_end_ms": 2000010,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {}
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "BBBBBBBBBBBBBBBBBBBBBB.3",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-screen",
+      "origin_sequence": 3,
+      "kind": "screen.non_interactive",
+      "signal_at_ms": 2000020,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_screen_state",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000020,
+        "window_end_ms": 2000020,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {}
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "BBBBBBBBBBBBBBBBBBBBBB.4",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-screen",
+      "origin_sequence": 4,
+      "kind": "probe.error",
+      "signal_at_ms": 2000030,
+      "ttl_ms": 300000,
+      "confidence": "high",
+      "source": "android_screen_state",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000030,
+        "window_end_ms": 2000030,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {
+        "code": "collection_failed"
+      }
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "BBBBBBBBBBBBBBBBBBBBBB.5",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-screen",
+      "origin_sequence": 5,
+      "kind": "probe.heartbeat",
+      "signal_at_ms": 2000040,
+      "ttl_ms": 300000,
+      "confidence": "low",
+      "source": "android_screen_state",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000040,
+        "window_end_ms": 2000040,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {}
+    },
+    {
+      "contract": "device.activity.v1",
+      "schema_version": 1,
+      "event_id": "BBBBBBBBBBBBBBBBBBBBBB.6",
+      "device_id": "synthetic-android",
+      "probe_id": "synthetic-screen",
+      "origin_sequence": 6,
+      "kind": "screen.interactive",
+      "signal_at_ms": 2000050,
+      "ttl_ms": 300000,
+      "confidence": "medium",
+      "source": "android_screen_state",
+      "coverage": {
+        "mode": "discrete_best_effort",
+        "window_start_ms": 2000050,
+        "window_end_ms": 2000050,
+        "expected_report_interval_ms": 30000
+      },
+      "payload": {}
+    }
+  ]
+}

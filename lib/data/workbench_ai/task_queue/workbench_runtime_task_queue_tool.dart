@@ -4,9 +4,16 @@ import 'dart:convert';
 
 import 'package:memex/data/memory_v3/services/task_room_service.dart';
 
+import '../workbench_runtime_client.dart';
+import 'workbench_task_queue_execution.dart';
+import 'workbench_task_queue_execution_controller.dart';
+import 'workbench_task_queue_lifecycle_owner.dart';
 import 'workbench_task_queue_tool_host.dart';
 
 typedef TaskRoomServiceLoader = Future<TaskRoomService> Function();
+typedef WorkbenchTaskQueueExecutionLoader
+    = Future<WorkbenchTaskQueueExecutionController> Function(
+        TaskRoomService service);
 
 class WorkbenchRuntimeTaskQueueResult {
   const WorkbenchRuntimeTaskQueueResult({
@@ -23,17 +30,54 @@ class WorkbenchRuntimeTaskQueueResult {
 class WorkbenchRuntimeTaskQueueTool {
   const WorkbenchRuntimeTaskQueueTool({
     required TaskRoomServiceLoader loadService,
+    WorkbenchTaskQueueExecutionLoader? loadExecutionController,
     DesktopWorkbenchTaskQueueAuthorizationFactory authorizationFactory =
         const DesktopWorkbenchTaskQueueAuthorizationFactory(),
   })  : _loadService = loadService,
+        _loadExecutionController = loadExecutionController,
         _authorizationFactory = authorizationFactory;
 
-  factory WorkbenchRuntimeTaskQueueTool.production() =>
+  factory WorkbenchRuntimeTaskQueueTool.production({
+    WorkbenchTextTaskRuntimeClient? runtime,
+    WorkbenchTaskQueueLifecycleOwner? lifecycleOwner,
+  }) =>
       WorkbenchRuntimeTaskQueueTool(
         loadService: () async => TaskRoomService.instance,
+        loadExecutionController: (service) =>
+            _productionExecution(
+              service,
+              runtime: runtime,
+              lifecycleOwner: lifecycleOwner ?? WorkbenchTaskQueueLifecycleOwner.instance,
+            ),
       );
 
+  // One owner per initialized service, not one owner per dynamic tool call.
+  // Expando does not keep a disposed test/database service alive.
+  static final _executions = Expando<WorkbenchTaskQueueExecution>();
+
+  static Future<WorkbenchTaskQueueExecutionController> _productionExecution(
+    TaskRoomService service, {
+    WorkbenchTextTaskRuntimeClient? runtime,
+    required WorkbenchTaskQueueLifecycleOwner lifecycleOwner,
+  }) async {
+    final existing = _executions[service];
+    if (existing != null) {
+      lifecycleOwner.register(existing);
+      return existing;
+    }
+    final textRuntime = runtime ?? WorkbenchTextTaskRuntimeClient();
+    final execution = WorkbenchTaskQueueExecution(
+        service: service,
+        runtime: textRuntime,
+        startTextSession: (manifest) =>
+            textRuntime.startTextTaskSession(contextManifest: manifest));
+    _executions[service] = execution;
+    lifecycleOwner.register(execution);
+    return execution;
+  }
+
   final TaskRoomServiceLoader _loadService;
+  final WorkbenchTaskQueueExecutionLoader? _loadExecutionController;
   final DesktopWorkbenchTaskQueueAuthorizationFactory _authorizationFactory;
 
   Map<String, dynamic> get dynamicToolDefinition =>
@@ -56,7 +100,10 @@ class WorkbenchRuntimeTaskQueueTool {
       if (arguments is! Map) return _invalidRequest();
       final payload = Map<String, dynamic>.from(arguments);
       final service = await _loadService();
-      final output = await WorkbenchTaskQueueToolHost(service).invoke(
+      final execution = await _loadExecutionController?.call(service);
+      final output = await WorkbenchTaskQueueToolHost(service,
+              executionController: execution)
+          .invoke(
         payload,
         authorization: authorization,
       );

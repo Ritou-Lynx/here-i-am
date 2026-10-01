@@ -77,15 +77,21 @@ class FileSystemService {
 
   /// Initialize filesystem service with data root.
   /// Re-calls are allowed to switch workspace root immediately.
-  static Future<void> init(String dataRoot) async {
+  static Future<void> init(String dataRoot,
+      {bool startAssetServer = true}) async {
     if (_instance?.dataRoot == dataRoot) {
       // Ensure server knows latest root even if instance is unchanged.
-      await LocalAssetServer.startServer(dataRoot: dataRoot, preferredPort: 0);
+      if (startAssetServer) {
+        await LocalAssetServer.startServer(
+            dataRoot: dataRoot, preferredPort: 0);
+      }
       return;
     }
 
     _instance = FileSystemService._(dataRoot: dataRoot);
-    await LocalAssetServer.startServer(dataRoot: dataRoot, preferredPort: 0);
+    if (startAssetServer) {
+      await LocalAssetServer.startServer(dataRoot: dataRoot, preferredPort: 0);
+    }
     getLogger('FileSystemService')
         .info('FileSystemService switched to new data root: $dataRoot');
   }

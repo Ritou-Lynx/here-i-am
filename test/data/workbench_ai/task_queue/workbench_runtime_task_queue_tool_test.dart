@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/memory_v3/models/task_room_enums.dart';
 import 'package:memex/data/memory_v3/services/task_room_service.dart';
 import 'package:memex/data/workbench_ai/task_queue/workbench_runtime_task_queue_tool.dart';
+import 'package:memex/data/workbench_ai/task_queue/workbench_task_queue_execution_controller.dart';
 import 'package:memex/data/workbench_ai/task_queue/workbench_task_queue_tool_host.dart';
 import 'package:memex/data/workbench_ai/workbench_conversation_coordinator.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
@@ -14,12 +15,17 @@ void main() {
   late AppDatabase db;
   late TaskRoomService service;
   late WorkbenchRuntimeTaskQueueTool tool;
+  late WorkbenchTaskQueueToolHost executionHost;
 
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     service = TaskRoomService(db: db);
     tool = WorkbenchRuntimeTaskQueueTool(
       loadService: () async => service,
+    );
+    executionHost = WorkbenchTaskQueueToolHost(
+      service,
+      executionController: _TestExecutionController(service),
     );
   });
 
@@ -33,7 +39,8 @@ void main() {
     final properties = schema['properties'] as Map<String, dynamic>;
 
     expect(definition['name'], WorkbenchTaskQueueToolHost.toolName);
-    expect(properties.keys, containsAll(['action', 'task_id', 'title', 'goal']));
+    expect(
+        properties.keys, containsAll(['action', 'task_id', 'title', 'goal']));
     expect(properties, isNot(contains('authorization')));
     expect(properties, isNot(contains('scope')));
     expect(schema['additionalProperties'], isFalse);
@@ -51,6 +58,15 @@ void main() {
           )
           .allowedActions,
       {WorkbenchTaskQueueAction.enqueue},
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: '启动长任务 11111111-1111-4111-8111-111111111111',
+          )
+          .allowedActions,
+      {WorkbenchTaskQueueAction.start},
     );
     expect(
       factory
@@ -75,6 +91,63 @@ void main() {
           .build(
             conversationId: 'persona-i',
             userText: '不要创建长任务',
+          )
+          .allowedActions,
+      isEmpty,
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: '请创建一个长任务并加入任务队列。标题是公开文字验收。'
+                '目标是只输出从 1 到 2000 的整数，每行一个，不使用工具或外部资料。不要启动。',
+          )
+          .allowedActions,
+      {WorkbenchTaskQueueAction.enqueue},
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: 'create a long task and enqueue it only do not start',
+          )
+          .allowedActions,
+      {WorkbenchTaskQueueAction.enqueue},
+    );
+    const taskId = '11111111-1111-4111-8111-111111111111';
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: 'for task $taskId query status if pending and never '
+                'started start this task once',
+          )
+          .allowedActions,
+      {WorkbenchTaskQueueAction.status, WorkbenchTaskQueueAction.start},
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: 'task $taskId was never started; show status',
+          )
+          .allowedActions,
+      {WorkbenchTaskQueueAction.status},
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: 'never start task $taskId; show status',
+          )
+          .allowedActions,
+      {WorkbenchTaskQueueAction.status},
+    );
+    expect(
+      factory
+          .build(
+            conversationId: 'persona-i',
+            userText: '不要启动长任务',
           )
           .allowedActions,
       isEmpty,
@@ -153,11 +226,11 @@ void main() {
 
   test('host supports scoped full lifecycle and honest failure state',
       () async {
-    final authorization = _authorization(
+    final enqueueAuthorization = _authorization(
       'persona-i',
       WorkbenchTaskQueueAction.values.toSet(),
     );
-    final enqueued = await _invoke(tool, authorization, {
+    final enqueued = await _invoke(executionHost, enqueueAuthorization, {
       'request_id': 'enqueue-1',
       'action': 'enqueue',
       'title': '整理一批研究资料',
@@ -166,6 +239,11 @@ void main() {
     expect(enqueued['status'], 'ok');
     final taskId = (enqueued['task'] as Map)['task_id'] as String;
     expect((enqueued['task'] as Map)['status'], 'pending');
+    final authorization = _authorization(
+      'persona-i',
+      WorkbenchTaskQueueAction.values.toSet(),
+      targetTaskId: taskId,
+    );
 
     final room = await service.getTaskRoom(taskId);
     expect(room!.conversationId, 'persona-i');
@@ -177,7 +255,7 @@ void main() {
     });
 
     await service.updateTaskStatus(id: taskId, status: TaskStatus.running);
-    final paused = await _invoke(tool, authorization, {
+    final paused = await _invoke(executionHost, authorization, {
       'request_id': 'pause-1',
       'action': 'pause',
       'task_id': taskId,
@@ -185,9 +263,10 @@ void main() {
     expect((paused['task'] as Map)['status'], 'blocked');
     expect((paused['task'] as Map)['resumable_state'], 'paused');
 
-    final resumed = await _invoke(tool, authorization, {
+    final resumed = await _invoke(executionHost, authorization, {
       'request_id': 'resume-1',
       'action': 'resume',
+      'task_id': taskId,
     });
     expect((resumed['task'] as Map)['status'], 'running');
 
@@ -196,9 +275,10 @@ void main() {
       status: TaskStatus.failed,
       failureReason: 'provider_unavailable',
     );
-    final failedStatus = await _invoke(tool, authorization, {
+    final failedStatus = await _invoke(executionHost, authorization, {
       'request_id': 'status-failed',
       'action': 'status',
+      'task_id': taskId,
     });
     expect((failedStatus['task'] as Map)['status'], 'failed');
     expect(
@@ -206,7 +286,7 @@ void main() {
       'provider_unavailable',
     );
 
-    final retried = await _invoke(tool, authorization, {
+    final retried = await _invoke(executionHost, authorization, {
       'request_id': 'retry-1',
       'action': 'retry',
       'task_id': taskId,
@@ -214,9 +294,10 @@ void main() {
     expect((retried['task'] as Map)['status'], 'pending');
     expect((retried['task'] as Map)['retry_count'], 1);
 
-    final cancelled = await _invoke(tool, authorization, {
+    final cancelled = await _invoke(executionHost, authorization, {
       'request_id': 'cancel-1',
       'action': 'cancel',
+      'task_id': taskId,
     });
     expect((cancelled['task'] as Map)['status'], 'cancelled');
   });
@@ -237,6 +318,7 @@ void main() {
     final authorization = _authorization(
       'persona-i',
       {WorkbenchTaskQueueAction.status},
+      targetTaskId: 'does-not-exist',
     );
 
     final unknown = await _invoke(tool, authorization, {
@@ -244,7 +326,12 @@ void main() {
       'action': 'status',
       'task_id': 'does-not-exist',
     });
-    final crossScope = await _invoke(tool, authorization, {
+    final crossScopeAuthorization = _authorization(
+      'persona-i',
+      {WorkbenchTaskQueueAction.status},
+      targetTaskId: otherId,
+    );
+    final crossScope = await _invoke(tool, crossScopeAuthorization, {
       'request_id': 'cross-scope',
       'action': 'status',
       'task_id': otherId,
@@ -253,6 +340,206 @@ void main() {
     expect(unknown['error_code'], 'task_not_available');
     expect(crossScope['error_code'], 'task_not_available');
     expect(unknown['status'], crossScope['status']);
+  });
+
+  test('host binds lifecycle and explicit status to one user-named task',
+      () async {
+    final enqueueAuthorization = _authorization(
+      'persona-i',
+      {WorkbenchTaskQueueAction.enqueue},
+    );
+    final first = await _invoke(executionHost, enqueueAuthorization, {
+      'request_id': 'target-a',
+      'action': 'enqueue',
+      'title': 'Task A',
+      'goal': 'The only user-authorized target',
+    });
+    final second = await _invoke(executionHost, enqueueAuthorization, {
+      'request_id': 'target-b',
+      'action': 'enqueue',
+      'title': 'Task B',
+      'goal': 'Must remain unchanged unless separately authorized',
+    });
+    final taskA = (first['task'] as Map)['task_id'] as String;
+    final taskB = (second['task'] as Map)['task_id'] as String;
+    await service.updateTaskStatus(id: taskA, status: TaskStatus.running);
+    await service.updateTaskStatus(id: taskB, status: TaskStatus.running);
+    final taskBBefore = _snapshotFields(
+      (await service.getTaskQueueSnapshot(taskB))!,
+    );
+
+    const factory = DesktopWorkbenchTaskQueueAuthorizationFactory();
+    final pauseA = factory.build(
+      conversationId: 'persona-i',
+      userText: '暂停任务 $taskA',
+    );
+    expect(pauseA.targetTaskId, taskA);
+    expect(pauseA.hasTargetConflict, isFalse);
+
+    final wrongTarget = await _invoke(executionHost, pauseA, {
+      'request_id': 'pause-wrong-target',
+      'action': 'pause',
+      'task_id': taskB,
+    });
+    final missingTarget = await _invoke(executionHost, pauseA, {
+      'request_id': 'pause-missing-target',
+      'action': 'pause',
+    });
+    expect(wrongTarget['error_code'], 'task_target_not_authorized');
+    expect(missingTarget['error_code'], 'task_target_required');
+    expect((await service.getTaskQueueSnapshot(taskA))!.status,
+        TaskStatus.running);
+    expect(_snapshotFields((await service.getTaskQueueSnapshot(taskB))!),
+        taskBBefore);
+
+    final paused = await _invoke(executionHost, pauseA, {
+      'request_id': 'pause-a',
+      'action': 'pause',
+      'task_id': taskA,
+    });
+    expect((paused['task'] as Map)['task_id'], taskA);
+    expect(_snapshotFields((await service.getTaskQueueSnapshot(taskB))!),
+        taskBBefore);
+
+    final statusA = factory.build(
+      conversationId: 'persona-i',
+      userText: '查看任务 $taskA 的状态',
+    );
+    final wrongStatus = await _invoke(executionHost, statusA, {
+      'request_id': 'status-wrong-target',
+      'action': 'status',
+      'task_id': taskB,
+    });
+    final missingStatus = await _invoke(executionHost, statusA, {
+      'request_id': 'status-missing-target',
+      'action': 'status',
+    });
+    expect(wrongStatus['error_code'], 'task_target_not_authorized');
+    expect(missingStatus['error_code'], 'task_target_required');
+
+    final ambiguous = factory.build(
+      conversationId: 'persona-i',
+      userText: '暂停任务 $taskA 和 $taskB',
+    );
+    final ambiguousResult = await _invoke(executionHost, ambiguous, {
+      'request_id': 'pause-ambiguous-target',
+      'action': 'pause',
+      'task_id': taskA,
+    });
+    expect(ambiguous.hasTargetConflict, isTrue);
+    expect(ambiguousResult['error_code'], 'task_target_ambiguous');
+
+    final noTarget = factory.build(
+      conversationId: 'persona-i',
+      userText: '暂停这个任务',
+    );
+    final noTargetResult = await _invoke(executionHost, noTarget, {
+      'request_id': 'pause-no-target',
+      'action': 'pause',
+      'task_id': taskA,
+    });
+    expect(noTargetResult['error_code'], 'task_target_required');
+
+    final genericStatus = factory.build(
+      conversationId: 'persona-i',
+      userText: '查看任务状态',
+    );
+    final latestStatus = await _invoke(executionHost, genericStatus, {
+      'request_id': 'status-generic',
+      'action': 'status',
+    });
+    expect(latestStatus['status'], 'ok');
+    expect((latestStatus['task'] as Map)['task_id'], isNotEmpty);
+
+    final negated = factory.build(
+      conversationId: 'persona-i',
+      userText: '不要暂停任务 $taskA',
+    );
+    final negatedResult = await _invoke(executionHost, negated, {
+      'request_id': 'pause-negated-target',
+      'action': 'pause',
+      'task_id': taskA,
+    });
+    expect(negatedResult['error_code'], 'task_queue_action_not_authorized');
+    expect((await service.getTaskQueueSnapshot(taskA))!.status,
+        TaskStatus.blocked);
+  });
+
+  test('start needs a user-named target and an injected execution controller',
+      () async {
+    final enqueued = await _invoke(
+        tool,
+        _authorization('persona-i', {
+          WorkbenchTaskQueueAction.enqueue,
+        }),
+        {
+          'request_id': 'start-target',
+          'action': 'enqueue',
+          'title': 'Startable task',
+          'goal': 'Do not pretend pending work is executing',
+        });
+    final taskId = (enqueued['task'] as Map)['task_id'] as String;
+    const factory = DesktopWorkbenchTaskQueueAuthorizationFactory();
+    final startAuthorization = factory.build(
+      conversationId: 'persona-i',
+      userText: '启动任务 $taskId',
+    );
+
+    expect(startAuthorization.allowedActions, {WorkbenchTaskQueueAction.start});
+    final unavailable = await _invoke(tool, startAuthorization, {
+      'request_id': 'start-without-controller',
+      'action': 'start',
+      'task_id': taskId,
+    });
+    expect(unavailable['error_code'], 'task_queue_execution_unavailable');
+    expect(
+      (await service.getTaskQueueSnapshot(taskId))!.status,
+      TaskStatus.pending,
+    );
+
+    final started = await _invoke(executionHost, startAuthorization, {
+      'request_id': 'start-with-controller',
+      'action': 'start',
+      'task_id': taskId,
+    });
+    expect((started['task'] as Map)['status'], TaskStatus.running.value);
+    final replayed = await _invoke(executionHost, startAuthorization, {
+      'request_id': 'start-with-controller',
+      'action': 'start',
+      'task_id': taskId,
+    });
+    expect(replayed['status'], 'ok');
+    expect(replayed['changed'], isFalse);
+
+    final pendingForCancel = await _invoke(
+        tool,
+        _authorization('persona-i', {
+          WorkbenchTaskQueueAction.enqueue,
+        }),
+        {
+          'request_id': 'queued-only-cancel',
+          'action': 'enqueue',
+          'title': 'Queued-only cancel',
+          'goal': 'Must atomically refuse a concurrent start',
+        });
+    final pendingCancelId =
+        (pendingForCancel['task'] as Map)['task_id'] as String;
+    final pendingCancelAuthorization = factory.build(
+      conversationId: 'persona-i',
+      userText: '取消任务 $pendingCancelId',
+    );
+    final cancelled = await _invoke(tool, pendingCancelAuthorization, {
+      'request_id': 'cancel-pending-without-controller',
+      'action': 'cancel',
+      'task_id': pendingCancelId,
+    });
+    expect((cancelled['task'] as Map)['status'], TaskStatus.cancelled.value);
+
+    final targetlessAuthorization = factory.build(
+      conversationId: 'persona-i',
+      userText: '启动任务',
+    );
+    expect(targetlessAuthorization.allowedActions, isEmpty);
   });
 
   test('model payload cannot add authorization or enqueue on a short turn',
@@ -302,7 +589,8 @@ void main() {
     expect(restored.belongsTo(authorization.scope), isTrue);
   });
 
-  test('conversation coordinator registers and dispatches production queue tool',
+  test(
+      'conversation coordinator registers and dispatches production queue tool',
       () async {
     final runtime = _QueueConversationRuntime({
       'request_id': 'runtime-enqueue',
@@ -408,25 +696,105 @@ void main() {
 
 WorkbenchTaskQueueAuthorization _authorization(
   String conversationId,
-  Set<WorkbenchTaskQueueAction> actions,
-) =>
+  Set<WorkbenchTaskQueueAction> actions, {
+  String? targetTaskId,
+  bool hasTargetConflict = false,
+}) =>
     WorkbenchTaskQueueAuthorization(
       profileId: DesktopWorkbenchTaskQueueAuthorizationFactory.profileId,
       conversationId: conversationId,
       allowedActions: actions,
+      targetTaskId: targetTaskId,
+      hasTargetConflict: hasTargetConflict,
     );
 
 Future<Map<String, dynamic>> _invoke(
-  WorkbenchRuntimeTaskQueueTool tool,
+  Object tool,
   WorkbenchTaskQueueAuthorization authorization,
   Map<String, dynamic> payload,
 ) async {
-  final result = await tool.invoke(payload, authorization: authorization);
-  return Map<String, dynamic>.from(jsonDecode(result.text) as Map);
+  if (tool case WorkbenchRuntimeTaskQueueTool runtimeTool) {
+    final result =
+        await runtimeTool.invoke(payload, authorization: authorization);
+    return Map<String, dynamic>.from(jsonDecode(result.text) as Map);
+  }
+  if (tool case WorkbenchTaskQueueToolHost host) {
+    return host.invoke(payload, authorization: authorization);
+  }
+  throw ArgumentError.value(tool, 'tool');
 }
 
-class _QueueConversationRuntime
-    implements WorkbenchConversationRuntimeGateway {
+Map<String, Object?> _snapshotFields(TaskQueueSnapshot task) => {
+      'id': task.id,
+      'title': task.title,
+      'status': task.status,
+      'progressPercent': task.progressPercent,
+      'currentStep': task.currentStep,
+      'retryCount': task.retryCount,
+      'maxRetries': task.maxRetries,
+      'isResumable': task.isResumable,
+      'resumableState': task.resumableState,
+      'failureReason': task.failureReason,
+      'interruptedReason': task.interruptedReason,
+      'executionPhase': task.executionPhase,
+      'resultPreview': task.resultPreview,
+    };
+
+class _TestExecutionController
+    implements WorkbenchTaskQueueExecutionController {
+  _TestExecutionController(this._service);
+
+  final TaskRoomService _service;
+  final Set<String> _startRequests = {};
+
+  @override
+  Future<bool> cancel(
+      {required String id,
+      required TaskQueueHostScope scope,
+      required String requestId}) async {
+    await _service.cancelTaskRoom(id);
+    return true;
+  }
+
+  @override
+  Future<bool> pause(
+      {required String id,
+      required TaskQueueHostScope scope,
+      required String requestId}) async {
+    await _service.pauseTaskRoom(id: id, reason: 'user_requested');
+    return true;
+  }
+
+  @override
+  Future<bool> resume(
+      {required String id,
+      required TaskQueueHostScope scope,
+      required String requestId}) async {
+    await _service.resumeTaskRoom(id);
+    return true;
+  }
+
+  @override
+  Future<bool> retry(
+      {required String id,
+      required TaskQueueHostScope scope,
+      required String requestId}) async {
+    await _service.retryTaskRoom(id: id);
+    return true;
+  }
+
+  @override
+  Future<bool> start(
+      {required String id,
+      required TaskQueueHostScope scope,
+      required String requestId}) async {
+    if (!_startRequests.add('$id:$requestId')) return false;
+    await _service.updateTaskStatus(id: id, status: TaskStatus.running);
+    return true;
+  }
+}
+
+class _QueueConversationRuntime implements WorkbenchConversationRuntimeGateway {
   _QueueConversationRuntime(
     this.arguments, {
     this.reply = '长任务已排队。',

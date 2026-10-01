@@ -2,10 +2,76 @@ param(
   [string]$HostName = "127.0.0.1",
   [int]$Port = 47831,
   [string]$CertPath = "",
-  [string]$KeyPath = ""
+  [string]$KeyPath = "",
+  [switch]$EnableExperimentalRuntime,
+  [switch]$UseEnvProxy,
+  [string]$CodexExecutable = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-CurrentWindowsIdentityName {
+  return [Security.Principal.WindowsIdentity]::GetCurrent().Name
+}
+
+function Assert-PortIsAvailable {
+  param([int]$RequestedPort)
+
+  try {
+    $listener = [Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() |
+      Where-Object { $_.Port -eq $RequestedPort } |
+      Select-Object -First 1
+  } catch {
+    throw "Dev Agent Bridge was not started because listening TCP ports could not be inspected: $($_.Exception.Message)"
+  }
+  if (-not $listener) {
+    return
+  }
+
+  $owningProcessId = "unknown"
+  $processName = "unknown"
+  try {
+    $connection = Get-NetTCPConnection -LocalPort $RequestedPort -ErrorAction Stop |
+      Where-Object { $_.State -eq "Listen" } |
+      Select-Object -First 1
+    if ($connection) {
+      $owningProcessId = $connection.OwningProcess
+      $processName = (Get-Process -Id $owningProcessId -ErrorAction Stop).ProcessName
+    }
+  } catch {
+    # The listener remains a conflict even when Windows declines PID diagnostics.
+  }
+  throw "Dev Agent Bridge was not started and did not replace the existing listener on port $RequestedPort (PID $owningProcessId, process $processName). Stop or choose that listener explicitly, then retry."
+}
+
+$runtimeEnabled = $EnableExperimentalRuntime -or
+  ($env:DEV_AGENT_EXPERIMENTAL_RUNTIME_ADAPTER -eq "1")
+
+if ($CodexExecutable) {
+  if (-not $runtimeEnabled) {
+    throw "-CodexExecutable requires -EnableExperimentalRuntime (or DEV_AGENT_EXPERIMENTAL_RUNTIME_ADAPTER=1)."
+  }
+  if (-not (Test-Path -LiteralPath $CodexExecutable -PathType Leaf)) {
+    throw "Codex executable was not found: $CodexExecutable"
+  }
+  if ([IO.Path]::GetExtension($CodexExecutable) -ne ".exe") {
+    throw "Codex executable must be a .exe file: $CodexExecutable"
+  }
+  $env:DEV_AGENT_EXPERIMENTAL_APP_SERVER_COMMAND =
+    (Resolve-Path -LiteralPath $CodexExecutable -ErrorAction Stop).Path
+  $env:DEV_AGENT_EXPERIMENTAL_APP_SERVER_ARGS_JSON =
+    '["app-server","--stdio"]'
+}
+
+if ($runtimeEnabled) {
+  $identityName = Get-CurrentWindowsIdentityName
+  if ($identityName -match '(?i)(?:^|\\)CodexSandbox(?:Offline|Online)$') {
+    throw "Experimental Runtime was not started because the current Windows identity is $identityName. Run this command from the ordinary user session or an approved host; do not try to bypass the Codex sandbox."
+  }
+  $env:DEV_AGENT_EXPERIMENTAL_RUNTIME_ADAPTER = "1"
+}
+
+Assert-PortIsAvailable -RequestedPort $Port
 
 $env:DEV_AGENT_BRIDGE_HOST = $HostName
 $env:DEV_AGENT_BRIDGE_PORT = "$Port"
@@ -36,4 +102,12 @@ if ($userPath) {
   $env:PATH = $env:PATH + ';' + $userPath
 }
 
-node "$PSScriptRoot\dev_agent_bridge.mjs"
+if ($UseEnvProxy) {
+  # Node fetch uses the existing HTTP(S)_PROXY environment only with this flag.
+  # Keep the default launch unchanged for hosts with direct network access.
+  node --use-env-proxy "$PSScriptRoot\dev_agent_bridge.mjs"
+} else {
+  node "$PSScriptRoot\dev_agent_bridge.mjs"
+}
+$nodeExitCode = $LASTEXITCODE
+exit $nodeExitCode

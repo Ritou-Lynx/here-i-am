@@ -42,6 +42,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Full-screen intent for incoming call-style notifications -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- Health Connect permissions removed to comply with Google Play policy.
@@ -86,6 +87,15 @@
             android:foregroundServiceType="connectedDevice"
             android:exported="false"
             android:stopWithTask="false" />
+        <service
+            android:name=".activity.ActivityObservationForegroundService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false"
+            android:stopWithTask="true">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Explicit debug-only prospective coarse activity and screen observation" />
+        </service>
         <receiver
             android:name=".ble.BleHeartRateBootReceiver"
             android:enabled="true"
@@ -94,6 +104,10 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".ble.BleHeartRateWatchdogReceiver"
+            android:enabled="true"
+            android:exported="false" />
         <service
             android:name=".FocusLockAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"

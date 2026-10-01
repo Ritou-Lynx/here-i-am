@@ -8,7 +8,11 @@ import {
   CORE_PROTOCOL_VERSION,
   CoreStoreError,
   ICoreStore,
+  preflightActivityCommitmentVersion,
+  preflightAuthoritySecretSeparation,
+  verifyActivityRecoveryCandidate,
 } from './i_core_store.mjs';
+import { ACTIVITY_MAX_REQUEST_BYTES } from './activity_control_plane.mjs';
 import {
   SHORTCUT_WORKFLOW,
   ShortcutMailRelayError,
@@ -83,11 +87,76 @@ function requireProtocol(request) {
 
 function requireDevice(request, store) {
   requireProtocol(request);
-  const device = store.authenticate(bearerToken(request));
+  const token = bearerToken(request);
+  const device = store.authenticate(token);
   if (!device) {
+    if (store.activity.isActiveCredentialToken(token)) {
+      throw new CoreStoreError(
+        'chat_read_forbidden',
+        'Activity-scoped credentials cannot access the chat control plane.',
+        { status: 403 },
+      );
+    }
     throw new CoreStoreError('unauthorized', 'A valid device token is required.', { status: 401 });
   }
   return device;
+}
+
+function requireActivityEnabled(activityAdminSecret) {
+  if (!activityAdminSecret) {
+    throw new CoreStoreError(
+      'activity_disabled',
+      'The activity control plane is disabled until an independent owner credential is configured.',
+      { status: 503 },
+    );
+  }
+}
+
+function requireActivityOwner(request, store, activityAdminSecret) {
+  requireProtocol(request);
+  requireActivityEnabled(activityAdminSecret);
+  const token = bearerToken(request);
+  if (!equalSecret(token, activityAdminSecret)) {
+    if (store.activity.isActiveCredentialToken(token)) {
+      throw new CoreStoreError(
+        'admin_escalation_forbidden',
+        'Activity probe and summary credentials cannot act as the activity owner.',
+        { status: 403 },
+      );
+    }
+    throw new CoreStoreError(
+      'activity_admin_unauthorized',
+      'A valid independent activity owner credential is required.',
+      { status: 401 },
+    );
+  }
+  return { principal_id: 'activity-owner', scopes: ['activity.admin'] };
+}
+
+function requireActivityPrincipal(request, store, activityAdminSecret) {
+  requireProtocol(request);
+  requireActivityEnabled(activityAdminSecret);
+  const principal = store.activity.authenticate(bearerToken(request));
+  if (!principal) {
+    throw new CoreStoreError(
+      'activity_unauthorized',
+      'A valid activity-scoped credential is required.',
+      { status: 401 },
+    );
+  }
+  return principal;
+}
+
+function pathIdentity(pathname, prefix) {
+  if (!pathname.startsWith(prefix)) return null;
+  const encoded = pathname.slice(prefix.length);
+  if (!encoded || encoded.includes('/')) return null;
+  try {
+    const value = decodeURIComponent(encoded);
+    return value.trim() ? value : null;
+  } catch (_) {
+    throw new CoreStoreError('invalid_request', 'Path identity is not valid URL encoding.');
+  }
 }
 
 function requireWorker(request, workerSecret) {
@@ -161,12 +230,55 @@ export function createICoreServer({
   workerSecret = null,
   companionReplyJobsEnabled = false,
   shortcutMailRelay = null,
+  ownsShortcutMailRelay = shortcutMailRelay !== null,
+  activityAdminSecret = null,
+  activityRecoveryFloor = null,
+  requireActivityRecoveryFloor = false,
+  activityRuntimeId = undefined,
+  activityRuntimeLeaseMs = undefined,
+  activityRetentionIntervalMs = 60_000,
+  clock = Date.now,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
+  // This must precede secret separation and recovery verification: read-only
+  // SQLite opens can themselves create or alter source WAL/SHM files.
+  preflightActivityCommitmentVersion(databasePath);
   if (pairingCode !== null && (typeof pairingCode !== 'string' || !pairingCode.trim())) {
     throw new Error('pairingCode must be null or a non-empty string');
   }
-  const store = new ICoreStore(databasePath, { companionReplyJobsEnabled });
+  if (activityAdminSecret !== null && (typeof activityAdminSecret !== 'string' || activityAdminSecret.length < 16)) {
+    throw new Error('activityAdminSecret must be null or an independent secret of at least 16 characters');
+  }
+  if (!Number.isSafeInteger(activityRetentionIntervalMs) || activityRetentionIntervalMs < 1) {
+    throw new Error('activityRetentionIntervalMs must be a positive safe integer');
+  }
+  if (requireActivityRecoveryFloor && !activityRecoveryFloor) {
+    throw new CoreStoreError('recovery_floor_required', 'A trusted activity recovery floor is required.', { status: 503 });
+  }
+  if (activityRecoveryFloor) {
+    verifyActivityRecoveryCandidate(databasePath, activityRecoveryFloor);
+    throw new CoreStoreError(
+      'backup_activation_unsupported',
+      'Recovery candidate verification is offline-only; this server cannot activate a backup.',
+      { status: 503 },
+    );
+  }
+  preflightAuthoritySecretSeparation(databasePath, {
+    activityAdminSecret,
+    workerSecret,
+    pairingCode,
+    shortcutMailTokenHash: shortcutMailRelay?.tokenHash ?? null,
+    now: clock(),
+  });
+  const store = new ICoreStore(databasePath, {
+    companionReplyJobsEnabled,
+    clock,
+    activityRecoveryFloor,
+    activityRuntimeId,
+    activityRuntimeLeaseMs,
+    activityEnabled: Boolean(activityAdminSecret),
+    activityAutoActivate: false,
+  });
   let pairingEndpointEnabled = pairingCode !== null;
   let activePairingCode = pairingEndpointEnabled && !store.isPairingCodeConsumed(pairingCode)
     ? pairingCode
@@ -176,7 +288,108 @@ export function createICoreServer({
     try {
       const url = new URL(request.url, 'http://core.local');
       if (request.method === 'GET' && url.pathname === '/v1/core/health') {
-        json(response, 200, store.health({ workerLeasesEnabled: Boolean(workerSecret) }));
+        json(response, 200, store.health({
+          workerLeasesEnabled: Boolean(workerSecret),
+          activityOwnerConfigured: Boolean(activityAdminSecret),
+        }));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/activity/probes/pair') {
+        requireActivityOwner(request, store, activityAdminSecret);
+        json(response, 200, store.activity.pairProbe(await readJson(request, 32 * 1024)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/activity/readers/pair') {
+        requireActivityOwner(request, store, activityAdminSecret);
+        json(response, 200, store.activity.pairSummaryReader(await readJson(request, 16 * 1024)));
+        return;
+      }
+      if (
+        request.method === 'POST'
+        && url.pathname.startsWith('/v1/core/activity/principals/')
+        && url.pathname.endsWith('/rotate')
+      ) {
+        requireActivityOwner(request, store, activityAdminSecret);
+        const principalId = pathIdentity(
+          url.pathname.slice(0, -'/rotate'.length),
+          '/v1/core/activity/principals/',
+        );
+        json(response, 200, store.activity.rotatePrincipal(principalId));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/activity/events') {
+        const principal = requireActivityPrincipal(request, store, activityAdminSecret);
+        json(response, 200, store.activity.appendEvents(
+          principal,
+          await readJson(request, ACTIVITY_MAX_REQUEST_BYTES),
+        ));
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/core/activity/summary') {
+        const principal = requireActivityPrincipal(request, store, activityAdminSecret);
+        json(response, 200, store.activity.summary(principal));
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/core/activity/changes') {
+        const principal = requireActivityPrincipal(request, store, activityAdminSecret);
+        const cursor = url.searchParams.get('cursor');
+        const limitRaw = url.searchParams.get('limit') ?? '100';
+        if (!/^\d+$/.test(limitRaw)) throw new CoreStoreError('invalid_request', 'limit must be a positive integer.');
+        json(response, 200, store.activity.changes(principal, cursor, Number(limitRaw)));
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/core/activity/snapshot') {
+        const principal = requireActivityPrincipal(request, store, activityAdminSecret);
+        json(response, 200, store.activity.snapshot(principal));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/activity/ack') {
+        const principal = requireActivityPrincipal(request, store, activityAdminSecret);
+        json(response, 200, store.activity.acknowledge(principal, await readJson(request, 4096)));
+        return;
+      }
+      if (
+        request.method === 'POST'
+        && url.pathname.startsWith('/v1/core/activity/probes/')
+        && url.pathname.endsWith('/revoke')
+      ) {
+        requireActivityOwner(request, store, activityAdminSecret);
+        const probeId = pathIdentity(
+          url.pathname.slice(0, -'/revoke'.length),
+          '/v1/core/activity/probes/',
+        );
+        json(response, 200, store.activity.revokeProbe(probeId));
+        return;
+      }
+      const deleteProbeId = request.method === 'DELETE'
+        ? pathIdentity(url.pathname, '/v1/core/activity/probes/')
+        : null;
+      if (deleteProbeId) {
+        requireActivityOwner(request, store, activityAdminSecret);
+        json(response, 200, store.activity.deleteProbe(deleteProbeId));
+        return;
+      }
+      const deleteDeviceId = request.method === 'DELETE'
+        ? pathIdentity(url.pathname, '/v1/core/activity/devices/')
+        : null;
+      if (deleteDeviceId) {
+        requireActivityOwner(request, store, activityAdminSecret);
+        json(response, 200, store.activity.deleteDevice(deleteDeviceId));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/activity/admin/retention') {
+        requireActivityOwner(request, store, activityAdminSecret);
+        json(response, 200, store.activity.runRetention());
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/core/activity/admin/export') {
+        requireActivityOwner(request, store, activityAdminSecret);
+        json(response, 200, store.activity.adminExport());
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/core/activity/admin/audit') {
+        requireActivityOwner(request, store, activityAdminSecret);
+        json(response, 200, { audit: store.activity.audit() });
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/devices/pair') {
@@ -299,6 +512,12 @@ export function createICoreServer({
     } catch (error) {
       const known = error instanceof CoreStoreError
         ? error
+        : error?.name === 'ActivityControlPlaneError'
+          ? new CoreStoreError(error.code, error.message, {
+              status: error.status,
+              retryable: error.retryable,
+              details: error.details,
+            })
         : error instanceof ShortcutMailRelayError
           ? new CoreStoreError(error.code, error.message, {
               status: error.status,
@@ -310,14 +529,70 @@ export function createICoreServer({
     }
   }
 
-  const server = certPath && keyPath
-    ? https.createServer({
-        cert: readFileSync(certPath),
-        key: readFileSync(keyPath),
-        minVersion: 'TLSv1.2',
-      }, handle)
-    : http.createServer(handle);
+  let server;
+  try {
+    server = certPath && keyPath
+      ? https.createServer({
+          cert: readFileSync(certPath),
+          key: readFileSync(keyPath),
+          minVersion: 'TLSv1.2',
+        }, handle)
+      : http.createServer(handle);
+  } catch (error) {
+    try {
+      if (ownsShortcutMailRelay) shortcutMailRelay?.close();
+    } catch {
+      // Preserve the construction error while still releasing the Core store below.
+    }
+    try {
+      store.close();
+    } catch {
+      // Preserve the construction error.
+    }
+    throw error;
+  }
   let closed = false;
+  let ownedRelayClosed = false;
+  let activityRetentionTimer = null;
+  function closeOwnedRelay() {
+    if (!ownsShortcutMailRelay || ownedRelayClosed) return;
+    try {
+      shortcutMailRelay?.close();
+    } finally {
+      ownedRelayClosed = true;
+    }
+  }
+  async function closeResources() {
+    let firstError = null;
+    if (activityRetentionTimer !== null) {
+      clearInterval(activityRetentionTimer);
+      activityRetentionTimer = null;
+    }
+    if (server.listening) {
+      try {
+        server.closeIdleConnections?.();
+        await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+    try {
+      closeOwnedRelay();
+    } catch (error) {
+      firstError ??= error;
+    }
+    try {
+      store.close();
+    } catch (error) {
+      firstError ??= error;
+    }
+    if (firstError) throw firstError;
+  }
+  async function closeAfterStartupFailure() {
+    if (closed) return;
+    closed = true;
+    await closeResources();
+  }
   return {
     server,
     store,
@@ -328,31 +603,98 @@ export function createICoreServer({
       if (store.isPairingCodeConsumed(value)) {
         throw new Error('pairing code has already been consumed; generate a new code');
       }
+      store.assertAuthoritySecretSeparation({
+        activityAdminSecret,
+        workerSecret,
+        pairingCode: value,
+        shortcutMailTokenHash: shortcutMailRelay?.tokenHash ?? null,
+        now: clock(),
+      });
       pairingEndpointEnabled = true;
       activePairingCode = value;
     },
     async listen({ host = '127.0.0.1', port = 47841 } = {}) {
-      await new Promise((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(port, host, resolve);
-      });
-      return server.address();
+      try {
+        await new Promise((resolve, reject) => {
+          const cleanup = () => {
+            server.off('error', onError);
+            server.off('listening', onListening);
+          };
+          const onError = (error) => {
+            cleanup();
+            reject(error);
+          };
+          const onListening = () => {
+            cleanup();
+            resolve();
+          };
+          server.once('error', onError);
+          server.once('listening', onListening);
+          server.listen(port, host);
+        });
+        if (activityAdminSecret) {
+          store.activateActivity();
+          activityRetentionTimer = setInterval(() => {
+            try {
+              store.activity.runRetention(clock());
+            } catch {
+              // Authority/schema failures are reflected by health and fail closed on data access.
+            }
+          }, activityRetentionIntervalMs);
+          activityRetentionTimer.unref?.();
+        }
+        return server.address();
+      } catch (error) {
+        try {
+          await closeAfterStartupFailure();
+        } catch {
+          // Preserve the listen/activation error after attempting every cleanup.
+        }
+        throw error;
+      }
     },
     async close() {
       if (closed) return;
       closed = true;
-      if (server.listening) {
-        server.closeIdleConnections?.();
-        await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-      }
-      shortcutMailRelay?.close();
-      store.close();
+      await closeResources();
     },
   };
 }
 
 export function isShortcutMailManualTestEnabled(environment = process.env) {
   return environment.I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED === '1';
+}
+
+export function installICoreGracefulShutdown(core, {
+  processObject = process,
+  onError = (error) => console.error(`i core failed to stop cleanly: ${error.message}`),
+} = {}) {
+  let shutdownPromise = null;
+  const removeHandlers = () => {
+    processObject.off('SIGINT', onSignal);
+    processObject.off('SIGTERM', onSignal);
+  };
+  const shutdown = () => {
+    if (shutdownPromise) return shutdownPromise;
+    shutdownPromise = (async () => {
+      try {
+        await core.close();
+      } catch (error) {
+        processObject.exitCode = 1;
+        onError(error);
+        throw error;
+      } finally {
+        removeHandlers();
+      }
+    })();
+    return shutdownPromise;
+  };
+  const onSignal = () => {
+    void shutdown().catch(() => {});
+  };
+  processObject.once('SIGINT', onSignal);
+  processObject.once('SIGTERM', onSignal);
+  return { shutdown, dispose: removeHandlers };
 }
 
 async function main() {
@@ -387,8 +729,11 @@ async function main() {
     workerSecret: process.env.I_CORE_WORKER_SECRET ?? null,
     companionReplyJobsEnabled: process.env.I_CORE_COMPANION_REPLY_JOBS === '1',
     shortcutMailRelay,
+    ownsShortcutMailRelay: Boolean(shortcutMailRelay),
+    activityAdminSecret: process.env.I_CORE_ACTIVITY_ADMIN_SECRET ?? null,
   });
   const address = await core.listen({ host, port });
+  installICoreGracefulShutdown(core);
   const protocol = process.env.I_CORE_CERT && process.env.I_CORE_KEY ? 'https' : 'http';
   console.log(`i core ${CORE_PROTOCOL_VERSION} listening on ${protocol}://${address.address}:${address.port}`);
   if (!pairingCode) {

@@ -53,6 +53,7 @@ class WorkbenchConversationCoordinator {
     Duration pollInterval = const Duration(milliseconds: 120),
     Duration turnTimeout = const Duration(minutes: 3),
     Duration controlTimeout = const Duration(seconds: 2),
+    Duration? hostCloseTimeout,
     Duration relationshipContextTimeout = const Duration(seconds: 10),
   })  : _runtime = runtime,
         _addReply = addReply,
@@ -65,6 +66,7 @@ class WorkbenchConversationCoordinator {
         _pollInterval = pollInterval,
         _turnTimeout = turnTimeout,
         _controlTimeout = controlTimeout,
+        _hostCloseTimeout = hostCloseTimeout ?? (turnTimeout + controlTimeout),
         _relationshipContextTimeout = relationshipContextTimeout;
 
   /// Authoritative desktop composition seam. Tests may replace transports and
@@ -137,13 +139,67 @@ class WorkbenchConversationCoordinator {
   final Duration _pollInterval;
   final Duration _turnTimeout;
   final Duration _controlTimeout;
+  final Duration _hostCloseTimeout;
   final Duration _relationshipContextTimeout;
   final Map<String, _ConversationRuntime> _bindings = {};
   final Map<String, _ActiveConversationTurn> _activeTurns = {};
   int _bindingSerial = 0;
+  bool _acceptingNewTurns = true;
+  Future<bool>? _hostClose;
 
   bool isRunning(String conversationId) =>
       _activeTurns.containsKey(conversationId);
+
+  bool get acceptsNewTurns => _acceptingNewTurns;
+
+  void fenceNewWork() {
+    _acceptingNewTurns = false;
+  }
+
+  /// Close every local runtime session already owned by this process.
+  ///
+  /// The fence is synchronous. A failed close leaves its binding available for
+  /// a later exit retry and never turns a stop request into a close receipt.
+  Future<bool> closeForHostLifecycle() {
+    final active = _hostClose;
+    if (active != null) return active;
+    fenceNewWork();
+    late final Future<bool> attempt;
+    attempt = _closeForHostLifecycle().whenComplete(() {
+      if (identical(_hostClose, attempt)) _hostClose = null;
+    });
+    return _hostClose = attempt;
+  }
+
+  Future<bool> _closeForHostLifecycle() async {
+    final activeTurns = _activeTurns.entries.toList(growable: false);
+    for (final entry in activeTurns) {
+      final turn = entry.value;
+      turn.requestStop();
+      if (turn.hasStarted && !await _interruptActiveTurn(entry.key, turn)) {
+        return false;
+      }
+    }
+    try {
+      await Future.wait(activeTurns.map((entry) => entry.value.settled.future))
+          .timeout(_hostCloseTimeout);
+    } on TimeoutException {
+      return false;
+    }
+
+    final runtimes = _bindings.values.toList(growable: false);
+    for (final runtime in runtimes) {
+      if (runtime.binding.status == RuntimeSessionStatus.closed) continue;
+      try {
+        await _boundedControl(_runtime.closeSession(runtime.localSessionId));
+        await _transition(
+            runtime.binding.conversationId, RuntimeSessionStatus.closed);
+      } on Object {
+        return false;
+      }
+    }
+    return true;
+  }
 
   RuntimeSessionBinding? bindingFor(String conversationId) =>
       _bindings[conversationId]?.binding;
@@ -160,6 +216,13 @@ class WorkbenchConversationCoordinator {
     final text = userText.trim();
     if (text.isEmpty) {
       throw ArgumentError.value(userText, 'userText', 'must not be blank');
+    }
+    if (!_acceptingNewTurns) {
+      return const WorkbenchConversationResult(
+        outcome: WorkbenchConversationOutcome.failed,
+        message: '桌面正在安全关闭，暂时不能开始新的电脑回复。',
+        errorCode: 'conversation_closing',
+      );
     }
     if (_activeTurns.containsKey(conversationId)) {
       const busy = WorkbenchConversationResult(
@@ -322,6 +385,7 @@ class WorkbenchConversationCoordinator {
       return result;
     } finally {
       _activeTurns.remove(conversationId);
+      activeTurn.markSettled();
     }
   }
 
@@ -829,8 +893,8 @@ class WorkbenchConversationCoordinator {
     final whiteboardGuidance = whiteboardAuthorization == null
         ? ''
         : '\n${whiteboardAuthorization.toPromptBlock()}';
-    return '你在 Here I am 桌面工作台中回复。请遵循产品宿主提供的角色身份，'
-        '直接自然回复，不要声称完成了未实际执行的操作。\n\n'
+    return '你在 Here I am 桌面工作台中回复。直接自然回复，'
+        '不要声称完成了未实际执行的操作。\n\n'
         '${relationshipContext.toPromptBlock()}'
         '$searchGuidance$queueGuidance$whiteboardGuidance\n\n$userText';
   }
@@ -845,6 +909,10 @@ class WorkbenchConversationCoordinator {
       return WorkbenchRelationshipContext.unavailable(
         characterId: characterId,
         reason: 'relationship_context_not_configured',
+        includeDesktopPersona: _isLinAiScope(
+          conversationId: conversationId,
+          characterId: characterId,
+        ),
       );
     }
     try {
@@ -858,9 +926,19 @@ class WorkbenchConversationCoordinator {
     } catch (_) {
       return WorkbenchRelationshipContext.unavailable(
         characterId: characterId,
+        includeDesktopPersona: _isLinAiScope(
+          conversationId: conversationId,
+          characterId: characterId,
+        ),
       );
     }
   }
+
+  static bool _isLinAiScope({
+    required String conversationId,
+    required String characterId,
+  }) =>
+      characterId.trim() == 'i' && conversationId == 'persona:i';
 }
 
 class _ConversationRuntime {
@@ -945,6 +1023,7 @@ class _ActiveConversationTurn {
   bool controlLost = false;
   Future<bool>? interruptFuture;
   final Completer<void> stopSignal = Completer<void>();
+  final Completer<void> settled = Completer<void>();
   bool get hasStarted => sessionId != null && turnId != null;
 
   void requestStop() {
@@ -955,6 +1034,10 @@ class _ActiveConversationTurn {
   void markStarted({required String sessionId, required String turnId}) {
     this.sessionId = sessionId;
     this.turnId = turnId;
+  }
+
+  void markSettled() {
+    if (!settled.isCompleted) settled.complete();
   }
 }
 

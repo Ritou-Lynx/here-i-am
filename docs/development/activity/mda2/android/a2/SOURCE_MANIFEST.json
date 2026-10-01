@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "artifact": "mda2-a2-android-durable-outbox",
+  "status": "frozen_local_synthetic_candidate_r2_cleanup_repaired",
+  "baseline_commit": "b55386cfc896c98376a071009f349dcbc88dc84b",
+  "rejected_commits": [
+    "7d0494436d55578d6388b12e69080a7741e4dc9d",
+    "47adfbf69baecea40e60bbeb8c8659ed4af32b1b"
+  ],
+  "repair_parent_commit": "47adfbf69baecea40e60bbeb8c8659ed4af32b1b",
+  "branch": "codex/mda2-a2-android-durable-20260913",
+  "a1_source": {
+    "worktree": "C:/Users/ExampleUser/.codex/worktrees/aa86/memex",
+    "baseline_commit": "1b6a2961ec9e9705273b8dbed3dd5a9ec5c121f5",
+    "files": {
+      "docs/development/activity/mda2/android/HANDOFF.md": "cf01a03138cd3913eb5f9505eacade5a38e630e1ed86c1f867537a6ee7f8c59d",
+      "docs/development/activity/mda2/android/synthetic_events.json": "0844dd7d7c556b8ca81083e8a6f6e3a25b0c60687dd51312427cfc85bf8becb2",
+      "lib/data/services/activity/mda2_android/android_activity_normalizer.dart": "01ae905afe456ba854e3297802021f9698b5683842f0736d0db1a6fb9abc5e3e",
+      "test/data/services/activity/mda2_android/.gitignore": "68bdb5952b09a333f93f08d4e1b992d5f1e208bd9389324c869c803b7c696e88",
+      "test/data/services/activity/mda2_android/android_activity_normalizer_test.dart": "20df565a6e3998e628657abb2b1f45d582d4c1d847d7f4d6585cdcce1b96cd5d",
+      "test/data/services/activity/mda2_android/generate_synthetic_events.dart": "1b16d111fd1ed1d73f4b06cc5f4c2b5912f7ce2600be3d3024f03482cd464636",
+      "test/data/services/activity/mda2_android/verify_flutter_synthetic.ps1": "aab4df182d83a06c5af359e9588d0034d872baf988efcddf8daf2e8296755878",
+      "test/data/services/activity/mda2_android/verify_wire.mjs": "8ff9d0c3f058d6eed7e0e484fac2f8cf4af9f83696990bdd5474a456ec3171cf"
+    }
+  },
+  "shared_wire_inputs": {
+    "working_tree_pre_test_sha256": {
+      "tools/i_core/activity_control_plane.mjs": "525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222",
+      "tools/i_core/activity_control_plane.test.mjs": "1d68831ef819461757b7636b5006190bc1758911d33058aa58907c37a84e35dd"
+    },
+    "working_tree_post_test_sha256": {
+      "tools/i_core/activity_control_plane.mjs": "525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222",
+      "tools/i_core/activity_control_plane.test.mjs": "1d68831ef819461757b7636b5006190bc1758911d33058aa58907c37a84e35dd"
+    },
+    "git_blob_lf_sha256": {
+      "tools/i_core/activity_control_plane.mjs": "525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222",
+      "tools/i_core/activity_control_plane.test.mjs": "cb1794ed4a4bd426c022f5c6b71a9ec0c1a1f26dd53865c3429548b12167ea47"
+    },
+    "line_endings": {
+      "tools/i_core/activity_control_plane.mjs": "working_tree_matches_git_lf_blob",
+      "tools/i_core/activity_control_plane.test.mjs": "working_tree_crlf_sha_is_distinct_from_git_lf_blob_sha"
+    },
+    "unchanged": true,
+    "contract": "device.activity.v1",
+    "wire_schema_version": 1
+  },
+  "tested_owned_sha256": {
+    "pre_final_verification": {
+      "lib/data/services/activity/mda2_android/android_activity_normalizer.dart": "d6c7202faf7f5ceef61aae62d1656d472ba5caea6a846fd857ec1c7931fb5896",
+      "lib/data/services/activity/mda2_android/file_activity_outbox_store.dart": "023fd835cc61022479d23f1c21cadea0cd3f75d7f058cb5ab754ab8834f9405e",
+      "test/data/services/activity/mda2_android/android_activity_normalizer_test.dart": "20df565a6e3998e628657abb2b1f45d582d4c1d847d7f4d6585cdcce1b96cd5d",
+      "test/data/services/activity/mda2_android/file_activity_outbox_store_test.dart": "f7ff6aabb18ce86bb2a27dd2ff06412b52e6d2ad828b8be3a4d8a664a0fe8573",
+      "test/data/services/activity/mda2_android/fixtures/synthetic_events.json": "0844dd7d7c556b8ca81083e8a6f6e3a25b0c60687dd51312427cfc85bf8becb2",
+      "test/data/services/activity/mda2_android/generate_synthetic_events.dart": "1b16d111fd1ed1d73f4b06cc5f4c2b5912f7ce2600be3d3024f03482cd464636",
+      "test/data/services/activity/mda2_android/verify_flutter_synthetic.ps1": "3433b3652b79750b5e5f91e887694a01f46cd897167d6dffcf90ac135c979de0",
+      "test/data/services/activity/mda2_android/verify_wire.mjs": "c1ca4ec86d8079565aaa1b3a7127b32f5691bd1604745352824923f64765c0ac",
+      "test/data/services/activity/mda2_android/.gitignore": "68bdb5952b09a333f93f08d4e1b992d5f1e208bd9389324c869c803b7c696e88"
+    },
+    "post_final_verification": {
+      "lib/data/services/activity/mda2_android/android_activity_normalizer.dart": "d6c7202faf7f5ceef61aae62d1656d472ba5caea6a846fd857ec1c7931fb5896",
+      "lib/data/services/activity/mda2_android/file_activity_outbox_store.dart": "023fd835cc61022479d23f1c21cadea0cd3f75d7f058cb5ab754ab8834f9405e",
+      "test/data/services/activity/mda2_android/android_activity_normalizer_test.dart": "20df565a6e3998e628657abb2b1f45d582d4c1d847d7f4d6585cdcce1b96cd5d",
+      "test/data/services/activity/mda2_android/file_activity_outbox_store_test.dart": "f7ff6aabb18ce86bb2a27dd2ff06412b52e6d2ad828b8be3a4d8a664a0fe8573",
+      "test/data/services/activity/mda2_android/fixtures/synthetic_events.json": "0844dd7d7c556b8ca81083e8a6f6e3a25b0c60687dd51312427cfc85bf8becb2",
+      "test/data/services/activity/mda2_android/generate_synthetic_events.dart": "1b16d111fd1ed1d73f4b06cc5f4c2b5912f7ce2600be3d3024f03482cd464636",
+      "test/data/services/activity/mda2_android/verify_flutter_synthetic.ps1": "3433b3652b79750b5e5f91e887694a01f46cd897167d6dffcf90ac135c979de0",
+      "test/data/services/activity/mda2_android/verify_wire.mjs": "c1ca4ec86d8079565aaa1b3a7127b32f5691bd1604745352824923f64765c0ac",
+      "test/data/services/activity/mda2_android/.gitignore": "68bdb5952b09a333f93f08d4e1b992d5f1e208bd9389324c869c803b7c696e88"
+    },
+    "unchanged_during_final_verification": true
+  },
+  "toolchain": {
+    "os": "Windows",
+    "flutter": "3.44.0 stable revision 559ffa3f75",
+    "dart": "3.12.0 windows_x64",
+    "node": "24.14.1"
+  },
+  "verification_binding": {
+    "a1_flutter_tests": 56,
+    "a2_flutter_tests": 30,
+    "existing_validator_events": 20,
+    "in_memory_core_accepted_events": 20,
+    "diagnostic_unknown_assertions": 6,
+    "node_privacy_negative_cases": 7,
+    "fixture_sha256": "0844dd7d7c556b8ca81083e8a6f6e3a25b0c60687dd51312427cfc85bf8becb2"
+  }
+}

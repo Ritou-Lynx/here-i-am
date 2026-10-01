@@ -1,0 +1,46 @@
+[
+  {
+    "path": "tools/i_core/activity_control_plane.mjs",
+    "sha256": "e3b3aa0e286662566a71c9c81ad70adbf5ddd2ea470296e8d87d39041e7c898e"
+  },
+  {
+    "path": "tools/i_core/i_core_store.mjs",
+    "sha256": "6b87f5bc1218bc98eb4f9a34cc16b8b427928d4ba390276ace06845bbc08e4df"
+  },
+  {
+    "path": "tools/mda2_windows_queue/authority.mjs",
+    "sha256": "0c7bac0bf5d2669ffd08a77a69d268f1a96f790c8bd355a24dc15d3e75fed7f2"
+  },
+  {
+    "path": "tools/mda2_windows_queue/broker.mjs",
+    "sha256": "e125923dd23369b7ac78c42745354738280f7af4fb5ae0642659629e0dac35bb"
+  },
+  {
+    "path": "tools/mda2_windows_queue/fixtures/broker_host.mjs",
+    "sha256": "d51a69db3884f668ab5a33ad8e4ad31b84f9746f28b249de49895b65f67fed04"
+  },
+  {
+    "path": "tools/mda2_windows_queue/fixtures/run_tests.mjs",
+    "sha256": "637295316186b5772c5ee130e4accdca427c5cf9971b1fd05cd67e4076d02f35"
+  },
+  {
+    "path": "tools/mda2_windows_queue/queue.mjs",
+    "sha256": "30cb750444ffc1b9f3928367a83260fc64ea0dca52dc283c32e757376d539e2c"
+  },
+  {
+    "path": "tools/mda2_windows_queue/store.mjs",
+    "sha256": "4f99900e5761681fb5d3eb68f34b19ce15663e8deb1f49ebde7fadc3a986f55e"
+  },
+  {
+    "path": "tools/mda2_windows_queue/windows_clock.ps1",
+    "sha256": "1d0e5bbd29dab2f18e5515529e409dc09b51495171cde5e63050ba2b0e91096d"
+  },
+  {
+    "path": "tools/mda2_windows_queue/windows_guard.ps1",
+    "sha256": "92c1376647b705a19b813dcecbdce7946e9a2476ecdc1c4154c711c4d72eaa2f"
+  },
+  {
+    "path": "tools/mda2_windows_queue/worker.mjs",
+    "sha256": "41a172a18b5923f7d38367f6da917a7025edd921c05ae57732134b5be1e75ada"
+  }
+]

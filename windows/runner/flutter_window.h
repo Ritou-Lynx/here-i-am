@@ -3,7 +3,10 @@
 
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 
+#include <cstdint>
 #include <memory>
 
 #include "win32_window.h"
@@ -28,6 +31,12 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      desktop_exit_channel_;
+  bool close_requested_ = false;
+  bool close_allowed_ = false;
+  int64_t close_request_id_ = 0;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

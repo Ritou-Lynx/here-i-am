@@ -82,6 +82,81 @@ async function waitForApiEvent(api, sessionId, predicate) {
   throw new Error('Timed out waiting for experimental API event.');
 }
 
+test('text-only HTTP start and resume fail closed without starting app-server', async (t) => {
+  const adapter = createAdapter();
+  const api = new ExperimentalRuntimeApi({ enabled: true, adapterFactory: () => adapter });
+  t.after(() => api.stop());
+  for (const suffix of ['/sessions', '/sessions/resume']) {
+    const response = await callApi(api, 'POST', `${EXPERIMENTAL_RUNTIME_PREFIX}${suffix}`, {
+      config: { runtime_profile: 'workbench_text_only_v1' }, provider_session_id: 'ordinary-session',
+    });
+    assert.equal(response.status, 501);
+    assert.equal(response.body.error.code, 'unsupported_capability');
+    assert.deepEqual(response.body.error.details, {
+      profile: 'workbench_text_only_v1', available: false,
+      reason: 'text_only_isolation_unverified', fail_closed: true,
+    });
+    assert.equal(adapter.client.state, 'stopped');
+    assert.equal(adapter.sessions.size, 0);
+  }
+});
+
+test('capabilities project configured text-only host without allocating it', async (t) => {
+  const unconfiguredCapabilities = {
+    capabilities: ['turn_start'],
+    runtime_profiles: [{
+      profile: 'workbench_text_only_v1',
+      available: false,
+      reason: 'text_only_isolation_unverified',
+      fail_closed: true,
+    }],
+    provider_metadata: { provider: 'test' },
+  };
+  const makeOrdinaryAdapter = () => ({
+    async listCapabilities() { return unconfiguredCapabilities; },
+    async stop() {},
+  });
+
+  const unconfigured = new ExperimentalRuntimeApi({
+    enabled: true,
+    adapterFactory: makeOrdinaryAdapter,
+  });
+  t.after(() => unconfigured.stop());
+  const beforeConfiguration = await callApi(
+    unconfigured,
+    'GET',
+    `${EXPERIMENTAL_RUNTIME_PREFIX}/capabilities`,
+  );
+  assert.equal(beforeConfiguration.status, 200);
+  assert.deepEqual(beforeConfiguration.body, unconfiguredCapabilities);
+
+  let textAdapterAllocations = 0;
+  const configured = new ExperimentalRuntimeApi({
+    enabled: true,
+    adapterFactory: makeOrdinaryAdapter,
+    textAdapterFactory: () => {
+      textAdapterAllocations += 1;
+      throw new Error('Capability discovery must not create a text adapter.');
+    },
+  });
+  t.after(() => configured.stop());
+  const afterConfiguration = await callApi(
+    configured,
+    'GET',
+    `${EXPERIMENTAL_RUNTIME_PREFIX}/capabilities`,
+  );
+  assert.equal(afterConfiguration.status, 200);
+  assert.deepEqual(afterConfiguration.body.runtime_profiles, [{
+    profile: 'workbench_text_only_v1',
+    available: false,
+    fail_closed: true,
+    configured: true,
+    reason: 'text_only_host_configured_not_started',
+  }]);
+  assert.equal(textAdapterAllocations, 0);
+  assert.equal(configured.textAdapters.size, 0);
+});
+
 test('experimental local entry covers session, turn, control, events, approval, and resume', async (t) => {
   const adapter = createAdapter();
   const api = new ExperimentalRuntimeApi({

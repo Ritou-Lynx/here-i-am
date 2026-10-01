@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/workbench_ai/context/workbench_desktop_persona_prompt.dart';
 import 'package:memex/data/workbench_ai/context/workbench_relationship_context.dart';
 import 'package:memex/domain/models/character_model.dart';
 
@@ -54,8 +55,8 @@ void main() {
     );
     final prompt = context.toPromptBlock();
 
-    expect(prompt, contains('# 你是林埃'));
-    expect(prompt, contains('你是林埃（英文名 i）'));
+    expect(context.personaPrompt, workbenchDesktopPersonaPrompt);
+    expect(prompt, contains('# 林埃 / i — 桌面工作台提示词'));
     expect(prompt, contains('episode/episode-0'));
     expect(prompt, contains('fragment/fragment-0'));
     expect(prompt, contains('saga/saga-0'));
@@ -88,6 +89,7 @@ void main() {
       userText: '没有相关内容',
     );
     expect(empty.toPromptBlock(), contains('dreaming_status: empty'));
+    expect(empty.personaPrompt, workbenchDesktopPersonaPrompt);
 
     final failed = await WorkbenchRelationshipContextAssembler(
       backend: _FakeRelationshipBackend(
@@ -100,6 +102,7 @@ void main() {
       characterId: 'i',
       userText: '后端失败',
     );
+    expect(failed.personaPrompt, workbenchDesktopPersonaPrompt);
     expect(failed.toPromptBlock(), contains('persona_status: available'));
     expect(failed.toPromptBlock(), contains('recent_chat_status: unavailable'));
     expect(failed.toPromptBlock(), contains('dreaming_status: unavailable'));
@@ -115,7 +118,8 @@ void main() {
       userText: '还记得吗',
     );
 
-    expect(context.toPromptBlock(), contains('persona_status: unavailable'));
+    expect(context.personaPrompt, workbenchDesktopPersonaPrompt);
+    expect(context.toPromptBlock(), contains('persona_status: available'));
     expect(context.toPromptBlock(), contains('dreaming_status: unavailable'));
     expect(context.toPromptBlock(), contains('character_backend_unavailable'));
   });
@@ -136,8 +140,36 @@ void main() {
       context.toPromptBlock(),
       contains('conversation_character_scope_mismatch'),
     );
+    expect(context.toPromptBlock(),
+        isNot(contains(workbenchDesktopPersonaPrompt)));
     expect(backend.characterLoads, 0);
     expect(backend.dreamingLoads, 0);
+  });
+
+  test(
+      'does not inject desktop persona when the i record is missing or disabled',
+      () async {
+    final missing = await WorkbenchRelationshipContextAssembler(
+      backend: _FakeRelationshipBackend(character: null),
+    ).assemble(
+      conversationId: 'persona:i',
+      characterId: 'i',
+      userText: '缺少角色记录',
+    );
+    final disabled = await WorkbenchRelationshipContextAssembler(
+      backend: _FakeRelationshipBackend(
+        character: _legacyCharacter().copyWith(enabled: false),
+      ),
+    ).assemble(
+      conversationId: 'persona:i',
+      characterId: 'i',
+      userText: '角色没有启用',
+    );
+
+    expect(missing.toPromptBlock(),
+        isNot(contains(workbenchDesktopPersonaPrompt)));
+    expect(disabled.toPromptBlock(),
+        isNot(contains(workbenchDesktopPersonaPrompt)));
   });
 
   test('rejects non-i character scope without redefining product persona',
@@ -153,7 +185,10 @@ void main() {
 
     expect(context.toPromptBlock(), contains('scope_status: rejected'));
     expect(context.toPromptBlock(), contains('unsupported_character_scope'));
-    expect(context.toPromptBlock(), isNot(contains('# 你是林埃')));
+    expect(
+      context.toPromptBlock(),
+      isNot(contains(workbenchDesktopPersonaPrompt)),
+    );
     expect(backend.characterLoads, 0);
   });
 
@@ -205,6 +240,39 @@ void main() {
     expect(prompt, isNot(contains('\nafter\n')));
     expect(prompt, contains('‹/host_owned_relationship_context›'));
     expect(_containsUnpairedSurrogate(prompt), isFalse);
+  });
+
+  test('phone Dreaming lease removes already-assembled body after revocation',
+      () {
+    var authorized = true;
+    final context = WorkbenchRelationshipContext(
+      scopeStatus: WorkbenchContextLoadStatus.available,
+      personaStatus: WorkbenchContextLoadStatus.available,
+      recentStatus: WorkbenchContextLoadStatus.empty,
+      dreamingStatus: WorkbenchContextLoadStatus.available,
+      characterId: 'i',
+      dreamingSource: 'phone_v3_live',
+      dreamingLeaseIsValid: () => authorized,
+      dreaming: const WorkbenchDreamingRecall(
+        episodes: [
+          WorkbenchDreamingEpisode(
+            id: 'phone-episode',
+            narrative: 'must disappear after disconnect or expiry',
+            score: 1,
+          ),
+        ],
+      ),
+    );
+
+    expect(context.toPromptBlock(), contains('phone-episode'));
+    authorized = false;
+    final afterRevocation = context.toPromptBlock();
+    expect(afterRevocation, contains('dreaming_status: unavailable'));
+    expect(afterRevocation, isNot(contains('phone-episode')));
+    expect(
+      afterRevocation,
+      isNot(contains('must disappear after disconnect or expiry')),
+    );
   });
 }
 

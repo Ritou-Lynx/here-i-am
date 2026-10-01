@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
@@ -74,14 +75,63 @@ class CheckinService {
 
   Future<void> setEnabled(bool enabled) async {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await _db.into(_db.kvStore).insertOnConflictUpdate(
-          KvStoreCompanion.insert(
-            key: _keyEnabled,
-            bucket: const Value(_bucket),
-            value: Value(enabled.toString()),
-            updatedAt: Value(now),
-          ),
-        );
+    await _db.transaction(() async {
+      await _db.into(_db.kvStore).insertOnConflictUpdate(
+            KvStoreCompanion.insert(
+              key: _keyEnabled,
+              bucket: const Value(_bucket),
+              value: Value(enabled.toString()),
+              updatedAt: Value(now),
+            ),
+          );
+      if (!enabled) {
+        await _discardDisabledProactiveTriggers();
+        await clearProactivePendingCall();
+      }
+    });
+  }
+
+  /// Automatic checkpoints share the reminder queue with explicit user requests.
+  /// Only the former belong to the proactive-contact switch.
+  static bool isProactiveTrigger(SystemMessageQueueData trigger) {
+    if (trigger.triggerType == 'checkin') return true;
+    if (trigger.triggerType != 'reminder' || trigger.context == null) {
+      return false;
+    }
+    try {
+      final context = jsonDecode(trigger.context!);
+      return context is Map &&
+          const {'proactive_outing', 'morning_weather', 'checkin_followup'}
+              .contains(context['kind']);
+    } on FormatException {
+      return false;
+    }
+  }
+
+  Future<void> _discardDisabledProactiveTriggers() async {
+    if (await isEnabled()) return;
+    final active = await (_db.select(_db.systemMessageQueue)
+          ..where((t) => t.status.isIn(['pending', 'processing'])))
+        .get();
+    final ids = active.where(isProactiveTrigger).map((row) => row.id).toList();
+    if (ids.isEmpty) return;
+    await (_db.update(_db.systemMessageQueue)
+          ..where((t) =>
+              t.id.isIn(ids) & t.status.isIn(['pending', 'processing'])))
+        .write(const SystemMessageQueueCompanion(status: Value('failed')));
+  }
+
+  /// Re-read the durable switch and this run's trigger before a delayed model
+  /// result can notify, schedule a follow-up or queue a call. A cancelled run
+  /// stays cancelled even if the user turns proactive contact back on.
+  Future<bool> canDeliverTrigger(SystemMessageQueueData trigger) async {
+    if (!AppDatabase.isInitialized) return false;
+    if (isProactiveTrigger(trigger) && !await isEnabled()) return false;
+    final current = await (_db.select(_db.systemMessageQueue)
+          ..where((t) => t.id.equals(trigger.id)))
+        .getSingleOrNull();
+    return current != null &&
+        (current.status == 'pending' || current.status == 'processing');
   }
 
   Future<int> getMinIntervalMinutes() async {
@@ -135,6 +185,7 @@ class CheckinService {
   // ---------------------------------------------------------------------------
 
   Future<void> ensureCheckinTaskRegistered() async {
+    if (!await isEnabled()) return;
     try {
       await Workmanager().registerPeriodicTask(
         checkinTaskName,
@@ -153,6 +204,8 @@ class CheckinService {
         existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
       );
       _logger.info('Checkin pulse task registered');
+      // Re-enabling must restore the exact-alarm fallback cancelled on disable.
+      await scheduleProductionAlarm();
     } catch (e) {
       _logger.severe('Failed to register checkin task: $e');
     }
@@ -262,6 +315,7 @@ class CheckinService {
   /// creating a self-sustaining wake-up chain that does not rely on WorkManager.
   Future<void> scheduleProductionAlarm() async {
     if (!Platform.isAndroid) return;
+    if (!await isEnabled()) return;
     final minMin = await getMinIntervalMinutes();
     final maxMin = await getMaxIntervalMinutes();
     final delayMin = minMin + _rand.nextInt(maxMin - minMin + 1);
@@ -278,13 +332,21 @@ class CheckinService {
     _logger.info('Production alarm scheduled at $fireAt (in ${delayMin}m)');
   }
 
-  /// Cancels the checkin WorkManager task.
+  /// Cancels stochastic wake-ups; explicit reminder alarms stay registered.
   Future<void> cancelCheckinTask() async {
     try {
       await Workmanager().cancelByUniqueName(checkinTaskName);
       _logger.info('Checkin pulse task cancelled');
     } catch (e) {
       _logger.warning('Failed to cancel checkin task: $e');
+    }
+    if (Platform.isAndroid) {
+      try {
+        await AndroidAlarmManager.cancel(_productionAlarmId);
+      } catch (e) {
+        // The durable gate still rejects an alarm already dispatched by Android.
+        _logger.warning('Failed to cancel production checkin alarm: $e');
+      }
     }
   }
 
@@ -409,6 +471,7 @@ class CheckinService {
     // agent run can't permanently block future checkins.
     await recoverStuckProcessing();
     await expireStalePendingTriggers();
+    if (!await isEnabled()) return false;
 
     // Foreground gate: never proactively interrupt while the user is actively
     // using the app — the whole point of a proactive push is to reach them when
@@ -446,20 +509,24 @@ class CheckinService {
     _logger
         .info('Checkin pulse: next natural delay would be ~${delayMinutes}m');
 
-    await _db.into(_db.systemMessageQueue).insert(
-          SystemMessageQueueCompanion.insert(
-            id: _uuid.v4(),
-            triggerType: 'checkin',
-            body: _buildCheckinText(),
-            createdAt: now.millisecondsSinceEpoch ~/ 1000,
-            scheduledFor: const Value(null),
-            context: const Value(null),
-            processedAt: const Value(null),
-          ),
-        );
+    return _db.transaction(() async {
+      // The switch may have changed while the pulse was checking other gates.
+      if (!await isEnabled()) return false;
+      await _db.into(_db.systemMessageQueue).insert(
+            SystemMessageQueueCompanion.insert(
+              id: _uuid.v4(),
+              triggerType: 'checkin',
+              body: _buildCheckinText(),
+              createdAt: now.millisecondsSinceEpoch ~/ 1000,
+              scheduledFor: const Value(null),
+              context: const Value(null),
+              processedAt: const Value(null),
+            ),
+          );
 
-    _logger.info('Checkin trigger enqueued');
-    return true;
+      _logger.info('Checkin trigger enqueued');
+      return true;
+    });
   }
 
   // KV key for the foreground-service heartbeat interval gate.
@@ -472,6 +539,7 @@ class CheckinService {
   /// random/natural rather than firing on every tick.
   Future<bool> dueForCheckin() async {
     if (!AppDatabase.isInitialized) return false;
+    if (!await isEnabled()) return false;
     final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final row =
         await _db.kvStoreLookup(key: _keyNextCheckinTs, bucket: _bucket);
@@ -706,7 +774,13 @@ class CheckinService {
     await retryOnSqliteLocked(() async {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final processedAt = status == 'done' ? now : null;
-      await (_db.update(_db.systemMessageQueue)..where((t) => t.id.equals(id)))
+      await (_db.update(_db.systemMessageQueue)
+            ..where((t) =>
+                t.id.equals(id) &
+                // A stale drain/recovery must not revive a cancelled trigger.
+                (status == 'pending' || status == 'processing'
+                    ? t.status.isIn(['pending', 'processing'])
+                    : const Constant(true))))
           .write(SystemMessageQueueCompanion(
         status: Value(status),
         processedAt: Value(processedAt),
@@ -739,6 +813,7 @@ class CheckinService {
   /// checkin triggers from looping indefinitely through loopDetection.
   Future<void> recoverStuckProcessing() async {
     if (!AppDatabase.isInitialized) return;
+    await _discardDisabledProactiveTriggers();
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final expireBefore = now - 1800; // 30 minutes
 

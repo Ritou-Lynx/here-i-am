@@ -1,0 +1,141 @@
+{
+  "candidate_id": "A3F-R3-pathfix-b2adc44b-4d4667af",
+  "base": "b2adc44b7c04983a931c39695b81491cd295084b",
+  "commit_created": false,
+  "scope": "Same R3 Goal; Dart canonical trusted parent boundary repair only",
+  "flavor": "hereIAmV3",
+  "entry": "lib/a3d_device_gate_main.dart",
+  "package": "com.memexlab.hereiam.v3",
+  "runtime_input_sha256": "4D4667AFC0E39D5AB17E942241CA76ECF3BC9F47156940E899B2BD8E45044C4E",
+  "runtime_input_count": 1223,
+  "jni_source_count": 188,
+  "changed_source_test_script_count": 23,
+  "files": [
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/activity/ActivityObservationControlState.kt",
+      "sha256": "3624D8DDD658999953F272ED9CE783C483801B0717636ED0728EF96ADFB7D81B"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/activity/ActivityObservationForegroundService.kt",
+      "sha256": "C68EB7DFDB15263532BCDA1DEEE70A622DEC8BC26E28E94D26CFD628E2FFCB5B"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/activity/ActivityStartupConfirmation.kt",
+      "sha256": "2E87EDFFA6374EE3C1F488AEAFFD79B05D56DB1D8B67C0BA23CDF248C3353F5D"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/activity/AndroidActivitySignalCollector.kt",
+      "sha256": "2DABC1488D23A6B3AE0435FCF66625686AE219D8670BD73E7C1041FCB60AB295"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/channels/ActivitySignalChannelHandler.kt",
+      "sha256": "BFF7CAFB7A275482AC0025C03366B2874C27AD22B9A3A6897F764092B2A76D66"
+    },
+    {
+      "path": "android/app/src/test/kotlin/com/memexlab/memex/activity/ActivityObservationControlStateTest.kt",
+      "sha256": "C0CD43C06250D62DCF7BF7E61A72D79F006D733CDD4CB849D1F7FF94F34C4F91"
+    },
+    {
+      "path": "lib/data/services/activity/mda2_android/activity_outbox_process_lease.dart",
+      "sha256": "EC88ACA09332484282D355B0E89948665C5FF21BC56115ADB958A31049124A41"
+    },
+    {
+      "path": "lib/data/services/activity/mda2_android/android_activity_collector.dart",
+      "sha256": "DD7F1F65F850A3FE339CDD329066411612CDF632BA2C97CED9EE3C31254D2F68"
+    },
+    {
+      "path": "lib/data/services/activity/mda2_android/android_activity_signal_platform.dart",
+      "sha256": "9BFDD427CB8D5D79B878DFBC2511A43601CB6E5E5E1B82A4369078510C08FB99"
+    },
+    {
+      "path": "lib/data/services/activity/mda2_android/file_activity_outbox_store.dart",
+      "sha256": "C25510CBEA960B252867A12951774EEAED154BDAD5D8174C2A6B6695E89AD496"
+    },
+    {
+      "path": "lib/ui/a3d_device_gate/a3d_device_gate_controller.dart",
+      "sha256": "A6F30102D139A0F4714A2C57ADA350442013D2A75A0506B5A3C15603D25F3571"
+    },
+    {
+      "path": "lib/ui/a3d_device_gate/a3d_device_gate_screen.dart",
+      "sha256": "B6B9475EC814624643FADC6371DD9206229119783AEB602869CA92A447922BB8"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/a3d_device_gate_test.dart",
+      "sha256": "8CFD2D5430CE13C211791F64E1C1DB1FEF2117046147623350E2F47C06E24228"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/a3f_r3_owner_release_test.dart",
+      "sha256": "3D7FE2EA3CD44C371CCB5A0F2207C549C730D1643E717DA9EB47A2F05BD6C3A6"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/android_activity_collector_test.dart",
+      "sha256": "C4C2A0C291A2D9E8B22EF12345CC02943779BE57F570EFAFF95C64ABE1B0D82C"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/android_activity_observation_collector_test.dart",
+      "sha256": "0D3C288C66FE6CCC4F62202AC87D284EFA2F4543DCC45B82ABA0681CDFB06C42"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/android_activity_observation_platform_test.dart",
+      "sha256": "490B832BA537CC5C5CE09AA2178FC07404D98E0C9F1A4025BB52D35677FB8DF3"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/verify_a3_android.ps1",
+      "sha256": "109549A555EAB725170463BADF35D9B762851409519D64186B617D82B519E640"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/verify_a3_flutter.ps1",
+      "sha256": "4CD0EA96BCAB9E5E9733C9161DFA377D732F089AB7C6592981C9E0F26C5A3778"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/verify_a3d_flutter.ps1",
+      "sha256": "98B8B36D1E3E8C255E385B762AC06450AA322AB3294CF3A3FD12ED9D6472CF39"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/verify_a3f_r3_flutter.ps1",
+      "sha256": "172759C839FA4AB45E171C17EE0C141904B8B7B4709E95CC99187EEA18998290"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/verify_a3f_r3_static.ps1",
+      "sha256": "7EFC1F7AD77977817B8315796B55EB92243DA576C839B699154167F04D3205AD"
+    },
+    {
+      "path": "test/data/services/activity/mda2_android/verify_flutter_synthetic.ps1",
+      "sha256": "3DE35D4528B88960560B0732A0AD8B79A1FE4FA7FC14B6ECE6AD7B119E280D6F"
+    }
+  ],
+  "verification": {
+    "native_tests": 77,
+    "native_tests_unchanged_source": true,
+    "dart_package_tests": 66,
+    "flutter_combined_tests": 192,
+    "flutter_test_files": 7,
+    "analysis_exit": 0,
+    "critical_checks": 3,
+    "critical_exit": 0,
+    "independent_review": "accepted",
+    "build_exit": 0,
+    "build_duration_seconds": 371.8428335,
+    "signature_exit": 0,
+    "static_exit": 0
+  },
+  "apk": {
+    "path": "tmp/a3f-r3-device-gate-a684cdbf/candidate.apk",
+    "sha256": "A684CDBFB5F627164EDA558B681AB7C84F4DB6738F1B4265B754F81205807C7F",
+    "bytes": 409244236,
+    "metadata": "package: name='com.memexlab.hereiam.v3' versionCode='113' versionName='1.0.30' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'",
+    "certificate_sha256": "0011cc0372b17ccec1544eea667d2466adebade94ac91adb39239f3be8712e4e",
+    "original_build_path": "tmp/a3f-r3-w0/candidate-build/build/app/outputs/flutter-apk/app-hereiamv3-debug.apk"
+  },
+  "receipts": [
+    "tmp/a3f-r3-pathfix/build-result.json",
+    "tmp/a3f-r3-pathfix/build-source-manifest.json",
+    "tmp/a3f-r3-pathfix/combined-final-result.json",
+    "tmp/a3f-r3-pathfix/combined-final-source-manifest.json",
+    "tmp/a3f-r3-dart-verification/r3-pathfix-final-source-manifest.json",
+    "tmp/a3f-r3-pathfix/apk-signature.log"
+  ],
+  "supersedes_failed_apk": "854F341E108733464A351AAB267A14563033A4CCC6CB0A715862860EDBAD8658",
+  "device_gate": "H0 passed; H1 terminal observed but timing unproven; H4 action refusal display overwritten by foreground synchronization, UI repair required; H2-H6 incomplete",
+  "goal_complete": false
+}

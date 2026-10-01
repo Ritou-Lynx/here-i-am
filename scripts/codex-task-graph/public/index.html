@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Codex Task Graph</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header>
+    <h1>Codex Task Graph</h1>
+    <div id="status">
+      <span id="status-text">加载中…</span>
+      <span id="status-detail"></span>
+      <button id="btn-rescan" type="button">刷新</button>
+    </div>
+    <div id="filters">
+      <input id="search" type="search" placeholder="搜索线程标题 / ID / goal / snippet" />
+      <label><input type="checkbox" id="show-subagents" checked /> 子代理</label>
+      <label><input type="checkbox" id="show-orphans" checked /> 孤立节点</label>
+      <label><input type="checkbox" id="only-active" /> 只看当前前沿</label>
+    </div>
+  </header>
+
+  <main id="board" tabindex="0" aria-label="task graph canvas">
+    <svg id="edges" width="100%" height="100%"></svg>
+    <div id="nodes"></div>
+  </main>
+
+  <aside id="detail" hidden>
+    <section id="detail-header">
+      <button id="detail-close" type="button" aria-label="关闭">×</button>
+      <h2 id="detail-title">—</h2>
+    </section>
+    <section id="detail-body">
+      <dl id="detail-meta"></dl>
+      <div id="detail-goal"></div>
+      <div id="detail-note"></div>
+      <div id="detail-children"></div>
+    </section>
+    <section id="detail-edit">
+      <h3>语义层（本地覆盖，不改 Codex）</h3>
+      <label>标题 <input id="edit-title" type="text" /></label>
+      <label>Goal <input id="edit-goal" type="text" /></label>
+      <label>Type
+        <select id="edit-kind">
+          <option value="work">work</option>
+          <option value="goal">goal</option>
+          <option value="gate">gate</option>
+          <option value="handoff">handoff</option>
+        </select>
+      </label>
+      <label>运行状态
+        <select id="edit-run">
+          <option value="">—</option>
+          <option value="pending">pending</option>
+          <option value="running">running</option>
+          <option value="blocked">blocked</option>
+          <option value="done">done</option>
+        </select>
+      </label>
+      <label>验收状态
+        <select id="edit-acceptance">
+          <option value="">—</option>
+          <option value="pending">pending</option>
+          <option value="pass">pass</option>
+          <option value="fail">fail</option>
+        </select>
+      </label>
+      <label>阻塞原因 <input id="edit-blocker" type="text" /></label>
+      <label>下一步 <input id="edit-next" type="text" /></label>
+      <label>备注 <textarea id="edit-note" rows="3"></textarea></label>
+      <button id="btn-save-node" type="button">保存</button>
+      <span id="save-msg"></span>
+    </section>
+
+    <section id="detail-edges">
+      <h3>关系</h3>
+      <div id="edge-list"></div>
+      <form id="edge-form">
+        <input id="edge-to" type="text" placeholder="目标线程 ID" list="thread-ids" required />
+        <datalist id="thread-ids"></datalist>
+        <select id="edge-type">
+          <option value="branch">branch</option>
+          <option value="depends_on">depends_on</option>
+          <option value="handoff">handoff</option>
+          <option value="supersedes">supersedes</option>
+        </select>
+        <input id="edge-note" type="text" placeholder="备注（可选）" />
+        <button type="submit">添加</button>
+      </form>
+    </section>
+  </aside>
+
+  <script src="./dagre/dist/dagre.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

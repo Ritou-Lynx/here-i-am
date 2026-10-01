@@ -744,6 +744,7 @@ class CompanionAgent {
     bool forceNewSession = false,
     ToyController? toyControlService,
     Future<String?> Function()? initiateCallPolicy,
+    SystemMessageQueueData? Function()? backgroundTrigger,
     List<Tool> extraTools = const [],
     List<String>? turnImageAnalyses,
     // Raw text the user actually sent this turn. Used to hard-gate
@@ -796,6 +797,7 @@ class CompanionAgent {
       includeCheckinTools: includeCheckinTools,
       toyControlService: toyControlService,
       initiateCallPolicy: initiateCallPolicy,
+      backgroundTrigger: backgroundTrigger,
       forceActivate: true,
       turnImageAnalyses: turnImageAnalyses,
       currentUserMessageText: currentUserMessageText,
@@ -1231,6 +1233,7 @@ class CompanionAgent {
     required String userId,
     required String characterId,
   }) async {
+    SystemMessageQueueData? pendingTrigger;
     final character =
         await CharacterService.instance.getCharacter(userId, characterId);
     if (character == null) {
@@ -1247,15 +1250,17 @@ class CompanionAgent {
       queryHint: '',
       saveState: false,
       includeCheckinTools: true,
+      backgroundTrigger: () => pendingTrigger,
     );
     if (agent == null) return;
 
-    final pendingTrigger = await _drainPendingCheckinsIntoState(agent.state);
+    pendingTrigger = await _drainPendingCheckinsIntoState(agent.state);
     if (pendingTrigger == null) {
       _logger.info('runBackgroundCheckin: no pending checkins, skipping');
       return;
     }
     final trigger = pendingTrigger;
+    if (!await CheckinService.instance.canDeliverTrigger(trigger)) return;
 
     if (trigger.triggerType == 'checkin' && trigger.body.trim().isNotEmpty) {
       final activeSince = DateTime.now()
@@ -1280,6 +1285,7 @@ class CompanionAgent {
       characterId: characterId,
     );
     agent.state.systemReminders['recent_activity_snapshot'] = snapshot;
+    if (!await CheckinService.instance.canDeliverTrigger(trigger)) return;
 
     try {
       await agent.run([

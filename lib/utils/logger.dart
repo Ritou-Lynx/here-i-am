@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:logging/logging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:memex/data/services/file_logger_service.dart';
@@ -5,12 +6,12 @@ import 'package:memex/data/services/file_logger_service.dart';
 bool _isLoggerSetup = false;
 
 /// Initialize the logger configuration
-Future<void> setupLogger() async {
+Future<void> setupLogger({Directory? logDirectory}) async {
   if (_isLoggerSetup) return;
   _isLoggerSetup = true;
 
   // initialize file logger
-  await FileLoggerService.instance.initialize();
+  await FileLoggerService.instance.initialize(logDirectory: logDirectory);
 
   Logger.root.level = Level.ALL; // Defaults to Level.INFO
   Logger.root.onRecord.listen((record) {
@@ -28,4 +29,3 @@ Future<void> setupLogger() async {
 Logger getLogger(String name) {
   return Logger(name);
 }
-

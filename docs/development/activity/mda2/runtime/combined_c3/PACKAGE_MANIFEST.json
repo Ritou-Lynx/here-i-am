@@ -1,0 +1,136 @@
+{
+  "format": "i-core-schema5-candidate-r3",
+  "source_commit": "1b6a2961ec9e9705273b8dbed3dd5a9ec5c121f5",
+  "candidate_id": "mda2-r3-m3-combined-c3-control-race",
+  "source_mode": "baseline-plus-lf-normalized-m3-r2",
+  "source_provenance": {
+    "baseline_commit": "1b6a2961ec9e9705273b8dbed3dd5a9ec5c121f5",
+    "source_normalization": "CRLF-to-LF only",
+    "m3_patch_sha256": "4e81ee2c036b22d62875477a4f7aa77a1a98aa508569f8baf2c9a0d869d9bef8",
+    "m3_verification_sha256": "9fa6e9d41503747e8c91837b9ef96e4127b9eefd6245b7d0f79e349f9d280b81",
+    "files": [
+      {
+        "path": "tools/i_core/i_core_server.mjs",
+        "sha256": "7d22539e0af4fb9bcdea276dfcabea3d8af8985bb96c855aacce35de9bede679",
+        "original_sha256": "7d22539e0af4fb9bcdea276dfcabea3d8af8985bb96c855aacce35de9bede679",
+        "origin": "baseline-git"
+      },
+      {
+        "path": "tools/i_core/i_core_store.mjs",
+        "sha256": "883a35c128ee88f7689b737de2245ef073f0c6b96902385241f30c08eb8f816d",
+        "original_sha256": "234ec17834622519174d470e21489f803f0ddcab0eaa4445a74b284e3844b302",
+        "origin": "lf-normalized-frozen-m3-r2"
+      },
+      {
+        "path": "tools/i_core/shortcut_mail_relay.mjs",
+        "sha256": "841756bb88cee7eb406e9dd682e8eb547dc3c144d7bb8c1e68659e3c55cf9185",
+        "original_sha256": "841756bb88cee7eb406e9dd682e8eb547dc3c144d7bb8c1e68659e3c55cf9185",
+        "origin": "baseline-git"
+      },
+      {
+        "path": "tools/i_core/send_shortcut_mail.ps1",
+        "sha256": "0766737642349896379d545a22ca974ef0933ef514261ab9079642fc35d70919",
+        "original_sha256": "0766737642349896379d545a22ca974ef0933ef514261ab9079642fc35d70919",
+        "origin": "baseline-git"
+      },
+      {
+        "path": "tools/i_core/strict_smtp_tls_validation.ps1",
+        "sha256": "395e1c810f186a4136ad8b16ee4734e32322a4ba8064508f034ee0f21b6812ed",
+        "original_sha256": "395e1c810f186a4136ad8b16ee4734e32322a4ba8064508f034ee0f21b6812ed",
+        "origin": "baseline-git"
+      },
+      {
+        "path": "tools/i_core/activity_control_plane.mjs",
+        "sha256": "525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222",
+        "original_sha256": "93ca104158fac15eb567f6d66857bdb9dcabfd4093cd33ea79158ba9718553ff",
+        "origin": "lf-normalized-frozen-m3-r2"
+      }
+    ]
+  },
+  "core_schema_version": 5,
+  "node_version": "v24.14.1",
+  "node_sha256": "58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f",
+  "support": "continuous explicit-stop loopback candidate; original-path clean-close only; no production authorization",
+  "files": [
+    {
+      "path": "configuration.mjs",
+      "bytes": 4548,
+      "sha256": "854365857fecc9016596f80cb5b08f191e727083aa5651eb0cdacaaf691dd898"
+    },
+    {
+      "path": "job_guardian.ps1",
+      "bytes": 1194,
+      "sha256": "9d1ca47e0dca89dd8977a3f16ed305e03138ddf5080e9dbdeaea8bd6667fc59c"
+    },
+    {
+      "path": "owned_job.ps1",
+      "bytes": 17036,
+      "sha256": "a70f5e1c1a0368f7d02c5055483010c62d1de550b30563f4e0430df80ab91973"
+    },
+    {
+      "path": "package.mjs",
+      "bytes": 9851,
+      "sha256": "5a91712bc49d50c66c6570ebdac5863fe59b3423530711e89cd030b7775fd293"
+    },
+    {
+      "path": "protected_paths.ps1",
+      "bytes": 3054,
+      "sha256": "12136ce04e29b5205de27c4e9a845bdf331130464ee0e01b299896ff3f84f1ca"
+    },
+    {
+      "path": "request_stop.ps1",
+      "bytes": 2008,
+      "sha256": "a8bd9b07f1727202b6b48c0af82a9ec82bf75d84cc94d2daabf2dcce861b51e1"
+    },
+    {
+      "path": "runtime/node.exe",
+      "bytes": 91426304,
+      "sha256": "58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f"
+    },
+    {
+      "path": "runtime_child.mjs",
+      "bytes": 11021,
+      "sha256": "da1706eccc20babb49851ad65c17a16229e05fb0e33fccea63bad55ec9658f81"
+    },
+    {
+      "path": "start_schema5.ps1",
+      "bytes": 11554,
+      "sha256": "b761e3f991541d7981fe21773d8767d991baf24cc4c93fada0a65d7e07ad12a1"
+    },
+    {
+      "path": "tools/i_core/activity_control_plane.mjs",
+      "bytes": 215350,
+      "sha256": "525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222"
+    },
+    {
+      "path": "tools/i_core/i_core_server.mjs",
+      "bytes": 27077,
+      "sha256": "7d22539e0af4fb9bcdea276dfcabea3d8af8985bb96c855aacce35de9bede679"
+    },
+    {
+      "path": "tools/i_core/i_core_store.mjs",
+      "bytes": 63327,
+      "sha256": "883a35c128ee88f7689b737de2245ef073f0c6b96902385241f30c08eb8f816d"
+    },
+    {
+      "path": "tools/i_core/send_shortcut_mail.ps1",
+      "bytes": 15003,
+      "sha256": "0766737642349896379d545a22ca974ef0933ef514261ab9079642fc35d70919"
+    },
+    {
+      "path": "tools/i_core/shortcut_mail_relay.mjs",
+      "bytes": 18170,
+      "sha256": "841756bb88cee7eb406e9dd682e8eb547dc3c144d7bb8c1e68659e3c55cf9185"
+    },
+    {
+      "path": "tools/i_core/strict_smtp_tls_validation.ps1",
+      "bytes": 29384,
+      "sha256": "395e1c810f186a4136ad8b16ee4734e32322a4ba8064508f034ee0f21b6812ed"
+    },
+    {
+      "path": "verify_v4_state.mjs",
+      "bytes": 4015,
+      "sha256": "cf7a1dadc6e5cc774aa8e3c4a869cd1eeeade9e4687d8a8b2be382dbb04dec37"
+    }
+  ]
+}

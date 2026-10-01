@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:memex/data/repositories/update_card_ui_config.dart'
     as update_config_endpoint;
 import 'package:memex/data/services/search_service.dart';
+import 'package:memex/data/workbench_ai/product/ordinary_desktop_candidate_storage.dart';
 import 'package:memex/data/services/backup_service.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/domain/models/calendar_model.dart';
@@ -91,6 +92,19 @@ class MemexRouter {
 
   Future<void> _init() async {
     try {
+      if (OrdinaryDesktopCandidateStorage.isActive) {
+        final userId = await UserStorage.getUserId();
+        if (userId == null || !AppDatabase.isInitialized) {
+          throw StateError('Isolated desktop candidate was not bootstrapped');
+        }
+        await FileSystemService.init(
+          OrdinaryDesktopCandidateStorage.workspacePath,
+          startAssetServer: false,
+        );
+        TaskRoomService.init(AppDatabase.instance);
+        await TaskRoomService.instance.restoreInterruptedTaskRoomsOnce();
+        return;
+      }
       // 1. Resolve data root for current user (per-user workspace storage; logs/DB stay in app dir)
       final userId = await UserStorage.getUserId();
       final dataRoot = await UserStorage.resolveDataRoot(userId);
@@ -130,9 +144,7 @@ class MemexRouter {
         // periodStart-based upsert (which inserted a new row every run because
         // periodStart drifted with `now`). Idempotent.
         unawaited(
-          LifeInsightService.instance
-              .deduplicateLegacyRows()
-              .catchError((e) {
+          LifeInsightService.instance.deduplicateLegacyRows().catchError((e) {
             _logger.warning(
                 'MemexRouter: LifeInsight legacy dedup failed (non-fatal): $e');
             return 0;

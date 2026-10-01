@@ -22,6 +22,7 @@ object ChannelRegistrar {
         BackupStorageChannelHandler.register(flutterEngine, activity)
         BackupImportChannelHandler.register(flutterEngine, activity)
         PhoneUsageChannelHandler.register(flutterEngine, activity)
+        ActivitySignalChannelHandler.register(flutterEngine, activity)
         DeviceAppBlockerChannelHandler.register(flutterEngine, activity)
         CompanionShareChannelHandler.register(flutterEngine, activity)
         AudioRouteChannelHandler.register(flutterEngine, activity)

@@ -1,14 +1,193 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/memory_v3/readonly/phone_dreaming_read_service.dart';
+import 'package:memex/data/memory_v3/readonly/phone_memory_read_client.dart';
+import 'package:memex/data/memory_v3/readonly/phone_memory_read_server.dart';
+import 'package:memex/data/workbench_ai/context/workbench_desktop_persona_prompt.dart';
 import 'package:memex/data/workbench_ai/context/workbench_relationship_context.dart';
 import 'package:memex/data/workbench_ai/workbench_conversation_coordinator.dart';
+import 'package:memex/data/workbench_ai/whiteboard_runtime_domain_tool.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_client.dart';
 import 'package:memex/data/workbench_ai/workbench_runtime_binding_store.dart';
+import 'package:memex/domain/models/character_model.dart';
+import 'package:memex/db/app_database.dart';
+import 'package:memex/utils/result.dart';
 import 'package:memex/domain/workbench_ai/runtime/runtime_session_binding.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  // This suite uses only its own ephemeral loopback server, not widget HTTP
+  // fakes. Restore actual sockets for the cross-layer transport fixture.
+  HttpOverrides.global = null;
+
+  test(
+      'P5 real read-only database and HTTP reach Runtime; deletion and stop do not fall back',
+      () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final message = await db.into(db.personaChatMessages).insert(
+          PersonaChatMessagesCompanion.insert(
+            characterId: 'i',
+            isFromCharacter: false,
+            content: 'fixture source',
+            timestamp: DateTime.utc(2026),
+          ),
+        );
+    await db.into(db.memoryFragments).insert(
+          MemoryFragmentsCompanion.insert(
+            id: 'p5-fixture',
+            content: 'orchard phone-only recollection',
+            sourceMessageIds: Value(jsonEncode([message])),
+            createdAt: 1,
+          ),
+        );
+    await db.searchDao.upsertMemoryFragmentFts(
+      fragmentId: 'p5-fixture',
+      content: 'orchard phone-only recollection',
+    );
+    final service = PhoneDreamingReadService(db);
+    var reads = 0;
+    final server = PhoneMemoryReadServer(
+      port: 0,
+      identity: () async => PhoneMemoryReadIdentity('fixture-account', db),
+      read: (query) {
+        reads++;
+        return service.read(query);
+      },
+    );
+    final started = await server.start();
+    expect(started, isA<Ok<PhoneMemoryReadSession>>());
+    final session = (started as Ok<PhoneMemoryReadSession>).value;
+    final dio = Dio(BaseOptions(baseUrl: 'http://127.0.0.1:${session.port}'));
+    final client = PhoneMemoryReadClient(dio: dio);
+    addTearDown(() async {
+      client.disconnect();
+      dio.close(force: true);
+      await server.stop();
+      server.dispose();
+      client.dispose();
+      await db.close();
+    });
+    expect(await client.connect(session.connectionCode), isA<Ok<void>>());
+    expect(reads, 0, reason: 'connection status must not query memory');
+    final backend = _PhoneFailOnLocalDreamingBackend();
+      final runtime = _FakeConversationRuntime(expectWhiteboardTool: true);
+    final coordinator = WorkbenchConversationCoordinator.productionComposition(
+      whiteboardToolFactory: _NoWhiteboardTool.new,
+      runtime: runtime,
+      addReply: (_, __) async => 1,
+      relationshipContextProvider: WorkbenchRelationshipContextAssembler(
+        backend: backend,
+        phoneMemoryReadClient: client,
+      ),
+      pollInterval: Duration.zero,
+    );
+    Future<String> send({String scope = 'persona:i'}) async {
+      runtime.enqueueCompletedReply('fixture reply');
+      final result = await coordinator.send(
+        conversationId: scope,
+        characterId: 'i',
+        userText: 'orchard',
+      );
+      expect(result.outcome, WorkbenchConversationOutcome.completed);
+      return runtime.startedTurnInputs.last;
+    }
+
+    await db.customStatement('PRAGMA query_only = ON');
+    final hit = await send();
+    expect(hit, contains('orchard phone-only recollection'));
+    expect(hit, contains('dreaming_source: phone_v3_live'));
+    expect(hit, contains('dreaming_status: available'));
+    expect(hit, contains('dreaming_captured_at:'));
+    expect(hit, contains(workbenchDesktopPersonaPrompt));
+    expect(hit, isNot(contains(session.connectionCode)));
+    expect(jsonEncode(client.lastReceipt), isNot(contains('recollection')));
+    final isolated = await send(scope: 'persona:other');
+    expect(isolated, isNot(contains('phone-only recollection')));
+    expect(reads, 1, reason: 'wrong conversation must not reach phone');
+    final startGate = Completer<void>();
+      final delayedRuntime = _FakeConversationRuntime(startSessionGate: startGate, expectWhiteboardTool: true)
+      ..enqueueCompletedReply('fixture reply');
+    final delayedCoordinator =
+        WorkbenchConversationCoordinator.productionComposition(
+      whiteboardToolFactory: _NoWhiteboardTool.new,
+      runtime: delayedRuntime,
+      addReply: (_, __) async => 1,
+      relationshipContextProvider: WorkbenchRelationshipContextAssembler(
+        backend: backend,
+        phoneMemoryReadClient: client,
+      ),
+      pollInterval: Duration.zero,
+    );
+    final pending = delayedCoordinator.send(
+      conversationId: 'persona:i',
+      characterId: 'i',
+      userText: 'orchard',
+    );
+    while (delayedRuntime.startSessionCalls == 0) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
+    client.disconnect();
+    startGate.complete();
+    expect((await pending).outcome, WorkbenchConversationOutcome.completed);
+    expect(delayedRuntime.startedTurnInputs.single,
+        isNot(contains('phone-only recollection')));
+    expect(delayedRuntime.startedTurnInputs.single,
+        contains('dreaming_status: unavailable'));
+    expect(await client.connect(session.connectionCode), isA<Ok<void>>());
+    await db.customStatement('PRAGMA query_only = OFF');
+    await (db.delete(db.personaChatMessages)
+          ..where((t) => t.id.equals(message)))
+        .go();
+    await db.customStatement('PRAGMA query_only = ON');
+    final deleted = await send();
+    expect(deleted, contains('dreaming_status: empty'));
+    expect(deleted, isNot(contains('phone-only recollection')));
+    await server.stop();
+    final unavailable = await send();
+    expect(unavailable, contains('dreaming_status: unavailable'));
+    expect(unavailable, contains('dreaming_source: phone_v3_live'));
+    expect(unavailable, isNot(contains('phone-only recollection')));
+    expect(client.isConfigured, isTrue);
+    expect(backend.localReads, 0);
+    client.disconnect();
+    await send();
+    expect(backend.localReads, 1,
+        reason: 'only explicit disconnect restores local source');
+  });
+
+  test(
+      'production composition injects the desktop persona from the real assembler',
+      () async {
+      final runtime = _FakeConversationRuntime(expectWhiteboardTool: true)..enqueueCompletedReply('收到');
+    final coordinator = WorkbenchConversationCoordinator.productionComposition(
+      whiteboardToolFactory: _NoWhiteboardTool.new,
+      runtime: runtime,
+      addReply: (_, __) async => 1,
+      relationshipContextProvider: WorkbenchRelationshipContextAssembler(
+        backend: _AssemblerRelationshipBackend(),
+      ),
+      pollInterval: Duration.zero,
+    );
+
+    final result = await coordinator.send(
+      conversationId: 'persona:i',
+      characterId: 'i',
+      userText: '桌面人格要进生产链路',
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(
+      runtime.startedTurnInputs.single,
+      contains(workbenchDesktopPersonaPrompt),
+    );
+  });
+
   test('injects host-owned relationship context into the production turn path',
       () async {
     final runtime = _FakeConversationRuntime()..enqueueCompletedReply('我记得');
@@ -23,7 +202,7 @@ void main() {
           recentStatus: WorkbenchContextLoadStatus.empty,
           dreamingStatus: WorkbenchContextLoadStatus.available,
           characterId: 'i',
-          personaPrompt: '# 你是林埃',
+          personaPrompt: workbenchDesktopPersonaPrompt,
           dreaming: WorkbenchDreamingRecall(
             episodes: [
               WorkbenchDreamingEpisode(
@@ -44,7 +223,10 @@ void main() {
     );
 
     expect(result.outcome, WorkbenchConversationOutcome.completed);
-    expect(runtime.startedTurnInputs.single, contains('# 你是林埃'));
+    expect(
+      runtime.startedTurnInputs.single,
+      contains(workbenchDesktopPersonaPrompt),
+    );
     expect(runtime.startedTurnInputs.single, contains('episode/episode-real'));
     expect(runtime.startedTurnInputs.single, contains('not User-truth'));
   });
@@ -69,6 +251,10 @@ void main() {
         contains('dreaming_status: unavailable'));
     expect(runtime.startedTurnInputs.single,
         contains('context_backend_unavailable'));
+    expect(
+      runtime.startedTurnInputs.single,
+      contains(workbenchDesktopPersonaPrompt),
+    );
   });
 
   test('hanging relationship backend is bounded and ordinary reply continues',
@@ -90,6 +276,30 @@ void main() {
     expect(result.outcome, WorkbenchConversationOutcome.completed);
     expect(runtime.startedTurnInputs.single,
         contains('dreaming_status: unavailable'));
+    expect(
+      runtime.startedTurnInputs.single,
+      contains(workbenchDesktopPersonaPrompt),
+    );
+  });
+
+  test('relationship fallback never crosses a rejected persona scope',
+      () async {
+    final runtime = _FakeConversationRuntime()..enqueueCompletedReply('隔离');
+    final result = await _coordinator(
+      runtime,
+      <String>[],
+      relationshipContextProvider: _ThrowingRelationshipContextProvider(),
+    ).send(
+      conversationId: 'persona:other',
+      characterId: 'i',
+      userText: '不能串角色',
+    );
+
+    expect(result.outcome, WorkbenchConversationOutcome.completed);
+    expect(
+      runtime.startedTurnInputs.single,
+      isNot(contains(workbenchDesktopPersonaPrompt)),
+    );
   });
 
   test('rejects unsupported write tool and payload self-authorization',
@@ -703,6 +913,7 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
     this.startSessionGate,
     this.resumeProvider,
     this.resumedStartFailure,
+    this.expectWhiteboardTool = false,
   });
 
   final WorkbenchRuntimeException? startFailure;
@@ -711,6 +922,7 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
   final Completer<void>? startSessionGate;
   final String? resumeProvider;
   final WorkbenchRuntimeException? resumedStartFailure;
+  final bool expectWhiteboardTool;
   final List<_TurnScript> _scripts = [];
   final Completer<void> turnStarted = Completer<void>();
   final List<String> startedTurnSessionIds = [];
@@ -763,7 +975,12 @@ class _FakeConversationRuntime implements WorkbenchConversationRuntimeGateway {
     startSessionCalls++;
     if (startSessionGate != null) await startSessionGate!.future;
     if (startFailure != null) throw startFailure!;
-    expect(dynamicTools, isEmpty);
+    if (expectWhiteboardTool) {
+      expect(dynamicTools.map((tool) => tool['name']),
+          [WorkbenchRuntimeWhiteboardDomainTool.toolName]);
+    } else {
+      expect(dynamicTools, isEmpty);
+    }
     expect(contextManifest['conversation_id'], startsWith('persona'));
     _sessionSerial++;
     return WorkbenchRuntimeSession(
@@ -1032,6 +1249,70 @@ class _StaticRelationshipContextProvider
     required String userText,
   }) async =>
       context;
+}
+
+class _AssemblerRelationshipBackend
+    implements WorkbenchRelationshipContextBackend {
+  @override
+  Future<CharacterModel?> loadCharacter(String characterId) async =>
+      CharacterModel(
+        id: characterId,
+        name: 'I',
+        tags: const ['primary'],
+        persona: 'LEGACY_PERSONA_SHOULD_NOT_APPEAR',
+        enabled: true,
+      );
+
+  @override
+  Future<WorkbenchDreamingRecall> loadDreaming({
+    required String characterId,
+    required String query,
+    required int episodeLimit,
+    required int fragmentLimit,
+    required int sagaLimit,
+  }) async =>
+      const WorkbenchDreamingRecall();
+
+  @override
+  Future<List<WorkbenchRecentRelationshipMessage>> loadRecentMessages({
+    required String characterId,
+    required int limit,
+  }) async =>
+      const [];
+}
+
+class _PhoneFailOnLocalDreamingBackend extends _AssemblerRelationshipBackend {
+  int localReads = 0;
+  @override
+  Future<WorkbenchDreamingRecall> loadDreaming({
+    required String characterId,
+    required String query,
+    required int episodeLimit,
+    required int fragmentLimit,
+    required int sagaLimit,
+  }) async {
+    localReads++;
+    return const WorkbenchDreamingRecall();
+  }
+}
+
+// The relationship transport fixture must not open a real whiteboard store.
+class _NoWhiteboardTool implements WorkbenchRuntimeWhiteboardDomainTool {
+  @override
+  Map<String, dynamic> get dynamicToolDefinition =>
+      WorkbenchRuntimeWhiteboardDomainTool.toolDefinition;
+
+  @override
+  Future<WhiteboardRuntimeTurnAuthorization?> prepareAuthorization({
+    required String conversationId,
+    required String characterId,
+    required String userText,
+    String? userAuthorizationMessageId,
+  }) async =>
+      null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _ThrowingRelationshipContextProvider

@@ -266,7 +266,7 @@ I_HOME = '$SafeHomePath'
       [System.IO.File]::Move($ConfigTemp, $ConfigPath)
     }
     $ReadBack = [string](Get-Content -Raw -Encoding UTF8 $ConfigPath)
-    if ($ReadBack -notmatch ('(?m)^\[mcp_servers\.' + $EscapedName + '\]$')) {
+    if ($ReadBack -notmatch ('(?m)^\[mcp_servers\.' + $EscapedName + '\]\r?$')) {
       throw "Codex MCP fallback write did not preserve the $Name server block."
     }
     Remove-Item -LiteralPath $ConfigBackup -Force -ErrorAction SilentlyContinue

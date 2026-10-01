@@ -12,6 +12,10 @@ abstract final class AppRoutes {
   /// Personal center (settings).
   static const String personalCenter = '/personal-center';
 
+  /// Desktop-side entry for a user-authorized, short-lived phone Memory V3
+  /// read connection. The route never carries a connection code.
+  static const String phoneMemoryConnection = '/phone-memory-connection';
+
   /// Reading and games entry.
   static const String interests = '/interests';
 

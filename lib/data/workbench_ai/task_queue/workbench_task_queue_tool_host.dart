@@ -3,8 +3,11 @@ library;
 import 'package:memex/data/memory_v3/models/task_room_enums.dart';
 import 'package:memex/data/memory_v3/services/task_room_service.dart';
 
+import 'workbench_task_queue_execution_controller.dart';
+
 enum WorkbenchTaskQueueAction {
   enqueue('enqueue'),
+  start('start'),
   status('status'),
   pause('pause'),
   resume('resume'),
@@ -25,6 +28,30 @@ enum WorkbenchTaskQueueAction {
   }
 }
 
+const _knownExecutionErrorCodes = {
+  'task_not_available',
+  'task_not_startable',
+  'task_not_resumable',
+  'task_not_retryable',
+  'task_retry_limit_reached',
+  'execution_already_active',
+  'execution_owner_unavailable',
+  'execution_state_changed',
+  'execution_claim_lost',
+  'execution_request_limit',
+  'runtime_stop_unconfirmed',
+  'task_queue_request_conflict',
+  'runtime_execution_failed',
+  'text_only_isolation_unverified',
+};
+
+class _ExecutionResult {
+  const _ExecutionResult({required this.changed, this.error});
+
+  final bool changed;
+  final Map<String, dynamic>? error;
+}
+
 /// Current-turn permission computed by trusted product code from the actual
 /// product conversation and user message. It is never accepted in tool args.
 class WorkbenchTaskQueueAuthorization {
@@ -32,11 +59,21 @@ class WorkbenchTaskQueueAuthorization {
     required this.profileId,
     required this.conversationId,
     required this.allowedActions,
+    this.targetTaskId,
+    this.hasTargetConflict = false,
   });
 
   final String profileId;
   final String conversationId;
   final Set<WorkbenchTaskQueueAction> allowedActions;
+
+  /// Exact task selected by trusted host input for this turn. This is never
+  /// derived from a Runtime tool payload.
+  final String? targetTaskId;
+
+  /// The current user turn named more than one possible target, so no target
+  /// may be selected by the model or by a latest-task fallback.
+  final bool hasTargetConflict;
 
   TaskQueueHostScope get scope => TaskQueueHostScope(
         profileId: profileId,
@@ -74,43 +111,54 @@ class DesktopWorkbenchTaskQueueAuthorizationFactory {
       'background task',
       'task queue',
     ]);
+    final targetIds = _extractExplicitTaskIds(text);
 
-    final enqueueRequested = mentionsLongTask &&
-        (_containsAny(text, const [
-          '作为',
-          '创建',
-          '启动',
-          '开始',
-          '排队',
-          '加入',
-          'enqueue',
-        ]) ||
-            _containsAny(text, const [
-              'queue this long task',
-              'queue this background task',
-              'queue as a long task',
-              'queue as a background task',
-              'create a long task',
-              'create the long task',
-              'create a background task',
-              'start a long task',
-              'start the long task',
-              'start a background task',
-            ]));
-    if (enqueueRequested &&
-        !_isNegated(text, const [
-          '作为',
-          '创建',
-          '启动',
-          '开始',
-          '排队',
-          '加入',
-          'enqueue',
-          'queue',
-          'create',
-          'start',
-        ])) {
+    final enqueueCreationRequested = _containsAny(text, const [
+      '作为',
+      '创建',
+      '排队',
+      '加入',
+      'enqueue',
+      'queue this long task',
+      'queue this background task',
+      'queue as a long task',
+      'queue as a background task',
+      'create a long task',
+      'create the long task',
+      'create a background task',
+    ]);
+    final enqueueStartRequested = _containsAny(text, const [
+      '启动',
+      '开始',
+      'start a long task',
+      'start the long task',
+      'start a background task',
+    ]);
+    final creationNegated = _isNegated(text, const [
+      '作为',
+      '创建',
+      '排队',
+      '加入',
+      'enqueue',
+      'queue',
+      'create',
+    ]);
+    final startNegated = _isNegated(text, const ['启动', '开始']) ||
+        RegExp(r"\b(?:do not|don't|dont|never|no need to)\s+start\b")
+            .hasMatch(text);
+    if (targetIds.isEmpty &&
+        mentionsLongTask &&
+        !creationNegated &&
+        (enqueueCreationRequested ||
+            (enqueueStartRequested && !startNegated))) {
       actions.add(WorkbenchTaskQueueAction.enqueue);
+    }
+    if (mentionsTask &&
+        targetIds.length == 1 &&
+        (_containsAny(text, const ['启动', '开始执行']) ||
+            RegExp(r'\bstart\b').hasMatch(text)) &&
+        !startNegated) {
+      actions.add(WorkbenchTaskQueueAction.start);
     }
     if (mentionsTask &&
         _containsAny(text, const ['状态', '进度', 'status', 'progress']) &&
@@ -151,11 +199,20 @@ class DesktopWorkbenchTaskQueueAuthorizationFactory {
       profileId: profileId,
       conversationId: conversationId,
       allowedActions: Set.unmodifiable(actions),
+      targetTaskId: targetIds.length == 1 ? targetIds.single : null,
+      hasTargetConflict: targetIds.length > 1,
     );
   }
 
   bool _containsAny(String text, List<String> phrases) =>
       phrases.any(text.contains);
+
+  /// Production turns accept only an explicit UUID as a queue target. Internal
+  /// hosts may directly construct [WorkbenchTaskQueueAuthorization] with a
+  /// synthetic persisted ID; that test seam is not user-text authorization.
+  Set<String> _extractExplicitTaskIds(String text) => RegExp(
+        r'\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b',
+      ).allMatches(text).map((match) => match.group(0)!).toSet();
 
   bool _isNegated(String text, List<String> verbs) {
     const prefixes = [
@@ -179,7 +236,10 @@ class DesktopWorkbenchTaskQueueAuthorizationFactory {
 
 /// Provider-neutral host boundary for the durable long-task queue.
 class WorkbenchTaskQueueToolHost {
-  const WorkbenchTaskQueueToolHost(this._service);
+  const WorkbenchTaskQueueToolHost(
+    this._service, {
+    WorkbenchTaskQueueExecutionController? executionController,
+  }) : _executionController = executionController;
 
   static const toolName = 'manage_long_task_queue';
   static const toolVersion = '1';
@@ -190,7 +250,7 @@ class WorkbenchTaskQueueToolHost {
     'name': toolName,
     'description': '管理 Here I am 产品宿主持有的独立长任务队列。'
         '仅在当前用户原话明确授权的动作上可用；scope、authorization、重试上限和执行者均由宿主持有，参数不能提供或扩大。'
-        'task_id 省略时只会选择当前产品对话内最新的受控长任务。',
+        '仅目标未点名的 status 可省略 task_id 并只读当前对话内最新受控长任务；所有执行动作必须回传宿主绑定的精确 task_id。',
     'input_schema': {
       'type': 'object',
       'additionalProperties': false,
@@ -199,7 +259,15 @@ class WorkbenchTaskQueueToolHost {
         'request_id': {'type': 'string', 'minLength': 1, 'maxLength': 256},
         'action': {
           'type': 'string',
-          'enum': ['enqueue', 'status', 'pause', 'resume', 'cancel', 'retry'],
+          'enum': [
+            'enqueue',
+            'start',
+            'status',
+            'pause',
+            'resume',
+            'cancel',
+            'retry',
+          ],
         },
         'task_id': {'type': 'string', 'minLength': 1, 'maxLength': 128},
         'title': {
@@ -217,6 +285,7 @@ class WorkbenchTaskQueueToolHost {
   };
 
   final TaskRoomService _service;
+  final WorkbenchTaskQueueExecutionController? _executionController;
 
   Future<Map<String, dynamic>> invoke(
     Map<String, dynamic> payload, {
@@ -230,7 +299,8 @@ class WorkbenchTaskQueueToolHost {
         'title',
         'goal',
       });
-      final requestId = _boundedString(payload['request_id'], 'request_id', 256);
+      final requestId =
+          _boundedString(payload['request_id'], 'request_id', 256);
       final action = WorkbenchTaskQueueAction.parse(payload['action']);
       if (!authorization.allowedActions.contains(action)) {
         return _error(
@@ -274,6 +344,18 @@ class WorkbenchTaskQueueToolHost {
       }
 
       _expectAbsent(payload, const {'title', 'goal'});
+      final targetAuthorizationError = _targetAuthorizationError(
+        action,
+        payload['task_id'],
+        authorization,
+      );
+      if (targetAuthorizationError != null) {
+        return _error(
+          requestId: requestId,
+          status: 'rejected',
+          errorCode: targetAuthorizationError,
+        );
+      }
       final task = await _resolveTask(payload['task_id'], authorization.scope);
       if (task == null) {
         return _error(
@@ -286,27 +368,79 @@ class WorkbenchTaskQueueToolHost {
         return _success(requestId, action, task, changed: false);
       }
 
-      final validationError = _validateState(action, task);
-      if (validationError != null) {
-        return _error(
-          requestId: requestId,
-          status: 'rejected',
-          errorCode: validationError,
-          task: task,
-        );
-      }
+      var changed = false;
       switch (action) {
+        case WorkbenchTaskQueueAction.start:
+          final executionError = await _invokeExecution(
+            requestId: requestId,
+            operation: (controller) => controller.start(
+              id: task.id,
+              scope: authorization.scope,
+              requestId: requestId,
+            ),
+          );
+          if (executionError.error != null) return executionError.error!;
+          changed = executionError.changed;
+          break;
         case WorkbenchTaskQueueAction.pause:
-          await _service.pauseTaskRoom(id: task.id, reason: 'user_requested');
+          final executionError = await _invokeExecution(
+            requestId: requestId,
+            operation: (controller) => controller.pause(
+              id: task.id,
+              scope: authorization.scope,
+              requestId: requestId,
+            ),
+          );
+          if (executionError.error != null) return executionError.error!;
+          changed = executionError.changed;
           break;
         case WorkbenchTaskQueueAction.resume:
-          await _service.resumeTaskRoom(task.id);
+          final executionError = await _invokeExecution(
+            requestId: requestId,
+            operation: (controller) => controller.resume(
+              id: task.id,
+              scope: authorization.scope,
+              requestId: requestId,
+            ),
+          );
+          if (executionError.error != null) return executionError.error!;
+          changed = executionError.changed;
           break;
         case WorkbenchTaskQueueAction.cancel:
-          await _service.cancelTaskRoom(task.id);
+          if (_executionController == null) {
+            final queuedCancelError = await _cancelQueuedOnly(
+              task: task,
+              scope: authorization.scope,
+              requestId: requestId,
+            );
+            if (queuedCancelError.error != null) {
+              return queuedCancelError.error!;
+            }
+            changed = queuedCancelError.changed;
+            break;
+          }
+          final executionError = await _invokeExecution(
+            requestId: requestId,
+            operation: (controller) => controller.cancel(
+              id: task.id,
+              scope: authorization.scope,
+              requestId: requestId,
+            ),
+          );
+          if (executionError.error != null) return executionError.error!;
+          changed = executionError.changed;
           break;
         case WorkbenchTaskQueueAction.retry:
-          await _service.retryTaskRoom(id: task.id);
+          final executionError = await _invokeExecution(
+            requestId: requestId,
+            operation: (controller) => controller.retry(
+              id: task.id,
+              scope: authorization.scope,
+              requestId: requestId,
+            ),
+          );
+          if (executionError.error != null) return executionError.error!;
+          changed = executionError.changed;
           break;
         case WorkbenchTaskQueueAction.enqueue:
         case WorkbenchTaskQueueAction.status:
@@ -320,7 +454,12 @@ class WorkbenchTaskQueueToolHost {
           errorCode: 'task_queue_persistence_failed',
         );
       }
-      return _success(requestId, action, updated, changed: true);
+      return _success(
+        requestId,
+        action,
+        updated,
+        changed: changed,
+      );
     } on TaskQueueIdempotencyConflict {
       return const {
         'status': 'rejected',
@@ -361,37 +500,127 @@ class WorkbenchTaskQueueToolHost {
     return task != null && task.belongsTo(scope) ? task : null;
   }
 
-  String? _validateState(
+  String? _targetAuthorizationError(
     WorkbenchTaskQueueAction action,
-    TaskQueueSnapshot task,
+    Object? rawTaskId,
+    WorkbenchTaskQueueAuthorization authorization,
   ) {
-    switch (action) {
-      case WorkbenchTaskQueueAction.pause:
-        return task.status == TaskStatus.running ||
-                (task.status == TaskStatus.blocked && task.isResumable)
-            ? null
-            : 'task_not_pausable';
-      case WorkbenchTaskQueueAction.resume:
-        return task.status == TaskStatus.blocked && task.isResumable
-            ? null
-            : 'task_not_resumable';
-      case WorkbenchTaskQueueAction.cancel:
-        return {
-          TaskStatus.pending,
-          TaskStatus.running,
-          TaskStatus.blocked,
-          TaskStatus.waitingForUser,
-        }.contains(task.status)
-            ? null
-            : 'task_not_cancellable';
-      case WorkbenchTaskQueueAction.retry:
-        if (task.status != TaskStatus.failed) return 'task_not_retryable';
-        return task.retryCount < task.maxRetries
-            ? null
-            : 'task_retry_limit_reached';
-      case WorkbenchTaskQueueAction.enqueue:
-      case WorkbenchTaskQueueAction.status:
-        return null;
+    if (authorization.hasTargetConflict) return 'task_target_ambiguous';
+
+    // A targetless status request is the sole preserved latest-task path, and
+    // remains read-only. Any explicit user target must be echoed exactly.
+    if (action == WorkbenchTaskQueueAction.status &&
+        authorization.targetTaskId == null &&
+        rawTaskId == null) {
+      return null;
+    }
+
+    final targetTaskId = authorization.targetTaskId;
+    if (targetTaskId == null || rawTaskId == null) {
+      return 'task_target_required';
+    }
+    if (rawTaskId is! String || rawTaskId.trim() != targetTaskId) {
+      return 'task_target_not_authorized';
+    }
+    return null;
+  }
+
+  Future<_ExecutionResult> _invokeExecution({
+    required String requestId,
+    required Future<bool> Function(
+      WorkbenchTaskQueueExecutionController controller,
+    ) operation,
+  }) async {
+    final controller = _executionController;
+    if (controller == null) {
+      return _ExecutionResult(
+        changed: false,
+        error: _error(
+          requestId: requestId,
+          status: 'rejected',
+          errorCode: 'task_queue_execution_unavailable',
+        ),
+      );
+    }
+    try {
+      return _ExecutionResult(changed: await operation(controller));
+    } on WorkbenchTaskQueueExecutionException catch (error) {
+      return _ExecutionResult(
+        changed: false,
+        error: _error(
+          requestId: requestId,
+          status: 'rejected',
+          errorCode: _knownExecutionErrorCodes.contains(error.code)
+              ? error.code
+              : 'task_queue_execution_failed',
+        ),
+      );
+    } catch (_) {
+      return _ExecutionResult(
+        changed: false,
+        error: _error(
+          requestId: requestId,
+          status: 'failed',
+          errorCode: 'task_queue_execution_failed',
+        ),
+      );
+    }
+  }
+
+  /// The only controllerless cancellation path. B re-reads status and
+  /// execution phase in its transaction, so a concurrent start cannot be
+  /// cancelled from this stale host snapshot.
+  Future<_ExecutionResult> _cancelQueuedOnly({
+    required TaskQueueSnapshot task,
+    required TaskQueueHostScope scope,
+    required String requestId,
+  }) async {
+    try {
+      final changed = await _service.cancelPendingTaskQueue(
+        id: task.id,
+        scope: scope,
+        requestId: requestId,
+      );
+      return _ExecutionResult(changed: changed);
+    } on TaskQueueIdempotencyConflict {
+      return _ExecutionResult(
+        changed: false,
+        error: _error(
+          requestId: requestId,
+          status: 'rejected',
+          errorCode: 'task_queue_request_conflict',
+        ),
+      );
+    } on StateError catch (error) {
+      final code = error.message;
+      return _ExecutionResult(
+        changed: false,
+        error: _error(
+          requestId: requestId,
+          status: 'rejected',
+          errorCode: _knownExecutionErrorCodes.contains(code)
+              ? code
+              : 'task_queue_execution_failed',
+        ),
+      );
+    } on ArgumentError {
+      return _ExecutionResult(
+        changed: false,
+        error: _error(
+          requestId: requestId,
+          status: 'invalid_request',
+          errorCode: 'invalid_task_queue_request',
+        ),
+      );
+    } catch (_) {
+      return _ExecutionResult(
+        changed: false,
+        error: _error(
+          requestId: requestId,
+          status: 'failed',
+          errorCode: 'task_queue_execution_failed',
+        ),
+      );
     }
   }
 
@@ -419,6 +648,8 @@ class WorkbenchTaskQueueToolHost {
         'status': status,
         'request_id': requestId,
         'error_code': errorCode,
+        if (errorCode == 'text_only_isolation_unverified')
+          'message': '无法验证独立文字执行隔离，任务未启动。',
         if (task != null) 'task': _snapshotJson(task),
       };
 
@@ -431,11 +662,12 @@ class WorkbenchTaskQueueToolHost {
         'retry_count': task.retryCount,
         'max_retries': task.maxRetries,
         'resumable': task.isResumable,
-        if (task.resumableState != null)
-          'resumable_state': task.resumableState,
+        if (task.resumableState != null) 'resumable_state': task.resumableState,
         if (task.failureReason != null) 'failure_reason': task.failureReason,
         if (task.interruptedReason != null)
           'interrupted_reason': task.interruptedReason,
+        if (task.executionPhase != null) 'execution_phase': task.executionPhase,
+        if (task.resultPreview != null) 'result_preview': task.resultPreview,
       };
 }
 

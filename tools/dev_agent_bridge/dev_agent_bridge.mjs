@@ -23,6 +23,8 @@ import {
   normalizeCodexOptions,
 } from './codex_run_options.mjs';
 import { ExperimentalRuntimeApi } from './experimental_runtime_api.mjs';
+import { createBridgeRuntimeShutdown, registerBridgeShutdownSignals } from './bridge_runtime_shutdown.mjs';
+import { createWorkbenchTextTaskProductAdapterFactory } from './workbench_text_task_product_host.mjs';
 
 const host = process.env.DEV_AGENT_BRIDGE_HOST || '127.0.0.1';
 const port = Number(process.env.DEV_AGENT_BRIDGE_PORT || 47831);
@@ -34,7 +36,12 @@ const statePath = process.env.DEV_AGENT_BRIDGE_STATE ||
   join(scriptDir, '.state', 'runs.json');
 const runs = new Map();
 const iHome = process.env.I_HOME || join(homedir(), '.i');
-const experimentalRuntimeApi = new ExperimentalRuntimeApi();
+// The product host remains unavailable unless its local opt-in configuration
+// and both pins validate during Bridge startup. It never falls back to the
+// ordinary App Server adapter.
+const experimentalRuntimeApi = new ExperimentalRuntimeApi({
+  textAdapterFactory: createWorkbenchTextTaskProductAdapterFactory(),
+});
 
 const terminalStatuses = new Set(['done', 'failed', 'aborted']);
 
@@ -889,6 +896,10 @@ function startProcess(run, agentType, project, prompt, mode, runOptions) {
 }
 
 async function handle(req, res) {
+  if (runtimeShutdown.isStopping) {
+    json(res, 503, { error: 'bridge_stopping' });
+    return;
+  }
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const path = url.pathname;
 
@@ -1376,6 +1387,16 @@ const server = certPath && keyPath
       handle,
     )
   : http.createServer(handle);
+
+const runtimeShutdown = createBridgeRuntimeShutdown({ runtimeApi: experimentalRuntimeApi, server });
+registerBridgeShutdownSignals({
+  shutdown: () => runtimeShutdown.shutdown(),
+  onClosed: () => process.exit(0),
+  onUnconfirmed: () => {
+    console.error('Bridge shutdown is unconfirmed; retry the stop signal after resolving cleanup.');
+    process.exitCode = 1;
+  },
+});
 
 server.on('error', (error) => {
   console.error(`Dev Agent Bridge failed to start: ${error.message}`);

@@ -1,4 +1,4 @@
-﻿# One-click launcher for the comic co-reading pipeline (Windows).
+# One-click launcher for the comic co-reading pipeline (Windows).
 #
 # Starts TWO node processes that must keep running for "auto-crawl your
 # watches" to work:

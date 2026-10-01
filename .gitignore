@@ -160,3 +160,22 @@ tools/comic_server/probe_out/
 tools/comic_server/node_modules/
 tools/comic_server/config.json
 tools/comic_server/data/
+
+# Private signing/runtime assets are never source migration inputs.
+/android/app/debug.keystore
+/tmp/
+*.sqlite-shm
+*.sqlite-wal
+
+# Machine-specific reconciliation reports and scripts stay local.
+/docs/development/sync-migration-20261001/
+
+# Private local validation and data never travel through Git.
+/.migration-validation/
+/.private-overlay/
+*.db
+*.db-shm
+*.db-wal
+*.db3
+*.sqlite3
+/tools/i_continuity_gateway/.state/

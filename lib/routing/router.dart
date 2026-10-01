@@ -13,6 +13,7 @@ import 'package:memex/ui/calendar/view_models/calendar_viewmodel.dart';
 import 'package:memex/ui/calendar/widgets/calendar_screen.dart';
 import 'package:memex/ui/character/widgets/persona_chat_navigation.dart';
 import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
+import 'package:memex/ui/settings/widgets/phone_memory_connection_page.dart';
 import 'package:memex/ui/interest/widgets/interest_hub_screen.dart';
 import 'package:memex/ui/book/book_tts_voice_lab_screen.dart';
 import 'package:memex/ui/dev_agent/widgets/dev_room_screen.dart';
@@ -204,6 +205,13 @@ GoRouter createAppRouter(
       GoRoute(
         path: AppRoutes.personalCenter,
         builder: (_, __) => const PersonalCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.phoneMemoryConnection,
+        builder: (_, __) => const DesktopRouteWrapper(
+          title: '桌面记忆只读连接',
+          child: PhoneMemoryConnectionPage(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.interests,

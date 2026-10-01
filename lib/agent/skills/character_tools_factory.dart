@@ -57,6 +57,7 @@ class CharacterToolsFactory {
     bool includeCheckinTools = false,
     ToyController? toyControlService,
     InitiateCallPolicy? initiateCallPolicy,
+    SystemMessageQueueData? Function()? backgroundTrigger,
     List<String>? turnImageAnalyses,
     String? currentUserMessageText,
   }) {
@@ -158,11 +159,15 @@ class CharacterToolsFactory {
     }
     if (includeCheckinTools) {
       tools.add(buildSystemCheckinTool(
-          characterId: characterId, characterName: characterName));
+        characterId: characterId,
+        characterName: characterName,
+        triggerProvider: backgroundTrigger,
+      ));
       tools.add(buildSetSystemMessageStatusTool());
       tools.add(buildInitiateCallTool(
         characterId: characterId,
         beforeQueue: initiateCallPolicy,
+        triggerProvider: backgroundTrigger,
       ));
     }
     return tools;
