@@ -1,5 +1,7 @@
 # 正式本地开发交接（2026-10-01）
 
+> 当前状态：原GitHub仓库PR #1已合入v3-lab，正式开发副本跟踪origin/v3-lab且正常push可用。完整新clone及源码/历史验证通过；后续各设备使用[多设备源码协作](MULTI_DEVICE_GITHUB_WORKFLOW.md)。下方的本地提交339/8eed为保留检查点，不是公开祖先。
+
 > 后续更新：用户已授权统一至原 GitHub 仓库；当前协作流程见[多设备说明](MULTI_DEVICE_GITHUB_WORKFLOW.md)，当前事实见[I_PROJECT_STATE](I_PROJECT_STATE.md)。下方 push 禁用、未提交等文字属于迁移历史；旧本机检查点不进入新公开提交的祖先链。
 
 ## 唯一源码开发落点
