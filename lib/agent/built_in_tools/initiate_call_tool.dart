@@ -1,5 +1,6 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
+import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/sqlite_retry.dart';
 import 'package:memex/db/app_database.dart';
 
@@ -7,6 +8,7 @@ const _bucket = 'companion_call';
 const _keyCharacterId = 'pending_character_id';
 const _keyOpening = 'pending_opening';
 const _keyNotified = 'pending_notified';
+const _keyProactive = 'pending_proactive';
 
 /// Reads the pending opening message (and characterId) from KVStore.
 /// Does NOT delete; caller decides when to clear.
@@ -17,6 +19,10 @@ Future<({String characterId, String opening})?> readPendingCall() async {
         ..where((kv) => kv.bucket.equals(_bucket)))
       .get();
   if (rows.isEmpty) return null;
+  if (rows.any((row) => row.key == _keyProactive && row.value == 'true') &&
+      !await CheckinService.instance.isEnabled()) {
+    return null;
+  }
 
   String? characterId;
   String? opening;
@@ -75,17 +81,27 @@ Future<void> clearPendingCall({String? characterId}) async {
   });
 }
 
-Future<void> queuePendingCall({
+/// Cancel only calls queued by an automatic check-in, preserving user requests.
+Future<void> clearProactivePendingCall() async {
+  final db = AppDatabase.instance;
+  final origin = await db.kvStoreLookup(key: _keyProactive, bucket: _bucket);
+  if (origin?.value != 'true') return;
+  await (db.delete(db.kvStore)..where((kv) => kv.bucket.equals(_bucket))).go();
+}
+
+Future<bool> queuePendingCall({
   required String characterId,
   required String openingMessage,
+  bool proactive = false,
 }) async {
   final db = AppDatabase.instance;
   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
   // A newly queued call must ring even if another call was notified in the
   // last ten minutes.
-  await retryOnSqliteLocked(() async {
-    await db.transaction(() async {
+  return retryOnSqliteLocked(() async {
+    return db.transaction(() async {
+      if (proactive && !await CheckinService.instance.isEnabled()) return false;
       await (db.delete(db.kvStore)
             ..where((kv) =>
                 kv.bucket.equals(_bucket) & kv.key.equals(_keyNotified)))
@@ -106,6 +122,15 @@ Future<void> queuePendingCall({
               updatedAt: Value(now),
             ),
           );
+      await db.into(db.kvStore).insertOnConflictUpdate(
+            KvStoreCompanion.insert(
+              key: _keyProactive,
+              bucket: const Value(_bucket),
+              value: Value(proactive.toString()),
+              updatedAt: Value(now),
+            ),
+          );
+      return true;
     });
   });
 }
@@ -116,6 +141,7 @@ typedef InitiateCallPolicy = Future<String?> Function();
 Tool buildInitiateCallTool({
   required String characterId,
   InitiateCallPolicy? beforeQueue,
+  SystemMessageQueueData? Function()? triggerProvider,
 }) {
   return Tool(
     name: 'initiate_voice_call',
@@ -148,10 +174,18 @@ Keep it natural and open-ended; it is the first thing they hear.''',
           return 'Call blocked: $blockedReason';
         }
       }
-      await queuePendingCall(
+      final trigger = triggerProvider?.call();
+      if (triggerProvider != null &&
+          (trigger == null ||
+              !await CheckinService.instance.canDeliverTrigger(trigger))) {
+        return 'Call blocked: the background trigger is no longer active.';
+      }
+      final queued = await queuePendingCall(
         characterId: characterId,
         openingMessage: openingMessage,
+        proactive: trigger != null && CheckinService.isProactiveTrigger(trigger),
       );
+      if (!queued) return 'Call blocked: proactive contact is disabled.';
 
       // ignore: avoid_print
       print('[initiate_voice_call] queued for $characterId: "$openingMessage"');

@@ -1,12 +1,13 @@
 # i core（私人电脑最小核心）
 
-这是跨设备 MVP 的第一版权威服务。当前只负责：
+这是跨设备 MVP 的第一版权威服务。当前提供：
 
 - 设备配对与令牌认证；
 - 用户聊天消息幂等提交；
 - 持久化、按序的 change feed；
 - 每台设备的 cursor 确认；
 - 核心健康与协议版本检查。
+- 默认关闭、独立授权的 `device.activity.v1` 控制面（MDA-1）。
 
 它还不会生成林埃回复，也不会同步 Memory V3 或媒体原件。现阶段的目标是先验证两台客户端共享一条不会重复的消息时间线。
 
@@ -57,6 +58,26 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\i_core\uninstall_i
   `request_companion_reply=true` 的新用户消息进入耐久待回复队列。默认关闭；
   电脑端 Companion worker 尚未就绪时不要开启。
 
+### MDA-1 默认模式与升级边界
+
+本版本的 Core schema 为 `5`。即使没有 activity owner，旧 Core schema `4`
+也会在启动时迁移并创建活动域；默认不激活不代表零数据库写入。已有设备仍只能
+访问原聊天权限，活动 probe / reader 使用独立 scope，activity 不进入 chat feed。
+
+常驻 `start_i_core_service.ps1` 明确清除继承的 `I_CORE_ACTIVITY_ADMIN_SECRET`。
+需要有意启用时，须另行授权一个直接启动 server 的 owner 入口；本次源码集成
+没有启用该入口或部署真实服务。正式启用的前置与支持范围见
+[Core handoff](../../docs/development/activity/mda1/CORE_CONTROL_PLANE_HANDOFF.md)。
+
+正常关闭后仅支持原路径重启。正式备份是 whole-Core `backup_read_only` 离线验证
+产物，不能作为可写聊天 Core 启动；休眠库内存在待清理 activity 数据时，备份以
+`activity_retention_authority_required` 拒绝。备份可写激活、崩溃接管、跨路径恢复
+不在 MDA-1 能力内；只回退源码不能证明数据库可回退。
+
+登录任务从 launcher 所在 checkout 加载 server，下一次启动会消费那里的新版
+源码。更新运行 checkout 前须明确版本隔离或迁移窗口；本次隔离候选与运行状态
+见 [集成裁决](../../docs/development/activity/mda1/MDA1_INTEGRATION_VERDICT_20260912.md)。
+
 ## 验证
 
 ```powershell
@@ -68,7 +89,8 @@ node --test tools/i_core/i_core_server.test.mjs
 ## 一次性导入现有 V3 聊天
 
 导入器默认只预演，不修改核心。正式导入前必须停止核心；工具会先用
-SQLite backup API 在 `.state/backups/` 保存可恢复副本。远程 HTTP 权限不会
+SQLite backup API 在 `.state/backups/` 保存 whole-Core 离线只读验证副本，不能
+直接激活为可写 Core。远程 HTTP 权限不会
 因此放宽，客户端仍然只能提交用户消息。
 
 ```powershell

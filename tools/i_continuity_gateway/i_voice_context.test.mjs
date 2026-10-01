@@ -16,6 +16,10 @@ const realtimeVoiceStartupContext = readFileSync(
   new URL('./i_realtime_voice_startup_context.md', import.meta.url),
   'utf8',
 );
+const globalVoiceGuidance = readFileSync(
+  new URL('./i_global_guidance.md', import.meta.url),
+  'utf8',
+);
 
 const identityCapsule = {
   identity: {
@@ -33,24 +37,40 @@ const identityCapsule = {
   },
 };
 
-test('Realtime frontend startup context keeps the current turn non-directive', () => {
+test('Voice static guidance routes presence checks before speaking and preserves capability provenance', () => {
   assert.match(realtimeVoiceStartupContext, /\[USER\].*当前这一轮/);
   assert.match(realtimeVoiceStartupContext, /\[BACKEND\].*权威后台输出/);
   assert.match(realtimeVoiceStartupContext, /不要在后台答案后添加问题、邀请/);
   assert.match(realtimeVoiceStartupContext, /不要给出工作、简历或任何其他候选话题/);
   assert.match(realtimeVoiceStartupContext, /不根据启动上下文、近期任务、工作区、记忆或后台资料推测/);
   assert.match(realtimeVoiceStartupContext, /不为了维持对话而主动提问、用问题收尾/);
-  assert.match(realtimeVoiceStartupContext, /只用一句短句确认在场，然后停下/);
+  assert.match(realtimeVoiceStartupContext, /仍包含“老公”称呼/);
+  assert.match(realtimeVoiceStartupContext, /普通“你在吗”不属于新会话唤醒/);
+  assert.match(realtimeVoiceStartupContext, /后台按会话状态选择首次 `i_voice_context` 或后续 `i_voice_turn`/);
+  assert.match(realtimeVoiceStartupContext, /后台返回后只用一句短句确认在场，然后停下/);
+  assert.match(globalVoiceGuidance, /符合下方有限唤醒规则/);
+  assert.match(globalVoiceGuidance, /尚未唤醒用 `i_voice_context`，已经唤醒用 `i_voice_turn`/);
+  assert.match(globalVoiceGuidance, /工具返回后直接确认在场/);
+  assert.match(globalVoiceGuidance, /普通“你在吗”不属于新会话唤醒/);
+  assert.doesNotMatch(globalVoiceGuidance, /同义在场时，直接确认在场即可/);
   assert.match(realtimeVoiceStartupContext, /林埃.*Lynx.*亲密伴侣/s);
   assert.match(realtimeVoiceStartupContext, /有点想你了.*第一句必须表达林埃自己的想念/);
   assert.match(realtimeVoiceStartupContext, /听见了.*愿意陪你待一会儿.*陪伴不能替代想念回应/);
-  assert.match(realtimeVoiceStartupContext, /普通亲密、含蓄情趣或共同设想/);
-  assert.match(realtimeVoiceStartupContext, /不以“这个不行”.*“现实里我不能.*“那就想象一下”把互动推出去/);
-  assert.match(realtimeVoiceStartupContext, /直接用林埃的第一人称回应并进入双方共同的情境/);
-  assert.match(realtimeVoiceStartupContext, /i_core 或工具返回的账本、余额、存款与能力状态.*判断当前能否行动/);
-  assert.match(realtimeVoiceStartupContext, /工具能力且已获 Lynx 授权/);
-  assert.match(realtimeVoiceStartupContext, /不虚构余额、权限或完成结果/);
-  assert.match(realtimeVoiceStartupContext, /未来能力的否定/);
+  for (const guidance of [realtimeVoiceStartupContext, globalVoiceGuidance]) {
+    assert.match(guidance, /普通亲密、含蓄情趣或共同设想/);
+    assert.match(guidance, /不以“这个不行”.*“现实里我不能.*“那就想象一下”把互动推出去/);
+    assert.match(guidance, /直接用林埃的第一人称回应并进入双方共同的情境/);
+    assert.match(guidance, /共同情境里的金额可以自然作为情境内容回应/);
+    assert.match(guidance, /当前话轮由 i_core 或专用工具返回/);
+    assert.match(guidance, /来源、更新时间和能力范围的结构化状态/);
+    assert.match(guidance, /普通聊天、最近消息、Memory V3 卡片、角色叙事或共同情境中的金额/);
+    assert.match(guidance, /银行卡、支付宝等外部账户的可用余额/);
+    assert.match(guidance, /不能据此推断付款权限/);
+    assert.doesNotMatch(guidance, /i_core 或工具返回的账本、余额、存款与能力状态，是判断当前能否行动的依据/);
+    assert.match(guidance, /工具能力且已获 Lynx 授权/);
+    assert.match(guidance, /不虚构余额、权限或完成结果/);
+    assert.match(guidance, /未来能力的否定/);
+  }
   assert.match(realtimeVoiceStartupContext, /不尝试绕过或削弱/);
 });
 
@@ -113,6 +133,7 @@ test('compileVoiceContextFromSnapshot returns the active character tail and real
       memoryLimit: 5,
       now: () => new Date('2026-08-26T00:00:00.000Z'),
     });
+    assert.equal(result.schema_version, 3);
     assert.equal(result.context_type, 'real_local_voice_continuity_context');
     assert.equal(result.assistant_identity.name, '林埃');
     assert.equal(result.user_identity.preferred_name, 'Lynx');
@@ -127,6 +148,30 @@ test('compileVoiceContextFromSnapshot returns the active character tail and real
     assert.equal(result.source_stats.chat_messages, 26);
     assert.equal(result.source_stats.user_truth_cards, 2);
     assert.equal(result.phone_character_profile.yaml.includes('persona: ""'), true);
+    assert.equal(
+      result.real_world_capability_context.current_gateway_evidence_status,
+      'no_qualified_evidence',
+    );
+    assert.equal(
+      result.real_world_capability_context.gateway_confers_external_action_capability,
+      false,
+    );
+    assert.deepEqual(result.real_world_capability_context.qualified_evidence, []);
+    assert.deepEqual(
+      result.real_world_capability_context.required_evidence_fields,
+      ['source', 'updated_at', 'capability_scope'],
+    );
+    assert.deepEqual(result.real_world_capability_context.non_evidence_sources, [
+      'recent_messages',
+      'retrieved_memory_cards',
+      'phone_character_profile',
+      'role_narrative',
+      'shared_scenario',
+    ]);
+    assert.equal(result.real_world_capability_context.external_account_balance_verified, false);
+    assert.equal(result.real_world_capability_context.payment_permission_verified, false);
+    assert.equal(result.real_world_capability_context.real_world_execution_verified, false);
+    assert.equal(result.usage_contract.memory_is_not_real_world_capability_evidence, true);
     assert.equal(result.speech_delivery_contract.user_prompt_required, false);
     assert.equal(result.speech_delivery_contract.repeat_every_turn, true);
     assert.match(result.speech_delivery_contract.pace, /第一句.*慢于默认/);
@@ -134,6 +179,7 @@ test('compileVoiceContextFromSnapshot returns the active character tail and real
     assert.match(result.speech_delivery_contract.default_shape, /一至三句短句/);
     assert.match(result.speech_delivery_contract.pauses, /多用句号/);
     assert.match(result.speech_delivery_contract.assistantisms, /回答完就停/);
+    assert.match(result.speech_delivery_contract.presence_confirmation_stop, /本契约只在相应 Voice 工具返回后执行/);
     assert.match(result.speech_delivery_contract.presence_confirmation_stop, /一至两句短句后停止/);
     assert.match(result.speech_delivery_contract.presence_confirmation_stop, /不要追加.*想先说哪件事/);
     assert.match(result.speech_delivery_contract.presence_confirmation_stop, /不要把在场确认变成服务接待/);
@@ -162,7 +208,13 @@ test('compileVoiceContextFromSnapshot returns the active character tail and real
     assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /不主动强调 AI 身份/);
     assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /不以.*这个不行.*现实里我不能.*那就想象一下.*把互动推出去/);
     assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /直接用林埃的第一人称回应/);
-    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /i_core 或工具返回的账本、余额、存款与能力状态/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /共同情境里的金额可以自然作为情境内容回应/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /当前话轮由 i_core 或专用工具返回/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /来源、更新时间和能力范围/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /普通聊天、最近消息、Memory V3 卡片、角色叙事或共同情境中的金额/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /银行卡、支付宝等外部账户的可用余额/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /不能据此推断付款权限/);
+    assert.doesNotMatch(result.speech_delivery_contract.embodied_imagination_and_capability, /i_core 或工具返回的账本、余额、存款与能力状态，是判断当前能否行动的依据/);
     assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /工具能力且已获 Lynx 授权/);
     assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /不虚构余额、权限或完成结果/);
     assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /未来能力的否定/);
@@ -234,12 +286,29 @@ test('compileVoiceTurnContext injects identity, time gap, and bounded lexical me
       memoryQuery: '电脑',
       now: () => new Date('2026-08-26T00:05:12.000Z'),
     });
+    assert.equal(result.schema_version, 2);
     assert.equal(result.turn_index, 1);
     assert.equal(result.usage_contract.zero_assistant_output_before_tool_call, true);
     assert.equal(result.usage_contract.one_final_answer_after_tool_result, true);
     assert.equal(result.usage_contract.apply_speech_delivery_contract_before_answering, true);
+    assert.equal(result.usage_contract.memory_is_not_real_world_capability_evidence, true);
+    assert.equal(
+      result.real_world_capability_context.current_gateway_evidence_status,
+      'no_qualified_evidence',
+    );
+    assert.equal(
+      result.real_world_capability_context.gateway_confers_external_action_capability,
+      false,
+    );
+    assert.deepEqual(result.real_world_capability_context.qualified_evidence, []);
+    assert.deepEqual(
+      result.real_world_capability_context.required_evidence_fields,
+      ['source', 'updated_at', 'capability_scope'],
+    );
+    assert.ok(result.real_world_capability_context.non_evidence_sources.includes('retrieved_memory_cards'));
     assert.equal(result.speech_delivery_contract.repeat_every_turn, true);
     assert.match(result.speech_delivery_contract.default_shape, /不连续输出密集长段/);
+    assert.match(result.speech_delivery_contract.presence_confirmation_stop, /相应 Voice 工具返回后执行/);
     assert.match(result.speech_delivery_contract.presence_confirmation_stop, /需要我做什么/);
     assert.match(result.speech_delivery_contract.conversation_non_directive, /当前意思已经清楚时，直接回应，允许停下/);
     assert.match(result.speech_delivery_contract.presence_once, /除非 Lynx 再次明确询问是否在场/);
@@ -249,6 +318,8 @@ test('compileVoiceTurnContext injects identity, time gap, and bounded lexical me
     assert.match(result.speech_delivery_contract.affection_first, /陪伴不能替代想念回应/);
     assert.match(result.speech_delivery_contract.affection_reciprocity, /不要在用户未推进时自行升级亲密程度/);
     assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /共同设想/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /来源、更新时间和能力范围/);
+    assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /Memory V3 卡片.*不能被当作银行卡、支付宝/s);
     assert.match(result.speech_delivery_contract.embodied_imagination_and_capability, /本轮缺少的具体一步/);
     assert.match(result.speech_delivery_contract.intimate_mode_separation, /帮你把事做成/);
     assert.equal(result.persona_anchor.assistant.name, '林埃');

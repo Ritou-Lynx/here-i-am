@@ -60,6 +60,7 @@ import 'package:memex/data/memory_v3/services/topic_thread_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/shared_draft_service.dart';
 import 'package:memex/data/workbench_ai/workbench_conversation_coordinator.dart';
+import 'package:memex/data/workbench_ai/workbench_desktop_conversation_entry.dart';
 import 'package:memex/data/workbench_ai/whiteboard_workbench_coordinator.dart';
 import 'package:memex/data/services/reading/reading_share_parser.dart';
 import 'package:memex/data/services/reading/transient_fetch_cache.dart';
@@ -85,6 +86,12 @@ import 'package:memex/domain/models/voice_turn_identity.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+export 'package:memex/data/workbench_ai/workbench_desktop_conversation_entry.dart'
+    show
+        PersonaDesktopConversationConnector,
+        connectPersonaDesktopConversation,
+        sendPersonaDesktopConversationEntry;
 
 Color get _personaStageInk => HereIamThemeRuntime.current.background;
 Color get _personaPanel => HereIamThemeRuntime.current.surfaceSoft;
@@ -393,62 +400,6 @@ Future<void> releaseDesktopComposerForWorkbenchAction(
 }) async {
   focusNode.unfocus();
   await (frameBarrier?.call() ?? WidgetsBinding.instance.endOfFrame);
-}
-
-/// Production desktop send boundary: the persisted user row is the only
-/// authorization evidence admitted to Runtime tools for this turn.
-typedef PersonaDesktopConversationConnector
-    = Future<WorkbenchConversationResult> Function({
-  required WorkbenchConversationCoordinator coordinator,
-  required String conversationId,
-  required String characterId,
-  required String userText,
-  required int userMessageId,
-  WorkbenchReplyDelta? onDelta,
-});
-
-Future<WorkbenchConversationResult> connectPersonaDesktopConversation({
-  required WorkbenchConversationCoordinator coordinator,
-  required String conversationId,
-  required String characterId,
-  required String userText,
-  required int userMessageId,
-  WorkbenchReplyDelta? onDelta,
-}) =>
-    coordinator.send(
-      conversationId: conversationId,
-      characterId: characterId,
-      userText: userText,
-      userMessageId: userMessageId,
-      onDelta: onDelta,
-    );
-
-@visibleForTesting
-Future<WorkbenchConversationResult> sendPersonaDesktopConversationEntry({
-  required PersonaChatService chatService,
-  required WorkbenchConversationCoordinator coordinator,
-  required String conversationId,
-  required String characterId,
-  required String userText,
-  PersonaDesktopConversationConnector connector =
-      connectPersonaDesktopConversation,
-  Future<void> Function(int messageId)? afterPersist,
-  WorkbenchReplyDelta? onDelta,
-}) async {
-  final userMessageId = await chatService.addUserMessage(
-    characterId,
-    userText,
-    appendTimeline: false,
-  );
-  await afterPersist?.call(userMessageId);
-  return connector(
-    coordinator: coordinator,
-    conversationId: conversationId,
-    characterId: characterId,
-    userText: userText,
-    userMessageId: userMessageId,
-    onDelta: onDelta,
-  );
 }
 
 class PersonaChatScreen extends StatefulWidget {

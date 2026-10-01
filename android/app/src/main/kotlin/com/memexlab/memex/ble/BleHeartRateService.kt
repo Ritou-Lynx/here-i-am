@@ -34,6 +34,10 @@ class BleHeartRateService : Service() {
         const val ACTION_STOP = "com.memexlab.memex.ble.STOP"
         const val ACTION_FORGET = "com.memexlab.memex.ble.FORGET"
         const val EXTRA_USER_KEY = "user_key"
+        internal const val ACTION_CONNECT_WATCHDOG =
+            "com.memexlab.memex.ble.CONNECT_WATCHDOG"
+        private const val EXTRA_WATCHDOG_TOKEN = "watchdog_token"
+        private const val EXTRA_WATCHDOG_GENERATION = "watchdog_generation"
 
         private const val NOTIFICATION_CHANNEL = "ble_heart_rate_connection"
         private const val NOTIFICATION_ID = 0x180d
@@ -74,6 +78,24 @@ class BleHeartRateService : Service() {
                 )
             }
         }
+
+        internal fun startWatchdogReconcile(
+            context: Context,
+            token: Long,
+            generation: Long,
+        ): Boolean = try {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, BleHeartRateService::class.java)
+                    .setAction(ACTION_CONNECT_WATCHDOG)
+                    .putExtra(EXTRA_WATCHDOG_TOKEN, token)
+                    .putExtra(EXTRA_WATCHDOG_GENERATION, generation),
+            )
+            true
+        } catch (_: RuntimeException) {
+            // The persisted plan remains available to the next service start.
+            false
+        }
     }
 
     private lateinit var store: BleHeartRateStore
@@ -89,10 +111,15 @@ class BleHeartRateService : Service() {
     private var stoppedExplicitly = false
     private var lastNotificationAtMs = 0L
     private var lastNotificationStatus: String? = null
-    private var connectWatchdog: Runnable? = null
+    private var adapterOnReconnect: Runnable? = null
+    private lateinit var reconnectCoordinator: BleReconnectCoordinator
+    private lateinit var connectWatchdogAlarmScheduler: BleConnectWatchdogAlarmScheduler
+    private lateinit var connectWatchdogController: BleConnectWatchdogServiceController
 
     private val staleTick = object : Runnable {
         override fun run() {
+            recoverConnectWatchdog()
+            recoverOverdueReconnect()
             val key = activeUserKey
             if (key != null && currentStatus == "live" && lastSampleAtMs > 0L &&
                 System.currentTimeMillis() - lastSampleAtMs > STALE_AFTER_MS
@@ -114,8 +141,8 @@ class BleHeartRateService : Service() {
             if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
             when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
                 BluetoothAdapter.STATE_OFF, BluetoothAdapter.STATE_TURNING_OFF -> {
-                    handler.removeCallbacksAndMessages(null)
-                    handler.post(staleTick)
+                    cancelAdapterOnReconnect()
+                    cancelPendingReconnect()
                     closeGatt()
                     activeUserKey?.let {
                         publishStatus(it, "bluetoothOff", "adapter_off", recordGap = true)
@@ -123,7 +150,7 @@ class BleHeartRateService : Service() {
                 }
                 BluetoothAdapter.STATE_ON -> {
                     reconnectAttempt = 0
-                    handler.postDelayed({ connectKnownDevice("adapter_on") }, 1_000L)
+                    scheduleAdapterOnReconnect()
                 }
             }
         }
@@ -133,6 +160,42 @@ class BleHeartRateService : Service() {
         super.onCreate()
         store = BleHeartRateStore(applicationContext)
         bluetoothManager = getSystemService(BluetoothManager::class.java)
+        reconnectCoordinator = BleReconnectCoordinator(
+            nowMs = System::currentTimeMillis,
+            postDelayed = { runnable, delayMs -> handler.postDelayed(runnable, delayMs) },
+            removeCallbacks = handler::removeCallbacks,
+            onRetryDue = { performReconnect("bounded_retry") },
+        )
+        connectWatchdogAlarmScheduler = BleConnectWatchdogAlarmScheduler(applicationContext)
+        connectWatchdogController = BleConnectWatchdogServiceController(
+            nowMs = System::currentTimeMillis,
+            nextToken = store::nextConnectWatchdogToken,
+            postDelayed = { runnable, delayMs -> handler.postDelayed(runnable, delayMs) },
+            removeCallbacks = handler::removeCallbacks,
+            loadPersisted = store::activeConnectWatchdog,
+            savePersisted = { plan ->
+                val key = activeUserKey ?: store.activeConfig()?.userKey
+                key != null && store.saveConnectWatchdog(key, plan)
+            },
+            clearPersisted = store::clearActiveConnectWatchdog,
+            scheduleAlarm = { plan ->
+                when (connectWatchdogAlarmScheduler.schedule(plan)) {
+                    BleWatchdogAlarmMode.EXACT_ALLOW_IDLE -> {
+                        recordConnectWatchdogDiagnostic("connect_watchdog_alarm_exact_allow_idle")
+                        true
+                    }
+                    BleWatchdogAlarmMode.INEXACT_ALLOW_IDLE -> {
+                        recordConnectWatchdogDiagnostic("connect_watchdog_alarm_inexact_allow_idle")
+                        true
+                    }
+                    BleWatchdogAlarmMode.FAILED -> false
+                }
+            },
+            cancelAlarm = connectWatchdogAlarmScheduler::cancel,
+            stateProvider = ::connectWatchdogState,
+            onTimeoutAction = ::handleConnectWatchdogAction,
+            onDiagnostic = ::recordConnectWatchdogDiagnostic,
+        )
         createNotificationChannel()
         ContextCompat.registerReceiver(
             this,
@@ -148,6 +211,9 @@ class BleHeartRateService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_FORGET) {
             stoppedExplicitly = true
+            cancelAdapterOnReconnect()
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
             closeGatt()
             intent.getStringExtra(EXTRA_USER_KEY)?.let(store::forget)
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -156,6 +222,9 @@ class BleHeartRateService : Service() {
         }
         if (intent?.action == ACTION_STOP) {
             stoppedExplicitly = true
+            cancelAdapterOnReconnect()
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
             store.activeConfig()?.let { config ->
                 store.setEnabled(config.userKey, false)
                 publishStatus(config.userKey, "stopped", "user_stopped", recordGap = true)
@@ -169,20 +238,41 @@ class BleHeartRateService : Service() {
         stoppedExplicitly = false
         val config = store.activeConfig()
         if (config == null || !config.enabled) {
+            cancelAdapterOnReconnect()
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
+            closeGatt()
             stopSelf()
             return START_NOT_STICKY
         }
         activeUserKey = config.userKey
         if (!hasConnectPermission()) {
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
             store.updateStatus(config.userKey, "permissionDenied", "bluetooth_connect_denied", recordGap = true)
             stopSelf()
             return START_NOT_STICKY
         }
         if (!startAsConnectedDeviceForeground(buildNotification("正在准备心率连接"))) {
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
             store.updateStatus(config.userKey, "permissionDenied", "foreground_connected_device_denied", recordGap = true)
             stopSelf()
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_CONNECT_WATCHDOG) {
+            val token = intent.getLongExtra(EXTRA_WATCHDOG_TOKEN, -1L)
+            val generation = intent.getLongExtra(EXTRA_WATCHDOG_GENERATION, -1L)
+            val reconciled = token > 0L && generation > 0L &&
+                reconcileConnectWatchdog(token, generation)
+            if (!reconciled && currentStatus == "starting" && gatt == null) {
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                stopSelfResult(startId)
+                return START_NOT_STICKY
+            }
+            return START_STICKY
+        }
+        if (recoverConnectWatchdog()) return START_STICKY
         connectKnownDevice(if (intent == null) "process_recreated" else "user_enabled")
         return START_STICKY
     }
@@ -190,6 +280,10 @@ class BleHeartRateService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        stoppedExplicitly = true
+        cancelAdapterOnReconnect()
+        cancelPendingReconnect()
+        cancelConnectWatchdog()
         handler.removeCallbacksAndMessages(null)
         closeGatt()
         runCatching { unregisterReceiver(bluetoothStateReceiver) }
@@ -199,27 +293,43 @@ class BleHeartRateService : Service() {
 
     private fun connectKnownDevice(reason: String) {
         val config = store.activeConfig()
-        if (stoppedExplicitly || config == null || !config.enabled) return
+        if (stoppedExplicitly || config == null || !config.enabled) {
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
+            return
+        }
         activeUserKey = config.userKey
 
         if (!hasConnectPermission()) {
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
             publishStatus(config.userKey, "permissionDenied", "bluetooth_connect_denied", recordGap = true)
             return
         }
         val adapter = bluetoothManager.adapter
         if (adapter == null) {
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
             publishStatus(config.userKey, "unsupported", "ble_unavailable", recordGap = true)
             return
         }
         if (!adapter.isEnabled) {
+            cancelPendingReconnect()
+            cancelConnectWatchdog()
             publishStatus(config.userKey, "bluetoothOff", "adapter_off", recordGap = true)
             return
         }
-        if (gatt != null && activeAddress == config.address) return
+        if (gatt != null && activeAddress == config.address) {
+            cancelPendingReconnect()
+            return
+        }
+        cancelPendingReconnect()
+        cancelConnectWatchdog()
         if (gatt != null && activeAddress != config.address) closeGatt()
 
         val device = runCatching { adapter.getRemoteDevice(config.address) }.getOrNull()
         if (device == null) {
+            cancelPendingReconnect()
             publishStatus(config.userKey, "unsupported", "invalid_device_identifier", recordGap = true)
             return
         }
@@ -247,101 +357,114 @@ class BleHeartRateService : Service() {
         if (newGatt == null && currentStatus != "permissionDenied") {
             scheduleReconnect("connect_start_failed")
         } else if (newGatt != null) {
-            armConnectWatchdog(generation)
+            armConnectWatchdog(generation, config.address)
         }
     }
 
     private fun createGattCallback(generation: Long) = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            if (!isCurrent(gatt, generation)) {
-                runCatching { gatt.close() }
-                return
-            }
-            when (newState) {
-                BluetoothProfile.STATE_CONNECTED -> {
-                    if (status != BluetoothGatt.GATT_SUCCESS) {
-                        failGatt(gatt, "connect_status_$status")
-                        return
-                    }
-                    reconnectAttempt = 0
-                    activeUserKey?.let { publishStatus(it, "connecting", "discovering_services") }
-                    val started = try {
-                        gatt.discoverServices()
-                    } catch (_: SecurityException) {
-                        false
-                    }
-                    if (!started) failGatt(gatt, "service_discovery_not_started")
-                }
-                BluetoothProfile.STATE_DISCONNECTED -> {
-                    this@BleHeartRateService.gatt = null
-                    activeGeneration += 1
-                    activeAddress = null
+            onServiceThread {
+                if (!isCurrent(gatt, generation)) {
                     runCatching { gatt.close() }
-                    activeUserKey?.let {
-                        publishStatus(it, "disconnected", "gatt_status_$status", recordGap = true)
+                    return@onServiceThread
+                }
+                when (newState) {
+                    BluetoothProfile.STATE_CONNECTED -> {
+                        if (status != BluetoothGatt.GATT_SUCCESS) {
+                            failGatt(gatt, "connect_status_$status")
+                            return@onServiceThread
+                        }
+                        cancelPendingReconnect()
+                        reconnectAttempt = 0
+                        activeUserKey?.let { publishStatus(it, "connecting", "discovering_services") }
+                        val started = try {
+                            gatt.discoverServices()
+                        } catch (_: SecurityException) {
+                            false
+                        }
+                        if (!started) failGatt(gatt, "service_discovery_not_started")
                     }
-                    scheduleReconnect("disconnected")
+                    BluetoothProfile.STATE_DISCONNECTED -> {
+                        cancelConnectWatchdog()
+                        this@BleHeartRateService.gatt = null
+                        activeGeneration += 1
+                        activeAddress = null
+                        runCatching { gatt.close() }
+                        activeUserKey?.let {
+                            publishStatus(it, "disconnected", "gatt_status_$status", recordGap = true)
+                        }
+                        scheduleReconnect("disconnected")
+                    }
                 }
             }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            if (!isCurrent(gatt, generation)) return
-            if (status != BluetoothGatt.GATT_SUCCESS) {
-                failGatt(gatt, "service_discovery_$status")
-                return
-            }
-            val characteristic = gatt.getService(HEART_RATE_SERVICE)
-                ?.getCharacteristic(HEART_RATE_MEASUREMENT)
-            val cccd = characteristic?.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG)
-            if (characteristic == null || cccd == null || !supportsUpdates(characteristic)) {
-                activeUserKey?.let {
-                    publishStatus(it, "unsupported", "heart_rate_measurement_missing", recordGap = true)
+            onServiceThread {
+                if (!isCurrent(gatt, generation)) return@onServiceThread
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    failGatt(gatt, "service_discovery_$status")
+                    return@onServiceThread
                 }
-                closeGatt()
-                return
-            }
-            val notificationEnabled = try {
-                gatt.setCharacteristicNotification(characteristic, true)
-            } catch (_: SecurityException) {
-                false
-            }
-            if (!notificationEnabled) {
-                failGatt(gatt, "notification_enable_failed")
-                return
-            }
-            val descriptorValue = if ((characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0 &&
-                (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) == 0
-            ) BluetoothGattDescriptor.ENABLE_INDICATION_VALUE else BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            val writeStarted = try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    gatt.writeDescriptor(cccd, descriptorValue) == BluetoothGatt.GATT_SUCCESS
-                } else {
-                    @Suppress("DEPRECATION")
-                    cccd.value = descriptorValue
-                    @Suppress("DEPRECATION")
-                    gatt.writeDescriptor(cccd)
+                val characteristic = gatt.getService(HEART_RATE_SERVICE)
+                    ?.getCharacteristic(HEART_RATE_MEASUREMENT)
+                val cccd = characteristic?.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG)
+                if (characteristic == null || cccd == null || !supportsUpdates(characteristic)) {
+                    cancelPendingReconnect()
+                    activeUserKey?.let {
+                        publishStatus(it, "unsupported", "heart_rate_measurement_missing", recordGap = true)
+                    }
+                    closeGatt()
+                    return@onServiceThread
                 }
-            } catch (_: SecurityException) {
-                false
+                val notificationEnabled = try {
+                    gatt.setCharacteristicNotification(characteristic, true)
+                } catch (_: SecurityException) {
+                    false
+                }
+                if (!notificationEnabled) {
+                    failGatt(gatt, "notification_enable_failed")
+                    return@onServiceThread
+                }
+                val descriptorValue = if ((characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0 &&
+                    (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) == 0
+                ) BluetoothGattDescriptor.ENABLE_INDICATION_VALUE else BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                val writeStarted = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        gatt.writeDescriptor(cccd, descriptorValue) == BluetoothGatt.GATT_SUCCESS
+                    } else {
+                        @Suppress("DEPRECATION")
+                        cccd.value = descriptorValue
+                        @Suppress("DEPRECATION")
+                        gatt.writeDescriptor(cccd)
+                    }
+                } catch (_: SecurityException) {
+                    false
+                }
+                if (!writeStarted) failGatt(gatt, "cccd_write_not_started")
             }
-            if (!writeStarted) failGatt(gatt, "cccd_write_not_started")
         }
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            if (!isCurrent(gatt, generation)) return
-            if (descriptor.uuid != CLIENT_CHARACTERISTIC_CONFIG) return
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                activeUserKey?.let { publishStatus(it, "connecting", "awaiting_first_sample") }
-            } else {
-                failGatt(gatt, "cccd_write_$status")
+            onServiceThread {
+                if (!isCurrent(gatt, generation)) return@onServiceThread
+                if (descriptor.uuid != CLIENT_CHARACTERISTIC_CONFIG) return@onServiceThread
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    activeUserKey?.let { publishStatus(it, "connecting", "awaiting_first_sample") }
+                } else {
+                    failGatt(gatt, "cccd_write_$status")
+                }
             }
         }
 
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            if (!isCurrent(gatt, generation)) return
-            handleMeasurement(characteristic.uuid, characteristic.value ?: byteArrayOf())
+            val uuid = characteristic.uuid
+            val value = (characteristic.value ?: byteArrayOf()).copyOf()
+            onServiceThread {
+                if (!isCurrent(gatt, generation)) return@onServiceThread
+                handleMeasurement(uuid, value)
+            }
         }
 
         override fun onCharacteristicChanged(
@@ -349,19 +472,30 @@ class BleHeartRateService : Service() {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray,
         ) {
-            if (!isCurrent(gatt, generation)) return
-            handleMeasurement(characteristic.uuid, value)
+            val uuid = characteristic.uuid
+            val safeValue = value.copyOf()
+            onServiceThread {
+                if (!isCurrent(gatt, generation)) return@onServiceThread
+                handleMeasurement(uuid, safeValue)
+            }
         }
     }
 
+    private fun onServiceThread(action: () -> Unit) {
+        // Always enqueue, even if a vendor invokes a GATT callback on main,
+        // so connectGatt() can return and publish the authoritative GATT first.
+        handler.post(action)
+    }
+
     private fun isCurrent(callbackGatt: BluetoothGatt, generation: Long): Boolean =
-        generation == activeGeneration && (gatt == null || gatt === callbackGatt)
+        generation == activeGeneration && gatt === callbackGatt
 
     private fun handleMeasurement(uuid: UUID, value: ByteArray) {
         if (uuid != HEART_RATE_MEASUREMENT) return
         val key = activeUserKey ?: return
         when (val parsed = HeartRateMeasurementParser.parse(value)) {
             is HeartRateParseResult.Valid -> {
+                cancelPendingReconnect()
                 cancelConnectWatchdog()
                 lastSampleAtMs = System.currentTimeMillis()
                 reconnectAttempt = 0
@@ -380,6 +514,7 @@ class BleHeartRateService : Service() {
     }
 
     private fun failGatt(gatt: BluetoothGatt, reason: String) {
+        cancelConnectWatchdog()
         if (this.gatt === gatt) {
             this.gatt = null
             activeGeneration += 1
@@ -392,42 +527,120 @@ class BleHeartRateService : Service() {
     }
 
     private fun scheduleReconnect(reason: String) {
-        val config = store.activeConfig() ?: return
+        val config = store.activeConfig()
+        if (config == null) {
+            cancelPendingReconnect()
+            return
+        }
         if (stoppedExplicitly || !config.enabled || currentStatus == "unsupported" ||
             currentStatus == "permissionDenied" || currentStatus == "bluetoothOff"
-        ) return
+        ) {
+            cancelPendingReconnect()
+            return
+        }
         val delay = RETRY_DELAYS_MS[reconnectAttempt.coerceAtMost(RETRY_DELAYS_MS.lastIndex)]
         reconnectAttempt = (reconnectAttempt + 1).coerceAtMost(RETRY_DELAYS_MS.lastIndex)
-        val retryAt = System.currentTimeMillis() + delay
-        publishStatus(config.userKey, "reconnecting", reason, retryAtMs = retryAt)
-        handler.removeCallbacks(reconnectRunnable)
-        handler.postDelayed(reconnectRunnable, delay)
+        val plan = reconnectCoordinator.schedule(delay)
+        publishStatus(config.userKey, "reconnecting", reason, retryAtMs = plan.dueAtMs)
     }
 
-    private val reconnectRunnable = Runnable {
-        closeGatt(cancelReconnect = false)
-        connectKnownDevice("bounded_retry")
+    private fun performReconnect(reason: String) {
+        closeGatt()
+        connectKnownDevice(reason)
     }
 
-    private fun armConnectWatchdog(generation: Long) {
-        cancelConnectWatchdog()
-        val watchdog = Runnable {
-            val key = activeUserKey ?: return@Runnable
-            if (generation == activeGeneration &&
-                (currentStatus == "connecting" || currentStatus == "reconnecting")
-            ) {
-                publishStatus(key, "disconnected", "connect_watchdog_timeout", recordGap = true)
-                closeGatt()
-                scheduleReconnect("connect_watchdog_timeout")
-            }
+    private fun recoverOverdueReconnect() {
+        if (stoppedExplicitly || currentStatus != "reconnecting" || gatt != null) return
+        if (reconnectCoordinator.recoverOverdue()) return
+        if (reconnectCoordinator.pendingDueAtMs != null) return
+
+        val persistedRetryAtMs = store.activeRetryAtMs() ?: return
+        reconnectCoordinator.reconcilePersistedDeadline(persistedRetryAtMs)
+    }
+
+    private fun cancelPendingReconnect() {
+        reconnectCoordinator.cancel()
+    }
+
+    private fun scheduleAdapterOnReconnect() {
+        cancelAdapterOnReconnect()
+        val reconnect = Runnable {
+            adapterOnReconnect = null
+            connectKnownDevice("adapter_on")
         }
-        connectWatchdog = watchdog
-        handler.postDelayed(watchdog, CONNECT_WATCHDOG_MS)
+        adapterOnReconnect = reconnect
+        handler.postDelayed(reconnect, 1_000L)
+    }
+
+    private fun cancelAdapterOnReconnect() {
+        adapterOnReconnect?.let(handler::removeCallbacks)
+        adapterOnReconnect = null
+    }
+
+    private fun armConnectWatchdog(generation: Long, deviceAddress: String) {
+        val result = connectWatchdogController.arm(
+            generation = generation,
+            deviceAddress = deviceAddress,
+            delayMs = CONNECT_WATCHDOG_MS,
+        )
+        if (result != BleWatchdogArmResult.PERSIST_FAILED) return
+        val key = activeUserKey ?: return
+        publishStatus(key, "disconnected", "connect_watchdog_persist_failed", recordGap = true)
+        closeGatt()
+        scheduleReconnect("connect_watchdog_persist_failed")
+    }
+
+    /**
+     * Rebuilds a lost Handler from durable state, or consumes an overdue plan.
+     * Returns true whenever a persisted attempt owns the current start command.
+     */
+    private fun recoverConnectWatchdog(): Boolean =
+        connectWatchdogController.reconcilePersisted()
+
+    private fun reconcileConnectWatchdog(token: Long, generation: Long): Boolean =
+        connectWatchdogController.reconcileSignal(token, generation)
+
+    private fun connectWatchdogState(): BleConnectAttemptState? {
+        val config = store.activeConfig() ?: return null
+        val adapterEnabled = runCatching {
+            bluetoothManager.adapter?.isEnabled == true
+        }.getOrDefault(false)
+        return BleConnectAttemptState(
+            stoppedExplicitly = stoppedExplicitly,
+            enabled = config.enabled,
+            adapterEnabled = adapterEnabled,
+            status = currentStatus,
+            activeGeneration = activeGeneration,
+            activeAddress = activeAddress,
+            hasGatt = gatt != null,
+        )
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun handleConnectWatchdogAction(
+        plan: BleConnectWatchdogPlan,
+        action: BleConnectWatchdogAction,
+    ) {
+        if (action == BleConnectWatchdogAction.IGNORE) return
+        val config = store.activeConfig() ?: return
+        activeUserKey = config.userKey
+        publishStatus(
+            config.userKey,
+            "disconnected",
+            "connect_watchdog_timeout",
+            recordGap = true,
+        )
+        closeGatt()
+        scheduleReconnect("connect_watchdog_timeout")
+    }
+
+    private fun recordConnectWatchdogDiagnostic(reason: String) {
+        val key = activeUserKey ?: store.activeConfig()?.userKey ?: return
+        store.updateStatus(key, currentStatus, reason)
     }
 
     private fun cancelConnectWatchdog() {
-        connectWatchdog?.let(handler::removeCallbacks)
-        connectWatchdog = null
+        connectWatchdogController.cancel()
     }
 
     private fun publishStatus(
@@ -451,8 +664,7 @@ class BleHeartRateService : Service() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) ==
         PackageManager.PERMISSION_GRANTED
 
-    private fun closeGatt(cancelReconnect: Boolean = true) {
-        if (cancelReconnect) handler.removeCallbacks(reconnectRunnable)
+    private fun closeGatt() {
         cancelConnectWatchdog()
         activeGeneration += 1
         val closing = gatt
@@ -519,7 +731,12 @@ class BleHeartRateService : Service() {
     private fun updateNotification(text: String, force: Boolean = true) {
         val now = System.currentTimeMillis()
         val statusChanged = lastNotificationStatus != currentStatus
-        if (!force && !statusChanged && now - lastNotificationAtMs < 12_000L) return
+        if (!BleNotificationRefreshPolicy.shouldNotify(
+                force = force,
+                statusChanged = statusChanged,
+                elapsedSinceLastMs = now - lastNotificationAtMs,
+            )
+        ) return
         lastNotificationAtMs = now
         lastNotificationStatus = currentStatus
         getSystemService(NotificationManager::class.java)

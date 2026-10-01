@@ -54,11 +54,14 @@ class FileLoggerService {
       };
 
   /// Initialize logging
-  Future<void> initialize() async {
+  Future<void> initialize({Directory? logDirectory}) async {
     _initializeCalled = true;
     try {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      _logDirectory = Directory('${appDocDir.path}/$_logDirName');
+      final appDocDir = logDirectory == null
+          ? await getApplicationDocumentsDirectory()
+          : null;
+      _logDirectory =
+          logDirectory ?? Directory('${appDocDir!.path}/$_logDirName');
       if (!await _logDirectory!.exists()) {
         await _logDirectory!.create(recursive: true);
       }

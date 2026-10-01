@@ -1,0 +1,139 @@
+{
+  "contract": "device.activity.v1",
+  "schema_version": 1,
+  "fixture_format_version": 2,
+  "proposal_revision": 5,
+  "cases": [
+    {
+      "name": "illegal_kind",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [{
+        "operation": "submit_events",
+        "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 1, "kind": "window.title", "signal_at_ms": 1760000100000, "ttl_ms": 60000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000090000, "window_end_ms": 1760000100000, "expected_report_interval_ms": 30000}, "payload": {}},
+        "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+        "expected": {"outcome": "unsupported_kind", "http": {"status": 400, "error_code": "unsupported_kind"}, "acceptance_mutated": false}
+      }]
+    },
+    {
+      "name": "missing_required_field",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [{
+        "operation": "submit_events",
+        "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 2, "kind": "session.locked", "ttl_ms": 60000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000090000, "window_end_ms": 1760000100000, "expected_report_interval_ms": 30000}, "payload": {}},
+        "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+        "expected": {"outcome": "missing_required_field", "http": {"status": 400, "error_code": "missing_required_field", "details": {"field": "signal_at_ms"}}, "acceptance_mutated": false}
+      }]
+    },
+    {
+      "name": "unknown_field",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [{
+        "operation": "submit_events",
+        "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 3, "kind": "session.locked", "signal_at_ms": 1760000100000, "received_at_ms": 1760000100100, "ttl_ms": 60000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000090000, "window_end_ms": 1760000100000, "expected_report_interval_ms": 30000}, "payload": {}},
+        "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+        "expected": {"outcome": "unknown_field", "http": {"status": 400, "error_code": "unknown_field", "details": {"field": "received_at_ms"}}, "acceptance_mutated": false}
+      }]
+    },
+    {
+      "name": "future_clock",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-heartbeat", "display_name": "synthetic-probe", "source": "windows_probe", "coverage_mode": "heartbeat_only", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["probe.heartbeat"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "core": {"received_at_ms": 1760000100000, "maximum_future_skew_ms": 300000},
+      "steps": [{
+        "operation": "submit_events",
+        "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-heartbeat", "origin_sequence": 4, "kind": "probe.heartbeat", "signal_at_ms": 1760001000000, "ttl_ms": 1200000, "confidence": "low", "source": "windows_probe", "coverage": {"mode": "heartbeat_only", "window_start_ms": 1760001000000, "window_end_ms": 1760001000000, "expected_report_interval_ms": 300000}, "payload": {}},
+        "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+        "expected": {"outcome": "accepted_with_conservative_unknown", "http": {"status": 200, "result_status": "accepted"}, "clock_health": "future_skew", "projection_state": "unknown", "concrete_projection_advanced": false, "forbidden_states": ["active", "locked", "quiet_observed", "resting_candidate", "sleep_candidate"]}
+      }]
+    },
+    {
+      "name": "clock_regression",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-heartbeat", "display_name": "synthetic-probe", "source": "windows_probe", "coverage_mode": "heartbeat_only", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["probe.heartbeat"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [
+        {
+          "operation": "submit_events",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-heartbeat", "origin_sequence": 4, "kind": "probe.heartbeat", "signal_at_ms": 1760000100000, "ttl_ms": 12000000, "confidence": "low", "source": "windows_probe", "coverage": {"mode": "heartbeat_only", "window_start_ms": 1760000100000, "window_end_ms": 1760000100000, "expected_report_interval_ms": 300000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}}
+        },
+        {
+          "operation": "submit_events",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-heartbeat", "origin_sequence": 5, "kind": "probe.heartbeat", "signal_at_ms": 1759990000000, "ttl_ms": 12000000, "confidence": "low", "source": "windows_probe", "coverage": {"mode": "heartbeat_only", "window_start_ms": 1759990000000, "window_end_ms": 1759990000000, "expected_report_interval_ms": 300000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted_with_conservative_unknown", "http": {"status": 200, "result_status": "accepted"}, "clock_health": "clock_regression", "projection_state": "unknown", "concrete_projection_advanced": false, "forbidden_states": ["active", "locked", "quiet_observed", "resting_candidate", "sleep_candidate"]}
+        }
+      ]
+    },
+    {
+      "name": "sequence_gap_then_out_of_order_fill",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts-gap", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.unlocked", "session.locked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "core": {"retained_origin_floor": 0},
+      "steps": [
+        {
+          "operation": "materialize_and_queue_outbox_event",
+          "capture_materialized_event_as": "sequence_1",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts-gap", "origin_sequence": 1, "kind": "session.unlocked", "signal_at_ms": 1760000001000, "ttl_ms": 12000000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000000000, "window_end_ms": 1760000001000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"}
+        },
+        {
+          "operation": "materialize_and_queue_outbox_event",
+          "capture_materialized_event_as": "sequence_2",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts-gap", "origin_sequence": 2, "kind": "session.unlocked", "signal_at_ms": 1760000002000, "ttl_ms": 12000000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000001000, "window_end_ms": 1760000002000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"}
+        },
+        {
+          "operation": "materialize_and_queue_outbox_event",
+          "capture_materialized_event_as": "sequence_3",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts-gap", "origin_sequence": 3, "kind": "session.locked", "signal_at_ms": 1760000003000, "ttl_ms": 12000000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000002000, "window_end_ms": 1760000003000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"}
+        },
+        {
+          "operation": "submit_events",
+          "materialized_event_ref": "sequence_1",
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}, "sequence_coverage": {"highest_seen": 1, "contiguous_through": 1, "missing": []}, "device_projection_state": "active"}
+        },
+        {
+          "operation": "submit_events",
+          "materialized_event_ref": "sequence_3",
+          "expected": {"outcome": "accepted_with_conservative_unknown", "http": {"status": 200, "result_status": "accepted"}, "sequence_diagnostics": ["sequence_coverage_gap"], "sequence_coverage": {"highest_seen": 3, "contiguous_through": 1, "missing": [2]}, "projection_state": "unknown", "concrete_projection_advanced": false}
+        },
+        {
+          "operation": "submit_events",
+          "materialized_event_ref": "sequence_2",
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}, "sequence_diagnostics": ["sequence_regression"], "clock_health": "healthy", "sequence_coverage": {"highest_seen": 3, "contiguous_through": 3, "missing": []}, "projection_recomputed_through_origin_sequence": 3, "device_projection_state": "locked", "concrete_projection_restored": true}
+        }
+      ]
+    },
+    {
+      "name": "ttl_expired",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut", "display_name": "synthetic-probe", "source": "iphone_shortcuts", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["power.charging"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "core": {"received_at_ms": 1760000200000},
+      "steps": [{
+        "operation": "submit_events",
+        "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut", "origin_sequence": 7, "kind": "power.charging", "signal_at_ms": 1760000000000, "ttl_ms": 60000, "confidence": "medium", "source": "iphone_shortcuts", "coverage": {"mode": "discrete_best_effort", "window_start_ms": 1760000000000, "window_end_ms": 1760000000000}, "payload": {}},
+        "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+        "expected": {"outcome": "ttl_expired", "http": {"status": 410, "error_code": "ttl_expired"}, "acceptance_mutated": false}
+      }]
+    }
+  ]
+}

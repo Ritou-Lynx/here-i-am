@@ -1,0 +1,14 @@
+{
+  "name": "codex-task-graph",
+  "version": "0.1.0",
+  "description": "Read-only Codex task lineage viewer: JSONL sessions -> semantic graph -> web whiteboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
+}

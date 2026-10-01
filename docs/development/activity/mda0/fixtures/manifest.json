@@ -1,0 +1,208 @@
+{
+  "fixture_set": "device.activity.v1-proposed",
+  "status": "proposed_executable_templates",
+  "fixture_format_version": 2,
+  "proposal_revision": 5,
+  "cases_are_isolated": true,
+  "contract": "device.activity.v1",
+  "schema_version": 1,
+  "dynamic_event_id_contract": {
+    "prefix_source": "owner-authorized pairing response event_id_prefix",
+    "minimum_prefix_entropy_bits": 128,
+    "prefix_wire_grammar": "^[A-Za-z0-9_-]{22,64}$",
+    "recipe_mode": "pairing_prefix_dot_canonical_sequence",
+    "canonical_sequence_grammar": "^(0|[1-9][0-9]*)$",
+    "normal_events_must_omit_explicit_event_id": true,
+    "wire_event_id_override_allowed_cases": [
+      "noncanonical_event_id",
+      "wrong_event_id_prefix",
+      "event_id_sequence_mismatch"
+    ]
+  },
+  "origin_sequence_contract": {
+    "new_logical_events": "strictly_increasing_and_never_reused_within_probe_lineage",
+    "retries": "reuse_already_materialized_event_and_origin_sequence",
+    "network_delivery_order": "may_be_out_of_order",
+    "first_seen_above_retained_floor": "ledger_accept",
+    "first_seen_below_highest_seen_and_above_floor": "ledger_accept_and_mark_sequence_regression_diagnostic",
+    "sequence_regression_alone_forces_unknown": false,
+    "unresolved_sequence_coverage_gap_forces_unknown": true,
+    "gap_fill_recovery": "recompute_projection_in_logical_sequence_order",
+    "at_or_below_retained_floor": "terminal_event_retained_out"
+  },
+  "fixture_operation_contract": {
+    "materialize_and_queue_outbox_event": "materialize event_template with event_id_recipe in fixture step order without HTTP delivery, capture it by capture_materialized_event_as, and capture the exact queued bytes by capture_outbox_bytes_as",
+    "submit_events_with_materialized_event_ref": "submit the exact previously captured event selected by materialized_event_ref without rewriting event_id or origin_sequence",
+    "pair_new_lineage": "owner HTTP pairing creates the explicit replacement_pair as a new lineage, captures its issued event_id_prefix and probe token references, and never lets a runner synthesize either identity",
+    "resolve_deleted_lineage_outbox": "after deletion and replacement pairing, resolve the exact queued bytes selected by outbox_bytes_ref, reject and discard them locally, and never rewrite them with a replacement prefix or replacement identity"
+  },
+  "execution_defaults": {
+    "initial_core_time_rule": "case.core.received_at_ms or maximum signal_at_ms in the first submit step",
+    "pairing_route": "/v1/core/activity/probes/pair",
+    "ingest_route": "/v1/core/activity/events",
+    "protocol_header": "X-Core-Protocol: 0.1",
+    "fixture_values_are_synthetic": true
+  },
+  "privacy_lint_contract": {
+    "scan_scope": "raw referenced case documents before capture resolution or HTTP execution",
+    "allowed_symbolic_pairing_response_values": [
+      "pair_probe.response.event_id_prefix",
+      "pair_probe.response.probe_token",
+      "pair_probes.primary.response.event_id_prefix",
+      "pair_probes.sibling.response.event_id_prefix",
+      "replacement_pair.response.event_id_prefix",
+      "replacement_pair.response.probe_token"
+    ],
+    "forbidden_literal_value_classes": [
+      "bearer_authorization_or_credential",
+      "token_or_secret_material",
+      "absolute_url",
+      "private_content"
+    ],
+    "minimum_forbidden_value_patterns": [
+      "(?i)^bearer[ \\t]+\\S+$",
+      "(?i)^(token|secret|password|api[-_]?key)[-_:].+$",
+      "(?i)^sk-[A-Za-z0-9_-]+$",
+      "^[A-Fa-f0-9]{32,}$",
+      "^[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}$",
+      "(?i)^[a-z][a-z0-9+.-]*://"
+    ],
+    "prohibited_private_key_fragments": [
+      "message_body",
+      "notification_body",
+      "window_title",
+      "app_name",
+      "keystroke",
+      "contact",
+      "chat_content",
+      "private_content"
+    ],
+    "credential_shaped_key_pattern": "(?i)(authorization|bearer|credential|token|secret|password|api[_-]?key)",
+    "allowed_credential_shaped_keys": {
+      "probe_token_ref": {
+        "value_kind": "symbolic_pairing_response_reference",
+        "allowed_values": ["pair_probe.response.probe_token"]
+      },
+      "credential_ref": {
+        "value_kind": "symbolic_local_reference",
+        "allowed_values": ["primary", "setup.capture.probe_token_ref"]
+      },
+      "replacement_probe_token_ref": {
+        "value_kind": "symbolic_pairing_response_reference",
+        "allowed_values": ["replacement_pair.response.probe_token"]
+      },
+      "credential_generation": {"value_kind": "nonnegative_integer_counter"},
+      "fencing_token": {"value_kind": "nonnegative_integer_counter"},
+      "active_fencing_token": {"value_kind": "nonnegative_integer_counter"}
+    },
+    "reject_unallowlisted_credential_shaped_key_or_value": true,
+    "captured_material_must_never_be_serialized_or_logged": true
+  },
+  "expected_outcome_vocabulary": [
+    "accepted",
+    "accepted_with_conservative_unknown",
+    "duplicate",
+    "idempotency_conflict",
+    "invalid_event_id",
+    "event_id_binding_mismatch",
+    "event_retained_out",
+    "unsupported_kind",
+    "missing_required_field",
+    "unknown_field",
+    "ttl_expired",
+    "unknown_no_coverage",
+    "forbidden_scope",
+    "chat_read_forbidden",
+    "admin_escalation_forbidden",
+    "credential_revoked",
+    "origin_mismatch",
+    "payload_too_large",
+    "batch_rejected_atomically",
+    "stale_epoch_or_fencing",
+    "client_action_required"
+  ],
+  "clock_health_vocabulary": ["healthy", "future_skew", "clock_regression"],
+  "sequence_diagnostic_vocabulary": [
+    "sequence_coverage_gap",
+    "sequence_regression"
+  ],
+  "expected_http_error_code_vocabulary": [
+    "invalid_event_id",
+    "event_id_binding_mismatch",
+    "event_retained_out",
+    "idempotency_conflict",
+    "unsupported_kind",
+    "missing_required_field",
+    "unknown_field",
+    "ttl_expired",
+    "scope_denied",
+    "chat_read_forbidden",
+    "admin_escalation_forbidden",
+    "revoked_replay",
+    "identity_binding_mismatch",
+    "payload_too_large",
+    "stale_authority_epoch"
+  ],
+  "files": [
+    {
+      "file": "valid_and_idempotency.json",
+      "cases": [
+        "valid_event",
+        "duplicate_same_payload",
+        "heart_rate_quality_without_inference",
+        "duplicate_different_payload",
+        "noncanonical_event_id",
+        "wrong_event_id_prefix",
+        "event_id_sequence_mismatch",
+        "credential_rotation_preserves_lineage",
+        "deleted_lineage_outbox_not_rebound",
+        "retained_out_retry"
+      ]
+    },
+    {
+      "file": "validation_and_clock.json",
+      "cases": [
+        "illegal_kind",
+        "missing_required_field",
+        "unknown_field",
+        "future_clock",
+        "clock_regression",
+        "sequence_gap_then_out_of_order_fill",
+        "ttl_expired"
+      ]
+    },
+    {
+      "file": "coverage_scope_and_replay.json",
+      "cases": [
+        "no_coverage_silence",
+        "wrong_scope",
+        "write_token_chat_read_denied",
+        "probe_admin_escalation",
+        "revoked_replay",
+        "cross_device_impersonation"
+      ]
+    },
+    {
+      "file": "limits_and_atomicity.json",
+      "cases": [
+        "oversized_payload",
+        "batch_atomic_rejection",
+        "stale_epoch_or_fencing"
+      ]
+    }
+  ],
+  "mechanical_checks": [
+    "parse_each_json_file",
+    "match_manifest_case_names_exactly_once",
+    "check_required_fixture_fields",
+    "check_kind_and_coverage_against_ADR_dictionary",
+    "check_expected_outcome_and_http_code_vocabularies",
+    "check_normal_event_template_omits_event_id_and_batch_templates_do_too",
+    "check_every_normal_event_has_pairing_capture_and_recipe",
+    "check_wire_event_id_override_allowlist",
+    "check_no_literal_bearer_credential_token_url_or_private_content",
+    "check_credential_shaped_keys_and_values_against_symbolic_reference_allowlist",
+    "check_sequence_creation_and_delivery_orders_and_gap_recovery",
+    "fail_on_unused_fixture_fields_or_skipped_manifest_cases"
+  ]
+}

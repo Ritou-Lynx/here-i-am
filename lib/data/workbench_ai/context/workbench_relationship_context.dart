@@ -1,12 +1,14 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
-import 'package:memex/agent/companion_agent/companion_persona_prompt_builder.dart';
+import 'package:memex/data/memory_v3/readonly/phone_memory_read_client.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/utils/user_storage.dart';
+
+import 'workbench_desktop_persona_prompt.dart';
 
 enum WorkbenchContextLoadStatus {
   available,
@@ -129,19 +131,27 @@ class WorkbenchRelationshipContext {
     this.personaPrompt = '',
     this.recentMessages = const [],
     this.dreaming = const WorkbenchDreamingRecall(),
+    this.dreamingSource = 'desktop_v3_local',
+    this.dreamingCapturedAt,
+    this.dreamingLeaseIsValid,
     this.reason,
   });
 
   factory WorkbenchRelationshipContext.unavailable({
     required String characterId,
     String reason = 'context_backend_unavailable',
+    bool includeDesktopPersona = false,
   }) =>
       WorkbenchRelationshipContext(
         scopeStatus: WorkbenchContextLoadStatus.available,
-        personaStatus: WorkbenchContextLoadStatus.unavailable,
+        personaStatus: includeDesktopPersona
+            ? WorkbenchContextLoadStatus.available
+            : WorkbenchContextLoadStatus.unavailable,
         recentStatus: WorkbenchContextLoadStatus.unavailable,
         dreamingStatus: WorkbenchContextLoadStatus.unavailable,
         characterId: characterId,
+        personaPrompt:
+            includeDesktopPersona ? workbenchDesktopPersonaPrompt : '',
         reason: reason,
       );
 
@@ -153,16 +163,37 @@ class WorkbenchRelationshipContext {
   final String personaPrompt;
   final List<WorkbenchRecentRelationshipMessage> recentMessages;
   final WorkbenchDreamingRecall dreaming;
+
+  /// Metadata is deliberately short: source selection is host-owned and does
+  /// not expose the desktop connection credential to Runtime.
+  final String dreamingSource;
+  final DateTime? dreamingCapturedAt;
+
+  /// An in-memory authorization lease for a phone source. It contains no
+  /// connection credential and is evaluated again at Runtime input rendering.
+  final bool Function()? dreamingLeaseIsValid;
   final String? reason;
 
   String toPromptBlock() {
+    final phoneLeaseValid = dreamingSource != 'phone_v3_live' ||
+        (dreamingLeaseIsValid?.call() ?? false);
+    final effectiveDreamingStatus = phoneLeaseValid
+        ? dreamingStatus
+        : WorkbenchContextLoadStatus.unavailable;
+    final effectiveDreaming =
+        phoneLeaseValid ? dreaming : const WorkbenchDreamingRecall();
     final out = StringBuffer()
       ..writeln('<host_owned_relationship_context>')
       ..writeln('scope_status: ${scopeStatus.wireName}')
       ..writeln('persona_status: ${personaStatus.wireName}')
       ..writeln('recent_chat_status: ${recentStatus.wireName}')
-      ..writeln('dreaming_status: ${dreamingStatus.wireName}')
+      ..writeln('dreaming_status: ${effectiveDreamingStatus.wireName}')
+      ..writeln('dreaming_source: ${_safeField(dreamingSource, 40)}')
       ..writeln('character_id: ${_safeField(characterId, 120)}');
+    if (dreamingCapturedAt != null) {
+      out.writeln(
+          'dreaming_captured_at: ${dreamingCapturedAt!.toUtc().toIso8601String()}');
+    }
     if (reason != null) {
       out.writeln('reason: ${_safeField(reason!, 160)}');
     }
@@ -182,25 +213,25 @@ class WorkbenchRelationshipContext {
         out.writeln('- $role: ${_safeField(message.content, 500)}');
       }
     }
-    if (!dreaming.isEmpty) {
+    if (!effectiveDreaming.isEmpty) {
       out
         ..writeln('')
         ..writeln('## Dreaming relationship recollections (not User-truth)');
-      for (final saga in dreaming.sagas) {
+      for (final saga in effectiveDreaming.sagas) {
         out.writeln(
           '- saga/${_safeField(saga.id, 120)}: '
           '${_safeField(saga.title, 160)} — '
           '${_safeField(saga.description, 900)}',
         );
       }
-      for (final episode in dreaming.episodes) {
+      for (final episode in effectiveDreaming.episodes) {
         out.writeln(
           '- episode/${_safeField(episode.id, 120)} '
           '(relevance=${episode.score}): '
           '${_safeField(episode.narrative, 900)}',
         );
       }
-      for (final fragment in dreaming.fragments) {
+      for (final fragment in effectiveDreaming.fragments) {
         out.writeln(
           '- fragment/${_safeField(fragment.id, 120)} '
           '(relevance=${fragment.score}): '
@@ -256,8 +287,11 @@ class WorkbenchRelationshipContextAssembler
     this.episodeLimit = 4,
     this.fragmentLimit = 6,
     this.sagaLimit = 2,
+    PhoneMemoryReadClient? phoneMemoryReadClient,
   })  : _backend = backend,
-        _dreamingCharacterIds = Set.unmodifiable(dreamingCharacterIds);
+        _dreamingCharacterIds = Set.unmodifiable(dreamingCharacterIds),
+        _phoneMemoryReadClient =
+            phoneMemoryReadClient ?? PhoneMemoryReadClient.instance;
 
   factory WorkbenchRelationshipContextAssembler.production({
     required AppDatabase database,
@@ -268,6 +302,7 @@ class WorkbenchRelationshipContextAssembler
 
   final WorkbenchRelationshipContextBackend _backend;
   final Set<String> _dreamingCharacterIds;
+  final PhoneMemoryReadClient _phoneMemoryReadClient;
   final int recentMessageLimit;
   final int episodeLimit;
   final int fragmentLimit;
@@ -309,6 +344,7 @@ class WorkbenchRelationshipContextAssembler
       return WorkbenchRelationshipContext.unavailable(
         characterId: normalizedCharacterId,
         reason: 'character_backend_unavailable',
+        includeDesktopPersona: true,
       );
     }
     if (character == null) {
@@ -363,8 +399,51 @@ class WorkbenchRelationshipContextAssembler
 
     var dreamingStatus = WorkbenchContextLoadStatus.empty;
     var dreaming = const WorkbenchDreamingRecall();
+    var dreamingSource = 'desktop_v3_local';
+    DateTime? dreamingCapturedAt;
+    bool Function()? dreamingLeaseIsValid;
     if (!_dreamingCharacterIds.contains(normalizedCharacterId)) {
       dreamingStatus = WorkbenchContextLoadStatus.isolated;
+    } else if (_phoneMemoryReadClient.isConfigured) {
+      // Once the user chose the phone, an error must remain visible as phone
+      // unavailable; silently reading an unrelated local store would be a
+      // source substitution.
+      final phone = await _phoneMemoryReadClient.readContext(
+        characterId: normalizedCharacterId,
+        query: userText,
+      );
+      dreamingSource = 'phone_v3_live';
+      dreamingCapturedAt = phone.capturedAt;
+      dreamingLeaseIsValid = phone.isAuthorizedNow;
+      dreamingStatus = switch (phone.status) {
+        'available' => WorkbenchContextLoadStatus.available,
+        'empty' => WorkbenchContextLoadStatus.empty,
+        'isolated' => WorkbenchContextLoadStatus.isolated,
+        _ => WorkbenchContextLoadStatus.unavailable,
+      };
+      dreaming = WorkbenchDreamingRecall(
+        episodes: phone.episodes
+            .map((entry) => WorkbenchDreamingEpisode(
+                  id: entry.id,
+                  narrative: entry.narrative,
+                  score: entry.score,
+                ))
+            .toList(growable: false),
+        fragments: phone.fragments
+            .map((entry) => WorkbenchDreamingFragment(
+                  id: entry.id,
+                  content: entry.content,
+                  score: entry.score,
+                ))
+            .toList(growable: false),
+        sagas: phone.sagas
+            .map((entry) => WorkbenchDreamingSaga(
+                  id: entry.id,
+                  title: entry.title,
+                  description: entry.description,
+                ))
+            .toList(growable: false),
+      );
     } else {
       try {
         final loaded = await _backend.loadDreaming(
@@ -394,9 +473,12 @@ class WorkbenchRelationshipContextAssembler
       recentStatus: recentStatus,
       dreamingStatus: dreamingStatus,
       characterId: normalizedCharacterId,
-      personaPrompt: CompanionPersonaPromptBuilder.build(character),
+      personaPrompt: workbenchDesktopPersonaPrompt,
       recentMessages: recent,
       dreaming: dreaming,
+      dreamingSource: dreamingSource,
+      dreamingCapturedAt: dreamingCapturedAt,
+      dreamingLeaseIsValid: dreamingLeaseIsValid,
     );
   }
 }

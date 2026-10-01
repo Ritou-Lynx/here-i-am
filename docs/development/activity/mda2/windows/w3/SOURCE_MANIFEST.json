@@ -1,0 +1,57 @@
+{
+  "task_id": "01a09699-5a54-7fb0-8b05-f69972c3b118",
+  "baseline_commit": "68307c9ea837f11dc82e148e8f51feff89b50fb6",
+  "seed_commits": [
+    "0c4dbd37113537ab8915c4b249ca2583525c38c4",
+    "b4efcfd6bcc1339a5e194b719a997d9987aac8e5"
+  ],
+  "rejected_prior_delivery_commit": "7bdf72b7622a8d5418b42d4ac45a01a7af4924e2",
+  "frozen_w2": {
+    "patch_sha256": "52bbb322eb5820a4b1cfa13b432aa6a823a104c1a4f43c4c37575899c0dd0c88",
+    "verification_sha256": "7b6d571623f2cdcf48ca882054960a840dd36995f01f2099532f38bc4b80c167",
+    "source_manifest_sha256": "34e287504b377ef12fda1ab9115601eb972b7efafb8c450279ff68ff357962cf"
+  },
+  "baseline_core": {
+    "tools/i_core/activity_control_plane.mjs": "525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222",
+    "tools/i_core/i_core_store.mjs": "883a35c128ee88f7689b737de2245ef073f0c6b96902385241f30c08eb8f816d"
+  },
+  "queue_delta": {
+    "patch": "docs/development/activity/mda2/windows/w3/W2_TO_W3_QUEUE.patch",
+    "sha256": "3a2d3821933c3f9a9929e61d05e25c7bcaaeb0aa3881675a04d34aa33ddcd53b",
+    "changed": {
+      "tools/mda2_windows_queue/authority.mjs": {"frozen_sha256": "0c7bac0bf5d2669ffd08a77a69d268f1a96f790c8bd355a24dc15d3e75fed7f2", "candidate_sha256": "88c3b5d05d3ed186b8e9014632ce1544a0aef258ae455fb1a9a0c738b0cce41a"},
+      "tools/mda2_windows_queue/broker.mjs": {"frozen_sha256": "e125923dd23369b7ac78c42745354738280f7af4fb5ae0642659629e0dac35bb", "candidate_sha256": "0d0db50059c5173ddb3b9d29ade55c7bb5cb242bc48607d9c2843c7b18c49220"},
+      "tools/mda2_windows_queue/fixtures/broker_host.mjs": {"frozen_sha256": "d51a69db3884f668ab5a33ad8e4ad31b84f9746f28b249de49895b65f67fed04", "candidate_sha256": "c6705a137d11f4417a598e61c86bd56a8cd3c4b1c9c8adc8c8fcae4662ce0fbd"},
+      "tools/mda2_windows_queue/queue.mjs": {"frozen_sha256": "30cb750444ffc1b9f3928367a83260fc64ea0dca52dc283c32e757376d539e2c", "candidate_sha256": "996257b81b73dcc4820fe367f2fe6e856a18af212cbaa3bd9837b63508ab04c9"},
+      "tools/mda2_windows_queue/worker.mjs": {"frozen_sha256": "41a172a18b5923f7d38367f6da917a7025edd921c05ae57732134b5be1e75ada", "candidate_sha256": "7e18e02c4c44812cc8ac9e2e4dbe0ccd3f8134873288ed5959415ea0711d58f1"}
+    },
+    "unchanged_frozen_execution_sources": [
+      "tools/mda2_windows_queue/store.mjs",
+      "tools/mda2_windows_queue/windows_clock.ps1",
+      "tools/mda2_windows_queue/windows_guard.ps1",
+      "tools/mda2_windows_queue/fixtures/run_tests.mjs"
+    ]
+  },
+  "collector_sources": {
+    "tools/mda2_windows_collector/signals.mjs": "a5a625838cf1a3041ce27495a99e0d0f2412c7f9cb788de611226382620318ab",
+    "tools/mda2_windows_collector/native_channel.mjs": "9cf72a230ca975bb73d743e9d1f0ba1b93336bb649e4db75ec2c349301c98e63",
+    "tools/mda2_windows_collector/wiring.mjs": "e195956b709b8d0ce1851557650b8e226875d1e106b9676afd18ffd3a0192f04",
+    "tools/mda2_windows_collector/http_transport.mjs": "8c1fe1f3adcd90a126e8004566040d1d0f8c6e080bb8e8985749c5a301025ff6",
+    "tools/mda2_windows_collector/main.mjs": "5b1152e2e329d13616e7c9c4ccc5760d1fd65555e5a7d353ee2053251037a6fe",
+    "tools/mda2_windows_collector/compile_native.ps1": "3ed177318f555174d4ba3e9f057bdf867f9e8096ab7e9bb79547e6995929b665",
+    "tools/mda2_windows_collector/native/WindowsActivityCollector.cs": "4fb22aaf1b3a1b4779c99272989588d1a1951d7348e3204455ed9b5b428ec071",
+    "tools/mda2_windows_collector/fixtures/run_tests.mjs": "37409784e3cec225d1cffffe2d1bc7e72bff6131ad8531e3779f2ac4075c0d8e",
+    "tools/mda2_windows_collector/fixtures/run_w2_compat.ps1": "185ae6fbbdf8546b687309e77f075d9cc5c29064168c872bae2495279926c59d"
+  },
+  "results": {
+    "docs/development/activity/mda2/windows/w3/RESULT.json": "f828a912662c5278edffb78fe8c50b30db01bb5ea507c9c505740bd32bbc2ef0",
+    "docs/development/activity/mda2/windows/w3/W2_COMPAT_RESULT.json": "7f4174e86c211bb3928c941c2d8aa8a38a669fd3bfd03e195f66a4f390398d03",
+    "docs/development/activity/mda2/windows/w3/W2_COMPAT_SUMMARY.json": "caf2e999fcc3ef630b099784b0db950c0c0abcfa33a3f7ce3d5ec6f985416f40"
+  },
+  "native_compile_artifact": {
+    "committed": false,
+    "bytes": 10752,
+    "sha256": "fc165e2afc7b781b24debb21c6d3c9ddf8b546f0b96286304f7c04fe27dd3642",
+    "real_os_collection": false
+  }
+}

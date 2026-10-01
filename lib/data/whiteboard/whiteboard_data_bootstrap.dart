@@ -11,6 +11,7 @@ import 'package:memex/data/whiteboard/legacy_whiteboard_data_migrator.dart';
 import 'package:memex/data/whiteboard/thumbnail/safe_thumbnail_resolver.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/data/workbench_ai/product/ordinary_desktop_candidate_storage.dart';
 
 class WhiteboardDataBootstrap {
   WhiteboardDataBootstrap._();
@@ -53,9 +54,11 @@ class WhiteboardDataBootstrap {
   ) async {
     final testingRoot = _productionRootForTesting;
     final root = testingRoot ??
-        Directory(
-          p.join((await getApplicationSupportDirectory()).path, 'whiteboard'),
-        );
+        (OrdinaryDesktopCandidateStorage.isActive
+            ? Directory(p.join(
+                OrdinaryDesktopCandidateStorage.workspacePath, 'whiteboard'))
+            : Directory(p.join(
+                (await getApplicationSupportDirectory()).path, 'whiteboard')));
     late final UnifiedCardRepository repository;
     final thumbnailResolver = SafeThumbnailResolver(
       whiteboardRoot: root,

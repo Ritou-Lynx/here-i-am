@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { requireSupportedRuntimeProfile, workbenchTextOnlyAvailability } from './workbench_text_only_profile.mjs';
 
 import {
   CodexAppServerClient,
@@ -221,6 +222,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
     await this._ensureReady('listCapabilities');
     return {
       capabilities: [...CODEX_CAPABILITIES],
+      runtime_profiles: [workbenchTextOnlyAvailability()],
       provider_metadata: safeProviderMetadata(null, {
         models: this.models.map((model) => ({
           id: modelId(model),
@@ -231,6 +233,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
   }
 
   async startSession(config = {}, contextManifest = {}) {
+    requireSupportedRuntimeProfile(config, 'startSession');
     await this._ensureReady('startSession');
     const requestedModel = this._validateModel(config.model || this.defaultModel, 'startSession');
     let result;
@@ -243,6 +246,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
   }
 
   async resumeSession(providerSessionId, config = {}) {
+    requireSupportedRuntimeProfile(config, 'resumeSession');
     await this._ensureReady('resumeSession');
     const threadId = String(providerSessionId || '').trim();
     if (!threadId) {
@@ -282,6 +286,11 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
   async startTurn(sessionId, input, params = {}) {
     const session = this._session(sessionId, 'startTurn');
     const text = normalizeRuntimeTextInput(input, 'startTurn');
+    if (session.startPromise || session.startUnconfirmed) {
+      throw new RuntimeAdapterError('A turn start is still pending or unconfirmed.', {
+        code: RuntimeErrorCode.TURN_NOT_ACTIVE, operation: 'startTurn',
+      });
+    }
     const active = Array.from(session.turns.values()).find((turn) => (
       !terminalTurnStatus(turn.status)
     ));
@@ -293,7 +302,18 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       });
     }
 
+    const attempt = Promise.resolve().then(() => this._startTurn(session, text, params));
+    session.startPromise = attempt;
+    try {
+      return await attempt;
+    } finally {
+      if (session.startPromise === attempt) session.startPromise = null;
+    }
+  }
+
+  async _startTurn(session, text, params) {
     const afterSequence = this.client.notificationSequence;
+    session.startUnconfirmed = true;
     let result;
     try {
       result = await this.client.startTurn(session.providerSessionId, text, params);
@@ -308,6 +328,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
         providerMetadata: safeProviderMetadata('turn/start'),
       });
     }
+    session.startUnconfirmed = false;
     const existing = session.turns.get(turnId) || {};
     if (terminalTurnStatus(existing.status)) {
       // App Server may legally emit turn/completed before the turn/start JSON-RPC
@@ -357,6 +378,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       });
     }
     try {
+      this._session(sessionId, 'steerTurn');
       await this.client.steerTurn(session.providerSessionId, turnId, text);
     } catch (error) {
       throw asRuntimeAdapterError(error, { operation: 'steerTurn', provider: 'codex' });
@@ -375,17 +397,56 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
     const session = this._session(sessionId, 'interruptTurn');
     const turn = this._turn(session, turnId, 'interruptTurn');
     if (terminalTurnStatus(turn.status)) return this._turnSnapshot(session, turnId);
+    await this._requestInterrupt(session, turn);
+    return this._turnSnapshot(session, turnId);
+  }
+
+  async _requestInterrupt(session, turn) {
+    if (turn.interruptPromise) return turn.interruptPromise;
+    if (turn.interruptAcknowledged) return;
+    const attempt = Promise.resolve().then(async () => {
+      if (terminalTurnStatus(turn.status)) return;
+      const afterSequence = this.client.notificationSequence;
+      try {
+        await this.client.interruptTurn(session.providerSessionId, turn.id, {
+          onDispatched: () => { turn.interruptAfterSequence = afterSequence; },
+        });
+        turn.interruptAcknowledged = true;
+      } catch (error) {
+        const failure = asRuntimeAdapterError(error, {
+          operation: 'interruptTurn', provider: 'codex',
+        });
+        failure.details = { ...failure.details, stop_evidence: this._turnStopEvidence(session, turn) };
+        throw failure;
+      }
+    });
+    turn.interruptPromise = attempt;
     try {
-      await this.client.interruptTurn(session.providerSessionId, turnId);
-    } catch (error) {
-      throw asRuntimeAdapterError(error, { operation: 'interruptTurn', provider: 'codex' });
+      return await attempt;
+    } finally {
+      if (turn.interruptPromise === attempt) turn.interruptPromise = null;
     }
+  }
+
+  async waitForTurnTerminal(sessionId, turnId, { timeoutMs = this.closeTimeoutMs } = {}) {
+    const session = this._session(sessionId, 'waitForTurnTerminal');
+    const turn = this._turn(session, turnId, 'waitForTurnTerminal');
+    await this._waitForTurnTerminal(session, turnId, {
+      afterSequence: turn.interruptAfterSequence ?? 0,
+      timeoutMs: this._positiveTimeout(timeoutMs, this.closeTimeoutMs, 'waitForTurnTerminal'),
+    });
     return this._turnSnapshot(session, turnId);
   }
 
   async respondToApproval(requestId, decision) {
     const approval = this.approvals.get(String(requestId));
-    if (!approval) {
+    const session = approval ? this.sessions.get(approval.sessionId) : null;
+    if (!approval || !this._callableTurn(session, approval.turnId)) {
+      // A queued close still owns the negative provider reply. Rejecting the
+      // user's answer must not remove that callback before the close pass.
+      if (!session?.closePromise || !this._callableTurn(session, approval.turnId, { allowClosing: true })) {
+        this.approvals.delete(String(requestId));
+      }
       throw new RuntimeAdapterError(`Approval request not found: ${requestId}`, {
         code: RuntimeErrorCode.APPROVAL_NOT_FOUND,
         operation: 'respondToApproval',
@@ -417,7 +478,6 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       });
     }
     this.approvals.delete(String(requestId));
-    const session = this._session(approval.sessionId, 'respondToApproval');
     session.status = RuntimeStatus.ACTIVE;
     this._addEvent(session, {
       turnId: approval.turnId,
@@ -431,7 +491,11 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
 
   async respondToToolCall(toolCallId, result) {
     const call = this.toolCalls.get(String(toolCallId));
-    if (!call) {
+    const session = call ? this.sessions.get(call.sessionId) : null;
+    if (!call || !this._callableTurn(session, call.turnId)) {
+      if (!session?.closePromise || !this._callableTurn(session, call.turnId, { allowClosing: true })) {
+        this.toolCalls.delete(String(toolCallId));
+      }
       throw new RuntimeAdapterError(`Tool call not found: ${toolCallId}`, {
         code: RuntimeErrorCode.TOOL_CALL_NOT_FOUND,
         operation: 'respondToToolCall',
@@ -447,7 +511,6 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       });
     }
     this.toolCalls.delete(String(toolCallId));
-    const session = this._session(call.sessionId, 'respondToToolCall');
     this._addEvent(session, {
       turnId: call.turnId,
       kind: RuntimeEventKind.TOOL_RESULT,
@@ -501,7 +564,39 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
   async closeSession(sessionId) {
     const session = this._session(sessionId, 'closeSession', { allowClosed: true });
     if (session.status === RuntimeStatus.CLOSED) return this._sessionSnapshot(session);
+    if (session.closePromise) return session.closePromise;
+    const attempt = Promise.resolve().then(() => this._closeSession(session));
+    session.closePromise = attempt;
+    try {
+      return await attempt;
+    } finally {
+      if (session.closePromise === attempt) session.closePromise = null;
+    }
+  }
 
+  async _closeSession(session) {
+    if (session.startPromise) {
+      let timer;
+      try {
+        await Promise.race([
+          session.startPromise.catch(() => {}),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new RuntimeAdapterError('Turn start is still pending during close.', {
+              code: RuntimeErrorCode.TIMEOUT, operation: 'closeSession',
+              details: { stop_evidence: { provider_terminal_confirmed: false, pending_start: true } },
+            })), this._positiveTimeout(this.closeTimeoutMs, DEFAULT_CLOSE_TIMEOUT_MS, 'closeSession'));
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    if (session.startUnconfirmed) {
+      throw new RuntimeAdapterError('Turn start outcome is unknown; the binding is retained.', {
+        code: RuntimeErrorCode.RUNTIME_UNAVAILABLE, operation: 'closeSession',
+        details: { stop_evidence: { provider_terminal_confirmed: false, pending_start: true } },
+      });
+    }
     const activeTurnIds = Array.from(session.turns.values())
       .filter((turn) => !terminalTurnStatus(turn.status))
       .map((turn) => turn.id);
@@ -514,7 +609,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
         const turn = session.turns.get(turnId);
         if (terminalTurnStatus(turn?.status)) continue;
         try {
-          await this.client.interruptTurn(session.providerSessionId, turnId);
+          await this._requestInterrupt(session, turn);
         } catch {
           if (!terminalTurnStatus(turn?.status)) {
             // A fail-closed approval response can complete the turn while the
@@ -539,18 +634,27 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       for (const turnId of activeTurnIds) {
         const turn = session.turns.get(turnId);
         if (!turn || terminalTurnStatus(turn.status)) continue;
-        turn.status = RuntimeStatus.INTERRUPTED;
+        turn.status = RuntimeStatus.UNAVAILABLE;
         this._addEvent(session, {
           turnId,
           kind: RuntimeEventKind.TURN_STATUS,
-          status: RuntimeStatus.INTERRUPTED,
-          data: { reason: 'runtime_unavailable_during_close' },
+          status: RuntimeStatus.UNAVAILABLE,
+          data: {
+            reason: 'runtime_unavailable_during_close',
+            stop_evidence: this._turnStopEvidence(session, turn),
+          },
           providerMetadata: safeProviderMetadata(null),
         });
       }
     }
 
     session.status = RuntimeStatus.CLOSED;
+    const turns = Array.from(session.turns.values(), (turn) => this._turnStopEvidence(session, turn));
+    session.stopEvidence = {
+      local_binding_closed: true,
+      provider_terminal_confirmed: turns.length > 0 && turns.every((turn) => turn.provider_terminal_confirmed),
+      turns,
+    };
     this.providerSessions.delete(session.providerSessionId);
     this._addEvent(session, {
       kind: RuntimeEventKind.SESSION_STATUS,
@@ -558,6 +662,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       data: {
         active_turn_policy: 'interrupt_and_wait',
         approvals_policy: 'fail_closed',
+        stop_evidence: session.stopEvidence,
       },
       providerMetadata: safeProviderMetadata(null),
     });
@@ -565,7 +670,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
   }
 
   async stop() {
-    await this.client.stop();
+    return this.client.stop();
   }
 
   async _ensureReady(operation) {
@@ -696,6 +801,11 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
         operation,
       });
     }
+    if (session.closePromise && ['startTurn', 'steerTurn'].includes(operation)) {
+      throw new RuntimeAdapterError('Session close is in progress.', {
+        code: RuntimeErrorCode.INVALID_REQUEST, operation,
+      });
+    }
     return session;
   }
 
@@ -715,6 +825,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       session_id: session.id,
       status: session.status,
       model: session.model,
+      ...(session.stopEvidence ? { stop_evidence: session.stopEvidence } : {}),
       provider_metadata: safeProviderMetadata(null, {
         provider_session_id: session.providerSessionId,
       }),
@@ -728,9 +839,27 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       turn_id: turn.id,
       status: turn.status,
       activity_observed: Number.isInteger(turn.activitySequence),
+      stop_evidence: this._turnStopEvidence(session, turn),
       provider_metadata: safeProviderMetadata(null, {
         provider_session_id: session.providerSessionId,
       }),
+    };
+  }
+
+  _turnStopEvidence(session, turn) {
+    const terminal = turn.providerTerminal;
+    const confirmed = terminal?.recognized === true;
+    return {
+      provider_session_id: session.providerSessionId,
+      turn_id: turn.id,
+      interrupt_requested: turn.interruptAfterSequence != null,
+      interrupt_acknowledged: turn.interruptAcknowledged === true,
+      provider_terminal_confirmed: confirmed,
+      provider_terminal_status: terminal?.status ?? null,
+      provider_terminal_sequence: terminal?.sequence ?? null,
+      source: terminal ? 'turn/completed' : null,
+      cancellation_confirmed: confirmed && terminal.status === 'interrupted' &&
+        turn.interruptAfterSequence != null && terminal.sequence > turn.interruptAfterSequence,
     };
   }
 
@@ -825,6 +954,8 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
     if (!session) return;
     const turnId = providerTurnId(params);
     let turn = turnId ? session.turns.get(turnId) : null;
+    if (terminalTurnStatus(turn?.status) &&
+        (isTurnActivity(method) || method === 'turn/completed')) return;
 
     if (method === 'turn/started' && turnId) {
       if (terminalTurnStatus(turn?.status)) return;
@@ -851,14 +982,25 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
 
     if (method === 'turn/completed' && turnId) {
       turn = turn || { id: turnId };
+      // A malformed/conflicting completion cannot certify another turn.
+      const status = params.turn?.status;
+      turn.providerTerminal = {
+        status: status ?? null,
+        sequence: providerSequence,
+        recognized: params.threadId === session.providerSessionId &&
+          params.turn?.id === turnId && ['completed', 'failed', 'interrupted'].includes(status),
+      };
       turn.status = normalizeCompletedStatus(params.turn?.status);
       session.turns.set(turnId, turn);
       session.status = RuntimeStatus.IDLE;
+      const cleanup = { turnId, reason: 'turn_terminal', sendResponse: false };
+      this._failClosedApprovals(session, cleanup);
+      this._failClosedToolCalls(session, cleanup);
       this._addEvent(session, {
         turnId,
         kind: RuntimeEventKind.TURN_STATUS,
         status: turn.status,
-        data: {},
+        data: { stop_evidence: this._turnStopEvidence(session, turn) },
         providerMetadata: safeProviderMetadata(method, {
           provider_status: params.turn?.status || null,
         }),
@@ -909,6 +1051,14 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
     });
   }
 
+  _callableTurn(session, turnId, { allowClosing = false } = {}) {
+    const turn = session?.turns.get(turnId);
+    return this.client.isReady && session != null && (!session.closePromise || allowClosing) &&
+      ![RuntimeStatus.CLOSED, RuntimeStatus.UNAVAILABLE].includes(session.status) &&
+      this.providerSessions.get(session.providerSessionId) === session.id &&
+      turn != null && !terminalTurnStatus(turn.status) && turn.status !== RuntimeStatus.UNAVAILABLE;
+  }
+
   _handleServerRequest(request) {
     if (request.method === 'item/tool/call') {
       this._handleDynamicToolCall(request);
@@ -924,12 +1074,12 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
     const threadId = providerThreadId(request.params);
     const sessionId = threadId ? this.providerSessions.get(threadId) : null;
     const session = sessionId ? this.sessions.get(sessionId) : null;
-    if (!session) {
+    const turnId = providerTurnId(request.params);
+    if (!this._callableTurn(session, turnId)) {
       request.respond({ decision: 'decline' });
       return;
     }
     const requestId = String(request.id);
-    const turnId = providerTurnId(request.params);
     this.approvals.set(requestId, {
       requestId,
       sessionId: session.id,
@@ -965,7 +1115,7 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
         ? session.config.dynamic_tools.map((tool) => String(tool?.name || ''))
         : [],
     );
-    if (!session || !toolCallId || !toolName || !allowedTools.has(toolName)) {
+    if (!this._callableTurn(session, turnId) || !toolCallId || !toolName || !allowedTools.has(toolName)) {
       request.respond({
         success: false,
         contentItems: [{ type: 'inputText', text: 'Tool call rejected by the product host.' }],
@@ -1005,14 +1155,17 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
     });
   }
 
-  _failClosedApprovals(session) {
+  _failClosedApprovals(session, { turnId = null, reason = 'session_closed', sendResponse = true } = {}) {
     for (const [requestId, approval] of this.approvals) {
       if (approval.sessionId !== session.id) continue;
+      if (turnId != null && approval.turnId !== turnId) continue;
       this.approvals.delete(requestId);
       let providerResponseSent = false;
       try {
-        approval.respond({ decision: 'decline' });
-        providerResponseSent = true;
+        if (sendResponse) {
+          approval.respond({ decision: 'decline' });
+          providerResponseSent = true;
+        }
       } catch {
         // If the client is already stopped there is no live provider request to
         // release. The local callback is still discarded so it cannot be used
@@ -1021,11 +1174,11 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
       this._addEvent(session, {
         turnId: approval.turnId,
         kind: RuntimeEventKind.APPROVAL_RESOLVED,
-        status: RuntimeStatus.RUNNING,
+        status: turnId ? session.turns.get(turnId)?.status : RuntimeStatus.RUNNING,
         data: {
           request_id: requestId,
           decision: 'denied',
-          reason: 'session_closed',
+          reason,
           fail_closed: true,
           provider_response_sent: providerResponseSent,
         },
@@ -1034,29 +1187,32 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
     }
   }
 
-  _failClosedToolCalls(session) {
+  _failClosedToolCalls(session, { turnId = null, reason = 'session_closed', sendResponse = true } = {}) {
     for (const [toolCallId, call] of this.toolCalls) {
       if (call.sessionId !== session.id) continue;
+      if (turnId != null && call.turnId !== turnId) continue;
       this.toolCalls.delete(toolCallId);
       let providerResponseSent = false;
       try {
-        call.respond({
-          success: false,
-          contentItems: [{ type: 'inputText', text: 'The product session was closed.' }],
-        });
-        providerResponseSent = true;
+        if (sendResponse) {
+          call.respond({
+            success: false,
+            contentItems: [{ type: 'inputText', text: 'The product session was closed.' }],
+          });
+          providerResponseSent = true;
+        }
       } catch {
         // The provider may already have completed or stopped the request.
       }
       this._addEvent(session, {
         turnId: call.turnId,
         kind: RuntimeEventKind.TOOL_RESULT,
-        status: RuntimeStatus.INTERRUPTED,
+        status: turnId ? session.turns.get(turnId)?.status : RuntimeStatus.INTERRUPTED,
         data: {
           tool_call_id: toolCallId,
           tool_name: call.toolName,
           success: false,
-          reason: 'session_closed',
+          reason,
           fail_closed: true,
           provider_response_sent: providerResponseSent,
         },
@@ -1068,6 +1224,8 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
   }
 
   async _waitForTurnTerminal(session, turnId, { afterSequence, timeoutMs }) {
+    const turn = this._turn(session, turnId, 'waitForTurnTerminal');
+    if (turn.providerTerminal?.recognized) return;
     try {
       await this.client.waitForNotification(
         'turn/completed',
@@ -1075,11 +1233,18 @@ export class CodexAppServerAdapter extends RuntimeAdapter {
           message.params?.turn?.id === turnId,
         { afterSequence, timeoutMs },
       );
+      if (!turn.providerTerminal?.recognized) {
+        throw new RuntimeAdapterError('Matching turn/completed did not contain a valid terminal status.', {
+          code: RuntimeErrorCode.PROTOCOL_ERROR,
+        });
+      }
     } catch (error) {
-      throw asRuntimeAdapterError(error, {
+      const failure = asRuntimeAdapterError(error, {
         operation: 'closeSession.waitForTurnTerminal',
         provider: 'codex',
       });
+      failure.details = { ...failure.details, stop_evidence: this._turnStopEvidence(session, turn) };
+      throw failure;
     }
   }
 

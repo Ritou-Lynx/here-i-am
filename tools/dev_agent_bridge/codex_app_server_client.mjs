@@ -38,12 +38,14 @@ export function resolveCodexAppServerCommand({
 }
 
 export class CodexAppServerClient extends EventEmitter {
-  constructor({
+  constructor(options = {}) {
+    const {
     commandSpec = null,
     cwd = process.cwd(),
     env = process.env,
     requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
     stopTimeoutMs = DEFAULT_STOP_TIMEOUT_MS,
+    killTimeoutMs = stopTimeoutMs,
     experimentalApi = false,
     clientInfo = {
       name: 'here_i_am_bridge',
@@ -51,16 +53,34 @@ export class CodexAppServerClient extends EventEmitter {
       version: '0.1.0',
     },
     spawnImpl = nodeSpawn,
-  } = {}) {
+    attachedTransport = null,
+  } = options;
     super();
+    if (attachedTransport != null) {
+      if (commandSpec != null || Object.hasOwn(options, 'spawnImpl')) {
+        throw new TypeError('attachedTransport cannot be combined with commandSpec or spawnImpl.');
+      }
+      if (typeof attachedTransport.on !== 'function'
+        || typeof attachedTransport.send !== 'function'
+        || typeof attachedTransport.close !== 'function') {
+        throw new TypeError('attachedTransport must provide EventEmitter on(), send(), and close().');
+      }
+    }
     this.commandSpec = commandSpec;
     this.cwd = cwd;
     this.env = env;
     this.requestTimeoutMs = requestTimeoutMs;
     this.stopTimeoutMs = stopTimeoutMs;
+    this.killTimeoutMs = killTimeoutMs;
+    for (const timeout of [stopTimeoutMs, killTimeoutMs]) {
+      if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 2_147_483_647) {
+        throw new TypeError('Stop timeouts must be finite positive timer durations.');
+      }
+    }
     this.experimentalApi = experimentalApi;
     this.clientInfo = clientInfo;
     this.spawnImpl = spawnImpl;
+    this.attachedTransport = attachedTransport;
 
     this.state = 'stopped';
     this.child = null;
@@ -74,10 +94,11 @@ export class CodexAppServerClient extends EventEmitter {
     this._notificationSequence = 0;
     this._notificationHistory = [];
     this._closePromise = null;
+    this.lastStopEvidence = null;
   }
 
   get isReady() {
-    return this.state === 'ready' && this.child != null;
+    return this.state === 'ready' && (this.child != null || this.attachedTransport != null);
   }
 
   get notificationSequence() {
@@ -91,8 +112,30 @@ export class CodexAppServerClient extends EventEmitter {
     }
 
     this.state = 'starting';
-    const spec = this.commandSpec || resolveCodexAppServerCommand({ env: this.env });
-    this.emit('lifecycle', { state: this.state, commandSource: spec.source || 'custom' });
+    const transport = this.attachedTransport;
+    const spec = transport ? null : (this.commandSpec || resolveCodexAppServerCommand({ env: this.env }));
+    this.emit('lifecycle', { state: this.state, commandSource: transport ? 'attached-transport' : (spec.source || 'custom') });
+
+    if (transport) {
+      this.lastStopEvidence = null;
+      this._notificationHistory = [];
+      this._attachTransport(transport);
+      try {
+        this.initializeResult = await this.request('initialize', {
+          clientInfo: this.clientInfo,
+          capabilities: { experimentalApi: this.experimentalApi },
+        }, { allowWhileStarting: true });
+        await this.notify('initialized', {});
+        this.state = 'ready';
+        this.emit('lifecycle', { state: this.state });
+        return this.initializeResult;
+      } catch (error) {
+        // A failed handshake does not establish process termination.  Keep the
+        // attached owner until its close receipt proves otherwise.
+        try { await this.stop(); } catch { /* preserve the handshake failure */ }
+        throw error;
+      }
+    }
 
     let child;
     try {
@@ -110,6 +153,8 @@ export class CodexAppServerClient extends EventEmitter {
     }
 
     this.child = child;
+    this.lastStopEvidence = null;
+    this._notificationHistory = [];
     this._attachChild(child);
 
     try {
@@ -124,53 +169,118 @@ export class CodexAppServerClient extends EventEmitter {
       this.emit('lifecycle', { state: this.state });
       return this.initializeResult;
     } catch (error) {
-      await this.stop();
+      try { await this.stop(); } catch { /* preserve the initialize failure */ }
       throw error;
     }
   }
 
   async stop() {
+    if (this._closePromise) return this._closePromise;
     const child = this.child;
-    if (!child) {
-      this.state = 'stopped';
-      return;
-    }
-    if (this.state === 'stopping' && this._closePromise) {
-      await this._closePromise;
-      return;
+    const transport = this.attachedTransport;
+    if (!child && !transport) {
+      return this.lastStopEvidence || { process_close_observed: false, reason: 'no_child' };
     }
 
+    // Publish the shared attempt before emitting lifecycle events or touching
+    // stdin: either can synchronously re-enter stop() in an embedding host.
+    const attempt = Promise.resolve().then(() => transport
+      ? this._stopAttachedTransport(transport)
+      : this._stopChild(child));
+    this._closePromise = attempt;
     this.state = 'stopping';
     this.emit('lifecycle', { state: this.state });
+    try {
+      return await attempt;
+    } finally {
+      if (this._closePromise === attempt) this._closePromise = null;
+    }
+  }
 
-    this._closePromise = new Promise((resolve) => {
+  async _stopAttachedTransport(transport) {
+    if (this.attachedTransport !== transport) return this.lastStopEvidence;
+    let receipt;
+    try {
+      receipt = await transport.close();
+    } catch (error) {
+      this.state = 'stop_unconfirmed';
+      this.lastStopEvidence = { process_close_observed: false, close_error: String(error?.message || error) };
+      this.emit('lifecycle', { state: this.state });
+      throw new CodexAppServerError('Attached app-server close was not observed.', {
+        code: 'stop_close_unconfirmed', data: this.lastStopEvidence, cause: error,
+      });
+    }
+    if (receipt?.process_close_observed === true) {
+      this.lastStopEvidence = { ...receipt, process_close_observed: true };
+      this._finalizeStopped(new CodexAppServerError('Attached Codex app-server closed.'));
+      return this.lastStopEvidence;
+    }
+    this.state = 'stop_unconfirmed';
+    this.lastStopEvidence = { ...(receipt || {}), process_close_observed: false };
+    this.emit('lifecycle', { state: this.state });
+    throw new CodexAppServerError('Attached app-server close was not observed.', {
+      code: 'stop_close_unconfirmed', data: this.lastStopEvidence,
+    });
+  }
+
+  _stopChild(child) {
+    if (this.child !== child) return this.lastStopEvidence;
+    return new Promise((resolve, reject) => {
       let settled = false;
+      let timer;
+      const evidence = {
+        process_close_observed: false,
+        kill_attempted: false,
+        kill_returned: null,
+        kill_error: null,
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        child.off('close', finish);
+      };
       const finish = () => {
         if (settled) return;
         settled = true;
-        resolve();
+        cleanup();
+        this.lastStopEvidence = { ...evidence, ...this.lastStopEvidence };
+        resolve(this.lastStopEvidence);
+      };
+      const kill = () => {
+        if (settled || evidence.kill_attempted) return;
+        clearTimeout(timer);
+        evidence.kill_attempted = true;
+        // A successful kill() only means a signal was sent, not that close ran.
+        timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          this.state = 'stop_unconfirmed';
+          this.lastStopEvidence = { ...evidence };
+          this.emit('lifecycle', { state: this.state });
+          reject(new CodexAppServerError('App-server close was not observed after stop.', {
+            code: 'stop_close_unconfirmed', data: { ...evidence },
+          }));
+        }, this.killTimeoutMs);
+        try {
+          evidence.kill_returned = child.kill();
+        } catch (error) {
+          evidence.kill_error = String(error?.message || error);
+        }
       };
       child.once('close', finish);
-      const timer = setTimeout(() => {
-        if (!settled) child.kill();
-        finish();
-      }, this.stopTimeoutMs);
-      timer.unref?.();
+      timer = setTimeout(kill, this.stopTimeoutMs);
       try {
         child.stdin.end();
       } catch {
-        child.kill();
+        kill();
       }
     });
-
-    await this._closePromise;
-    this._closePromise = null;
-    this._finalizeStopped(new CodexAppServerError('Codex app-server stopped.'));
   }
 
   request(method, params = {}, {
     timeoutMs = this.requestTimeoutMs,
     allowWhileStarting = false,
+    onDispatched = null,
   } = {}) {
     this._assertWritable({ allowWhileStarting });
     const id = this._nextRequestId++;
@@ -182,9 +292,22 @@ export class CodexAppServerClient extends EventEmitter {
         }));
       }, timeoutMs);
       timer.unref?.();
-      this._pending.set(id, { method, resolve, reject, timer });
+      const pending = { method, resolve, reject, timer, dispatched: false };
+      this._pending.set(id, pending);
+      const dispatched = () => {
+        // Preserve a late native-write ACK even when the request itself has
+        // timed out: it records a real side effect for the owner.
+        pending.dispatched = true;
+        onDispatched?.();
+      };
       try {
-        this._write({ method, id, params });
+        const sent = this._write({ method, id, params }, dispatched);
+        Promise.resolve(sent).catch((error) => {
+          if (this._pending.get(id) !== pending) return;
+          clearTimeout(timer);
+          this._pending.delete(id);
+          reject(error);
+        });
       } catch (error) {
         clearTimeout(timer);
         this._pending.delete(id);
@@ -195,7 +318,7 @@ export class CodexAppServerClient extends EventEmitter {
 
   notify(method, params = {}) {
     this._assertWritable({ allowWhileStarting: method === 'initialized' });
-    this._write({ method, params });
+    return this._write({ method, params });
   }
 
   respond(requestId, result) {
@@ -225,6 +348,9 @@ export class CodexAppServerClient extends EventEmitter {
       predicate(entry.message)
     ));
     if (existing) return Promise.resolve(existing.message);
+    if (!this.child && !this.attachedTransport) {
+      return Promise.reject(new CodexAppServerError('Codex app-server is not running.'));
+    }
 
     return new Promise((resolve, reject) => {
       const onNotification = (entry) => {
@@ -313,8 +439,8 @@ export class CodexAppServerClient extends EventEmitter {
     });
   }
 
-  interruptTurn(threadId, turnId) {
-    return this.request('turn/interrupt', { threadId, turnId });
+  interruptTurn(threadId, turnId, { onDispatched = null } = {}) {
+    return this.request('turn/interrupt', { threadId, turnId }, { onDispatched });
   }
 
   async runTurn(threadId, text, params = {}, {
@@ -336,7 +462,7 @@ export class CodexAppServerClient extends EventEmitter {
   }
 
   _assertWritable({ allowWhileStarting = false } = {}) {
-    if (!this.child || !this.child.stdin || this.child.stdin.destroyed) {
+    if (!this.attachedTransport && (!this.child || !this.child.stdin || this.child.stdin.destroyed)) {
       throw new CodexAppServerError('Codex app-server is not running.');
     }
     if (this.state !== 'ready' && !(allowWhileStarting && this.state === 'starting')) {
@@ -344,12 +470,17 @@ export class CodexAppServerClient extends EventEmitter {
     }
   }
 
-  _write(message) {
+  _write(message, onDispatched = null) {
+    if (this.attachedTransport) {
+      return this.attachedTransport.send(message, { onDispatched });
+    }
     this.child.stdin.write(`${JSON.stringify(message)}\n`, 'utf8');
+    onDispatched?.();
   }
 
   _attachChild(child) {
     child.stdout.on('data', (chunk) => {
+      if (this.child !== child) return;
       this._stdoutBuffer = this._consumeLines(
         this._stdoutBuffer,
         chunk,
@@ -357,6 +488,7 @@ export class CodexAppServerClient extends EventEmitter {
       );
     });
     child.stderr.on('data', (chunk) => {
+      if (this.child !== child) return;
       this._stderrBuffer = this._consumeLines(
         this._stderrBuffer,
         chunk,
@@ -367,19 +499,61 @@ export class CodexAppServerClient extends EventEmitter {
       );
     });
     child.on('error', (error) => {
+      if (this.child !== child) return;
       this.emit('processError', error);
-      this._finalizeStopped(new CodexAppServerError(
+      // Node also emits error for failed kill/send; only close releases ownership.
+      this._rejectPending(new CodexAppServerError(
         `Codex app-server process error: ${error.message}`,
         { cause: error },
       ));
+      if (this.state !== 'stopping') {
+        this.state = 'unavailable';
+        this.emit('lifecycle', { state: this.state });
+      }
     });
     child.on('close', (code, signal) => {
+      if (this.child !== child) return;
       this._flushBuffers();
-      if (this.state !== 'stopping') {
-        this._finalizeStopped(new CodexAppServerError(
-          `Codex app-server exited unexpectedly (code=${code ?? 'unknown'}, signal=${signal ?? 'none'}).`,
-        ));
+      this.lastStopEvidence = {
+        process_close_observed: true, exit_code: code ?? null, signal: signal ?? null,
+      };
+      this._finalizeStopped(new CodexAppServerError(
+        `Codex app-server closed (code=${code ?? 'unknown'}, signal=${signal ?? 'none'}).`,
+      ));
+    });
+  }
+
+  _attachTransport(transport) {
+    const transportLost = (error) => {
+      if (this.attachedTransport !== transport) return;
+      this.emit('processError', error);
+      this._rejectPending(new CodexAppServerError(
+        `Attached Codex app-server transport error: ${error?.message || error}`,
+        { cause: error },
+      ));
+      // Transport loss is never evidence that the owned native process closed.
+      if (this.state !== 'stopping' && this.state !== 'stop_unconfirmed') {
+        this.state = 'unavailable';
+        this.emit('lifecycle', { state: this.state });
       }
+    };
+    transport.on('message', (message) => {
+      if (this.attachedTransport !== transport) return;
+      if (!message || typeof message !== 'object' || Array.isArray(message)) {
+        this.emit('protocolError', new CodexAppServerError('Attached transport emitted an invalid RPC message.'));
+        return;
+      }
+      this._handleMessage(message);
+    });
+    transport.on('error', transportLost);
+    transport.on('close', (receipt) => {
+      if (this.attachedTransport !== transport) return;
+      if (receipt?.process_close_observed !== true) {
+        transportLost(new CodexAppServerError('Attached transport closed without process-close proof.'));
+        return;
+      }
+      this.lastStopEvidence = { ...receipt, process_close_observed: true };
+      this._finalizeStopped(new CodexAppServerError('Attached Codex app-server closed.'));
     });
   }
 
@@ -414,6 +588,10 @@ export class CodexAppServerClient extends EventEmitter {
       return;
     }
 
+    this._handleMessage(message);
+  }
+
+  _handleMessage(message) {
     if (message.method) {
       if (Object.hasOwn(message, 'id')) {
         this.emit('serverRequest', {
@@ -451,6 +629,19 @@ export class CodexAppServerClient extends EventEmitter {
     }
     this._pending.delete(message.id);
     clearTimeout(pending.timer);
+    if (this.attachedTransport && !pending.dispatched) {
+      const error = new CodexAppServerError(
+        `${pending.method} response arrived before native dispatch acknowledgement.`,
+        { code: 'response_before_dispatch' },
+      );
+      pending.reject(error);
+      this.emit('protocolError', error);
+      if (this.state !== 'stopping' && this.state !== 'stop_unconfirmed') {
+        this.state = 'unavailable';
+        this.emit('lifecycle', { state: this.state });
+      }
+      return;
+    }
     if (message.error) {
       pending.reject(new CodexAppServerError(
         `${pending.method} failed: ${message.error.message || 'unknown error'}`,
@@ -461,15 +652,20 @@ export class CodexAppServerClient extends EventEmitter {
     }
   }
 
-  _finalizeStopped(error) {
-    if (this.state === 'stopped' && this.child == null) return;
+  _rejectPending(error) {
     const pending = Array.from(this._pending.values());
     this._pending.clear();
     for (const item of pending) {
       clearTimeout(item.timer);
       item.reject(error);
     }
+  }
+
+  _finalizeStopped(error) {
+    if (this.state === 'stopped' && this.child == null && this.attachedTransport == null) return;
+    this._rejectPending(error);
     this.child = null;
+    this.attachedTransport = null;
     this.state = 'stopped';
     this.emit('lifecycle', { state: this.state });
     this.emit('stopped', error);

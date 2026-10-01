@@ -1,0 +1,182 @@
+{
+  "contract": "device.activity.v1",
+  "schema_version": 1,
+  "fixture_format_version": 2,
+  "proposal_revision": 5,
+  "cases": [
+    {
+      "name": "valid_event",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.unlocked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "core": {"epoch": "epoch-synthetic-9", "fencing_token": 18, "received_at_ms": 1760000000500},
+      "steps": [
+        {
+          "operation": "submit_events",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 41, "kind": "session.unlocked", "signal_at_ms": 1760000000000, "ttl_ms": 300000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1759999990000, "window_end_ms": 1760000000000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}, "device_projection_state": "active", "person_projection_state": "awake_evidence", "receipt_time_owner": "core"}
+        }
+      ]
+    },
+    {
+      "name": "duplicate_same_payload",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.unlocked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [
+        {
+          "operation": "submit_events",
+          "capture_materialized_event_as": "accepted_event",
+          "capture_receipt_as": "accepted_receipt",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 41, "kind": "session.unlocked", "signal_at_ms": 1760000000000, "ttl_ms": 300000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1759999990000, "window_end_ms": 1760000000000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}}
+        },
+        {
+          "operation": "submit_events",
+          "materialized_event_ref": "accepted_event",
+          "expected": {"outcome": "duplicate", "http": {"status": 200, "result_status": "duplicate"}, "receipt_ref": "accepted_receipt"}
+        }
+      ]
+    },
+    {
+      "name": "heart_rate_quality_without_inference",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-main-android", "probe_id": "probe-synthetic-ble-quality", "display_name": "synthetic-probe", "source": "android_ble_hrs_quality", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 30000, "expiry_slo_ms": 15000, "allowed_kinds": ["sensor.heart_rate_quality"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "core": {"epoch": "epoch-synthetic-9", "fencing_token": 18, "received_at_ms": 1760000001500},
+      "steps": [
+        {
+          "operation": "submit_events",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-main-android", "probe_id": "probe-synthetic-ble-quality", "origin_sequence": 1, "kind": "sensor.heart_rate_quality", "signal_at_ms": 1760000001000, "ttl_ms": 15000, "confidence": "high", "source": "android_ble_hrs_quality", "coverage": {"mode": "discrete_best_effort", "window_start_ms": 1760000001000, "window_end_ms": 1760000001000}, "payload": {"quality": "fresh", "source_age_ms": 500}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}, "person_projection_state": "unknown", "forbidden_states": ["awake_evidence", "resting_candidate", "sleep_candidate"], "allowed_payload_fields": ["quality", "source_age_ms"]}
+        }
+      ]
+    },
+    {
+      "name": "duplicate_different_payload",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.unlocked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [
+        {
+          "operation": "submit_events",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 41, "kind": "session.unlocked", "signal_at_ms": 1760000000000, "ttl_ms": 300000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1759999990000, "window_end_ms": 1760000000000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}}
+        },
+        {
+          "operation": "submit_events",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 41, "kind": "session.unlocked", "signal_at_ms": 1760000000000, "ttl_ms": 300000, "confidence": "low", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1759999990000, "window_end_ms": 1760000000000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "idempotency_conflict", "http": {"status": 409, "error_code": "idempotency_conflict"}, "acceptance_mutated": false}
+        }
+      ]
+    },
+    {
+      "name": "noncanonical_event_id",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [
+        {
+          "operation": "submit_events",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 1, "kind": "session.locked", "signal_at_ms": 1760000100000, "ttl_ms": 60000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000090000, "window_end_ms": 1760000100000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "wire_event_id_override": {"mode": "captured_prefix_with_literal_suffix", "prefix_ref": "setup.capture.event_id_prefix", "literal_suffix": "01"},
+          "expected": {"outcome": "invalid_event_id", "http": {"status": 400, "error_code": "invalid_event_id"}, "acceptance_mutated": false}
+        }
+      ]
+    },
+    {
+      "name": "wrong_event_id_prefix",
+      "setup": {
+        "pair_probes": [
+          {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe-a", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]},
+          {"ref": "sibling", "device_id": "device-synthetic-windows-b", "probe_id": "probe-synthetic-wts-b", "display_name": "synthetic-probe-b", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]}
+        ],
+        "capture": {"event_id_prefix": "pair_probes.primary.response.event_id_prefix", "sibling_event_id_prefix": "pair_probes.sibling.response.event_id_prefix"}
+      },
+      "steps": [
+        {
+          "operation": "submit_events",
+          "credential_ref": "primary",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 1, "kind": "session.locked", "signal_at_ms": 1760000100000, "ttl_ms": 60000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000090000, "window_end_ms": 1760000100000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "wire_event_id_override": {"mode": "different_pairing_prefix_with_canonical_sequence", "prefix_ref": "setup.capture.sibling_event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "event_id_binding_mismatch", "http": {"status": 403, "error_code": "event_id_binding_mismatch"}, "acceptance_mutated": false}
+        }
+      ]
+    },
+    {
+      "name": "event_id_sequence_mismatch",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [
+        {
+          "operation": "submit_events",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 1, "kind": "session.locked", "signal_at_ms": 1760000100000, "ttl_ms": 60000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000090000, "window_end_ms": 1760000100000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "wire_event_id_override": {"mode": "captured_prefix_with_literal_suffix", "prefix_ref": "setup.capture.event_id_prefix", "literal_suffix": "2"},
+          "expected": {"outcome": "event_id_binding_mismatch", "http": {"status": 403, "error_code": "event_id_binding_mismatch"}, "acceptance_mutated": false}
+        }
+      ]
+    },
+    {
+      "name": "credential_rotation_preserves_lineage",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.unlocked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [
+        {"operation": "rotate_probe_credential", "principal_ref": "primary", "expected": {"outcome": "accepted", "http": {"status": 200}, "event_id_prefix_ref": "setup.capture.event_id_prefix"}},
+        {
+          "operation": "submit_events",
+          "credential_generation": 2,
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 2, "kind": "session.unlocked", "signal_at_ms": 1760000002000, "ttl_ms": 300000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1759999992000, "window_end_ms": 1760000002000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}}
+        }
+      ]
+    },
+    {
+      "name": "deleted_lineage_outbox_not_rebound",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut", "display_name": "synthetic-probe", "source": "iphone_shortcuts", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["focus.sleep_on"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "outbox_event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut", "origin_sequence": 8, "kind": "focus.sleep_on", "signal_at_ms": 1760000200000, "ttl_ms": 300000, "confidence": "medium", "source": "iphone_shortcuts", "coverage": {"mode": "discrete_best_effort", "window_start_ms": 1760000200000, "window_end_ms": 1760000200000}, "payload": {}},
+      "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+      "steps": [
+        {"operation": "materialize_and_queue_outbox_event", "capture_materialized_event_as": "deleted_lineage_outbox_event", "capture_outbox_bytes_as": "deleted_lineage_outbox_bytes"},
+        {"operation": "delete_probe", "principal_ref": "primary", "expected": {"outcome": "accepted", "http": {"status": 200}}},
+        {"operation": "pair_new_lineage", "ref": "replacement", "replacement_pair": {"ref": "replacement", "device_id": "device-synthetic-iphone", "probe_id": "probe-synthetic-shortcut-replacement", "display_name": "synthetic-replacement-probe", "source": "iphone_shortcuts", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["focus.sleep_on"], "capabilities": []}, "capture": {"replacement_event_id_prefix": "replacement_pair.response.event_id_prefix", "replacement_probe_token_ref": "replacement_pair.response.probe_token"}, "expected": {"outcome": "accepted", "http": {"status": 200}, "event_id_prefix_must_differ_from": "setup.capture.event_id_prefix"}},
+        {"operation": "resolve_deleted_lineage_outbox", "materialized_event_ref": "deleted_lineage_outbox_event", "outbox_bytes_ref": "deleted_lineage_outbox_bytes", "expected": {"outcome": "client_action_required", "action": "discard_without_rebinding", "must_not_submit_with_replacement_prefix": true, "old_outbox_bytes_rejected": true, "local_outbox_discarded": true}}
+      ]
+    },
+    {
+      "name": "retained_out_retry",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.unlocked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [
+        {
+          "operation": "submit_events",
+          "capture_materialized_event_as": "accepted_event",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 1, "kind": "session.unlocked", "signal_at_ms": 1760000000000, "ttl_ms": 86400000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1759999990000, "window_end_ms": 1760000000000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "accepted", "http": {"status": 200, "result_status": "accepted"}}
+        },
+        {"operation": "advance_retention_past_event_detail", "retained_origin_floor": 1},
+        {"operation": "submit_events", "materialized_event_ref": "accepted_event", "expected": {"outcome": "event_retained_out", "http": {"status": 410, "error_code": "event_retained_out"}, "receipt_must_not_be_guessed": true, "acceptance_mutated": false}}
+      ]
+    }
+  ]
+}

@@ -39,6 +39,8 @@ class TaskQueueSnapshot {
     required this.resumableState,
     required this.failureReason,
     required this.interruptedReason,
+    this.executionPhase,
+    this.resultPreview,
   });
 
   final String id;
@@ -55,6 +57,8 @@ class TaskQueueSnapshot {
   final String? resumableState;
   final String? failureReason;
   final String? interruptedReason;
+  final String? executionPhase;
+  final String? resultPreview;
 
   bool belongsTo(TaskQueueHostScope scope) =>
       ownerProfileId == scope.profileId &&
@@ -77,6 +81,21 @@ class TaskQueueEnqueueResult {
 
 class TaskQueueIdempotencyConflict implements Exception {
   const TaskQueueIdempotencyConflict();
+}
+
+/// An opaque, durable attempt fence. Only the execution owner uses this value.
+class TaskQueueExecutionLease {
+  const TaskQueueExecutionLease({
+    required this.taskId,
+    required this.epoch,
+    required this.goal,
+    required this.previousText,
+  });
+
+  final String taskId;
+  final String epoch;
+  final String goal;
+  final String previousText;
 }
 
 /// TaskRoomService: 管理任务房间、产物和决策
@@ -133,6 +152,238 @@ class TaskRoomService {
   Future<int> restoreInterruptedTaskRoomsOnce() {
     return _startupRecovery ??= restoreInterruptedTaskRooms();
   }
+
+  /// Claims only the exact, explicitly requested task. No queue scanning or
+  /// automatic scheduling is performed. A duplicate request never starts a
+  /// second provider turn, even after restart or a later failed attempt.
+  Future<TaskQueueExecutionLease?> claimTaskQueueExecution({
+    required String id,
+    required TaskQueueHostScope scope,
+    required String requestId,
+    required String action,
+  }) => _db.transaction(() async {
+    final room = await _getTaskRoomInTransaction(id);
+    if (room == null || !_queueSnapshot(room).belongsTo(scope) ||
+        room.executor != 'workbench_runtime' ||
+        room.conversationId != scope.scopeId) {
+      throw StateError('task_not_available');
+    }
+    final permissions = jsonDecode(room.permissionsJson);
+    if (permissions is! Map || permissions['profile_id'] != scope.profileId ||
+        permissions['scope_type'] != scope.scopeType ||
+        permissions['scope_id'] != scope.scopeId) {
+      throw StateError('task_not_available');
+    }
+    if (requestId.isEmpty || requestId.length > 256) {
+      throw ArgumentError('invalid_execution_request');
+    }
+    final context = _readContext(room);
+    final queue = _queueForContext(context);
+    final requests = Map<String, dynamic>.from(
+      queue['executionRequests'] as Map? ?? const {},
+    );
+    if (requests.containsKey(requestId)) {
+      if (requests[requestId] != action) {
+        throw const TaskQueueIdempotencyConflict();
+      }
+      return null;
+    }
+    // Preserve every accepted key; never evict one and silently replay it.
+    if (requests.length >= 128) throw StateError('execution_request_limit');
+    final prior = Map<String, dynamic>.from(
+      queue['execution'] as Map? ?? const {},
+    );
+    if (const ['starting', 'running', 'stopping'].contains(prior['phase'])) {
+      throw StateError('execution_already_active');
+    }
+    final status = TaskStatus.fromString(room.status);
+    switch (action) {
+      case 'start':
+        if (status != TaskStatus.pending) throw StateError('task_not_startable');
+        break;
+      case 'resume':
+        if (status != TaskStatus.blocked || !_isQueueResumable(queue)) {
+          throw StateError('task_not_resumable');
+        }
+        break;
+      case 'retry':
+        if (status != TaskStatus.failed) throw StateError('task_not_retryable');
+        final count = queue[_queueRetryCountKey] as int;
+        if (count >= (queue[_queueMaxRetriesKey] as int)) {
+          throw StateError('task_retry_limit_reached');
+        }
+        queue[_queueRetryCountKey] = count + 1;
+        break;
+      default:
+        throw ArgumentError('invalid_execution_action');
+    }
+    final epoch = _uuid.v4();
+    requests[requestId] = action;
+    final previousText = action == 'resume'
+        ? (prior['resultText'] as String? ?? '') : '';
+    queue
+      ..['executionRequests'] = requests
+      ..['execution'] = {
+        'epoch': epoch,
+        'phase': 'starting',
+        'sequence': 0,
+        'resultText': '',
+        'resumedFromPartial': previousText.isNotEmpty,
+      }
+      ..remove(_queueResumableStateKey)
+      ..remove(_queuePausedReasonKey)
+      ..remove(_queueInterruptedReasonKey)
+      ..remove(_queueFailedReasonKey);
+    context[_queueContextKey] = queue;
+    await _writeTaskStatusAndContext(
+      id: id, status: TaskStatus.pending, context: context,
+      now: DateTime.now().millisecondsSinceEpoch,
+      progressPercent: 0, currentStep: '正在连接独立文字执行会话',
+    );
+    return TaskQueueExecutionLease(
+      taskId: id, epoch: epoch, goal: room.goal, previousText: previousText,
+    );
+  });
+
+  /// Reserves a stop request and fences provider events in the same transaction.
+  /// Keys are shared with start/resume/retry, so a replayed pause from an older
+  /// attempt cannot stop a newer resumed attempt.
+  Future<bool> beginTaskQueueExecutionStop({
+    required String id,
+    required TaskQueueHostScope scope,
+    required String requestId,
+    required bool cancel,
+    TaskQueueExecutionLease? lease,
+    bool pendingOnly = false,
+  }) => _db.transaction(() async {
+    final room = await _getTaskRoomInTransaction(id);
+    if (room == null || !_queueSnapshot(room).belongsTo(scope) ||
+        room.executor != 'workbench_runtime' ||
+        room.conversationId != scope.scopeId) {
+      throw StateError('task_not_available');
+    }
+    final permissions = jsonDecode(room.permissionsJson);
+    if (permissions is! Map || permissions['profile_id'] != scope.profileId ||
+        permissions['scope_type'] != scope.scopeType ||
+        permissions['scope_id'] != scope.scopeId) {
+      throw StateError('task_not_available');
+    }
+    if (requestId.isEmpty || requestId.length > 256) {
+      throw ArgumentError('invalid_execution_request');
+    }
+    final context = _readContext(room);
+    final queue = _queueForContext(context);
+    final requests = Map<String, dynamic>.from(
+      queue['executionRequests'] as Map? ?? const {},
+    );
+    final action = cancel ? 'cancel' : 'pause';
+    if (requests.containsKey(requestId)) {
+      if (requests[requestId] != action) throw const TaskQueueIdempotencyConflict();
+      return false;
+    }
+    if (requests.length >= 128) throw StateError('execution_request_limit');
+    final execution = Map<String, dynamic>.from(
+      queue['execution'] as Map? ?? const {},
+    );
+    final status = TaskStatus.fromString(room.status);
+    if (lease == null) {
+      if (cancel && status == TaskStatus.cancelled) return false;
+      if (!cancel && status == TaskStatus.blocked && execution['phase'] == 'paused') {
+        return false;
+      }
+      if (!cancel || !((status == TaskStatus.pending && execution.isEmpty) ||
+          (!pendingOnly && status == TaskStatus.blocked && execution['phase'] == 'paused'))) {
+        throw StateError('execution_owner_unavailable');
+      }
+      execution['phase'] = 'cancelled';
+    } else {
+      if (status.isTerminal || execution['epoch'] != lease.epoch ||
+          !const ['starting', 'running'].contains(execution['phase'])) {
+        throw StateError('execution_state_changed');
+      }
+      execution['phase'] = 'stopping';
+    }
+    requests[requestId] = action;
+    queue['executionRequests'] = requests;
+    queue['execution'] = execution;
+    final nextStatus = lease == null ? TaskStatus.cancelled : status;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (nextStatus != status) {
+      _applyStatusQueueMetadata(queue: queue, status: nextStatus, now: now);
+    }
+    context[_queueContextKey] = queue;
+    await _writeTaskStatusAndContext(id: id, status: nextStatus,
+      context: context, now: now,
+      currentStep: lease == null ? '等待任务已取消' : '正在等待执行器确认停止');
+    return true;
+  });
+
+  /// Safe controllerless fallback. The pending/never-started check and cancel
+  /// share one transaction, so a racing execution claim cannot be overwritten.
+  Future<bool> cancelPendingTaskQueue({
+    required String id,
+    required TaskQueueHostScope scope,
+    required String requestId,
+  }) => beginTaskQueueExecutionStop(id: id, scope: scope, requestId: requestId,
+    cancel: true, pendingOnly: true);
+
+  /// Atomic compare-and-write for provider events and control completion.
+  /// A stopped, replaced or recovered attempt cannot be changed by late events.
+  Future<bool> writeTaskQueueExecution({
+    required TaskQueueExecutionLease lease,
+    required Set<String> expectedPhases,
+    required String phase,
+    required TaskStatus status,
+    String? sessionId,
+    String? turnId,
+    int? sequence,
+    String? resultText,
+    String? reason,
+    String? currentStep,
+  }) => _db.transaction(() async {
+    final room = await _getTaskRoomInTransaction(lease.taskId);
+    if (room == null || TaskStatus.fromString(room.status).isTerminal) return false;
+    final context = _readContext(room);
+    final queue = _queueForContext(context);
+    final execution = Map<String, dynamic>.from(
+      queue['execution'] as Map? ?? const {},
+    );
+    if (execution['epoch'] != lease.epoch ||
+        !expectedPhases.contains(execution['phase'])) {
+      return false;
+    }
+    if (sequence != null && sequence <= (execution['sequence'] as int? ?? 0)) {
+      return false;
+    }
+    if (resultText != null && resultText.length > 24000) {
+      throw ArgumentError('execution_output_limit');
+    }
+    execution['phase'] = phase;
+    if (sessionId != null) execution['sessionId'] = sessionId;
+    if (turnId != null) execution['turnId'] = turnId;
+    if (sequence != null) execution['sequence'] = sequence;
+    if (resultText != null) execution['resultText'] = resultText;
+    if (reason != null) execution['reason'] = reason;
+    queue['execution'] = execution;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (status.value != room.status) {
+      _applyStatusQueueMetadata(queue: queue, status: status, now: now,
+        failureReason: reason);
+    }
+    if (status == TaskStatus.blocked) {
+      queue[_queueResumableStateKey] = phase == 'paused'
+          ? _queuePausedState : _queueInterruptedState;
+      if (phase != 'paused') queue[_queueInterruptedReasonKey] = reason;
+    }
+    context[_queueContextKey] = queue;
+    await _writeTaskStatusAndContext(
+      id: lease.taskId, status: status, context: context, now: now,
+      // Percentages are not guessed from elapsed time or token counts.
+      progressPercent: status == TaskStatus.completed ? 100 : null,
+      currentStep: currentStep,
+    );
+    return true;
+  });
 
   // ========================================================================
   // Task Room CRUD
@@ -504,9 +755,16 @@ class TaskRoomService {
   /// 重启/进程恢复：将运行中任务标记为可恢复暂停态。
   Future<int> restoreInterruptedTaskRooms() async {
     final restored = await _db.transaction(() async {
-      final interrupted = await (_db.select(_db.taskRooms)
-            ..where((t) => t.status.equals(TaskStatus.running.value)))
+      final candidates = await (_db.select(_db.taskRooms)
+            ..where((t) => t.status.equals(TaskStatus.running.value) |
+                t.status.equals(TaskStatus.pending.value)))
           .get();
+      final interrupted = candidates.where((room) {
+        if (room.status == TaskStatus.running.value) return true;
+        final execution = _queueForContext(_readContext(room))['execution'];
+        return execution is Map &&
+            const ['starting', 'running', 'stopping'].contains(execution['phase']);
+      }).toList();
       final now = DateTime.now().millisecondsSinceEpoch;
 
       for (final room in interrupted) {
@@ -516,6 +774,12 @@ class TaskRoomService {
           ..[_queueInterruptedReasonKey] = _interruptedByRestartReason
           ..[_queueResumableStateKey] = _queueInterruptedState
           ..[_queueLastRecoveredAtKey] = now;
+        final execution = queue['execution'];
+        if (execution is Map) {
+          queue['execution'] = Map<String, dynamic>.from(execution)
+            ..['phase'] = 'interrupted'
+            ..['reason'] = _interruptedByRestartReason;
+        }
         context[_queueContextKey] = queue;
         await _writeTaskStatusAndContext(
           id: room.id,
@@ -718,6 +982,8 @@ class TaskRoomService {
 
   TaskQueueSnapshot _queueSnapshot(TaskRoom room) {
     final queue = _queueForContext(_readContext(room));
+    final execution = queue['execution'];
+    final output = execution is Map ? execution['resultText'] : null;
     String? stringValue(String key) {
       final value = queue[key];
       return value is String && value.isNotEmpty ? value : null;
@@ -738,6 +1004,10 @@ class TaskRoomService {
       resumableState: stringValue(_queueResumableStateKey),
       failureReason: stringValue(_queueFailedReasonKey),
       interruptedReason: stringValue(_queueInterruptedReasonKey),
+      executionPhase: execution is Map ? execution['phase'] as String? : null,
+      resultPreview: output is String && output.isNotEmpty
+          ? output.substring(0, output.length > 500 ? 500 : output.length)
+          : null,
     );
   }
 

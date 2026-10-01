@@ -38,7 +38,8 @@ class BleHeartRateStore(private val context: Context) {
         private const val RETENTION_DAYS = 14L
         private const val MAX_DIAGNOSTICS = 40
         private const val FLUSH_INTERVAL_MS = 7_000L
-        private const val SNAPSHOT_PERSIST_INTERVAL_MS = 5_000L
+        private const val SNAPSHOT_PERSIST_INTERVAL_MS = 30_000L
+        private const val WATCHDOG_TOKEN_COUNTER = "connect_watchdog_token_counter"
 
         fun userKey(userId: String): String {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -64,15 +65,20 @@ class BleHeartRateStore(private val context: Context) {
     @Synchronized
     fun select(userId: String, address: String, name: String?): SelectedHeartRateDevice {
         val key = userKey(userId)
+        val previousActiveKey = prefs.getString(ACTIVE_USER, null)
         val config = SelectedHeartRateDevice(key, address, name?.take(120), true)
-        prefs.edit()
+        val editor = prefs.edit()
             .putString(ACTIVE_USER, key)
             .putString(configKey(key), JSONObject().apply {
                 put("address", config.address)
                 put("name", config.name)
                 put("enabled", true)
             }.toString())
-            .apply()
+            .remove(connectWatchdogKey(key))
+        if (previousActiveKey != null && previousActiveKey != key) {
+            editor.remove(connectWatchdogKey(previousActiveKey))
+        }
+        editor.apply()
         prefs.edit().remove(snapshotKey(key)).apply()
         snapshotCache.remove(key)
         updateStatus(key, "connecting", "selected", configured = true, enabled = true)
@@ -82,6 +88,71 @@ class BleHeartRateStore(private val context: Context) {
     @Synchronized
     fun activeConfig(): SelectedHeartRateDevice? =
         prefs.getString(ACTIVE_USER, null)?.let(::loadConfig)
+
+    @Synchronized
+    fun activeRetryAtMs(): Long? {
+        val key = prefs.getString(ACTIVE_USER, null) ?: return null
+        val snapshot = readSnapshotJson(key) ?: return null
+        if (snapshot.optString("status") != "reconnecting" || snapshot.isNull("retryAtMs")) {
+            return null
+        }
+        return snapshot.optLong("retryAtMs", 0L).takeIf { it > 0L }
+    }
+
+    @Synchronized
+    internal fun nextConnectWatchdogToken(): Long {
+        val previous = prefs.getLong(WATCHDOG_TOKEN_COUNTER, 0L)
+        val next = maxOf(previous + 1L, System.currentTimeMillis())
+        prefs.edit().putLong(WATCHDOG_TOKEN_COUNTER, next).commit()
+        return next
+    }
+
+    @Synchronized
+    internal fun saveConnectWatchdog(
+        userKey: String,
+        plan: BleConnectWatchdogPlan,
+    ): Boolean = prefs.edit().putString(
+        connectWatchdogKey(userKey),
+        JSONObject().apply {
+            put("token", plan.token)
+            put("generation", plan.generation)
+            put("dueAtMs", plan.dueAtMs)
+            put("deviceAddress", plan.deviceAddress)
+        }.toString(),
+    ).commit()
+
+    @Synchronized
+    internal fun activeConnectWatchdog(): BleConnectWatchdogPlan? {
+        val key = prefs.getString(ACTIVE_USER, null) ?: return null
+        return connectWatchdog(key)
+    }
+
+    @Synchronized
+    internal fun clearActiveConnectWatchdog(expectedToken: Long? = null): Boolean {
+        val key = prefs.getString(ACTIVE_USER, null) ?: return expectedToken == null
+        return clearConnectWatchdog(key, expectedToken)
+    }
+
+    @Synchronized
+    internal fun clearConnectWatchdog(
+        userKey: String,
+        expectedToken: Long? = null,
+    ): Boolean {
+        if (expectedToken != null && connectWatchdog(userKey)?.token != expectedToken) {
+            return false
+        }
+        return prefs.edit().remove(connectWatchdogKey(userKey)).commit()
+    }
+
+    @Synchronized
+    internal fun replaceActiveConnectWatchdog(
+        expected: BleConnectWatchdogPlan,
+        replacement: BleConnectWatchdogPlan,
+    ): Boolean {
+        val key = prefs.getString(ACTIVE_USER, null) ?: return false
+        if (connectWatchdog(key) != expected) return false
+        return saveConnectWatchdog(key, replacement)
+    }
 
     @Synchronized
     fun configForUser(userId: String): SelectedHeartRateDevice? = loadConfig(userKey(userId))
@@ -95,10 +166,12 @@ class BleHeartRateStore(private val context: Context) {
             put("enabled", enabled)
         }.toString()).apply()
         if (enabled) prefs.edit().putString(ACTIVE_USER, userKey).apply()
+        if (!enabled) prefs.edit().remove(connectWatchdogKey(userKey)).commit()
     }
 
     @Synchronized
     fun forget(userKey: String) {
+        prefs.edit().remove(connectWatchdogKey(userKey)).commit()
         if (prefs.getString(ACTIVE_USER, null) == userKey) {
             prefs.edit().remove(ACTIVE_USER).apply()
         }
@@ -219,6 +292,12 @@ class BleHeartRateStore(private val context: Context) {
         return (0 until array.length()).mapNotNull { array.optJSONObject(it)?.toMap() }
     }
 
+    @Synchronized
+    internal fun recordActiveDiagnostic(status: String, reason: String) {
+        val key = prefs.getString(ACTIVE_USER, null) ?: return
+        addDiagnostic(key, status, reason, synchronous = true)
+    }
+
     fun close() {
         if (!ioExecutorDelegate.isInitialized()) return
         val snapshots = snapshotCache.toMap()
@@ -243,6 +322,22 @@ class BleHeartRateStore(private val context: Context) {
                 name = json.optString("name").takeIf { it.isNotBlank() && it != "null" },
                 enabled = json.optBoolean("enabled", false),
             )
+        }.getOrNull()
+    }
+
+    private fun connectWatchdog(userKey: String): BleConnectWatchdogPlan? {
+        val raw = prefs.getString(connectWatchdogKey(userKey), null) ?: return null
+        return runCatching {
+            val json = JSONObject(raw)
+            BleConnectWatchdogPlan(
+                token = json.getLong("token"),
+                generation = json.getLong("generation"),
+                dueAtMs = json.getLong("dueAtMs"),
+                deviceAddress = json.getString("deviceAddress"),
+            ).takeIf {
+                it.token > 0L && it.generation > 0L && it.dueAtMs > 0L &&
+                    it.deviceAddress.isNotBlank()
+            }
         }.getOrNull()
     }
 
@@ -293,7 +388,12 @@ class BleHeartRateStore(private val context: Context) {
         }.toString())
     }
 
-    private fun addDiagnostic(userKey: String, status: String, reason: String?) {
+    private fun addDiagnostic(
+        userKey: String,
+        status: String,
+        reason: String?,
+        synchronous: Boolean = false,
+    ) {
         val current = readDiagnostics(userKey)
         current.put(JSONObject().apply {
             put("timestampMs", System.currentTimeMillis())
@@ -303,7 +403,8 @@ class BleHeartRateStore(private val context: Context) {
         val trimmed = JSONArray()
         val start = (current.length() - MAX_DIAGNOSTICS).coerceAtLeast(0)
         for (index in start until current.length()) trimmed.put(current.get(index))
-        prefs.edit().putString(diagnosticsKey(userKey), trimmed.toString()).apply()
+        val editor = prefs.edit().putString(diagnosticsKey(userKey), trimmed.toString())
+        if (synchronous) editor.commit() else editor.apply()
     }
 
     private fun readDiagnostics(userKey: String): JSONArray =
@@ -336,8 +437,13 @@ class BleHeartRateStore(private val context: Context) {
 
     private fun persistSnapshotOnIo(userKey: String, snapshotText: String, force: Boolean) {
         val now = System.currentTimeMillis()
-        val last = lastSnapshotPersistAt[userKey] ?: 0L
-        if (!force && now - last < SNAPSHOT_PERSIST_INTERVAL_MS) return
+        if (!BleSnapshotPersistPolicy.shouldPersist(
+                lastPersistAtMs = lastSnapshotPersistAt[userKey],
+                nowMs = now,
+                force = force,
+                intervalMs = SNAPSHOT_PERSIST_INTERVAL_MS,
+            )
+        ) return
         prefs.edit().putString(snapshotKey(userKey), snapshotText).commit()
         lastSnapshotPersistAt[userKey] = now
     }
@@ -368,6 +474,7 @@ class BleHeartRateStore(private val context: Context) {
     private fun configKey(userKey: String) = "config_$userKey"
     private fun snapshotKey(userKey: String) = "snapshot_$userKey"
     private fun diagnosticsKey(userKey: String) = "diagnostics_$userKey"
+    private fun connectWatchdogKey(userKey: String) = "connect_watchdog_$userKey"
 }
 
 private fun JSONObject.toMap(): Map<String, Any?> = keys().asSequence().associateWith { key ->
@@ -377,6 +484,18 @@ private fun JSONObject.toMap(): Map<String, Any?> = keys().asSequence().associat
         is JSONArray -> value.toList()
         else -> value
     }
+}
+
+internal object BleSnapshotPersistPolicy {
+    fun shouldPersist(
+        lastPersistAtMs: Long?,
+        nowMs: Long,
+        force: Boolean,
+        intervalMs: Long,
+    ): Boolean = force ||
+        lastPersistAtMs == null ||
+        nowMs < lastPersistAtMs ||
+        nowMs - lastPersistAtMs >= intervalMs
 }
 
 private fun JSONArray.toList(): List<Any?> = (0 until length()).map { index ->

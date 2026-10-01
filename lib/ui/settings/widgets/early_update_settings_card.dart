@@ -290,14 +290,19 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
 
   Widget _buildShell({required Widget child}) {
     final tokens = context.springRainUi;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: tokens.surface,
+    // The surface color must be carried by a Material so that ink splashes from
+    // nested ListTiles paint above it instead of being hidden behind it.
+    return Material(
+      color: tokens.surface,
+      borderRadius: BorderRadius.circular(tokens.radius18),
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(tokens.radius18),
-        border: Border.all(color: tokens.divider),
+        side: BorderSide(color: tokens.divider),
       ),
-      child: child,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: child,
+      ),
     );
   }
 

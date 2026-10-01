@@ -37,7 +37,19 @@ Future<String> _createReminderWithAlarm({
 /// companion agent — the character name is used as the notification title and the
 /// characterId is embedded as the notification payload so tapping it navigates
 /// directly to that character's chat screen.
-Tool buildSystemCheckinTool({String? characterId, String? characterName}) {
+Tool buildSystemCheckinTool({
+  String? characterId,
+  String? characterName,
+  SystemMessageQueueData? Function()? triggerProvider,
+}) {
+  Future<bool> canDeliver() async {
+    final trigger = triggerProvider?.call();
+    if (triggerProvider != null) {
+      return trigger != null &&
+          await CheckinService.instance.canDeliverTrigger(trigger);
+    }
+    return CheckinService.instance.isEnabled();
+  }
   final titleNote = characterName != null
       ? 'The notification title will always be "$characterName" — you only need to write the body.'
       : 'Set a short, natural notification title.';
@@ -142,6 +154,9 @@ Even a simple "thinking of you" style message is better than staying silent.''',
             }
           }
 
+          if (!await canDeliver()) {
+            return 'Check-in cancelled: proactive contact is disabled or the trigger is no longer active.';
+          }
           // ignore: avoid_print
           print(
               '[system_checkin] NOTIFY → title="$effectiveTitle" body="$body"');
@@ -178,13 +193,22 @@ Even a simple "thinking of you" style message is better than staying silent.''',
             throw ArgumentError(
                 'delay_minutes and text are required for remind');
           }
+          if (!await canDeliver()) {
+            return 'Check-in cancelled: proactive contact is disabled or the trigger is no longer active.';
+          }
           final dueAt = DateTime.now().add(Duration(minutes: delayMinutes));
+          final trigger = triggerProvider?.call();
+          final proactive = triggerProvider == null ||
+              (trigger != null && CheckinService.isProactiveTrigger(trigger));
           // ignore: avoid_print
           print('[system_checkin] REMIND → in ${delayMinutes}min: "$text"');
           await _createReminderWithAlarm(
             text: text,
             dueAt: dueAt,
             characterId: characterId,
+            contextJson: proactive
+                ? jsonEncode({'kind': 'checkin_followup'})
+                : null,
           );
           return 'Reminder created: in $delayMinutes min — "$text"';
         default:

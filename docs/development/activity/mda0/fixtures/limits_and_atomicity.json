@@ -1,0 +1,57 @@
+{
+  "contract": "device.activity.v1",
+  "schema_version": 1,
+  "fixture_format_version": 2,
+  "proposal_revision": 5,
+  "cases": [
+    {
+      "name": "oversized_payload",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-android-b", "probe_id": "probe-synthetic-tasker", "display_name": "synthetic-probe", "source": "android_tasker", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["input.activity"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "limits": {"maximum_payload_bytes": 4096},
+      "steps": [{
+        "operation": "submit_events",
+        "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-android-b", "probe_id": "probe-synthetic-tasker", "origin_sequence": 42, "kind": "input.activity", "signal_at_ms": 1760000500000, "ttl_ms": 60000, "confidence": "high", "source": "android_tasker", "coverage": {"mode": "discrete_best_effort", "window_start_ms": 1760000500000, "window_end_ms": 1760000500000}, "payload": {"class": "input_or_touch"}},
+        "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+        "payload_materialization": {"mode": "append_synthetic_padding", "field": "padding", "target_encoded_payload_bytes": 4097},
+        "expected": {"outcome": "payload_too_large", "http": {"status": 413, "error_code": "payload_too_large"}, "acceptance_mutated": false}
+      }]
+    },
+    {
+      "name": "batch_atomic_rejection",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-android-b", "probe_id": "probe-synthetic-tasker", "display_name": "synthetic-probe", "source": "android_tasker", "coverage_mode": "discrete_best_effort", "expected_report_interval_ms": 300000, "expiry_slo_ms": 300000, "allowed_kinds": ["input.activity"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix"}
+      },
+      "steps": [{
+        "operation": "submit_events",
+        "event_templates": [
+          {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-android-b", "probe_id": "probe-synthetic-tasker", "origin_sequence": 43, "kind": "input.activity", "signal_at_ms": 1760000600000, "ttl_ms": 60000, "confidence": "high", "source": "android_tasker", "coverage": {"mode": "discrete_best_effort", "window_start_ms": 1760000600000, "window_end_ms": 1760000600000}, "payload": {"class": "input_or_touch"}},
+          {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-android-b", "probe_id": "probe-synthetic-tasker", "origin_sequence": 44, "kind": "device.forbidden_observed", "signal_at_ms": 1760000601000, "ttl_ms": 60000, "confidence": "high", "source": "android_tasker", "coverage": {"mode": "discrete_best_effort", "window_start_ms": 1760000601000, "window_end_ms": 1760000601000}, "payload": {}}
+        ],
+        "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+        "expected": {"outcome": "batch_rejected_atomically", "http": {"status": 400, "error_code": "unsupported_kind"}, "accepted_items": 0, "rejected_item_reason": "unsupported_kind"}
+      }]
+    },
+    {
+      "name": "stale_epoch_or_fencing",
+      "setup": {
+        "pair_probe": {"ref": "primary", "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "display_name": "synthetic-probe", "source": "windows_wts", "coverage_mode": "continuous", "expected_report_interval_ms": 30000, "expiry_slo_ms": 300000, "allowed_kinds": ["session.locked"]},
+        "capture": {"event_id_prefix": "pair_probe.response.event_id_prefix", "probe_token_ref": "pair_probe.response.probe_token"}
+      },
+      "core": {"pairing_epoch": "epoch-synthetic-9", "active_epoch": "epoch-synthetic-10", "active_fencing_token": 19},
+      "steps": [
+        {"operation": "advance_core_authority", "from_epoch": "epoch-synthetic-9", "to_epoch": "epoch-synthetic-10", "fencing_token": 19},
+        {
+          "operation": "submit_events",
+          "credential_ref": "setup.capture.probe_token_ref",
+          "event_template": {"contract": "device.activity.v1", "schema_version": 1, "device_id": "device-synthetic-windows", "probe_id": "probe-synthetic-wts", "origin_sequence": 1, "kind": "session.locked", "signal_at_ms": 1760000700000, "ttl_ms": 60000, "confidence": "high", "source": "windows_wts", "coverage": {"mode": "continuous", "window_start_ms": 1760000690000, "window_end_ms": 1760000700000, "expected_report_interval_ms": 30000}, "payload": {}},
+          "event_id_recipe": {"mode": "pairing_prefix_dot_canonical_sequence", "prefix_ref": "setup.capture.event_id_prefix", "origin_sequence_field": "origin_sequence"},
+          "expected": {"outcome": "stale_epoch_or_fencing", "http": {"status": 409, "error_code": "stale_authority_epoch"}, "acceptance_mutated": false}
+        }
+      ]
+    }
+  ]
+}

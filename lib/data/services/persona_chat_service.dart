@@ -7,9 +7,10 @@ import 'package:memex/data/services/device_identity_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:uuid/uuid.dart';
+import '../workbench_ai/workbench_desktop_user_message_store.dart';
 
 /// Service for managing persona chat messages.
-class PersonaChatService {
+class PersonaChatService implements WorkbenchDesktopUserMessageStore {
   static const _uuid = Uuid();
   static const _outboxBucket = 'core_sync_outbox';
   static PersonaChatService? _instance;
@@ -105,6 +106,7 @@ class PersonaChatService {
     return row.read(countExp) ?? 0;
   }
 
+  @override
   Future<int> addUserMessage(
     String characterId,
     String content, {

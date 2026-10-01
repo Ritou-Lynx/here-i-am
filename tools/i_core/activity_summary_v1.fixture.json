@@ -1,0 +1,50 @@
+{
+  "contract": "device.activity.v1",
+  "schema_version": 1,
+  "generated_at_ms": 1000000,
+  "authority": {
+    "node_id": "synthetic-node",
+    "epoch": 1
+  },
+  "devices": [
+    {
+      "device_id": "device-synthetic-windows",
+      "state": "active",
+      "sources": [
+        {
+          "device_id": "device-synthetic-windows",
+          "probe_id": "probe-synthetic-wts",
+          "source": "windows_wts",
+          "state": "active",
+          "credential_state": "active",
+          "status_reason": "fresh_signal",
+          "occurred_at_ms": 1000000,
+          "received_at_ms": 1000000,
+          "ttl_ms": 300000,
+          "freshness": {
+            "fresh": true,
+            "expires_at_ms": 1300000,
+            "server_time_ms": 1000000
+          },
+          "coverage": {
+            "mode": "continuous",
+            "window_start_ms": 970000,
+            "window_end_ms": 1000000,
+            "expected_report_interval_ms": 30000
+          },
+          "registered_coverage": {
+            "mode": "continuous",
+            "expected_report_interval_ms": 30000,
+            "expiry_slo_ms": 300000
+          },
+          "coverage_status": "covered",
+          "clock_health": "healthy"
+        }
+      ]
+    }
+  ],
+  "semantics": {
+    "silence_is_unknown": true,
+    "sleep_inference": "not_supported"
+  }
+}

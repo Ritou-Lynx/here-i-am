@@ -54,6 +54,7 @@ Remove-Item Env:I_CORE_CERT -ErrorAction SilentlyContinue
 Remove-Item Env:I_CORE_KEY -ErrorAction SilentlyContinue
 Remove-Item Env:I_CORE_WORKER_SECRET -ErrorAction SilentlyContinue
 Remove-Item Env:I_CORE_COMPANION_REPLY_JOBS -ErrorAction SilentlyContinue
+Remove-Item Env:I_CORE_ACTIVITY_ADMIN_SECRET -ErrorAction SilentlyContinue
 Remove-Item Env:I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED -ErrorAction SilentlyContinue
 if (
   (Test-Path -LiteralPath $shortcutMailEnableMarker -PathType Leaf) -and

@@ -5,6 +5,7 @@ import 'package:memex/agent/skills/character_tools_factory.dart';
 import 'package:memex/data/services/toy_control_service.dart'
     show ToyController;
 import 'package:memex/domain/models/character_model.dart';
+import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/user_storage.dart';
 
 class CompanionAgentSkill extends Skill {
@@ -15,6 +16,7 @@ class CompanionAgentSkill extends Skill {
     bool includeCheckinTools = false,
     ToyController? toyControlService,
     InitiateCallPolicy? initiateCallPolicy,
+    SystemMessageQueueData? Function()? backgroundTrigger,
     List<String>? turnImageAnalyses,
     String? currentUserMessageText,
     super.forceActivate,
@@ -34,6 +36,7 @@ class CompanionAgentSkill extends Skill {
             includeCheckinTools: includeCheckinTools,
             toyControlService: toyControlService,
             initiateCallPolicy: initiateCallPolicy,
+            backgroundTrigger: backgroundTrigger,
             turnImageAnalyses: turnImageAnalyses,
             currentUserMessageText: currentUserMessageText,
           ),

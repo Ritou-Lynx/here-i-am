@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:logging/logging.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,6 +37,11 @@ import 'package:memex/data/services/agent_activity_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
+import 'package:memex/data/workbench_ai/task_queue/workbench_task_queue_lifecycle_owner.dart';
+import 'package:memex/data/workbench_ai/workbench_conversation_coordinator.dart';
+import 'package:memex/data/workbench_ai/product/ordinary_desktop_candidate_storage.dart';
+import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
+import 'package:memex/ui/desktop/desktop_exit_gate.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/data/services/publish_timestamp_service.dart';
 import 'package:memex/data/services/health_service.dart';
@@ -150,15 +156,34 @@ void _installGlobalErrorLogging() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final isDesktop =
-      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  final isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   // Mobile identity comes from the native flavor. Flutter desktop does not
   // supply one for a normal build, and this project's desktop app is Here I
   // am V3, so use that identity only when no explicit flavor was provided.
   AppFlavor.init(appFlavor, defaultToHereIAm: isDesktop);
 
-  await setupLogger();
+  const candidateRoot =
+      String.fromEnvironment('GOAL1_P6_ORDINARY_CANDIDATE_ROOT');
+  const candidateId = String.fromEnvironment('GOAL1_P6_ORDINARY_CANDIDATE_ID');
+  if (candidateRoot.isNotEmpty || candidateId.isNotEmpty) {
+    if (!kDebugMode ||
+        !Platform.isWindows ||
+        candidateRoot.isEmpty ||
+        candidateId.isEmpty) {
+      throw StateError('Isolated desktop candidate configuration is invalid');
+    }
+    await OrdinaryDesktopCandidateStorage.install(
+      Directory(candidateRoot),
+      candidateId: candidateId,
+    );
+  }
+
+  await setupLogger(
+    logDirectory: OrdinaryDesktopCandidateStorage.isActive
+        ? Directory(OrdinaryDesktopCandidateStorage.logsPath)
+        : null,
+  );
   _installGlobalErrorLogging();
 
   // Initialize l10n
@@ -175,9 +200,16 @@ void main() async {
       await UserStorage.saveUser(userId);
     }
     if (!AppDatabase.isInitialized) {
-      await AppDatabase.init(userId);
+      await AppDatabase.init(
+        userId,
+        databasePath: OrdinaryDesktopCandidateStorage.isActive
+            ? OrdinaryDesktopCandidateStorage.databasePath
+            : null,
+      );
     }
-    SharedLifeMemoryService.init(AppDatabase.instance, userId);
+    if (!OrdinaryDesktopCandidateStorage.isActive) {
+      SharedLifeMemoryService.init(AppDatabase.instance, userId);
+    }
     AgentActivityService.setInstance(LocalAgentActivityService.instance);
   }
 
@@ -257,7 +289,8 @@ void main() async {
     // getNotificationAppLaunchDetails() to recover the payload.
     // Skip if setTapHandler already replayed a buffered payload.
     if (!NotificationService.instance.consumedPendingPayload) {
-      final launchPayload = await NotificationService.instance.getLaunchPayload();
+      final launchPayload =
+          await NotificationService.instance.getLaunchPayload();
       if (launchPayload != null && launchPayload.isNotEmpty) {
         handleNotificationPayload(launchPayload);
       }
@@ -331,7 +364,9 @@ void main() async {
   // MemexRouter is provided via config/dependencies.dart and created on first read
 
   // Start local HTTP server
-  await LocalServerService.start();
+  if (!OrdinaryDesktopCandidateStorage.isActive) {
+    await LocalServerService.start();
+  }
 
   // Set status bar style & enable edge-to-edge
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -351,6 +386,10 @@ void main() async {
     () => RootShell(
       key: rootShellKey,
     ),
+    // Desktop routes bypass rootBuilder. The candidate needs the same
+    // ordinary chat widget without the desktop home background services.
+    desktopPlatformOverride:
+        OrdinaryDesktopCandidateStorage.isActive ? false : null,
   );
 
   // Initialize quick actions (app icon long-press shortcuts). Android/iOS only.
@@ -386,11 +425,13 @@ class RootShellState extends State<RootShell> {
     super.initState();
     AppStartupVisibilityController.markLoading();
     _checkUser();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(
-        NotificationService.instance.requestNotificationsPermissionIfNeeded(),
-      );
-    });
+    if (!OrdinaryDesktopCandidateStorage.isActive) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(
+          NotificationService.instance.requestNotificationsPermissionIfNeeded(),
+        );
+      });
+    }
   }
 
   Future<void> _checkUser() async {
@@ -450,6 +491,16 @@ class RootShellState extends State<RootShell> {
     if (!_hasUser) {
       return const AppOpeningSplash();
     }
+    if (OrdinaryDesktopCandidateStorage.isActive) {
+      return const Scaffold(
+        body: SafeArea(
+          child: PersonaChatScreen(
+            characterId: 'i',
+            presentation: PersonaChatPresentation.desktopFloating,
+          ),
+        ),
+      );
+    }
     return const MainScreen();
   }
 }
@@ -472,16 +523,32 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   bool _hasActiveTasks = false;
   AppLifecycleState? _lastLifecycleState;
   Timer? _foregroundHeartbeatTimer;
+  DesktopExitGate? _desktopExitGate;
+
+  DesktopExitGate get _ordinaryDesktopExitGate =>
+      _desktopExitGate ??= DesktopExitGate(
+        fenceConversation:
+            WorkbenchConversationCoordinator.instance.fenceNewWork,
+        closeConversation:
+            WorkbenchConversationCoordinator.instance.closeForHostLifecycle,
+        closeQueue:
+            WorkbenchTaskQueueLifecycleOwner.instance.closeForHostLifecycle,
+      );
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (Platform.isWindows) {
+      DesktopWindowExitChannel.install(_ordinaryDesktopExitGate.close);
+    }
     _checkUser();
     _checkLockSettings();
     // App starts in the foreground; begin the heartbeat so background checkins
     // stay silent while the user is actively using the app.
-    _startForegroundHeartbeat();
+    if (!OrdinaryDesktopCandidateStorage.isActive) {
+      _startForegroundHeartbeat();
+    }
   }
 
   /// Writes a foreground heartbeat now and every 60s so background checkin
@@ -530,7 +597,17 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   }
 
   @override
+  Future<AppExitResponse> didRequestAppExit() async {
+    if (!(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      return AppExitResponse.exit;
+    }
+    final closed = await _ordinaryDesktopExitGate.close();
+    return closed ? AppExitResponse.exit : AppExitResponse.cancel;
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (OrdinaryDesktopCandidateStorage.isActive) return;
     _lastLifecycleState = state;
     if (state == AppLifecycleState.paused) {
       unawaited(LocalTaskExecutor.instance
@@ -560,6 +637,11 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
     } else if (state == AppLifecycleState.detached) {
       unawaited(LocalTaskExecutor.instance
           .recordGracefulShutdown(reason: 'app_lifecycle_detached'));
+      // Detached cannot await a native receipt. Only controllers that already
+      // exist are asked to release their own bound sessions; page/background
+      // lifecycles deliberately continue to leave queued work alone.
+      unawaited(
+          WorkbenchTaskQueueLifecycleOwner.instance.closeForHostLifecycle());
       _stopForegroundHeartbeat();
     }
   }
@@ -671,7 +753,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
         _hasUser = hasUser;
       });
     }
-    if (hasUser) {
+    if (hasUser && !OrdinaryDesktopCandidateStorage.isActive) {
       _ensureTaskKeepAliveSubscription();
     }
   }
@@ -705,8 +787,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
             // Off-screen 1x1 WebView for Reading Companion's 灏忕孩涔?
             // background fetch pipeline. Stays mounted for the lifetime of
             // the app so the controller can navigate at any time.
-            if (AppFlavor.isHereIAm &&
-                (Platform.isAndroid || Platform.isIOS))
+            if (AppFlavor.isHereIAm && (Platform.isAndroid || Platform.isIOS))
               const Positioned(
                 left: 0,
                 bottom: 0,
@@ -729,7 +810,8 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
               ),
             // Desktop global floating chat ball — persists across all routes
             // (spine-contract §3.5). Mobile uses the embedded PersonaChatScreen.
-            if (shouldShowGlobalDesktopChatOverlay() &&
+            if (!OrdinaryDesktopCandidateStorage.isActive &&
+                shouldShowGlobalDesktopChatOverlay() &&
                 AppFlavor.isHereIAm &&
                 _hasUser &&
                 !_isLocked)

@@ -1,11 +1,53 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(path.join(directory, name), 'utf8');
+
+function inheritedEnvironment(overrides = {}) {
+  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('I_CORE_')).concat(Object.entries(overrides)));
+}
+
+function runLauncherWithSyntheticActivityOwner(t, launcherSource) {
+  const temporaryDirectory = mkdtempSync(path.join(tmpdir(), 'i-core-launcher-guard-'));
+  t.after(() => rmSync(temporaryDirectory, { recursive: true, force: true }));
+  const launcherPath = path.join(temporaryDirectory, 'start_i_core_service.ps1');
+  const serverPath = path.join(temporaryDirectory, 'i_core_server.mjs');
+  const resultPath = path.join(temporaryDirectory, 'child-environment.json');
+  writeFileSync(launcherPath, launcherSource, 'utf8');
+  writeFileSync(serverPath, [
+    "import { writeFileSync } from 'node:fs';",
+    "writeFileSync(process.env.LAUNCHER_GUARD_RESULT, JSON.stringify({ activity_admin_secret: process.env.I_CORE_ACTIVITY_ADMIN_SECRET }));",
+  ].join('\n'), 'utf8');
+
+  const powershell = process.env.SystemRoot
+    ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    : 'powershell.exe';
+  const run = spawnSync(powershell, [
+    '-NoProfile',
+    '-ExecutionPolicy', 'Bypass',
+    '-File', launcherPath,
+    '-NodePath', process.execPath,
+    '-StateDirectory', path.join(temporaryDirectory, 'state'),
+    '-RuntimeLockPath', path.join(temporaryDirectory, 'runtime.lock'),
+    '-CorePort', '48123',
+  ], {
+    env: inheritedEnvironment({
+      I_CORE_ACTIVITY_ADMIN_SECRET: 'synthetic-owner-secret',
+      LAUNCHER_GUARD_RESULT: resultPath,
+    }),
+    encoding: 'utf8',
+    timeout: 20_000,
+    windowsHide: true,
+  });
+  assert.equal(run.status, 0, `launcher failed: ${run.stderr || run.stdout}`);
+  return JSON.parse(readFileSync(resultPath, 'utf8'));
+}
 
 test('service launcher is loopback-only and clears all cutover credentials', () => {
   const script = read('start_i_core_service.ps1');
@@ -19,6 +61,7 @@ test('service launcher is loopback-only and clears all cutover credentials', () 
     'I_CORE_KEY',
     'I_CORE_WORKER_SECRET',
     'I_CORE_COMPANION_REPLY_JOBS',
+    'I_CORE_ACTIVITY_ADMIN_SECRET',
     'I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED',
   ]) {
     assert.match(script, new RegExp(`Remove-Item Env:${name}`));
@@ -33,6 +76,22 @@ test('service launcher is loopback-only and clears all cutover credentials', () 
   assert.match(script, /\$env:I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED\s*=\s*'1'/);
   assert.match(script, /& \$resolvedNode \$serverPath/);
   assert.match(script, /exit \$exitCode/);
+});
+
+test('service launcher rejects an inherited synthetic activity owner before starting its child', (t) => {
+  if (process.platform !== 'win32') {
+    t.skip('the launcher execution guard requires Windows PowerShell');
+    return;
+  }
+  const script = read('start_i_core_service.ps1');
+  const vulnerableScript = script.replace(/Remove-Item Env:I_CORE_ACTIVITY_ADMIN_SECRET -ErrorAction SilentlyContinue\r?\n/, '');
+  assert.notEqual(vulnerableScript, script, 'the vulnerable launcher fixture must remove the activity owner guard');
+
+  const vulnerableChild = runLauncherWithSyntheticActivityOwner(t, vulnerableScript);
+  assert.equal(vulnerableChild.activity_admin_secret, 'synthetic-owner-secret');
+
+  const guardedChild = runLauncherWithSyntheticActivityOwner(t, script);
+  assert.equal(guardedChild.activity_admin_secret, undefined);
 });
 
 test('installer registers a limited current-user logon task with daemon-safe settings', () => {

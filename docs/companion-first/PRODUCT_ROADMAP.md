@@ -2,17 +2,29 @@
 
 > 状态：当前权威产品与执行路线
 >
-> 最后更新：2026-08-30
+> 最后更新：2026-10-01
 >
 > 执行基线：`v3-lab`
+
+> 2026-10-01 暂停落点：Goal 1 本地验收已完成，源码已在主 worktree `v3-lab`，受控清单 104/104 同哈希；用户要求暂停后续工作。生产启用评估与减弹窗改造尚未开始，生产继续默认关闭。见 [暂停交接](../development/whiteboard-workstreams/GOAL1_MAIN_WORKTREE_PAUSE_20261001.md)。
+
+> 2026-10-01 最终本地验收：Goal 1 的 UI-T、P4、限定 P5 与 P6 已按 [最终本地验收](../development/whiteboard-workstreams/GOAL1_FINAL_LOCAL_ACCEPTANCE_20261001.md) 收口。最终组合候选的受控源码 104/104 同哈希；既有 UI-T/P4/P5 真人 Gate 按受影响范围复核后保留，P6 同一隔离普通入口完成任务生命周期与清理 Gate。生产长任务执行仍默认关闭，commit/push/发布均未执行。以下历史进展按各自日期阅读。
 >
-> 审计状态：`authority-preflight` 临时 Goal 已关闭；Goal 1 的 UI-T 真人通过；P4 R18 的 Runtime 移动、持久 Undo 与两次重启真人闭环已通过；R19 exact `722a646d` 的 resize 真人两次因 production lock 清空 selection 被误判为 surface 重挂而零写失败，R20 已审计、集成并通过自动 Gate，当前等待新唯一候选与 Runtime resize 真人 Gate；P5 / P6 与最终真人 Gate 继续阻塞
+> 2026-10-01 当前进展：Goal 1 的同一隔离普通 Windows 组合候选已补齐 P6 受控本地终态交付故障后唯一 retry→completed 的实际 Gate；任务 `b2b1680e…223f6` 最终 1–2000 逐行精确、两次原生六项清理与普通关窗均通过。该候选源码清单 104/104 当前哈希一致，普通入口 P6 隔离生命周期证据已齐。UI-T、P4 和限定 P5 的既有真人结果保留；父 Goal 仍需判断受新接线影响的跨包真人复核及最终收口，生产默认拒绝、无 commit/push/发布。见 [组合接线记录](../development/whiteboard-workstreams/GOAL1_P6_PRODUCT_WIRING_20260930.md)。下方旧进度均按当时快照阅读。
+>
+> 2026-09-30 当前进展：P6 同一 App 哈希的隔离真人入口已验普通短聊零任务、队列全生命周期、预设失败后唯一重试完成、精确结果、取消态/完成态重启，以及运行中异常退出后诚实中断、显式恢复与完整清理；见 [run11](../development/whiteboard-workstreams/P6_R7_RUN11_20260929.md)、[run13](../development/whiteboard-workstreams/P6_R7_RUN13_20260929.md)、[run14](../development/whiteboard-workstreams/P6_R7_RUN14_20260930.md)。生产 profile 继续拒绝；父 Goal 1 的唯一集成候选和跨包真人 Gate 尚未完成，仍保持活动。下列 9 月 12 日审计和 R7 状态是历史快照，不再代表当前待验项。
+>
+> 审计状态：`authority-preflight` 已关闭；Goal 1 的 UI-T、P4 已真人通过，P4 exact `e77045fa` 完成持久 Undo/冲突/重启恢复。2026-09-06 P5 在手机 Dreaming 只读限定范围内通过，权限按用户确认的“自动拦截 + 真人只读回复”组合判定，不冒称真人实际调用未知写工具。persona `4ba05b11` 冻结，双端候选指纹见 P5 整合记录。P6 入队、指定 ID 状态查询及 App 重启后等待态保留已通过；用户已授权并派发 [P6-R2 返修](../development/whiteboard-workstreams/P6_R2_REPAIR_PLAN.md)，分离指定任务强绑定、执行核心与 Runtime 权限隔离；第一轮代码已本地集成，主控 122/122 回归与 Bridge 31/31 通过；后台工具隔离未成立，真实执行及写入真人 Gate 尚未解锁。P6 与父 Goal 未通过。手机近期聊天/结构化事实/UserRhythm 未接入；连接提示改进及 W4 非阻断。push / 发布未授权。正式 Gate 1A-0 已在独立合同链完成并关闭；P6 / Goal 1 未通过不因此解锁 Gate 1A-1、生产权威迁移或 MDA-2。
+>
+> P6 最新 R7（2026-09-12）：v5本机八项网络事件矩阵与完整回收实际通过（5019bbd0、exit0、pendingfalse），原同步负控false保留；既有失败实例均已独立回查或清理。19/19、自测233、真实文件等待22断言与独立核对通过。此结果不等于真实CLI持续隔离或生产接线。真实账户请求0，生产拒绝，账户/停止接线及App/真人Gate仍待，P6与Goal1未通过。详见[R7](../development/whiteboard-workstreams/P6_R7_EXECUTION_BOUNDARY_PLAN.md)。
+>
+> R6 历史证据（旧 CLI pin）：专用登录、固定公开文字真实回合和匹配 terminal/实际 close 分别通过，组合 170/170、合成 14/14。桌面更新后的 R7 使用不同可执行文件 hash，不继承旧候选隔离或真人结果。见 [R6](../development/whiteboard-workstreams/P6_R6_TEXT_GATE_PLAN.md#认证状态与当前剩余)。
 
 本文回答四个问题：Here I Am 最终是什么、数据以哪里为准、当前真实基线在哪里、下一阶段按什么 Gate 推进。它不是无限任务清单，也不替代阶段 Goal。每次只从本路线提出一个可验收 Goal；Goal 的规划、派发、等待、审计和集成遵守 [`COLLABORATION_EXECUTION_PROTOCOL.md`](../development/COLLABORATION_EXECUTION_PROTOCOL.md)。
 
 领域路线可以细化 Memory V3、白板、阅读、跨设备、教师招聘和数据恢复，但不得覆盖本文已经确认的目标边界与优先级。本文规定目标状态，不会仅凭文字立即改变当前运行 schema：任何数据权威迁移在 ADR、兼容、试迁移、回滚和真人 Gate 通过前，仍以当前运行代码及现行共享契约为唯一运行依据。
 
-2026-08-26 用户明确确认：Goal 1 不取消、不取代；`GOAL-20260826-authority-preflight` 已关闭后，仅恢复 UI-T、P4、P6 返修。三包现已完成隔离交付、审计、逐包本地集成、`108/108` 组合自动验证与 `v3-lab@fad8b736` 的 Windows Debug 集成构建；这不是最终真人通过。Goal 1 已按约回到阻塞态，P5、最终真人 Gate、W4 红灯、push、发布以及正式 Gate 1A-0 均未解锁。
+2026-08-26 用户明确确认：Goal 1 不取消、不取代；`GOAL-20260826-authority-preflight` 已关闭后，仅恢复 UI-T、P4、P6 返修。三包现已完成隔离交付、审计、逐包本地集成、`108/108` 组合自动验证与 `v3-lab@fad8b736` 的 Windows Debug 集成构建；这不是最终真人通过。Goal 1 已按约回到阻塞态，P5、最终真人 Gate、W4 红灯、push、发布以及正式 Gate 1A-0 当时均未解锁；其后 Gate 1A-0 已由独立合同链完成并关闭。
 
 2026-08-28 真人复验推翻了“P4 只差重开 Undo”的旧判断：合并后唯一候选 `v3-lab@53d2dc91` 中，手动六类操作仍绕过 Domain Receipt / 持久 Undo，桌面 Runtime 也没有注册或分发六类 DomainCommand。父 Goal 因此阻塞，用户已创建窄返修 Goal [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)；它只补人工 / Runtime 共用生产纵切与退出重开 Undo，不扩张 P5、P6、W4 或 Gate 1A。
 
@@ -47,6 +59,8 @@ R18 已只向本轮获准 move / resize 的 exact target 注入同一 authoritat
 随后在同一旧候选输入“当前选中卡片宽度增加 120 像素”，宿主没有生成白板授权上下文，provider 在本地探索约 180 秒后超时；零白板工具、action、Receipt 与持久写入，原 geometry 保持不变。R19 `01a052f1-da65-7ad2-8f44-15a9ead2d80f` 只补严格相对尺寸意图、完整 quoted-literal 隔离和 selection / authoritative snapshot 双重 fail-closed；独立复核先拦下 malformed exact-title 咨询劫持、trim 后 quote offset 越界与 stale selection 空 geometry 三项阻断，follow-up 后确认可集成。worker `37c77acd..523ec22a` 已选择性集成为 `v3-lab@2a75a7c0..158158dc`；主线 Runtime `34/34`、coordinator `23/23`、critical `3/3`、两文件 analyze 与 diff check 均通过。自动证据不代替真人 Gate；当前尚无 R19 新候选，remove / conflict 继续冻结。
 
 exact `722a646d` R19 候选随后完成构建并健康启动，但真人连续两次宽度 `+120` 均返回 `whiteboard_surface_changed`，零 action / Receipt / 持久写。根因不是用户未选中，而是 production route 进入 readonly 时同步清空 selection 并发布同 attachment 新 snapshot，R17 的严格实例 gate 将其误判为真实重挂。R20 只新增 host-owned attachment token：selection-only snapshot 保留 token，每次 fresh attach 更新 token；lock 后仅允许同 token 的空 selection，非空 replacement、换 owner / board 与后续竞态继续 fail closed。两份独立复审无 P0/P1，worker `591caf3a + 3c6265c7` 与 handoff `cdf01946` 已集成为 `v3-lab@3674548b..03c2afd9`；主线 Runtime + coordinator `59/59`、真实 production route `8/8`、目标 analyze、critical `3/3` 与 diff check 全绿。当前尚未构建 R20 新候选，remove / conflict 继续冻结。
+
+2026-09-05，P4 在 exact `e77045fa` 唯一 Windows 候选上完成最终真人 Gate：resize `+120`、完整重启保持、持久 Undo 精确恢复、remove 只删除 BoardItem、Card 本体仍可检索；在后续控制卡移动造成快照变化后，旧 Undo 先以 `snapshot_changed_after_batch` 拒绝且 token 未销毁，撤销后续移动后同 token 重试精确恢复，再次完整重启仍稳定。Lynx 明确确认通过。该候选 exe SHA-256 为 `BE3BE7A7037327C735883998C430D02C6CC9373504202D773B76AFFFE0C11CB9`，kernel 为 `0CCDAE9E95572A9A37B1AF21BA634D653BBBBE85DB680342B644E7387A1367C2`；P4 子 Goal 关闭，父 Goal 解锁 P5。Bridge 的正式 per-turn required / allow-only wire 仍等待上游 App Server schema，当前 Codex 模型目录兼容需显式选择可用模型，均保留为非阻断兼容项。
 
 2026-08-28 并行例外 Goal [`GOAL-20260828-legacy-cleanup-wave1`](../development/goals/GOAL-20260828-legacy-cleanup-wave1.md) 已验收通过并进入 `v3-lab@a29b212e`：第一批零注册 / 零调用孤岛与退役测试已删除，仍有效的 Tavern / Companion 覆盖已迁移或保留，全仓退役测试编译错误归零。该清理不改变产品路线、数据权威或 P4 主 Goal，也未触碰 SharedLife、CardCache、日程、UI 大簇、schema、依赖或用户数据。
 
@@ -177,7 +191,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 
 | 领域 | 已建立 | 尚未闭环 |
 |---|---|---|
-| 已恢复的 AI 工作台 Goal | UI-T、P4 人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动与聊天切回 Delete、R17 精确标题正文与标签编辑、R18 Runtime move / persistent Undo / restart 均已真人通过；R16 capability、R17 current-board exact-title scope、R18 bounded geometry、R19 relative resize intent 与 R20 attachment lifecycle 已独立复核并集成；P6 已补 host-owned 生产 Runtime 队列入口 | R19 真人 resize 因 lock selection-clear 误判零写失败；R20 自动 Gate 已通过，等待新唯一候选与 Runtime resize 真人 Gate；通过前不继续 remove / conflict；P5 / P6、W4、push / 发布仍阻塞 |
+| 已恢复的 AI 工作台 Goal | UI-T、P4 已真人通过；P5 已按限定手机 Dreaming 来源和用户确认的组合权限方式通过；同一 Windows 候选未变 | P6 入队/status/App 重启后等待态保留通过；P6-R2 第一轮目标绑定/执行核心/拒绝门控已本地集成并通过回归，生产隔离尚未成立，写入真人验收暂缓；父 Goal 未完成。W4、push / 发布不随 P5 自动解锁 |
 | 已关闭的临时预备 Goal | `GOAL-20260826-authority-preflight` 已通过用户真人审阅并关闭，只使用代码实况与合成数据 | 已交付对象盘点、迁移矩阵、golden corpus 与隔离 harness 骨架；没有切换生产权威，也不证明 Gate 1A-0 通过 |
 | Desktop Whiteboard | Card/Source/Board/Anchor 骨架、卡片库、画布、链接入库、视频研读、通用命令基础 | Markdown 权威迁移、完整删除/恢复、文件导入与外部编辑冲突、生产搜索和灾难恢复尚未形成统一 Gate |
 | Memory / Chat lanes | Memory V3、Dreaming、显式 Record Organizer、Project Memory 与 TaskRoom 数据层已存在 | 中性 Card 与 User-truth 尚未拆清；主聊天和 Dreaming 对 TaskRoom lane 的过滤必须复核，不能假设隔离已经实现 |
@@ -186,7 +200,7 @@ Here I Am 是一个本地优先的 AI companion。用户自然生活、聊天、
 | Teacher Recruitment | 历史 Phase 0 试点证明登录、检索和查询拆分在技术上曾可运行；教材包已完成 OCR、结构、知识树与查询接口。该试点保留为“技术验证完成、产品路线失效”的历史证据 | 2026-08-26 账号违规预警已推翻登录态 discovery 的生产可用性，登录态小红书 MCP 正式退役。当前可用基线是用户人工选材、链接导入、匿名单篇解析和教材 OCR；尚缺 Link Inbox、本地去重、逐项解析及 `needs_screenshot` 等诚实状态，也尚未建立正式 Source/Evidence/Batch 数据层、全深圳轻量普查、深样本、看板和真人 Pilot Gate |
 | Reading / Co-reading | 小说/漫画阅读、Topic Thread、划线批注基础和新调研输入已存在 | 统一 ReadingPackage、白板阅读窗、稳定跨格式 Anchor 与真实作品验收未闭环；主动品味系统明确延期 |
 | Mobile Companion | 主聊天、语音、显式记录、Memory V3 与便携捕获能力存在 | 手机新功能开发暂停；Android FGS、数据安全和严重故障修复仍按证据处理，统一卡片库移动视图和 Core 完整切换以后再做 |
-| Health / 多端活动检测 | Android 已有按需 UsageStats、App 前台心跳、标准 BLE HRS 软件闭环、Health 状态面与通知/来电基础；iCore 已有设备配对和 token | COROS 实物整夜 Gate 未完成；没有活动事件域、write-only probe、Windows/第二 Android/iPhone 探针、保守清醒状态机或受控介入 Gate，现状不能实时判断用户是否仍清醒 |
+| Health / 多端活动检测 | Android 已有按需 UsageStats、App 前台心跳、标准 BLE HRS 软件闭环和 Health 状态面；COROS 精确 APK `3056968E…761D4` 的零大缺口 8 小时 Gate 已通过；MDA-1 控制面源码已合入本地 v3-lab | 现役仍固定 v4，活动域 schema 5 未部署；Windows/第二 Android/iPhone collector、睡眠推断与受控介入尚未实现；三星重启恢复与产品耗电预算不在 COROS 可用 v1 结论内 |
 
 当前状态以 [`GOAL-20260824-ai-workbench-wave1.md`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)、[`I_PROJECT_STATE.md`](../development/I_PROJECT_STATE.md) 和当前可达提交为证据。Roadmap 不把“代码存在、自动 Gate 通过或已经 push”写成“真人通过”。
 
@@ -198,14 +212,14 @@ Android 严重崩溃、Memory 真实误召回、数据损坏、安全漏洞和 P
 
 ### Gate 0 — 关闭当前活动 Goal
 
-[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的 UI-T 真人结论继续有效。P4 旧候选陆续暴露的生产不可达、编辑态键盘 / 滚动条、正常新卡 full editor 通知、safe ID、可见落点、快捷库持久写、selection / focus、capability、current-board title scope 与相对移动几何缺口，均已在 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md) 中逐轮返修。exact `1f77633a` 的精确标题正文与标签编辑已真人通过，移动超时现场也已由 R18 交付、审计、集成和 `99/99` 自动 Gate 收住；新的 Windows 候选构建完成前没有可继续真人验收的版本。
+[`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md) 的 UI-T 与 P4 已真人通过。P4 旧候选陆续暴露的生产不可达、编辑态键盘 / 滚动条、正常新卡 full editor 通知、safe ID、可见落点、快捷库持久写、selection / focus、capability、current-board title scope、相对 geometry 与 surface lifecycle 缺口，均已在 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md) 中逐轮返修，并由 exact `e77045fa` 完成最终冲突 / 恢复真人 Gate。P5 已于 2026-09-06 按限定来源与组合验收方式通过；Gate 0 当前只剩 P6 与父 Goal 最终收口。
 
 历史失败与当前未完 Gate 为：
 
 - UI-T：真实系统剪贴板、回复期间编辑、`Win + H` 与菜单主题真人通过；Typeless 2.3.1 不向 Flutter Windows 输入框注入，保留为非阻断外部兼容红灯；
-- P4：人工六类、R14 Runtime create / 全局卡片库、R15 快捷库连续移动 / 聊天切回 Delete、R17 精确标题正文 / 标签编辑、R18 Runtime move / persistent Undo / restart 均已真人通过。R19 候选的 resize 真人两次因 lock selection-clear 误判为 surface 重挂而零写失败；R20 已审计、集成并通过自动 Gate，当前等待新唯一候选与 Runtime resize 真人 Gate，通过前不继续 remove / conflict。选中框瞬时闪烁、手动行动卡主对话噪声和 Undo 无即时成功提示仍为非阻断呈现债；
-- P5：真实人格 / 长期关系 Memory V3 代码已返修和自动验证，仍须等待 P4 后做真实命中、空、失败和扩权拒绝真人 Gate；
-- P6：受控生产 Runtime 入口与全生命周期已经接入；仍须等待 P4 / P5 后做真实 Bridge / App 重启与生命周期真人 Gate。
+- P4：exact `e77045fa` 已完成人工 / Runtime 六命令、行动卡 / Receipt、完整退出重开、持久 Undo、冲突拒绝与同 token 重试恢复，真人通过。选中框瞬时闪烁、手动行动卡主对话噪声和 Undo 无即时成功提示仍为非阻断呈现债；
+- P5：2026-09-06 **限定范围通过**。persona `4ba05b11` 冻结；手机历史样例获用户基本认可，真实 empty 与自然到期 unavailable 回复诚实。权限为用户确认的四组自动拒绝证据 + 真人只读回复，二者不互相冒充。双端候选指纹与历史自动回归见 `docs/development/whiteboard-workstreams/P5_PHONE_READONLY_INTEGRATION.md`。手机近期聊天、结构化事实、UserRhythm 未接入，不声称全量准确/时效；连接提示改进非阻断。
+- P6：受控生产 Runtime 队列入口已接入。首个 enqueue/pending、同 ID status 及 App 重启后 pending 保留样例通过：新进程、原候选指纹、精确只读 DB 与用户回显一致，更新时间/队列元数据不变。**P6-R2 已授权并派发，整体未通过**：隔离补目标强绑定、执行核心及 Runtime profile，见 [返修计划](../development/whiteboard-workstreams/P6_R2_REPAIR_PLAN.md)。后台工具隔离探针未通过，生产执行保持拒绝，取消等写入真人测试暂缓；不能以内部状态测试替代真实执行生命周期/运行中恢复。不启动既有等待任务，不伪造运行状态，不声称已观察到误取消。
 
 W4 匿名字幕 `0/18`、第二个 WebView2 播放器重建超时和时间轴拖动消失等缺陷继续作为非阻断红灯，不伪称通过，也不阻塞与视频无关的返修。
 
@@ -225,7 +239,7 @@ W4 匿名字幕 `0/18`、第二个 WebView2 播放器重建超时和时间轴拖
 
 这是所有需求驱动开发之前的新硬阶段。它由三个连续 Gate 组成，不得打包成一个无法独立验收的巨型 Goal，也不等同于“已有 S3 按钮能用”或“能创建几张卡片”。
 
-**未来 1–4 周执行窗口**：只承诺完成 Gate 0，并在其关闭后提案 Gate 1A-0；是否能在该窗口内继续进入 1A-1，取决于 ADR、真实数据 fixture、迁移红灯与真人验收。Gate 1B、1C 和 Gate 2 是后续条件式阶段，不以未经验证的“1–2 周”估算作工期承诺。
+**原排期窗口（历史）**：原先只承诺完成 Gate 0，并在其关闭后提案 Gate 1A-0；后者已按获准的隔离合同链完成，当前 Goal 1 / P6 仍未通过。1A-1 及 Gate 1B、1C、Gate 2 继续依赖各自合同、迁移验证、授权与真人 Gate，不以旧“1–4 周”窗口或未经验证的“1–2 周”估算作当前工期承诺。
 
 #### Gate 1A — 数据权威与可逆 Vault 迁移
 
@@ -405,7 +419,7 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 ### 5.5 多端活动检测与保守睡眠守护
 
-- 用户已明确提出这是高频 companion 需求；专项路线见 [`MULTI_DEVICE_ACTIVITY_ROADMAP.md`](MULTI_DEVICE_ACTIVITY_ROADMAP.md)。建立路线不等于当前活动 Goal 已切换，也不覆盖 P4 真人 Gate 或下一正式 Gate 1A-0；
+- 用户已明确提出这是高频 companion 需求；专项路线见 [`MULTI_DEVICE_ACTIVITY_ROADMAP.md`](MULTI_DEVICE_ACTIVITY_ROADMAP.md)。建立路线不等于当前活动 Goal 已切换，也不覆盖各工作流的独立验收；P4 与 Gate 1A-0 后续已经各自通过，MDA-1 的隔离例外与 MDA-2 未启动状态见第 8 节；
 - 完整 Here I am 仍只安装在主 Android。Windows 使用轻探针，第二 Android 优先 Tasker/旁路探针，iPhone 在无自研 App 时只提供 Shortcuts 离散事件；各端不复制 Here I am 数据库；
 - 首版必须先完成活动专用 write-only 凭据、事件/TTL/`unknown` 语义、设备撤销与隐私保留，再做 Windows + 主 Android 纵切；Tailscale 在线、App 前台心跳和单一心率均不得冒充用户清醒或已睡；
 - 活动专用控制面仍受 Gate 1A 的权威 ADR、Core 接受边界和单写者/epoch/fencing 契约约束；并行设计不得先落生产 schema 绕过 Gate 1A-0/1A-3；
@@ -455,24 +469,37 @@ Roadmap 不提前承诺 Gate 3 的具体顺序。
 
 ---
 
-## 8. 当前活动 Goal 与下一候选
+## 8. 已关闭的 Gate 1A-0 与当前 Goal
 
-### 阻塞 Gate
+### Gate 1A-0 结论
 
-父 Goal 的 P5 / P6 真人 Gate、最终收口与正式 Gate 1A-0 都等待 P4 生产接线返修通过。W4 匿名字幕 `0/18`、第二个 WebView2 重建和时间轴缺陷仍是非阻断红灯，不进入本轮返修。
+正式 Gate 1A-0 已通过第八名全新独立 Sol 终审，未发现 P0/P1/P2；合同/harness 本地候选为 `8797adf84feca2610a9f348fcd040f7299d6ea4a`。2026-08-30，Lynx 对修复后 W0 的五条时间线明确回复“通过”，本 Goal 已关闭。它只冻结 Authority/identity/recovery/physical schema/Markdown/cross-medium 合同与纯合成确定性 harness；没有切换生产权威、生产 schema、设备或外部配置。
 
-### 当前活动 Goal
+### 当前 Gate
 
-当前唯一活动 Goal 是 [`GOAL-20260828-p4-production-reachability-repair`](../development/goals/GOAL-20260828-p4-production-reachability-repair.md)，执行与派发已经用户授权。R18 exact `2ed4b015` 的 Runtime move、persistent Undo 与两次重启真人闭环成立；R19 exact `722a646d` 虽恢复了 relative resize 授权，但真人两次在 production readonly 同步清空 selection 后被误报 `whiteboard_surface_changed`，均零 action / Receipt / 持久写。R20 以 host-owned attachment token 区分同 attachment selection snapshot 与 fresh reattach，保持其它 surface / scope 竞态 fail closed；两份独立复审无 P0/P1，已集成为 `v3-lab@3674548b..03c2afd9`，主线 `59/59 + 8/8`、critical `3/3` 与目标 analyze 全绿。当前等待从该基线构建唯一 Windows 候选，再只恢复 Runtime resize 真人 Gate；父 [`GOAL-20260824-ai-workbench-wave1`](../development/goals/GOAL-20260824-ai-workbench-wave1.md)、P5 / P6、W4、push 与发布保持阻塞。
+UI-T、P4 与限定范围 P5 已通过。P6 最新 R7 的 v5 本机八项网络矩阵与完整回收实际通过（`5019bbd0`、exit 0、pending false；专项 `19/19`、自测 233、真实文件等待 22 断言），原同步负控 false 保留；真实账户请求 0，生产仍拒绝，账户/停止接线及 App/真人 Gate 仍待，P6 与 Goal 1 未通过。P6 的未提交代码继续由原主窗负责，不纳入本候选。
+
+### MDA-1 与运行边界
+
+MDA-2 A3-I Android原生接线最终`c0bf3d49`已通过W0并选择性本地集成：初交付因冻结store未释放ownership被拒，R1补齐无条件close、系统调用前窗口验证与MethodChannel精确形状。干净导出A3 Dart 16/16、Kotlin 12/12、A1 56/56、A2 30/30、wire/Core 20/20及完整App单元任务通过。源码保持默认关闭；真实UsageEvents、APK、手机、Doze/强停/重启、Keystore与BLE共存属于A3-D。见[A3-I验收](../development/activity/mda2/android/a3_review/c0bf3d49/W0_ACCEPTANCE.md)。
+
+MDA-2 A2 Android纯Dart持久outbox最终`ae9bfea0`已通过W0并选择性本地集成：两份早期提交因owner接管竞态和清理遗留活锁被拒；最终干净导出A1 56/56、A2 30/30、双analyze与现有Core 20/20通过。此结果不含原生UsageEvents/Manifest、网络、真实Core、设备或真人Gate；A3另行规划。见[A2验收](../development/activity/mda2/android/a2_review/ae9bfea0/W0_ACCEPTANCE.md)。
+
+MDA-2 W3 Windows采集与队列接线修订`af3cb576`通过主窗本地验收：干净候选44/44、W2兼容35/35、独立退出5/5与实际清理；限定源码已本地合入 `v3-lab@63acaaf8`，65路径/54份并行修改保护核对通过，见[实际收据](../development/activity/mda2/windows/w3_review/af3cb576/LOCAL_LANDING.md)；下一步规划Android接线。真实采集、生产端点/配对/自启、现役切换及Android/真人Gate仍待。见[W3验收](../development/activity/mda2/W3_ACCEPTANCE_REVIEW.md)。
+
+2026-09-13：MDA-2 R3+M3 C3源码已本地合入 `v3-lab@a6f9cbae`，70路径、72份候选输入和54份并行修改保护已核对，见[实际合入收据](../development/activity/mda2/runtime/combined_c3/LOCAL_LANDING.md)。下一步按既定依赖回收其余采集工作包；未推送、部署或迁移真实库，现役切换和真实设备/一晚Gate尚未执行。以下准备与未合入描述仅为历史。
+
+MDA-2 已按后续确认进入隔离工作包阶段；MDA-2 R3+M3 本地候选 C3 已完成换行固定与停止请求竞态修复；隔离回归及证据见 [C3交接](../development/activity/mda2/runtime/combined_c3/HANDOFF.md)。当前只形成源码合入准备，未提交/主线合入/部署，其他采集工作包与真人Gate独立。以下MDA-2未启动表述保留为此前快照；现役固定v4不变。
+
+MDA-1 已在功能候选 `fbcbceb0` 上完成历史三 probe 合成审看，并按 Lynx 后续明确授权本地合入 `v3-lab`，代码基线 `8326f5c1`；组合验证与八文档收口见 [实际落地记录](../development/activity/mda1/MDA1_MAINLINE_COORDINATION_20260912.md)，初次候选验证见 [裁决](../development/activity/mda1/MDA1_INTEGRATION_VERDICT_20260912.md)。现役 iCore 仍使用固定旧 v4 运行包，源码合入没有切换生产权威或部署 schema 5。真实 collector、睡眠推断、受控介入和 MDA-2 均未启动。
 
 ### 下一正式 Goal 候选（尚未创建）
 
-> **Gate 1A-0 — Authority ADR & Migration Harness：完成权威对象盘点、Card / User-truth / Source / Evidence / Dreaming / TaskArtifact / Capture / ImportCandidate / Link Inbox Item 迁移矩阵、Markdown / RichText 数据流、物理 schema 比较、跨介质 commit/recovery 协议、golden corpus 和隔离迁移 harness；不切换默认运行权威，也不实现导入 UI。**
+> **Gate 1A-1 — 中性 Card / User-truth 解耦：现在具备另行提案条件，但必须先由 Lynx 确认；本次未创建或实施。**
 
-该候选只覆盖 Gate 1A 的第一个正式停止点，不承诺落地中性 Card schema、切换 Markdown 运行权威、完成 Core 接管、基本操作或四副本灾难恢复。它仍需在 Goal 1 通过或被用户正式取消 / 取代、临时预备 Goal 关闭后，由新的验收主窗提出并等待用户确认；`authority-preflight` 的材料可以复用，但不能替代正式 1A-0 Gate。1A-1/1A-2/1A-3、Gate 1B 与 Gate 1C 只在前一停止点真人通过后依次提案，不提前打包。
+Gate 1A-0 只冻结第一个正式停止点，不承诺落地中性 Card schema、切换 Markdown 运行权威、完成 Core 接管、基本操作或四副本灾难恢复。`authority-preflight` 的材料只作输入，不能替代已完成的独立终审与真人 Gate。1A-1/1A-2/1A-3、Gate 1B 与 Gate 1C 仍须依次另行提案，不提前打包；MDA-1 的隔离阶段已完成，MDA-2 仍未启动。
 
 ---
-
 ## 9. 已完成交叉审核与持续自查清单
 
 2026-08-26 的产品、架构和执行交叉审核已经完成，用户已确认将审计结论并入本版。以下问题继续作为每个相关 Goal 的硬自查；它们不是留给未来泛泛讨论的开放问题。第 1–4、10–12 项必须由 Gate 1A 的 ADR、fixtures 与连续性 Gate 给出证据，第 5–6 项由 Gate 1C 给出恢复证据，第 7–8、12–15 项还必须由 Gate 2 给出 Pilot 证据：

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
@@ -153,7 +154,10 @@ class AppDatabase extends _$AppDatabase {
   static String? get activeUserId => _activeUserId;
 
   /// Initialize the database for a specific user
-  static Future<void> init(String userId) async {
+  static Future<void> init(String userId, {String? databasePath}) async {
+    if (databasePath != null) {
+      configureProductionDatabasePath(databasePath);
+    }
     while (true) {
       final inFlight = _initInFlight;
       if (inFlight != null) {
@@ -184,6 +188,40 @@ class AppDatabase extends _$AppDatabase {
 
   static Future<void>? _initInFlight;
   static String? _activeUserId;
+
+  /// Optional production database location installed before application
+  /// startup. This is deliberately separate from the test factory: a desktop
+  /// candidate must be able to direct Drift's real production connection into
+  /// its admitted storage root.
+  static String? _productionDatabasePath;
+
+  /// The real production database path, when startup storage has installed
+  /// one. Callers use this only for startup diagnostics.
+  static String? get productionDatabasePath => _productionDatabasePath;
+
+  /// Installs the database file used by future production connections.
+  ///
+  /// Startup storage configuration is immutable for a process. Calling this
+  /// after a connection has opened, or with a different path, is rejected so a
+  /// live process cannot silently switch between data roots.
+  static void configureProductionDatabasePath(String databasePath) {
+    if (databasePath.isEmpty) {
+      throw ArgumentError.value(
+          databasePath, 'databasePath', 'must not be empty');
+    }
+    final configured = _productionDatabasePath;
+    if (configured != null) {
+      if (configured == databasePath) return;
+      throw StateError(
+          'The production database path has already been configured.');
+    }
+    if (_instance != null || _initInFlight != null) {
+      throw StateError(
+        'Configure the production database path before AppDatabase.init().',
+      );
+    }
+    _productionDatabasePath = databasePath;
+  }
 
   static AppDatabase Function(String userId)? _databaseFactoryForTesting;
 
@@ -227,6 +265,22 @@ class AppDatabase extends _$AppDatabase {
 
   @visibleForTesting
   AppDatabase.forTesting(super.executor) : _testSchemaVersion = null;
+
+  AppDatabase._candidate(super.executor) : _testSchemaVersion = null;
+
+  /// Opens an explicitly isolated debug candidate without registering the
+  /// ordinary user database singleton. The caller owns path admission/closure.
+  static Future<AppDatabase> openCandidate(QueryExecutor executor) async {
+    if (!kDebugMode) throw StateError('candidate_debug_required');
+    final database = AppDatabase._candidate(executor);
+    try {
+      await database._configureConnection();
+      return database;
+    } on Object {
+      await database.close();
+      rethrow;
+    }
+  }
 
   /// Private constructor for testing with custom schema version
   @visibleForTesting
@@ -1593,5 +1647,15 @@ class AppDatabase extends _$AppDatabase {
 QueryExecutor _openConnection(String userId) {
   final dbName = 'memex_local_$userId';
 
-  return driftDatabase(name: dbName);
+  final configuredPath = AppDatabase._productionDatabasePath;
+  return driftDatabase(
+    name: dbName,
+    native: configuredPath == null
+        ? null
+        : DriftNativeOptions(
+            databasePath: () async => configuredPath,
+            // Keep SQLite's temporary files in the admitted workspace too.
+            tempDirectoryPath: () async => File(configuredPath).parent.path,
+          ),
+  );
 }

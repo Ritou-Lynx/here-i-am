@@ -1,10 +1,23 @@
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
+import { backup, DatabaseSync } from 'node:sqlite';
+import {
+  ACTIVITY_CONTRACT,
+  ACTIVITY_FEATURE_VERSION,
+  ACTIVITY_RAW_RETENTION_MS,
+  ACTIVITY_INTEGRITY_COMMITMENT_VERSION,
+  ActivityControlPlane,
+  activityRecoveryManifestForDatabase,
+  assertActivityRecoveryFloorForDatabase,
+  preflightActivityLegacyMigration,
+  rollbackActivitySchema,
+} from './activity_control_plane.mjs';
 
 export const CORE_PROTOCOL_VERSION = '0.1';
-export const CORE_STORE_SCHEMA_VERSION = 4;
+export const CORE_STORE_SCHEMA_VERSION = 5;
 export const MAX_MESSAGE_BATCH = 100;
 export const CORE_WORKLOADS = Object.freeze([
   'companion_reply',
@@ -46,6 +59,313 @@ function canonicalDigest(value) {
 
 function tokenDigest(value) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function canonicalDatabasePath(databasePath) {
+  const resolved = path.resolve(databasePath);
+  let canonical;
+  if (existsSync(resolved)) {
+    canonical = realpathSync.native(resolved);
+  } else {
+    const missing = [];
+    let ancestor = resolved;
+    while (!existsSync(ancestor)) {
+      missing.unshift(path.basename(ancestor));
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) break;
+      ancestor = parent;
+    }
+    const realAncestor = existsSync(ancestor) ? realpathSync.native(ancestor) : ancestor;
+    canonical = path.join(realAncestor, ...missing);
+  }
+  return path.normalize(canonical);
+}
+
+export function activityDatabaseBindingDigest(databasePath) {
+  return createHash('sha256')
+    .update(`activity-live-path:${canonicalDatabasePath(databasePath)}`)
+    .digest('hex');
+}
+
+function coreTableExists(db, name) {
+  return Boolean(db.prepare("SELECT 1 AS found FROM sqlite_master WHERE type='table' AND name=?").get(name));
+}
+
+function activityRetentionDebt(db, now) {
+  const cutoff = now - ACTIVITY_RAW_RETENTION_MS;
+  const checks = [
+    ['activity_events', 'received_at_ms<=?', cutoff],
+    ['activity_changes', 'occurred_at_ms<=?', cutoff],
+    ['activity_event_tombstones', 'expires_at_ms<=?', now],
+    ['activity_audit', 'expires_at_ms<=?', now],
+    ['activity_probe_state', 'last_received_at_ms IS NOT NULL AND last_received_at_ms<=?', cutoff],
+    ['activity_rate_limits', 'window_start_ms<=?', cutoff],
+    ['activity_projections', 'received_at_ms IS NOT NULL AND received_at_ms<=?', cutoff],
+  ];
+  return checks.filter(([table, predicate, value]) => (
+    coreTableExists(db, table)
+    && Boolean(db.prepare(`SELECT 1 AS found FROM ${table} WHERE ${predicate} LIMIT 1`).get(value))
+  )).map(([table]) => table);
+}
+
+function assertConfiguredAuthoritySecretSeparation({
+  activityAdminSecret = null,
+  workerSecret = null,
+  pairingCode = null,
+  shortcutMailTokenHash = null,
+} = {}) {
+  const configured = [activityAdminSecret, workerSecret, pairingCode].filter((value) => typeof value === 'string');
+  if (new Set(configured).size !== configured.length) {
+    throw new CoreStoreError('authority_secret_conflict', 'Core authority credentials are not domain-separated.', { status: 503 });
+  }
+  if (shortcutMailTokenHash !== null) {
+    if (typeof shortcutMailTokenHash !== 'string' || !/^[a-f0-9]{64}$/i.test(shortcutMailTokenHash)) {
+      throw new CoreStoreError('invalid_authority_configuration', 'Core authority credential configuration is invalid.', { status: 503 });
+    }
+    if (configured.map(tokenDigest).includes(shortcutMailTokenHash.toLowerCase())) {
+      throw new CoreStoreError('authority_secret_conflict', 'Core authority credentials are not domain-separated.', { status: 503 });
+    }
+  }
+  return { configured, shortcutMailTokenHash: shortcutMailTokenHash?.toLowerCase() ?? null };
+}
+
+export function assertAuthoritySecretSeparationInDatabase(db, {
+  activityAdminSecret = null,
+  workerSecret = null,
+  pairingCode = null,
+  shortcutMailTokenHash = null,
+  now = Date.now(),
+} = {}) {
+  const { configured, shortcutMailTokenHash: normalizedMailTokenHash } = assertConfiguredAuthoritySecretSeparation({
+    activityAdminSecret,
+    workerSecret,
+    pairingCode,
+    shortcutMailTokenHash,
+  });
+  const credentialHashes = [];
+  if (coreTableExists(db, 'devices')) credentialHashes.push(...db.prepare('SELECT token_hash AS value FROM devices').all().map((row) => row.value));
+  if (coreTableExists(db, 'activity_credentials')) credentialHashes.push(...db.prepare('SELECT token_hash AS value FROM activity_credentials').all().map((row) => row.value));
+  const consumedPairingHashes = coreTableExists(db, 'consumed_pairing_codes')
+    ? db.prepare('SELECT code_hash AS value FROM consumed_pairing_codes').all().map((row) => row.value)
+    : [];
+  const activeLeaseHashes = coreTableExists(db, 'worker_leases')
+    ? db.prepare('SELECT lease_token_hash AS value FROM worker_leases WHERE expires_at_ms>?').all(now).map((row) => row.value)
+    : [];
+  const universalPersistent = new Set([
+    ...credentialHashes,
+    ...activeLeaseHashes,
+    ...(normalizedMailTokenHash ? [normalizedMailTokenHash] : []),
+  ]);
+  const adminWorkerDigests = [activityAdminSecret, workerSecret].filter((value) => typeof value === 'string').map(tokenDigest);
+  const pairingDigests = [pairingCode].filter((value) => typeof value === 'string').map(tokenDigest);
+  const conflict = adminWorkerDigests.some((digest) => universalPersistent.has(digest) || consumedPairingHashes.includes(digest))
+    || pairingDigests.some((digest) => universalPersistent.has(digest))
+    || (
+      normalizedMailTokenHash
+      && (
+        credentialHashes.includes(normalizedMailTokenHash)
+        || consumedPairingHashes.includes(normalizedMailTokenHash)
+        || activeLeaseHashes.includes(normalizedMailTokenHash)
+      )
+    );
+  if (conflict) {
+    throw new CoreStoreError('authority_secret_conflict', 'Core authority credentials are not domain-separated.', { status: 503 });
+  }
+  return { ok: true };
+}
+
+export function preflightAuthoritySecretSeparation(databasePath, options = {}) {
+  assertConfiguredAuthoritySecretSeparation(options);
+  if (!existsSync(databasePath)) return { ok: true };
+  try {
+    const db = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      return assertAuthoritySecretSeparationInDatabase(db, options);
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    if (error?.code === 'ERR_SQLITE_CANTOPEN') return { ok: true };
+    throw error;
+  }
+}
+
+export function preflightActivityDatabaseRole(databasePath, { allowDormantBackup = false } = {}) {
+  if (!existsSync(databasePath)) return { ok: true, role: null };
+  try {
+    const db = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      if (!coreTableExists(db, 'activity_metadata')) return { ok: true, role: null };
+      const role = db.prepare("SELECT value FROM activity_metadata WHERE key='database_role'").get()?.value ?? null;
+      if (role === 'backup_read_only') {
+        throw new CoreStoreError(
+          'backup_activation_unsupported',
+          'Activity backup databases are whole-Core read-only verification candidates.',
+          { status: 503 },
+        );
+      }
+      if (role !== null && role !== 'live') {
+        throw new CoreStoreError('activity_schema_not_ready', 'Activity database role is invalid.', { status: 503 });
+      }
+      return { ok: true, role };
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    if (error?.code === 'ERR_SQLITE_CANTOPEN') return { ok: true, role: null };
+    throw error;
+  }
+}
+
+export function preflightActivityDatabaseBinding(databasePath, expectedDigest) {
+  if (typeof expectedDigest !== 'string' || !/^[a-f0-9]{64}$/.test(expectedDigest)) {
+    throw new CoreStoreError('activity_database_binding_invalid', 'Activity database path binding is invalid.', { status: 503 });
+  }
+  if (!existsSync(databasePath)) return { ok: true, legacyUnbound: false };
+  const db = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    if (!coreTableExists(db, 'activity_metadata')) return { ok: true, legacyUnbound: false };
+    const actual = db.prepare("SELECT value FROM activity_metadata WHERE key='database_binding_digest'").get()?.value ?? null;
+    if (actual === null) {
+      const version = db.prepare("SELECT value FROM core_metadata WHERE key='activity_schema_version'").get()?.value ?? null;
+      if (['1', '2', '3'].includes(version)) {
+        preflightActivityLegacyMigration(db);
+        return { ok: true, legacyUnbound: true };
+      }
+      throw new CoreStoreError('activity_database_binding_invalid', 'Activity database path binding is missing.', { status: 503 });
+    }
+    if (!/^[a-f0-9]{64}$/.test(actual)) {
+      throw new CoreStoreError('activity_database_binding_invalid', 'Activity database path binding is invalid.', { status: 503 });
+    }
+    if (actual !== expectedDigest) {
+      throw new CoreStoreError(
+        'activity_database_binding_mismatch',
+        'Activity database is bound to a different canonical live path.',
+        { status: 503 },
+      );
+    }
+    preflightActivityLegacyMigration(db, { expectedDatabaseBindingDigest: expectedDigest });
+    return { ok: true, legacyUnbound: false };
+  } finally {
+    db.close();
+  }
+}
+
+export function preflightCoreIdentity(databasePath) {
+  if (!existsSync(databasePath)) return { ok: true, fresh: true };
+  const db = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const tables = db.prepare(`SELECT name FROM sqlite_master
+      WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all().map((row) => row.name);
+    if (!tables.length) return { ok: true, fresh: true };
+    if (!tables.includes('core_metadata')) {
+      throw new CoreStoreError('core_metadata_invariant_failed', 'Existing Core database identity metadata is invalid.', { status: 503 });
+    }
+    const metadata = new Map(db.prepare('SELECT key,value FROM core_metadata').all().map((row) => [row.key, row.value]));
+    const schemaVersion = metadata.get('schema_version');
+    const nodeId = metadata.get('node_id');
+    const cursorSecret = metadata.get('cursor_secret');
+    if (!/^[45]$/.test(schemaVersion ?? '')) {
+      throw new CoreStoreError(
+        'unsupported_core_schema_version',
+        'Core schema version is not compatible with this binary.',
+        { status: 503 },
+      );
+    }
+    if (
+      !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(nodeId ?? '')
+      || !/^[A-Za-z0-9_-]{43}$/.test(cursorSecret ?? '')
+    ) {
+      throw new CoreStoreError('core_metadata_invariant_failed', 'Existing Core database identity metadata is invalid.', { status: 503 });
+    }
+    return { ok: true, fresh: false, schemaVersion, nodeId, cursorSecret };
+  } finally {
+    db.close();
+  }
+}
+
+function withReadOnlyActivitySnapshot(databasePath, inspect, { allowMissing = false } = {}) {
+  const suffixes = ['', '-journal', '-wal', '-shm'];
+  if (!existsSync(databasePath)) {
+    if (suffixes.slice(1).some((suffix) => existsSync(`${databasePath}${suffix}`))) {
+      throw new CoreStoreError('core_metadata_invariant_failed', 'Core main database is missing while SQLite sidecar evidence exists.', { status: 503 });
+    }
+    if (allowMissing) return;
+    throw new CoreStoreError('recovery_lineage_unverified', 'Activity recovery candidate has no verifiable authority lineage.', { status: 409 });
+  }
+  const capture = () => suffixes.map((suffix) => {
+    const filename = `${databasePath}${suffix}`;
+    return existsSync(filename) ? readFileSync(filename) : null;
+  });
+  const fingerprint = (files) => files.map((bytes) => bytes == null ? null
+    : `${bytes.length}:${createHash('sha256').update(bytes).digest('hex')}`).join('|');
+  let temporaryDirectory = null;
+  let db;
+  const before = capture();
+  try {
+    if (before.slice(1).some((bytes) => bytes != null)) {
+      // Never ask SQLite to open the source WAL/journal: even readOnly=true can
+      // create sidecars or update its shared-memory read marks. Recovery and
+      // classification happen only in an owned temporary copy of the full view.
+      temporaryDirectory = mkdtempSync(path.join(tmpdir(), 'activity-preflight-'));
+      const candidate = path.join(temporaryDirectory, 'candidate.sqlite');
+      before.forEach((bytes, index) => {
+        if (bytes != null) writeFileSync(`${candidate}${suffixes[index]}`, bytes);
+      });
+      if (fingerprint(before) !== fingerprint(capture())) {
+        throw new CoreStoreError('activity_preflight_unstable', 'Activity database changed during read-only preflight.', { status: 503 });
+      }
+      db = new DatabaseSync(candidate);
+    } else {
+      // Proven sidecar-free snapshots may use immutable mode, which does not
+      // synthesize an empty WAL/SHM for a clean WAL-mode main database.
+      db = new DatabaseSync(`${pathToFileURL(path.resolve(databasePath)).href}?mode=ro&immutable=1`, { readOnly: true });
+    }
+    return inspect(db);
+  } finally {
+    db?.close();
+    if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
+    if (fingerprint(before) !== fingerprint(capture())) {
+      throw new CoreStoreError('activity_preflight_unstable', 'Activity database changed during read-only preflight.', { status: 503 });
+    }
+  }
+}
+
+function assertSupportedActivityCommitment(db) {
+  if (!coreTableExists(db, 'core_metadata')) return;
+  const version = db.prepare("SELECT value FROM core_metadata WHERE key='activity_schema_version'").get()?.value;
+  if (version !== '5') return; // New databases and canonical legacy upgrades keep their own preflight.
+  const commitment = coreTableExists(db, 'activity_metadata')
+    ? db.prepare("SELECT value FROM activity_metadata WHERE key='integrity_commitment_version'").get()?.value : null;
+  if (commitment !== String(ACTIVITY_INTEGRITY_COMMITMENT_VERSION)) {
+    throw new CoreStoreError('activity_integrity_upgrade_unsupported', 'Existing activity integrity commitment cannot be upgraded automatically.', { status: 503 });
+  }
+}
+
+export function preflightActivityCommitmentVersion(databasePath) {
+  return withReadOnlyActivitySnapshot(databasePath, assertSupportedActivityCommitment, { allowMissing: true });
+}
+
+export function verifyActivityRecoveryCandidate(databasePath, floor) {
+  return withReadOnlyActivitySnapshot(databasePath, (db) => {
+    assertSupportedActivityCommitment(db);
+    if (!coreTableExists(db, 'core_metadata')) {
+      throw new CoreStoreError('recovery_lineage_unverified', 'Activity recovery candidate has no verifiable authority lineage.', { status: 409 });
+    }
+    const nodeId = db.prepare("SELECT value FROM core_metadata WHERE key='node_id'").get()?.value;
+    const cursorSecret = db.prepare("SELECT value FROM core_metadata WHERE key='cursor_secret'").get()?.value;
+    if (!nodeId || !cursorSecret) {
+      throw new CoreStoreError('recovery_lineage_unverified', 'Activity recovery candidate has no verifiable authority lineage.', { status: 409 });
+    }
+    const result = assertActivityRecoveryFloorForDatabase(db, floor, { nodeId, cursorSecret });
+    return { ...result, activation_authorized: false };
+  });
+}
+
+function cleanupSqliteStaging(stagingPath) {
+  for (const candidate of [stagingPath, `${stagingPath}-wal`, `${stagingPath}-shm`, `${stagingPath}-journal`]) {
+    if (existsSync(candidate)) unlinkSync(candidate);
+  }
 }
 
 function requiredString(value, field, { allowEmpty = false } = {}) {
@@ -141,18 +461,75 @@ function normalizeMessage(raw, authenticatedDeviceId, { allowCompanion = false }
 }
 
 export class ICoreStore {
-  constructor(databasePath, { companionReplyJobsEnabled = false } = {}) {
+  constructor(databasePath, {
+    companionReplyJobsEnabled = false,
+    clock = Date.now,
+    activityRecoveryFloor = null,
+    activityRuntimeId = undefined,
+    activityRuntimeLeaseMs = undefined,
+    activityEnabled = false,
+    activityAutoActivate = true,
+    eventIdPrefixFactory = undefined,
+    testOnlyActivityMigrationHook = undefined,
+  } = {}) {
+    preflightActivityCommitmentVersion(databasePath);
+    if (activityRecoveryFloor) {
+      verifyActivityRecoveryCandidate(databasePath, activityRecoveryFloor);
+      throw new CoreStoreError(
+        'backup_activation_unsupported',
+        'Recovery candidate verification is offline-only; this binary cannot activate a backup.',
+        { status: 503 },
+      );
+    }
+    const coreIdentity = preflightCoreIdentity(databasePath);
+    const rolePreflight = preflightActivityDatabaseRole(databasePath, { allowDormantBackup: !activityEnabled });
+    const databaseBindingDigest = activityDatabaseBindingDigest(databasePath);
+    if (rolePreflight.role !== 'backup_read_only') {
+      preflightActivityDatabaseBinding(databasePath, databaseBindingDigest);
+    }
     mkdirSync(path.dirname(databasePath), { recursive: true });
     this.db = new DatabaseSync(databasePath);
     this.companionReplyJobsEnabled = companionReplyJobsEnabled;
-    this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
-    this.#migrate();
-    this.nodeId = this.#metadata('node_id') ?? this.#setMetadata('node_id', randomUUID());
-    this.cursorSecret = this.#metadata('cursor_secret') ??
-      this.#setMetadata('cursor_secret', randomBytes(32).toString('base64url'));
+    this.clock = clock;
+    try {
+      this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+      this.#migrate();
+      this.nodeId = coreIdentity.fresh
+        ? this.#setMetadata('node_id', randomUUID())
+        : coreIdentity.nodeId;
+      this.cursorSecret = coreIdentity.fresh
+        ? this.#setMetadata('cursor_secret', randomBytes(32).toString('base64url'))
+        : coreIdentity.cursorSecret;
+      this.activity = new ActivityControlPlane(this.db, {
+        nodeId: this.nodeId,
+        cursorSecret: this.cursorSecret,
+        clock,
+        ...(activityRuntimeId === undefined ? {} : { runtimeId: activityRuntimeId }),
+        ...(activityRuntimeLeaseMs === undefined ? {} : { runtimeLeaseMs: activityRuntimeLeaseMs }),
+        databaseBindingDigest,
+        active: activityEnabled && activityAutoActivate,
+        readOnlyDormant: rolePreflight.role === 'backup_read_only',
+        ...(eventIdPrefixFactory === undefined ? {} : { eventIdPrefixFactory }),
+        ...(testOnlyActivityMigrationHook === undefined ? {} : { testOnlyMigrationHook: testOnlyActivityMigrationHook }),
+      });
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
   }
 
   #migrate() {
+    const existingMetadata = this.db.prepare("SELECT 1 AS found FROM sqlite_master WHERE type='table' AND name='core_metadata'").get();
+    if (existingMetadata) {
+      const rawVersion = this.db.prepare("SELECT value FROM core_metadata WHERE key='schema_version'").get()?.value;
+      if (rawVersion != null && !/^[45]$/.test(rawVersion)) {
+        throw new CoreStoreError(
+          'unsupported_core_schema_version',
+          'Core schema version is not compatible with this binary.',
+          { status: 503 },
+        );
+      }
+    }
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS core_metadata (
         key TEXT PRIMARY KEY,
@@ -240,7 +617,10 @@ export class ICoreStore {
         FOREIGN KEY(job_id) REFERENCES companion_reply_jobs(job_id)
       );
     `);
-    this.#setMetadata('schema_version', String(CORE_STORE_SCHEMA_VERSION));
+    this.db.prepare(`
+      INSERT INTO core_metadata(key, value) VALUES ('schema_version', '4')
+      ON CONFLICT(key) DO NOTHING
+    `).run();
   }
 
   #metadata(key) {
@@ -255,16 +635,44 @@ export class ICoreStore {
     return value;
   }
 
-  health({ workerLeasesEnabled = false } = {}) {
+  #coreIdentityStatus() {
+    try {
+      const nodeId = this.#metadata('node_id');
+      const cursorSecret = this.#metadata('cursor_secret');
+      const schemaVersion = this.#metadata('schema_version');
+      const ready = /^[45]$/.test(schemaVersion ?? '')
+        && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(nodeId ?? '')
+        && /^[A-Za-z0-9_-]{43}$/.test(cursorSecret ?? '')
+        && nodeId === this.nodeId
+        && cursorSecret === this.cursorSecret;
+      return { ready, reason: ready ? null : 'core_metadata_invariant_failed' };
+    } catch {
+      return { ready: false, reason: 'core_metadata_invariant_failed' };
+    }
+  }
+
+  health({ workerLeasesEnabled = false, activityOwnerConfigured = false } = {}) {
+    const coreIdentity = this.#coreIdentityStatus();
+    // Audit even when Core identity is red so the activity runtime latches the
+    // same integrity failure; restoring bytes cannot silently resume authority.
+    const activitySchema = this.activity.schemaStatus({ deepAudit: true });
+    const activityRuntime = activitySchema.ready
+      ? this.activity.runtimeStatus()
+      : { ready: false, reason: 'activity_schema_not_ready', takeover_supported: false, backup_activation_supported: false };
+    const activityDatabaseRole = activitySchema.ready
+      ? this.db.prepare("SELECT value FROM activity_metadata WHERE key='database_role'").get()?.value ?? null
+      : null;
+    const permanentlyDisabled = activityDatabaseRole === 'backup_read_only';
+    const activityReady = activitySchema.ready && activityRuntime.ready && activityOwnerConfigured && !permanentlyDisabled;
     return {
-      ok: true,
+      ok: coreIdentity.ready,
       node_id: this.nodeId,
       role: 'authority',
       protocol_version: CORE_PROTOCOL_VERSION,
       minimum_protocol_version: CORE_PROTOCOL_VERSION,
-      schema_version: CORE_STORE_SCHEMA_VERSION,
+      schema_version: Number(this.#metadata('schema_version') ?? 0),
       server_time_ms: Date.now(),
-      features: [
+      features: coreIdentity.ready ? [
         'device_pairing',
         'chat_submit',
         'change_feed',
@@ -273,8 +681,116 @@ export class ICoreStore {
         ...(workerLeasesEnabled && this.companionReplyJobsEnabled
           ? ['companion_reply_jobs']
           : []),
-      ],
+        ...(activityReady ? [ACTIVITY_CONTRACT] : []),
+      ] : [],
+      activity: {
+        contract: ACTIVITY_CONTRACT,
+        feature_version: ACTIVITY_FEATURE_VERSION,
+        schema_version: activitySchema.schema_version,
+        status: !coreIdentity.ready
+          ? 'core_metadata_invariant_failed'
+          : !activitySchema.ready
+            ? 'migration_incomplete'
+          : permanentlyDisabled
+            ? 'permanently_disabled_after_restore'
+          : !activityOwnerConfigured
+            ? 'owner_principal_unconfigured'
+            : !activityRuntime.ready
+              ? 'authority_fenced'
+              : 'control_plane_ready',
+        control_plane_available: activityReady,
+        database_role: activityDatabaseRole,
+        runtime_fence: activityRuntime.runtime_fence ?? null,
+        takeover_supported: false,
+        backup_activation_supported: false,
+        clean_close_in_place_only: true,
+        crash_recovery_supported: false,
+        lease_takeover_supported: false,
+        backup_verification_supported: true,
+        e2e_available: false,
+        collector_available: false,
+        summary_client_available: false,
+      },
     };
+  }
+
+  activateActivity() {
+    return this.activity.activate();
+  }
+
+  async backupDatabase(destinationPath, {
+    includeActivityManifest = this.activity.active,
+    failpoint = null,
+  } = {}) {
+    const backupNow = this.clock();
+    if (!this.activity.schemaStatus().ready) {
+      throw new CoreStoreError('activity_schema_not_ready', 'Activity schema row integrity audit failed before backup.', { status: 503 });
+    }
+    if (this.activity.active) {
+      this.activity.assertRuntimeAuthority();
+      this.activity.runRetention(backupNow);
+      if (!this.activity.schemaStatus().ready) {
+        throw new CoreStoreError('activity_schema_not_ready', 'Activity schema row integrity audit failed after retention.', { status: 503 });
+      }
+    }
+    const retentionDebt = activityRetentionDebt(this.db, backupNow);
+    if (retentionDebt.length) {
+      throw new CoreStoreError(
+        'activity_retention_authority_required',
+        'Activity data due for retention must be cleaned by the active activity authority before backup.',
+        { status: 503, details: { tables: retentionDebt } },
+      );
+    }
+    if (includeActivityManifest) this.activity.assertRuntimeAuthority();
+    mkdirSync(path.dirname(destinationPath), { recursive: true });
+    if (existsSync(destinationPath)) {
+      throw new CoreStoreError('backup_destination_exists', 'Backup destination must not already exist.', { status: 409 });
+    }
+    const stagingPath = path.join(
+      path.dirname(destinationPath),
+      `.${path.basename(destinationPath)}.${randomUUID()}.activity-backup.tmp`,
+    );
+    try {
+      await backup(this.db, stagingPath);
+      if (failpoint === 'after_stage_copy') throw new Error('synthetic backup interruption after stage copy');
+      if (includeActivityManifest) this.activity.assertRuntimeAuthority();
+      const destination = new DatabaseSync(stagingPath);
+      let recoveryManifest;
+      try {
+        if (coreTableExists(destination, 'activity_metadata')) {
+          destination.prepare("UPDATE activity_metadata SET value='backup_read_only' WHERE key='database_role'").run();
+        }
+        destination.exec('PRAGMA journal_mode=DELETE');
+        const verifiedManifest = activityRecoveryManifestForDatabase(destination, {
+          nodeId: this.nodeId,
+          cursorSecret: this.cursorSecret,
+        });
+        recoveryManifest = includeActivityManifest ? verifiedManifest : null;
+      } finally {
+        destination.close();
+      }
+      if (failpoint === 'after_role_write') throw new Error('synthetic backup interruption after role write');
+      renameSync(stagingPath, destinationPath);
+      return {
+        path: destinationPath,
+        activity_schema_version: includeActivityManifest ? this.activity.schemaStatus().schema_version : null,
+        retained_watermark: recoveryManifest?.retained_watermark ?? null,
+        snapshot_generation: recoveryManifest?.snapshot_generation ?? null,
+        recovery_manifest: recoveryManifest,
+      };
+    } catch (error) {
+      cleanupSqliteStaging(stagingPath);
+      throw error;
+    }
+  }
+
+  assertAuthoritySecretSeparation(options = {}) {
+    return assertAuthoritySecretSeparationInDatabase(this.db, options);
+  }
+
+  rollbackEmptyActivitySchema() {
+    this.activity.assertRuntimeAuthority();
+    return rollbackActivitySchema(this.db);
   }
 
   acquireWorkerLease(raw, now = Date.now()) {
@@ -1126,6 +1642,10 @@ export class ICoreStore {
   }
 
   close() {
-    this.db.close();
+    try {
+      this.activity?.releaseRuntimeClaim();
+    } finally {
+      this.db.close();
+    }
   }
 }

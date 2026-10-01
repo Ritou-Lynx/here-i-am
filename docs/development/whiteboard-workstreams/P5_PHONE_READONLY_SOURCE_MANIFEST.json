@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "base_commit": "4ba05b1177d38c29c5eb3f207ce1fbf8bb600d7b",
+  "phase": "Goal1/P5",
+  "candidate_kind": "uncommitted-source-candidate",
+  "p5_sources": [
+    {
+      "sha256": "4b9f13d3a2919ab8350d587b3fd94b9f729c13c5b08dba341fdb30d8dea1b24d",
+      "path": "lib/data/workbench_ai/context/workbench_relationship_context.dart"
+    },
+    {
+      "sha256": "9585f38b9c8371ed68a587e9ae0e8a3b7f9126a7ecd12bc5f11ce2f8e7be5040",
+      "path": "lib/routing/router.dart"
+    },
+    {
+      "sha256": "22ea19061827c84d59ea0bdfe3cc04134f200ab521ee544ee7b273cf873cd4d4",
+      "path": "lib/routing/routes.dart"
+    },
+    {
+      "sha256": "ea7741e5f0c4832184ee966b27a54e2cec2303659d0170c6cc513bb743996093",
+      "path": "lib/ui/desktop/widgets/desktop_sidebar.dart"
+    },
+    {
+      "sha256": "9646276bd501c2166c5a38cdd3ebdbde4f6382068565ee9c516c6c43348b178c",
+      "path": "lib/ui/settings/widgets/personal_center_screen.dart"
+    },
+    {
+      "sha256": "bf5c1a5a7d3ce61fdfd140f76fe47c7cb8f11195895db38f8f195a475b2b0eae",
+      "path": "lib/data/memory_v3/readonly/phone_dreaming_read_service.dart"
+    },
+    {
+      "sha256": "22b52ec558050ab0a67fbe722f68497b438923f254142ef641dd6ecd53ec24ab",
+      "path": "lib/data/memory_v3/readonly/phone_memory_read_client.dart"
+    },
+    {
+      "sha256": "9ff8d27cdb75e2346db2c1693681256f56fd7334a1c2b4ad32fca0287f8598e5",
+      "path": "lib/data/memory_v3/readonly/phone_memory_read_server.dart"
+    },
+    {
+      "sha256": "94c3a22f7a4511b18898a0a36712d354ccbe677c3f28e272ffb6b1ddfc909240",
+      "path": "lib/ui/settings/view_models/phone_memory_connection_viewmodel.dart"
+    },
+    {
+      "sha256": "fcaee293f8bdb0c502384dec4ef6df1fd55c50ee1b4aa72b2070440da1482b02",
+      "path": "lib/ui/settings/widgets/phone_memory_connection_page.dart"
+    },
+    {
+      "sha256": "ccedc324a0f12a36d66a15ceba0407b8e46e8f77d18760d35f92c35e911cb4b9",
+      "path": "tools/dev_agent_bridge/phone_memory_usb.mjs"
+    },
+    {
+      "sha256": "976ae7ec516f5f42da87e1b3b60123649585a1227e6b3d104385b3461be49c0f",
+      "path": "tools/dev_agent_bridge/phone_memory_usb.test.mjs"
+    }
+  ],
+  "retained_mobile_sources": [
+    {
+      "path": "android/app/src/main/AndroidManifest.xml",
+      "sha256": "6261d6bad5577cba836a4e285b843d7e7d7a0d721c46f8d4a14cd005939aaa2a"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleConnectWatchdogAlarmScheduler.kt",
+      "sha256": "9cf6690e6d0024ab6420a6fc2c117aa93cdb56f8bb736251e67957c524d5bbde"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleConnectWatchdogCoordinator.kt",
+      "sha256": "66381996c1b7e08c84082ad020edff10ae06a94b7a16977747a93e3fc23f50d2"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleConnectWatchdogPolicy.kt",
+      "sha256": "4c619d955e689d4e9608b98c1725a91432a8a9d70cd9d91a4d3cdff1d254293d"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleConnectWatchdogServiceController.kt",
+      "sha256": "8f3266e8d7c640d2e5862496968bb8aade4d53fe5cb4d2878dc8f5a8f2f9ef2f"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleHeartRateService.kt",
+      "sha256": "2c8c52d1ccf50abb58edf4fd53f6a4afd71e579584419da04968f5ec62b6c4f6"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleHeartRateStore.kt",
+      "sha256": "718aab8be4c730f453ea4e81acf6f0c3d8d867115e6062d640abde795dd12688"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleHeartRateWatchdogReceiver.kt",
+      "sha256": "bf9a22d4c73e904f212a7a71bf553c2704f6a4a12b8eef7acc8b75d75de4de53"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleHeartRateWatchdogReceiverController.kt",
+      "sha256": "080599f227cefdedd6fc5a1b2cb99e350c9bcb09b7cda508d704f2bbd25c6a61"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleHeartRateWatchdogReceiverPolicy.kt",
+      "sha256": "dfb0e875202c9bd3d2bf4a53d5a465dfd36e41cefbd505eb429c21c9ec26b4c9"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleNotificationRefreshPolicy.kt",
+      "sha256": "ad862880ffe06696a79b00bdc0b547614d38dcbe6cc269bca535a5b681ee3146"
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/memexlab/memex/ble/BleReconnectCoordinator.kt",
+      "sha256": "cdc30237a5aaf45e5c48a7e931960c937ca4cef25061868083bf1f34eb995919"
+    },
+    {
+      "path": "android/app/src/test/kotlin/com/memexlab/memex/ble/BleConnectWatchdogCoordinatorTest.kt",
+      "sha256": "cce5527f0e4b50e432002453a8ffc82b5336b78347951fbc271c05d19b682bff"
+    },
+    {
+      "path": "android/app/src/test/kotlin/com/memexlab/memex/ble/BleConnectWatchdogPolicyTest.kt",
+      "sha256": "82834f156a09791cd1f7ad33d5f6e69b7cf847262c619ec4171f0456f7508cd8"
+    },
+    {
+      "path": "android/app/src/test/kotlin/com/memexlab/memex/ble/BleConnectWatchdogServiceControllerTest.kt",
+      "sha256": "63c49299b9c8fe9b94c55be876e17c85cfeb5a9a50c29107a7d0f133e96b90f7"
+    },
+    {
+      "path": "android/app/src/test/kotlin/com/memexlab/memex/ble/BleHeartRateWatchdogReceiverPolicyTest.kt",
+      "sha256": "e7cb0bcfa33e2833c1eaf73bde4c8452490ac28dcf5cdadd491a29ad37c1f314"
+    },
+    {
+      "path": "android/app/src/test/kotlin/com/memexlab/memex/ble/BleNotificationRefreshPolicyTest.kt",
+      "sha256": "2786f328b5e576bea40bcb5f50aa35c1e9089de9ac39cc0fe5e21dd3dde3f2dc"
+    },
+    {
+      "path": "android/app/src/test/kotlin/com/memexlab/memex/ble/BleReconnectCoordinatorTest.kt",
+      "sha256": "2f9cd7e612c9607efad947155f0a711d194918d7f9efc68ed0a13d2a01fd074f"
+    },
+    {
+      "path": "android/app/src/test/kotlin/com/memexlab/memex/ble/BleSnapshotPersistPolicyTest.kt",
+      "sha256": "5c4845cb147b7b1a9f59bf9ae18fcd248774774ebc1f4119416f1e1b22372b8e"
+    },
+    {
+      "path": "lib/ui/settings/widgets/early_update_settings_card.dart",
+      "sha256": "65d9c2373ddca05c9c4173e67162860fc6a4e05c5fb35fd4e3d0b03f2cd1387a"
+    }
+  ],
+  "notes": [
+    "P5 source is selectively integrated; no commit or push.",
+    "Windows built from isolated P5 tree; Android must use main tree retaining the listed mobile edits.",
+    "Artifact hashes recorded separately after each build; tests do not complete the human Gate."
+  ]
+}

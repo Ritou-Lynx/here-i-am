@@ -76,6 +76,24 @@ requested model before creating or resuming a thread. It never edits the
 global Codex configuration. `DEV_AGENT_EXPERIMENTAL_CODEX_MODEL` is optional;
 when set, it must match an ID returned by the installed App Server.
 
+On Windows, launch the Runtime Bridge as the same ordinary user who completed
+`codex login status`, or use the coding host's approved execution flow. A
+`CodexSandboxOffline` / `CodexSandboxOnline` process has a different identity;
+its missing login does not mean the ordinary user is signed out. The launcher
+rejects this mismatch rather than trying to bypass the sandbox or copy credentials.
+`-EnableExperimentalRuntime` is equivalent to the opt-in environment flag;
+`-CodexExecutable` optionally selects the full path of the exact `.exe` used for
+login, without changing `CODEX_HOME`, the default resolver, or model settings.
+
+The launcher rejects an already-listening port without stopping or replacing
+its owner, and propagates the Node exit code. A background launcher PID alone
+is not proof of readiness: verify the actual listener owner and child executable,
+then require `/v1/health`, Runtime `/auth`, and `/capabilities` to succeed.
+Do not launch another copy onto an occupied port and attribute the old process's
+health response to the new configuration. If the ordinary user's login was just
+refreshed, the existing `host/stop-app-server` endpoint can recreate App Server;
+an incorrectly owned Bridge must instead be explicitly stopped and relaunched.
+
 All routes carry the `/experimental/v1/runtime` prefix and return the
 `x-hereiam-experimental: runtime-adapter-v1` header:
 

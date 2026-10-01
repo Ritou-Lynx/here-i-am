@@ -240,19 +240,29 @@ class _DesktopMessageList extends StatelessWidget {
                           fromUser: false,
                           action: true,
                         )
-                      : message.isFromCharacter
-                          ? _DesktopCharacterTurn(
+                      : message.isFromCharacter &&
+                              message.messageType == 'chat' &&
+                              message.taskRoomId?.trim().isNotEmpty == true &&
+                              message.content.trim().isNotEmpty
+                          ? _DesktopChatBubble(
                               text: message.content,
-                              hasAttachment:
-                                  _hasAttachment(message.attachmentsJson),
+                              fromUser: false,
+                              preserveWhitespace: true,
                             )
-                          : _DesktopChatBubble(
-                              text: message.content.trim().isEmpty &&
-                                      _hasAttachment(message.attachmentsJson)
-                                  ? '已发送附件'
-                                  : message.content,
-                              fromUser: true,
-                            ),
+                          : message.isFromCharacter
+                              ? _DesktopCharacterTurn(
+                                  text: message.content,
+                                  hasAttachment:
+                                      _hasAttachment(message.attachmentsJson),
+                                )
+                              : _DesktopChatBubble(
+                                  text: message.content.trim().isEmpty &&
+                                          _hasAttachment(
+                                              message.attachmentsJson)
+                                      ? '已发送附件'
+                                      : message.content,
+                                  fromUser: true,
+                                ),
             ),
           );
         },
@@ -331,18 +341,20 @@ class _DesktopChatBubble extends StatelessWidget {
     required this.fromUser,
     this.action = false,
     this.muted = false,
+    this.preserveWhitespace = false,
   });
 
   final String text;
   final bool fromUser;
   final bool action;
   final bool muted;
+  final bool preserveWhitespace;
 
   @override
   Widget build(BuildContext context) {
     final tokens = DesktopWorkspaceTokens.of(context);
-    final message = text.trim();
-    if (message.isEmpty) return const SizedBox.shrink();
+    final message = preserveWhitespace ? text : text.trim();
+    if (message.trim().isEmpty) return const SizedBox.shrink();
     return Align(
       alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
       child: FractionallySizedBox(
