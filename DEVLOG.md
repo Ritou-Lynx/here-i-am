@@ -1,3 +1,11 @@
+## 2026-10-02 — 任务 B2.1/B2.2：claude.ai 远程只读 MCP
+
+**交付**：`tools/i_remote_mcp/`：Streamable HTTP MCP（`/mcp`，2025-06-18/03-26）+ 单用户 OAuth 2.1（DCR、口令页、PKCE S256、refresh 轮换、令牌只存哈希、口令限速）；只开放 `i_context`、`i_recall`，输出白名单投影。
+**数据**：经 `tools/i_memory/i_memory_read.mjs` 的 `openReadModel` 懒加载读取；测试用 fake readModel，36 项 `node --test` 通过。另交付 Project 指令 `CLAUDE_PROJECT_INSTRUCTIONS.md`。
+**需实测**：claude.ai 回调/`resource`/Origin 实际值、仅 JSON 无 SSE 是否被接受、Funnel 部署（B2.3）。未构建 App。
+
+---
+
 ## 2026-10-02 — 任务 B1.2/B1.3：i_memory 记忆快照与出站策略
 
 **交付**：`tools/i_memory/`：V3 记忆卡快照导入（默认 dry-run，整体替换，FTS5 trigram）、`policy.json` 出站策略（fail closed）、`openReadModel` 只读接口。
