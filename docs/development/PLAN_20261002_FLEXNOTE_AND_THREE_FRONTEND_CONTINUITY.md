@@ -99,6 +99,8 @@ claude.ai 的自定义 connector 从 Anthropic 的服务器访问你的 MCP，�
 
 **B2 做完就能用了：Claude 网页端已经"认识你、记得手机里的事"。**
 
+> **B2.3 入口决定（2026-10-03）**：claude.ai 经 Tailscale Funnel `:10000` 连续报 "Couldn't reach"（ofid_0606247cfdc37cb1、ofid_9a67e796e2d10271、ofid_1160b15c32840d18 等），而同一时段 12 国公共节点均可达；同一服务改经 Cloudflare 临时隧道（443）后完成发现、DCR（`/register` 201）并到达口令页。根因未细分（端口 / Funnel / 平台策略），长期入口改为 **Cloudflare 固定隧道 + 自有域名**，Funnel 不再作为 claude.ai 入口。
+
 ### B3　Claude 网页端：再能写回
 
 | # | 谁 | 任务 | 验收 |

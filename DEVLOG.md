@@ -1,3 +1,11 @@
+## 2026-10-03 — B2.3 入口 A/B：Funnel 不通，改 Cloudflare 固定隧道
+
+**现象**：claude.ai 经 Tailscale Funnel `:10000` 多次 "Couldn't reach"，同期 12 国公共节点均可达，服务端规范检查无缺项。
+**对照**：同一服务经 Cloudflare 临时隧道（443）完成 POST /register 201 与口令页，测试实例与隧道已关闭。
+**决定**：长期入口用 Cloudflare 固定隧道 + 自有域名；Funnel 不再作 claude.ai 入口。纯文档，未改代码。
+
+---
+
 ## 2026-10-02 — B1×B2 整合复核 + 学习导师 A6 修订
 
 **整合**：合入 `tools/i_memory/` 与 `tools/i_remote_mcp/` 两个并行会话；新增消息级 `private_keywords`；OAuth 回调默认只收 claude.ai（额外回调走环境变量），修复注册校验回调参数错位导致的 500。
