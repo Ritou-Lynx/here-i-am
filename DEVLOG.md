@@ -1,3 +1,12 @@
+## 2026-10-02 — 方向调整：白板停开发，FlexNote × 三端串联任务单
+
+**决定**：白板工作台停止开发，知识库与学习改用 FlexNote + Codex（MCP）；Here I Am 只保留时间线、记忆与身份。
+**任务单**：FlexNote 接入 Codex（A），Claude 网页 × 手机 App ×可选 ChatGPT 串联（B0–B5），按 [你]/[Codex]/[Claude] 分工。
+**边界**：轻量通道，仅本人使用；私密会话不出站；真实数据与令牌不进 GitHub。纯文档，未构建。
+**交接**：[任务单](docs/development/PLAN_20261002_FLEXNOTE_AND_THREE_FRONTEND_CONTINUITY.md)。
+
+---
+
 ## 2026-10-01 — GitHub 单仓库协作恢复完成
 
 **结果**：原 here-i-am 仓库的整合PR #1已合入默认v3-lab，GitHub自动检查通过；正式开发副本恢复正常push并跟踪远端。
