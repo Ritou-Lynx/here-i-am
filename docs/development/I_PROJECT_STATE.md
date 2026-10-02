@@ -1,5 +1,9 @@
 # 林埃的项目状态
 
+## 验证规则（2026-10-02）
+
+用户确认后，AGENTS 与协作协议改为机器优先的四层验证，详见[无人值守验证](UNATTENDED_VERIFICATION.md)：CI 对每个候选 SHA 自动重跑并以其结果为证据，自动场景失败不中止，真人只异步看口吻、手感、视觉并按受影响路径沿用结论。无人值守环境（专用测试机、云端 agent、CI，限合成数据）有常设授权；真实数据、合入 `v3-lab`、发布与生产启用仍需询问。
+
 ## P6 长任务改走 Ollama（2026-10-02）
 
 用户确认长任务改用 Ollama 纯文本执行，简化优先。生产 `WorkbenchRuntimeTaskQueueTool.production()` 默认使用应用内 Ollama 网关：每次尝试只发一个不带工具的 `/api/chat` 流式请求，不再经过 Codex CLI 文字 profile 和原生隔离，也没有 UAC 弹窗。暂停、取消、宿主退出在进程内中断，停止可确认。未设置 `HIA_TASK_OLLAMA_MODEL` 或配置不安全时 fail-closed：开始被拒绝，任务保持 pending。配置方法与边界见 [P6 Ollama 交接](whiteboard-workstreams/P6_OLLAMA_TEXT_TASKS_20261002.md)。
