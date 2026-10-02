@@ -128,7 +128,7 @@ void main() {
       expect(r.activeState, isNotNull);
       expect(r.activeState!.insomnia, isFalse);
       expect(r.reminder, contains('哄睡模式'));
-      expect(r.reminder, contains('[softly]'));
+      expect(r.reminder, contains('[whispers]'));
     });
 
     test('saying can not sleep enters watch mode', () {

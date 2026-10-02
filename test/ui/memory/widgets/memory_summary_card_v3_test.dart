@@ -129,7 +129,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('"醒来时没有那么累。"'), findsOneWidget);
-    expect(find.text('6.8', findRichText: true), findsOneWidget);
+    expect(find.text('6.8  小时', findRichText: true), findsOneWidget);
     expect(find.text('00:36'), findsOneWidget);
     expect(find.text('最近四天睡眠时长'), findsOneWidget);
     expect(find.text('音频'), findsOneWidget);

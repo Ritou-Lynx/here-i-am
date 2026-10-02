@@ -35,11 +35,24 @@ Future<File> _cacheFile(String seed) async {
   return File('${dir.path}/avatar_$hash.svg');
 }
 
+/// Returns the cached avatar SVG for [seed], downloading it first if needed.
+/// Returns null when it is neither cached nor downloadable.
+Future<File?> _resolveAvatarFile(String seed) async {
+  try {
+    final file = await _cacheFile(seed);
+    if (await file.exists()) return file;
+  } catch (_) {}
+  final path = await cacheAvatarSvg(seed);
+  return path == null ? null : File(path);
+}
+
 /// Displays a DiceBear Notionists avatar as a circle.
 ///
 /// [seed] is used to generate the avatar. If null, shows a placeholder icon.
-/// Loads from local cache first, falls back to network.
-class DiceBearAvatar extends StatelessWidget {
+/// Loads from local cache first, then downloads into the cache. Only a
+/// successful response is rendered, so an error page or an offline device shows
+/// the placeholder instead of failing to parse as SVG.
+class DiceBearAvatar extends StatefulWidget {
   const DiceBearAvatar({
     super.key,
     required this.seed,
@@ -52,8 +65,36 @@ class DiceBearAvatar extends StatelessWidget {
   final Color? backgroundColor;
 
   @override
+  State<DiceBearAvatar> createState() => _DiceBearAvatarState();
+}
+
+class _DiceBearAvatarState extends State<DiceBearAvatar> {
+  Future<File?>? _file;
+
+  double get size => widget.size;
+  Color? get backgroundColor => widget.backgroundColor;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFile();
+  }
+
+  @override
+  void didUpdateWidget(DiceBearAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.seed != widget.seed) _loadFile();
+  }
+
+  void _loadFile() {
+    final seed = widget.seed;
+    _file = seed == null || seed.isEmpty ? null : _resolveAvatarFile(seed);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (seed == null || seed!.isEmpty) {
+    final file = _file;
+    if (file == null) {
       return _placeholder();
     }
 
@@ -62,29 +103,19 @@ class DiceBearAvatar extends StatelessWidget {
         width: size,
         height: size,
         color: backgroundColor ?? const Color(0xFFE7E8D1),
-        child: FutureBuilder<File>(
-          future: _cacheFile(seed!),
+        child: FutureBuilder<File?>(
+          future: file,
           builder: (context, snapshot) {
-            if (snapshot.hasData && snapshot.data!.existsSync()) {
-              try {
-                return SvgPicture.file(
-                  snapshot.data!,
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _placeholder(),
-                );
-              } catch (_) {
-                return _placeholder();
-              }
+            if (snapshot.connectionState != ConnectionState.done) {
+              return _loadingIndicator();
             }
-            // Fallback to network with error handling
-            return SvgPicture.network(
-              dicebearUrl(seed!),
+            final data = snapshot.data;
+            if (data == null) return _placeholder();
+            return SvgPicture.file(
+              data,
               width: size,
               height: size,
               fit: BoxFit.cover,
-              placeholderBuilder: (_) => _loadingIndicator(),
               errorBuilder: (_, __, ___) => _placeholder(),
             );
           },

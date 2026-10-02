@@ -881,14 +881,18 @@ class _SettingsSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.springRainUi;
-    return Container(
-      padding: EdgeInsets.all(tokens.space16),
-      decoration: BoxDecoration(
-        color: tokens.surface,
+    // The surface color must be carried by a Material so that ink splashes from
+    // nested ListTiles paint above it instead of being hidden behind it.
+    return Material(
+      color: tokens.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(tokens.radius18),
-        border: Border.all(color: tokens.divider),
+        side: BorderSide(color: tokens.divider),
       ),
-      child: child,
+      child: Padding(
+        padding: EdgeInsets.all(tokens.space16),
+        child: child,
+      ),
     );
   }
 }

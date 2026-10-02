@@ -146,14 +146,20 @@ void main() {
     });
 
     test('caps bubble count without crushing English spacing', () {
-      const source = 'First. Second. Third.';
+      const source = 'First? Second! Third.';
 
       final bubbles = PersonaReplySanitizer.splitChatIntoBubbles(
         source,
         maxBubbles: 2,
       );
 
-      expect(bubbles, ['First.', 'Second. Third.']);
+      expect(bubbles, ['First?', 'Second! Third.']);
+    });
+
+    test('merges tiny English pieces with a space', () {
+      expect(PersonaReplySanitizer.splitChatIntoBubbles('Hello there! Ok.'), [
+        'Hello there! Ok.',
+      ]);
     });
 
     test('spokenTextOnly narrates action and removes leaked thinking blocks', () {
