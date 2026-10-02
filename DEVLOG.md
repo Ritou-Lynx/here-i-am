@@ -1,3 +1,12 @@
+## 2026-10-02 — B1×B2 整合复核 + 学习导师 A6 修订
+
+**整合**：合入 `tools/i_memory/` 与 `tools/i_remote_mcp/` 两个并行会话；新增消息级 `private_keywords`；OAuth 回调默认只收 claude.ai（额外回调走环境变量），修复注册校验回调参数错位导致的 500。
+**验证**：新增 B1×B2 集成测试（真实读取层 + MCP + OAuth，私密不出站）；`node --test` 60 项全过。
+**A6**：按 Codex 冒烟反馈修订 `STUDY_AGENTS.md`（题卡作答、重做、不会≠答错、先定位再检索、位置类型区分）。
+**未完**：B0.2 私密规则、B1.1/B1.4 真实导入、B2.3 Funnel 部署、B2.4 claude.ai 接入由本机执行。
+
+---
+
 ## 2026-10-02 — 任务 B2.1/B2.2：claude.ai 远程只读 MCP
 
 **交付**：`tools/i_remote_mcp/`：Streamable HTTP MCP（`/mcp`，2025-06-18/03-26）+ 单用户 OAuth 2.1（DCR、口令页、PKCE S256、refresh 轮换、令牌只存哈希、口令限速）；只开放 `i_context`、`i_recall`，输出白名单投影。

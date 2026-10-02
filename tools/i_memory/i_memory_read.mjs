@@ -49,6 +49,10 @@ export function loadPolicy(policyPath) {
       default: exposure(messages.default, 'messages.default'),
       shareableCharacterIds: new Set(stringArray(messages.shareable_character_ids, 'messages.shareable_character_ids')),
       privateMessageTypes: stringArray(messages.private_message_types, 'messages.private_message_types'),
+      // Optional for backward compatibility; when present it must be valid.
+      privateKeywords: (messages.private_keywords === undefined
+        ? []
+        : stringArray(messages.private_keywords, 'messages.private_keywords')).map((k) => k.toLowerCase()),
     },
     memory: {
       default: exposure(memory.default, 'memory.default'),
@@ -150,9 +154,15 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
   let memory = null;
 
   const privateTypeList = policy.messages.privateMessageTypes;
-  const typeFilter = privateTypeList.length
-    ? `AND message_type NOT IN (${privateTypeList.map(() => '?').join(', ')})`
-    : '';
+  const privateMessageKeywords = policy.messages.privateKeywords;
+  // Bound parameters for typeFilter, in placeholder order.
+  const filterParams = [...privateTypeList, ...privateMessageKeywords];
+  const typeFilter = [
+    privateTypeList.length
+      ? `AND message_type NOT IN (${privateTypeList.map(() => '?').join(', ')})`
+      : '',
+    ...privateMessageKeywords.map(() => 'AND instr(lower(content), ?) = 0'),
+  ].join(' ');
 
   function messageCharacter(characterId) {
     const id = characterId ?? policy.primaryCharacterId;
@@ -215,7 +225,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
         WHERE character_id = ? ${typeFilter}
         ORDER BY created_at_ms DESC, server_sequence DESC
         LIMIT ?
-      `).all(id, ...privateTypeList, clampLimit(limit, 20, MAX_RECENT));
+      `).all(id, ...filterParams, clampLimit(limit, 20, MAX_RECENT));
       return rows.reverse().map(mapMessage);
     },
 
@@ -231,7 +241,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
         WHERE character_id = ? ${typeFilter} AND (${match})
         ORDER BY created_at_ms DESC, server_sequence DESC
         LIMIT ?
-      `).all(id, ...privateTypeList, ...lowered, SEARCH_CANDIDATES);
+      `).all(id, ...filterParams, ...lowered, SEARCH_CANDIDATES);
       const scored = rows.map((row, recency) => {
         const content = row.content.toLowerCase();
         const matchedTerms = lowered.filter((term) => content.includes(term)).length;
@@ -301,7 +311,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
         ? Number(core.prepare(`
             SELECT COUNT(*) AS n FROM chat_messages
             WHERE character_id IN (${shareableIds.map(() => '?').join(', ')}) ${typeFilter}
-          `).get(...shareableIds, ...privateTypeList).n)
+          `).get(...shareableIds, ...filterParams).n)
         : 0;
       const db = memoryDb();
       let memoryStats = { shareable: 0, private: 0 };

@@ -313,6 +313,32 @@ describe('read model', () => {
     }
   });
 
+  test('messages: private_keywords hide matching messages everywhere', () => {
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: {
+        default: 'private', shareable_character_ids: [LIN], private_message_types: ['diary'],
+        private_keywords: ['手冲'],
+      },
+    })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages().map((m) => m.syncId), ['msg-1', 'msg-4', 'msg-6']);
+      const hits = model.searchMessages({ query: '咖啡' });
+      assert.ok(hits.length > 0);
+      assert.ok(hits.every((m) => !m.content.includes('手冲')));
+      assert.deepEqual(model.stats().messages, { shareable: 3, private: 4 });
+    } finally {
+      model.close();
+    }
+  });
+
+  test('messages.private_keywords must be valid when present', () => {
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: { default: 'private', shareable_character_ids: [LIN], private_message_types: [], private_keywords: [''] },
+    })));
+    assert.throws(() => openModel(), /messages\.private_keywords/);
+  });
+
   test('searchMessages ranks by relevance and returns snippets', () => {
     const model = openModel();
     try {

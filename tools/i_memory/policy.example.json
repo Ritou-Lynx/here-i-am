@@ -4,7 +4,8 @@
   "messages": {
     "default": "private",
     "shareable_character_ids": ["<林埃的 character_id>"],
-    "private_message_types": []
+    "private_message_types": [],
+    "private_keywords": []
   },
   "memory": {
     "default": "shareable",

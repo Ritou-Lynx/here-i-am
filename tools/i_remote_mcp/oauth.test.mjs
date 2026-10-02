@@ -16,6 +16,7 @@ import {
   startTestServer,
   submitPassphrase,
 } from './fixtures.mjs';
+import { isAllowedRedirectUri } from './oauth.mjs';
 
 describe('发现与未授权访问', () => {
   let ctx;
@@ -180,6 +181,16 @@ describe('安全失败分支', () => {
     const loc = new URL(plain.headers.get('location'));
     assert.equal(loc.searchParams.get('error'), 'invalid_request');
     assert.equal(loc.searchParams.get('code'), null);
+  });
+
+  test('注册只接受 claude.ai 回调或显式追加的回调', async () => {
+    const res = await registerClient(ctx.base, ['https://evil.example/cb']);
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, 'invalid_redirect_uri');
+    assert.ok(isAllowedRedirectUri('https://claude.ai/api/mcp/auth_callback', []));
+    assert.ok(!isAllowedRedirectUri('https://evil.example/cb', []));
+    assert.ok(isAllowedRedirectUri('https://chatgpt.com/connector/cb', ['https://chatgpt.com/connector/cb']));
+    assert.ok(!isAllowedRedirectUri('http://chatgpt.com/connector/cb', ['http://chatgpt.com/connector/cb']));
   });
 
   test('redirect_uri 篡改：授权页与令牌端点都拒绝，注册只收 https', async () => {

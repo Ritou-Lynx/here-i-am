@@ -126,9 +126,17 @@ export function revokeAll(stateDir) {
   store.save();
 }
 
-export function isAllowedRedirectUri(value) {
+// 单用户服务：默认只接受 claude.ai 的回调，防止他人注册自己的回调后诱导用户在授权页输入口令。
+// 以后接 ChatGPT 等其他客户端时，用 I_REMOTE_MCP_EXTRA_REDIRECT_URIS（逗号分隔、精确匹配的 https 地址）追加。
+export function extraRedirectUris(env = process.env) {
+  return String(env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS ?? '')
+    .split(',').map((value) => value.trim()).filter(Boolean);
+}
+
+export function isAllowedRedirectUri(value, extra = extraRedirectUris()) {
   if (typeof value !== 'string' || value.length > 2048) return false;
   if (CLAUDE_AI_CALLBACKS.includes(value)) return true;
+  if (!extra.includes(value)) return false;
   let url;
   try { url = new URL(value); } catch { return false; }
   return url.protocol === 'https:' && !url.hash && !url.username && !url.password;
@@ -199,8 +207,8 @@ export class OAuthServer {
     if (!Array.isArray(redirectUris) || redirectUris.length === 0 || redirectUris.length > MAX_REDIRECT_URIS) {
       return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be a non-empty array');
     }
-    if (!redirectUris.every(isAllowedRedirectUri)) {
-      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be https');
+    if (!redirectUris.every((uri) => isAllowedRedirectUri(uri))) {
+      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');
     }
     const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];
     if (!Array.isArray(grantTypes) || grantTypes.some((g) => !['authorization_code', 'refresh_token'].includes(g))) {

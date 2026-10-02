@@ -37,7 +37,7 @@
 | ~~A4~~ ✅ | [Claude] | 根据工具清单编写通用的"学习导师"指令（放进 A3 目录的 `AGENTS.md`），内容包括：<br>· 知识库检索策略：关键词加同义词，多轮搜索<br>· 学习模式：讲解、出题、追问、复盘<br>· 学习记录卡的格式：日期、主题、错题、薄弱点<br>· 开场先读学习记录卡<br>· 写入边界：只写学习记录卡和"学习/"下的新卡，不改原笔记 | 指令文件推送到分支，并附使用说明 |
 | A4.5 | [你]/[Codex] | 把本机的山香教综全拆解资料导入 FlexNote “求职”空间（按 `tools/flexnote_tutor/README.md` 的格式对照表），把位置填进 `subjects.md`；资料不进 GitHub | Codex 能检索到教综内容 |
 | A5 | [你] | 挑一个主题真实学一次，记下哪里别扭 | 有一条反馈 |
-| A6 | [Claude] | 根据反馈修订指令 | 第二次使用明显顺手 |
+| ~~A6~~ ✅ | [Claude] | 根据反馈修订指令 | 第二次使用明显顺手 |
 | A7 | [你]+[Claude] | 单独讨论**教资和教编的学习方案**：考试时间、资料来源、题型 | 另开任务单 |
 
 任务一不依赖任务二，**建议最先做**，当天就能用上。
@@ -68,6 +68,8 @@ ChatGPT 文字（可选）  ─┘   时间线 + 记忆 + 身份 └─ 写：�
   - 没有私密分级
   - 没有一个从网页端写回时间线的工具
 
+> 进度（2026-10-02）：A1–A5 已由 Codex 在本机完成（教综拆解已导入“求职 → 收藏 → Ob导入”）；A6 已按反馈修订模板。B1.2/B1.3（`tools/i_memory/`）与 B2.1/B2.2（`tools/i_remote_mcp/`）由两个并行云端会话完成，主会话已合入、补消息级私密关键词、收紧 OAuth 回调白名单，并加 B1×B2 集成测试（60 项 `node --test` 通过）。下一步：B0.2 + B1.1 + B1.4 + B2.3 + B2.4 由 Codex 和用户在本机完成。
+
 ### B0　决定（先做，几分钟）
 
 | # | 谁 | 任务 | 说明 |
@@ -80,8 +82,8 @@ ChatGPT 文字（可选）  ─┘   时间线 + 记忆 + 身份 └─ 写：�
 | # | 谁 | 任务 | 验收 |
 |---|---|---|---|
 | B1.1 | [Codex] | 在电脑上启动 i_core，确认手机 App 的同步是否还在工作；用 ADB 导出手机上的 V3 数据库副本，用现有的 `import_v3_chat.mjs` 先 dry-run，再 apply | 报告导入条数，与手机上的条数核对一致 |
-| B1.2 | [Claude] | 写 `import_v3_memory.mjs`：把 Memory V3 的有效版本（memory_cards 及相关表，只取当前有效版本）**单向快照导入** i_core 的只读记忆表，可以重复导入；用 fixture 写测试 | 测试通过，推送分支 |
-| B1.3 | [Claude] | i_core 加私密分级：按 `character_id` 或会话配置 `exposure = shareable / private`，默认 private 优先；所有对外读取接口只返回 shareable 的内容；补测试 | 测试覆盖私密内容"一条都不出站" |
+| ~~B1.2~~ ✅ | [Claude] | 写 `import_v3_memory.mjs`：把 Memory V3 的有效版本（memory_cards 及相关表，只取当前有效版本）**单向快照导入** i_core 的只读记忆表，可以重复导入；用 fixture 写测试 | 测试通过，推送分支 |
+| ~~B1.3~~ ✅ | [Claude] | i_core 加私密分级：按 `character_id` 或会话配置 `exposure = shareable / private`，默认 private 优先；所有对外读取接口只返回 shareable 的内容；补测试 | 测试覆盖私密内容"一条都不出站" |
 | B1.4 | [Codex] | 在真实数据上跑 B1.2 和 B1.3，按 B0.2 填写私密配置 | 报告记忆卡数量，抽查几条私密内容确实被过滤 |
 
 ### B2　Claude 网页端：先能读
@@ -90,8 +92,8 @@ claude.ai 的自定义 connector 从 Anthropic 的服务器访问你的 MCP，�
 
 | # | 谁 | 任务 | 验收 |
 |---|---|---|---|
-| B2.1 | [Claude] | 新建 `tools/i_remote_mcp/`：Streamable HTTP MCP 服务，内置一个**单用户最小 OAuth**（DCR + 授权页口令），只读 i_core。工具包括：<br>· `i_context`：身份 + 当前时间 + 最近 N 条 shareable 消息<br>· `i_recall`：在记忆库和时间线里做词法检索<br>用测试覆盖鉴权、私密过滤和工具返回 | 本地测试通过，推送分支 |
-| B2.2 | [Claude] | 写给 Claude 用的 Project 指令和身份说明（参考 `identity.default.json` 与连续性文档） | 文本推送到分支 |
+| ~~B2.1~~ ✅ | [Claude] | 新建 `tools/i_remote_mcp/`：Streamable HTTP MCP 服务，内置一个**单用户最小 OAuth**（DCR + 授权页口令），只读 i_core。工具包括：<br>· `i_context`：身份 + 当前时间 + 最近 N 条 shareable 消息<br>· `i_recall`：在记忆库和时间线里做词法检索<br>用测试覆盖鉴权、私密过滤和工具返回 | 本地测试通过，推送分支 |
+| ~~B2.2~~ ✅ | [Claude] | 写给 Claude 用的 Project 指令和身份说明（参考 `identity.default.json` 与连续性文档） | 文本推送到分支 |
 | B2.3 | [Codex] | 在电脑上部署 B2.1，用 Tailscale Funnel 暴露公网 HTTPS，设置开机自启 | 外网能访问 `/mcp`，未授权的请求被拒绝 |
 | B2.4 | [你] | 在 claude.ai 的 设置 → Connectors 里添加这个地址并完成授权；建一个"林埃" Project，贴入 B2.2 的指令；把两个工具设为"始终允许" | 在网页端问"我七月在 Here I Am 里跟你聊过什么"，它能答上来 |
 

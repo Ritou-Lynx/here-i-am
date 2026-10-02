@@ -86,7 +86,7 @@ curl https://<机器名>.<tailnet>.ts.net/.well-known/oauth-authorization-server
 
 - 未授权访问 `/mcp`（任意方法）返回 `401` 与 `WWW-Authenticate: Bearer resource_metadata=…`；无效或过期令牌带 `error="invalid_token"`。
 - 元数据：`/.well-known/oauth-protected-resource`（及 `/.well-known/oauth-protected-resource/mcp`）、`/.well-known/oauth-authorization-server`。
-- `/register` 只接受 https 的 `redirect_uris`（claude.ai 回调是 `https://claude.ai/api/mcp/auth_callback`，未来可能改为 `https://claude.com/api/mcp/auth_callback`，两者都是 https 自然放行）；注册为 public client（`token_endpoint_auth_method: none`）。客户端最多保留 50 个，超出淘汰最早的。
+- `/register` 默认只接受 claude.ai 的回调（`https://claude.ai/api/mcp/auth_callback` 与 `https://claude.com/api/mcp/auth_callback`），防止他人注册自己的回调后诱导你在授权页输入口令；以后接 ChatGPT 等其他客户端时，用环境变量 `I_REMOTE_MCP_EXTRA_REDIRECT_URIS`（逗号分隔，精确匹配，必须 https）追加。注册为 public client（`token_endpoint_auth_method: none`）。客户端最多保留 50 个，超出淘汰最早的。
 - `/authorize`：`client_id` 未知或 `redirect_uri` 与注册不一致时直接显示错误页，不重定向；只接受 `code_challenge_method=S256`；带 `resource` 时必须等于本服务的 `/mcp` 地址。
 - `/token`：`application/x-www-form-urlencoded`；错误码遵循 RFC 6749（失效的 refresh token 返回 `invalid_grant`）。授权码被重放会吊销由它签发的令牌。
 - 会话：`initialize` 响应带 `Mcp-Session-Id`，后续请求必须带上；会话绑定令牌家族（刷新后仍可用，换一次授权则不行）；`DELETE /mcp` 结束会话；服务重启后会话失效，客户端收到 404 会重新 initialize。

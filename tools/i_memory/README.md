@@ -49,7 +49,7 @@ Copy-Item tools/i_memory/policy.example.json tools/i_memory/.state/policy.json
 
 填入林埃的 `character_id`。规则：
 
-- 消息：只有 `shareable_character_ids` 中的角色可能出站；`private_message_types` 中的类型一律不出站。
+- 消息：只有 `shareable_character_ids` 中的角色可能出站；`private_message_types` 中的类型一律不出站。可选的 `messages.private_keywords`（不区分大小写）命中的消息也一律不出站——如果私密聊天和日常聊天是同一个角色，靠它屏蔽；它只能挡住含关键词的句子，挡不住整段语境，所以真正需要隔离的内容最好放在单独的角色或会话里。
 - 记忆卡：`memory.default = "private"` 时全部不出站；否则命中 `private_types`、`private_structured_types`、`private_card_ids`，或 `private_keywords`（不区分大小写，检查 `title`、`retrieval_text`，并额外保守检查 `droplet_label` 与结构化字段 JSON）任一项即不出站。
 - 所有字段都必须存在且类型正确；文件缺失或非法时 `openReadModel` 直接抛错（fail closed）。
 
