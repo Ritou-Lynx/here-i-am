@@ -1,5 +1,7 @@
 # 白板并行工作流交接区
 
+> 2026-10-02 起白板工作台暂停开发，接续先读 [WORKBENCH_PAUSE_20261002.md](WORKBENCH_PAUSE_20261002.md)。
+
 本目录是《[白板并行开发总纲](../WHITEBOARD_PARALLEL_DEVELOPMENT_CHARTER.md)》的短状态区，不是第二份需求文档，也不记录完整开发日志。
 
 ## 写入规则

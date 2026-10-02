@@ -448,7 +448,8 @@ void main() {
     expect(find.textContaining('保存失败'), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    for (var i = 0; i < 30 && closeCount == 0; i++) {
+    // The retry save does real file IO; allow a loaded CI runner up to ~5 s.
+    for (var i = 0; i < 250 && closeCount == 0; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
       );

@@ -1,5 +1,15 @@
 # 林埃的项目状态
 
+## 桌面白板工作台暂停（2026-10-02）
+
+用户因整体计划调整，暂停桌面白板工作台开发。工作已停在阶段性收尾状态：
+
+- 源码全部在 `v3-lab`；
+- CI 四个阻断作业为绿；
+- 无定时任务、PR 订阅、运行中进程或未合并提交。
+
+Goal 1 父 Goal 未正式关闭，真实 App 内长任务体验与生产准备未做。收尾事实、未完项与接续步骤见[工作台暂停收尾](whiteboard-workstreams/WORKBENCH_PAUSE_20261002.md)。AGENTS 中的长任务规则已改为现行的 Ollama fail-closed 描述。
+
 ## 白板 AI 验收自动重放（2026-10-02）
 
 Goal 1 P4 真人 Gate 的客观项已写成 `test/acceptance/whiteboard_ai_acceptance_test.dart`：脚本化模型经真实聊天窗口、生产会话组合与默认白板工具、实时画布和文件型 SQLite 重放创建、改正文、标签、移动、选中加宽、撤销顺序、移除不删卡与重启后持久撤销。它随 CI 白板作业每次 push 阻断运行，并已用两次临时改坏验证能拦下历史回归。真实模型行为与主观体验不在此覆盖，见[无人值守验证](UNATTENDED_VERIFICATION.md)。
