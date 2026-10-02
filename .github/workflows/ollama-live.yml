@@ -1,0 +1,90 @@
+name: Ollama live check
+
+# Real-model checks for long tasks, separate from CI because they depend on an
+# external model service.
+# - local-ollama: installs Ollama on the runner and runs a small open model; no
+#   secret needed. Runs when the long-task code changes, or on demand.
+# - cloud: manual only. Uses the OLLAMA_API_KEY repository secret and the model
+#   given at dispatch (or the HIA_TASK_OLLAMA_MODEL repository variable).
+
+on:
+  push:
+    branches: [v3-lab, 'codex/**', 'claude/**']
+    paths:
+      - 'lib/data/workbench_ai/task_queue/**'
+      - 'test/data/workbench_ai/task_queue/ollama_*'
+      - '.github/workflows/ollama-live.yml'
+  workflow_dispatch:
+    inputs:
+      cloud_model:
+        description: 'ollama.com model for the cloud job, e.g. gpt-oss:120b (empty = HIA_TASK_OLLAMA_MODEL variable)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ollama-live-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.44.0'
+  LOCAL_MODEL: 'qwen2.5:1.5b'
+
+jobs:
+  local-ollama:
+    name: Long task on a local Ollama model
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ollama and pull a small model
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          if ! curl -sf http://127.0.0.1:11434/api/version; then
+            (ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &)
+            for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 1; done
+          fi
+          ollama pull "$LOCAL_MODEL"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install SQLite
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - run: flutter pub get --enforce-lockfile
+      - name: Real long task through the production gateway
+        env:
+          HIA_OLLAMA_LIVE: '1'
+          HIA_TASK_OLLAMA_MODEL: ${{ env.LOCAL_MODEL }}
+        run: flutter test test/data/workbench_ai/task_queue/ollama_live_test.dart --reporter expanded
+
+  cloud:
+    name: Long task on an ollama.com cloud model
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HIA_OLLAMA_LIVE: '1'
+      HIA_TASK_OLLAMA_MODEL: ${{ inputs.cloud_model || vars.HIA_TASK_OLLAMA_MODEL }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+    steps:
+      - name: Require configuration
+        run: |
+          if [ -z "$OLLAMA_API_KEY" ] || [ -z "$HIA_TASK_OLLAMA_MODEL" ]; then
+            echo "::error::Add the OLLAMA_API_KEY repository secret and give a cloud model (dispatch input or HIA_TASK_OLLAMA_MODEL variable)."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install SQLite
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - run: flutter pub get --enforce-lockfile
+      - name: Real long task through the production gateway
+        run: flutter test test/data/workbench_ai/task_queue/ollama_live_test.dart --reporter expanded

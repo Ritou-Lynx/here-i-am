@@ -1,6 +1,6 @@
 name: CI
 
-# Unattended verification layers (see AGENTS.md「验证与交接」):
+# Unattended verification on GitHub-hosted runners:
 # - L1 Linux: whiteboard/workbench Flutter suites and platform-neutral Bridge tests, blocking.
 # - L1 Linux full: every Flutter test, informational until existing test debt is cleared.
 # - L2 Windows: critical-fix check, Windows debug build and hermetic whiteboard integration tests.

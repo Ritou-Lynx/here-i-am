@@ -1,9 +1,20 @@
+## 2026-10-02 — P6 长任务改走 Ollama 纯文本
+
+**决定**：用户确认长任务改用 Ollama（已订阅云端模型），简化优先。
+**做法**：新增应用内 Ollama 网关，每次尝试是一个不带工具的 `/api/chat` 流式请求，接入原执行引擎（持久化 / 租约 / 暂停恢复取消重试不变）；生产默认使用它，未设置 `HIA_TASK_OLLAMA_MODEL` 时 fail-closed，任务保持 pending。
+**效果**：生产长任务不再依赖 Codex CLI 文字 profile、WFP / Job / 提权 helper 与 Witness，没有 UAC 弹窗；停止在进程内可确认。
+**验证**：新增网关测试 12/12（本地假 Ollama 走真实 HTTP 流 + 真实引擎与内存库）；workbench_ai / desktop / P6 入口相邻 494 过 11 跳；改动文件 analyze 无问题。真实模型检查交给 GitHub `Ollama live check`。
+**边界**：未在真实 App 内跑长任务；旧原生链路保留不删；AGENTS 中长任务规则的改写留给用户。交接见 [P6 Ollama](docs/development/whiteboard-workstreams/P6_OLLAMA_TEXT_TASKS_20261002.md)。
+
+---
+
 ## 2026-10-02 — 无人值守验证第一步：GitHub CI
 
 **目标**：白板 / 工作台自动检查改为每次 push 在 GitHub 托管机器上运行，不占主电脑、不等人授权。
 **做法**：新增 `ci.yml`：Linux 阻断跑白板与工作台 Flutter 套件、平台无关 Bridge Node 测试，全量 Flutter 仅提示；Windows 跑关键检查、Debug 构建与 4 个 hermetic 白板集成测试并上传截图。
 **修复**：字体测试与霞鹜文楷许可决定对齐；联网冒烟测试需 `HIA_NETWORK_SMOKE=1`；图片导入测试改用 10 秒真实时间上限。
-**验证**：云端 Linux（Flutter 3.44.0 / Node 24.14.1）白板与工作台 114 文件 1345 用例原有 3 红，修复后 3 文件 41 过 1 跳；Bridge 33 文件 524 过；关键检查 3/3；改动文件 analyze 无问题。Windows 作业以 GitHub 实际运行为准。
+**验证**：云端 Linux（Flutter 3.44.0 / Node 24.14.1）白板与工作台 114 文件 1345 用例原有 3 红，修复后 3 文件 41 过 1 跳；Bridge 33 文件 524 过；关键检查 3/3；改动文件 analyze 无问题。
+**CI 首跑**：Linux 阻断与 Bridge 作业通过；Windows 关键检查与 Debug 构建通过（4 分 47 秒），4 个集成测试 3 过，UI-0 三视口截图 27 张上传。交互回归测试仍点击已改为拖动手柄的分组名称，随后改为点击折叠按钮。全量套件 2535 过 17 跳 20 红（含 1 个 10 分钟超时），属既有测试债。
 **边界**：产品行为未变；未构建或安装本机 App，未触碰真实数据；生产长任务仍关闭。
 
 ---

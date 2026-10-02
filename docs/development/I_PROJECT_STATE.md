@@ -1,10 +1,18 @@
 # 林埃的项目状态
 
+## P6 长任务改走 Ollama（2026-10-02）
+
+用户确认长任务改用 Ollama 纯文本执行，简化优先。生产 `WorkbenchRuntimeTaskQueueTool.production()` 默认使用应用内 Ollama 网关：每次尝试只发一个不带工具的 `/api/chat` 流式请求，不再经过 Codex CLI 文字 profile 和原生隔离，也没有 UAC 弹窗。暂停、取消、宿主退出在进程内中断，停止可确认。未设置 `HIA_TASK_OLLAMA_MODEL` 或配置不安全时 fail-closed：开始被拒绝，任务保持 pending。配置方法与边界见 [P6 Ollama 交接](whiteboard-workstreams/P6_OLLAMA_TEXT_TASKS_20261002.md)。
+
+新增 12 项网关测试（本地假 Ollama 走真实 HTTP 流，配合真实执行引擎与内存库），相邻回归 494 过 11 跳。真实模型检查 `Ollama live check` 在 GitHub runner 上用本地小模型自动运行；云端作业需仓库 secret `OLLAMA_API_KEY`。旧原生隔离链路与 P6-R7 验收入口保留但不在生产路径上；真实 App 内长任务体验尚待真人异步查看。
+
 ## 无人值守验证起步（2026-10-02）
 
 用户确认把验收从"人守在电脑前"改为"机器自动跑、人异步看主观项"。第一步新增 GitHub Actions `CI`（`.github/workflows/ci.yml`）：Linux 阻断运行白板 / 工作台 Flutter 套件与平台无关 Bridge Node 测试，全量 Flutter 测试仅提示既有测试债；Windows 运行构建前关键检查、Debug 构建和 4 个 hermetic 白板集成测试，截图上传为产物。仓库公开，GitHub 托管 runner 不占本机。
 
-同批修复 3 个与平台无关的红测试：字体测试对齐 2026-09-04 改用霞鹜文楷的许可决定（视觉规范同步），联网冒烟测试改为 `HIA_NETWORK_SMOKE=1` 显式开启，图片导入测试改用真实时间上限。产品行为未变；生产长任务仍关闭。
+同批修复 3 个与平台无关的红测试：字体测试对齐 2026-09-04 改用霞鹜文楷的许可决定（视觉规范同步），联网冒烟测试改为 `HIA_NETWORK_SMOKE=1` 显式开启，图片导入测试改用真实时间上限。产品行为未变。
+
+CI 首跑（`c6eccf5`）：Linux 阻断与 Bridge 作业通过；Windows 构建前关键检查与 Debug 构建通过，4 个集成测试 3 过，UI-0 三视口截图作为产物上传。失败的交互回归测试仍在点击分组名称，而名称区域已改为拖动手柄，现改为点击折叠按钮，以下一次 CI 结果为准。全量套件 2535 过、17 跳、20 红（含 `input_sheet_test` 一个 10 分钟超时），属既有测试债，不阻断。
 
 ## GitHub 同步完成（2026-10-01）
 
