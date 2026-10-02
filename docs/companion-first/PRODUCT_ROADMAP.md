@@ -6,6 +6,8 @@
 >
 > 执行基线：`v3-lab`
 
+> 2026-10-02 白板工作台暂停：用户因整体计划调整暂停桌面白板工作台开发。收尾事实、未完项与接续步骤以 [工作台暂停收尾](../development/whiteboard-workstreams/WORKBENCH_PAUSE_20261002.md) 为准；下方各条为历史快照。
+
 > 2026-10-01 暂停落点：Goal 1 本地验收已完成，源码已在主 worktree `v3-lab`，受控清单 104/104 同哈希；用户要求暂停后续工作。生产启用评估与减弹窗改造尚未开始，生产继续默认关闭。见 [暂停交接](../development/whiteboard-workstreams/GOAL1_MAIN_WORKTREE_PAUSE_20261001.md)。
 
 > 2026-10-01 最终本地验收：Goal 1 的 UI-T、P4、限定 P5 与 P6 已按 [最终本地验收](../development/whiteboard-workstreams/GOAL1_FINAL_LOCAL_ACCEPTANCE_20261001.md) 收口。最终组合候选的受控源码 104/104 同哈希；既有 UI-T/P4/P5 真人 Gate 按受影响范围复核后保留，P6 同一隔离普通入口完成任务生命周期与清理 Gate。生产长任务执行仍默认关闭，commit/push/发布均未执行。以下历史进展按各自日期阅读。
