@@ -165,8 +165,14 @@ WhiteboardSnapshot _snapshot(CardContract card, {bool duplicate = false}) {
   );
 }
 
+// Real file and database I/O only advances inside runAsync, so wait on a
+// wall-clock deadline instead of a fixed iteration count: slower CI runners
+// need more than the ~0.75 s a developer PC does.
+const _realIoDeadline = Duration(seconds: 10);
+
 Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
-  for (var i = 0; i < 50 && finder.evaluate().isEmpty; i++) {
+  final elapsed = Stopwatch()..start();
+  while (finder.evaluate().isEmpty && elapsed.elapsed < _realIoDeadline) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 15)),
     );
@@ -176,7 +182,8 @@ Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
 }
 
 Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
-  for (var i = 0; i < 50 && finder.evaluate().isNotEmpty; i++) {
+  final elapsed = Stopwatch()..start();
+  while (finder.evaluate().isNotEmpty && elapsed.elapsed < _realIoDeadline) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 15)),
     );

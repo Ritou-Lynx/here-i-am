@@ -1,5 +1,23 @@
 # 林埃的项目状态
 
+## 验证规则（2026-10-02）
+
+用户确认后，AGENTS 与协作协议改为机器优先的四层验证，详见[无人值守验证](UNATTENDED_VERIFICATION.md)：CI 对每个候选 SHA 自动重跑并以其结果为证据，自动场景失败不中止，真人只异步看口吻、手感、视觉并按受影响路径沿用结论。无人值守环境（专用测试机、云端 agent、CI，限合成数据）有常设授权；真实数据、合入 `v3-lab`、发布与生产启用仍需询问。
+
+## P6 长任务改走 Ollama（2026-10-02）
+
+用户确认长任务改用 Ollama 纯文本执行，简化优先。生产 `WorkbenchRuntimeTaskQueueTool.production()` 默认使用应用内 Ollama 网关：每次尝试只发一个不带工具的 `/api/chat` 流式请求，不再经过 Codex CLI 文字 profile 和原生隔离，也没有 UAC 弹窗。暂停、取消、宿主退出在进程内中断，停止可确认。未设置 `HIA_TASK_OLLAMA_MODEL` 或配置不安全时 fail-closed：开始被拒绝，任务保持 pending。配置方法与边界见 [P6 Ollama 交接](whiteboard-workstreams/P6_OLLAMA_TEXT_TASKS_20261002.md)。
+
+新增 12 项网关测试（本地假 Ollama 走真实 HTTP 流，配合真实执行引擎与内存库），相邻回归 494 过 11 跳。真实模型检查 `Ollama live check` 已在 GitHub runner 上通过：用真 Ollama 与 `qwen2.5:1.5b` 经生产网关跑完一个真实长任务，3 秒完成，结果精确为 1–30。云端作业只能手动触发，需仓库 secret `OLLAMA_API_KEY`。旧原生隔离链路与 P6-R7 验收入口保留但不在生产路径上；真实 App 内长任务体验尚待真人异步查看。
+
+## 无人值守验证起步（2026-10-02）
+
+用户确认把验收从"人守在电脑前"改为"机器自动跑、人异步看主观项"。第一步新增 GitHub Actions `CI`（`.github/workflows/ci.yml`）：Linux 阻断运行白板 / 工作台 Flutter 套件与平台无关 Bridge Node 测试，全量 Flutter 测试仅提示既有测试债；Windows 运行构建前关键检查、Debug 构建和 4 个 hermetic 白板集成测试，截图上传为产物。仓库公开，GitHub 托管 runner 不占本机。
+
+同批修复 3 个与平台无关的红测试：字体测试对齐 2026-09-04 改用霞鹜文楷的许可决定（视觉规范同步），联网冒烟测试改为 `HIA_NETWORK_SMOKE=1` 显式开启，图片导入测试改用真实时间上限。产品行为未变。
+
+CI 首跑（`c6eccf5`）：Linux 阻断与 Bridge 作业通过；Windows 构建前关键检查与 Debug 构建通过，4 个集成测试 3 过，UI-0 三视口截图作为产物上传。失败的交互回归测试仍在点击分组名称，而名称区域已改为拖动手柄，已改为点击折叠按钮。CI 二跑（`c45f599`）全部阻断作业通过，Windows 4/4 集成测试通过；全量套件暴露的白板列表排序不稳定已定位为同一毫秒创建时顺序不确定，查询加插入顺序兜底并补确定性测试。CI 三跑（`d1ecef5`）全部阻断作业通过；全量套件 2548 过、18 跳、20 红，均为白板以外的既有测试债（含 `input_sheet_test` 一个 10 分钟超时），不阻断。
+
 ## GitHub 同步完成（2026-10-01）
 
 原仓库 `Ritou-Lynx/here-i-am` 的默认分支 `v3-lab` 已合入[整合 PR #1](https://github.com/Ritou-Lynx/here-i-am/pull/1)，整合提交为 `4520590a4f1eaa75ee514be3ea2ab320645ae617`。GitHub PR Policy Preflight 通过；其高风险分类来自本次大范围历史文件整合，已有人工范围复核与独立凭据审计，没有拒绝项。

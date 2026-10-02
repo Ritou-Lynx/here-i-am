@@ -289,8 +289,9 @@ void main() {
     );
     debugPrint('W1IT: edge retargeted to card C');
 
-    // ── ⑤ Group collapse ──
-    await tester.tap(find.text('验收分组'));
+    // ── ⑤ Group collapse (the header label is a drag handle; the fold
+    // button toggles collapse) ──
+    await tester.tap(find.byKey(const Key('wb_toggle_group_itest_group')));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.text('验收卡 A'), findsNothing,
         reason: 'collapsed group hides members on the real window');

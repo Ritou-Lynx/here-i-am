@@ -756,14 +756,16 @@ void main() {
       final style = field.style!;
       // Latin / digits / code resolve to Cascadia Code first.
       expect(style.fontFamily, equals(richTextCodeFamily));
-      // CJK falls back to 汇文明朝体 then system serif.
+      // CJK falls back to 霞鹜文楷 (LXGW WenKai) then system serif.
+      expect(richTextCjkFamily, equals('LXGW WenKai'));
       expect(style.fontFamilyFallback, contains(richTextCjkFamily));
       for (final f in richTextCjkFallback) {
         expect(style.fontFamilyFallback, contains(f));
       }
-      // The LXGW WenKai (霞鹜文楷) family must never appear.
-      expect(style.fontFamily, isNot(equals('LXGW WenKai')));
-      expect(style.fontFamilyFallback, isNot(contains('LXGW WenKai')));
+      // The retired 汇文明朝体 family (replaced 2026-09-04 for OFL
+      // distribution) must not linger in the chain.
+      expect(style.fontFamily, isNot(equals('Huiwen-mincho')));
+      expect(style.fontFamilyFallback, isNot(contains('Huiwen-mincho')));
     });
 
     testWidgets('code block uses the Cascadia Code token', (tester) async {

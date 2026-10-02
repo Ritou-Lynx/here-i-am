@@ -23,6 +23,8 @@ const _executionErrorCodes = {
   'runtime_stop_unconfirmed',
 };
 
+const _modelUnconfigured = 'text_task_model_unconfigured';
+
 /// Supplied by the production text-only boundary. The ordinary conversation
 /// gateway is NOT a safe default: empty dynamicTools does not disable built-ins.
 typedef WorkbenchTaskTextSessionStarter = Future<WorkbenchTextTaskSession>
@@ -36,6 +38,7 @@ class WorkbenchTaskQueueExecution
     required TaskRoomService service,
     required WorkbenchTextTaskStopGateway runtime,
     required WorkbenchTaskTextSessionStarter startTextSession,
+    Future<void> Function()? ensureAvailable,
     Duration pollInterval = const Duration(milliseconds: 350),
     Duration controlTimeout = const Duration(seconds: 25),
     Duration closeTimeout = const Duration(seconds: 150),
@@ -43,6 +46,7 @@ class WorkbenchTaskQueueExecution
   })  : _service = service,
         _runtime = runtime,
         _startTextSession = startTextSession,
+        _ensureAvailable = ensureAvailable,
         _pollInterval = pollInterval,
         _controlTimeout = controlTimeout,
         _closeTimeout = closeTimeout,
@@ -51,6 +55,10 @@ class WorkbenchTaskQueueExecution
   final TaskRoomService _service;
   final WorkbenchTextTaskStopGateway _runtime;
   final WorkbenchTaskTextSessionStarter _startTextSession;
+
+  /// Checked before the claim, so an unconfigured backend leaves the task
+  /// pending and its retry budget untouched.
+  final Future<void> Function()? _ensureAvailable;
   final Duration _pollInterval;
   final Duration _controlTimeout;
   final Duration _closeTimeout;
@@ -85,6 +93,7 @@ class WorkbenchTaskQueueExecution
           String action) =>
       _serialize(id, () async {
         if (_hostClosing) throw StateError('execution_owner_unavailable');
+        await _ensureAvailable?.call();
         final lease = await _service.claimTaskQueueExecution(
           id: id,
           scope: scope,
@@ -160,6 +169,8 @@ class WorkbenchTaskQueueExecution
         } on Object catch (error) {
           final unavailable = error is WorkbenchRuntimeException &&
               error.code == 'unsupported_capability';
+          final unconfigured = error is WorkbenchRuntimeException &&
+              error.code == _modelUnconfigured;
           final hostInterrupted = attempt.hostClosing;
           final stopped = hostInterrupted
               ? false
@@ -173,14 +184,20 @@ class WorkbenchTaskQueueExecution
             phase: stopped ? 'failed' : 'interrupted',
             status: stopped ? TaskStatus.failed : TaskStatus.blocked,
             reason: stopped
-                ? (unavailable
-                    ? 'text_only_isolation_unverified'
-                    : 'runtime_start_failed')
+                ? (unconfigured
+                    ? _modelUnconfigured
+                    : unavailable
+                        ? 'text_only_isolation_unverified'
+                        : 'runtime_start_failed')
                 : (unavailable
                     ? 'text_only_isolation_unverified_cleanup_unconfirmed'
                     : 'runtime_start_outcome_unknown'),
             currentStep: stopped
-                ? (unavailable ? '当前执行能力尚未通过文字任务隔离校验，未启动任务' : '执行未能启动')
+                ? (unconfigured
+                    ? '长任务模型未配置，未启动任务'
+                    : unavailable
+                        ? '当前执行能力尚未通过文字任务隔离校验，未启动任务'
+                        : '执行未能启动')
                 : (unavailable ? '任务未启动；隔离校验失败且会话关闭未确认' : '连接失败，执行结果未知；需显式恢复'),
           );
           if ((hostInterrupted || !stopped) && attempt.session != null) {
@@ -504,6 +521,10 @@ class WorkbenchTaskQueueExecution
           error.code == 'unsupported_capability') {
         throw const WorkbenchTaskQueueExecutionException(
             'text_only_isolation_unverified');
+      }
+      if (error is WorkbenchRuntimeException &&
+          error.code == _modelUnconfigured) {
+        throw const WorkbenchTaskQueueExecutionException(_modelUnconfigured);
       }
       final code = error is StateError ? error.message : null;
       throw WorkbenchTaskQueueExecutionException(
