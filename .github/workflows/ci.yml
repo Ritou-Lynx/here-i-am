@@ -1,7 +1,8 @@
 name: CI
 
 # Unattended verification on GitHub-hosted runners:
-# - L1 Linux: whiteboard/workbench Flutter suites and platform-neutral Bridge tests, blocking.
+# - L1 Linux: whiteboard/workbench Flutter suites, scripted-model acceptance scenarios and
+#   platform-neutral Bridge tests, blocking.
 # - L1 Linux full: every Flutter test, blocking.
 # - L2 Windows: critical-fix check, Windows debug build, hermetic whiteboard integration tests
 #   and unit tests that need Windows file-lock semantics.
@@ -51,7 +52,7 @@ jobs:
           flutter test \
             test/ui/whiteboard test/data/whiteboard test/domain/whiteboard \
             test/whiteboard_canvas test/data/workbench_ai test/domain/workbench_ai \
-            test/ui/desktop \
+            test/ui/desktop test/acceptance \
             --file-reporter json:build/ci/flutter-whiteboard.json
       - if: always()
         uses: actions/upload-artifact@v4
