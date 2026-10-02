@@ -66,6 +66,11 @@ void main() {
     expect(find.text('聊天与互动'), findsOneWidget);
     expect(find.text('记忆整理'), findsOneWidget);
     expect(find.text('日程分析'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('内容分析'),
+      260,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('内容分析'), findsOneWidget);
     expect(find.text('游戏与角色扮演'), findsNothing);
   });
@@ -130,6 +135,11 @@ void main() {
     expect(find.text('游戏角色扮演'), findsOneWidget);
     expect(find.textContaining('跟随林埃聊天'), findsOneWidget);
     expect(find.text('记录整理'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('主动联系'),
+      260,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('主动联系'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('媒体分析'),

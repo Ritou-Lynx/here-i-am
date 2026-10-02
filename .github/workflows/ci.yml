@@ -2,8 +2,9 @@ name: CI
 
 # Unattended verification on GitHub-hosted runners:
 # - L1 Linux: whiteboard/workbench Flutter suites and platform-neutral Bridge tests, blocking.
-# - L1 Linux full: every Flutter test, informational until existing test debt is cleared.
-# - L2 Windows: critical-fix check, Windows debug build and hermetic whiteboard integration tests.
+# - L1 Linux full: every Flutter test, blocking.
+# - L2 Windows: critical-fix check, Windows debug build, hermetic whiteboard integration tests
+#   and unit tests that need Windows file-lock semantics.
 # Every job runs all of its checks before failing, so one run reports every problem.
 
 on:
@@ -60,10 +61,9 @@ jobs:
           if-no-files-found: ignore
 
   flutter-linux-full:
-    name: Flutter full suite (Linux, informational)
+    name: Flutter full suite (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -143,6 +143,9 @@ jobs:
             exit 1
           }
           exit 0
+      - name: Unit tests that need Windows file locks
+        if: ${{ !cancelled() }}
+        run: flutter test test/data/services/activity/mda2_android/file_activity_outbox_store_test.dart
       - if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -131,6 +131,15 @@ final class DurableRig {
   }
 }
 
+// These tests contend for the owner gate from two handles in one process.
+// Windows file locks are per handle, so the second handle is refused. POSIX
+// locks are per process, so on Linux and Android the same process can relock;
+// Android excludes in-process owners with the process lease instead (see
+// a3f_r3_owner_release_test.dart). They run on Windows CI.
+final Object _sameProcessLockSkip = Platform.isWindows
+    ? false
+    : 'needs per-handle file locks (Windows)';
+
 void main() {
   test(
     'create commits fixed bytes before returning and reopens same lineage',
@@ -266,7 +275,7 @@ void main() {
       throwsA(hasActivityCode('sequence_authority_required')),
     );
     recovered.close();
-  });
+  }, skip: _sameProcessLockSkip);
 
   test(
     'two stale recoverers yield one winner and old authority cannot delete it',
@@ -319,6 +328,7 @@ void main() {
       );
       finalOwner.close();
     },
+    skip: _sameProcessLockSkip,
   );
 
   test(

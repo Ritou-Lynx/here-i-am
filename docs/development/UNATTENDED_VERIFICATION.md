@@ -25,7 +25,7 @@ CI 定义在 `.github/workflows/ci.yml`。仓库公开，GitHub 托管 runner �
 ## 3. 看结果
 
 - 每次 push 后看 GitHub Actions 的 `CI`；手机 GitHub App 会推送失败通知。失败用例在作业日志和注释里逐条列出，产物包含 JSON 结果与白板截图（`whiteboard-screenshots`）。
-- `Flutter full suite (Linux, informational)` 只显示既有测试债，不阻断；清零后改为阻断。
+- `Flutter full suite (Linux)` 运行全部 Flutter 测试并阻断。依赖 Windows 文件锁语义的两项 outbox 测试在 Linux 跳过，改由 Windows 作业运行。
 - `bridge-node` 跳过只能在 Windows 编译的原生隔离测试和依赖本机 pin 的产品宿主测试；这两类仍随 Windows 验收流程运行。
 
 ## 4. 专用测试机（备用电脑）

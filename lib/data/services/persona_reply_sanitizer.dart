@@ -667,7 +667,9 @@ class PersonaReplySanitizer {
     if (left.isEmpty || right.isEmpty) return false;
     final leftLast = String.fromCharCode(left.runes.last);
     final rightFirst = String.fromCharCode(right.runes.first);
-    return RegExp(r'[A-Za-z0-9\)\]]').hasMatch(leftLast) &&
+    // ASCII sentence punctuation is followed by a space in English; CJK
+    // full-width punctuation is not.
+    return RegExp(r'[A-Za-z0-9\)\].!?,;:]').hasMatch(leftLast) &&
         RegExp(r'[A-Za-z0-9\(\[]').hasMatch(rightFirst);
   }
 

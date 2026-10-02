@@ -48,17 +48,14 @@ void main() {
         'userId': userId,
       });
 
+      // Persisted tool calls are flattened on load; the synthesized thinking
+      // and visible text survive.
       final message = loaded.history.messages.single as ModelMessage;
       expect(message.contentBlocks, [
         {'type': 'thinking', 'thinking': 'Need to inspect a file first.'},
         {'type': 'text', 'text': 'I will read it.'},
-        {
-          'type': 'tool_use',
-          'id': 'toolu_1',
-          'name': 'Read',
-          'input': {'path': 'a.md'},
-        },
       ]);
+      expect(message.functionCalls, isEmpty);
     });
 
     test('preserves provider-native content blocks', () async {
@@ -87,7 +84,8 @@ void main() {
       expect(message.contentBlocks, blocks);
     });
 
-    test('repairs legacy DeepSeek V4 tool-call turns', () async {
+    test('drops legacy DeepSeek V4 tool-only turns and their results',
+        () async {
       final state = AgentState(
         sessionId: 'legacy_deepseek_reasoning_state',
         metadata: {'userId': userId},
@@ -106,6 +104,20 @@ void main() {
           timestamp: 123,
         ),
       );
+      state.history.messages.add(
+        FunctionExecutionResultMessage(
+          results: [
+            FunctionExecutionResult(
+              id: 'call_1',
+              name: 'lookup',
+              isError: false,
+              arguments: '{}',
+              content: [TextPart('ok')],
+            ),
+          ],
+          timestamp: 124,
+        ),
+      );
       await saveAgentState(state);
 
       final loaded = await loadOrCreateAgentState(
@@ -113,8 +125,7 @@ void main() {
         {'userId': userId},
       );
 
-      final message = loaded.history.messages.single as ModelMessage;
-      expect(message.thought, ' ');
+      expect(loaded.history.messages, isEmpty);
     });
   });
 }
