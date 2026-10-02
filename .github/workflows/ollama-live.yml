@@ -37,16 +37,20 @@ jobs:
     name: Long task on a local Ollama model
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The official image runs as a service container: no downloaded script is
+    # executed on the runner.
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
     steps:
       - uses: actions/checkout@v4
-      - name: Install Ollama and pull a small model
+      - name: Pull a small model through the Ollama API
         run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          if ! curl -sf http://127.0.0.1:11434/api/version; then
-            (ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &)
-            for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 1; done
-          fi
-          ollama pull "$LOCAL_MODEL"
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 2; done
+          curl -sf http://127.0.0.1:11434/api/pull \
+            -d "{\"model\": \"$LOCAL_MODEL\", \"stream\": false}"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
