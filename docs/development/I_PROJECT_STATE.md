@@ -1,5 +1,11 @@
 # 林埃的项目状态
 
+## 无人值守验证起步（2026-10-02）
+
+用户确认把验收从"人守在电脑前"改为"机器自动跑、人异步看主观项"。第一步新增 GitHub Actions `CI`（`.github/workflows/ci.yml`）：Linux 阻断运行白板 / 工作台 Flutter 套件与平台无关 Bridge Node 测试，全量 Flutter 测试仅提示既有测试债；Windows 运行构建前关键检查、Debug 构建和 4 个 hermetic 白板集成测试，截图上传为产物。仓库公开，GitHub 托管 runner 不占本机。
+
+同批修复 3 个与平台无关的红测试：字体测试对齐 2026-09-04 改用霞鹜文楷的许可决定（视觉规范同步），联网冒烟测试改为 `HIA_NETWORK_SMOKE=1` 显式开启，图片导入测试改用真实时间上限。产品行为未变；生产长任务仍关闭。
+
 ## GitHub 同步完成（2026-10-01）
 
 原仓库 `Ritou-Lynx/here-i-am` 的默认分支 `v3-lab` 已合入[整合 PR #1](https://github.com/Ritou-Lynx/here-i-am/pull/1)，整合提交为 `4520590a4f1eaa75ee514be3ea2ab320645ae617`。GitHub PR Policy Preflight 通过；其高风险分类来自本次大范围历史文件整合，已有人工范围复核与独立凭据审计，没有拒绝项。
