@@ -179,3 +179,4 @@ tools/comic_server/data/
 *.db3
 *.sqlite3
 /tools/i_continuity_gateway/.state/
+tools/i_memory/.state/

@@ -1,3 +1,11 @@
+## 2026-10-02 — 任务 B1.2/B1.3：i_memory 记忆快照与出站策略
+
+**交付**：`tools/i_memory/`：V3 记忆卡快照导入（默认 dry-run，整体替换，FTS5 trigram）、`policy.json` 出站策略（fail closed）、`openReadModel` 只读接口。
+**验证**：`node --test tools/i_memory/*.test.mjs` 18 项通过，全部合成 fixture；未改 i_core 与 lib，未碰真实数据。
+**未完**：B1.4 真实导出、导入与私密配置由 Codex 在本机执行，步骤见 README。
+
+---
+
 ## 2026-10-02 — 任务 A4：FlexNote 学习导师模板
 
 **交付**：`tools/flexnote_tutor/`：Codex 学习导师指令、科目表与设置说明，按 FlexNote 1.1.56 实际 MCP 工具编写（已核对工具名）。
