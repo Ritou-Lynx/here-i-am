@@ -112,6 +112,14 @@ i_core 聊天时间线（user + companion）   手机 App 拉取 → Record 流�
 
 **剩余限制**：Claude 忘了 `phase: end` 时，这条回复要等下一轮 `phase: start` 补记；如果之后不再说话，仍会漏掉。浏览器扩展可以兜底：电脑上一直登录的浏览器能看到手机上聊的对话，因为对话在账号里同步；但它依赖 claude.ai 的非公开页面结构或接口，比较脆，留到 B3.4 一周反馈后再定。
 
+### claude.ai Project 协调者与每日 thread（2026-10-03 起）
+
+claude.ai Project 的主对话是协调者，不能调用 MCP；只有它派出的 thread 能调用。Lynx 每天在定时任务创建的“日常聊天 YYYY-MM-DD” thread 里直接聊天，一个 thread 对应写回的一个 `thread_id`。
+
+- 定时开场消息以 `【自动开场】` 开头：thread 只调 `i_context`，不写回开场消息和就绪回复。
+- 协调者不转述、不代写对话。
+- 长 thread 被压缩、丢了 `thread_id` 时，靠最近 24 小时的全局去重兜底。
+
 ## 3. i_remember
 
 **输入**：`{ action: add | update | delete | list, text?, note_id? }`，`text` 不超过 2000 字。只在用户明确说“帮我记一下 / 记住这个”时调用，`text` 尽量保留用户原话。
