@@ -40,7 +40,7 @@ void main() {
           (await db.customSelect('PRAGMA user_version').get())
               .single
               .read<int>('user_version'),
-          61);
+          62);
     } finally {
       await db.close();
       await dir.delete(recursive: true);

@@ -177,6 +177,9 @@ class _FeedClient extends CoreSyncClient {
             baseUrl: 'http://unused.invalid',
             deviceId: 'synthetic-phone',
             deviceToken: 'synthetic');
+  @override
+  Future<CoreChatTranscriptCapabilities> getTranscriptCapabilities() async =>
+      const CoreChatTranscriptCapabilities.disabled();
   List<CoreChangeEvent> events = [];
   int submissions = 0;
   @override

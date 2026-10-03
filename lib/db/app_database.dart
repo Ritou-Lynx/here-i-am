@@ -306,7 +306,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => _testSchemaVersion ?? 61;
+  int get schemaVersion => _testSchemaVersion ?? 62;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -1051,6 +1051,11 @@ class AppDatabase extends _$AppDatabase {
                 'persona_chat_messages', 'created_at_ms INTEGER');
             await _addColumnIfTableExists(
                 'persona_chat_messages', 'server_sequence INTEGER');
+          }
+          if (from < 62) {
+            // Preserve all queued legacy rows as user; local replies retain sender.
+            await _addColumnIfTableExists(
+                'sync_outbox_messages', "sender TEXT NOT NULL DEFAULT 'user'");
           }
         },
         beforeOpen: (OpeningDetails details) async {

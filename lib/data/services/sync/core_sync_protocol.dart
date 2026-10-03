@@ -155,6 +155,37 @@ class CoreDevicePairResponse {
       );
 }
 
+/// Per-device authorization to upload locally generated plain-text replies.
+class CoreChatTranscriptCapabilities {
+  const CoreChatTranscriptCapabilities.disabled()
+      : enabled = false,
+        fromCreatedAtMs = null,
+        characterId = null;
+
+  const CoreChatTranscriptCapabilities.enabled({
+    required int this.fromCreatedAtMs,
+    required String this.characterId,
+  }) : enabled = true;
+
+  final bool enabled;
+  final int? fromCreatedAtMs;
+  final String? characterId;
+
+  factory CoreChatTranscriptCapabilities.fromJson(Map<String, dynamic> json) {
+    if (!_requiredBool(json, 'enabled')) {
+      return const CoreChatTranscriptCapabilities.disabled();
+    }
+    final cutoff = _requiredNonNegativeInt(json, 'from_created_at_ms');
+    if (cutoff == 0) {
+      throw const FormatException('from_created_at_ms must be positive');
+    }
+    return CoreChatTranscriptCapabilities.enabled(
+      fromCreatedAtMs: cutoff,
+      characterId: _requiredString(json, 'character_id'),
+    );
+  }
+}
+
 class CoreAssetRef {
   const CoreAssetRef({
     required this.assetId,

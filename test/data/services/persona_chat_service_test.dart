@@ -237,11 +237,11 @@ void main() {
 
       final after = await db.select(db.taskRooms).get();
       expect(before, isEmpty);
-      expect(after, isEmpty,
-          reason: '普通短聊天只写 PersonaChatMessages，不进入长任务队列');
+      expect(after, isEmpty, reason: '普通短聊天只写 PersonaChatMessages，不进入长任务队列');
     });
 
-    test('character messages are not enqueued to the sync outbox', () async {
+    test('plain character messages are enqueued but action messages are not',
+        () async {
       final base = DateTime(2026, 6, 14, 9);
       final deviceId = await DeviceIdentityService.getOrCreate();
 
@@ -250,7 +250,9 @@ void main() {
       await service.addActionMessage('luna', '*nods*', timestamp: base);
 
       final pending = await service.pendingOutboxMessages(deviceId);
-      expect(pending, isEmpty);
+      expect(pending, hasLength(1));
+      expect(pending.single.sender, 'companion');
+      expect(pending.single.content, 'reply from i');
     });
 
     test('markOutboxAccepted removes only the accepted sync_id', () async {

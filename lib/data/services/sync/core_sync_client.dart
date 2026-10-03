@@ -72,6 +72,29 @@ class CoreSyncClient {
     return CoreChatSubmitResponse.fromJson(body);
   }
 
+  Future<CoreChatTranscriptCapabilities> getTranscriptCapabilities() async {
+    final body = await _guard(() => _dio.getUri<Map<String, dynamic>>(
+          _uri('chat/transcript-capabilities'),
+          options: Options(responseType: ResponseType.json),
+        ));
+    return CoreChatTranscriptCapabilities.fromJson(body);
+  }
+
+  Future<CoreChatSubmitResponse> submitTranscripts(
+    CoreChatSubmitRequest request,
+  ) async {
+    final bodyJson = jsonEncode(request.toJson());
+    final body = await _guard(() => _dio.postUri<Map<String, dynamic>>(
+          _uri('chat/transcripts'),
+          data: bodyJson,
+          options: Options(
+            contentType: Headers.jsonContentType,
+            responseType: ResponseType.json,
+          ),
+        ));
+    return CoreChatSubmitResponse.fromJson(body);
+  }
+
   Future<CoreChangePage> fetchChanges({
     required String cursor,
     int limit = 100,
@@ -88,8 +111,8 @@ class CoreSyncClient {
   }) async {
     await _guard(() => _dio.postUri<Map<String, dynamic>>(
           _uri('devices/ack'),
-          data: CoreCursorAckRequest(deviceId: deviceId, cursor: cursor)
-              .toJson(),
+          data:
+              CoreCursorAckRequest(deviceId: deviceId, cursor: cursor).toJson(),
           options: Options(
             contentType: Headers.jsonContentType,
             responseType: ResponseType.json,
@@ -152,8 +175,9 @@ class CoreSyncClient {
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 30),
         ));
-    final normalizedBase =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedBase = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     final url = '$normalizedBase${CoreSyncProtocol.basePath}/devices/pair';
     final response = await client.post<Map<String, dynamic>>(
       url,

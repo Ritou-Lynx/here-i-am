@@ -73,7 +73,45 @@ class CoreSyncEngine {
   /// outbox once the core accepts its sync_id.
   Future<int> _submitOutbox({int limit = 100}) async {
     final pending = await PersonaChatService.instance
-        .pendingOutboxMessages(deviceId, limit: limit);
+        .pendingOutboxMessages(deviceId, sender: 'user', limit: limit);
+    return _submitPending(pending, transcripts: false);
+  }
+
+  Future<int> _submitCompanionOutbox({int limit = 100}) async {
+    CoreChatTranscriptCapabilities capability;
+    try {
+      capability = await client.getTranscriptCapabilities();
+    } on CoreSyncException catch (error) {
+      // Old cores and devices without a grant retain user upload and feed sync.
+      if (error.statusCode == 404 || error.statusCode == 403) return 0;
+      rethrow;
+    }
+    if (!capability.enabled) return 0;
+    await PersonaChatService.instance.enqueueLocalCompanionBacklog(
+      originDeviceId: deviceId,
+      characterId: capability.characterId!,
+      fromCreatedAtMs: capability.fromCreatedAtMs!,
+    );
+    final pending = await PersonaChatService.instance.pendingOutboxMessages(
+      deviceId,
+      sender: 'companion',
+      characterId: capability.characterId!,
+      fromCreatedAtMs: capability.fromCreatedAtMs!,
+      plainChatOnly: true,
+      limit: limit,
+    );
+    try {
+      return await _submitPending(pending, transcripts: true);
+    } on CoreSyncException catch (error) {
+      // A grant can be revoked between capability lookup and submission.
+      // Keep the replies queued while letting ordinary feed sync continue.
+      if (error.statusCode == 403 || error.statusCode == 404) return 0;
+      rethrow;
+    }
+  }
+
+  Future<int> _submitPending(List<SyncOutboxMessage> pending,
+      {required bool transcripts}) async {
     if (pending.isEmpty) return 0;
 
     final request = CoreChatSubmitRequest(
@@ -85,14 +123,16 @@ class CoreSyncEngine {
             originDeviceId: row.originDeviceId,
             originSequence: row.originSequence,
             characterId: row.characterId,
-            sender: CoreMessageSender.user,
+            sender: CoreMessageSender.parse(row.sender),
             content: row.content,
             createdAtMs: row.createdAtMs,
             messageType: row.messageType,
           ),
       ],
     );
-    final response = await client.submitMessages(request);
+    final response = transcripts
+        ? await client.submitTranscripts(request)
+        : await client.submitMessages(request);
     var resolved = 0;
     for (final result in response.results) {
       // Both outcomes mean the authority core durably owns this exact
@@ -209,7 +249,8 @@ class CoreSyncEngine {
   /// Throws [CoreSyncException] on terminal errors for the caller to surface.
   Future<int> syncOnce({int submitLimit = 100}) async {
     final submitted = await _submitOutbox(limit: submitLimit);
+    final transcripts = await _submitCompanionOutbox(limit: submitLimit);
     await _pullChanges();
-    return submitted;
+    return submitted + transcripts;
   }
 }

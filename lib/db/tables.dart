@@ -205,17 +205,19 @@ class PersonaChatMessages extends Table {
 
 /// Outbox for the cross-device i core chat sync (CORE_API_V0).
 ///
-/// Holds user messages awaiting submission to the authority core. Written in
+/// Holds local chat messages awaiting submission to the authority core. Written in
 /// the same transaction as the chat row so every locally visible message has a
 /// durable pending copy; once the core accepts a `sync_id`, the row is removed.
 /// `origin_sequence` is per-device and strictly increasing — it preserves
 /// offline send order within the device (the core orders by server_sequence).
 ///
-/// Only `sender=user` messages are submitted by clients. Companion replies
-/// are core-owned and arrive via the change feed instead.
+/// User messages use the ordinary submit API. Local companion text uses the
+/// separately approved transcript API; imported replies never enter this queue.
 class SyncOutboxMessages extends Table {
-  TextColumn get syncId => text()(); // == persona_chat_messages.sync_id (soft ref)
+  TextColumn get syncId =>
+      text()(); // == persona_chat_messages.sync_id (soft ref)
   TextColumn get originDeviceId => text()(); // installation id
+  TextColumn get sender => text().withDefault(const Constant('user'))();
   IntColumn get originSequence => integer()(); // strictly increasing per device
   TextColumn get characterId => text()();
   TextColumn get content => text()();

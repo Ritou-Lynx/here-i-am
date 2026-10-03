@@ -73,9 +73,34 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
   Future<List<SyncOutboxMessage>> pendingOutboxMessages(
     String originDeviceId, {
     int limit = 100,
+    String? sender,
+    String? characterId,
+    int? fromCreatedAtMs,
+    bool plainChatOnly = false,
   }) {
     return (_db.select(_db.syncOutboxMessages)
-          ..where((t) => t.originDeviceId.equals(originDeviceId))
+          ..where((t) =>
+              t.originDeviceId.equals(originDeviceId) &
+              (sender == null
+                  ? const Constant(true)
+                  : t.sender.equals(sender)) &
+              (characterId == null
+                  ? const Constant(true)
+                  : t.characterId.equals(characterId)) &
+              (fromCreatedAtMs == null
+                  ? const Constant(true)
+                  : t.createdAtMs.isBiggerOrEqualValue(fromCreatedAtMs)) &
+              (plainChatOnly
+                  ? t.messageType.equals('chat') &
+                      t.content.equals('').not() &
+                      (t.assetRefsJson.isNull() |
+                          t.assetRefsJson.equals('[]')) &
+                      existsQuery(_db.select(_db.personaChatMessages)
+                        ..where((chat) =>
+                            chat.syncId.equalsExp(t.syncId) &
+                            (chat.attachmentsJson.isNull() |
+                                chat.attachmentsJson.equals('[]'))))
+                  : const Constant(true)))
           ..orderBy([(t) => OrderingTerm.asc(t.originSequence)])
           ..limit(limit))
         .get();
@@ -84,9 +109,17 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
   /// Removes an outbox row once the core accepts its sync_id. No-op when the
   /// message was already retracted while pending.
   Future<void> markOutboxAccepted(String syncId) async {
-    await (_db.delete(_db.syncOutboxMessages)
-          ..where((t) => t.syncId.equals(syncId)))
-        .go();
+    await _db.transaction(() async {
+      final queued = await (_db.select(_db.syncOutboxMessages)
+            ..where((t) => t.syncId.equals(syncId)))
+          .getSingleOrNull();
+      if (queued?.sender == 'companion') {
+        await _markCompanionEnqueued(syncId);
+      }
+      await (_db.delete(_db.syncOutboxMessages)
+            ..where((t) => t.syncId.equals(syncId)))
+          .go();
+    });
   }
 
   Future<int> countMessagesNewerThan(
@@ -175,6 +208,7 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     required String content,
     required DateTime createdAt,
     required String messageType,
+    String sender = 'user',
     String? assetRefsJson,
   }) async {
     final counterKey = 'outbox.max_sequence.$originDeviceId';
@@ -200,9 +234,75 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
             content: content,
             createdAtMs: createdAt.millisecondsSinceEpoch,
             messageType: Value(messageType),
+            sender: Value(sender),
             assetRefsJson: Value(assetRefsJson),
           ),
         );
+    if (sender == 'companion') await _markCompanionEnqueued(syncId);
+  }
+
+  // Kept after acceptance: deleting an outbox copy must never allocate a second
+  // origin sequence for this same immutable reply while awaiting its feed echo.
+  Future<void> _markCompanionEnqueued(String syncId) async {
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: 'companion.enqueued.$syncId',
+            value: const Value('1'),
+            bucket: const Value(_outboxBucket),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+  }
+
+  /// Backfill only this installation's authorized plain-chat replies.
+  /// Imported rows keep their original origin/server sequence and are excluded.
+  Future<int> enqueueLocalCompanionBacklog({
+    required String originDeviceId,
+    required String characterId,
+    required int fromCreatedAtMs,
+  }) async {
+    return _db.transaction(() async {
+      final rows = await (_db.select(_db.personaChatMessages)
+            ..where((t) =>
+                t.originDeviceId.equals(originDeviceId) &
+                t.characterId.equals(characterId) &
+                t.isFromCharacter.equals(true) &
+                t.messageType.equals('chat') &
+                t.content.equals('').not() &
+                t.syncId.isNotNull() &
+                t.syncId.equals('').not() &
+                t.serverSequence.isNull() &
+                (t.attachmentsJson.isNull() | t.attachmentsJson.equals('[]')) &
+                chatCreatedAtMs(t).isBiggerOrEqualValue(fromCreatedAtMs) &
+                notExistsQuery(_db.select(_db.kvStore)
+                  ..where((marker) =>
+                      marker.bucket.equals(_outboxBucket) &
+                      marker.key.equalsExp(
+                          const Constant('companion.enqueued.') + t.syncId))) &
+                notExistsQuery(_db.select(_db.syncOutboxMessages)
+                  ..where((queued) => queued.syncId.equalsExp(t.syncId))))
+            ..orderBy([
+              (t) => OrderingTerm.asc(chatCreatedAtMs(t)),
+              (t) => OrderingTerm.asc(t.id),
+            ]))
+          .get();
+      var added = 0;
+      for (final row in rows) {
+        final syncId = row.syncId!;
+        await _enqueueOutbox(
+          syncId: syncId,
+          originDeviceId: originDeviceId,
+          characterId: characterId,
+          content: row.content,
+          createdAt: DateTime.fromMillisecondsSinceEpoch(
+              row.createdAtMs ?? row.timestamp.millisecondsSinceEpoch),
+          messageType: 'chat',
+          sender: 'companion',
+        );
+        added++;
+      }
+      return added;
+    });
   }
 
   Future<void> appendUserMessageTimeline(
@@ -263,20 +363,36 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     final originDeviceId = await DeviceIdentityService.getOrCreate();
     final attachmentsJson =
         (addenda != null && addenda.isNotEmpty) ? jsonEncode(addenda) : null;
-    final id = await _db.into(_db.personaChatMessages).insert(
-          PersonaChatMessagesCompanion.insert(
-            syncId: Value(syncId),
-            originDeviceId: Value(originDeviceId),
-            characterId: characterId,
-            isFromCharacter: true,
-            content: content,
-            factId: Value(factId),
-            isRead: Value(isRead),
-            timestamp: createdAt,
-            createdAtMs: Value(createdAt.millisecondsSinceEpoch),
-            attachmentsJson: Value(attachmentsJson),
-          ),
+    late int id;
+    await _db.transaction(() async {
+      id = await _db.into(_db.personaChatMessages).insert(
+            PersonaChatMessagesCompanion.insert(
+              syncId: Value(syncId),
+              originDeviceId: Value(originDeviceId),
+              characterId: characterId,
+              isFromCharacter: true,
+              content: content,
+              factId: Value(factId),
+              isRead: Value(isRead),
+              timestamp: createdAt,
+              createdAtMs: Value(createdAt.millisecondsSinceEpoch),
+              attachmentsJson: Value(attachmentsJson),
+            ),
+          );
+      // The initial transcript capability is for plain text only. Preserve
+      // rich addenda locally instead of silently stripping them on upload.
+      if (attachmentsJson == null && content.isNotEmpty) {
+        await _enqueueOutbox(
+          syncId: syncId,
+          originDeviceId: originDeviceId,
+          characterId: characterId,
+          content: content,
+          createdAt: createdAt,
+          messageType: 'chat',
+          sender: 'companion',
         );
+      }
+    });
     _notifyMessageAdded(characterId);
     _scheduleDreaming(characterId);
     return id;
