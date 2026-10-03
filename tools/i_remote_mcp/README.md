@@ -111,3 +111,31 @@ Node 22 的 `node --test <目录>` 不会展开目录（会把目录当模块执
 - **只返回 JSON、不提供 SSE 是否被 claude.ai 接受**：规范允许，未实测。
 - **Tailscale Funnel 在 Windows 上的具体命令与后台常驻方式**（`--bg` 需要较新版本的 tailscale）。
 - Claude Code CLI 使用 `http://localhost:<随机端口>/callback` 回调，按约定“只允许 https”目前会被拒；需要时再放开回环地址。
+
+## 脱敏运行诊断
+
+`serve --log-dir <本机日志目录>`（或 `I_REMOTE_MCP_LOG_DIR`）把诊断追加到按 UTC 日期分开的 `YYYY-MM-DD.jsonl`。未指定目录时，CLI 将相同 JSONL 写到 stderr；直接嵌入 `createApp()` 时，诊断默认不输出。
+
+每个完成的 HTTP 请求产生 `http_request`；每条实际经过 RPC 处理器的消息另产生 `mcp_rpc`。每行都有 `timestamp`（UTC ISO 8601）、`method`、`path`、`status`、`ua_family`、`origin`。UA 只保留固定家族：`claude`、`edge`、`firefox`、`chromium`、`safari`、`curl`、`node`、`python-httpx`、`python-requests`、`other` 或 `absent`；客户端可伪造 UA，因此家族不能证明来源。
+
+- GET `/authorize` 额外记录 `callback` / `resource`；只保留已知 Claude callback 和本服务 resource（保留尾斜杠差异），去除账号、密码、query 和 fragment。Origin 仅保留已知 Claude 或本服务来源。未知 URL（包括额外配置的 callback）统一为 `[redacted]`，缺失为 `null`。它们用于判断是否带参和已知端点是否匹配，不回显任意外部 URL。
+- `mcp_rpc` 只记录白名单 `rpc_method` / `tool`、`outcome`（`success`、`error`、`no_response`）及必要的固定 `error_code`。未知方法或工具名为 `other`；JSON-RPC 错误为白名单数值码，工具错误为 `tool_error` 或 `data_source_unavailable`。HTTP 拒绝发生在 RPC 处理前时仅有 HTTP 状态，不能算作工具执行。
+- 不记录原始 UA、Authorization / Cookie / session 头、请求 ID、IP、口令、授权码、token、其他 query、body、工具参数或结果内容、原始异常。未知 HTTP 路径和方法也替换为固定标签。旧 `log` 回调仍可接收脱敏的 method/path/status；不再接收异常正文。
+- 日志基于响应 `finish`，说明本服务完成了响应写入，不代表远端客户端已接收或用户已验收；中途断开且未完成的响应不产生日志。诊断回调报错不会改变 MCP/OAuth 响应。落盘失败仅报告 `diagnostic_write_failed`，不输出路径或系统异常。每日分文件不自动删除旧日志。
+
+已有私密运行目录可只更新 `server.mjs` 和新增 `diagnostics.mjs`，保持已有 `i_memory`、数据库、policy 和 OAuth 状态。嵌入启动器接线示例：
+
+```js
+import { createApp } from './server.mjs';
+import { createJsonlDiagnosticWriter } from './diagnostics.mjs';
+const diagnostic = createJsonlDiagnosticWriter({
+  logDir: configuredLocalLogDirectory,
+  onWriteError: (code) => process.stderr.write(`${code}\n`),
+});
+const { server } = createApp({
+  stateDir, publicUrl, getReadModel,
+  diagnostic, // 只将 createApp 投影后的记录交给 writer，不传原始请求或异常。
+});
+```
+
+正式验收应分别看到 GET authorize 的 callback/resource/Origin、POST authorize / token 的成功 HTTP 状态，以及 `mcp_rpc` 中 `rpc_method: tools/call`、已知工具名和 `outcome: success`。这些日志没有改变 OAuth 元数据、MCP 工具定义或 JSON/SSE 行为；仍需实际 connector 完成授权与工具调用。

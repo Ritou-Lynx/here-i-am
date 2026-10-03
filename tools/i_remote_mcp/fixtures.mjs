@@ -69,7 +69,7 @@ export function createFakeReadModel({ fail = false } = {}) {
   };
 }
 
-export async function startTestServer({ readModel = createFakeReadModel(), oauthOptions, passphrase = PASSPHRASE, identityLoader, timeZone = 'Asia/Shanghai' } = {}) {
+export async function startTestServer({ readModel = createFakeReadModel(), oauthOptions, passphrase = PASSPHRASE, identityLoader, timeZone = 'Asia/Shanghai', diagnostic, log } = {}) {
   const stateDir = mkdtempSync(join(tmpdir(), 'i-remote-mcp-'));
   if (passphrase) setPassphrase(stateDir, passphrase);
   const clock = { t: Date.UTC(2026, 9, 2, 4, 0, 0) };
@@ -80,6 +80,8 @@ export async function startTestServer({ readModel = createFakeReadModel(), oauth
     getReadModel: async () => readModel,
     now: () => clock.t,
     oauthOptions,
+    diagnostic,
+    log,
     timeZone,
     ...extra,
   });
