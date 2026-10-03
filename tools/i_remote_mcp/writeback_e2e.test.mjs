@@ -282,4 +282,49 @@ describe('B3 写回端到端', () => {
     const tail = feed.body.events.map((e) => e.payload.content).slice(-3);
     assert.deepEqual(tail, ['核心停机时说的话', '我先记在本机了', '核心恢复了']);
   });
+  test('explicit MCP phases preserve new repeated turns and only deduplicate exact tail retries', async () => {
+    const first = (await call('i_chat_turn', { phase: 'start',
+      turns: [{ role: 'user', content: 'phase回归：嗯' }] })).structuredContent;
+    const thread_id = first.thread_id;
+    await call('i_chat_turn', { phase: 'end', thread_id,
+      turns: [{ role: 'assistant', content: 'phase回归：我在听' }] });
+    const next = (await call('i_chat_turn', { phase: 'start', thread_id,
+      turns: [{ role: 'user', content: 'phase回归：嗯' }] })).structuredContent;
+    assert.equal(next.recorded.new_turns, 1, 'MCP must forward phase instead of legacy all-history dedup');
+    const end = (await call('i_chat_turn', { phase: 'end', thread_id,
+      turns: [{ role: 'assistant', content: 'phase回归：我在听' }] })).structuredContent;
+    assert.equal(end.recorded.new_turns, 1);
+    const repeated = (await call('i_chat_turn', { phase: 'end', thread_id,
+      turns: [{ role: 'assistant', content: 'phase回归：我在听' }] })).structuredContent;
+    assert.equal(repeated.recorded.new_turns, 0);
+    assert.equal(repeated.recent_messages, undefined);
+    const feed = await coreJson(coreBase, '/v1/core/changes?limit=500', { token: phoneDeviceToken });
+    assert.deepEqual(feed.body.events.map((e) => e.payload.content)
+      .filter((content) => content.startsWith('phase回归：')),
+    ['phase回归：嗯', 'phase回归：我在听', 'phase回归：嗯', 'phase回归：我在听']);
+  });
+
+
+  test('omitted MCP phase defaults to start when the user repeats after a complete round', async () => {
+    const first = (await call('i_chat_turn', {
+      turns: [{ role: 'user', content: 'default phase回归：嗯' }] })).structuredContent;
+    const thread_id = first.thread_id;
+    await call('i_chat_turn', { phase: 'end', thread_id,
+      turns: [{ role: 'assistant', content: 'default phase回归：听见了' }] });
+    const next = (await call('i_chat_turn', { thread_id,
+      turns: [{ role: 'user', content: 'default phase回归：嗯' }] })).structuredContent;
+    assert.equal(next.recorded.new_turns, 1);
+    assert.equal(next.last_recorded.role, 'user');
+    const retry = (await call('i_chat_turn', { thread_id,
+      turns: [{ role: 'user', content: 'default phase回归：嗯' }] })).structuredContent;
+    assert.equal(retry.recorded.new_turns, 0);
+    await call('i_chat_turn', { phase: 'end', thread_id,
+      turns: [{ role: 'assistant', content: 'default phase回归：听见了' }] });
+    const feed = await coreJson(coreBase, '/v1/core/changes?limit=500', { token: phoneDeviceToken });
+    assert.deepEqual(feed.body.events.map((e) => e.payload.content)
+      .filter((content) => content.startsWith('default phase回归：')),
+    ['default phase回归：嗯', 'default phase回归：听见了', 'default phase回归：嗯', 'default phase回归：听见了']);
+  });
+
+
 });
