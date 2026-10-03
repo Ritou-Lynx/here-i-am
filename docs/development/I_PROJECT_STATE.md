@@ -10,11 +10,11 @@
 
 已合入 `2d92a8d7` 并完成受控运行源码部署；读取层 CRLF-only 差异经用户确认，新增 auto_share_origins 后 openReadModel 成功。现役核心保留 schema 4，仅移植 B3 八个权限补丁至新的固定包，用户确认切换后完成一次性 external-frontend 配对；常驻不带 worker 密钥，前端读取聊天 feed 返回 403。旧固定包保留。
 
-remote MCP 已启用写回，旧 OAuth 令牌在停服期间撤销并重新启动加载；本机及公网元数据均支持 `["i.read","i.write"]`。Cloudflare ingress 只指向 47860。手机通道指定的 47862 被 Cloudflare 指标占用；管理员确认被取消，尚未移动指标或建立新的手机 HTTPS 映射，现场授权步骤已按用户当前安排暂缓，端口冲突待处理。
+remote MCP 已启用写回，旧 OAuth 令牌在停服期间撤销并重新启动加载；本机及公网元数据均支持 `["i.read","i.write"]`。Cloudflare ingress 只指向 47860。用户现场确认后，Cloudflare 指标已移至 47864，并核对服务 PID/loopback；手机通道使用 127.0.0.1:47862，Tailscale Serve HTTPS :47863 仅 tailnet，未启用新 Funnel，现有映射保持不变。手机通道无令牌返回 401，两个中文启动日志已确认。
 
 Flutter 已接入网页端标签、创建时间/服务序列排序、外部消息不触发回复、前台同步和 Daily Dreaming；显式网页记录经安全存储配置、Record Organizer 直接入卡，按 note_id/revision 修订、删除、ACK 并持久化游标。PersonaChatMessages 仅新增两个 nullable 排序字段，schema 61，生成代码由 build_runner 生成。合成测试与既有相邻回归 64 项通过；Node 专项 125 项、核心固定包 25 项及启动器 9 组通过；每次构建前 critical fixes 3/3；JNI 独立 staging 修复后 hereIAmV3 debug 构建成功，包名 com.memexlab.hereiam.v3，APK SHA256 为 `0d34095ccc488d68d7058e2127baf78c40c34bee93b5c832032dc2597702eeee`。最终 main/依赖分析零错误，main 25 项既有诊断，新增同步块无诊断。
 
-手机令牌生成/交付及物理安装已按用户安排暂缓；claude.ai 重连、四个工具始终允许、Project 指令替换和六项真人验收待 Lynx 操作。详细分项状态见[本机部署结果](B3_LOCAL_ROLLOUT_20261003.md)。备份恢复后需按现有页面提示重启 App，以重新绑定记录导入器数据库。这些源码和合成证据不等于真人验收。
+手机令牌已签发，只在本机窗口显示；用户已保存并实测 HTTPS 拉取“已同步，暂无新记录”。首次同步失败因手机 Tailscale 未运行，连接后通过；令牌框不回显是预期安全行为。Lynx 已明确授权候选 3069115d 及既定 APK 哈希；专用脚本更新安装成功，启动进程存活，未读取手机内容。claude.ai 重连、四个工具始终允许、Project 指令替换及六项真人验收待 Lynx 操作。详细分项状态见[本机部署结果](B3_LOCAL_ROLLOUT_20261003.md)。备份恢复后需按现有页面提示重启 App，以重新绑定记录导入器数据库。这些源码和合成证据不等于真人验收。
 
 ## B3 写回源码交付（2026-10-03，claude/b3-writeback）
 

@@ -13,9 +13,9 @@
 | 常驻权限 | 配对环境已清除；启动器持续清除 worker/reply 密钥；真实前端 feed 读取 403，worker 请求 401 拒绝 |
 | remote MCP | CLI serve 保持既有 public URL，启用写回；停服期间 revoke-all 后重启，旧令牌撤销已加载 |
 | OAuth 元数据 | 本机与公网均返回 scopes_supported=[i.read,i.write] |
-| 公网边界 | Cloudflare ingress 只指向 47860；新增手机通道尚未开放 |
-| 手机通道 | 47862 被 Cloudflare 指标占用，管理员确认取消后未修改；电脑现场授权步骤暂缓，端口冲突待处理；之后建立仅 tailnet HTTPS 映射 |
-| 手机令牌 | 按用户安排暂缓；尚未签发，交付准备为一次性本机显示/二维码，仅进程内存 |
+| 公网边界 | Cloudflare ingress 只指向 47860；指标移至 47864，实际进程/loopback 核对通过；手机通道不经公网 |
+| 手机通道 | 经用户现场确认保留 loopback 47862；Tailscale HTTPS :47863 → 47862，仅 tailnet，无新 Funnel，所有既有映射不变；无令牌请求 401 |
+| 手机令牌 | 已签发，令牌原文仅本机窗口/内存二维码，未进文件或日志；phone-feed.json 仅哈希且无广泛读取 ACL；本机有效令牌认证探测 200，窗口仅显示一次后已关闭；用户确认保存并实测“已同步，暂无新记录”；首次失败因手机 Tailscale 未运行，连接后通过 |
 
 ## Flutter 候选
 
@@ -41,10 +41,11 @@
 | 相关 Dart 分析 | 新增 notes/设置/同步路径无诊断；最终 main/依赖分析零错误，main 25 项既有诊断（exit 2），新增同步块无诊断；聊天页面既有 lint 已区分 |
 | 构建前关键修复检查 | 3/3 通过 |
 | hereIAmV3 debug 构建 | JNI 独立 staging 修复后成功，package=com.memexlab.hereiam.v3 |
-| 真实手机安装 | 现场授权步骤暂缓，未执行 |
+| 手机 HTTPS 拉取预检 | 用户确认“已同步，暂无新记录”；不等于记录成卡与六项真人 Gate |
+| 真实手机安装 | 用户授权候选 3069115d 与既定 APK 哈希；专用脚本安装成功并启动，包存在且进程存活；未读取手机内容 |
 
 
-APK：`build/app/outputs/flutter-apk/app-hereiamv3-debug.apk`，386,782,825 字节；SHA256 `0d34095ccc488d68d7058e2127baf78c40c34bee93b5c832032dc2597702eeee`。JNI CMake 输出已限定在任务构建目录，未修改全局缓存、NDK 或依赖版本。初次构建的共享 staging 写入失败不计通过；修复后构建 exit 0。真人候选仍须在专用安装脚本中绑定最终 codex 提交及该产物哈希。
+APK：`build/app/outputs/flutter-apk/app-hereiamv3-debug.apk`，386,782,825 字节；SHA256 `0d34095ccc488d68d7058e2127baf78c40c34bee93b5c832032dc2597702eeee`。JNI CMake 输出已限定在任务构建目录，未修改全局缓存、NDK 或依赖版本。初次构建的共享 staging 写入失败不计通过；修复后构建 exit 0。安装已由专用脚本绑定源码候选 `3069115db605c579fe085ab6267ae68c12d7b46c` 及该产物哈希执行；本次后续提交只更新技术交接，不改变候选源码。
 
 ## Lynx 操作与真人验收
 
