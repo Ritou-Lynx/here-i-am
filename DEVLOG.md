@@ -1,3 +1,11 @@
+## 2026-10-03 — B3 写回修订：每轮两次调用 + 补记 + 近似去重
+
+**交付**：按 Lynx 决定，`i_chat_turn` 增加 `phase`：回答前 start 交用户原话取上下文，回复写完后 end 交回复原文，最后一条回复不再丢失；漏调轮次照写并带 `frontend_backfill` 补记标记，时间在前后两条间插值；长文本用不可还原的 MinHash 指纹做近似去重；返回 `last_recorded`。
+**验证**：i_remote_mcp 71/71 通过（含真实 i_core + 读取层 + MCP + OAuth 端到端）。i_core 与读取层未改。
+**未完**：Codex 重新合入 i_remote_mcp、重启，换 Project 指令；手机端显示“补记”。浏览器扩展兜底待一周反馈后定。
+
+---
+
 ## 2026-10-03 — B3 写回：i_chat_turn / i_remember
 
 **交付**：i_remote_mcp 新增 `i_chat_turn`（每轮写回双方原文，内容对齐去重、漏轮补交、本机账本重试）与 `i_remember`（本机账本可真删，手机经本机拉取通道取走直接入卡）；OAuth 新增 `i.write`，需重新授权；Project 指令改为每轮先 `i_chat_turn`。

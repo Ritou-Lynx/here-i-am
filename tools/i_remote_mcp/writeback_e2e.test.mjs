@@ -161,7 +161,16 @@ describe('B3 写回端到端', () => {
       { role: 'assistant', content: '记得带上疫苗本。' },
       { role: 'user', content: '好的' },
     ] })).structuredContent;
-    assert.deepEqual(third.recorded, { new_turns: 4, duplicate_turns_skipped: 1, waiting_for_retry: 0 });
+    assert.deepEqual(third.recorded, { new_turns: 4, backfilled_turns: 3, duplicate_turns_skipped: 1, waiting_for_retry: 0 });
+    // 补记的轮次在 i_core 里带标记，本次刚发生的那条不带。
+    const marked = (await coreJson(coreBase, '/v1/core/changes', { token: phoneDeviceToken })).body.events
+      .map((e) => e.payload).filter((p) => p.origin_device_id === 'frontend:claude_web').slice(-4);
+    assert.deepEqual(marked.map((p) => p.addenda.length), [1, 1, 1, 0]);
+    // 新流程：回复写完后 phase=end，只回报写入结果。
+    const end = (await call('i_chat_turn', { thread_id: thread, phase: 'end', turns: [{ role: 'assistant', content: '好的，晚安。' }] })).structuredContent;
+    assert.deepEqual(Object.keys(end).sort(), ['core_status', 'last_recorded', 'next', 'recorded', 'thread_id']);
+    assert.equal(end.last_recorded.role, 'assistant');
+    assert.equal(end.recorded.backfilled_turns, 0);
 
     const feed = await coreJson(coreBase, '/v1/core/changes', { token: phoneDeviceToken });
     const web = feed.body.events.map((e) => e.payload).filter((p) => p.origin_device_id === 'frontend:claude_web');
@@ -173,6 +182,7 @@ describe('B3 写回端到端', () => {
       'user:明天带它去体检',
       'companion:记得带上疫苗本。',
       'user:好的',
+      'companion:好的，晚安。',
     ]);
     assert.ok(web.every((p) => p.character_id === LIN && p.message_type === 'chat'));
 
