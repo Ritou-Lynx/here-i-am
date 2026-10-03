@@ -6,6 +6,14 @@
 
 任务 A4 已交付 `tools/flexnote_tutor/`：基于 FlexNote 1.1.56 MCP 工具清单的 Codex 学习导师模板与科目表（教师编·中学语文，求职空间）；需在本机复制到仓库外学习目录使用。B0.1 定为 i_core 先跑在电脑上。 B1/B2 并行开发按[接口约定](CONTINUITY_B1_B2_CONTRACT.md)进行：`tools/i_memory/`（记忆快照+出站策略+只读接口）与 `tools/i_remote_mcp/`（claude.ai 远程 MCP+单用户 OAuth）。 `tools/i_memory/` 已交付：V3 记忆快照导入、出站策略（缺失即 fail closed）与 `openReadModel` 只读接口，合成 fixture 测试通过；真实导出与导入（B1.4）待 Codex 本机执行。 B2.1/B2.2 已交付 `tools/i_remote_mcp/`（远程只读 MCP、单用户 OAuth、`i_context`/`i_recall`、Project 指令，fake readModel 测试通过）；两者已合入主任务分支：补消息级私密关键词、OAuth 回调默认仅限 claude.ai，B1×B2 集成测试通过（共 60 项）；真实导入、私密配置、Funnel 部署与 claude.ai 接入待 Codex 本机执行。A 线已由 Codex 本机跑通（教综拆解导入、初始化、5 题冒烟），模板已按反馈修订。
 
+## B1 审核读取层源码交付（2026-10-03）
+
+codex/continuity-b1-local-policy 从 2a27f7d7 同步既有本机通用读取改动：messages.private_message_ids 按 sync_id 排除；消息/卡片正向 ID 清单只允许审核条目；内容 SHA-256 映射拒绝未审核修订。所有允许条件与角色、类型、关键词及私密 ID 等原有限制取交集，不能覆盖私密排除。显式空清单/映射拒绝全部，省略字段兼容旧策略；更新策略须重新打开读取模型。接口与哈希字段顺序见 CONTINUITY_B1_B2_CONTRACT.md 和 tools/i_memory/README.md。
+
+本分支 i_memory / remote MCP 合成回归 74/74 通过：涵盖合法/非法策略、大 ID 清单、未审核新增和内容变更、所有本地读取出口及远程文本/结构化返回。集成测试注入合成身份，避免读取用户身份投影。该验证不代替手机同步、公网访问或 claude.ai 真人验收。
+
+真实 policy、私密关键词、审核 ID/哈希清单、数据库、审批和日志仍只保存在本机；筛查脚本不包含在交付。运行副本与当前工作分支未改动。本分支以读取层同步为范围，不实现 B3 写回；诊断日志在独立 codex/continuity-cloudflare-diagnostics 分支，协作方按所需合并或 cherry-pick。
+
 ## GitHub 同步完成（2026-10-01）
 
 原仓库 `Ritou-Lynx/here-i-am` 的默认分支 `v3-lab` 已合入[整合 PR #1](https://github.com/Ritou-Lynx/here-i-am/pull/1)，整合提交为 `4520590a4f1eaa75ee514be3ea2ab320645ae617`。GitHub PR Policy Preflight 通过；其高风险分类来自本次大范围历史文件整合，已有人工范围复核与独立凭据审计，没有拒绝项。
