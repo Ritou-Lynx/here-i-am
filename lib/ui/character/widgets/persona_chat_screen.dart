@@ -2359,6 +2359,7 @@ only after you have written the goodbye you want the user to hear.''',
     for (var i = 0; i < previous.length; i++) {
       if (previous[i].id != updated[i].id ||
           previous[i].content != updated[i].content ||
+          previous[i].originDeviceId != updated[i].originDeviceId ||
           previous[i].messageType != updated[i].messageType ||
           previous[i].attachmentsJson != updated[i].attachmentsJson) {
         return false;
@@ -6045,7 +6046,10 @@ only after you have written the goodbye you want the user to hear.''',
                                       children: [
                                         if (showDate)
                                           _buildDateDivider(msg.timestamp),
-                                        ChatMessageSourceLabel(message: msg),
+                                        ChatMessageSourceLabel(
+                                          message: msg,
+                                          color: _personaTextMuted,
+                                        ),
                                         if (msg.messageType == 'action')
                                           _buildActionMessage(
                                             text: msg.content,
@@ -6074,7 +6078,10 @@ only after you have written the goodbye you want the user to hear.''',
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 if (showDate) _buildDateDivider(msg.timestamp),
-                                ChatMessageSourceLabel(message: msg),
+                                ChatMessageSourceLabel(
+                                  message: msg,
+                                  color: _personaTextMuted,
+                                ),
                                 if (msg.messageType == 'action')
                                   _buildActionMessage(
                                     text: msg.content,

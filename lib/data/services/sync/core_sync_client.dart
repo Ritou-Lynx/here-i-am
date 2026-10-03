@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:memex/data/services/sync/core_sync_protocol.dart';
 
@@ -14,6 +16,7 @@ class CoreSyncClient {
     required this.deviceToken,
     this.protocolVersion = CoreSyncProtocol.version,
     Dio? dio,
+    this.connectionTimeoutRetryDelay = const Duration(seconds: 1),
   }) : _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: const Duration(seconds: 15),
@@ -32,6 +35,10 @@ class CoreSyncClient {
   /// Wire protocol version. Overridable for tests exercising mismatch paths.
   final String protocolVersion;
   final Dio _dio;
+
+  /// One bounded retry for a connection that timed out before any response.
+  /// Tests can use Duration.zero; pairing intentionally does not use this.
+  final Duration connectionTimeoutRetryDelay;
 
   Uri _uri(String path, [Map<String, String>? query]) {
     final base = baseUrl.endsWith('/')
@@ -52,9 +59,11 @@ class CoreSyncClient {
   Future<CoreChatSubmitResponse> submitMessages(
     CoreChatSubmitRequest request,
   ) async {
+    // Freeze the wire body before the first attempt, including nested addenda.
+    final bodyJson = jsonEncode(request.toJson());
     final body = await _guard(() => _dio.postUri<Map<String, dynamic>>(
           _uri('chat/messages'),
-          data: request.toJson(),
+          data: bodyJson,
           options: Options(
             contentType: Headers.jsonContentType,
             responseType: ResponseType.json,
@@ -95,29 +104,40 @@ class CoreSyncClient {
   Future<Map<String, dynamic>> _guard(
     Future<Response<Map<String, dynamic>>> Function() call,
   ) async {
-    try {
-      final response = await call();
-      return response.data ?? const {};
-    } on DioException catch (e) {
-      final body = e.response?.data;
-      if (body is Map) {
-        final error = body['error'];
-        if (error is Map) {
-          throw CoreSyncException(
-            code: error['code']?.toString() ?? 'unknown',
-            message: error['message']?.toString() ?? e.message ?? 'Core error',
-            retryable: error['retryable'] == true,
-            statusCode: e.response?.statusCode,
-          );
+    var retriedConnectionTimeout = false;
+    while (true) {
+      try {
+        final response = await call();
+        return response.data ?? const {};
+      } on DioException catch (e) {
+        if (!retriedConnectionTimeout &&
+            e.type == DioExceptionType.connectionTimeout &&
+            e.response == null) {
+          retriedConnectionTimeout = true;
+          await Future<void>.delayed(connectionTimeoutRetryDelay);
+          continue;
         }
+        final body = e.response?.data;
+        if (body is Map) {
+          final error = body['error'];
+          if (error is Map) {
+            throw CoreSyncException(
+              code: error['code']?.toString() ?? 'unknown',
+              message:
+                  error['message']?.toString() ?? e.message ?? 'Core error',
+              retryable: error['retryable'] == true,
+              statusCode: e.response?.statusCode,
+            );
+          }
+        }
+        // Transport-level failure (timeout, connection refused, TLS).
+        throw CoreSyncException(
+          code: 'transport_error',
+          message: e.message ?? 'Failed to reach i core',
+          retryable: e.type != DioExceptionType.badResponse,
+          statusCode: e.response?.statusCode,
+        );
       }
-      // Transport-level failure (timeout, connection refused, TLS).
-      throw CoreSyncException(
-        code: 'transport_error',
-        message: e.message ?? 'Failed to reach i core',
-        retryable: e.type != DioExceptionType.badResponse,
-        statusCode: e.response?.statusCode,
-      );
     }
   }
 

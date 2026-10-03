@@ -41,7 +41,14 @@ class CoreSyncRuntimeStatus {
 /// It performs a short sync after a local chat write, on foreground resume,
 /// and when the user taps "立即同步" in settings.
 class CoreSyncRuntimeService extends ChangeNotifier {
-  CoreSyncRuntimeService._();
+  CoreSyncRuntimeService._() : _syncPassOverride = null;
+
+  @visibleForTesting
+  CoreSyncRuntimeService.forTesting({
+    required Future<void> Function(String reason) syncPass,
+  }) : _syncPassOverride = syncPass;
+
+  final Future<void> Function(String reason)? _syncPassOverride;
 
   static final CoreSyncRuntimeService instance = CoreSyncRuntimeService._();
 
@@ -167,14 +174,23 @@ class CoreSyncRuntimeService extends ChangeNotifier {
   }
 
   Future<void> syncNow({String reason = 'manual'}) {
-    final running = _activeSync;
-    if (running != null) return running;
-    late final Future<void> tracked;
-    tracked = _performSync(reason).whenComplete(() {
-      if (identical(_activeSync, tracked)) _activeSync = null;
-    });
-    _activeSync = tracked;
-    return tracked;
+    var running = _activeSync;
+    if (running == null) {
+      late final Future<void> tracked;
+      tracked = Future<void>.sync(
+        () => (_syncPassOverride ?? _performSync)(reason),
+      ).whenComplete(() {
+        if (identical(_activeSync, tracked)) _activeSync = null;
+      });
+      _activeSync = tracked;
+      running = tracked;
+    }
+    // Keep the shared pass fallible regardless of which caller started it.
+    // A manual caller joining an automatic pass must still receive its failure.
+    if (reason == 'manual' || reason == 'paired') return running;
+    // The pass records the error status. Lifecycle/event callers are unawaited,
+    // so suppress errors only on their own returned future, never on the pass.
+    return running.catchError((Object _) {});
   }
 
   Future<void> _performSync(String reason) async {
@@ -189,8 +205,7 @@ class CoreSyncRuntimeService extends ChangeNotifier {
         phase: CoreSyncRuntimePhase.error,
         message: '无法读取这台设备的安全凭据',
       ));
-      if (reason == 'manual' || reason == 'paired') rethrow;
-      return;
+      rethrow;
     }
     if (connection == null) {
       _setStatus(const CoreSyncRuntimeStatus(
@@ -240,7 +255,7 @@ class CoreSyncRuntimeService extends ChangeNotifier {
         baseUrl: connection.baseUrl,
         coreNodeId: connection.coreNodeId,
       ));
-      if (reason == 'manual' || reason == 'paired') rethrow;
+      rethrow;
     }
   }
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/sync/core_sync_client.dart';
 import 'package:memex/data/services/sync/core_sync_protocol.dart';
@@ -22,6 +23,168 @@ Future<(String, Process)> _startCore() async {
 }
 
 void main() {
+  group('bounded connection timeout recovery', () {
+    CoreSyncClient client(_ScriptedAdapter adapter) => CoreSyncClient(
+          baseUrl: 'https://synthetic.invalid',
+          deviceId: 'synthetic-device',
+          deviceToken: 'synthetic-token',
+          dio: Dio()..httpClientAdapter = adapter,
+          connectionTimeoutRetryDelay: Duration.zero,
+        );
+
+    test('connection timeout then success retries the same GET once', () async {
+      final adapter = _ScriptedAdapter((options, attempt) {
+        if (attempt == 1) {
+          throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.connectionTimeout,
+          );
+        }
+        return _jsonResponse({
+          'events': [],
+          'next_cursor': 'synthetic-cursor',
+          'has_more': false,
+        });
+      });
+      final page =
+          await client(adapter).fetchChanges(cursor: 'synthetic-cursor');
+      expect(page.events, isEmpty);
+      expect(adapter.calls, 2);
+      expect(adapter.requests[0].method, 'GET');
+      expect(adapter.requests[0].uri, adapter.requests[1].uri);
+    });
+
+    test('consecutive connection timeouts stop after exactly two attempts',
+        () async {
+      final adapter = _ScriptedAdapter((options, _) => throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.connectionTimeout,
+          ));
+      await expectLater(
+          client(adapter).fetchChanges(cursor: 'synthetic-cursor'),
+          throwsA(isA<CoreSyncException>()
+              .having((e) => e.code, 'code', 'transport_error')
+              .having((e) => e.retryable, 'retryable', isTrue)
+              .having((e) => e.statusCode, 'status', isNull)));
+      expect(adapter.calls, 2);
+    });
+
+    for (final entry in {
+      401: 'unauthorized',
+      409: 'immutable_message_conflict',
+      426: 'protocol_mismatch',
+    }.entries) {
+      test('HTTP ${entry.key} is returned without retry', () async {
+        final adapter = _ScriptedAdapter((_, __) => _jsonResponse({
+              'error': {
+                'code': entry.value,
+                'message': 'synthetic failure',
+                'retryable': false
+              },
+            }, status: entry.key));
+        await expectLater(
+            client(adapter).fetchChanges(cursor: 'synthetic-cursor'),
+            throwsA(isA<CoreSyncException>()
+                .having((e) => e.code, 'code', entry.value)
+                .having((e) => e.statusCode, 'status', entry.key)));
+        expect(adapter.calls, 1);
+      });
+    }
+
+    for (final type in [
+      DioExceptionType.sendTimeout,
+      DioExceptionType.receiveTimeout,
+      DioExceptionType.badCertificate,
+      DioExceptionType.connectionError,
+      DioExceptionType.cancel,
+      DioExceptionType.unknown,
+    ]) {
+      test('$type is not retried', () async {
+        final adapter = _ScriptedAdapter((options, _) => throw DioException(
+              requestOptions: options,
+              type: type,
+            ));
+        await expectLater(
+            client(adapter).fetchChanges(cursor: 'synthetic-cursor'),
+            throwsA(isA<CoreSyncException>()));
+        expect(adapter.calls, 1);
+      });
+    }
+
+    test('invalid successful protocol response is not retried', () async {
+      final adapter = _ScriptedAdapter((_, __) => _jsonResponse({}));
+      await expectLater(
+          client(adapter).fetchChanges(cursor: 'synthetic-cursor'),
+          throwsFormatException);
+      expect(adapter.calls, 1);
+    });
+
+    test('retried POST preserves the complete frozen message body', () async {
+      final addenda = <Map<String, dynamic>>[
+        {'kind': 'synthetic', 'value': 'original'}
+      ];
+      final request =
+          CoreChatSubmitRequest(deviceId: 'synthetic-device', messages: [
+        CoreChatMessageWire(
+            syncId: 'synthetic-message',
+            originDeviceId: 'synthetic-device',
+            originSequence: 42,
+            characterId: 'synthetic-character',
+            sender: CoreMessageSender.user,
+            content: 'synthetic content',
+            createdAtMs: 1700000000000,
+            addenda: addenda),
+      ]);
+      final expectedBody = request.toJson();
+      final expectedJson = jsonEncode(expectedBody);
+      final adapter = _ScriptedAdapter((options, attempt) {
+        if (attempt == 1) {
+          // Caller-owned nested data may change during the retry backoff.
+          addenda.single['value'] = 'changed after first attempt';
+          throw DioException(
+              requestOptions: options,
+              type: DioExceptionType.connectionTimeout);
+        }
+        return _jsonResponse({
+          'results': [
+            {
+              'sync_id': 'synthetic-message',
+              'status': 'accepted',
+              'server_sequence': 7,
+            }
+          ]
+        });
+      });
+      final response = await client(adapter).submitMessages(request);
+      expect(response.results.single.syncId, 'synthetic-message');
+      expect(adapter.calls, 2);
+      expect(adapter.requests.map((r) => r.method), everyElement('POST'));
+      expect(adapter.requests[0].uri, adapter.requests[1].uri);
+      expect(adapter.bodies, [expectedJson, expectedJson]);
+    });
+
+    test('one-time pair remains a single attempt on connection timeout',
+        () async {
+      final adapter = _ScriptedAdapter((options, _) => throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.connectionTimeout,
+          ));
+      await expectLater(
+          CoreSyncClient.pair(
+            baseUrl: 'https://synthetic.invalid',
+            dio: Dio()..httpClientAdapter = adapter,
+            request: const CoreDevicePairRequest(
+                deviceId: 'synthetic-device',
+                displayName: 'Synthetic',
+                platform: 'test',
+                clientVersion: 'test',
+                pairingCode: 'synthetic'),
+          ),
+          throwsA(isA<DioException>()));
+      expect(adapter.calls, 1);
+    });
+  });
+
   test('pair, submit, fetch changes and ack round-trip against a real core',
       () async {
     final (baseUrl, core) = await _startCore();
@@ -162,3 +325,34 @@ void main() {
     }
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
+
+/// In-process transport following the adapter convention in the adjacent tests.
+class _ScriptedAdapter implements HttpClientAdapter {
+  _ScriptedAdapter(this.respond);
+  final ResponseBody Function(RequestOptions options, int attempt) respond;
+  final requests = <RequestOptions>[];
+  final bodies = <String>[];
+  int get calls => requests.length;
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<List<int>>? requestStream, Future<void>? cancelFuture) async {
+    requests.add(options);
+    final bytes = <int>[];
+    if (requestStream != null) {
+      await for (final chunk in requestStream) {
+        bytes.addAll(chunk);
+      }
+    }
+    bodies.add(utf8.decode(bytes));
+    return respond(options, calls);
+  }
+}
+
+ResponseBody _jsonResponse(Map<String, dynamic> body, {int status = 200}) =>
+    ResponseBody.fromString(jsonEncode(body), status, headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    });
