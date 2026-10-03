@@ -6,11 +6,15 @@
 
 任务 A4 已交付 `tools/flexnote_tutor/`：基于 FlexNote 1.1.56 MCP 工具清单的 Codex 学习导师模板与科目表（教师编·中学语文，求职空间）；需在本机复制到仓库外学习目录使用。B0.1 定为 i_core 先跑在电脑上。 B1/B2 并行开发按[接口约定](CONTINUITY_B1_B2_CONTRACT.md)进行：`tools/i_memory/`（记忆快照+出站策略+只读接口）与 `tools/i_remote_mcp/`（claude.ai 远程 MCP+单用户 OAuth）。 `tools/i_memory/` 已交付：V3 记忆快照导入、出站策略（缺失即 fail closed）与 `openReadModel` 只读接口，合成 fixture 测试通过；真实导出与导入（B1.4）待 Codex 本机执行。 B2.1/B2.2 已交付 `tools/i_remote_mcp/`（远程只读 MCP、单用户 OAuth、`i_context`/`i_recall`、Project 指令，fake readModel 测试通过）；两者已合入主任务分支：补消息级私密关键词、OAuth 回调默认仅限 claude.ai，B1×B2 集成测试通过（共 60 项）；真实导入、私密配置、Funnel 部署与 claude.ai 接入待 Codex 本机执行。claude.ai 已经 https://i.ilynx.date/mcp（Cloudflare 固定隧道）接入并通过两问真人验收；B3 写回见[简报](B3_WRITEBACK_BRIEF.md)与[设计](B3_WRITEBACK_DESIGN.md)，源码已在 claude/b3-writeback 交付。B2.3 实测：claude.ai 经 Funnel `:10000` 无法连接，经 Cloudflare 隧道可完成注册并到达口令页，长期入口改用 Cloudflare 固定隧道 + 自有域名。A 线已由 Codex 本机跑通（教综拆解导入、初始化、5 题冒烟），模板已按反馈修订。
 
+## B3 445d665 合入核对（2026-10-03，去重修复准备中）
+
+按用户指定合入445d665ee58e682e1dc41a96d90fb05d656bc10a，remote MCP原版71/71通过；相对2d92a8d仅mcp/writeback、测试和文档变化。独立审计及内存合成复现确认两阶段重复短句和长句事实更正会被去重丢弃，两例均应写3条却只写2条。运行副本尚未替换或重启，用户已明确决定先补去重修复再部署，记录445d665及修复提交；不撤销令牌或重新授权。新版七项真人清单单独绑定445d665，均未记录新版本结果；手机可选“补记”提示尚未实现，明早7:00开场待实际观察。旧74d08b76手机复验结果不继承到新服务版本。
+
 ## B3 手机同步与来源提示修复候选（2026-10-03）
 
 限定确认上线后，原手机3069115d只读核对当前设备待发送队列为0，核心网页消息均已入手机、游标追平；用户反馈除来源标签外无其他问题。来源数据完整，标签使用全局日间主题暗字、手机聊天背景为深色，已改为聊天页既有文字色，并补来源变化刷新比较。连接仍出现阶段性超时；新增共享同步真实失败传播及仅连接超时一次退避重试，稳定POST正文，不重试401/409/协议错误或一次性配对。
 
-同步专项及相邻回归39项、标签/桌面回归10项共49项通过，旧APK保留并核对哈希。手机源码候选`74d08b76c4727ca0b4931486ba2b1a540862292d`已提交，关键构建预检3/3、hereIAmV3 debug构建及安装前只验证模式通过；新APK SHA256为`16f0d4d2c777700781292c2731500324778053ef43995fe4fde89d46c9069757`，包名com.memexlab.hereiam.v3。Lynx已明确授权新产物，专用脚本更新安装并启动成功，手机实际APK哈希核验吻合、进程存活；核心仍健康、schema4且worker关闭。当前手机绑定74d08b76及新APK哈希，来源提示及同步修复待新候选真人复验，其他五项真人Gate尚未执行。
+同步专项及相邻回归39项、标签/桌面回归10项共49项通过，旧APK保留并核对哈希。手机源码候选`74d08b76c4727ca0b4931486ba2b1a540862292d`已提交，关键构建预检3/3、hereIAmV3 debug构建及安装前只验证模式通过；新APK SHA256为`16f0d4d2c777700781292c2731500324778053ef43995fe4fde89d46c9069757`，包名com.memexlab.hereiam.v3。Lynx已明确授权新产物，专用脚本更新安装并启动成功，手机实际APK哈希核验吻合、进程存活；核心仍健康、schema4且worker关闭。当前手机绑定74d08b76及新APK哈希；Lynx已确认标签及自动同步正常、连接提示稳定，这条观察绑定原B3运行版本。后续445d665与新版清单单独记录，不继承旧候选结果。
 
 ## B3 限定确认修复上线与真人复验（2026-10-03）
 
@@ -33,6 +37,8 @@ Flutter 已接入网页端标签、创建时间/服务序列排序、外部消�
 按[设计](B3_WRITEBACK_DESIGN.md)交付：`tools/i_remote_mcp` 新增 `i_chat_turn`（每轮写回网页端双方原文到 i_core 时间线，内容对齐去重、漏轮补交、i_core 不可达时本机账本暂存）与 `i_remember`（显式记录只存本机账本，可改可真删；手机经只监听本机的拉取通道 `:47862` 取走，按用户决定无需确认直接进 Record 流程成卡）。OAuth 新增 `i.write`，启用写回后签发 `i.read i.write`，旧令牌需重新授权；Project 指令改为每轮先 `i_chat_turn`。
 
 i_core 新增受限 `external-frontend` 设备身份 `frontend:claude_web`：可提交 user/companion、不能读 feed/ack、不能请求核心回复，不改 schema，不需要 worker 密钥。读取层新增 `messages.auto_share_origins`：列出的前端来源只跳过 ID/哈希放行清单，私密类型、关键词和私密 ID 仍优先；省略时保持旧行为。
+
+修订（同日，Lynx 决定）：`i_chat_turn` 改为每轮两次调用（start 交用户原话并取上下文，end 在回复末尾交回复原文），对话最后一条回复不再丢；漏调轮次照写并带 `frontend_backfill` 补记标记、时间插值；长文本 MinHash 近似去重；返回 `last_recorded`。i_remote_mcp 回归 71/71。部署只需重新合入 i_remote_mcp 文件、重启 MCP、更换 Project 指令；手机端另加“补记”显示。
 
 合成验证：i_remote_mcp 67/67（含真实 i_core 服务与存储 + 真实读取层 + MCP + OAuth 端到端）、i_memory 35/35 通过；i_core 新增 2 项通过，全量仍有 54 项 activity fixture 合同失败，与改动前基线一致。未部署、未接真实数据。待 Codex 本机：合入、policy 开关、i_core 配对窗口 + `pair-core`、手机令牌与 Tailscale Serve、重启、`revoke-all` 与 claude.ai 重新连接、Project 指令、Flutter 来源显示与记录入卡、真人验收。
 

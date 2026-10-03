@@ -20,10 +20,16 @@ export const LIMITS = Object.freeze({
   maxPendingFlush: 200,
   alignWindow: 200,
   globalDedupWindowMs: 24 * 60 * 60 * 1000,
+  // 近似去重：只和本线程最近几轮比较；太短的文本只做精确匹配。
+  fuzzyWindow: 6,
+  fuzzyMinChars: 30,
+  fuzzyThreshold: 0.75,
 });
 
+export const BACKFILL_ADDENDUM = Object.freeze({ type: 'frontend_backfill', approximate_time: true });
+
 export const DEFAULT_RATE_LIMITS = Object.freeze({
-  i_chat_turn: [{ windowMs: 60_000, max: 20 }, { windowMs: 86_400_000, max: 1500 }],
+  i_chat_turn: [{ windowMs: 60_000, max: 40 }, { windowMs: 86_400_000, max: 3000 }],
   i_remember: [{ windowMs: 60_000, max: 10 }, { windowMs: 86_400_000, max: 200 }],
 });
 
@@ -44,6 +50,44 @@ export function normalizeText(text) {
 
 export function turnKey(role, content) {
   return `${role}:${sha256(normalizeText(content))}`;
+}
+
+// ---------- 近似去重指纹（MinHash，不可还原正文） ----------
+
+const SKETCH_SIZE = 128;
+
+function fnv1a(text, seed) {
+  let h = (0x811c9dc5 ^ seed) >>> 0;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  // 再混一次，避免相邻种子相关。
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b) >>> 0; h ^= h >>> 13;
+  return h >>> 0;
+}
+
+// 对归一化正文（去掉全部空白和常见标点）的字符 3-gram 取 MinHash；短文本返回 null。
+export function similaritySketch(content) {
+  const chars = Array.from(normalizeText(content).replace(/[\s\p{P}]/gu, ''));
+  if (chars.length < LIMITS.fuzzyMinChars) return null;
+  const shingles = new Set();
+  for (let i = 0; i + 3 <= chars.length; i += 1) shingles.add(chars.slice(i, i + 3).join(''));
+  const mins = new Array(SKETCH_SIZE).fill(0xffffffff);
+  for (const shingle of shingles) {
+    for (let k = 0; k < SKETCH_SIZE; k += 1) {
+      const h = fnv1a(shingle, k * 0x9e3779b1);
+      if (h < mins[k]) mins[k] = h;
+    }
+  }
+  return mins.map((x) => x.toString(16).padStart(8, '0')).join('');
+}
+
+export function sketchSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let same = 0;
+  for (let i = 0; i < a.length; i += 8) if (a.slice(i, i + 8) === b.slice(i, i + 8)) same += 1;
+  return same / (a.length / 8);
 }
 
 function charLength(text) {
@@ -125,7 +169,10 @@ export function openLedger(path) {
     );
     CREATE INDEX IF NOT EXISTS notes_active_idx ON notes(status, updated_at_ms);
   `);
-  db.prepare("INSERT INTO meta(key, value) VALUES ('schema_version', '1') ON CONFLICT(key) DO NOTHING").run();
+  const columns = new Set(db.prepare('PRAGMA table_info(turns)').all().map((c) => c.name));
+  if (!columns.has('sketch')) db.exec('ALTER TABLE turns ADD COLUMN sketch TEXT');
+  if (!columns.has('backfilled')) db.exec('ALTER TABLE turns ADD COLUMN backfilled INTEGER NOT NULL DEFAULT 0');
+  db.prepare("INSERT INTO meta(key, value) VALUES ('schema_version', '2') ON CONFLICT(key) DO UPDATE SET value = '2'").run();
   return db;
 }
 
@@ -170,17 +217,21 @@ function nextFeedSeq(db) {
 // 1) 线程尾部与 incoming 开头的最长重叠视为重传；
 // 2) 之后开头连续出现、且线程（新线程则最近 24 小时全局）里已有的轮次也视为重传；
 //    遇到第一个未见过的轮次就停止，之后的一律保留（允许用户重复说“嗯”）。
-export function alignTurns(existingKeys, incomingKeys, knownKeys) {
+// same(existingIndex, incomingIndex) 可放宽为近似相等；isKnown(incomingIndex) 判断是否已写过。
+export function alignTurns(existingKeys, incomingKeys, knownKeys, {
+  same = (e, i) => existingKeys[e] === incomingKeys[i],
+  isKnown = (i) => knownKeys.has(incomingKeys[i]),
+} = {}) {
   let overlap = 0;
   for (let len = Math.min(existingKeys.length, incomingKeys.length); len > 0; len -= 1) {
     let match = true;
     for (let i = 0; i < len; i += 1) {
-      if (existingKeys[existingKeys.length - len + i] !== incomingKeys[i]) { match = false; break; }
+      if (!same(existingKeys.length - len + i, i)) { match = false; break; }
     }
     if (match) { overlap = len; break; }
   }
   let start = overlap;
-  while (start < incomingKeys.length && knownKeys.has(incomingKeys[start])) start += 1;
+  while (start < incomingKeys.length && isKnown(start)) start += 1;
   return start;
 }
 
@@ -303,9 +354,10 @@ export function createWriteback({
       const thread = db.prepare('SELECT thread_id FROM threads WHERE thread_id = ?').get(threadId);
       if (thread) db.prepare('UPDATE threads SET last_seen_ms = ? WHERE thread_id = ?').run(t, threadId);
       else db.prepare('INSERT INTO threads(thread_id, created_at_ms, last_seen_ms) VALUES (?, ?, ?)').run(threadId, t, t);
-      const existing = db.prepare(`
-        SELECT turn_key FROM turns WHERE thread_id = ? ORDER BY seq DESC LIMIT ?
-      `).all(threadId, LIMITS.alignWindow).map((r) => r.turn_key).reverse();
+      const existingRows = db.prepare(`
+        SELECT role, turn_key, sketch, created_at_ms FROM turns WHERE thread_id = ? ORDER BY seq DESC LIMIT ?
+      `).all(threadId, LIMITS.alignWindow).reverse();
+      const existing = existingRows.map((r) => r.turn_key);
       const known = new Set(existing);
       if (!thread || existing.length === 0) {
         // 新线程（Claude 丢了 thread_id 或新对话）：用最近 24 小时的全局轮次识别重传。
@@ -314,26 +366,47 @@ export function createWriteback({
         }
       }
       const keys = turns.map((turn) => turnKey(turn.role, turn.content));
-      const start = alignTurns(existing, keys, known);
+      const sketches = turns.map((turn) => similaritySketch(turn.content));
+      // 近似相等：同角色、指纹相似度达到阈值（抄写时的细微出入不再产生重复）。
+      const nearlySame = (row, i) => row.role === turns[i].role
+        && sketchSimilarity(row.sketch, sketches[i]) >= LIMITS.fuzzyThreshold;
+      const recentRows = existingRows.slice(-LIMITS.fuzzyWindow);
+      const start = alignTurns(existing, keys, known, {
+        same: (e, i) => existing[e] === keys[i] || nearlySame(existingRows[e], i),
+        isKnown: (i) => known.has(keys[i]) || recentRows.some((row) => nearlySame(row, i)),
+      });
       const fresh = turns.slice(start);
       let seq = Number(db.prepare('SELECT COALESCE(MAX(seq), 0) AS s FROM turns WHERE thread_id = ?').get(threadId).s);
-      let lastCreated = Number(metaGet(db, 'last_created_at_ms') ?? 0);
+      const threadLast = existingRows.length ? Number(existingRows.at(-1).created_at_ms) : null;
+      const current = Math.max(t, (threadLast ?? 0) + fresh.length);
       const insert = db.prepare(`
         INSERT INTO turns(thread_id, seq, role, turn_key, sync_id, origin_sequence, character_id,
-          created_at_ms, content, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+          created_at_ms, content, status, sketch, backfilled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
       `);
       fresh.forEach((turn, index) => {
         seq += 1;
-        // 同一批按顺序递增；漏调后补上的轮次用本次时间（无法得知原始时间）。
-        const created = Math.max(t - (fresh.length - 1 - index), lastCreated + 1);
-        lastCreated = created;
+        // 最后一条是本次刚发生的轮次，用当前时间；前面的是漏调后补上的，标“补记”，
+        // 时间在本线程上一条与现在之间均匀估算（新线程则紧挨在当前轮之前）。
+        const isCurrent = index === fresh.length - 1;
+        const backfillCount = fresh.length - 1;
+        let created;
+        if (isCurrent) created = current;
+        else if (threadLast !== null) {
+          created = threadLast + Math.max(1, Math.floor((current - threadLast) * (index + 1) / (backfillCount + 1)));
+        } else created = current - (backfillCount - index);
         insert.run(threadId, seq, turn.role, keys[start + index], `${FRONTEND_NAME}:${threadId}:${seq}`,
-          nextOriginSequence(db, t), characterId, created, turn.content);
+          nextOriginSequence(db, t), characterId, created, turn.content, sketches[start + index], isCurrent ? 0 : 1);
       });
-      metaSet(db, 'last_created_at_ms', lastCreated);
-      return { added: fresh.length, skipped: start };
+      return { added: fresh.length, skipped: start, backfilled: Math.max(0, fresh.length - 1) };
     });
+  }
+
+  function lastRecorded(threadId) {
+    const row = db.prepare(`
+      SELECT role, created_at_ms, status FROM turns WHERE thread_id = ? ORDER BY seq DESC LIMIT 1
+    `).get(threadId);
+    return row ? { role: row.role, at: new Date(Number(row.created_at_ms)).toISOString() } : null;
   }
 
   function markCommitted(rows, results) {
@@ -362,7 +435,7 @@ export function createWriteback({
       created_at_ms: Number(row.created_at_ms),
       message_type: 'chat',
       asset_refs: [],
-      addenda: [],
+      addenda: Number(row.backfilled) ? [{ ...BACKFILL_ADDENDUM }] : [],
     };
   }
 
@@ -430,7 +503,13 @@ export function createWriteback({
       const pending = Number(db.prepare("SELECT COUNT(*) AS n FROM turns WHERE status = 'pending'").get().n);
       return {
         thread_id: threadId,
-        recorded: { new_turns: plan.added, duplicate_turns_skipped: plan.skipped, waiting_for_retry: pending },
+        recorded: {
+          new_turns: plan.added,
+          backfilled_turns: plan.backfilled,
+          duplicate_turns_skipped: plan.skipped,
+          waiting_for_retry: pending,
+        },
+        last_recorded: lastRecorded(threadId),
         core_status: result.status,
         excludeSyncIds: threadSyncIds(threadId),
       };

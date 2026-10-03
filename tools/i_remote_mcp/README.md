@@ -77,7 +77,7 @@ node tools/i_remote_mcp/server.mjs revoke-all
 | `--phone-port` | `I_REMOTE_MCP_PHONE_PORT` | `47862` |
 | — | `I_REMOTE_MCP_WRITEBACK=0` | 临时关闭写回（只读工具照常） |
 
-- `i_chat_turn`：每轮先调用，提交上次成功调用之后的轮次；按内容对齐去重，漏调的下次补上，i_core 不可达时记在本机账本、下次自动补交。写进 i_core 的消息 `origin_device_id = frontend:claude_web`，手机 feed 可据此标注“网页端”。
+- `i_chat_turn`：每轮两次——回答前 `phase=start` 交用户原话并取上下文，回复写完后在同一条消息末尾 `phase=end` 交回复原文，最后一条回复也当场写回。按内容对齐去重，长文本另做近似去重（不可还原的 MinHash 指纹）；漏调的轮次下次补上，带 `addenda: [{type: frontend_backfill, approximate_time: true}]` 并在前后两条之间估算时间；i_core 不可达时记在本机账本、下次自动补交。写进 i_core 的消息 `origin_device_id = frontend:claude_web`，手机 feed 可据此标注“网页端”。
 - `i_remember`：add / update / delete / list。记录只在本机账本，删除会清掉正文。手机经本机拉取通道 `GET /v1/remember/changes`、`POST /v1/remember/ack` 取走，进入 Record 流程直接成卡。
 - 手机拉取通道只监听本机，**不要**接到 Cloudflare 隧道上；手机经 Tailscale Serve 访问。
 - 限流、大小限制、scope 与重新授权规则见设计文档。
