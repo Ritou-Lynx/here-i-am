@@ -6,6 +6,12 @@
 
 任务 A4 已交付 `tools/flexnote_tutor/`：基于 FlexNote 1.1.56 MCP 工具清单的 Codex 学习导师模板与科目表（教师编·中学语文，求职空间）；需在本机复制到仓库外学习目录使用。B0.1 定为 i_core 先跑在电脑上。 B1/B2 并行开发按[接口约定](CONTINUITY_B1_B2_CONTRACT.md)进行：`tools/i_memory/`（记忆快照+出站策略+只读接口）与 `tools/i_remote_mcp/`（claude.ai 远程 MCP+单用户 OAuth）。 `tools/i_memory/` 已交付：V3 记忆快照导入、出站策略（缺失即 fail closed）与 `openReadModel` 只读接口，合成 fixture 测试通过；真实导出与导入（B1.4）待 Codex 本机执行。 B2.1/B2.2 已交付 `tools/i_remote_mcp/`（远程只读 MCP、单用户 OAuth、`i_context`/`i_recall`、Project 指令，fake readModel 测试通过）；两者已合入主任务分支：补消息级私密关键词、OAuth 回调默认仅限 claude.ai，B1×B2 集成测试通过（共 60 项）；真实导入、私密配置、Funnel 部署与 claude.ai 接入待 Codex 本机执行。claude.ai 已经 https://i.ilynx.date/mcp（Cloudflare 固定隧道）接入并通过两问真人验收；B3 写回见[简报](B3_WRITEBACK_BRIEF.md)与[设计](B3_WRITEBACK_DESIGN.md)，源码已在 claude/b3-writeback 交付。B2.3 实测：claude.ai 经 Funnel `:10000` 无法连接，经 Cloudflare 隧道可完成注册并到达口令页，长期入口改用 Cloudflare 固定隧道 + 自有域名。A 线已由 Codex 本机跑通（教综拆解导入、初始化、5 题冒烟），模板已按反馈修订。
 
+## B3 手机双方接续缺口与默认关闭候选（2026-10-03）
+
+第4项真人反馈仅部分手机user可读，明确手机companion到Claude缺失。只读元数据确认当天该手机7条user/0条companion；启用后3条user中2条可读、1条仍过既有私密排除，用户指定漏读旧消息在6ab接收边界之前，重新调用不自动解封。原App回复只入本地聊天库、不入outbox，上传sender固定user，普通核心接口仍拒companion；不归咎网络，不记录主题或正文。
+
+服务端默认关闭候选新增精确Android/角色/当前配对凭据/日期下限的可撤销transcript授权、独立能力与提交接口，普通接口/worker/历史replay权限不放宽；读取可选显式senders及半开history_window，原双字段规则维持user-only。主控读取50/50、remote85/85、核心及历史/HTTP55/55；schema4回移副本55/55均通过。手机持久队列sender/原子reply入队/幂等补齐源码准备中，工具生成和Flutter验证尚待完成；未经新具体授权不改现役grant/policy/固定包入口或安装手机，现役仍445d665 + 2004d3b8 + 6ab0278a及74d08b76手机。第4项保留未通过，其余真人项各自保留。
+
 ## B3 当前手机自动回读已授权启用（2026-10-03）
 
 读取层候选6ab0278a6425a523fc489a30a98a56463ca7a459按明确批准部署；源字节哈希与候选一致，私有备份保留。messages.auto_share_devices仅绑定当前活跃且已登记的Android设备及启用接收序号边界，普通user/chat只绕正向ID/hash审核；原policy字段值、私密过滤、既有历史审核及文件ACL保持不变。旧核心历史不解封，之后补交的离线消息按接收边界过滤。未输出真实标识、策略或正文。

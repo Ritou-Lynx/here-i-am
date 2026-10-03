@@ -242,6 +242,8 @@ export function createICoreServer({
   keyPath = null,
   workerSecret = null,
   companionReplyJobsEnabled = false,
+  localTranscriptGrants = undefined,
+  localTranscriptGrantsPath = undefined,
   shortcutMailRelay = null,
   ownsShortcutMailRelay = shortcutMailRelay !== null,
   activityAdminSecret = null,
@@ -285,6 +287,8 @@ export function createICoreServer({
   });
   const store = new ICoreStore(databasePath, {
     companionReplyJobsEnabled,
+    localTranscriptGrants,
+    localTranscriptGrantsPath,
     clock,
     activityRecoveryFloor,
     activityRuntimeId,
@@ -420,6 +424,17 @@ export function createICoreServer({
         const paired = store.pairDevice(body, activePairingCode);
         activePairingCode = null;
         json(response, 200, paired);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/core/chat/transcript-capabilities') {
+        requireDevice(request, store);
+        json(response, 200, store.localTranscriptCapabilities(bearerToken(request)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/chat/transcripts') {
+        requireDevice(request, store);
+        const body = await readJson(request);
+        json(response, 200, store.submitLocalTranscripts(bearerToken(request), body));
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/chat/messages') {

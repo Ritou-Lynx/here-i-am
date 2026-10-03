@@ -95,6 +95,24 @@ claude.ai 网页端经 `tools/i_remote_mcp` 写回聊天时，使用受限的外
 - 该设备读取 `/v1/core/changes` 或 `/v1/core/devices/ack` 时返回 403 `chat_read_forbidden`。
 - 不改 schema；普通设备仍只能提交 `user`。手机端按 `origin_device_id` 前缀 `frontend:` 标注来源。设计见 [B3_WRITEBACK_DESIGN.md](../../docs/development/B3_WRITEBACK_DESIGN.md)。
 
+## 手机本机文字聊天 transcript（默认关闭候选）
+
+手机本机生成的回复不冒充 user，也不经 worker 发布。普通 `POST /v1/core/chat/messages` 仍只接受普通设备 user；独立鉴权接口 `GET /v1/core/chat/transcript-capabilities` 和 `POST /v1/core/chat/transcripts` 只对本机维护者明确授予的 Android 身份开放。
+
+默认读取数据库同目录的私有 `local-transcript-grants.json`；缺失或空 grants 关闭，非法文件在数据库初始化前失败。合成格式：
+
+```json
+{"version":1,"grants":[{"device_id":"synthetic-phone","character_id":"synthetic-i","credential_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","from_created_at_ms":1790956800000}]}
+```
+
+每台设备只能绑定一个角色及其当前配对凭据指纹；真实 grant、指纹和标识一律留本机。重配后旧授权立即失效；删除或撤销配置后重启关闭能力，不永久合并到 metadata。文件及父路径禁止链接，部署前维护者还须限制私有 ACL。
+
+能力查询仅回报认证设备的 enabled/character_id/from_created_at_ms。提交仅允许同一授权 Android 来源及角色、下限后的 user/companion 普通 chat，禁止资产、附注和回复生成请求，不创建 jobs、不借用旧历史语义确认。sync_id、sender、origin、序号和完整摘要仍保持严格冲突/幂等。核心证明授权来源，不能独立证明文本确由该手机生成；手机只在本机无附注文字回复路径入队，feed/网页/其他设备导入绝不入队。
+
+手机候选将队列 sender 持久化（Drift 61→62，旧队列默认 user），用户仍走旧接口；获批回复走新接口。有限补齐只选择本机、获批角色/日期下限、未入核心的无附注 chat，并持久保留曾入队标记，避免 ACK 后再入队换序号。旧服 404、未授权/撤权 403 和 disabled 不阻碍原用户/拉取同步；401、网络和冲突保留待发送副本并如实报错。
+
+这段仅描述默认关闭源码候选，不表示已经授权运行、安装或完成手机到 Claude 真人接续；读取层双角色/旧窗口授权也须独立明确。
+
 ## 历史导入后的精确重交确认
 
 旧手机 outbox 与 V3 历史导入可能保留同一 `sync_id`，但设备、序号、整秒时间和附注不同。普通请求继续按完整规范化摘要拒绝冲突，不自动使用语义相似判重。

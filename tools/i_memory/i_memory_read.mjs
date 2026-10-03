@@ -64,9 +64,9 @@ function autoShareDevices(value) {
   const seen = new Set();
   return value.map((rule) => {
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)
-      || Object.keys(rule).length !== 2
+      || Object.keys(rule).some(key => !['device_id', 'from_server_sequence', 'senders', 'history_window'].includes(key))
       || !Object.hasOwn(rule, 'device_id') || !Object.hasOwn(rule, 'from_server_sequence')) {
-      fail(label + ' rules must contain only device_id and from_server_sequence');
+      fail(label + ' rules require device_id and from_server_sequence, with only optional senders and history_window');
     }
     const id = rule.device_id;
     if (typeof id !== 'string' || !id.trim() || id !== id.trim()
@@ -77,7 +77,28 @@ function autoShareDevices(value) {
       fail(label + '.from_server_sequence must be a positive safe integer');
     }
     seen.add(id);
-    return { device_id: id, from_server_sequence: rule.from_server_sequence };
+    const result = { device_id: id, from_server_sequence: rule.from_server_sequence };
+    if (Object.hasOwn(rule, 'senders')) {
+      if (!Array.isArray(rule.senders) || rule.senders.length < 1 || rule.senders.length > 2
+        || rule.senders.some(sender => !['user', 'companion'].includes(sender))
+        || new Set(rule.senders).size !== rule.senders.length) {
+        fail(label + '.senders must explicitly select unique user or companion values');
+      }
+      result.senders = [...rule.senders];
+    }
+    if (Object.hasOwn(rule, 'history_window')) {
+      const history = rule.history_window;
+      if (!history || typeof history !== 'object' || Array.isArray(history)
+        || Object.keys(history).length !== 2
+        || !Object.hasOwn(history, 'from_created_at_ms') || !Object.hasOwn(history, 'to_created_at_ms')
+        || !Number.isSafeInteger(history.from_created_at_ms) || history.from_created_at_ms < 1
+        || !Number.isSafeInteger(history.to_created_at_ms)
+        || history.to_created_at_ms <= history.from_created_at_ms) {
+        fail(label + '.history_window must be an explicit positive half-open creation-time range');
+      }
+      result.history_window = { ...history };
+    }
+    return result;
   });
 }
 
@@ -262,12 +283,22 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     if (autoShareDeviceRules.length) {
       // Registration/platform narrow the approved ID; they are not independent
       // attestation. Authenticated submit and local maintenance remain core trust boundaries.
-      automatic.push(`(sender = 'user' AND message_type = 'chat' AND EXISTS (
+      automatic.push(`(message_type = 'chat' AND EXISTS (
         SELECT 1 FROM json_each(?) AS approved
         JOIN devices AS d ON d.device_id = json_extract(approved.value, '$.device_id')
         WHERE d.platform = 'android'
           AND d.device_id = chat_messages.origin_device_id
-          AND chat_messages.server_sequence >= json_extract(approved.value, '$.from_server_sequence')
+          AND chat_messages.sender IN (
+            SELECT value FROM json_each(COALESCE(json_extract(approved.value, '$.senders'), '["user"]'))
+          )
+          AND (
+            chat_messages.server_sequence >= json_extract(approved.value, '$.from_server_sequence')
+            OR (
+              chat_messages.server_sequence < json_extract(approved.value, '$.from_server_sequence')
+              AND chat_messages.created_at_ms >= json_extract(approved.value, '$.history_window.from_created_at_ms')
+              AND chat_messages.created_at_ms < json_extract(approved.value, '$.history_window.to_created_at_ms')
+            )
+          )
       ))`);
     }
     allowlistFilter = `AND (${[...automatic, '(' + allowlistClauses.join(' AND ') + ')'].join(' OR ')})`;

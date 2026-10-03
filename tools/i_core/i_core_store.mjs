@@ -204,6 +204,85 @@ function persistHistoricalReplayApprovals(db, incoming) {
 }
 
 
+const LOCAL_TRANSCRIPT_GRANTS_MAX_BYTES = 32 * 1024;
+const LOCAL_TRANSCRIPT_GRANTS_MAX_ENTRIES = 16;
+const RESERVED_TRANSCRIPT_ORIGIN = /^(frontend:|v3-history-|core-companion:|core:|worker:)/i;
+
+function invalidLocalTranscriptGrants() {
+  return new CoreStoreError('local_transcript_grants_invalid',
+    'Local transcript grants are invalid.', { status: 503 });
+}
+
+function parseLocalTranscriptGrants(text) {
+  try {
+    if (Buffer.byteLength(text, 'utf8') > LOCAL_TRANSCRIPT_GRANTS_MAX_BYTES) throw invalidLocalTranscriptGrants();
+    const document = JSON.parse(text);
+    if (!document || Array.isArray(document)
+      || Object.keys(document).sort().join(',') !== 'grants,version'
+      || document.version !== 1 || !Array.isArray(document.grants)
+      || document.grants.length > LOCAL_TRANSCRIPT_GRANTS_MAX_ENTRIES) throw invalidLocalTranscriptGrants();
+    const grants = new Map();
+    for (const grant of document.grants) {
+      if (!grant || Array.isArray(grant)
+        || Object.keys(grant).sort().join(',') !== 'character_id,credential_sha256,device_id,from_created_at_ms'
+        || ![grant.device_id, grant.character_id].every((value) =>
+          typeof value === 'string' && value.length > 0 && value.length <= 128 && value.trim() === value)
+        || RESERVED_TRANSCRIPT_ORIGIN.test(grant.device_id)
+        || typeof grant.credential_sha256 !== 'string' || !/^[a-fA-F0-9]{64}$/.test(grant.credential_sha256)
+        || !Number.isSafeInteger(grant.from_created_at_ms) || grant.from_created_at_ms <= 0
+        || grants.has(grant.device_id)) throw invalidLocalTranscriptGrants();
+      grants.set(grant.device_id, Object.freeze({
+        device_id: grant.device_id, character_id: grant.character_id,
+        credential_sha256: grant.credential_sha256.toLowerCase(),
+        from_created_at_ms: grant.from_created_at_ms,
+      }));
+    }
+    return grants;
+  } catch {
+    throw invalidLocalTranscriptGrants();
+  }
+}
+
+function readLocalTranscriptGrants(filePath) {
+  let descriptor;
+  try {
+    let current = path.resolve(filePath);
+    while (true) {
+      try {
+        if (lstatSync(current).isSymbolicLink()) throw invalidLocalTranscriptGrants();
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    descriptor = openSync(filePath, 'r');
+  } catch (error) {
+    if (error.code === 'ENOENT') return new Map();
+    throw invalidLocalTranscriptGrants();
+  }
+  try {
+    const opened = fstatSync(descriptor);
+    const named = lstatSync(filePath);
+    if (!opened.isFile() || named.isSymbolicLink()
+      || opened.dev !== named.dev || opened.ino !== named.ino) throw invalidLocalTranscriptGrants();
+    const buffer = Buffer.alloc(LOCAL_TRANSCRIPT_GRANTS_MAX_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const count = readSync(descriptor, buffer, length, buffer.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    if (length > LOCAL_TRANSCRIPT_GRANTS_MAX_BYTES) throw invalidLocalTranscriptGrants();
+    return parseLocalTranscriptGrants(new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, length)));
+  } catch {
+    throw invalidLocalTranscriptGrants();
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === 'object') {
@@ -624,8 +703,12 @@ function normalizeMessage(raw, authenticatedDeviceId, { allowCompanion = false }
 }
 
 export class ICoreStore {
+  #localTranscriptGrants;
+
   constructor(databasePath, {
     companionReplyJobsEnabled = false,
+    localTranscriptGrants = undefined,
+    localTranscriptGrantsPath = path.join(path.dirname(databasePath), 'local-transcript-grants.json'),
     historicalReplayApprovalsPath = path.join(path.dirname(databasePath), 'historical-replay-approvals.json'),
     clock = Date.now,
     activityRecoveryFloor = null,
@@ -636,6 +719,10 @@ export class ICoreStore {
     eventIdPrefixFactory = undefined,
     testOnlyActivityMigrationHook = undefined,
   } = {}) {
+    // Grants are revocable startup configuration, never merged into a durable ledger.
+    this.#localTranscriptGrants = localTranscriptGrants === undefined
+      ? readLocalTranscriptGrants(localTranscriptGrantsPath)
+      : parseLocalTranscriptGrants(JSON.stringify(localTranscriptGrants));
     const replayApprovals = readHistoricalReplayApprovalFile(historicalReplayApprovalsPath);
     preflightActivityCommitmentVersion(databasePath);
     if (activityRecoveryFloor) {
@@ -1224,6 +1311,60 @@ export class ICoreStore {
       throw new CoreStoreError('invalid_cursor', 'cursor signature is invalid.');
     }
     return sequence;
+  }
+
+  #localTranscriptGrant(deviceToken) {
+    const device = typeof deviceToken === 'string' && deviceToken
+      ? this.db.prepare('SELECT device_id, platform, token_hash FROM devices WHERE token_hash = ?')
+        .get(tokenDigest(deviceToken))
+      : null;
+    if (!device) throw new CoreStoreError('unauthorized', 'A valid device token is required.', { status: 401 });
+    const grant = this.#localTranscriptGrants.get(device.device_id);
+    if (device.platform !== 'android' || RESERVED_TRANSCRIPT_ORIGIN.test(device.device_id)
+      || !grant || grant.credential_sha256 !== device.token_hash) return null;
+    return grant;
+  }
+
+  localTranscriptCapabilities(deviceToken) {
+    const grant = this.#localTranscriptGrant(deviceToken);
+    return grant ? {
+      enabled: true, character_id: grant.character_id,
+      from_created_at_ms: grant.from_created_at_ms,
+    } : { enabled: false };
+  }
+
+  submitLocalTranscripts(deviceToken, raw) {
+    const grant = this.#localTranscriptGrant(deviceToken);
+    if (!grant) throw new CoreStoreError('local_transcript_forbidden',
+      'This device is not authorized to submit local transcripts.', { status: 403 });
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)
+      || Object.keys(raw).some((key) => !['device_id', 'messages', 'request_companion_reply'].includes(key))) {
+      throw new CoreStoreError('invalid_request', 'Local transcript body has unsupported fields.');
+    }
+    if (raw.device_id !== grant.device_id) {
+      throw new CoreStoreError('device_mismatch', 'device_id must match the authenticated device.', { status: 403 });
+    }
+    if (raw.request_companion_reply !== undefined && raw.request_companion_reply !== false) {
+      throw new CoreStoreError('invalid_request', 'Local transcripts cannot request a generated reply.');
+    }
+    if (!Array.isArray(raw.messages) || raw.messages.length === 0 || raw.messages.length > MAX_MESSAGE_BATCH) {
+      throw new CoreStoreError('invalid_request', 'Local transcripts require a bounded non-empty message batch.');
+    }
+    const messages = raw.messages.map((rawMessage) => {
+      const message = normalizeMessage(rawMessage, grant.device_id, { allowCompanion: true });
+      if (message.character_id !== grant.character_id || message.message_type !== 'chat'
+        || message.created_at_ms < grant.from_created_at_ms
+        || message.asset_refs.length !== 0 || message.addenda.length !== 0) {
+        throw new CoreStoreError('local_transcript_scope_mismatch',
+          'The message is outside this local transcript grant.', { status: 403 });
+      }
+      return message;
+    }).sort((left, right) => left.origin_sequence - right.origin_sequence);
+    return this.#persistMessages(messages, {
+      submitDeviceId: grant.device_id,
+      allowApprovedHistoricalReplay: false,
+      enqueueCompanionReplies: false,
+    });
   }
 
   submitMessages(authenticatedDeviceId, raw) {

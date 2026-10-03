@@ -199,3 +199,11 @@ POST /v1/remember/ack   { note_id, revision, card_id? }   → { ok: true }
 - `tools/i_memory`：`auto_share_origins` 省略时保持严格；启用后只绕过放行清单，私密 ID、关键词、其他前端、其他角色仍拦截；非法值 fail closed。
 - `tools/i_remote_mcp/writeback.test.mjs`：对齐算法、两次调用流程（最后一条不丢）、漏 end 后补记与插值时间、长回复近似重抄不重复、短文本只精确匹配、指纹区分相近但不同的文本、正常三轮、重叠与完全重放、CRLF/空白、漏轮补齐、丢 thread_id、i_core 停机补交、拒收隔离、输入与大小限制、限流、记录增改删与幂等、手机拉取 / 删除标记 / 回执、重开账本、手机令牌。
 - `tools/i_remote_mcp/writeback_e2e.test.mjs`：真实 i_core 服务与存储 + 真实读取层 + MCP + OAuth 合成数据端到端（scope、工具注解、三轮 + 漏轮 + 重传、补记标记写进 i_core、`phase: end` 精简返回、feed 来源、私密关键词拦截、前端令牌读 feed 被拒、记录拉取 / 回执 / 删除、只读旧令牌要求重新授权、i_core 停机后补交）。
+
+## 手机双方上下文完整修复候选（尚未启用）
+
+手机用户消息已上传不等于手机回复也上传：原 App 的 addCharacterMessage 仅本地保存，普通 core 提交只允许 user。新候选以私有精确 Android/角色/当前凭据/日期下限 grant 开独立 transcript 路径，不使用 worker；手机本机无附注文字回复原子入持久队列，保留 companion 与来源，不从导入 feed 入队。sender 默认迁移为 user，旧接口继续处理用户与既有 replay；独立权限拒绝/旧服缺接口不会阻塞原 feed。
+
+读取侧可选 senders 明确扩大为双方；历史补读另用有限半开 history_window，原双字段规则维持现役只读新 user 的行为。所有私密排除不变，旧历史不因新调用或新代码自动开放。补齐已在核心的旧 user 与手机未上传的旧 companion 是两条独立路径，授权范围必须分别清楚。接口与客户端边界见 tools/i_core/README.md 和 tools/i_memory/README.md。
+
+候选测试、构建、固定包切换、真机安装及真人 Gate 单独记录；现役仍保持已部署6ab0278a读取规则，未经新授权不切换入口、写 grant 或装新 APK。

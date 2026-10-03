@@ -62,8 +62,10 @@ Copy-Item tools/i_memory/policy.example.json tools/i_memory/.state/policy.json
   "auto_share_devices": [{"device_id": "synthetic-approved-phone", "from_server_sequence": 123}]
   ```
 
-  每项必须且仅有这两个字段：`device_id` 为精确、无首尾空白且不重复的非 `frontend:` 设备 ID；`from_server_sequence` 为正安全整数。只对设备登记为 `android`、来源精确匹配、`server_sequence >= from_server_sequence` 的普通 `sender=user/message_type=chat` 消息，跳过正向 ID / 哈希审核；角色、私密类型、关键词、私密 ID 的排除始终优先，记忆卡策略不变。缺表或非法配置失败关闭。
-- 手机规则的起点应取批准启用时核心全局 `MAX(change_events.server_sequence) + 1`，不要降低起点来自动解封既有核心历史。它表示新入库顺序，离线积压消息以后补交也可能满足起点；不是客户端聊天发生时间。手机本地生成的 companion 回复和其他设备不在此自动豁免内。
+  每项必须有这两个字段，另可显式增加下述可选字段：`device_id` 为精确、无首尾空白且不重复的非 `frontend:` 设备 ID；`from_server_sequence` 为正安全整数。只对设备登记为 `android`、来源精确匹配、`server_sequence >= from_server_sequence` 的普通 `sender=user/message_type=chat` 消息，跳过正向 ID / 哈希审核；角色、私密类型、关键词、私密 ID 的排除始终优先，记忆卡策略不变。缺表或非法配置失败关闭。
+- 新候选支持可选 `senders`，只能显式选择不重复的 `user` / `companion`（例如 `['user','companion']`）；省略仍只允许 user，启用 companion 属于额外出站授权。手机本地回复须先经独立受限 transcript 接口上传，读取规则本身不会上传手机内容。
+- 可选 `history_window: {"from_created_at_ms": 1790956800000, "to_created_at_ms": 1791043200000}` 仅为合成示例。严格正安全整数半开范围 `[from,to)`，只对原接收序号边界之前、同一设备且 sender 也获准的消息提供例外；省略绝不解封旧历史。窗口、设备和角色不能在不同规则之间串用；仍过全部私密排除，不能靠降序号边界代替有限旧消息授权。客户端时间不是独立发生时间证明，批准范围必须明确。
+- 手机规则的起点应取批准启用时核心全局 `MAX(change_events.server_sequence) + 1`，不要降低起点来自动解封既有核心历史。它表示新入库顺序，离线积压消息以后补交也可能满足起点；不是客户端聊天发生时间。原双字段规则不包含手机本地生成的 companion 回复；仅在额外批准 senders 后才加入同一设备的回复，其他设备仍不获得例外。
 - 精确设备授权与核心令牌/来源校验是主要信任边界，platform 是配对声明而非独立设备证明；本机数据库/导入维护仍受信任，读取规则不能阻止本机维护使用同一设备 ID 写库。真实配置留在本机；启用属于新增出站范围，需要明确批准。策略只在 `openReadModel` 时加载，修改后重新打开读取模型或重启对应服务，避免沿用缓存。
 - 除上述可选字段及 `messages.private_keywords` 外，所有字段都必须存在且类型正确；各 ID 清单出现时必须是非空字符串组成的数组（允许空数组）；哈希映射出现时必须是对象（允许空对象），键为非空 ID，值为 64 位十六进制字符串。文件缺失或非法时 `openReadModel` 直接抛错（fail closed）。
 
