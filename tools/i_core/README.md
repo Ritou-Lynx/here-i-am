@@ -95,6 +95,14 @@ claude.ai 网页端经 `tools/i_remote_mcp` 写回聊天时，使用受限的外
 - 该设备读取 `/v1/core/changes` 或 `/v1/core/devices/ack` 时返回 403 `chat_read_forbidden`。
 - 不改 schema；普通设备仍只能提交 `user`。手机端按 `origin_device_id` 前缀 `frontend:` 标注来源。设计见 [B3_WRITEBACK_DESIGN.md](../../docs/development/B3_WRITEBACK_DESIGN.md)。
 
+## 历史导入后的精确重交确认
+
+旧手机 outbox 与 V3 历史导入可能保留同一 `sync_id`，但设备、序号、整秒时间和附注不同。普通请求继续按完整规范化摘要拒绝冲突，不自动使用语义相似判重。
+
+确需维护时，先由本机维护者核对手机待发送副本、核心现存消息及可信导入基线，再明确授权写入数据库同目录的私有 `historical-replay-approvals.json`。格式为 `version: 1` 与 `approved_replays` 数组；每条包含 `sync_id`、`device_id`、`origin_sequence`、`incoming_digest`、`existing_digest`。最多 1000 条、512 KiB，摘要为 SHA256；真实清单不进 Git。
+
+核心仅为普通设备、无回复请求的现存历史用户消息提供精确双摘要 `duplicate` 确认，保留原消息、事件与回复任务。绑定持久化到既有 `core_metadata`，不变更 schema；删除或裁剪清单不会撤销已登记的绑定。相同设备序号不能被其他编号或内容复用，缺失原记录不能创建新消息。损坏清单、冲突追加及损坏持久登记均拒绝继续。文件和路径中的链接也被拒绝。
+
 ## 一次性导入现有 V3 聊天
 
 导入器默认只预演，不修改核心。正式导入前必须停止核心；工具会先用

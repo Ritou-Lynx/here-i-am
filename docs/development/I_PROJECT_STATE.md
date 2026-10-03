@@ -6,15 +6,21 @@
 
 任务 A4 已交付 `tools/flexnote_tutor/`：基于 FlexNote 1.1.56 MCP 工具清单的 Codex 学习导师模板与科目表（教师编·中学语文，求职空间）；需在本机复制到仓库外学习目录使用。B0.1 定为 i_core 先跑在电脑上。 B1/B2 并行开发按[接口约定](CONTINUITY_B1_B2_CONTRACT.md)进行：`tools/i_memory/`（记忆快照+出站策略+只读接口）与 `tools/i_remote_mcp/`（claude.ai 远程 MCP+单用户 OAuth）。 `tools/i_memory/` 已交付：V3 记忆快照导入、出站策略（缺失即 fail closed）与 `openReadModel` 只读接口，合成 fixture 测试通过；真实导出与导入（B1.4）待 Codex 本机执行。 B2.1/B2.2 已交付 `tools/i_remote_mcp/`（远程只读 MCP、单用户 OAuth、`i_context`/`i_recall`、Project 指令，fake readModel 测试通过）；两者已合入主任务分支：补消息级私密关键词、OAuth 回调默认仅限 claude.ai，B1×B2 集成测试通过（共 60 项）；真实导入、私密配置、Funnel 部署与 claude.ai 接入待 Codex 本机执行。claude.ai 已经 https://i.ilynx.date/mcp（Cloudflare 固定隧道）接入并通过两问真人验收；B3 写回见[简报](B3_WRITEBACK_BRIEF.md)与[设计](B3_WRITEBACK_DESIGN.md)，源码已在 claude/b3-writeback 交付。B2.3 实测：claude.ai 经 Funnel `:10000` 无法连接，经 Cloudflare 隧道可完成注册并到达口令页，长期入口改用 Cloudflare 固定隧道 + 自有域名。A 线已由 Codex 本机跑通（教综拆解导入、初始化、5 题冒烟），模板已按反馈修订。
 
+## B3 限定确认修复上线与真人复验（2026-10-03）
+
+第一项首次真人验收未通过：用户报告聊天没有自动同步，核心手动同步报 immutable_message_conflict。只读内存核对确认手机72条旧outbox副本已在历史导入中，正文/角色/类型/资产一致，原设备映射及部署前核心备份摘要也一致；历史导入转换了设备、序号、整秒时间和附注，严格提交失败阻断了拉取。
+
+新增受本机私有清单约束的精确双摘要确认，序号绑定持久保存在既有core_metadata；仅确认已存在历史用户消息，不改变原消息、事件或回复任务，其他冲突保持拒绝。代码19项专项及相邻回归共146项通过，独立审计通过；新的schema4固定候选44项通过、九文件清单核验通过。自动审批首次拒绝持久写入后，用户明确批准72条限定确认及固定包切换。私有清单已限制本机访问，既有core_metadata已登记72条且逐项吻合；原消息72条摘要复核未变。现役包已切为b3-v4-replay-confirmation-20261003，清单SHA256为`d21be69b0b128360780883a27ce1b4c905a4fa49f5e7c23805418cefd67e3312`；健康检查schema4、worker关闭，旧包及切换前备份保留。Flutter源码/APK未变，第一项手机复验待用户观察，其余五项尚未执行，不计整体通过。
+
 ## B3 本机部署与 Flutter 候选（2026-10-03，codex/b3-writeback-local-20261003）
 
-已合入 `2d92a8d7` 并完成受控运行源码部署；读取层 CRLF-only 差异经用户确认，新增 auto_share_origins 后 openReadModel 成功。现役核心保留 schema 4，仅移植 B3 八个权限补丁至新的固定包，用户确认切换后完成一次性 external-frontend 配对；常驻不带 worker 密钥，前端读取聊天 feed 返回 403。旧固定包保留。
+已合入 `2d92a8d7` 并完成受控运行源码部署；读取层 CRLF-only 差异经用户确认，新增 auto_share_origins 后 openReadModel 成功。初次部署核心保留 schema 4，仅移植 B3 八个权限补丁至固定包，用户确认切换后完成一次性 external-frontend 配对；现役限定确认包见上节；常驻不带 worker 密钥，前端读取聊天 feed 返回 403。旧固定包保留。
 
 remote MCP 已启用写回，旧 OAuth 令牌在停服期间撤销并重新启动加载；本机及公网元数据均支持 `["i.read","i.write"]`。Cloudflare ingress 只指向 47860。用户现场确认后，Cloudflare 指标已移至 47864，并核对服务 PID/loopback；手机通道使用 127.0.0.1:47862，Tailscale Serve HTTPS :47863 仅 tailnet，未启用新 Funnel，现有映射保持不变。手机通道无令牌返回 401，两个中文启动日志已确认。
 
 Flutter 已接入网页端标签、创建时间/服务序列排序、外部消息不触发回复、前台同步和 Daily Dreaming；显式网页记录经安全存储配置、Record Organizer 直接入卡，按 note_id/revision 修订、删除、ACK 并持久化游标。PersonaChatMessages 仅新增两个 nullable 排序字段，schema 61，生成代码由 build_runner 生成。合成测试与既有相邻回归 64 项通过；Node 专项 125 项、核心固定包 25 项及启动器 9 组通过；每次构建前 critical fixes 3/3；JNI 独立 staging 修复后 hereIAmV3 debug 构建成功，包名 com.memexlab.hereiam.v3，APK SHA256 为 `0d34095ccc488d68d7058e2127baf78c40c34bee93b5c832032dc2597702eeee`。最终 main/依赖分析零错误，main 25 项既有诊断，新增同步块无诊断。
 
-手机令牌已签发，只在本机窗口显示；用户已保存并实测 HTTPS 拉取“已同步，暂无新记录”。首次同步失败因手机 Tailscale 未运行，连接后通过；令牌框不回显是预期安全行为。Lynx 已明确授权候选 3069115d 及既定 APK 哈希；专用脚本更新安装成功，启动进程存活，未读取手机内容。claude.ai 重连、四个工具始终允许、Project 指令替换及六项真人验收待 Lynx 操作。详细分项状态见[本机部署结果](B3_LOCAL_ROLLOUT_20261003.md)。备份恢复后需按现有页面提示重启 App，以重新绑定记录导入器数据库。这些源码和合成证据不等于真人验收。
+手机令牌已签发，只在本机窗口显示；用户已保存并实测 HTTPS 拉取“已同步，暂无新记录”。首次同步失败因手机 Tailscale 未运行，连接后通过；令牌框不回显是预期安全行为。Lynx 已明确授权候选 3069115d 及既定 APK 哈希；专用脚本更新安装成功，启动进程存活，未读取手机内容。用户已确认完成 claude.ai 重连、四工具始终允许及 Project 指令替换；第一项首次真人验收发现核心手动同步报 immutable_message_conflict；旧 outbox 与历史导入差异已核对并按明确授权启用限定确认修复，自动聊天拉取待手机复验，其余五项尚未执行。详细分项状态见[本机部署结果](B3_LOCAL_ROLLOUT_20261003.md)。备份恢复后需按现有页面提示重启 App，以重新绑定记录导入器数据库。这些源码和合成证据不等于真人验收。
 
 ## B3 写回源码交付（2026-10-03，claude/b3-writeback）
 

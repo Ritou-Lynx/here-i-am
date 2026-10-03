@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, fstatSync, lstatSync, openSync, readSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -49,6 +49,160 @@ export class CoreStoreError extends Error {
     this.details = details;
   }
 }
+
+const HISTORICAL_REPLAY_APPROVALS_KEY = 'historical_replay_approvals_v1';
+const HISTORICAL_REPLAY_APPROVALS_MAX_BYTES = 512 * 1024;
+const HISTORICAL_REPLAY_APPROVALS_MAX_ENTRIES = 1000;
+
+function invalidHistoricalReplayApprovals() {
+  return new CoreStoreError(
+    'historical_replay_approvals_invalid',
+    'Historical replay approvals are invalid or conflict with durable bindings.',
+    { status: 503 },
+  );
+}
+
+function replaySequenceKey(deviceId, sequence) {
+  return JSON.stringify([deviceId, sequence]);
+}
+
+function parseHistoricalReplayApprovals(value) {
+  try {
+    const document = JSON.parse(value);
+    if (!document || Array.isArray(document) || document.version !== 1
+      || Object.keys(document).sort().join(',') !== 'approved_replays,version'
+      || !Array.isArray(document.approved_replays)
+      || document.approved_replays.length > HISTORICAL_REPLAY_APPROVALS_MAX_ENTRIES) {
+      throw invalidHistoricalReplayApprovals();
+    }
+    const ids = new Set();
+    const sequences = new Set();
+    return document.approved_replays.map((record) => {
+      if (!record || Array.isArray(record)
+        || Object.keys(record).sort().join(',') !== 'device_id,existing_digest,incoming_digest,origin_sequence,sync_id'
+        || ![record.sync_id, record.device_id].every((value) =>
+          typeof value === 'string' && value.length > 0 && value.trim() === value)
+        || !Number.isSafeInteger(record.origin_sequence) || record.origin_sequence < 0
+        || ![record.incoming_digest, record.existing_digest].every((value) =>
+          typeof value === 'string' && /^[a-fA-F0-9]{64}$/.test(value))) {
+        throw invalidHistoricalReplayApprovals();
+      }
+      const sequence = replaySequenceKey(record.device_id, record.origin_sequence);
+      if (ids.has(record.sync_id) || sequences.has(sequence)) throw invalidHistoricalReplayApprovals();
+      ids.add(record.sync_id);
+      sequences.add(sequence);
+      return Object.freeze({
+        sync_id: record.sync_id,
+        device_id: record.device_id,
+        origin_sequence: record.origin_sequence,
+        incoming_digest: record.incoming_digest.toLowerCase(),
+        existing_digest: record.existing_digest.toLowerCase(),
+      });
+    });
+  } catch {
+    throw invalidHistoricalReplayApprovals();
+  }
+}
+
+function readHistoricalReplayApprovalFile(filePath) {
+  let descriptor;
+  try {
+    // Reject symbolic links and Windows junctions anywhere in the approval path.
+    let current = path.resolve(filePath);
+    while (true) {
+      try {
+        if (lstatSync(current).isSymbolicLink()) throw invalidHistoricalReplayApprovals();
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    descriptor = openSync(filePath, 'r');
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw invalidHistoricalReplayApprovals();
+  }
+  try {
+    const opened = fstatSync(descriptor);
+    const named = lstatSync(filePath);
+    if (!opened.isFile() || named.isSymbolicLink()
+      || opened.dev !== named.dev || opened.ino !== named.ino) {
+      throw invalidHistoricalReplayApprovals();
+    }
+    const buffer = Buffer.alloc(HISTORICAL_REPLAY_APPROVALS_MAX_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const count = readSync(descriptor, buffer, length, buffer.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    if (length > HISTORICAL_REPLAY_APPROVALS_MAX_BYTES) throw invalidHistoricalReplayApprovals();
+    return parseHistoricalReplayApprovals(new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, length)));
+  } catch {
+    throw invalidHistoricalReplayApprovals();
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function readHistoricalReplayLedger(db) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='core_metadata'").get()) return [];
+  const stored = db.prepare('SELECT value FROM core_metadata WHERE key = ?').get(HISTORICAL_REPLAY_APPROVALS_KEY);
+  if (!stored) return [];
+  if (typeof stored.value !== 'string'
+    || Buffer.byteLength(stored.value, 'utf8') > HISTORICAL_REPLAY_APPROVALS_MAX_BYTES) {
+    throw invalidHistoricalReplayApprovals();
+  }
+  return parseHistoricalReplayApprovals(stored.value);
+}
+
+function mergeHistoricalReplayApprovals(persisted, incoming) {
+  const bySyncId = new Map(persisted.map((record) => [record.sync_id, record]));
+  const bySequence = new Map(persisted.map((record) =>
+    [replaySequenceKey(record.device_id, record.origin_sequence), record]));
+  for (const record of incoming) {
+    const existing = bySyncId.get(record.sync_id);
+    const sequence = replaySequenceKey(record.device_id, record.origin_sequence);
+    const occupied = bySequence.get(sequence);
+    if ((existing && canonicalDigest(existing) !== canonicalDigest(record))
+      || (occupied && occupied.sync_id !== record.sync_id)) {
+      throw invalidHistoricalReplayApprovals();
+    }
+    bySyncId.set(record.sync_id, record);
+    bySequence.set(sequence, record);
+  }
+  const records = [...bySyncId.values()].sort((left, right) =>
+    left.sync_id < right.sync_id ? -1 : left.sync_id > right.sync_id ? 1 : 0);
+  const serialized = JSON.stringify({ version: 1, approved_replays: records });
+  if (records.length > HISTORICAL_REPLAY_APPROVALS_MAX_ENTRIES
+    || Buffer.byteLength(serialized, 'utf8') > HISTORICAL_REPLAY_APPROVALS_MAX_BYTES) {
+    throw invalidHistoricalReplayApprovals();
+  }
+  return { bySyncId, bySequence, records, serialized };
+}
+
+function persistHistoricalReplayApprovals(db, incoming) {
+  const current = readHistoricalReplayLedger(db);
+  if (current.length === 0 && incoming.length === 0) return mergeHistoricalReplayApprovals([], []);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    // Re-read under the writer lock so concurrent starts cannot discard bindings.
+    const merged = mergeHistoricalReplayApprovals(readHistoricalReplayLedger(db), incoming);
+    const previous = db.prepare('SELECT value FROM core_metadata WHERE key = ?').get(HISTORICAL_REPLAY_APPROVALS_KEY);
+    if (previous?.value !== merged.serialized) {
+      db.prepare('INSERT INTO core_metadata(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+        .run(HISTORICAL_REPLAY_APPROVALS_KEY, merged.serialized);
+    }
+    db.exec('COMMIT');
+    return merged;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -472,6 +626,7 @@ function normalizeMessage(raw, authenticatedDeviceId, { allowCompanion = false }
 export class ICoreStore {
   constructor(databasePath, {
     companionReplyJobsEnabled = false,
+    historicalReplayApprovalsPath = path.join(path.dirname(databasePath), 'historical-replay-approvals.json'),
     clock = Date.now,
     activityRecoveryFloor = null,
     activityRuntimeId = undefined,
@@ -481,6 +636,7 @@ export class ICoreStore {
     eventIdPrefixFactory = undefined,
     testOnlyActivityMigrationHook = undefined,
   } = {}) {
+    const replayApprovals = readHistoricalReplayApprovalFile(historicalReplayApprovalsPath);
     preflightActivityCommitmentVersion(databasePath);
     if (activityRecoveryFloor) {
       verifyActivityRecoveryCandidate(databasePath, activityRecoveryFloor);
@@ -501,6 +657,7 @@ export class ICoreStore {
     this.companionReplyJobsEnabled = companionReplyJobsEnabled;
     this.clock = clock;
     try {
+      mergeHistoricalReplayApprovals(readHistoricalReplayLedger(this.db), replayApprovals);
       this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
       this.#migrate();
       this.nodeId = coreIdentity.fresh
@@ -521,6 +678,7 @@ export class ICoreStore {
         ...(eventIdPrefixFactory === undefined ? {} : { eventIdPrefixFactory }),
         ...(testOnlyActivityMigrationHook === undefined ? {} : { testOnlyMigrationHook: testOnlyActivityMigrationHook }),
       });
+      persistHistoricalReplayApprovals(this.db, replayApprovals);
     } catch (error) {
       this.db.close();
       throw error;
@@ -1103,9 +1261,10 @@ export class ICoreStore {
         { status: 503, retryable: true },
       );
     }
-    const frontend = isExternalFrontendDevice(this.db.prepare(`
+    const device = this.db.prepare(`
       SELECT device_id, platform FROM devices WHERE device_id = ?
-    `).get(authenticatedDeviceId));
+    `).get(authenticatedDeviceId);
+    const frontend = isExternalFrontendDevice(device);
     if (frontend && raw?.request_companion_reply === true) {
       throw new CoreStoreError(
         'invalid_request',
@@ -1117,6 +1276,12 @@ export class ICoreStore {
       .map((message) => normalizeMessage(message, authenticatedDeviceId, { allowCompanion: frontend }))
       .sort((left, right) => left.origin_sequence - right.origin_sequence);
     return this.#persistMessages(messages, {
+      submitDeviceId: authenticatedDeviceId,
+      allowApprovedHistoricalReplay: Boolean(device) && !frontend
+        && device.platform !== EXTERNAL_FRONTEND_PLATFORM
+        && !['local-import', 'core-worker', 'core-authority'].includes(device.platform)
+        && !/^(v3-history-|core-companion:)/.test(device.device_id)
+        && raw?.request_companion_reply !== true,
       enqueueCompanionReplies:
         this.companionReplyJobsEnabled && raw?.request_companion_reply === true,
     });
@@ -1494,10 +1659,14 @@ export class ICoreStore {
     localDevice = null,
     allowSemanticExisting = false,
     enqueueCompanionReplies = false,
+    submitDeviceId = null,
+    allowApprovedHistoricalReplay = false,
   } = {}) {
     const results = [];
     this.db.exec('BEGIN IMMEDIATE');
     try {
+      // Read on every transaction: another process may have appended bindings.
+      const approvals = mergeHistoricalReplayApprovals(readHistoricalReplayLedger(this.db), []);
       if (localDevice) {
         const now = Date.now();
         this.db.prepare(`
@@ -1518,12 +1687,45 @@ export class ICoreStore {
       }
       for (const message of messages) {
         const digest = canonicalDigest(message);
+        const approval = approvals.bySyncId.get(message.sync_id);
+        const alias = approvals.bySequence.get(replaySequenceKey(message.origin_device_id, message.origin_sequence));
+        if (alias && (!submitDeviceId || alias.sync_id !== message.sync_id || alias.incoming_digest !== digest)) {
+          throw new CoreStoreError('origin_sequence_conflict', 'origin_sequence is reserved by a historical replay binding.', { status: 409 });
+        }
+        if (approval && submitDeviceId && (approval.device_id !== submitDeviceId
+          || approval.device_id !== message.origin_device_id
+          || approval.origin_sequence !== message.origin_sequence || approval.incoming_digest !== digest)) {
+          throw new CoreStoreError('immutable_message_conflict', 'Historical replay does not match its immutable approval.', { status: 409 });
+        }
+        const sequenceCollision = this.db.prepare(`
+          SELECT sync_id FROM chat_messages
+          WHERE origin_device_id = ? AND origin_sequence = ?
+        `).get(message.origin_device_id, message.origin_sequence);
+        if (sequenceCollision && sequenceCollision.sync_id !== message.sync_id) {
+          throw new CoreStoreError('origin_sequence_conflict', 'origin_sequence already points to another message.', { status: 409 });
+        }
         const existing = this.db.prepare(`
           SELECT canonical_digest, server_sequence, character_id, sender,
-                 content, created_at_ms, message_type
+                 content, created_at_ms, message_type, origin_device_id, origin_sequence,
+                 asset_refs_json, addenda_json
           FROM chat_messages WHERE sync_id = ?
         `).get(message.sync_id);
         if (existing) {
+          const approvedReplay = allowApprovedHistoricalReplay && approval
+            && approval.existing_digest === existing.canonical_digest
+            && approval.incoming_digest === digest
+            && /^v3-history-[a-f0-9]{20}$/.test(existing.origin_device_id)
+            && existing.sender === 'user' && message.sender === 'user'
+            && canonicalDigest({
+              sync_id: message.sync_id,
+              origin_device_id: existing.origin_device_id,
+              origin_sequence: Number(existing.origin_sequence),
+              character_id: existing.character_id, sender: existing.sender,
+              content: existing.content, created_at_ms: Number(existing.created_at_ms),
+              message_type: existing.message_type,
+              asset_refs: JSON.parse(existing.asset_refs_json),
+              addenda: JSON.parse(existing.addenda_json),
+            }) === approval.existing_digest;
           const sameSemanticMessage =
             existing.character_id === message.character_id &&
             existing.sender === message.sender &&
@@ -1532,7 +1734,7 @@ export class ICoreStore {
             existing.message_type === message.message_type;
           if (
             existing.canonical_digest !== digest &&
-            !(allowSemanticExisting && sameSemanticMessage)
+            !(allowSemanticExisting && sameSemanticMessage) && !approvedReplay
           ) {
             throw new CoreStoreError(
               'immutable_message_conflict',
@@ -1540,30 +1742,15 @@ export class ICoreStore {
               { status: 409, details: { sync_id: message.sync_id } },
             );
           }
-          const existingSequence = Number(existing.server_sequence);
           results.push({
             sync_id: message.sync_id,
             status: 'duplicate',
-            server_sequence: existingSequence,
+            server_sequence: Number(existing.server_sequence),
           });
           continue;
         }
-        const sequenceCollision = this.db.prepare(`
-          SELECT sync_id FROM chat_messages
-          WHERE origin_device_id = ? AND origin_sequence = ?
-        `).get(message.origin_device_id, message.origin_sequence);
-        if (sequenceCollision) {
-          throw new CoreStoreError(
-            'origin_sequence_conflict',
-            'origin_sequence already points to another message.',
-            {
-              status: 409,
-              details: {
-                origin_sequence: message.origin_sequence,
-                existing_sync_id: sequenceCollision.sync_id,
-              },
-            },
-          );
+        if (approval && submitDeviceId) {
+          throw new CoreStoreError('immutable_message_conflict', 'Historical replay approval cannot create a message.', { status: 409 });
         }
         const occurredAt = Date.now();
         const eventId = randomUUID();
