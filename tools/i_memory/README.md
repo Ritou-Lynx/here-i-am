@@ -51,7 +51,11 @@ Copy-Item tools/i_memory/policy.example.json tools/i_memory/.state/policy.json
 
 - 消息：只有 `shareable_character_ids` 中的角色可能出站；`private_message_types` 中的类型一律不出站。可选的 `messages.private_keywords`（不区分大小写）命中的消息也一律不出站——如果私密聊天和日常聊天是同一个角色，靠它屏蔽；它只能挡住含关键词的句子，挡不住整段语境，所以真正需要隔离的内容最好放在单独的角色或会话里。
 - 记忆卡：`memory.default = "private"` 时全部不出站；否则命中 `private_types`、`private_structured_types`、`private_card_ids`，或 `private_keywords`（不区分大小写，检查 `title`、`retrieval_text`，并额外保守检查 `droplet_label` 与结构化字段 JSON）任一项即不出站。
-- 所有字段都必须存在且类型正确；文件缺失或非法时 `openReadModel` 直接抛错（fail closed）。
+- 可选的 `messages.private_message_ids` 按 `sync_id` 排除整条消息，省略等同于 `[]`。本机审核私密段落时，可把双方上下文的消息 ID 一并列入，避免只屏蔽关键词句子。
+- 可选的 `messages.shareable_message_ids` 和 `memory.shareable_card_ids` 是审核放行清单。字段省略时保留旧行为；显式 `[]` 时对应类别全部不出站；非空时仅清单中的 ID 可能出站，且角色、类型、关键词、私密 ID 和 `memory.default` 等原有限制仍生效，私密排除优先。
+- 可选的 `messages.shareable_message_hashes` / `memory.shareable_card_hashes` 将 ID 映射到已审核内容的 SHA-256（64 位十六进制）。省略时保留旧行为，显式 `{}` 时全部不放行；设置后 ID 和内容哈希都必须匹配，且仍须通过 ID 清单和所有私密规则。消息哈希为 UTF-8 `String(content)` 的 SHA-256；卡片哈希为 `JSON.stringify([type, title, droplet_label, retrieval_text, status ?? null, structured_type ?? null, fields_json ?? ''])` 的 SHA-256。导出的纯函数 `hashMessageContent(content)` / `hashMemoryCard(row)` 可供本机审核程序复用。
+- 启用 ID 清单后新增 ID 默认不出站；再启用哈希映射，同 ID 内容修订也会拒绝出站。审核刷新时先停服务，更新快照和审核清单、验证后再重启（或重新打开 `ReadModel`）；策略不会热加载。关键词仍只是逐条子串匹配，不能视作色情语义或整段语境识别。
+- 除上述可选字段及 `messages.private_keywords` 外，所有字段都必须存在且类型正确；各 ID 清单出现时必须是非空字符串组成的数组（允许空数组）；哈希映射出现时必须是对象（允许空对象），键为非空 ID，值为 64 位十六进制字符串。文件缺失或非法时 `openReadModel` 直接抛错（fail closed）。
 
 ## 4. 只读接口
 

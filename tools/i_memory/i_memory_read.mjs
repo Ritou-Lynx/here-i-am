@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 const MAX_RECENT = 100;
@@ -17,6 +18,30 @@ function stringArray(value, label) {
     fail(`${label} must be an array of non-empty strings`);
   }
   return value.map((item) => item.trim());
+}
+
+function optionalHashes(value, label) {
+  if (value === undefined) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(label + ' must be an object of SHA-256 hashes');
+  const entries = Object.entries(value);
+  for (const [id, hash] of entries) {
+    if (!id.trim() || typeof hash !== 'string' || !/^[a-f0-9]{64}$/i.test(hash)) {
+      fail(label + ' must contain non-empty IDs and SHA-256 hex strings');
+    }
+  }
+  return new Map(entries.map(([id, hash]) => [id, hash.toLowerCase()]));
+}
+
+export function hashMessageContent(content) {
+  return createHash('sha256').update(String(content), 'utf8').digest('hex');
+}
+
+// Stable reviewed-content fingerprint; accepts the database row's snake_case fields.
+export function hashMemoryCard(row) {
+  return hashMessageContent(JSON.stringify([
+    row.type, row.title, row.droplet_label, row.retrieval_text, row.status ?? null,
+    row.structured_type ?? null, row.fields_json ?? '',
+  ]));
 }
 
 function exposure(value, label) {
@@ -49,6 +74,12 @@ export function loadPolicy(policyPath) {
       default: exposure(messages.default, 'messages.default'),
       shareableCharacterIds: new Set(stringArray(messages.shareable_character_ids, 'messages.shareable_character_ids')),
       privateMessageTypes: stringArray(messages.private_message_types, 'messages.private_message_types'),
+      privateMessageIds: messages.private_message_ids === undefined
+        ? [] : stringArray(messages.private_message_ids, 'messages.private_message_ids'),
+      // null preserves legacy behavior; an explicit empty allowlist shares nothing.
+      shareableMessageIds: messages.shareable_message_ids === undefined
+        ? null : stringArray(messages.shareable_message_ids, 'messages.shareable_message_ids'),
+      shareableMessageHashes: optionalHashes(messages.shareable_message_hashes, 'messages.shareable_message_hashes'),
       // Optional for backward compatibility; when present it must be valid.
       privateKeywords: (messages.private_keywords === undefined
         ? []
@@ -59,6 +90,9 @@ export function loadPolicy(policyPath) {
       privateTypes: new Set(stringArray(memory.private_types, 'memory.private_types')),
       privateStructuredTypes: new Set(stringArray(memory.private_structured_types, 'memory.private_structured_types')),
       privateCardIds: new Set(stringArray(memory.private_card_ids, 'memory.private_card_ids')),
+      shareableCardIds: memory.shareable_card_ids === undefined
+        ? null : new Set(stringArray(memory.shareable_card_ids, 'memory.shareable_card_ids')),
+      shareableCardHashes: optionalHashes(memory.shareable_card_hashes, 'memory.shareable_card_hashes'),
       privateKeywords: stringArray(memory.private_keywords, 'memory.private_keywords').map((k) => k.toLowerCase()),
     },
   };
@@ -151,17 +185,31 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     throw new Error(`i_core database does not exist: ${coreDbPath}`);
   }
   const core = new DatabaseSync(coreDbPath, { readOnly: true });
+  core.function('i_message_hash', { deterministic: true }, hashMessageContent);
   let memory = null;
 
   const privateTypeList = policy.messages.privateMessageTypes;
   const privateMessageKeywords = policy.messages.privateKeywords;
+  const privateMessageIds = policy.messages.privateMessageIds;
+  const shareableMessageIds = policy.messages.shareableMessageIds;
+  const shareableMessageHashes = policy.messages.shareableMessageHashes;
+  // ID lists use one JSON parameter each, avoiding SQLite's bound-variable limit.
   // Bound parameters for typeFilter, in placeholder order.
-  const filterParams = [...privateTypeList, ...privateMessageKeywords];
+  const filterParams = [
+    ...privateTypeList, ...privateMessageKeywords,
+    JSON.stringify(privateMessageIds),
+    ...(shareableMessageIds === null ? [] : [JSON.stringify(shareableMessageIds)]),
+    ...(shareableMessageHashes === null ? [] : [JSON.stringify(Object.fromEntries(shareableMessageHashes))]),
+  ];
   const typeFilter = [
     privateTypeList.length
       ? `AND message_type NOT IN (${privateTypeList.map(() => '?').join(', ')})`
       : '',
     ...privateMessageKeywords.map(() => 'AND instr(lower(content), ?) = 0'),
+    'AND sync_id NOT IN (SELECT value FROM json_each(?))',
+    shareableMessageIds === null ? '' : 'AND sync_id IN (SELECT value FROM json_each(?))',
+    shareableMessageHashes === null ? ''
+      : 'AND (sync_id, i_message_hash(content)) IN (SELECT key, value FROM json_each(?))',
   ].join(' ');
 
   function messageCharacter(characterId) {
@@ -185,6 +233,8 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
   function isPrivateCard(row) {
     const rules = policy.memory;
     if (rules.default === 'private') return true;
+    if (rules.shareableCardIds !== null && !rules.shareableCardIds.has(row.id)) return true;
+    if (rules.shareableCardHashes !== null && rules.shareableCardHashes.get(row.id) !== hashMemoryCard(row)) return true;
     if (rules.privateCardIds.has(row.id)) return true;
     if (rules.privateTypes.has(row.type)) return true;
     if (row.structured_type != null && rules.privateStructuredTypes.has(row.structured_type)) return true;

@@ -57,6 +57,9 @@ node tools/i_memory/import_v3_memory.mjs --source <v3.sqlite> --out <i-memory.sq
 
 - **消息**：只有 `shareable_character_ids` 里的角色才可能出站；`private_message_types` 里的消息类型一律不出站。
 - **记忆卡**：默认出站。命中以下任一条件就不出站：`private_types`、`private_structured_types`、`private_card_ids`，或 `title`、`retrieval_text` 中包含 `private_keywords` 里的关键词。
+- 可选兼容字段：`messages.private_keywords` 按消息正文子串排除；`messages.private_message_ids` 按 `sync_id` 排除，省略均等同于 `[]`。`messages.shareable_message_ids` / `memory.shareable_card_ids` 省略时保持旧行为，显式 `[]` 时对应类别全部不出站；设置后仅放行列出的 ID，且不能覆盖任何已有私密排除规则。字段出现时必须为非空字符串数组（允许空数组）。
+- 可选 `messages.shareable_message_hashes` / `memory.shareable_card_hashes` 是 ID 到 SHA-256 hex64 的对象映射，省略兼容旧行为、显式 `{}` 全部拒绝；设置后须同时满足 ID 对应哈希匹配、ID 清单及私密规则。消息哈希覆盖 UTF-8 `String(content)`；卡片哈希覆盖 `JSON.stringify([type, title, droplet_label, retrieval_text, status ?? null, structured_type ?? null, fields_json ?? ''])`，复用读取层导出的 `hashMessageContent` / `hashMemoryCard`。非法对象、空白 ID 或非 hex64 值均 fail closed。
+- 放行清单阻止未审核新增 ID 出站，哈希映射同时阻止已放行 ID 的内容修订出站。刷新审核先停服务，更新快照和审核清单、验证后再重启或重新打开读取模型。关键词匹配不等于色情语义或上下文识别。
 - 策略文件缺失或格式非法时，读取接口直接报错（fail closed），不能退回默认值继续运行。
 
 ### 只读接口 `i_memory_read.mjs`（会话 2 依赖这一层）

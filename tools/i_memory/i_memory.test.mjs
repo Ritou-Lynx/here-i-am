@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { runImport } from './import_v3_memory.mjs';
-import { loadPolicy, openReadModel } from './i_memory_read.mjs';
+import { hashMemoryCard, hashMessageContent, loadPolicy, openReadModel } from './i_memory_read.mjs';
 
 // All fixture data below is synthetic.
 const LIN = 'char-lin-synthetic';
@@ -337,6 +337,240 @@ describe('read model', () => {
       messages: { default: 'private', shareable_character_ids: [LIN], private_message_types: [], private_keywords: [''] },
     })));
     assert.throws(() => openModel(), /messages\.private_keywords/);
+  });
+
+  test('optional ID lists preserve omitted defaults and reject malformed values', () => {
+    const legacy = loadPolicy(policyPath);
+    assert.deepEqual(legacy.messages.privateMessageIds, []);
+    assert.equal(legacy.messages.shareableMessageIds, null);
+    assert.equal(legacy.memory.shareableCardIds, null);
+    for (const [section, field] of [
+      ['messages', 'private_message_ids'], ['messages', 'shareable_message_ids'],
+      ['memory', 'shareable_card_ids'],
+    ]) {
+      for (const invalid of [null, 'id', {}, [''], ['  '], [1], ['id', null]]) {
+        const configured = policy();
+        configured[section][field] = invalid;
+        writeFileSync(policyPath, JSON.stringify(configured));
+        assert.throws(() => openModel(), (error) => error.message.includes(section + '.' + field));
+      }
+    }
+  });
+
+  test('private message IDs exclude keyword-free context and keep stats consistent', () => {
+    writeFileSync(policyPath, JSON.stringify(policy({ messages: {
+      ...policy().messages, private_message_ids: [' msg-0 ', 'msg-1', 'msg-1', 'msg-3', 'missing'],
+    } })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages({ limit: 2 }).map((m) => m.syncId), ['msg-4', 'msg-6']);
+      assert.deepEqual(model.searchMessages({ query: '浅烘焙' }), []);
+      assert.deepEqual(model.searchMessages({ query: '咖啡' }).map((m) => m.syncId), ['msg-6']);
+      assert.deepEqual(model.stats().messages, { shareable: 2, private: 5 });
+    } finally { model.close(); }
+  });
+
+  test('explicit empty allowlists suppress all methods and private counts include withheld items', () => {
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: { ...policy().messages, private_message_ids: [], shareable_message_ids: [] },
+      memory: { ...policy().memory, shareable_card_ids: [] },
+    })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages(), []);
+      assert.deepEqual(model.searchMessages({ query: '咖啡' }), []);
+      assert.deepEqual(model.searchMemory({ query: '手冲咖啡' }), []);
+      assert.deepEqual(model.searchMemory({ query: '咖啡' }), []);
+      assert.deepEqual(model.getMemoryCards({ ids: BASE_CARDS.map((c) => c.id) }), []);
+      assert.deepEqual(model.stats().messages, { shareable: 0, private: MESSAGES.length });
+      assert.deepEqual(model.stats().memory, { shareable: 0, private: BASE_CARDS.length });
+    } finally { model.close(); }
+  });
+
+  test('allowlists never override private rules and apply to both memory search branches', () => {
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: {
+        ...policy().messages, shareable_message_ids: MESSAGES.map((_, i) => 'msg-' + i),
+        private_message_ids: ['msg-1'], private_keywords: ['手冲'],
+      },
+      memory: { ...policy().memory, shareable_card_ids: BASE_CARDS.filter((c) => c.id !== 'card-run').map((c) => c.id) },
+    })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages().map((m) => m.syncId), ['msg-4', 'msg-6']);
+      assert.deepEqual(model.searchMessages({ query: '咖啡' }).map((m) => m.syncId), ['msg-6']);
+      assert.deepEqual(model.recentMessages({ characterId: OTHER }), []);
+      assert.deepEqual(model.stats().messages, { shareable: 2, private: 5 });
+      assert.deepEqual(model.getMemoryCards({ ids: BASE_CARDS.map((c) => c.id) }).map((c) => c.id), ['card-coffee']);
+      assert.deepEqual(model.searchMemory({ query: '十公里' }), []);
+      assert.deepEqual(model.searchMemory({ query: '晨' }), []);
+      assert.deepEqual(model.searchMemory({ query: '手冲咖啡' }).map((c) => c.id), ['card-coffee']);
+      assert.deepEqual(model.searchMemory({ query: '咖啡' }).map((c) => c.id), ['card-coffee']);
+      assert.deepEqual(model.stats().memory, { shareable: 1, private: 7 });
+    } finally { model.close(); }
+    const configured = policy({ memory: { ...policy().memory, default: 'private', shareable_card_ids: ['card-coffee'] } });
+    writeFileSync(policyPath, JSON.stringify(configured));
+    const closed = openModel();
+    try {
+      assert.deepEqual(closed.getMemoryCards({ ids: ['card-coffee'] }), []);
+      assert.deepEqual(closed.stats().memory, { shareable: 0, private: BASE_CARDS.length });
+    } finally { closed.close(); }
+  });
+
+  test('newly synced messages and imported cards remain withheld until explicitly allowed', () => {
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: { ...policy().messages, shareable_message_ids: ['msg-0'] },
+      memory: { ...policy().memory, shareable_card_ids: ['card-coffee'] },
+    })));
+    const model = openModel();
+    try {
+      assert.equal(model.recentMessages().length, 1);
+      assert.equal(model.searchMemory({ query: '咖啡' }).length, 1);
+      const writer = new DatabaseSync(core);
+      try {
+        writer.prepare("INSERT INTO chat_messages VALUES ('msg-new', 'dev-synthetic', 100, ?, 'user', '新增的咖啡聊天', 1790000100000, 'chat', '[]', '[]', 'digest', 100)").run(LIN);
+      } finally { writer.close(); }
+      const source = new DatabaseSync(v3);
+      try {
+        source.exec("INSERT INTO memory_cards (id, type, title, droplet_label, retrieval_text, created_at, updated_at) VALUES ('card-new', 'fact', '新增的咖啡记忆', '咖啡', '新增的咖啡偏好', 1790000100000, 1790000100000)");
+      } finally { source.close(); }
+      runImport({ source: v3, out, apply: true });
+      assert.deepEqual(model.recentMessages().map((m) => m.syncId), ['msg-0']);
+      assert.deepEqual(model.searchMessages({ query: '新增' }), []);
+      assert.deepEqual(model.searchMemory({ query: '新增的咖啡' }), []);
+      assert.deepEqual(model.searchMemory({ query: '新增' }), []);
+      assert.deepEqual(model.getMemoryCards({ ids: ['card-new'] }), []);
+      assert.deepEqual(model.stats().messages, { shareable: 1, private: MESSAGES.length });
+      assert.deepEqual(model.stats().memory, { shareable: 1, private: BASE_CARDS.length });
+    } finally { model.close(); }
+  });
+
+  test('policy changes take effect only after reopening the read model', () => {
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: { ...policy().messages, shareable_message_ids: [] },
+      memory: { ...policy().memory, shareable_card_ids: [] },
+    })));
+    const original = openModel();
+    try {
+      writeFileSync(policyPath, JSON.stringify(policy({
+        messages: { ...policy().messages, shareable_message_ids: [' msg-0 ', 'msg-0'] },
+        memory: { ...policy().memory, shareable_card_ids: [' card-coffee ', 'card-coffee'] },
+      })));
+      assert.deepEqual(original.recentMessages(), []);
+      assert.deepEqual(original.getMemoryCards({ ids: ['card-coffee'] }), []);
+    } finally { original.close(); }
+    const reopened = openModel();
+    try {
+      assert.deepEqual(reopened.recentMessages().map((m) => m.syncId), ['msg-0']);
+      assert.deepEqual(reopened.getMemoryCards({ ids: ['card-coffee'] }).map((c) => c.id), ['card-coffee']);
+      assert.deepEqual(reopened.stats().messages, { shareable: 1, private: 6 });
+      assert.deepEqual(reopened.stats().memory, { shareable: 1, private: 7 });
+    } finally { reopened.close(); }
+  });
+
+  test('large message ID lists do not exceed SQLite bound-variable limits', () => {
+    const absent = Array.from({ length: 33000 }, (_, i) => 'absent-' + i);
+    writeFileSync(policyPath, JSON.stringify(policy({ messages: {
+      ...policy().messages, private_message_ids: absent, shareable_message_ids: [...absent, 'msg-0'],
+    } })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages().map((m) => m.syncId), ['msg-0']);
+      assert.deepEqual(model.searchMessages({ query: '咖啡' }).map((m) => m.syncId), ['msg-0']);
+      assert.deepEqual(model.stats().messages, { shareable: 1, private: 6 });
+    } finally { model.close(); }
+  });
+
+  test('reviewed-content hash helpers use stable UTF-8 and canonical field ordering', () => {
+    assert.equal(hashMessageContent('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    const row = { type: 'fact', title: '咖啡', droplet_label: '日常', retrieval_text: '普通记忆' };
+    assert.equal(hashMemoryCard(row), hashMessageContent(JSON.stringify(['fact', '咖啡', '日常', '普通记忆', null, null, ''])));
+    assert.equal(hashMemoryCard({ ...row, status: null, structured_type: null, fields_json: null }), hashMemoryCard(row));
+  });
+
+  test('hash maps reject malformed objects, keys and hashes; omitted maps remain compatible', () => {
+    const legacy = loadPolicy(policyPath);
+    assert.equal(legacy.messages.shareableMessageHashes, null);
+    assert.equal(legacy.memory.shareableCardHashes, null);
+    for (const [section, field] of [['messages', 'shareable_message_hashes'], ['memory', 'shareable_card_hashes']]) {
+      for (const invalid of [null, [], 'hash', 3, { '': 'a'.repeat(64) }, { '  ': 'a'.repeat(64) }, { id: null }, { id: 3 }, { id: 'a'.repeat(63) }, { id: 'g'.repeat(64) }]) {
+        const configured = policy(); configured[section][field] = invalid;
+        writeFileSync(policyPath, JSON.stringify(configured));
+        assert.throws(() => openModel(), (error) => error.message.includes(section + '.' + field));
+      }
+    }
+  });
+
+  test('empty hash maps independently withhold all items despite nonempty ID allowlists', () => {
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: { ...policy().messages, shareable_message_ids: ['msg-0'], shareable_message_hashes: {} },
+      memory: { ...policy().memory, shareable_card_ids: ['card-coffee'], shareable_card_hashes: {} },
+    })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages(), []);
+      assert.deepEqual(model.searchMessages({ query: '咖啡' }), []);
+      assert.deepEqual(model.searchMemory({ query: '手冲咖啡' }), []);
+      assert.deepEqual(model.searchMemory({ query: '咖啡' }), []);
+      assert.deepEqual(model.getMemoryCards({ ids: ['card-coffee'] }), []);
+      assert.deepEqual(model.stats().messages, { shareable: 0, private: MESSAGES.length });
+      assert.deepEqual(model.stats().memory, { shareable: 0, private: BASE_CARDS.length });
+    } finally { model.close(); }
+  });
+
+  test('hash maps intersect with ID allowlists and never bypass private rules', () => {
+    const messageHashes = Object.fromEntries(MESSAGES.map((m, i) => ['msg-' + i, hashMessageContent(m[2]).toUpperCase()]));
+    const cardHashes = Object.fromEntries(readOut('SELECT * FROM memory_cards').map((c) => [c.id, hashMemoryCard(c).toUpperCase()]));
+    delete messageHashes['msg-6']; delete cardHashes['card-run'];
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: { ...policy().messages, shareable_message_ids: ['msg-0', 'msg-2', 'msg-3', 'msg-6'], shareable_message_hashes: messageHashes },
+      memory: { ...policy().memory, shareable_card_ids: BASE_CARDS.filter((c) => c.id !== 'card-coffee').map((c) => c.id), shareable_card_hashes: cardHashes },
+    })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages().map((m) => m.syncId), ['msg-0']);
+      assert.deepEqual(model.searchMessages({ query: '咖啡' }).map((m) => m.syncId), ['msg-0']);
+      assert.deepEqual(model.getMemoryCards({ ids: BASE_CARDS.map((c) => c.id) }), []);
+      assert.deepEqual(model.stats().messages, { shareable: 1, private: 6 });
+      assert.deepEqual(model.stats().memory, { shareable: 0, private: BASE_CARDS.length });
+    } finally { model.close(); }
+  });
+
+  test('same-ID message and card content changes fail closed across all read exits', () => {
+    const cardRows = readOut('SELECT * FROM memory_cards');
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: { ...policy().messages, shareable_message_hashes: Object.fromEntries(MESSAGES.map((m, i) => ['msg-' + i, hashMessageContent(m[2])])) },
+      memory: { ...policy().memory, shareable_card_hashes: Object.fromEntries(cardRows.map((c) => [c.id, hashMemoryCard(c)])) },
+    })));
+    const model = openModel();
+    try {
+      assert.equal(model.recentMessages().length, 4);
+      assert.deepEqual(model.getMemoryCards({ ids: ['card-run'] }).map((c) => c.id), ['card-run']);
+      const messagesWriter = new DatabaseSync(core);
+      try { messagesWriter.prepare("UPDATE chat_messages SET content = ? WHERE sync_id = 'msg-0'").run('咖啡之后的未审核色情段落'); }
+      finally { messagesWriter.close(); }
+      assert.ok(model.recentMessages().every((m) => m.syncId !== 'msg-0'));
+      assert.ok(model.searchMessages({ query: '咖啡' }).every((m) => m.syncId !== 'msg-0'));
+      assert.deepEqual(model.searchMessages({ query: '未审核色情' }), []);
+      assert.deepEqual(model.stats().messages, { shareable: 3, private: 4 });
+      const original = cardRows.find((c) => c.id === 'card-run');
+      for (const [field, value] of [
+        ['type', 'event_edited'], ['title', '未审核色情标题'], ['droplet_label', '未审核标签'],
+        ['retrieval_text', '未审核正文'], ['status', 'edited'], ['structured_type', 'edited_record'],
+        ['fields_json', JSON.stringify({ description: '未审核色情字段' })],
+      ]) {
+        const writer = new DatabaseSync(out);
+        try {
+          writer.prepare('UPDATE memory_cards SET ' + field + ' = ? WHERE id = ?').run(value, 'card-run');
+          assert.deepEqual(model.getMemoryCards({ ids: ['card-run'] }), [], field);
+          assert.deepEqual(model.searchMemory({ query: '十公里' }), [], field);
+          assert.deepEqual(model.searchMemory({ query: '晨' }), [], field);
+          assert.deepEqual(model.stats().memory, { shareable: 1, private: 7 }, field);
+          writer.prepare('UPDATE memory_cards SET ' + field + ' = ? WHERE id = ?').run(original[field], 'card-run');
+        } finally { writer.close(); }
+      }
+      assert.equal(model.getMemoryCards({ ids: ['card-run'] }).length, 1);
+    } finally { model.close(); }
   });
 
   test('searchMessages ranks by relevance and returns snippets', () => {
