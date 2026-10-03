@@ -306,7 +306,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => _testSchemaVersion ?? 60;
+  int get schemaVersion => _testSchemaVersion ?? 61;
 
   Future<void> _configureConnection() async {
     await customStatement('PRAGMA busy_timeout = 5000');
@@ -1044,6 +1044,13 @@ class AppDatabase extends _$AppDatabase {
             await _addColumnIfTableExists(
                 'dev_agent_runs', 'service_tier TEXT');
             await _addColumnIfTableExists('dev_agent_runs', 'verbosity TEXT');
+          }
+          if (from < 61) {
+            // B3 timeline ordering; legacy message ids and timestamps stay intact.
+            await _addColumnIfTableExists(
+                'persona_chat_messages', 'created_at_ms INTEGER');
+            await _addColumnIfTableExists(
+                'persona_chat_messages', 'server_sequence INTEGER');
           }
         },
         beforeOpen: (OpeningDetails details) async {

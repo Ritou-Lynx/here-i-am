@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/character/widgets/chat_message_source_label.dart';
 import 'package:memex/domain/workbench_ai/action/workbench_action_projection.dart';
 import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/desktop/widgets/workbench_action_card.dart';
@@ -225,44 +226,51 @@ class _DesktopMessageList extends StatelessWidget {
           return Padding(
             key: ValueKey('desktop_chat_message_${message.id}'),
             padding: const EdgeInsets.only(bottom: 9),
-            child: SelectionArea(
-              child: workbenchAction != null
-                  ? WorkbenchActionCard(
-                      action: workbenchAction,
-                      undoAvailable: canUndoWorkbenchAction
-                              ?.call(workbenchAction.actionId) ??
-                          false,
-                      onUndo: onUndoWorkbenchAction,
-                    )
-                  : message.messageType == 'action'
-                      ? _DesktopChatBubble(
-                          text: message.content,
-                          fromUser: false,
-                          action: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ChatMessageSourceLabel(message: message),
+                SelectionArea(
+                  child: workbenchAction != null
+                      ? WorkbenchActionCard(
+                          action: workbenchAction,
+                          undoAvailable: canUndoWorkbenchAction
+                                  ?.call(workbenchAction.actionId) ??
+                              false,
+                          onUndo: onUndoWorkbenchAction,
                         )
-                      : message.isFromCharacter &&
-                              message.messageType == 'chat' &&
-                              message.taskRoomId?.trim().isNotEmpty == true &&
-                              message.content.trim().isNotEmpty
+                      : message.messageType == 'action'
                           ? _DesktopChatBubble(
                               text: message.content,
                               fromUser: false,
-                              preserveWhitespace: true,
+                              action: true,
                             )
-                          : message.isFromCharacter
-                              ? _DesktopCharacterTurn(
+                          : message.isFromCharacter &&
+                                  message.messageType == 'chat' &&
+                                  message.taskRoomId?.trim().isNotEmpty ==
+                                      true &&
+                                  message.content.trim().isNotEmpty
+                              ? _DesktopChatBubble(
                                   text: message.content,
-                                  hasAttachment:
-                                      _hasAttachment(message.attachmentsJson),
+                                  fromUser: false,
+                                  preserveWhitespace: true,
                                 )
-                              : _DesktopChatBubble(
-                                  text: message.content.trim().isEmpty &&
-                                          _hasAttachment(
-                                              message.attachmentsJson)
-                                      ? '已发送附件'
-                                      : message.content,
-                                  fromUser: true,
-                                ),
+                              : message.isFromCharacter
+                                  ? _DesktopCharacterTurn(
+                                      text: message.content,
+                                      hasAttachment: _hasAttachment(
+                                          message.attachmentsJson),
+                                    )
+                                  : _DesktopChatBubble(
+                                      text: message.content.trim().isEmpty &&
+                                              _hasAttachment(
+                                                  message.attachmentsJson)
+                                          ? '已发送附件'
+                                          : message.content,
+                                      fromUser: true,
+                                    ),
+                ),
+              ],
             ),
           );
         },

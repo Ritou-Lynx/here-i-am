@@ -15,6 +15,7 @@ import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/config_sync_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
 import 'package:memex/ui/settings/widgets/core_sync_settings_page.dart';
+import 'package:memex/ui/settings/widgets/web_note_connection_page.dart';
 import 'package:memex/ui/settings/widgets/phone_memory_connection_page.dart';
 import 'package:memex/ui/settings/widgets/custom_agent_config_page.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
@@ -639,6 +640,12 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                 title: '林埃核心',
                 subtitle: '试验性同步多设备的用户文字消息',
                 onTap: () => open(const CoreSyncSettingsPage()),
+              ),
+              _Destination(
+                icon: Icons.note_add_outlined,
+                title: '网页端记录通道',
+                subtitle: '同步网页端交给林埃记下的内容',
+                onTap: () => open(const WebNoteConnectionPage()),
               ),
               _Destination(
                 icon: Icons.phonelink_lock_outlined,

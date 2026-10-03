@@ -489,6 +489,7 @@ class RecordOrganizerServiceV3 {
     required OrganizedRecord organized,
     required RecordSource source,
     List<Map<String, String>>? inputMedia,
+    bool deduplicate = true,
   }) async {
     if (organized.isEmpty) {
       _logger.info('persist called with empty record; skipping');
@@ -545,7 +546,7 @@ class RecordOrganizerServiceV3 {
       final dupLookup = <int, String>{}; // new card index -> existing card id
       for (var i = 0; i < organized.cards.length; i++) {
         final card = organized.cards[i];
-        if (!_isDedupeCard(card)) {
+        if (!deduplicate || !_isDedupeCard(card)) {
           continue;
         }
         final anchor = _firstTimeAnchor(card.structuredFields);
@@ -951,6 +952,94 @@ class RecordOrganizerServiceV3 {
           ),
         );
     return id;
+  }
+
+  /// Replace an explicitly revised external record, retaining card identity
+  /// and the user-correction audit. Called inside the import transaction.
+  Future<void> replaceOrganizedCard(
+      String cardId, OrganizedCard replacement, RecordSource source) async {
+    await _db.transaction(() async {
+      final card = await (_db.select(_db.memoryCards)
+            ..where((t) => t.id.equals(cardId)))
+          .getSingle();
+      final original = await (_db.select(_db.memoryCardSources)
+            ..where((t) => t.cardId.equals(cardId)))
+          .getSingle();
+      if (original.sourceKind != source.sourceKind || original.sourceRef != source.sourceRef) {
+        throw StateError('Cannot replace a card owned by a different source');
+      }
+      final oldFields = await (_db.select(_db.memoryCardStructuredFields)
+            ..where((t) => t.cardId.equals(cardId)))
+          .getSingleOrNull();
+      await recordUserCorrection(
+          targetTable: 'memory_cards',
+          targetId: cardId,
+          field: 'external_record',
+          correctionType: 'edit',
+          oldValue: {
+            'title': card.title,
+            'retrievalText': card.retrievalText,
+            'presentationModule': _safeParseJson(card.presentationModule),
+            'structuredFields':
+                oldFields == null ? null : _safeParseJson(oldFields.fieldsJson),
+            'rawInput': original.rawInput
+          },
+          newValue: {
+            ...replacement.toJson(),
+            'rawInput': source.rawInput
+          });
+      await updateCard(cardId,
+          title: replacement.title,
+          retrievalText: replacement.retrievalText,
+          dropletLabel: replacement.dropletLabel,
+          type: replacement.type,
+          status: replacement.status,
+          presentationModule: replacement.presentationModule,
+          sourceKind: source.sourceKind);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await (_db.delete(_db.memoryCardStructuredFields)
+            ..where((t) => t.cardId.equals(cardId)))
+          .go();
+      if (replacement.structuredFields != null &&
+          replacement.structuredFieldsType != null) {
+        await _db.into(_db.memoryCardStructuredFields).insert(
+            MemoryCardStructuredFieldsCompanion.insert(
+                cardId: cardId,
+                structuredFieldsType: replacement.structuredFieldsType!,
+                fieldsJson: jsonEncode(replacement.structuredFields),
+                userCorrected: const Value(true),
+                createdAt: now,
+                updatedAt: now));
+      }
+      await (_db.delete(_db.memoryEntityLinks)
+            ..where((t) =>
+                t.sourceTable.equals('memory_cards') &
+                t.sourceId.equals(cardId)))
+          .go();
+      for (final link in replacement.entityLinks) {
+        final entityId = await _resolveEntity(link, now: now);
+        await _db.into(_db.memoryEntityLinks).insert(
+            MemoryEntityLinksCompanion.insert(
+                id: _uuid.v4(),
+                sourceTable: 'memory_cards',
+                sourceId: cardId,
+                entityId: entityId,
+                relation: link.relation,
+                confidence: Value(link.confidence),
+                createdAt: now));
+      }
+      await (_db.update(_db.memoryCards)..where((t) => t.id.equals(cardId)))
+          .write(MemoryCardsCompanion(
+              status: Value(replacement.status),
+              valence: Value(replacement.valence),
+              arousal: Value(replacement.arousal),
+              needsFollowUp: Value(replacement.needsFollowUp == null
+                  ? null
+                  : jsonEncode(replacement.needsFollowUp))));
+      await (_db.update(_db.memoryCardSources)
+            ..where((t) => t.cardId.equals(cardId)))
+          .write(MemoryCardSourcesCompanion(rawInput: Value(source.rawInput)));
+    });
   }
 
   /// Record a user-edited field as a [UserCorrections] row.

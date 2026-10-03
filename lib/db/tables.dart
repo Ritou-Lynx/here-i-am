@@ -179,6 +179,10 @@ class PersonaChatMessages extends Table {
   /// not the current device and does not change when the row is replicated.
   TextColumn get originDeviceId => text().nullable()();
 
+  /// Preserve the core millisecond time and its deterministic tie breaker.
+  IntColumn get createdAtMs => integer().nullable()();
+  IntColumn get serverSequence => integer().nullable()();
+
   TextColumn get characterId => text()();
   BoolColumn get isFromCharacter => boolean()();
   TextColumn get content => text()();

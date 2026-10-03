@@ -1,3 +1,15 @@
+## 2026-10-03 — B3 本机写回部署与 Flutter 拉取候选
+
+**合入**：codex/b3-writeback-local-20261003 合入 2d92a8d7；受控运行源码部署，读取层仅换行差异经用户接受，policy 开关及 openReadModel 检查完成。
+**核心**：保留 schema 4，移植 B3 权限补丁至新固定包，经确认切换入口并一次性配对；常驻不带 worker 密钥，前端 feed 读取拒绝。
+**远程**：写回启用，旧 OAuth 令牌在服务停止期间撤销并重新加载；本机及公网元数据 scopes 为 i.read/i.write，Cloudflare ingress 仅指向 47860。
+**Flutter**：网页端来源、created_at_ms/server_sequence 排序、无回复生成、前台同步；安全存储记录通道、直接 Organizer 入卡、修订/删除/ACK 与持久游标幂等。
+**验证**：Node 专项 125 项；schema 4 核心候选 25 项及启动器 9 组；Flutter 专项与相邻回归 64 项通过。critical fixes 3/3，JNI 独立 staging 修复后 hereIAmV3 debug 构建成功，包名核验通过。
+**未完**：47862 被 Cloudflare 指标占用；需电脑现场授权的通道处理、令牌交付和物理安装暂缓，claude.ai 重连与六项真人 Gate 未执行，分别记录。
+**边界**：未 push；真实数据库、策略、凭据、签名与日志不提交。结果及验收状态见 docs/development/B3_LOCAL_ROLLOUT_20261003.md。
+
+---
+
 ## 2026-10-03 — B3 写回：i_chat_turn / i_remember
 
 **交付**：i_remote_mcp 新增 `i_chat_turn`（每轮写回双方原文，内容对齐去重、漏轮补交、本机账本重试）与 `i_remember`（本机账本可真删，手机经本机拉取通道取走直接入卡）；OAuth 新增 `i.write`，需重新授权；Project 指令改为每轮先 `i_chat_turn`。

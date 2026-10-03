@@ -3244,6 +3244,18 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
   late final GeneratedColumn<String> originDeviceId = GeneratedColumn<String>(
       'origin_device_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMsMeta =
+      const VerificationMeta('createdAtMs');
+  @override
+  late final GeneratedColumn<int> createdAtMs = GeneratedColumn<int>(
+      'created_at_ms', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _serverSequenceMeta =
+      const VerificationMeta('serverSequence');
+  @override
+  late final GeneratedColumn<int> serverSequence = GeneratedColumn<int>(
+      'server_sequence', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   static const VerificationMeta _characterIdMeta =
       const VerificationMeta('characterId');
   @override
@@ -3310,6 +3322,8 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
         id,
         syncId,
         originDeviceId,
+        createdAtMs,
+        serverSequence,
         characterId,
         isFromCharacter,
         content,
@@ -3342,6 +3356,18 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
           _originDeviceIdMeta,
           originDeviceId.isAcceptableOrUnknown(
               data['origin_device_id']!, _originDeviceIdMeta));
+    }
+    if (data.containsKey('created_at_ms')) {
+      context.handle(
+          _createdAtMsMeta,
+          createdAtMs.isAcceptableOrUnknown(
+              data['created_at_ms']!, _createdAtMsMeta));
+    }
+    if (data.containsKey('server_sequence')) {
+      context.handle(
+          _serverSequenceMeta,
+          serverSequence.isAcceptableOrUnknown(
+              data['server_sequence']!, _serverSequenceMeta));
     }
     if (data.containsKey('character_id')) {
       context.handle(
@@ -3412,6 +3438,10 @@ class $PersonaChatMessagesTable extends PersonaChatMessages
           .read(DriftSqlType.string, data['${effectivePrefix}sync_id']),
       originDeviceId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}origin_device_id']),
+      createdAtMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at_ms']),
+      serverSequence: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}server_sequence']),
       characterId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}character_id'])!,
       isFromCharacter: attachedDatabase.typeMapping.read(
@@ -3451,6 +3481,10 @@ class PersonaChatMessage extends DataClass
   /// Installation that originally accepted this message. This is provenance,
   /// not the current device and does not change when the row is replicated.
   final String? originDeviceId;
+
+  /// Preserve the core millisecond time and its deterministic tie breaker.
+  final int? createdAtMs;
+  final int? serverSequence;
   final String characterId;
   final bool isFromCharacter;
   final String content;
@@ -3473,6 +3507,8 @@ class PersonaChatMessage extends DataClass
       {required this.id,
       this.syncId,
       this.originDeviceId,
+      this.createdAtMs,
+      this.serverSequence,
       required this.characterId,
       required this.isFromCharacter,
       required this.content,
@@ -3491,6 +3527,12 @@ class PersonaChatMessage extends DataClass
     }
     if (!nullToAbsent || originDeviceId != null) {
       map['origin_device_id'] = Variable<String>(originDeviceId);
+    }
+    if (!nullToAbsent || createdAtMs != null) {
+      map['created_at_ms'] = Variable<int>(createdAtMs);
+    }
+    if (!nullToAbsent || serverSequence != null) {
+      map['server_sequence'] = Variable<int>(serverSequence);
     }
     map['character_id'] = Variable<String>(characterId);
     map['is_from_character'] = Variable<bool>(isFromCharacter);
@@ -3518,6 +3560,12 @@ class PersonaChatMessage extends DataClass
       originDeviceId: originDeviceId == null && nullToAbsent
           ? const Value.absent()
           : Value(originDeviceId),
+      createdAtMs: createdAtMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdAtMs),
+      serverSequence: serverSequence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverSequence),
       characterId: Value(characterId),
       isFromCharacter: Value(isFromCharacter),
       content: Value(content),
@@ -3542,6 +3590,8 @@ class PersonaChatMessage extends DataClass
       id: serializer.fromJson<int>(json['id']),
       syncId: serializer.fromJson<String?>(json['syncId']),
       originDeviceId: serializer.fromJson<String?>(json['originDeviceId']),
+      createdAtMs: serializer.fromJson<int?>(json['createdAtMs']),
+      serverSequence: serializer.fromJson<int?>(json['serverSequence']),
       characterId: serializer.fromJson<String>(json['characterId']),
       isFromCharacter: serializer.fromJson<bool>(json['isFromCharacter']),
       content: serializer.fromJson<String>(json['content']),
@@ -3560,6 +3610,8 @@ class PersonaChatMessage extends DataClass
       'id': serializer.toJson<int>(id),
       'syncId': serializer.toJson<String?>(syncId),
       'originDeviceId': serializer.toJson<String?>(originDeviceId),
+      'createdAtMs': serializer.toJson<int?>(createdAtMs),
+      'serverSequence': serializer.toJson<int?>(serverSequence),
       'characterId': serializer.toJson<String>(characterId),
       'isFromCharacter': serializer.toJson<bool>(isFromCharacter),
       'content': serializer.toJson<String>(content),
@@ -3576,6 +3628,8 @@ class PersonaChatMessage extends DataClass
           {int? id,
           Value<String?> syncId = const Value.absent(),
           Value<String?> originDeviceId = const Value.absent(),
+          Value<int?> createdAtMs = const Value.absent(),
+          Value<int?> serverSequence = const Value.absent(),
           String? characterId,
           bool? isFromCharacter,
           String? content,
@@ -3590,6 +3644,9 @@ class PersonaChatMessage extends DataClass
         syncId: syncId.present ? syncId.value : this.syncId,
         originDeviceId:
             originDeviceId.present ? originDeviceId.value : this.originDeviceId,
+        createdAtMs: createdAtMs.present ? createdAtMs.value : this.createdAtMs,
+        serverSequence:
+            serverSequence.present ? serverSequence.value : this.serverSequence,
         characterId: characterId ?? this.characterId,
         isFromCharacter: isFromCharacter ?? this.isFromCharacter,
         content: content ?? this.content,
@@ -3609,6 +3666,11 @@ class PersonaChatMessage extends DataClass
       originDeviceId: data.originDeviceId.present
           ? data.originDeviceId.value
           : this.originDeviceId,
+      createdAtMs:
+          data.createdAtMs.present ? data.createdAtMs.value : this.createdAtMs,
+      serverSequence: data.serverSequence.present
+          ? data.serverSequence.value
+          : this.serverSequence,
       characterId:
           data.characterId.present ? data.characterId.value : this.characterId,
       isFromCharacter: data.isFromCharacter.present
@@ -3634,6 +3696,8 @@ class PersonaChatMessage extends DataClass
           ..write('id: $id, ')
           ..write('syncId: $syncId, ')
           ..write('originDeviceId: $originDeviceId, ')
+          ..write('createdAtMs: $createdAtMs, ')
+          ..write('serverSequence: $serverSequence, ')
           ..write('characterId: $characterId, ')
           ..write('isFromCharacter: $isFromCharacter, ')
           ..write('content: $content, ')
@@ -3652,6 +3716,8 @@ class PersonaChatMessage extends DataClass
       id,
       syncId,
       originDeviceId,
+      createdAtMs,
+      serverSequence,
       characterId,
       isFromCharacter,
       content,
@@ -3668,6 +3734,8 @@ class PersonaChatMessage extends DataClass
           other.id == this.id &&
           other.syncId == this.syncId &&
           other.originDeviceId == this.originDeviceId &&
+          other.createdAtMs == this.createdAtMs &&
+          other.serverSequence == this.serverSequence &&
           other.characterId == this.characterId &&
           other.isFromCharacter == this.isFromCharacter &&
           other.content == this.content &&
@@ -3683,6 +3751,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
   final Value<int> id;
   final Value<String?> syncId;
   final Value<String?> originDeviceId;
+  final Value<int?> createdAtMs;
+  final Value<int?> serverSequence;
   final Value<String> characterId;
   final Value<bool> isFromCharacter;
   final Value<String> content;
@@ -3696,6 +3766,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     this.id = const Value.absent(),
     this.syncId = const Value.absent(),
     this.originDeviceId = const Value.absent(),
+    this.createdAtMs = const Value.absent(),
+    this.serverSequence = const Value.absent(),
     this.characterId = const Value.absent(),
     this.isFromCharacter = const Value.absent(),
     this.content = const Value.absent(),
@@ -3710,6 +3782,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     this.id = const Value.absent(),
     this.syncId = const Value.absent(),
     this.originDeviceId = const Value.absent(),
+    this.createdAtMs = const Value.absent(),
+    this.serverSequence = const Value.absent(),
     required String characterId,
     required bool isFromCharacter,
     required String content,
@@ -3727,6 +3801,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     Expression<int>? id,
     Expression<String>? syncId,
     Expression<String>? originDeviceId,
+    Expression<int>? createdAtMs,
+    Expression<int>? serverSequence,
     Expression<String>? characterId,
     Expression<bool>? isFromCharacter,
     Expression<String>? content,
@@ -3741,6 +3817,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       if (id != null) 'id': id,
       if (syncId != null) 'sync_id': syncId,
       if (originDeviceId != null) 'origin_device_id': originDeviceId,
+      if (createdAtMs != null) 'created_at_ms': createdAtMs,
+      if (serverSequence != null) 'server_sequence': serverSequence,
       if (characterId != null) 'character_id': characterId,
       if (isFromCharacter != null) 'is_from_character': isFromCharacter,
       if (content != null) 'content': content,
@@ -3757,6 +3835,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       {Value<int>? id,
       Value<String?>? syncId,
       Value<String?>? originDeviceId,
+      Value<int?>? createdAtMs,
+      Value<int?>? serverSequence,
       Value<String>? characterId,
       Value<bool>? isFromCharacter,
       Value<String>? content,
@@ -3770,6 +3850,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
       id: id ?? this.id,
       syncId: syncId ?? this.syncId,
       originDeviceId: originDeviceId ?? this.originDeviceId,
+      createdAtMs: createdAtMs ?? this.createdAtMs,
+      serverSequence: serverSequence ?? this.serverSequence,
       characterId: characterId ?? this.characterId,
       isFromCharacter: isFromCharacter ?? this.isFromCharacter,
       content: content ?? this.content,
@@ -3793,6 +3875,12 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
     }
     if (originDeviceId.present) {
       map['origin_device_id'] = Variable<String>(originDeviceId.value);
+    }
+    if (createdAtMs.present) {
+      map['created_at_ms'] = Variable<int>(createdAtMs.value);
+    }
+    if (serverSequence.present) {
+      map['server_sequence'] = Variable<int>(serverSequence.value);
     }
     if (characterId.present) {
       map['character_id'] = Variable<String>(characterId.value);
@@ -3830,6 +3918,8 @@ class PersonaChatMessagesCompanion extends UpdateCompanion<PersonaChatMessage> {
           ..write('id: $id, ')
           ..write('syncId: $syncId, ')
           ..write('originDeviceId: $originDeviceId, ')
+          ..write('createdAtMs: $createdAtMs, ')
+          ..write('serverSequence: $serverSequence, ')
           ..write('characterId: $characterId, ')
           ..write('isFromCharacter: $isFromCharacter, ')
           ..write('content: $content, ')
@@ -11619,10 +11709,8 @@ class DevAgentRun extends DataClass implements Insertable<DevAgentRun> {
   final String? branch;
   final String? worktreePath;
 
-  /// `provider/model` that was actually used for this run (resolved from
-  /// session override / project default / opencode.jsonc at spawn time).
-  /// Lets the App show "OpenCode / qwen3.7-max" without re-querying the
-  /// bridge, and helps debugging when a user complains a run was slow.
+  /// Model requested for this run. OpenCode uses provider/model; Codex uses
+  /// its model slug. NULL means the development computer chose its default.
   final String? model;
   final String? reasoningEffort;
   final String? serviceTier;
@@ -42641,6 +42729,8 @@ typedef $$PersonaChatMessagesTableCreateCompanionBuilder
   Value<int> id,
   Value<String?> syncId,
   Value<String?> originDeviceId,
+  Value<int?> createdAtMs,
+  Value<int?> serverSequence,
   required String characterId,
   required bool isFromCharacter,
   required String content,
@@ -42656,6 +42746,8 @@ typedef $$PersonaChatMessagesTableUpdateCompanionBuilder
   Value<int> id,
   Value<String?> syncId,
   Value<String?> originDeviceId,
+  Value<int?> createdAtMs,
+  Value<int?> serverSequence,
   Value<String> characterId,
   Value<bool> isFromCharacter,
   Value<String> content,
@@ -42684,6 +42776,13 @@ class $$PersonaChatMessagesTableFilterComposer
 
   ColumnFilters<String> get originDeviceId => $composableBuilder(
       column: $table.originDeviceId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAtMs => $composableBuilder(
+      column: $table.createdAtMs, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get serverSequence => $composableBuilder(
+      column: $table.serverSequence,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get characterId => $composableBuilder(
@@ -42735,6 +42834,13 @@ class $$PersonaChatMessagesTableOrderingComposer
       column: $table.originDeviceId,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get createdAtMs => $composableBuilder(
+      column: $table.createdAtMs, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get serverSequence => $composableBuilder(
+      column: $table.serverSequence,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get characterId => $composableBuilder(
       column: $table.characterId, builder: (column) => ColumnOrderings(column));
 
@@ -42782,6 +42888,12 @@ class $$PersonaChatMessagesTableAnnotationComposer
 
   GeneratedColumn<String> get originDeviceId => $composableBuilder(
       column: $table.originDeviceId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAtMs => $composableBuilder(
+      column: $table.createdAtMs, builder: (column) => column);
+
+  GeneratedColumn<int> get serverSequence => $composableBuilder(
+      column: $table.serverSequence, builder: (column) => column);
 
   GeneratedColumn<String> get characterId => $composableBuilder(
       column: $table.characterId, builder: (column) => column);
@@ -42844,6 +42956,8 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             Value<int> id = const Value.absent(),
             Value<String?> syncId = const Value.absent(),
             Value<String?> originDeviceId = const Value.absent(),
+            Value<int?> createdAtMs = const Value.absent(),
+            Value<int?> serverSequence = const Value.absent(),
             Value<String> characterId = const Value.absent(),
             Value<bool> isFromCharacter = const Value.absent(),
             Value<String> content = const Value.absent(),
@@ -42858,6 +42972,8 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             id: id,
             syncId: syncId,
             originDeviceId: originDeviceId,
+            createdAtMs: createdAtMs,
+            serverSequence: serverSequence,
             characterId: characterId,
             isFromCharacter: isFromCharacter,
             content: content,
@@ -42872,6 +42988,8 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             Value<int> id = const Value.absent(),
             Value<String?> syncId = const Value.absent(),
             Value<String?> originDeviceId = const Value.absent(),
+            Value<int?> createdAtMs = const Value.absent(),
+            Value<int?> serverSequence = const Value.absent(),
             required String characterId,
             required bool isFromCharacter,
             required String content,
@@ -42886,6 +43004,8 @@ class $$PersonaChatMessagesTableTableManager extends RootTableManager<
             id: id,
             syncId: syncId,
             originDeviceId: originDeviceId,
+            createdAtMs: createdAtMs,
+            serverSequence: serverSequence,
             characterId: characterId,
             isFromCharacter: isFromCharacter,
             content: content,

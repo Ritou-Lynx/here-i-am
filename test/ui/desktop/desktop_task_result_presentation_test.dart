@@ -9,6 +9,28 @@ import 'package:memex/ui/desktop/desktop_workspace_tokens.dart';
 import 'package:memex/ui/desktop/widgets/desktop_persona_chat_view.dart';
 
 void main() {
+  testWidgets(
+      'frontend provenance labels both speakers, other origins stay unlabelled',
+      (tester) async {
+    for (final fromCharacter in [true, false]) {
+      await _pumpChat(tester,
+          message: _message('网页历史',
+              isFromCharacter: fromCharacter,
+              originDeviceId: 'frontend:claude_web'));
+      expect(find.text('网页端'), findsOneWidget);
+    }
+    for (final origin in <String?>[
+      null,
+      'phone',
+      'claude_web',
+      'core:primary'
+    ]) {
+      await _pumpChat(tester,
+          message: _message('网页历史', originDeviceId: origin));
+      expect(find.text('网页端'), findsNothing);
+    }
+  });
+
   testWidgets('task result keeps all 2000 lines in text and actual layout',
       (tester) async {
     final lines = List.generate(2000, (index) => '${index + 1}');
@@ -139,6 +161,7 @@ List<String?> _messageTexts(WidgetTester tester) => tester
 PersonaChatMessage _message(
   String content, {
   String? taskRoomId,
+  String? originDeviceId,
   String? attachmentsJson,
   bool isFromCharacter = true,
   String messageType = 'chat',
@@ -152,6 +175,7 @@ PersonaChatMessage _message(
       isRead: true,
       messageType: messageType,
       taskRoomId: taskRoomId,
+      originDeviceId: originDeviceId,
       attachmentsJson: attachmentsJson,
     );
 

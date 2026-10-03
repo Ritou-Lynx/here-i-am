@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:go_router/go_router.dart';
 import 'package:memex/routing/routes.dart';
+import 'package:memex/data/services/persona_chat_order.dart';
+import 'package:memex/ui/character/widgets/chat_message_source_label.dart';
 import 'package:memex/ui/settings/widgets/task_model_assignment_page.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -4227,7 +4229,7 @@ only after you have written the goodbye you want the user to hear.''',
     final selected = _messages
         .where((m) => _selectedMessageIds.contains(m.id))
         .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      ..sort(compareChatMessages);
 
     if (selected.isEmpty) return;
 
@@ -4485,7 +4487,7 @@ only after you have written the goodbye you want the user to hear.''',
     final selected = _messages
         .where((m) => _selectedMessageIds.contains(m.id))
         .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      ..sort(compareChatMessages);
     if (selected.isEmpty || !mounted) return;
 
     final threads =
@@ -6043,6 +6045,7 @@ only after you have written the goodbye you want the user to hear.''',
                                       children: [
                                         if (showDate)
                                           _buildDateDivider(msg.timestamp),
+                                        ChatMessageSourceLabel(message: msg),
                                         if (msg.messageType == 'action')
                                           _buildActionMessage(
                                             text: msg.content,
@@ -6071,6 +6074,7 @@ only after you have written the goodbye you want the user to hear.''',
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 if (showDate) _buildDateDivider(msg.timestamp),
+                                ChatMessageSourceLabel(message: msg),
                                 if (msg.messageType == 'action')
                                   _buildActionMessage(
                                     text: msg.content,

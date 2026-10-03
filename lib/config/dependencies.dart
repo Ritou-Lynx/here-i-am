@@ -2,6 +2,12 @@
 // Aligned with Flutter Compass app: config registers only Repository/Service,
 // not ViewModels. ViewModels are created where the screen is built.
 
+import 'package:memex/data/memory_v3/notes/claude_web_note_feed_service.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/agents/record_organizer_agent/agent.dart';
+import 'package:memex/domain/models/agent_definitions.dart';
+import 'package:memex/domain/models/llm_config.dart';
+import 'package:memex/utils/user_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
@@ -20,6 +26,28 @@ import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 /// ViewModels are created in the place that builds the screen (route builder
 /// or parent widget), using context.read<MemexRouter>() etc.
 List<SingleChildWidget> get dependencyProviders => [
+      Provider<ClaudeWebNoteFeedService>(
+        create: (_) => ClaudeWebNoteFeedService(
+          storage: ClaudeWebNoteFeedStorage(),
+          importer: ClaudeWebNoteImporter(
+            db: AppDatabase.instance,
+            organizer: RecordOrganizerServiceV3(AppDatabase.instance),
+            organize: (source) async {
+              final resources = await UserStorage.getAgentLLMResources(
+                AgentDefinitions.recordOrganizerAgent,
+                defaultClientKey: LLMConfig.defaultClientKey,
+              );
+              return const RecordOrganizerAgentV3().organize(
+                client: resources.client,
+                modelConfig: resources.modelConfig,
+                rawInput: source.rawInput,
+                now: source.recordedAt,
+              );
+            },
+          ),
+        ),
+        dispose: (_, service) => service.dispose(),
+      ),
       Provider<MemexRouter>(
         create: (_) => MemexRouter(),
       ),

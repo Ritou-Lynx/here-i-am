@@ -43,6 +43,7 @@ import 'package:memex/data/workbench_ai/product/ordinary_desktop_candidate_stora
 import 'package:memex/ui/character/widgets/persona_chat_screen.dart';
 import 'package:memex/ui/desktop/desktop_exit_gate.dart';
 import 'package:memex/utils/user_storage.dart';
+import 'package:memex/data/memory_v3/notes/claude_web_note_feed_service.dart';
 import 'package:memex/data/services/publish_timestamp_service.dart';
 import 'package:memex/data/services/health_service.dart';
 import 'package:memex/data/services/health_strategies.dart';
@@ -847,6 +848,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   final MemexRouter _memexRouter = MemexRouter();
   final EventBusService _eventBus = EventBusService.instance;
   Timer? _memoryButtonTapTimer;
+  Timer? _webContinuityTimer;
   int _memoryButtonTapCount = 0;
   bool _isRestoringExternalBackup = false;
   Timer? _knowledgeBaseButtonTapTimer;
@@ -902,6 +904,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       }
       _eventBus.connect();
       await CoreSyncRuntimeService.instance.initialize();
+      if (mounted) {
+        _syncWebNotes();
+        _startWebContinuityPolling();
+      }
     });
 
     // Check and report all health data
@@ -1413,6 +1419,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _memoryButtonTapTimer?.cancel();
+    _webContinuityTimer?.cancel();
     _knowledgeBaseButtonTapTimer?.cancel();
     QuickActionService.instance.detach();
     _shareIntentHandler.dispose();
@@ -1865,8 +1872,39 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
 
+  bool get _webContinuityForeground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _syncWebNotes() {
+    if (!mounted || !AppDatabase.isInitialized || !_webContinuityForeground) {
+      return;
+    }
+    // The feed returns Result and retains its cursor on failure; no note text
+    // or credentials enters lifecycle logging.
+    unawaited(context.read<ClaudeWebNoteFeedService>().syncOnce());
+  }
+
+  void _startWebContinuityPolling() {
+    _webContinuityTimer?.cancel();
+    if (!_webContinuityForeground) {
+      return;
+    }
+    _webContinuityTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted || !AppDatabase.isInitialized || !_webContinuityForeground) {
+        return;
+      }
+      unawaited(CoreSyncRuntimeService.instance.syncNow(reason: 'foreground_poll'));
+      _syncWebNotes();
+    });
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      _webContinuityTimer?.cancel();
+    }
     if (state == AppLifecycleState.paused) {
       // Reset consumed-action dedup so the same shortcut can be triggered
       // on the next foreground session.
@@ -1878,6 +1916,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         _eventBus.connect();
       }
       unawaited(CoreSyncRuntimeService.instance.syncNow(reason: 'resume'));
+      _syncWebNotes();
+      _startWebContinuityPolling();
       // Consume any quick action that arrived while in background.
       // Use synchronous check; platform callback fires before resumed,
       // so no need for the 2-sec wait (which could catch a re-delivered intent).

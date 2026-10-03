@@ -6,6 +6,16 @@
 
 任务 A4 已交付 `tools/flexnote_tutor/`：基于 FlexNote 1.1.56 MCP 工具清单的 Codex 学习导师模板与科目表（教师编·中学语文，求职空间）；需在本机复制到仓库外学习目录使用。B0.1 定为 i_core 先跑在电脑上。 B1/B2 并行开发按[接口约定](CONTINUITY_B1_B2_CONTRACT.md)进行：`tools/i_memory/`（记忆快照+出站策略+只读接口）与 `tools/i_remote_mcp/`（claude.ai 远程 MCP+单用户 OAuth）。 `tools/i_memory/` 已交付：V3 记忆快照导入、出站策略（缺失即 fail closed）与 `openReadModel` 只读接口，合成 fixture 测试通过；真实导出与导入（B1.4）待 Codex 本机执行。 B2.1/B2.2 已交付 `tools/i_remote_mcp/`（远程只读 MCP、单用户 OAuth、`i_context`/`i_recall`、Project 指令，fake readModel 测试通过）；两者已合入主任务分支：补消息级私密关键词、OAuth 回调默认仅限 claude.ai，B1×B2 集成测试通过（共 60 项）；真实导入、私密配置、Funnel 部署与 claude.ai 接入待 Codex 本机执行。claude.ai 已经 https://i.ilynx.date/mcp（Cloudflare 固定隧道）接入并通过两问真人验收；B3 写回见[简报](B3_WRITEBACK_BRIEF.md)与[设计](B3_WRITEBACK_DESIGN.md)，源码已在 claude/b3-writeback 交付。B2.3 实测：claude.ai 经 Funnel `:10000` 无法连接，经 Cloudflare 隧道可完成注册并到达口令页，长期入口改用 Cloudflare 固定隧道 + 自有域名。A 线已由 Codex 本机跑通（教综拆解导入、初始化、5 题冒烟），模板已按反馈修订。
 
+## B3 本机部署与 Flutter 候选（2026-10-03，codex/b3-writeback-local-20261003）
+
+已合入 `2d92a8d7` 并完成受控运行源码部署；读取层 CRLF-only 差异经用户确认，新增 auto_share_origins 后 openReadModel 成功。现役核心保留 schema 4，仅移植 B3 八个权限补丁至新的固定包，用户确认切换后完成一次性 external-frontend 配对；常驻不带 worker 密钥，前端读取聊天 feed 返回 403。旧固定包保留。
+
+remote MCP 已启用写回，旧 OAuth 令牌在停服期间撤销并重新启动加载；本机及公网元数据均支持 `["i.read","i.write"]`。Cloudflare ingress 只指向 47860。手机通道指定的 47862 被 Cloudflare 指标占用；管理员确认被取消，尚未移动指标或建立新的手机 HTTPS 映射，现场授权步骤已按用户当前安排暂缓，端口冲突待处理。
+
+Flutter 已接入网页端标签、创建时间/服务序列排序、外部消息不触发回复、前台同步和 Daily Dreaming；显式网页记录经安全存储配置、Record Organizer 直接入卡，按 note_id/revision 修订、删除、ACK 并持久化游标。PersonaChatMessages 仅新增两个 nullable 排序字段，schema 61，生成代码由 build_runner 生成。合成测试与既有相邻回归 64 项通过；Node 专项 125 项、核心固定包 25 项及启动器 9 组通过；每次构建前 critical fixes 3/3；JNI 独立 staging 修复后 hereIAmV3 debug 构建成功，包名 com.memexlab.hereiam.v3，APK SHA256 为 `0d34095ccc488d68d7058e2127baf78c40c34bee93b5c832032dc2597702eeee`。最终 main/依赖分析零错误，main 25 项既有诊断，新增同步块无诊断。
+
+手机令牌生成/交付及物理安装已按用户安排暂缓；claude.ai 重连、四个工具始终允许、Project 指令替换和六项真人验收待 Lynx 操作。详细分项状态见[本机部署结果](B3_LOCAL_ROLLOUT_20261003.md)。备份恢复后需按现有页面提示重启 App，以重新绑定记录导入器数据库。这些源码和合成证据不等于真人验收。
+
 ## B3 写回源码交付（2026-10-03，claude/b3-writeback）
 
 按[设计](B3_WRITEBACK_DESIGN.md)交付：`tools/i_remote_mcp` 新增 `i_chat_turn`（每轮写回网页端双方原文到 i_core 时间线，内容对齐去重、漏轮补交、i_core 不可达时本机账本暂存）与 `i_remember`（显式记录只存本机账本，可改可真删；手机经只监听本机的拉取通道 `:47862` 取走，按用户决定无需确认直接进 Record 流程成卡）。OAuth 新增 `i.write`，启用写回后签发 `i.read i.write`，旧令牌需重新授权；Project 指令改为每轮先 `i_chat_turn`。
