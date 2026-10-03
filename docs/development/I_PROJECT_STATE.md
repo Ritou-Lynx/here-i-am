@@ -6,11 +6,15 @@
 
 任务 A4 已交付 `tools/flexnote_tutor/`：基于 FlexNote 1.1.56 MCP 工具清单的 Codex 学习导师模板与科目表（教师编·中学语文，求职空间）；需在本机复制到仓库外学习目录使用。B0.1 定为 i_core 先跑在电脑上。 B1/B2 并行开发按[接口约定](CONTINUITY_B1_B2_CONTRACT.md)进行：`tools/i_memory/`（记忆快照+出站策略+只读接口）与 `tools/i_remote_mcp/`（claude.ai 远程 MCP+单用户 OAuth）。 `tools/i_memory/` 已交付：V3 记忆快照导入、出站策略（缺失即 fail closed）与 `openReadModel` 只读接口，合成 fixture 测试通过；真实导出与导入（B1.4）待 Codex 本机执行。 B2.1/B2.2 已交付 `tools/i_remote_mcp/`（远程只读 MCP、单用户 OAuth、`i_context`/`i_recall`、Project 指令，fake readModel 测试通过）；两者已合入主任务分支：补消息级私密关键词、OAuth 回调默认仅限 claude.ai，B1×B2 集成测试通过（共 60 项）；真实导入、私密配置、Funnel 部署与 claude.ai 接入待 Codex 本机执行。claude.ai 已经 https://i.ilynx.date/mcp（Cloudflare 固定隧道）接入并通过两问真人验收；B3 写回见[简报](B3_WRITEBACK_BRIEF.md)与[设计](B3_WRITEBACK_DESIGN.md)，源码已在 claude/b3-writeback 交付。B2.3 实测：claude.ai 经 Funnel `:10000` 无法连接，经 Cloudflare 隧道可完成注册并到达口令页，长期入口改用 Cloudflare 固定隧道 + 自有域名。A 线已由 Codex 本机跑通（教综拆解导入、初始化、5 题冒烟），模板已按反馈修订。
 
-## B3 两阶段去重修复候选（2026-10-03，待部署）
+## B3 两阶段修复已部署（2026-10-03）
 
-445d665经2937dc80合入，原版remote71/71通过；额外复现确认真实短句重复和长句事实更正被吞。用户明确决定追加去重修复再部署：公开MCP默认start实际传入写回层，当前消息不按历史known/fuzzy吞掉；补交仅尾部连续对齐，缺位assistant即使与旧回复相同也保留，精确末尾重试幂等。完整remote83/83通过（新增两阶段、默认phase、真实schema1升级），独立审计阻塞解除，部署脚本已限两源码、冷备份和身份绑定停止/回退。待绑定修复提交部署，不撤销令牌、不重新授权；手机仍74d08b76/APK16f0d4d2。旧服务真人结果不继承；新版七项待验，明早开场和可选手机补记显示另行记录。无caller消息ID的丢thread_id/跨新轮旧重试仍有歧义，不声称全场景严格一次。
+服务基线445d665ee58e682e1dc41a96d90fb05d656bc10a，经2937dc80合入；按用户明确决定追加修复2004d3b8ff57a9d93c9d04dffb43c815690c99f7。公开MCP默认start实际传入写回层，当前新user/assistant不按全历史或相似正文去重；补交限尾部连续对齐，缺位回复相同/相近仍保留，精确尾部重试幂等。原版71/71，修复完整83/83（两阶段、默认phase、真实schema1升级），独立审计阻塞解除。
 
-## B3 445d665 合入核对（2026-10-03，去重修复准备中）
+运行副本仅替换mcp/writeback，实际哈希与修复候选一致；停服后冷备份核对并限制本机访问，openLedger将真实写回账本加列至schema2，原字段/记录/回执/元数据只在内存比较，保留一致且完整性通过。既有常驻重启，运行副本tools/list处理器确认4工具与phase start/end默认start；本机及公网OAuth元数据、两条启动标记正常。其余受保护源码、前端配对及手机凭据/policy未变；未revoke-all、未重新授权。核心仍schema4且无worker特性，手机仍74d08b76/APK16f0d4d2，无新Flutter构建或安装。
+
+新版验收绑定445d665 + 2004d3b8，1/2/3分别请求反馈，4/5待验，10月4日7:00开场待实际观察，可选补记显示延后；不继承原服务结果、不计整体通过。无调用方消息ID的丢thread_id、跨新轮旧重试等歧义保留，不声称全场景严格一次。明细见B3_LOCAL_ROLLOUT_20261003.md。
+
+## B3 445d665 合入核对（2026-10-03，合入阶段历史记录）
 
 按用户指定合入445d665ee58e682e1dc41a96d90fb05d656bc10a，remote MCP原版71/71通过；相对2d92a8d仅mcp/writeback、测试和文档变化。独立审计及内存合成复现确认两阶段重复短句和长句事实更正会被去重丢弃，两例均应写3条却只写2条。运行副本尚未替换或重启，用户已明确决定先补去重修复再部署，记录445d665及修复提交；不撤销令牌或重新授权。新版七项真人清单单独绑定445d665，均未记录新版本结果；手机可选“补记”提示尚未实现，明早7:00开场待实际观察。旧74d08b76手机复验结果不继承到新服务版本。
 
