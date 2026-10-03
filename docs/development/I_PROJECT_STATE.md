@@ -6,7 +6,17 @@
 
 任务 A4 已交付 `tools/flexnote_tutor/`：基于 FlexNote 1.1.56 MCP 工具清单的 Codex 学习导师模板与科目表（教师编·中学语文，求职空间）；需在本机复制到仓库外学习目录使用。B0.1 定为 i_core 先跑在电脑上。 B1/B2 并行开发按[接口约定](CONTINUITY_B1_B2_CONTRACT.md)进行：`tools/i_memory/`（记忆快照+出站策略+只读接口）与 `tools/i_remote_mcp/`（claude.ai 远程 MCP+单用户 OAuth）。 `tools/i_memory/` 已交付：V3 记忆快照导入、出站策略（缺失即 fail closed）与 `openReadModel` 只读接口，合成 fixture 测试通过；真实导出与导入（B1.4）待 Codex 本机执行。 B2.1/B2.2 已交付 `tools/i_remote_mcp/`（远程只读 MCP、单用户 OAuth、`i_context`/`i_recall`、Project 指令，fake readModel 测试通过）；两者已合入主任务分支：补消息级私密关键词、OAuth 回调默认仅限 claude.ai，B1×B2 集成测试通过（共 60 项）；真实导入、私密配置、Funnel 部署与 claude.ai 接入待 Codex 本机执行。claude.ai 已经 https://i.ilynx.date/mcp（Cloudflare 固定隧道）接入并通过两问真人验收；B3 写回见[简报](B3_WRITEBACK_BRIEF.md)与[设计](B3_WRITEBACK_DESIGN.md)，源码已在 claude/b3-writeback 交付。B2.3 实测：claude.ai 经 Funnel `:10000` 无法连接，经 Cloudflare 隧道可完成注册并到达口令页，长期入口改用 Cloudflare 固定隧道 + 自有域名。A 线已由 Codex 本机跑通（教综拆解导入、初始化、5 题冒烟），模板已按反馈修订。
 
-## B3 手机双方接续缺口与完整候选（2026-10-03）
+## B3 当前手机双方接续已部署，真人待复验（2026-10-03）
+
+Lynx确认推荐范围后，手机8770aa6048daa78ed192212022ca2c2ff92bb394已由专用脚本更新安装；包名com.memexlab.hereiam.v3，实机APK SHA256与8b55be76011e8ea8ebba09a23316f7610c56bc25e2c6171846fd13ca4ab49b84一致，未清数据，启动命令成功。测试54个独立用例与构建证据保留；安装和启动不代替真人通过。
+
+核心切换到schema4固定包b3-v4-phone-transcripts-20261003（清单117c584a7625029526d5f5e0d730dba5c0a9023a8ab32eb07d1900d2ec8a2d50），移植服务补丁05112dde；运行读取源码SHA256为cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28。既有配对Android/主角色/当前凭据独立grant起点为2026-10-03零点；读取规则显式双方，保留原接收边界，并仅补读当日半开窗口[2026-10-03 00:00,2026-10-04 00:00) Asia/Shanghai。其余policy值、审核/私密过滤及ACL不变，真实grant/policy/标识不入Git。
+
+受控源码/配置和停服核心文件已私有备份；实际读取查询、核心schema4及ok、worker关闭、core_metadata及后台表计数保持、新计划任务进程、loopback端口、新启动两标记、本机/公网i.read/i.write均核验。既有72条限定确认、保护源码及凭据哈希保持；不撤销令牌、不重新配对，不恢复核心数据库。部署助手的WindowsPS编码、健康字段、协议头及日志共享读取问题已修正，原配置恢复后重试完成。
+
+真人清单绑定445d665 + 2004d3b8 + 05112dde服务及8770aa60手机。第4项此前只有部分user可读、companion缺失；当前修复已启用，待手机完整一轮及当日旧上下文复验，不因安装/部署成功改判。第1–3项保留旧候选的逐轮报告并等待现役复验，第5项待验、第6项待2026-10-04 07:00实际开场、第7项补记显示仍延后；原私密和停服验收独立保留。明细见B3_LOCAL_ROLLOUT_20261003.md。
+
+## B3 手机双方接续缺口与完整候选（2026-10-03，候选阶段历史）
 
 第4项真人仍未通过：手机user部分可读，缺的是手机companion到Claude。只读元数据确认当天该手机7条user/0条companion；启用后3条user中2条可读、1条仍过既有私密排除，指定漏读旧消息在6ab接收边界前。原App回复未入outbox，传输固定user，普通核心拒companion；重新调用不会补齐。不保留主题或正文。
 
