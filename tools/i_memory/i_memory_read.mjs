@@ -44,6 +44,17 @@ export function hashMemoryCard(row) {
   ]));
 }
 
+export const FRONTEND_ORIGIN_PREFIX = 'frontend:';
+
+function autoShareOrigins(value) {
+  if (value === undefined) return [];
+  const names = stringArray(value, 'messages.auto_share_origins');
+  if (names.some((name) => !/^[a-z][a-z0-9_]{1,31}$/.test(name))) {
+    fail('messages.auto_share_origins must contain frontend names such as "claude_web"');
+  }
+  return [...new Set(names)].map((name) => `${FRONTEND_ORIGIN_PREFIX}${name}`);
+}
+
 function exposure(value, label) {
   if (value !== 'private' && value !== 'shareable') fail(`${label} must be "private" or "shareable"`);
   return value;
@@ -80,6 +91,9 @@ export function loadPolicy(policyPath) {
       shareableMessageIds: messages.shareable_message_ids === undefined
         ? null : stringArray(messages.shareable_message_ids, 'messages.shareable_message_ids'),
       shareableMessageHashes: optionalHashes(messages.shareable_message_hashes, 'messages.shareable_message_hashes'),
+      // External frontends whose written-back messages skip the ID/hash allowlists
+      // (never the private rules). Omitted keeps legacy behavior.
+      autoShareOriginDeviceIds: autoShareOrigins(messages.auto_share_origins),
       // Optional for backward compatibility; when present it must be valid.
       privateKeywords: (messages.private_keywords === undefined
         ? []
@@ -195,21 +209,36 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
   const shareableMessageHashes = policy.messages.shareableMessageHashes;
   // ID lists use one JSON parameter each, avoiding SQLite's bound-variable limit.
   // Bound parameters for typeFilter, in placeholder order.
+  const autoShareOriginIds = policy.messages.autoShareOriginDeviceIds;
+  const allowlistActive = shareableMessageIds !== null || shareableMessageHashes !== null;
   const filterParams = [
     ...privateTypeList, ...privateMessageKeywords,
     JSON.stringify(privateMessageIds),
+    ...(allowlistActive && autoShareOriginIds.length ? [JSON.stringify(autoShareOriginIds)] : []),
     ...(shareableMessageIds === null ? [] : [JSON.stringify(shareableMessageIds)]),
     ...(shareableMessageHashes === null ? [] : [JSON.stringify(Object.fromEntries(shareableMessageHashes))]),
   ];
+  // Positive allowlists; auto-shared frontend origins bypass only this part.
+  const allowlistClauses = [
+    shareableMessageIds === null ? null : 'sync_id IN (SELECT value FROM json_each(?))',
+    shareableMessageHashes === null ? null
+      : '(sync_id, i_message_hash(content)) IN (SELECT key, value FROM json_each(?))',
+  ].filter(Boolean);
+  let allowlistFilter = '';
+  if (allowlistActive) {
+    const reviewed = allowlistClauses.join(' AND ');
+    allowlistFilter = autoShareOriginIds.length
+      ? `AND (origin_device_id IN (SELECT value FROM json_each(?)) OR (${reviewed}))`
+      : `AND ${reviewed}`;
+  }
+  // Private exclusions always apply, including to auto-shared origins.
   const typeFilter = [
     privateTypeList.length
       ? `AND message_type NOT IN (${privateTypeList.map(() => '?').join(', ')})`
       : '',
     ...privateMessageKeywords.map(() => 'AND instr(lower(content), ?) = 0'),
     'AND sync_id NOT IN (SELECT value FROM json_each(?))',
-    shareableMessageIds === null ? '' : 'AND sync_id IN (SELECT value FROM json_each(?))',
-    shareableMessageHashes === null ? ''
-      : 'AND (sync_id, i_message_hash(content)) IN (SELECT key, value FROM json_each(?))',
+    allowlistFilter,
   ].join(' ');
 
   function messageCharacter(characterId) {

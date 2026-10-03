@@ -18,6 +18,7 @@ import {
 import { join } from 'node:path';
 
 export const SCOPE = 'i.read';
+export const WRITE_SCOPE = 'i.write';
 export const CLAUDE_AI_CALLBACKS = Object.freeze([
   'https://claude.ai/api/mcp/auth_callback',
   'https://claude.com/api/mcp/auth_callback',
@@ -147,8 +148,12 @@ function normalizeResource(value) {
 }
 
 export class OAuthServer {
-  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {} }) {
+  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false }) {
     this.store = new OAuthStateStore(stateDir);
+    // 单用户服务：启用写回后，每次授权都签发全部支持的 scope（授权页会写明），
+    // 避免客户端只请求 i.read 导致写回永远不可用。旧令牌没有 i.write，需要重新授权。
+    this.supportedScopes = writeEnabled ? [SCOPE, WRITE_SCOPE] : [SCOPE];
+    this.grantedScope = this.supportedScopes.join(' ');
     this.now = now;
     this.options = { ...DEFAULT_OAUTH_OPTIONS, ...options };
     this.issuer = new URL(publicUrl).origin;
@@ -167,9 +172,9 @@ export class OAuthServer {
     return {
       resource: this.resource,
       authorization_servers: [this.issuer],
-      scopes_supported: [SCOPE],
+      scopes_supported: this.supportedScopes,
       bearer_methods_supported: ['header'],
-      resource_name: 'i (林埃) 只读连续性',
+      resource_name: this.supportedScopes.includes(WRITE_SCOPE) ? 'i (林埃) 连续性' : 'i (林埃) 只读连续性',
     };
   }
 
@@ -183,12 +188,12 @@ export class OAuthServer {
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
-      scopes_supported: [SCOPE, 'offline_access'],
+      scopes_supported: [...this.supportedScopes, 'offline_access'],
     };
   }
 
   wwwAuthenticate(error) {
-    const parts = [`resource_metadata="${this.protectedResourceMetadataUrl()}"`, `scope="${SCOPE}"`];
+    const parts = [`resource_metadata="${this.protectedResourceMetadataUrl()}"`, `scope="${this.grantedScope}"`];
     if (error) parts.unshift(`error="${error}"`);
     return `Bearer ${parts.join(', ')}`;
   }
@@ -228,7 +233,7 @@ export class OAuthServer {
       grant_types: grantTypes,
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
-      scope: SCOPE,
+      scope: this.grantedScope,
     };
     const clients = this.store.state.clients;
     clients[clientId] = client;
@@ -278,6 +283,7 @@ export class OAuthServer {
         code_challenge: challenge,
         code_challenge_method: 'S256',
         scope: get('scope'),
+        granted_scope: this.grantedScope,
         resource,
         response_type: 'code',
       },
@@ -322,7 +328,7 @@ export class OAuthServer {
       redirect_uri: params.redirect_uri,
       code_challenge: params.code_challenge,
       resource: this.resource,
-      scope: SCOPE,
+      scope: this.grantedScope,
       expires_at: this.now() + this.options.authCodeTtlMs,
       used: false,
     };
@@ -381,7 +387,7 @@ export class OAuthServer {
     const familyId = randomUUID();
     record.used = true;
     record.family_id = familyId;
-    const tokens = this.#issueTokens(client.client_id, familyId);
+    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE);
     this.store.save();
     return { status: 200, body: tokens };
   }
@@ -407,12 +413,18 @@ export class OAuthServer {
       return oauthError(400, 'invalid_grant', 'refresh_token expired');
     }
     record.rotated = true;
-    const tokens = this.#issueTokens(client.client_id, record.family_id);
+    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。
+    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE));
     this.store.save();
     return { status: 200, body: tokens };
   }
 
-  #issueTokens(clientId, familyId) {
+  #limitScope(scope) {
+    return String(scope).split(' ').filter((s) => this.supportedScopes.includes(s)).join(' ') || SCOPE;
+  }
+
+  #issueTokens(clientId, familyId, scope) {
+    scope = this.#limitScope(scope);
     const now = this.now();
     const accessToken = newToken('iat');
     const refreshToken = newToken('irt');
@@ -420,12 +432,13 @@ export class OAuthServer {
       client_id: clientId,
       family_id: familyId,
       resource: this.resource,
-      scope: SCOPE,
+      scope,
       expires_at: now + this.options.accessTokenTtlMs,
     };
     this.store.state.refresh_tokens[sha256(refreshToken)] = {
       client_id: clientId,
       family_id: familyId,
+      scope,
       expires_at: now + this.options.refreshTokenTtlMs,
       rotated: false,
     };
@@ -435,7 +448,7 @@ export class OAuthServer {
       token_type: 'Bearer',
       expires_in: Math.floor(this.options.accessTokenTtlMs / 1000),
       refresh_token: refreshToken,
-      scope: SCOPE,
+      scope,
     };
   }
 
@@ -471,7 +484,9 @@ export class OAuthServer {
     if (!record) return { ok: false, error: 'invalid_token' };
     if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };
     if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };
-    return { ok: true, familyId: record.family_id, clientId: record.client_id };
+    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。
+    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));
+    return { ok: true, familyId: record.family_id, clientId: record.client_id, scopes };
   }
 }
 

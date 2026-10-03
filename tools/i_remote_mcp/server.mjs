@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// i 远程只读 MCP：Streamable HTTP（/mcp）+ 单用户 OAuth 2.1。
+// i 远程 MCP：Streamable HTTP（/mcp）+ 单用户 OAuth 2.1；B3 写回与本机手机拉取通道可选。
 // 用法见同目录 README.md。
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -11,8 +11,20 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
   createToolHandlers,
   handleRpcMessage,
+  listTools,
   loadIdentity,
 } from './mcp.mjs';
+import {
+  WritebackInputError,
+  createCoreFrontendClient,
+  createWriteback,
+  issuePhoneToken,
+  loadFrontendCredential,
+  loadPhoneTokenHash,
+  openLedger,
+  pairFrontendDevice,
+  verifyPhoneToken,
+} from './writeback.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_TOOLS = resolve(HERE, '..');
@@ -24,9 +36,14 @@ export const DEFAULTS = Object.freeze({
   coreDbPath: resolve(REPO_TOOLS, 'i_core/.state/i-core.sqlite'),
   memoryDbPath: resolve(REPO_TOOLS, 'i_memory/.state/i-memory.sqlite'),
   policyPath: resolve(REPO_TOOLS, 'i_memory/.state/policy.json'),
+  coreUrl: 'http://127.0.0.1:47841',
+  phoneHost: '127.0.0.1',
+  phonePort: 47862,
 });
 
-const MAX_BODY_BYTES = 64 * 1024;
+// i_chat_turn 一次最多 6 万字（中文约 180KB），留出 JSON 转义余量。
+const MAX_BODY_BYTES = 256 * 1024;
+const MAX_PHONE_BODY_BYTES = 4 * 1024;
 const MAX_SESSIONS = 100;
 const SESSION_IDLE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_ALLOWED_ORIGINS = ['https://claude.ai', 'https://claude.com'];
@@ -55,11 +72,14 @@ export function createApp({
   allowedOrigins = DEFAULT_ALLOWED_ORIGINS,
   log = () => {},
   diagnostic = () => {},
+  writeback = null,
 }) {
   if (!publicUrl) throw new Error('publicUrl is required');
   if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');
-  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions });
-  const handlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone });
+  const writeEnabled = Boolean(writeback);
+  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled });
+  const handlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback });
+  const tools = listTools({ writeEnabled });
   const origins = new Set([...allowedOrigins, oauth.issuer]);
   const sessions = new Map();
 
@@ -134,6 +154,8 @@ export function createApp({
       let dataSourceFailed = false;
       const response = await handleRpcMessage(message, {
         handlers,
+        tools,
+        scopes: auth.scopes,
         session,
         logError: () => { dataSourceFailed = true; },
       });
@@ -222,11 +244,51 @@ export function createApp({
   return { server, oauth, sessions };
 }
 
+// ---------- 手机拉取通道（只监听本机，不经公网隧道） ----------
+
+// 手机 App 经 Tailscale Serve 访问；只读 i_remember 账本的变更并回执。
+export function createPhoneFeedApp({ writeback, tokenHash }) {
+  if (!writeback) throw new Error('writeback is required');
+  const server = createServer((req, res) => {
+    (async () => {
+      if (!verifyPhoneToken(req.headers.authorization, tokenHash)) {
+        return sendJson(res, 401, { error: 'unauthorized' });
+      }
+      const url = new URL(req.url, 'http://phone.local');
+      if (req.method === 'GET' && url.pathname === '/v1/remember/changes') {
+        const after = Number(url.searchParams.get('after') ?? '0');
+        const limit = Number(url.searchParams.get('limit') ?? '100');
+        if (!Number.isSafeInteger(after) || after < 0 || !Number.isSafeInteger(limit) || limit < 1) {
+          return sendJson(res, 400, { error: 'invalid_request' });
+        }
+        return sendJson(res, 200, writeback.noteChanges({ after, limit: Math.min(limit, 200) }));
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/remember/ack') {
+        let body;
+        try { body = JSON.parse(await readBody(req, MAX_PHONE_BODY_BYTES)); } catch {
+          return sendJson(res, 400, { error: 'invalid_request' });
+        }
+        try {
+          return sendJson(res, 200, writeback.ackNote(body ?? {}));
+        } catch (error) {
+          if (error instanceof WritebackInputError) return sendJson(res, 400, { error: 'invalid_request' });
+          throw error;
+        }
+      }
+      return sendJson(res, 404, { error: 'not_found' });
+    })().catch(() => {
+      if (!res.headersSent) sendJson(res, 500, { error: 'server_error' });
+      else res.end();
+    });
+  });
+  return { server };
+}
+
 // ---------- HTTP 工具 ----------
 
 class BodyTooLargeError extends Error {}
 
-function readBody(req) {
+function readBody(req, maxBytes = MAX_BODY_BYTES) {
   return new Promise((resolveBody, reject) => {
     const chunks = [];
     let size = 0;
@@ -234,7 +296,7 @@ function readBody(req) {
     req.on('data', (chunk) => {
       if (tooLarge) return;
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         tooLarge = true;
         chunks.length = 0;
         reject(new BodyTooLargeError());
@@ -301,10 +363,13 @@ function authorizePage(params, error) {
     .filter((k) => params[k] !== undefined && params[k] !== null)
     .map((k) => `<input type="hidden" name="${k}" value="${escapeHtml(params[k])}">`).join('');
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>授权 i 只读访问</title><style>${PAGE_STYLE}</style></head><body>
-<h1>授权 i 只读访问</h1>
+<title>授权 i 访问</title><style>${PAGE_STYLE}</style></head><body>
+<h1>授权 i 访问</h1>
 <p class="meta">应用：${escapeHtml(params.client_name || params.client_id)}<br>授权后将返回：<strong>${escapeHtml(host)}</strong></p>
 <p>授权后，该应用可以只读地查看林埃的身份、最近可分享的聊天和记忆检索结果。</p>
+${String(params.granted_scope ?? '').split(' ').includes('i.write')
+    ? '<p><strong>同时允许写回</strong>：把这个应用里的聊天轮次写进 Here I Am 时间线，并按你的要求写入记录。</p>'
+    : ''}
 ${error ? `<p class="err">${escapeHtml(error)}</p>` : ''}
 <form method="post" action="/authorize">${hidden}
 <label>口令<br><input type="password" name="passphrase" autocomplete="current-password" required autofocus></label>
@@ -382,7 +447,24 @@ async function main(argv) {
     process.stderr.write('已吊销所有令牌与授权码。\n');
     return;
   }
-  if (command !== 'serve') throw new Error(`未知子命令：${command}（可用：serve、set-passphrase、revoke-all）`);
+  const coreUrl = String(args['core-url'] ?? process.env.I_CORE_URL ?? DEFAULTS.coreUrl).replace(/\/+$/, '');
+  if (command === 'pair-core') {
+    // i_core 需临时以 I_CORE_PAIRING_CODE 启动（打开配对窗口）；这里输入同一个一次性配对码。
+    const code = (await readSecret('i_core 一次性配对码：')).trim();
+    if (!code) throw new Error('配对码为空');
+    const paired = await pairFrontendDevice({ coreUrl, pairingCode: code, stateDir });
+    process.stderr.write(`已配对 ${paired.device_id}；令牌保存在 ${stateDir}/core-frontend.json（勿提交）。\n`);
+    return;
+  }
+  if (command === 'issue-phone-token') {
+    const token = issuePhoneToken(stateDir);
+    process.stderr.write('手机拉取令牌（只显示这一次，旧令牌已失效）：\n');
+    process.stdout.write(`${token}\n`);
+    return;
+  }
+  if (command !== 'serve') {
+    throw new Error(`未知子命令：${command}（可用：serve、set-passphrase、revoke-all、pair-core、issue-phone-token）`);
+  }
 
   const host = args.host ?? process.env.I_REMOTE_MCP_HOST ?? DEFAULTS.host;
   const port = Number(args.port ?? process.env.I_REMOTE_MCP_PORT ?? DEFAULTS.port);
@@ -399,17 +481,39 @@ async function main(argv) {
   const diagnostic = logDir
     ? createJsonlDiagnosticWriter({ logDir, onWriteError: (code) => process.stderr.write(`${code}\n`) })
     : (record) => process.stderr.write(`${JSON.stringify(record)}\n`);
+  let writeback = null;
+  const credential = process.env.I_REMOTE_MCP_WRITEBACK === '0' ? null : loadFrontendCredential(stateDir);
+  if (credential) {
+    writeback = createWriteback({
+      ledger: openLedger(resolve(stateDir, 'writeback.sqlite')),
+      coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token }),
+    });
+    process.stderr.write(`写回已启用：i_core ${coreUrl}\n`);
+  } else {
+    process.stderr.write('写回未启用（未配对 i_core 或 I_REMOTE_MCP_WRITEBACK=0），只开放只读工具。\n');
+  }
   const { server, oauth } = createApp({
     stateDir,
     publicUrl,
     getReadModel,
     diagnostic,
+    writeback,
   });
+  let phoneServer = null;
+  const phoneTokenHash = writeback ? loadPhoneTokenHash(stateDir) : null;
+  if (phoneTokenHash) {
+    const phoneHost = args['phone-host'] ?? process.env.I_REMOTE_MCP_PHONE_HOST ?? DEFAULTS.phoneHost;
+    const phonePort = Number(args['phone-port'] ?? process.env.I_REMOTE_MCP_PHONE_PORT ?? DEFAULTS.phonePort);
+    phoneServer = createPhoneFeedApp({ writeback, tokenHash: phoneTokenHash }).server;
+    phoneServer.listen(phonePort, phoneHost, () => {
+      process.stderr.write(`手机拉取通道监听 http://${phoneHost}:${phonePort}/v1/remember/changes（不要接到公网隧道上）\n`);
+    });
+  }
   if (!oauth.hasPassphrase()) process.stderr.write('警告：尚未设置口令，授权页会拒绝所有请求。先运行 set-passphrase。\n');
   server.listen(port, host, () => {
     process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\n`);
   });
-  const shutdown = () => { server.close(); getReadModel.close(); };
+  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }

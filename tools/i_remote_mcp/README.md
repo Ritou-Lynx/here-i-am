@@ -1,9 +1,9 @@
-# i 远程只读 MCP（B2.1）
+# i 远程 MCP（B2.1 只读 + B3 写回）
 
-让 claude.ai 网页端通过自定义 connector 只读访问林埃的身份、最近可分享聊天和记忆检索。规格见 [CONTINUITY_B1_B2_CONTRACT.md](../../docs/development/CONTINUITY_B1_B2_CONTRACT.md)「会话 2」。
+让 claude.ai 网页端通过自定义 connector 访问林埃的身份、最近可分享聊天和记忆检索（B2），并把网页端的聊天轮次和显式记录写回 Here I Am（B3）。规格见 [CONTINUITY_B1_B2_CONTRACT.md](../../docs/development/CONTINUITY_B1_B2_CONTRACT.md)「会话 2」与 [B3_WRITEBACK_DESIGN.md](../../docs/development/B3_WRITEBACK_DESIGN.md)。正式入口为 `https://i.ilynx.date/mcp`（Cloudflare 固定隧道）；下文 Tailscale Funnel 一节只作历史参考，已不作 claude.ai 入口。
 
 - Streamable HTTP MCP，端点 `/mcp`；协议 `2025-06-18`，兼容 `2025-03-26`。
-- 只开放两个只读工具：`i_context`、`i_recall`。
+- 只读工具：`i_context`、`i_recall`（scope `i.read`）。配对 i_core 后另开写工具 `i_chat_turn`、`i_remember`（scope `i.write`）。
 - 内置单用户 OAuth 2.1：DCR、口令授权页、PKCE S256、refresh token 轮换；令牌、授权码和口令只存哈希。
 - 只用 Node 22 内置模块，无 npm 依赖。
 
@@ -14,10 +14,11 @@
 | `server.mjs` | HTTP 路由、会话管理、CLI（`serve` / `set-passphrase` / `revoke-all`） |
 | `oauth.mjs` | 授权服务器：元数据、注册、授权、令牌、限速、持久化 |
 | `mcp.mjs` | JSON-RPC 处理、工具定义与输出白名单、身份加载 |
+| `writeback.mjs` | B3 写回：本机账本、轮次对齐去重、i_core 前端客户端、记录增改删、手机拉取、限流 |
 | `fixtures.mjs` | 测试用 fake readModel 与服务启动器（合成数据） |
 | `*.test.mjs` | `node --test` 测试 |
 | `CLAUDE_PROJECT_INSTRUCTIONS.md` | 给 claude.ai「林埃」Project 的指令（B2.2） |
-| `.state/` | 运行时状态（`oauth.json`），已 gitignore |
+| `.state/` | 运行时状态（`oauth.json`、`core-frontend.json`、`writeback.sqlite`、`phone-feed.json`），已 gitignore |
 
 ## 数据来源
 
@@ -54,7 +55,35 @@ node tools/i_remote_mcp/server.mjs serve --public-url https://<机器名>.<tailn
 
 OAuth 参数：access token 1 小时、refresh token 30 天（每次使用后轮换，旧的被重放会吊销整条令牌链）、授权码 5 分钟一次性。
 
-## Tailscale Funnel 示例
+## B3 写回
+
+配对 i_core 之前，服务只开放只读工具，行为与 B2 相同。启用步骤（本机执行）：
+
+```powershell
+# 1. i_core 临时打开配对窗口（一次性配对码，不写进常驻启动项），然后：
+node tools/i_remote_mcp/server.mjs pair-core            # 输入同一个配对码；令牌写入 .state/core-frontend.json
+#    i_core 地址默认 http://127.0.0.1:47841，可用 --core-url 或 I_CORE_URL 指定
+# 2. 签发手机拉取令牌（只显示一次；再次运行即轮换）
+node tools/i_remote_mcp/server.mjs issue-phone-token
+# 3. 重启 serve；日志出现“写回已启用”和“手机拉取通道监听 …:47862”
+# 4. 吊销旧的只读令牌，让 claude.ai 重新授权拿到 i.write
+node tools/i_remote_mcp/server.mjs revoke-all
+```
+
+| 参数 | 环境变量 | 默认值 |
+|---|---|---|
+| `--core-url` | `I_CORE_URL` | `http://127.0.0.1:47841` |
+| `--phone-host` | `I_REMOTE_MCP_PHONE_HOST` | `127.0.0.1` |
+| `--phone-port` | `I_REMOTE_MCP_PHONE_PORT` | `47862` |
+| — | `I_REMOTE_MCP_WRITEBACK=0` | 临时关闭写回（只读工具照常） |
+
+- `i_chat_turn`：每轮先调用，提交上次成功调用之后的轮次；按内容对齐去重，漏调的下次补上，i_core 不可达时记在本机账本、下次自动补交。写进 i_core 的消息 `origin_device_id = frontend:claude_web`，手机 feed 可据此标注“网页端”。
+- `i_remember`：add / update / delete / list。记录只在本机账本，删除会清掉正文。手机经本机拉取通道 `GET /v1/remember/changes`、`POST /v1/remember/ack` 取走，进入 Record 流程直接成卡。
+- 手机拉取通道只监听本机，**不要**接到 Cloudflare 隧道上；手机经 Tailscale Serve 访问。
+- 限流、大小限制、scope 与重新授权规则见设计文档。
+- 读取层需在 policy 里设 `messages.auto_share_origins: ["claude_web"]`，网页端写回的消息才会在其他对话里被读回（私密规则仍优先）。
+
+## Tailscale Funnel 示例（历史参考，已弃用）
 
 服务只监听 `127.0.0.1`，由 Funnel 终止 TLS 并对公网暴露：
 
@@ -79,7 +108,7 @@ curl https://<机器名>.<tailnet>.ts.net/.well-known/oauth-authorization-server
 1. claude.ai → 设置（Settings）→ Connectors → 添加自定义 connector（Add custom connector）。
 2. 名称填 `i`，URL 填 `https://<机器名>.<tailnet>.ts.net/mcp`（**带 `/mcp`**，必须与服务的 `resource` 完全一致）。高级设置里的 OAuth Client ID/Secret 留空（走 DCR）。
 3. 点连接，浏览器会打开本服务的口令页，页面上显示“授权后将返回 claude.ai”；输入口令后跳回 claude.ai。
-4. 在 connector 的工具设置里把 `i_context`、`i_recall` 设为“始终允许”。
+4. 在 connector 的工具设置里把 `i_context`、`i_recall` 设为“始终允许”；启用写回后再把 `i_chat_turn`、`i_remember` 设为“始终允许”（否则每轮都会弹确认）。
 5. 新建「林埃」Project，把 [CLAUDE_PROJECT_INSTRUCTIONS.md](CLAUDE_PROJECT_INSTRUCTIONS.md) 中“指令正文”一节粘贴到 Project 指令里，并在该 Project 中启用这个 connector。
 
 ## 协议与安全要点

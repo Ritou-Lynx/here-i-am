@@ -113,7 +113,8 @@ describe('工具返回结构与私密过滤', () => {
     assert.equal(data.now.utc, '2026-10-02T04:00:00.000Z');
     assert.equal(data.memory_snapshot_at, new Date(SNAPSHOT_AT_MS).toISOString());
     assert.equal(data.recent_messages.length, 3);
-    assert.deepEqual(Object.keys(data.recent_messages[0]).sort(), ['content', 'created_at', 'message_type', 'sender', 'sync_id']);
+    assert.deepEqual(Object.keys(data.recent_messages[0]).sort(), ['content', 'created_at', 'message_type', 'sender', 'source', 'sync_id']);
+    assert.equal(data.recent_messages[0].source, 'here_i_am');
     assert.deepEqual(data.recent_messages.map((m) => m.sync_id), ['m1', 'm2', 'm4']);
     assert.equal(data.recent_messages[1].sender, 'companion');
     assertNoPrivate(r.text);

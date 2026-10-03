@@ -904,3 +904,88 @@ test('shadow completion records metrics without publishing a companion message',
   });
   assert.equal(noMoreWork.body.job, null);
 });
+
+async function pairFrontend(baseUrl, deviceId, pairingCode = '654321', platform = 'external-frontend') {
+  return jsonRequest(`${baseUrl}/v1/core/devices/pair`, {
+    method: 'POST',
+    protocol: false,
+    body: {
+      device_id: deviceId,
+      display_name: 'claude.ai web',
+      platform,
+      client_version: '0.1',
+      pairing_code: pairingCode,
+      capabilities: ['chat.frontend_turns'],
+    },
+  });
+}
+
+test('external frontend appends both sides of finished turns but cannot read the feed', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'i-core-frontend-'));
+  const { core, baseUrl } = await startCore(t, directory, { companionReplyJobsEnabled: true });
+  const frontend = await pairFrontend(baseUrl, 'frontend:claude_web');
+  assert.equal(frontend.status, 200);
+  const token = frontend.body.device_token;
+
+  const user = message('frontend:claude_web', 'claude_web:t1:1', 1, '网页端的话');
+  const reply = { ...message('frontend:claude_web', 'claude_web:t1:2', 2, '林埃在网页端的回复'), sender: 'companion' };
+  const submitted = await jsonRequest(`${baseUrl}/v1/core/chat/messages`, {
+    method: 'POST', token, body: { device_id: 'frontend:claude_web', messages: [user, reply] },
+  });
+  assert.equal(submitted.status, 200);
+  assert.deepEqual(submitted.body.results.map((r) => r.status), ['accepted', 'accepted']);
+  const replay = await jsonRequest(`${baseUrl}/v1/core/chat/messages`, {
+    method: 'POST', token, body: { device_id: 'frontend:claude_web', messages: [user, reply] },
+  });
+  assert.deepEqual(replay.body.results.map((r) => r.status), ['duplicate', 'duplicate']);
+
+  const askReply = await jsonRequest(`${baseUrl}/v1/core/chat/messages`, {
+    method: 'POST', token,
+    body: { device_id: 'frontend:claude_web', request_companion_reply: true, messages: [message('frontend:claude_web', 'claude_web:t1:3', 3)] },
+  });
+  assert.equal(askReply.status, 403);
+
+  for (const [method, pathName, body] of [
+    ['GET', '/v1/core/changes', undefined],
+    ['POST', '/v1/core/devices/ack', { device_id: 'frontend:claude_web', cursor: 'v1.0.AAAAAAAAAAAAAAAAAAAAAA' }],
+  ]) {
+    const denied = await jsonRequest(`${baseUrl}${pathName}`, { method, token, body });
+    assert.equal(denied.status, 403);
+    assert.equal(denied.body.error.code, 'chat_read_forbidden');
+  }
+
+  // Ordinary devices see the frontend turns in the shared feed, with their origin.
+  core.replacePairingCode('987654');
+  const phone = await pair(baseUrl, 'phone-a', '987654');
+  const feed = await jsonRequest(`${baseUrl}/v1/core/changes`, { token: phone.body.device_token });
+  assert.deepEqual(
+    feed.body.events.map((e) => [e.payload.sender, e.payload.origin_device_id]),
+    [['user', 'frontend:claude_web'], ['companion', 'frontend:claude_web']],
+  );
+});
+
+test('frontend role cannot be claimed by ordinary devices or switched by re-pairing', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'i-core-frontend-pair-'));
+  const { core, baseUrl } = await startCore(t, directory);
+  for (const [deviceId, platform] of [
+    ['frontend:claude_web', 'test'],
+    ['claude_web', 'external-frontend'],
+    ['frontend:Bad-Name', 'external-frontend'],
+  ]) {
+    const rejected = await pairFrontend(baseUrl, deviceId, '654321', platform);
+    assert.equal(rejected.status, 400, `${deviceId}/${platform}`);
+  }
+  const phone = await pair(baseUrl, 'phone-a');
+  assert.equal(phone.status, 200);
+  const companion = { ...message('phone-a', 'phone-companion', 1), sender: 'companion' };
+  const forbidden = await jsonRequest(`${baseUrl}/v1/core/chat/messages`, {
+    method: 'POST', token: phone.body.device_token, body: { device_id: 'phone-a', messages: [companion] },
+  });
+  assert.equal(forbidden.body.error.code, 'sender_not_allowed');
+  core.replacePairingCode('987654');
+  const frontend = await pairFrontend(baseUrl, 'frontend:claude_web', '987654');
+  assert.equal(frontend.status, 200);
+  core.replacePairingCode('111222');
+  const downgrade = await pairFrontend(baseUrl, 'frontend:claude_web', '111222', 'test');
+  assert.equal(downgrade.status, 400);
+});

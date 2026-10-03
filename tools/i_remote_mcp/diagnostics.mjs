@@ -7,7 +7,7 @@ const PATHS = new Set(['/mcp', '/authorize', '/token', '/register',
   '/.well-known/oauth-authorization-server']);
 const METHODS = new Set(['GET', 'POST', 'DELETE', 'HEAD', 'OPTIONS', 'PUT', 'PATCH']);
 const RPC_METHODS = new Set(['initialize', 'ping', 'tools/list', 'tools/call', 'notifications/initialized']);
-const TOOL_NAMES = new Set(['i_context', 'i_recall']);
+const TOOL_NAMES = new Set(['i_context', 'i_recall', 'i_chat_turn', 'i_remember']);
 const RPC_CODES = new Set([-32700, -32600, -32601, -32602, -32603, -32001]);
 const CALLBACKS = ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback'];
 

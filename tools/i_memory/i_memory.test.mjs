@@ -644,3 +644,58 @@ test('read model sees a snapshot imported after it was opened', () => {
     model.close();
   }
 });
+
+describe('auto_share_origins (B3 claude_web write-back)', () => {
+  function addFrontendMessages() {
+    const db = new DatabaseSync(core);
+    const insert = db.prepare(`INSERT INTO chat_messages VALUES (?, ?, ?, ?, ?, ?, ?, 'chat', '[]', '[]', 'digest', ?)`);
+    insert.run('web-0', 'frontend:claude_web', 1000, LIN, 'user', '网页端聊到了咖啡豆', 1_790_000_100_000, 100);
+    insert.run('web-1', 'frontend:claude_web', 1001, LIN, 'companion', '网页端的手冲建议', 1_790_000_101_000, 101);
+    insert.run('web-2', 'frontend:claude_web', 1002, LIN, 'user', '网页端提到秘密咖啡', 1_790_000_102_000, 102);
+    insert.run('web-3', 'frontend:other_web', 1003, LIN, 'user', '另一个前端的咖啡', 1_790_000_103_000, 103);
+    insert.run('web-4', 'frontend:claude_web', 1004, OTHER, 'user', '网页端别的角色咖啡', 1_790_000_104_000, 104);
+    db.close();
+  }
+
+  test('omitted field keeps the allowlist strict for frontend messages', () => {
+    addFrontendMessages();
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: { ...policy().messages, shareable_message_ids: ['msg-0'] },
+    })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages().map((m) => m.syncId), ['msg-0']);
+    } finally { model.close(); }
+  });
+
+  test('listed origins bypass ID/hash allowlists but never private rules', () => {
+    addFrontendMessages();
+    writeFileSync(policyPath, JSON.stringify(policy({
+      messages: {
+        ...policy().messages,
+        shareable_message_ids: ['msg-0'],
+        shareable_message_hashes: { 'msg-0': hashMessageContent(MESSAGES[0][2]) },
+        private_message_ids: ['web-1'],
+        private_keywords: ['秘密'],
+        auto_share_origins: ['claude_web'],
+      },
+    })));
+    const model = openModel();
+    try {
+      // web-1 private id, web-2 private keyword, web-3 unlisted origin, web-4 other character.
+      assert.deepEqual(model.recentMessages().map((m) => m.syncId), ['msg-0', 'web-0']);
+      assert.deepEqual(model.searchMessages({ query: '咖啡' }).map((m) => m.syncId).sort(), ['msg-0', 'web-0']);
+      assert.deepEqual(model.recentMessages({ characterId: OTHER }), []);
+      assert.equal(model.stats().messages.shareable, 2);
+    } finally { model.close(); }
+  });
+
+  test('invalid origin names fail closed', () => {
+    for (const invalid of ['claude_web', ['Claude-Web'], ['frontend:claude_web'], [''], [1]]) {
+      writeFileSync(policyPath, JSON.stringify(policy({
+        messages: { ...policy().messages, auto_share_origins: invalid },
+      })));
+      assert.throws(() => openModel(), /auto_share_origins/);
+    }
+  });
+});

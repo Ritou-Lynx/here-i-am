@@ -1,3 +1,13 @@
+## 2026-10-03 — B3 写回：i_chat_turn / i_remember
+
+**交付**：i_remote_mcp 新增 `i_chat_turn`（每轮写回双方原文，内容对齐去重、漏轮补交、本机账本重试）与 `i_remember`（本机账本可真删，手机经本机拉取通道取走直接入卡）；OAuth 新增 `i.write`，需重新授权；Project 指令改为每轮先 `i_chat_turn`。
+**i_core / 读取层**：新增受限 `external-frontend` 设备身份（可写 user/companion、不能读 feed、不触发回复，不改 schema）；policy 新增 `messages.auto_share_origins`，只绕过放行清单，私密规则优先。
+**决定**：Lynx 选定前端身份路径、记录只存本机可真删、claude_web 默认出站过滤关键词、记录无需确认直接入卡。设计见 docs/development/B3_WRITEBACK_DESIGN.md。
+**验证**：i_remote_mcp 67/67、i_memory 35/35 通过（含真实 i_core + 读取层 + MCP + OAuth 合成端到端）；i_core 新增 2 项通过，全量 54 项 activity fixture 失败为既有基线（改动前同为 180/54）。
+**未完**：本机部署、配对、policy 开关、claude.ai 重新授权与 Project 指令、Flutter 显示与记录入卡、真人验收由 Codex 本机执行。
+
+---
+
 ## 2026-10-03 — B2.3 固定隧道部署与脱敏日志
 
 **交付**：正式 remote MCP 切换到自有域名的 Cloudflare 固定隧道；隧道由 Windows Auto/LocalSystem 服务运行，MCP 保留登录自启。旧令牌已撤销，口令不变。

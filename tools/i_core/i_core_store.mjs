@@ -26,6 +26,15 @@ export const CORE_WORKLOADS = Object.freeze([
   'dreaming',
   'checkin',
 ]);
+// Restricted external-frontend identity (B3 write-back, e.g. claude.ai web).
+// It may append both sides of turns that already happened on that frontend,
+// but cannot read the change feed or request core-generated replies.
+export const EXTERNAL_FRONTEND_PLATFORM = 'external-frontend';
+const EXTERNAL_FRONTEND_DEVICE_ID = /^frontend:[a-z][a-z0-9_]{1,31}$/;
+export function isExternalFrontendDevice(device) {
+  return device?.platform === EXTERNAL_FRONTEND_PLATFORM
+    && EXTERNAL_FRONTEND_DEVICE_ID.test(String(device?.device_id ?? ''));
+}
 export const DEFAULT_LEASE_TTL_MS = 30_000;
 export const MIN_LEASE_TTL_MS = 5_000;
 export const MAX_LEASE_TTL_MS = 300_000;
@@ -452,7 +461,7 @@ function normalizeMessage(raw, authenticatedDeviceId, { allowCompanion = false }
     throw new CoreStoreError(
       'sender_not_allowed',
       allowCompanion
-        ? 'Historical imports may only contain user or companion messages.'
+        ? 'Only user or companion messages are accepted here.'
         : 'Remote clients may only submit user messages.',
       { status: 403 },
     );
@@ -953,10 +962,26 @@ export class ICoreStore {
     const platform = requiredString(raw?.platform, 'platform');
     const clientVersion = requiredString(raw?.client_version, 'client_version');
     const capabilities = stringArray(raw?.capabilities, 'capabilities');
+    const wantsFrontend = platform === EXTERNAL_FRONTEND_PLATFORM;
+    if (wantsFrontend !== deviceId.startsWith('frontend:')
+      || (wantsFrontend && !EXTERNAL_FRONTEND_DEVICE_ID.test(deviceId))) {
+      throw new CoreStoreError(
+        'invalid_request',
+        'External frontends must pair as frontend:<name> with the external-frontend platform.',
+      );
+    }
     const token = randomBytes(32).toString('base64url');
     const now = Date.now();
     this.db.exec('BEGIN IMMEDIATE');
     try {
+      const previous = this.db.prepare('SELECT platform FROM devices WHERE device_id = ?').get(deviceId);
+      if (previous && (previous.platform === EXTERNAL_FRONTEND_PLATFORM) !== wantsFrontend) {
+        throw new CoreStoreError(
+          'invalid_request',
+          'An existing device cannot switch between frontend and ordinary roles.',
+          { status: 409 },
+        );
+      }
       if (this.isPairingCodeConsumed(pairingCode)) {
         throw new CoreStoreError(
           'invalid_pairing_code',
@@ -1078,8 +1103,18 @@ export class ICoreStore {
         { status: 503, retryable: true },
       );
     }
+    const frontend = isExternalFrontendDevice(this.db.prepare(`
+      SELECT device_id, platform FROM devices WHERE device_id = ?
+    `).get(authenticatedDeviceId));
+    if (frontend && raw?.request_companion_reply === true) {
+      throw new CoreStoreError(
+        'invalid_request',
+        'External frontends submit finished turns and cannot request core replies.',
+        { status: 403 },
+      );
+    }
     const messages = raw.messages
-      .map((message) => normalizeMessage(message, authenticatedDeviceId))
+      .map((message) => normalizeMessage(message, authenticatedDeviceId, { allowCompanion: frontend }))
       .sort((left, right) => left.origin_sequence - right.origin_sequence);
     return this.#persistMessages(messages, {
       enqueueCompanionReplies:
