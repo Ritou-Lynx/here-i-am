@@ -152,9 +152,9 @@ claude.ai Project 的主对话是协调者，不能调用 MCP；只有它派出�
 | 身份边界 | 只能写自己的 `frontend:claude_web`、policy 的主角色；前端令牌不能读 feed、不能触发核心回复 |
 | 数据不是指令 | 写入内容和返回内容都标注为数据；Project 指令同样说明 |
 | 凭据 | 前端设备令牌、手机拉取令牌只存在 `.state/`（0600，gitignore）；手机令牌只存哈希 |
-| 私密 | 写回只写网页端本来就发生的内容。网页端的内容回读时仍过私密规则；手机端的私密聊天照旧由放行清单把关，不会因写回而出站 |
+| 私密 | 写回只写网页端本来就发生的内容。网页端的内容回读时仍过私密规则；手机默认仍由审核清单把关；可明确批准精确手机设备的新入库普通用户消息自动回读，私密规则始终优先，既有核心历史不会因新边界解封 |
 
-## 6. claude_web 消息的出站规则（已在读取层实现）
+## 6. 消息出站规则
 
 主会话通知 Codex 的读取层改动已推送并合入，“不改 `i_memory_read.mjs`”的限制解除，所以本条直接实现在 `tools/i_memory/i_memory_read.mjs`，并补了测试。
 
@@ -163,6 +163,12 @@ claude.ai Project 的主对话是协调者，不能调用 MCP；只有它派出�
 - 私密排除优先：角色、`private_message_types`、`private_keywords`、`private_message_ids` 仍然生效。
 - 省略字段时保持旧行为（启用放行清单时网页端消息默认不出站）；格式非法时 fail closed。
 - 用户选择启用：本机 `tools/i_memory/.state/policy.json` 要加 `"auto_share_origins": ["claude_web"]`（由 Codex 在本机修改，真实 policy 不进仓库）。
+
+### 可选的已批准手机回读
+
+`messages.auto_share_devices` 默认为缺失或空数组；每项精确绑定 `device_id` 与正整数 `from_server_sequence`。只有已登记 Android 的匹配来源、达到核心接收序号边界、且 `sender=user/message_type=chat` 的消息，才能绕过正向 ID/hash 审核；角色及全部私密排除、记忆卡规则继续生效。另一个手机、非 Android、未登记设备与手机 companion 不获得此例外。
+
+启用边界取当时核心 `MAX(change_events.server_sequence)+1`，是新入核心顺序，不是客户端发生时间；旧离线消息以后补交仍可能满足边界。现有核心历史继续按既有审核清单过滤。设备平台是配对声明，读取层不能防止受信任的本机导入维护复用设备 ID；真实出站启用须明确批准，不伪装手机为 `frontend:claude_web`、不删除旧清单、不放行所有 Android。修改后重新打开读取模型或重启 remote 使缓存更新；不需撤销 OAuth 或重建配对。
 
 ## 7. 手机拉取通道（交给 Codex 实现 Flutter 端）
 

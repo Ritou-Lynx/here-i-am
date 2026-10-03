@@ -55,6 +55,32 @@ function autoShareOrigins(value) {
   return [...new Set(names)].map((name) => `${FRONTEND_ORIGIN_PREFIX}${name}`);
 }
 
+// Exact approved Android sources; receive-sequence boundaries keep prior core
+// history under its original review lists. Private exclusions still apply.
+function autoShareDevices(value) {
+  if (value === undefined) return [];
+  const label = 'messages.auto_share_devices';
+  if (!Array.isArray(value)) fail(label + ' must be an array of device rules');
+  const seen = new Set();
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)
+      || Object.keys(rule).length !== 2
+      || !Object.hasOwn(rule, 'device_id') || !Object.hasOwn(rule, 'from_server_sequence')) {
+      fail(label + ' rules must contain only device_id and from_server_sequence');
+    }
+    const id = rule.device_id;
+    if (typeof id !== 'string' || !id.trim() || id !== id.trim()
+      || id.startsWith(FRONTEND_ORIGIN_PREFIX) || seen.has(id)) {
+      fail(label + '.device_id must be an exact, unique non-frontend device ID');
+    }
+    if (!Number.isSafeInteger(rule.from_server_sequence) || rule.from_server_sequence < 1) {
+      fail(label + '.from_server_sequence must be a positive safe integer');
+    }
+    seen.add(id);
+    return { device_id: id, from_server_sequence: rule.from_server_sequence };
+  });
+}
+
 function exposure(value, label) {
   if (value !== 'private' && value !== 'shareable') fail(`${label} must be "private" or "shareable"`);
   return value;
@@ -94,6 +120,7 @@ export function loadPolicy(policyPath) {
       // External frontends whose written-back messages skip the ID/hash allowlists
       // (never the private rules). Omitted keeps legacy behavior.
       autoShareOriginDeviceIds: autoShareOrigins(messages.auto_share_origins),
+      autoShareDevices: autoShareDevices(messages.auto_share_devices),
       // Optional for backward compatibility; when present it must be valid.
       privateKeywords: (messages.private_keywords === undefined
         ? []
@@ -210,11 +237,13 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
   // ID lists use one JSON parameter each, avoiding SQLite's bound-variable limit.
   // Bound parameters for typeFilter, in placeholder order.
   const autoShareOriginIds = policy.messages.autoShareOriginDeviceIds;
+  const autoShareDeviceRules = policy.messages.autoShareDevices;
   const allowlistActive = shareableMessageIds !== null || shareableMessageHashes !== null;
   const filterParams = [
     ...privateTypeList, ...privateMessageKeywords,
     JSON.stringify(privateMessageIds),
     ...(allowlistActive && autoShareOriginIds.length ? [JSON.stringify(autoShareOriginIds)] : []),
+    ...(allowlistActive && autoShareDeviceRules.length ? [JSON.stringify(autoShareDeviceRules)] : []),
     ...(shareableMessageIds === null ? [] : [JSON.stringify(shareableMessageIds)]),
     ...(shareableMessageHashes === null ? [] : [JSON.stringify(Object.fromEntries(shareableMessageHashes))]),
   ];
@@ -226,10 +255,22 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
   ].filter(Boolean);
   let allowlistFilter = '';
   if (allowlistActive) {
-    const reviewed = allowlistClauses.join(' AND ');
-    allowlistFilter = autoShareOriginIds.length
-      ? `AND (origin_device_id IN (SELECT value FROM json_each(?)) OR (${reviewed}))`
-      : `AND ${reviewed}`;
+    const automatic = [];
+    if (autoShareOriginIds.length) {
+      automatic.push('origin_device_id IN (SELECT value FROM json_each(?))');
+    }
+    if (autoShareDeviceRules.length) {
+      // Registration/platform narrow the approved ID; they are not independent
+      // attestation. Authenticated submit and local maintenance remain core trust boundaries.
+      automatic.push(`(sender = 'user' AND message_type = 'chat' AND EXISTS (
+        SELECT 1 FROM json_each(?) AS approved
+        JOIN devices AS d ON d.device_id = json_extract(approved.value, '$.device_id')
+        WHERE d.platform = 'android'
+          AND d.device_id = chat_messages.origin_device_id
+          AND chat_messages.server_sequence >= json_extract(approved.value, '$.from_server_sequence')
+      ))`);
+    }
+    allowlistFilter = `AND (${[...automatic, '(' + allowlistClauses.join(' AND ') + ')'].join(' OR ')})`;
   }
   // Private exclusions always apply, including to auto-shared origins.
   const typeFilter = [

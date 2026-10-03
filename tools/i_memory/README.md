@@ -56,6 +56,15 @@ Copy-Item tools/i_memory/policy.example.json tools/i_memory/.state/policy.json
 - 可选的 `messages.shareable_message_hashes` / `memory.shareable_card_hashes` 将 ID 映射到已审核内容的 SHA-256（64 位十六进制）。省略时保留旧行为，显式 `{}` 时全部不放行；设置后 ID 和内容哈希都必须匹配，且仍须通过 ID 清单和所有私密规则。消息哈希为 UTF-8 `String(content)` 的 SHA-256；卡片哈希为 `JSON.stringify([type, title, droplet_label, retrieval_text, status ?? null, structured_type ?? null, fields_json ?? ''])` 的 SHA-256。导出的纯函数 `hashMessageContent(content)` / `hashMemoryCard(row)` 可供本机审核程序复用。
 - 可选的 `messages.auto_share_origins`（B3）：外部前端名单，例如 `["claude_web"]`。来源设备为 `frontend:<名称>` 的消息（网页端写回的你的原话和林埃回复）跳过上面的 ID / 哈希放行清单，不用逐条审核；但角色、类型、私密关键词和 `private_message_ids` 仍然生效，私密排除优先。省略时保持旧行为（启用了放行清单时，这些消息默认不出站）。名称只能是小写字母、数字和下划线。
 - 启用 ID 清单后新增 ID 默认不出站；再启用哈希映射，同 ID 内容修订也会拒绝出站。审核刷新时先停服务，更新快照和审核清单、验证后再重启（或重新打开 `ReadModel`）；策略不会热加载。关键词仍只是逐条子串匹配，不能视作色情语义或整段语境识别。
+- 可选的 `messages.auto_share_devices`：明确批准的手机自动出站规则，默认省略或 `[]` 时不增加放行。示例（仅合成值）：
+
+  ```json
+  "auto_share_devices": [{"device_id": "synthetic-approved-phone", "from_server_sequence": 123}]
+  ```
+
+  每项必须且仅有这两个字段：`device_id` 为精确、无首尾空白且不重复的非 `frontend:` 设备 ID；`from_server_sequence` 为正安全整数。只对设备登记为 `android`、来源精确匹配、`server_sequence >= from_server_sequence` 的普通 `sender=user/message_type=chat` 消息，跳过正向 ID / 哈希审核；角色、私密类型、关键词、私密 ID 的排除始终优先，记忆卡策略不变。缺表或非法配置失败关闭。
+- 手机规则的起点应取批准启用时核心全局 `MAX(change_events.server_sequence) + 1`，不要降低起点来自动解封既有核心历史。它表示新入库顺序，离线积压消息以后补交也可能满足起点；不是客户端聊天发生时间。手机本地生成的 companion 回复和其他设备不在此自动豁免内。
+- 精确设备授权与核心令牌/来源校验是主要信任边界，platform 是配对声明而非独立设备证明；本机数据库/导入维护仍受信任，读取规则不能阻止本机维护使用同一设备 ID 写库。真实配置留在本机；启用属于新增出站范围，需要明确批准。策略只在 `openReadModel` 时加载，修改后重新打开读取模型或重启对应服务，避免沿用缓存。
 - 除上述可选字段及 `messages.private_keywords` 外，所有字段都必须存在且类型正确；各 ID 清单出现时必须是非空字符串组成的数组（允许空数组）；哈希映射出现时必须是对象（允许空对象），键为非空 ID，值为 64 位十六进制字符串。文件缺失或非法时 `openReadModel` 直接抛错（fail closed）。
 
 ## 4. 只读接口
