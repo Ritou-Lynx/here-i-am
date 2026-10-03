@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { OAuthServer, revokeAll, setPassphrase } from './oauth.mjs';
+import { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';
 import {
   SUPPORTED_PROTOCOL_VERSIONS,
   createToolHandlers,
@@ -53,6 +54,7 @@ export function createApp({
   timeZone = process.env.I_REMOTE_MCP_TIMEZONE,
   allowedOrigins = DEFAULT_ALLOWED_ORIGINS,
   log = () => {},
+  diagnostic = () => {},
 }) {
   if (!publicUrl) throw new Error('publicUrl is required');
   if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');
@@ -67,7 +69,7 @@ export function createApp({
     while (sessions.size > MAX_SESSIONS) sessions.delete(sessions.keys().next().value);
   }
 
-  async function handleMcp(req, res) {
+  async function handleMcp(req, res, diagnostics) {
     const origin = req.headers.origin;
     if (origin && !origins.has(origin)) return sendJson(res, 403, { error: 'forbidden_origin' });
 
@@ -129,11 +131,13 @@ export function createApp({
 
     const responses = [];
     for (const message of messages) {
+      let dataSourceFailed = false;
       const response = await handleRpcMessage(message, {
         handlers,
         session,
-        logError: (e) => log(`tool error: ${e?.message ?? e}`),
+        logError: () => { dataSourceFailed = true; },
       });
+      diagnostics.rpc(message, response, { dataSourceFailed });
       if (response) responses.push(response);
     }
     if (responses.length === 0) return sendEmpty(res, 202);
@@ -163,10 +167,10 @@ export function createApp({
     return sendHtml(res, 405, errorPage('不支持的方法'));
   }
 
-  async function route(req, res) {
+  async function route(req, res, diagnostics) {
     const url = new URL(req.url, oauth.issuer);
     const path = url.pathname;
-    if (path === '/mcp') return handleMcp(req, res);
+    if (path === '/mcp') return handleMcp(req, res, diagnostics);
     if (path === '/.well-known/oauth-protected-resource' || path === '/.well-known/oauth-protected-resource/mcp') {
       return sendJson(res, 200, oauth.protectedResourceMetadata());
     }
@@ -198,13 +202,22 @@ export function createApp({
   }
 
   const server = createServer((req, res) => {
-    route(req, res)
-      .catch((error) => {
-        log(`internal error: ${error?.message ?? error}`);
-        if (!res.headersSent) sendJson(res, 500, { error: 'server_error' });
-        else res.end();
-      })
-      .finally(() => log(`${req.method} ${req.url.split('?')[0]} ${res.statusCode}`));
+    let internalError = false;
+    const diagnostics = createRequestDiagnostics(req, {
+      issuer: oauth.issuer, resource: oauth.resource, now,
+      diagnostic: (record) => {
+        if (record.event === 'http_request') {
+          try { Promise.resolve(log(`${record.method} ${record.path} ${record.status}`)).catch(() => {}); } catch { /* optional legacy sink */ }
+        }
+        return diagnostic(record);
+      },
+    });
+    res.once('finish', () => diagnostics.finish(res.statusCode, { internalError }));
+    route(req, res, diagnostics).catch(() => {
+      internalError = true;
+      if (!res.headersSent) sendJson(res, 500, { error: 'server_error' });
+      else res.end();
+    });
   });
   return { server, oauth, sessions };
 }
@@ -382,11 +395,15 @@ async function main(argv) {
     memoryDbPath: resolve(args['memory-db'] ?? process.env.I_MEMORY_DB ?? DEFAULTS.memoryDbPath),
     policyPath: resolve(args.policy ?? process.env.I_MEMORY_POLICY ?? DEFAULTS.policyPath),
   });
+  const logDir = args['log-dir'] ?? process.env.I_REMOTE_MCP_LOG_DIR;
+  const diagnostic = logDir
+    ? createJsonlDiagnosticWriter({ logDir, onWriteError: (code) => process.stderr.write(`${code}\n`) })
+    : (record) => process.stderr.write(`${JSON.stringify(record)}\n`);
   const { server, oauth } = createApp({
     stateDir,
     publicUrl,
     getReadModel,
-    log: (line) => process.stderr.write(`[${new Date().toISOString()}] ${line}\n`),
+    diagnostic,
   });
   if (!oauth.hasPassphrase()) process.stderr.write('警告：尚未设置口令，授权页会拒绝所有请求。先运行 set-passphrase。\n');
   server.listen(port, host, () => {
@@ -398,8 +415,8 @@ async function main(argv) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main(process.argv.slice(2)).catch((error) => {
-    process.stderr.write(`错误：${error.message}\n`);
+  main(process.argv.slice(2)).catch(() => {
+    process.stderr.write('启动或管理操作失败；请检查参数、权限与本机配置。\n');
     process.exitCode = 1;
   });
 }
