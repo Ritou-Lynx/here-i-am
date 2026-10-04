@@ -1,3 +1,12 @@
+## 2026-10-04 — 学习系统：思源学习导师 + dot 语音带练
+
+**决定**：思源作知识库与学习账本，FlexNote 只做可视化，dot 作语音带练前端（过渡期 Tasker 模拟来电）；不追求 all-in-one，学习单不经 i_core。
+**交付**：`tools/siyuan_tutor/`（f76da90）：Codex 导师指令（思源数据库账本、间隔复习、入账、每日学习单 → 思源 + `today.md`、不删除边界）、语音规则 `TUTOR_RULES.md`、日语科目表、设置说明（Codex 工具白名单、定时 `codex exec`、dot 指令）。
+**依据**：用户提供的思源 3.8.6 MCP 工具清单；内置 MCP 地址与 Bearer API Token 鉴权已核对源码。dot 仅能由用户发起通话、只用官方插件，故经本机文件交接。
+**未完**：本机初始化与账本写法实测、dot 首次通话、Tasker 来电配置；看板思源插件尚为提议。纯文档，未构建。
+
+---
+
 ## 2026-10-03 — B3 写回：i_chat_turn / i_remember
 
 **交付**：i_remote_mcp 新增 `i_chat_turn`（每轮写回双方原文，内容对齐去重、漏轮补交、本机账本重试）与 `i_remember`（本机账本可真删，手机经本机拉取通道取走直接入卡）；OAuth 新增 `i.write`，需重新授权；Project 指令改为每轮先 `i_chat_turn`。
