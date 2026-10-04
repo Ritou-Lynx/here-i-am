@@ -17,59 +17,56 @@
 | `TUTOR_RULES.md` | dot 或 GPT voice | 语音带练规则和结果格式 |
 | `subjects.md` | Codex | 科目表，先建了日语 |
 
-## 一次性设置
+## 设置：交给 Codex 做
 
-### 1. 思源
+能让 Codex 做的都写成了提示词，按顺序发给它。前提是思源开着，并且 Codex 已经能连上思源 MCP（地址 `http://127.0.0.1:6806/mcp`，鉴权为 `Authorization: Bearer <API Token>`）；还没连上的话，先把这个前提告诉 Codex，让它一并配好，令牌只走环境变量 `SIYUAN_API_TOKEN`，不写进文件和聊天。
 
-1. 升级到 3.8.6 以上，学习时保持开着（MCP 跑在思源内核里，地址 `http://127.0.0.1:6806/mcp`）。
-2. 设置 → 关于，复制 **API Token**。不要贴进聊天或截图。
-3. 在 AI 设置里的 MCP 对外能力中，能关的先关掉：工作区文件、数据快照、同步、集市、技能、解压、导入、HTTP 请求。下面 Codex 的白名单也会挡住它们，这里是第二道保险。
-4. 建议先在思源里手动建一个数据快照，作为回退点。
+### 第一步：检查配置、建学习目录
 
-### 2. Codex
+在**本仓库目录**里启动 Codex（要从仓库拷文件），发：
 
-PowerShell 里执行，然后**完全重启** Codex：
+```text
+帮我把思源学习导师装好，不碰思源里的任何笔记。
 
-```powershell
-setx SIYUAN_API_TOKEN "粘贴令牌"
+1. 检查 %USERPROFILE%\.codex\config.toml 里的 [mcp_servers.siyuan]：
+   - 令牌必须走环境变量（bearer_token_env_var），文件里出现明文令牌就停下告诉我。
+   - 没有 enabled_tools 白名单时，先备份再加上：
+     enabled_tools = ["system", "workspace", "notebook", "document", "block", "dailynote", "search", "sql", "outline", "ref", "attr", "tag", "database", "template"]
+     改完提醒我重启 Codex 才生效。
+2. 用思源 MCP 的 system version 确认版本不低于 3.8.6。
+3. 新建 %USERPROFILE%\siyuan-study，以及其中的 inbox 和 inbox\done 文件夹。
+4. 从本仓库 tools/siyuan_tutor/ 复制：STUDY_AGENTS.md 改名为 AGENTS.md，TUTOR_RULES.md、subjects.md 原名。
+   目标已存在且内容不同，先给我看差异，不要覆盖。
+5. 最后告诉我：在 siyuan-study 目录里新开一个 Codex，说"初始化日语"。
 ```
 
-在 `%USERPROFILE%\.codex\config.toml` 加入：
+### 第二步：初始化
 
-```toml
-[mcp_servers.siyuan]
-url = "http://127.0.0.1:6806/mcp"
-bearer_token_env_var = "SIYUAN_API_TOKEN"
-startup_timeout_sec = 20
-tool_timeout_sec = 120
-enabled_tools = ["system", "workspace", "notebook", "document", "block", "dailynote", "search", "sql", "outline", "ref", "attr", "tag", "database", "template"]
+在 `%USERPROFILE%\siyuan-study` 里新开 Codex（`AGENTS.md` 只在这个目录里生效），说"初始化日语"。它会先列出要建的文档、数据库和第一批知识点，你确认后再建，并先改一个单元格核对账本写法。
+
+### 第三步：试跑并设成每天自动
+
+还在学习目录里，说"出今天的学习单"，看结果没问题后，发：
+
+```text
+把"每天出学习单"设成 Windows 计划任务：
+1. 在 siyuan-study 里写一个 run-daily.cmd：用 codex 可执行文件的完整路径运行
+   codex exec --cd "%USERPROFILE%\siyuan-study" --full-auto "出今天的学习单"
+   输出追加到 siyuan-study\logs\daily-日期.log。
+2. 先手动运行一次 run-daily.cmd，确认它不会卡在任何确认上、today.md 已更新。
+3. 用 schtasks 建一个每天 06:30、以我当前用户身份运行的任务（时间先问我）。
+4. 把任务名和怎么删除它告诉我。
 ```
 
-白名单之外的工具（file、repo、sync、bazaar、skill、unzip、import、export、http_request、web_fetch、web_search、inbox、asset、image、history、bookmark）Codex 看不到。白名单里的 notebook、document、block、database、tag 仍带删除类动作，靠导师指令禁止；要更严，可以给这几个工具加 `tools.<工具名>.approval_mode = "prompt"`，代价是每次读写都要你点确认。
+任务运行时电脑和思源都要开着。没开的那天就没有新学习单，语音导师会说"今天的学习单还没生成"。
 
-### 3. 学习目录
+### 只能你自己做的
 
-在电脑上建 `%USERPROFILE%\siyuan-study`（不要放进本仓库，也不要和 FlexNote 导师的 `~/study` 混用），复制进去：
+- **思源**：给"学习账本"加一个日历视图（按"下次复习"）。MCP 不能建视图，只能在界面里点。
+- **思源（可选）**：AI 设置里把 MCP 对外能力中用不到的关掉（文件、快照、同步、集市、技能、解压、导入、HTTP 请求）；初始化前手动建一个数据快照当回退点。Codex 的白名单已经挡住这些工具，这里是第二道保险。
+- **dot 和 Tasker**：在 ChatGPT 和手机上设置，见下文。
 
-- `STUDY_AGENTS.md`，改名为 `AGENTS.md`
-- `TUTOR_RULES.md`
-- `subjects.md`
-
-再建一个空的 `inbox` 文件夹。
-
-### 4. 初始化
-
-在学习目录里启动 Codex，说"初始化日语"。它会先列出要建的文档、数据库和第一批知识点，你确认后再建。建好后在思源里给"学习账本"加一个日历视图（按"下次复习"），并把 `subjects.md` 的状态改为"已初始化"。
-
-### 5. 每天自动出学习单
-
-先在学习目录里手动说一次"出今天的学习单"，确认流程顺畅、不会卡在确认上。然后在 Windows 任务计划程序里新建一个每天早上（例如 06:30）的任务：
-
-```powershell
-codex exec --cd "$env:USERPROFILE\siyuan-study" --full-auto "出今天的学习单"
-```
-
-任务运行时电脑要开着、思源要开着。没开的那天就没有新学习单，语音导师会说"今天的学习单还没生成"。
+白名单里的 notebook、document、block、database、tag 仍带删除类动作，靠导师指令禁止；要更严，可以在 config.toml 里给这几个工具设 `approval_mode = "prompt"`，代价是每次读写都要你点确认。
 
 ## 语音练习
 
