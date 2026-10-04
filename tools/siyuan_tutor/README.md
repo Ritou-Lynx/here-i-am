@@ -72,13 +72,33 @@
 
 ### dot（首选）
 
-1. 在 dot 的资料页连接你的电脑（ChatGPT 桌面应用要开着，电脑在线）。
-2. 给 dot 的指令，原样发过去：
+1. **连接电脑**：在这台电脑的 ChatGPT 桌面应用里打开 dot 的资料页，Computers → Your computer → Allow access。只能连一台电脑；之后桌面应用要一直开着，电脑在线。
+2. **发设置指令**，原样发给 dot：
 
-   > 你是我的日语语音导师。每次我找你学习，先读我电脑上的 `%USERPROFILE%\siyuan-study\TUTOR_RULES.md` 并严格照做，再读同目录的 `today.md`。除了按规则往 `inbox` 文件夹新建结果文件，不要修改电脑上的任何文件，不要替我给任何人发消息。
+   ```text
+   你是我的日语语音导师。规则都在我电脑上的文件里，以文件为准：
+   1. 每次我找你学习（包括我点电话按钮时），都先重新读这两个文件，不要用记忆里的旧版本：
+      %USERPROFILE%\siyuan-study\TUTOR_RULES.md（带练规则，严格照做）
+      %USERPROFILE%\siyuan-study\today.md（今天的学习单）
+   2. 学习单由另一个程序每天生成，你只执行，不自己编计划，也不改它。
+   3. 练完按规则把结果写成新文件，放进 %USERPROFILE%\siyuan-study\inbox\，文件名用日期加时间。
+   4. 除了在 inbox 里新建结果文件，不修改、不移动、不删除电脑上的任何文件。
+   5. 不替我给任何人发消息，不登录、不购买任何东西。
+   读完后用两句话告诉我：你理解的规则要点，以及今天学习单的内容。
+   ```
 
-3. 在 Custom Rules 里再写一遍硬边界：只能在 `siyuan-study\inbox` 新建文件；不得修改或删除其他文件；不得对外发送任何内容。
-4. 学习时在 dot 对话里点电话按钮。
+3. **Custom rules**（账户级，不在 dot 页面）：设置 → Personalization → Permissions → Custom rules → Add，逐条添加：
+
+   | 动作 | 处理方式 |
+   |---|---|
+   | 读取 siyuan-study 文件夹里的文件 | Take action without asking |
+   | 在 siyuan-study\inbox 里新建学习结果文件 | Take action without asking |
+   | 修改、移动或删除电脑上的任何文件 | Ask before taking action |
+   | 发送消息、邮件或任何对外内容 | Hand off to you |
+
+   官方说明 custom rules 是 dot "尽量遵守"的指令，不授予权限，也不覆盖内置的安全确认。
+4. **测试写文件**：让 dot 往 inbox 写一个 `_test.txt`，确认出现后手动删掉（用 `.txt` 是因为入账只读 `.md`）。
+5. **学习**：在 dot 对话里点电话按钮。练完回到 Codex 说"入账"。
 
 ### GPT voice 项目（备选）
 
