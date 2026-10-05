@@ -41,7 +41,8 @@ Future<T> withCrashCleanup<T>(
 /// Identity comes from the launched writer's stdout, independently of ready.
 Future<void> runCrashProcess(File file, String point, String mode,
     {Duration readyTimeout = const Duration(seconds: 30),
-    void Function(int writerPid, String osReceipt)? onTerminated}) async {
+    Duration handshakeTimeout = const Duration(seconds: 30),
+    void Function(int? writerPid, String osReceipt)? onTerminated}) async {
   final process = await Process.start(resolveCrashDart(), [
     '--disable-dart-dev',
     'test/data/personal_data_hub/crash_worker.dart',
@@ -70,8 +71,7 @@ Future<void> runCrashProcess(File file, String point, String mode,
   final stderrDone =
       process.stderr.transform(utf8.decoder).forEach(output.write);
   await withCrashCleanup(() async {
-    final actualWriter =
-        await writer.future.timeout(const Duration(seconds: 30));
+    final actualWriter = await writer.future.timeout(handshakeTimeout);
     expect(actualWriter, greaterThan(0));
     final ready = File('${file.path}.ready');
     final elapsed = Stopwatch()..start();
@@ -89,6 +89,7 @@ Future<void> runCrashProcess(File file, String point, String mode,
   }, () async {
     String osReceipt = '';
     int? killCode;
+    bool? signalSent;
     // Wait and drain even if OS invocation or receipt assertions fail.
     await withCrashCleanup(() async {
       if (Platform.isWindows) {
@@ -104,33 +105,48 @@ Future<void> runCrashProcess(File file, String point, String mode,
           if (child.exitCode == 0) killCode = 0;
         }
       } else {
-        expect(writerPid, process.pid);
-        expect(process.kill(ProcessSignal.sigkill), true);
+        // Never put an identity assertion before terminating the owned handle.
+        signalSent = process.kill(ProcessSignal.sigkill);
       }
     }, () async {
       await Future.wait([exit.then<void>((_) {}), stdoutDone, stderrDone])
           .timeout(const Duration(seconds: 10));
     });
     if (Platform.isWindows) {
-      // Launcher exit alone is not proof of actual VM termination.
-      if (writerPid != null) {
-        final wait = await Process.run('powershell.exe', [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          '\$p=Get-Process -Id $writerPid -ErrorAction SilentlyContinue; '
-              'if (\$null -ne \$p -and !\$p.WaitForExit(10000)) { exit 1 }; exit 0'
-        ]);
-        expect(wait.exitCode, 0, reason: 'Actual SQLite writer must exit');
-      }
+      // /T reports every terminated tree member. In the no-handshake case,
+      // verify all OS-reported PIDs, not just the launcher or stdout closure.
+      // Each taskkill line names its target first and may name the parent
+      // later. Never mistake a mentioned parent for a terminated member.
+      final terminatedPids = const LineSplitter()
+          .convert(osReceipt)
+          .map((line) => RegExp(r'PID\D*?(\d+)').firstMatch(line))
+          .whereType<RegExpMatch>()
+          .map((m) => int.parse(m.group(1)!))
+          .toSet();
+      final wait = await Process.run('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'foreach (\$id in @(${terminatedPids.join(',')})) { '
+            '\$p=Get-Process -Id \$id -ErrorAction SilentlyContinue; '
+            'if (\$null -ne \$p -and !\$p.WaitForExit(10000)) { exit 1 } }; exit 0'
+      ]);
+      expect(wait.exitCode, 0,
+          reason:
+              'Every reported tree member must exit: $osReceipt ${wait.stderr}');
       expect(killCode, 0, reason: osReceipt);
-      expect(writerPid, isNotNull, reason: 'Actual writer identity required');
-      expect(osReceipt, contains('$writerPid'),
-          reason: 'OS receipt must include the actual SQLite writer');
+      expect(terminatedPids, contains(process.pid), reason: osReceipt);
+      if (writerPid != null) {
+        expect(terminatedPids, contains(writerPid),
+            reason: 'OS receipt must include the actual SQLite writer');
+      }
+    } else {
+      expect(signalSent, true, reason: 'Owned process must receive SIGKILL');
+      if (writerPid != null) expect(writerPid, process.pid);
     }
     printOnFailure('Crash fixture $point: launcher=${process.pid}; '
         'writer=$writerPid; exit=${await exit}; output=closed; OS=$osReceipt');
-    onTerminated?.call(writerPid!, osReceipt);
+    onTerminated?.call(writerPid, osReceipt);
   });
 }
 
@@ -1632,6 +1648,40 @@ void main() {
                 contains('primary-ready-failure'),
                 contains('Additional fixture cleanup failure'),
                 contains('secondary-cleanup-failure')))));
+  });
+
+  test('crash fixture no stdout handshake still terminates the whole tree',
+      () async {
+    final directory =
+        await Directory.systemTemp.createTemp('w7-crash-startup-');
+    await withCrashCleanup(() async {
+      final file = File('${directory.path}/startup.sqlite');
+      var terminationObserved = false;
+      String? receipt;
+      await expectLater(
+          runCrashProcess(file, 'startup', 'fixture_no_handshake',
+              handshakeTimeout: const Duration(seconds: 5),
+              onTerminated: (writer, evidence) {
+            expect(writer, isNull, reason: 'No stdout identity was received');
+            terminationObserved = true;
+            receipt = evidence;
+          }),
+          throwsA(isA<TimeoutException>()));
+      expect(terminationObserved, true);
+      // Independent evidence proves a real SQLite writer had started, without
+      // providing stdout identity to the cleanup path under test.
+      final actualWriter =
+          int.parse(File('${file.path}.started.ready').readAsStringSync());
+      if (Platform.isWindows) {
+        expect(receipt, contains('$actualWriter'),
+            reason: 'No-handshake tree receipt includes the actual VM');
+      }
+      final reopened = CrashDatabase(file);
+      await withCrashCleanup(() async {
+        expect(await reopened.customSelect('SELECT 1').get(), hasLength(1));
+      }, reopened.close);
+    }, () => deleteCrashFixture(directory));
+    expect(directory.existsSync(), false);
   });
 
   for (final mode in ['fixture_no_ready', 'fixture_bad_ready']) {

@@ -43,6 +43,12 @@ Future<void> main(List<String> args) async {
   });
   if (args[2].startsWith('fixture_')) {
     await db.customSelect('SELECT 1').get();
+    if (args[2] == 'fixture_no_handshake') {
+      publishReady('${args[0]}.started', '$pid');
+      sleep(const Duration(seconds: 45));
+      await db.close();
+      return;
+    }
     stdout.writeln('crash-writer:$pid');
     await stdout.flush();
     if (args[2] == 'fixture_bad_ready') publishReady(args[0], 'malformed');
