@@ -1,0 +1,159 @@
+# 思源规划助手
+
+用户不画待办。想到什么就随手记一句，电脑上的 Codex 来判断这句话属于哪条主线、拆成几步、排在什么前后、哪天做，每天早上出一张今日单。所有规划数据只有一个家：思源笔记里的"规划"数据库。日历、看板、流程图都是从这张表投影出来的视图。
+
+```
+ 手机一键捕获（Tasker → 思源手机端）──┐
+ dot 通话里"记一下" ──► inbox/*.md ───┤
+ 思源里手打 ──► 规划收件箱 ───────────┤
+                                     ▼
+                      Codex 分诊（本目录 AGENTS.md）
+                                     │
+                     思源"规划"数据库（唯一的家）
+              ┌──────────┬───────────┼────────────┐
+            日历视图   看板视图    全局地图     今日单 today.md
+           （思源）    （思源）  （Mermaid）       │
+                                                   ▼
+                                  dot 早上过单、晚上收工 ──► inbox/*.md
+```
+
+| 文件 | 给谁 | 作用 |
+|---|---|---|
+| `PLANNER_AGENTS.md` | Codex | 规划助手指令：分诊、出今日单、全局地图、周复盘。复制到规划目录后改名为 `AGENTS.md` |
+| `DOT_PLAN_RULES.md` | dot | 过单、记一下、收工的规则和回执格式 |
+| `areas.md` | Codex | 主线、作息、时段模板、每周预算。仓库里是模板，真实内容只放在本机 |
+
+## 和其他工具的分工
+
+沿用 [学习系统交接](../../docs/development/handoffs/LEARNING_SYSTEM_AND_TOOLS_20261005.md) 定下的原则：每类数据只有一个家，AI 负责在工具之间搬运。
+
+- **规划和待办**：思源"规划"数据库。不放 Here I Am，Here I Am 继续只放生活事实（消费、睡眠等）。
+- **学习**：仍由 `tools/siyuan_tutor/` 那条线负责。规划助手只读 `siyuan-study\today.md` 的第一行和"预计"一行，在今日单里给学习留出时间；不改学习目录，也不碰学习账本。
+- **流程图**：日常看思源里的 Mermaid 图（全局地图、今日路线），手机上也能看，而且是只读的，不会和数据库对不上。FlexNote 只在周复盘或卡住时用来画图梳理，改动不回流；想清楚的结论口头告诉 dot 或 Codex，再由它们写回数据库。
+- **提醒**：沿用学习线的结论，不靠通知，用 Tasker 模拟来电叫过单和收工。
+
+## 设置：交给 Codex 做
+
+前提和学习导师一样：思源开着，Codex 能连上思源 MCP。学习导师已经装好的话，MCP 配置和白名单不用再动。
+
+### 第一步：建规划目录
+
+在**本仓库目录**里启动 Codex，发：
+
+```text
+帮我把思源规划助手装好，不碰思源里的任何笔记。
+
+1. 确认 %USERPROFILE%\.codex\config.toml 里的 [mcp_servers.siyuan] 已配置，令牌走环境变量。
+   没配置就停下，告诉我先按 tools/siyuan_tutor/README.md 配好。
+2. 新建 %USERPROFILE%\life-plan，以及其中的 inbox、inbox\done、logs 文件夹。
+3. 从本仓库 tools/life_planner/ 复制：PLANNER_AGENTS.md 改名为 AGENTS.md，
+   DOT_PLAN_RULES.md、areas.md 原名。目标已存在且内容不同，先给我看差异，不要覆盖。
+4. 最后告诉我：在 life-plan 目录里新开一个 Codex，说"初始化规划"。
+```
+
+### 第二步：初始化
+
+在 `%USERPROFILE%\life-plan` 里新开 Codex（`AGENTS.md` 只在这个目录里生效），说"初始化规划"。它会先列出要建的笔记本、文档和数据库，并验证关联字段能不能用。
+
+然后把你的真实情况发给它：主线、作息、手头的事、各种期限。可以直接粘一段乱糟糟的清单。Codex 会先把 `areas.md` 填好给你看，再把事项整理成一张表，你确认后才写入。
+
+### 第三步：试跑并设成每天自动
+
+还在规划目录里，说"出今日单"，看结果没问题后，发：
+
+```text
+把"每天出今日单"设成 Windows 计划任务：
+1. 在 life-plan 里写一个 run-daily.cmd：用 codex 可执行文件的完整路径运行
+   codex exec --cd "%USERPROFILE%\life-plan" --full-auto "出今日单"
+   输出追加到 life-plan\logs\daily-日期.log。
+2. 先手动运行一次 run-daily.cmd，确认它不会卡在任何确认上、today.md 已更新。
+3. 用 schtasks 建一个每天 07:00、以我当前用户身份运行的任务（时间先问我）。
+   如果学习导师也有计划任务，确认它排在这个任务之前。
+4. 把任务名和怎么删除它告诉我。
+```
+
+任务运行时电脑和思源都要开着。手机上记的东西要先同步到电脑才会被分诊，所以思源电脑端的自动同步要开着。
+
+### 只能你自己做的
+
+- **思源视图**：给"规划"数据库加三个视图：日历（按"计划日期"）、看板（按"状态"分组）、表格（按"主线"分组）。MCP 不能建视图。
+- **手机一键捕获**：Tasker，见下文。
+- **dot**：设置指令和 Custom rules，见下文。
+
+## 手机一键捕获
+
+dot 目前没法用快捷方式直接唤醒，所以捕获不依赖 dot。做法是用 Tasker 调手机的语音识别，把这句话直接写进**手机上的思源**，一句话建一篇子文档，再靠同步回到电脑。手机离线也能记。每次都新建文档、不改已有文档，所以不会产生同步冲突。
+
+### 准备
+
+- 思源手机端：设置 → 关于，复制 **API token**（手机的令牌和电脑的不一定一样）。
+- 规划笔记本的 ID：初始化时 Codex 会告诉你。
+- Tasker 里建两个全局变量：`%SIYUAN_TOKEN`（令牌）、`%PLAN_NOTEBOOK`（笔记本 ID）。
+
+### Tasker 任务"记一下"
+
+1. **Get Voice**：Prompt 填"记一下"，语言选中文，Timeout 20 秒。
+2. **If** `%VOICE` 未设置 → **Flash**"没听到" → **Stop**。
+3. **JavaScriptlet**：
+
+   ```js
+   var d = new Date();
+   function p(n) { return (n < 10 ? '0' : '') + n; }
+   var title = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+     + ' ' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+   var body = JSON.stringify({
+     notebook: global('PLAN_NOTEBOOK'),
+     path: '/规划收件箱/' + title,
+     markdown: global('VOICE')
+   });
+   ```
+
+4. **HTTP Request**：Method POST，URL `http://127.0.0.1:6806/api/filetree/createDocWithMd`，Headers 两行：`Authorization:Token %SIYUAN_TOKEN`、`Content-Type:application/json`，Body `%body`，Timeout 10 秒。
+5. **If** `%http_data` 包含 `"code":0` → **Flash**"记了：%VOICE"。
+   **Else** → **Set Clipboard** `%VOICE` → **Flash**"没写进思源，已复制" → **Launch App** 思源，进收件箱手动粘贴。
+
+触发方式任选：桌面上放一个这个任务的快捷图标，或者在 Tasker 设置里把它放进下拉快捷开关（Quick Settings tile）。
+
+### 待验证
+
+- 思源手机端的内核是否在 `127.0.0.1:6806` 上接受其他应用的请求，以及思源退到后台、被系统清掉之后还能不能连上。连不上的话，在第 1 步前加 **Launch App** 思源、**Go Home**、**Wait** 3 秒再试。
+- Get Voice 依赖系统语音识别服务（通常是 Google）。手机上没有的话，把第 1 步换成 **Get Input**（文本输入框），点输入法的语音键说话，比直接说多点一下。
+- 返回内容的格式以思源实际返回为准；第 5 步的判断条件按实际返回调整。
+
+## dot
+
+### 设置指令
+
+dot 原来只按日语导师设置过。现在要让它同时管学习和规划，在 dot 对话里重新发一次下面这段（学习部分的意思不变，只是加了分流）：
+
+```text
+你同时是我的学习导师和规划助手。规则都在我电脑上的文件里，以文件为准，每次都重新读，不要用记忆里的旧版本：
+- 学习（我说"学习""开始练"，或学习时间来电）：读 %USERPROFILE%\siyuan-study\TUTOR_RULES.md 和 today.md，严格照做。
+- 规划（我说"过一下今天""记一下""收工"，或早上、晚上来电）：读 %USERPROFILE%\life-plan\DOT_PLAN_RULES.md 和 today.md，严格照做。
+共同规则：
+1. 计划由电脑上的另一个程序生成，你只执行和记录，不自己编计划，也不改计划文件。
+2. 学习结果只写到 siyuan-study\inbox\，规划回执只写到 life-plan\inbox\，都新建文件。
+3. 不修改、不移动、不删除电脑上的任何其他文件。
+4. 不替我给任何人发消息，不登录、不购买任何东西。
+读完后用两句话告诉我：你理解的分流方式，以及今天的今日单第一行。
+```
+
+### Custom rules
+
+在学习导师已加的规则之外，再加两条（设置 → Personalization → Permissions → Custom rules → Add）：
+
+| 动作 | 处理方式 |
+|---|---|
+| 读取 life-plan 文件夹里的文件 | Take action without asking |
+| 在 life-plan\inbox 里新建规划回执文件 | Take action without asking |
+
+### 来电
+
+早上过单、晚上收工都靠 Tasker 模拟来电打开 dot 对话（和学习线共用一套方案，配置步骤待补）。建议时间：起床后（07:30）一次，收工时（22:45）一次。
+
+## 已知限制
+
+- 分诊和出今日单都在电脑上，需要电脑和思源开着。今日单没生成的那天，dot 只做"记一下"和"收工"。
+- 规划库的关联字段（上级、前置、替代为）能否指向本库、能否经 MCP 写，没有实测过；初始化时会先验证，不行就退回文本字段。
+- 单元格写法按思源数据库通用格式编写，第一次写入会先核对一格，以思源返回为准。
+- FlexNote 的 MCP 只在本机，只能操作当前打开的空间，改动不回流，所以它不存任何规划数据。
