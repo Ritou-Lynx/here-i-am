@@ -189,6 +189,33 @@ class AppDatabase extends _$AppDatabase {
   static Future<void>? _initInFlight;
   static String? _activeUserId;
 
+  /// Serializes explicit account teardown with opening / switching the
+  /// singleton. Database-bound runtime owners must be suspended first.
+  static Future<void> closeCurrent() async {
+    while (true) {
+      final pending = _initInFlight;
+      if (pending == null) break;
+      try {
+        await pending;
+      } catch (_) {
+        // A failed opening still leaves teardown responsible for any prior DB.
+      }
+    }
+    final database = _instance;
+    if (database == null) return;
+    final closing = database.close();
+    _initInFlight = closing;
+    try {
+      await closing;
+    } finally {
+      if (identical(_instance, database)) {
+        _instance = null;
+        _activeUserId = null;
+      }
+      if (identical(_initInFlight, closing)) _initInFlight = null;
+    }
+  }
+
   /// Optional production database location installed before application
   /// startup. This is deliberately separate from the test factory: a desktop
   /// candidate must be able to direct Drift's real production connection into

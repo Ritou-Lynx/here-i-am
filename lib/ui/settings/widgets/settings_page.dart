@@ -19,6 +19,7 @@ import 'package:memex/ui/settings/widgets/device_app_blocker_settings_page.dart'
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
 import 'package:memex/ui/settings/widgets/early_update_settings_card.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/data/personal_data_hub/personal_data_hub_runtime_owner.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/event_bus_service.dart';
@@ -1345,9 +1346,8 @@ class _SettingsPageState extends State<SettingsPage> {
       await EventBusService.instance.disconnect();
 
       // 2. Close and delete database
-      if (AppDatabase.isInitialized) {
-        await AppDatabase.instance.close();
-      }
+      await PersonalDataHubRuntimeOwner.current?.suspend();
+      await AppDatabase.closeCurrent();
 
       // 3. Delete workspace files
       try {

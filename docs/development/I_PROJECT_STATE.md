@@ -1,8 +1,8 @@
 # 林埃的项目状态
 
-## W3/W4/W5 并行候选与部署前只读调查（2026-10-05）
+## W3/W4/W5 并行候选与部署前只读调查（2026-10-06）
 
-用户已授权并行源码开发。本批从 v3-lab@8dde12b3 隔离：W3 codex/w3-domain-mcp-20261005，W4 codex/w4-quick-capture-20261005，W5 codex/w5-planning-views-20261005；主窗 codex/hub-parallel-20261005 实现 W7 按记录/操作存储、保留迁移状态与关闭本地去重，见[前置候选](handoffs/W7_ROW_STORAGE_20261005.md)。主窗组合接线和验收进行中；各 worker 有限测试不代替组合验收，尚未合入 v3-lab。
+用户已授权并行源码开发。本批从 v3-lab@8dde12b3 隔离：W3 codex/w3-domain-mcp-20261005，W4 codex/w4-quick-capture-20261005，W5 codex/w5-planning-views-20261005；主窗 codex/hub-parallel-20261005 实现 W7 按记录/操作存储、保留迁移状态与关闭本地去重，见[前置候选](handoffs/W7_ROW_STORAGE_20261005.md)。W3/W4/W5已普通合入该任务分支，主窗完成独立捕获/规划入口、页面外提醒、应用锁及账户DB生命周期返修；最终组合验收见[交接](handoffs/HUB_PARALLEL_SOURCE_ACCEPTANCE_20261005.md)。主窗最终Flutter235/235、Node172/172，新模块严格分析无问题，共享旧43条诊断增量0；新增实际双SQLite连接竞争修复与后台草稿保留。完整CI/候选构建按任务PR回执，不等同部署及设备Gate；尚未合入 v3-lab。
 
 用户另开只读调查线程 01a10c93-10d4-73b2-928d-f740fde50046，分支 codex/predeploy-audit-20261005。报告及返修提交19588f4f只留该分支，不合入主线。现役固定 Core4 transcript/replay 未进入当前主线；10条手机 companion 最支持B3上传归因但仍为推断，持续调用未知。发现的B3手机候选 DB62 vs 主线60须先解决兼容；ADB零连接，现装包未核。仅报元数据，未停服、改配置、升级原库、安装手机或启用生产领域。
 
@@ -20,7 +20,7 @@ W2源码提交 `a00112e8` 经 [PR #9](https://github.com/Ritou-Lynx/here-i-am/pu
 
 两处返修已完成主窗有限源码验收：[交接](handoffs/PR9_PR10_REVIEW_FIXES_MAIN_ACCEPTANCE_20261005.md)、[回执](handoffs/PR9_PR10_REVIEW_FIXES_VALIDATION_20261005.json)。改卡工具绑定真实触发用户消息 sync_id，以 user_via_agent 改写，缺授权说明原因并拒绝；真实日程勾完成再委托改回未完成成功。claude_web 同源版本更新原卡 ID，明确删除清未修改产出、保护用户改卡并提供中文提示；竞态、持久幂等、FTS/ledger/ack 事务及旧映射兼容已覆盖。Flutter 118/118、Core 14/14、相关分析无问题，最终源码哈希稳定；精确 head CI 与合并以任务 PR 回执为准。
 
-W3 切 i_remember 前须先合入生命周期修复。W4 已明确侧键生活事实交 Record Organizer（ADR 决定12）。W7 新增按记录/操作持久化、area 允许“未归类”、切换前关闭该领域启动去重的硬前置；当前整行 JSON 状态及去重退役仍待实现，不继承基础验收。保护卡来源原话保留（自动审批拒绝额外清空）；旧无基线或多卡歧义保留待处理。本次未部署、升级原库、安装手机或切换业务领域。
+W3 切 i_remember 前须先合入生命周期修复。W4 已明确侧键生活事实交 Record Organizer（ADR 决定12）。W7 新增按记录/操作持久化、area 允许“未归类”、切换前关闭该领域启动去重的硬前置；本批隔离候选已实现逐记录JSON行、原子迁移及域去重退役，见本页首节；未合入或部署，不继承基础验收。保护卡来源原话保留（自动审批拒绝额外清空）；旧无基线或多卡歧义保留待处理。本次未部署、升级原库、安装手机或切换业务领域。
 
 ## 个人数据中枢：已合入规划与独立窗口（2026-10-05）
 

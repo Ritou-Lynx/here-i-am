@@ -1,8 +1,11 @@
+import 'package:memex/ui/quick_capture/quick_capture_access_gate.dart';
 // Copyright 2024 The Memex team. All rights reserved.
 // Compass-aligned: GoRouter for declarative routing.
 // ViewModels are created in route builders and passed to screens.
 
 import 'package:flutter/foundation.dart';
+import 'package:memex/ui/quick_capture/widgets/quick_capture_host_screen.dart';
+import 'package:memex/ui/planning/widgets/planning_host_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -42,13 +45,24 @@ import 'package:memex/ui/desktop/desktop_workspace_shell.dart';
 /// Creates the app [GoRouter]. Root content is built by [rootBuilder].
 GoRouter createAppRouter(
     GlobalKey<NavigatorState> navigatorKey, Widget Function() rootBuilder,
-    {bool? desktopPlatformOverride}) {
+    {bool? desktopPlatformOverride, String initialLocation = AppRoutes.home}) {
   final isDesktop = desktopPlatformOverride ?? _isDesktopPlatform;
   return GoRouter(
     navigatorKey: navigatorKey,
-    initialLocation: AppRoutes.home,
+    initialLocation: initialLocation,
     observers: [personaChatNavigatorObserver],
     routes: [
+      GoRoute(
+        path: AppRoutes.quickCapture,
+        builder: (_, __) => QuickCaptureAccessGate(
+          builder: (_) => QuickCaptureHostScreen(
+            independentTask: initialLocation == AppRoutes.quickCapture,
+          ),
+        ),
+      ),
+      GoRoute(
+          path: AppRoutes.planning,
+          builder: (_, __) => const PlanningHostScreen()),
       // Desktop standard work surfaces share one persistent shell. The shell
       // keeps the sidebar state while sibling pages switch with no Windows
       // ZoomPageTransition. Mobile still builds the existing root unchanged.

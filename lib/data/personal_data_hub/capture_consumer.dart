@@ -64,6 +64,7 @@ class CaptureConsumer {
       if (record['deleted_at'] != null &&
           record['local_delete_action'] is String) {
         await db.transaction(() async {
+          await store.acquireWriteLock();
           final latest = store.domain(await store.read(), 'captures');
           store.checkBinding(latest, 'captures');
           final current = latest['phone_records'][id];
@@ -106,6 +107,7 @@ class CaptureConsumer {
       }
       final organized = await extract(text);
       await db.transaction(() async {
+        await store.acquireWriteLock();
         final latest = store.domain(await store.read(), 'captures');
         store.checkBinding(latest, 'captures');
         final current = route == 'phone'
@@ -204,6 +206,7 @@ class CaptureConsumer {
   }
 
   Future<void> _upgradeLegacy() => db.transaction(() async {
+        await store.acquireWriteLock();
         final rows = await db
             .customSelect(
               "SELECT key,value FROM kv_store WHERE bucket='capture_consumer'",
@@ -329,6 +332,7 @@ class CaptureConsumer {
       if (_deleted(state, d, id)) {
         if (ledger == null || ledger['deleted'] == true) continue;
         await db.transaction(() async {
+          await store.acquireWriteLock();
           final latestState = await store.read();
           final latest = store.domain(latestState, 'captures');
           store.checkBinding(latest, 'captures');
@@ -379,6 +383,7 @@ class CaptureConsumer {
           completed is Map &&
           ['done', 'skipped'].contains(completed['status'])) {
         await db.transaction(() async {
+          await store.acquireWriteLock();
           if (await _ledger(id) != null) return;
           final slots = await organizer.captureLegacySlots(
             (completed['outputs'] as List? ?? []).whereType<String>().toList(),
@@ -410,6 +415,7 @@ class CaptureConsumer {
       final organized =
           alreadyExtracted ? OrganizedRecord(cards: []) : await extract(text);
       await db.transaction(() async {
+        await store.acquireWriteLock();
         final latestState = await store.read();
         final latest = store.domain(latestState, 'captures');
         store.checkBinding(latest, 'captures');

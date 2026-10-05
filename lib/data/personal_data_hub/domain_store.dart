@@ -27,10 +27,22 @@ class DomainStore {
   late final _rows = DomainRowStorage(db,
       installationId: binding.installationId, clock: clock, fault: fault);
 
+  /// Acquire the SQLite writer slot before reads or cached, parameterized DML.
+  /// Call only inside the injected database's active transaction.
+  /// This parameter-free sqlite3_exec statement changes no rows. If a second
+  /// connection owns the slot, SQLITE_BUSY leaves no cached statement active,
+  /// so the caller can retry the entire operation on this same connection.
+  Future<void> acquireWriteLock() =>
+      db.customStatement('UPDATE kv_store SET updated_at=updated_at WHERE 0');
+
   /// A coherent SQLite snapshot. Old state migrates atomically on first access;
   /// IDs, pending request bodies, sealed operations and receipts are preserved.
   Future<Json> read() async {
-    final loaded = await db.transaction(_rows.read);
+    final loaded = await db.transaction(() async {
+      // Reads can also migrate legacy storage and therefore need the fence.
+      await acquireWriteLock();
+      return _rows.read();
+    });
     if (loaded.migrated) await fault('legacy_migration_after_commit');
     return loaded.state;
   }
@@ -38,6 +50,7 @@ class DomainStore {
   Future<T> transaction<T>(Future<T> Function(Json state) work) async {
     var migrated = false;
     final result = await db.transaction(() async {
+      await acquireWriteLock();
       final loaded = await _rows.read();
       migrated = loaded.migrated;
       final result = await work(loaded.state);

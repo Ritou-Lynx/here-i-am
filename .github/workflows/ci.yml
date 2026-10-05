@@ -102,6 +102,12 @@ jobs:
         run: |
           files=$(ls *.test.mjs | grep -v '^windows_text_gate_' | grep -v '^workbench_text_task_product_host.test.mjs$')
           node --test $files
+      - name: Personal data domains and MCP
+        run: >-
+          node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs
+          tools/i_core/personal_data_domains.test.mjs
+          tools/i_core/personal_data_http.test.mjs
+          tools/i_core/import_personal_notes.test.mjs
       - name: chatgpt_android_bridge
         working-directory: tools/chatgpt_android_bridge
         run: node --test $(find . -name '*.test.mjs' | sort)

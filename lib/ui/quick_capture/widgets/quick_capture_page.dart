@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:memex/utils/result.dart';
 import '../../../data/personal_data_hub/quick_capture_models.dart';
 import '../../../data/personal_data_hub/quick_capture_service.dart';
 import '../../../data/personal_data_hub/quick_capture_speech.dart';
+import '../quick_capture_access_gate.dart';
 import '../view_models/quick_capture_view_model.dart';
 
 class QuickCapturePage extends StatefulWidget {
@@ -14,6 +16,7 @@ class QuickCapturePage extends StatefulWidget {
     this.onClose,
     this.recent,
     this.onOpenOutput,
+    this.changes,
   });
   final QuickCaptureService service;
   final QuickCaptureSpeech? speech;
@@ -21,6 +24,7 @@ class QuickCapturePage extends StatefulWidget {
   final VoidCallback? onClose;
   final Future<List<QuickCaptureResult>> Function()? recent;
   final void Function(String processor, String id)? onOpenOutput;
+  final Stream<void>? changes;
   @override
   State<QuickCapturePage> createState() => _QuickCapturePageState();
 }
@@ -29,34 +33,59 @@ class _QuickCapturePageState extends State<QuickCapturePage>
     with WidgetsBindingObserver {
   late final QuickCaptureViewModel vm;
   late final TextEditingController text;
+  QuickCaptureDraftSession? _session;
   List<QuickCaptureResult> recent = [];
+  StreamSubscription<void>? _changes;
+  int _recentGeneration = 0;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _session = QuickCaptureDraftSession.maybeOf(context);
+    final restored = _session?.draft ?? widget.restored;
     vm = QuickCaptureViewModel(
       widget.service,
       speech: widget.speech,
-      restored: widget.restored,
+      restored: restored,
     )..addListener(changed);
+    _session?.draft = vm.draft;
     text = TextEditingController(text: vm.draft.text);
+    _subscribe();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (widget.restored == null) vm.voice.execute();
+      if (restored == null) vm.voice.execute();
       loadRecent();
     });
   }
 
+  void _subscribe() {
+    _changes = widget.changes?.listen((_) => loadRecent());
+  }
+
+  @override
+  void didUpdateWidget(covariant QuickCapturePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.changes, widget.changes)) {
+      _changes?.cancel();
+      _subscribe();
+      loadRecent();
+    }
+  }
+
   Future<void> loadRecent() async {
     if (widget.recent == null) return;
+    final generation = ++_recentGeneration;
     final result = await runResult(widget.recent!);
-    if (mounted && result is Ok<List<QuickCaptureResult>>) {
+    if (mounted &&
+        generation == _recentGeneration &&
+        result is Ok<List<QuickCaptureResult>>) {
       setState(() => recent = result.value);
     }
   }
 
   void changed() {
     if (!mounted) return;
+    _session?.draft = vm.draft;
     if (text.text != vm.draft.text) {
       text.value = TextEditingValue(
         text: vm.draft.text,
@@ -87,6 +116,11 @@ class _QuickCapturePageState extends State<QuickCapturePage>
     if (widget.onClose != null) await close();
   }
 
+  Future<void> openOutput(String processor, String id) async {
+    await vm.keyboard();
+    if (mounted) widget.onOpenOutput?.call(processor, id);
+  }
+
   List<Widget> receipt(QuickCaptureResult result) => [
         Text(result.deliveryMessage),
         Text(result.organizerMessage ?? '生活记录：待处理'),
@@ -94,21 +128,22 @@ class _QuickCapturePageState extends State<QuickCapturePage>
           TextButton(
               onPressed: widget.onOpenOutput == null
                   ? null
-                  : () => widget.onOpenOutput!(
-                      'organizer', result.organizerOutputs[i]),
+                  : () => openOutput('organizer', result.organizerOutputs[i]),
               child: Text('查看生活记录 ${i + 1}')),
         Text(result.plannerMessage ?? '待办与时间：待处理'),
         for (var i = 0; i < result.plannerOutputs.length; i++)
           TextButton(
               onPressed: widget.onOpenOutput == null
                   ? null
-                  : () =>
-                      widget.onOpenOutput!('planner', result.plannerOutputs[i]),
+                  : () => openOutput('planner', result.plannerOutputs[i]),
               child: Text('查看规划 ${i + 1}')),
         ...result.pendingIssues.map(Text.new),
       ];
   @override
   void dispose() {
+    _session?.draft = vm.draft;
+    _recentGeneration++;
+    _changes?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     vm.removeListener(changed);
     vm.dispose();
@@ -156,6 +191,11 @@ class _QuickCapturePageState extends State<QuickCapturePage>
               TextButton(
                 onPressed: busy ? null : vm.keyboard,
                 child: const Text('完成录音，编辑文字'),
+              ),
+            if (!vm.recording && widget.speech != null)
+              TextButton(
+                onPressed: busy ? null : vm.voice.execute,
+                child: const Text('重新录音'),
               ),
             TextButton(
               onPressed: busy ? null : vm.keyboard,

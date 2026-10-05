@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:memex/db/app_database.dart';
 import 'domain_protocol.dart';
 import 'domain_store.dart';
 import 'domain_sync_engine.dart';
+
+enum PersonalDataHubChange { connections, synchronized }
 
 /// App-scoped, inert until an owner supplies scoped domain connections.
 /// No startup registration, migration, credentials, model call, or timer.
@@ -15,6 +18,9 @@ class PersonalDataHub {
   final _engines = <String, DomainSyncEngine>{};
   final _recallDomains = <String>{};
   final Map<String, String> lastSyncErrors = {};
+  final syncedDomains = <String>{};
+  final _changes = StreamController<PersonalDataHubChange>.broadcast();
+  Stream<PersonalDataHubChange> get changes => _changes.stream;
   bool get hasConnections => _engines.isNotEmpty;
 
   void attach(String domain, DomainStore store, DomainTransport transport,
@@ -29,13 +35,28 @@ class PersonalDataHub {
     } else {
       _recallDomains.remove(domain);
     }
+    syncedDomains.remove(domain);
+    lastSyncErrors.remove(domain);
+    _changes.add(PersonalDataHubChange.connections);
   }
 
   DomainStore? storeFor(String domain) => _stores[domain];
   Future<void> syncOnce(String domain) async {
     final engine = _engines[domain];
     if (engine == null) throw const DomainFailure('domain_not_configured');
-    await engine.syncOnce(domain);
+    try {
+      await engine.syncOnce(domain);
+      syncedDomains.add(domain);
+      lastSyncErrors.remove(domain);
+    } on DomainFailure catch (error) {
+      lastSyncErrors[domain] = error.code;
+      rethrow;
+    } catch (_) {
+      lastSyncErrors[domain] = 'sync_failed';
+      rethrow;
+    } finally {
+      _changes.add(PersonalDataHubChange.synchronized);
+    }
   }
 
   /// Foreground-only pass. An unavailable domain must not block chat or other
@@ -47,6 +68,8 @@ class PersonalDataHub {
         lastSyncErrors.remove(name);
       } on DomainFailure catch (e) {
         lastSyncErrors[name] = e.code;
+      } catch (_) {
+        lastSyncErrors[name] = 'sync_failed';
       }
     }
   }

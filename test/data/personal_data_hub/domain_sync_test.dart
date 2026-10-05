@@ -44,7 +44,9 @@ Future<void> deleteCrashFixture(Directory directory) async {
     } on PathAccessException catch (error) {
       if (!Platform.isWindows ||
           error.osError?.errorCode != 32 ||
-          attempt >= 29) rethrow;
+          attempt >= 29) {
+        rethrow;
+      }
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
   }
@@ -1580,7 +1582,14 @@ void main() {
         await terminateCrashProcess(process, ready, point);
         local = CrashDatabase(file);
         durable = DomainStore(local, binding: fixtureBinding);
-        final after = await durable.read();
+        late Json after;
+        try {
+          after = await durable.read();
+        } finally {
+          // Release the reopened handle before assertions: a failed assertion
+          // must not be hidden by Windows refusing fixture cleanup.
+          await local.close();
+        }
         if (point == 'enqueue_after_commit') {
           expect(after['outbox'], hasLength(1));
           expect(after['outbox'][0]['state'], 'pending');
@@ -1596,7 +1605,6 @@ void main() {
         } else {
           expect(after, before, reason: point);
         }
-        await local.close();
       }
     } finally {
       await deleteCrashFixture(directory);

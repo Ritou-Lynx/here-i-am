@@ -2,6 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+import 'package:memex/utils/result.dart';
+import 'package:memex/data/personal_data_hub/personal_data_hub_runtime.dart';
+import 'package:memex/ui/quick_capture/widgets/quick_capture_host_screen.dart';
 import 'package:memex/data/personal_data_hub/quick_capture_models.dart';
 import 'package:memex/data/personal_data_hub/quick_capture_service.dart';
 import 'package:memex/data/personal_data_hub/quick_capture_speech.dart';
@@ -31,6 +36,140 @@ void main() {
       .setMockMethodCallHandler(
           const MethodChannel('com.memexlab.memex/quick_capture'),
           (_) async => true);
+
+  testWidgets(
+      'host distinguishes loading from initialization failure without exposing errors',
+      (tester) async {
+    await tester.pumpWidget(Provider<Result<PersonalDataHubRuntime>?>.value(
+        value: null, child: const MaterialApp(home: QuickCaptureHostScreen())));
+    expect(find.text('正在打开记录入口…'), findsOneWidget);
+    expect(find.byType(QuickCapturePage), findsNothing);
+    await tester.pumpWidget(Provider<Result<PersonalDataHubRuntime>?>.value(
+        value: Error(StateError('secret synthetic token')),
+        child: const MaterialApp(home: QuickCaptureHostScreen())));
+    expect(find.text('记录入口暂时无法打开，请返回后重试'), findsOneWidget);
+    expect(find.textContaining('secret'), findsNothing);
+    expect(find.byType(QuickCapturePage), findsNothing);
+  });
+
+  testWidgets(
+      'independent capture close finishes native task without navigating home',
+      (tester) async {
+    var finishes = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('com.memexlab.memex/quick_capture'),
+            (call) async {
+      if (call.method == 'finishCapture') finishes++;
+      return null;
+    });
+    await tester.pumpWidget(Provider<Result<PersonalDataHubRuntime>?>.value(
+        value: Error(StateError('fixture')),
+        child: const MaterialApp(
+            home: QuickCaptureHostScreen(independentTask: true))));
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    expect(finishes, 1);
+    expect(find.byType(QuickCaptureHostScreen), findsOneWidget);
+  });
+
+  testWidgets(
+      'ordinary capture close navigates home even when native bridge is unavailable',
+      (tester) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('com.memexlab.memex/quick_capture'),
+            (_) async => throw MissingPluginException());
+    final router = GoRouter(initialLocation: '/capture', routes: [
+      GoRoute(path: '/', builder: (_, __) => const Text('首页夹具')),
+      GoRoute(
+          path: '/capture', builder: (_, __) => const QuickCaptureHostScreen()),
+    ]);
+    await tester.pumpWidget(Provider<Result<PersonalDataHubRuntime>?>.value(
+        value: Error(StateError('fixture')),
+        child: MaterialApp.router(routerConfig: router)));
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    expect(find.text('首页夹具'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    router.dispose();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('com.memexlab.memex/quick_capture'),
+            (_) async => true);
+  });
+
+  testWidgets(
+      'change events only refresh recent results and unsubscribe on disposal',
+      (tester) async {
+    final events = StreamController<void>.broadcast();
+    var reads = 0, sends = 0;
+    var label = '生活记录：待处理';
+    final service = QuickCaptureService(submit: (draft) async {
+      sends++;
+      return QuickCaptureResult(captureId: draft.captureId!, text: draft.text);
+    });
+    await tester.pumpWidget(MaterialApp(
+        home: QuickCapturePage(
+            service: service,
+            changes: events.stream,
+            recent: () async {
+              reads++;
+              return [
+                QuickCaptureResult(
+                    captureId: 'saved-id',
+                    text: '已存原话',
+                    organizerMessage: label)
+              ];
+            })));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '尚未发送的草稿');
+    expect(reads, 1);
+    expect(events.hasListener, true);
+    label = '生活记录：已处理';
+    events.add(null);
+    await tester.pumpAndSettle();
+    expect(reads, 2);
+    expect(sends, 0);
+    expect(find.text('生活记录：已处理'), findsOneWidget);
+    expect(find.text('尚未发送的草稿'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(events.hasListener, false);
+    events.add(null);
+    await tester.pump();
+    expect(reads, 2);
+    await events.close();
+  });
+
+  testWidgets(
+      'newer recent refresh wins when asynchronous reads complete out of order',
+      (tester) async {
+    final events = StreamController<void>.broadcast();
+    final old = Completer<List<QuickCaptureResult>>();
+    var reads = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: QuickCapturePage(
+            service: QuickCaptureService(
+                submit: (_) => throw StateError('must not save')),
+            changes: events.stream,
+            recent: () {
+              reads++;
+              return reads == 1
+                  ? old.future
+                  : Future.value(const [
+                      QuickCaptureResult(captureId: 'new', text: '最新结果')
+                    ]);
+            })));
+    events.add(null);
+    await tester.pumpAndSettle();
+    expect(find.text('最新结果'), findsOneWidget);
+    old.complete(const [QuickCaptureResult(captureId: 'old', text: '旧结果')]);
+    await tester.pumpAndSettle();
+    expect(find.text('最新结果'), findsOneWidget);
+    expect(find.text('旧结果'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await events.close();
+  });
   test(
       'production speech adapter without a local model falls back before opening microphone',
       () async {
