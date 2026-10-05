@@ -2,24 +2,25 @@
 
 ## 1. 结论和证据边界
 
-本报告绑定 **正式净化谱系 v3-lab@8dde12b312ad83f7475df8bd99a359f1b2d782d6**，调查分支 `codex/predeploy-audit-20261005`。指定源码/报告目录为 `C:\HereIAm\predeploy-audit-20261005`，开工 Git status 为空，未切分支。调查时间约 **2026-10-05 22:59–23:15（Asia/Shanghai）**；时间戳字段保留毫秒原值，日志时间为 UTC。
+本报告绑定 **正式净化谱系 v3-lab@8dde12b312ad83f7475df8bd99a359f1b2d782d6**，调查分支 `codex/predeploy-audit-20261005`。指定源码/报告目录为 `C:\HereIAm\predeploy-audit-20261005`，开工 Git status 为空，未切分支。初轮调查时间约 **2026-10-05 22:59–23:15（Asia/Shanghai）**；**手机补验为2026-10-06 00:54–00:57（Asia/Shanghai）**。补验仅更新设备及本地构建绑定，不前移Core/日志/旧账本的原取证窗口。时间戳字段保留毫秒原值，日志时间为 UTC。
 
 结论：
 
 1. 现役 Core 的 Node 进程真正指向固定包 `b3-v4-phone-transcripts-20261003`，不是调查分支源码。健康接口、原库只读一致快照均为 schema 4，健康 node_id 与该库一致。固定包全部 9 个库存文件 SHA256 与 manifest 一致。
 2. 固定包的受限 Android transcript 接口和保护实现仍加载，外置 grant 与 72 条 historical replay 不可变绑定仍存在；这是实现和配置状态，不是近期客户端调用或 replay 例外命中的证明。当前基线没有对应 transcript 路由或 replay 保护执行代码。**保住 DB 行不等于保住授权和行为。**
 3. W6 的 Android 来源 companion 数量仍为 **10**。7 条旧回复在一次短窗口连续入库，随后 3 条与用户消息交错；这强支持 B3 手机 backlog 补交及随后 transcript 上传的归因，但仍是推断。标准 `import_v3_chat` 的来源和时间不吻合。没有逐请求路由审计，不能排除未留下记录的本机维护调用，不能写成实机逐条证明；当前持续调用仍未知。
-4. 当前基线已经包含 PR10 的 companion outbox/服务端手机能力；它走普通 chat/messages，**没有** B3 transcript/网页 notes 拉取接线。B3 手机源码 schema 为 **62**，当前基线 schema 为 **60**，没有 onDowngrade 实现。直接安装主线候选存在本地 DB 降版本与功能退化风险。
-5. 本次 ADB 在普通视图及宿主权限下都返回 **0 台设备**。当前实机 versionName/versionCode、安装时间、base/split APK SHA256、当前开关及手机 import 回执均未验证。本机 APK 与历史 8770aa60 构建/安装记录哈希一致，不能冒称它现在仍安装在主力手机。
+4. 当前基线已经包含 PR10 的 companion outbox/服务端手机能力；它走普通 chat/messages，**没有** B3 transcript/网页 notes 拉取接线。手机补验的安装APK精确匹配B3候选8770aa60，源码schema为 **62**；其SQLite主文件头也读到user_version=62（不是SQL一致视图或迁移完整性验证）。当前基线schema为 **60**，没有onDowngrade实现。**不能直接以主线候选覆盖安装；先补向前兼容及B3已实现能力。**
+5. 初轮ADB为0设备；10/06用户连接并确认USB调试/电脑授权后，补验见 **1台SM-S9110**。现装包versionName=1.0.30、versionCode=113，pm path仅base.apk，其SHA256与本地及历史8770aa60一致；安装时间和路径已现场读取，见§5.1。当前Core/notes连接、能力响应、队列及手机import回执仍未验证；不能从包已安装推出持续同步成功。
 6. i_remember 旧账本仍只有 1 条 deleted/on_phone；手机消费者代码找到了，位于未进入本基线的 B3 分支。回执能证明账本曾被 ack，不能独立证明当时请求由哪一个硬件/哪段 App 代码发出。
 
-本轮没有停启服务、改线上配置、升级库、装/启动手机 App、改开关、改源码、push、PR、合入 v3-lab 或改 DEVLOG/I_PROJECT_STATE。仅新增及验收修订本报告，并按用户授权提交本调查分支。真实正文、凭据、token、数据库及原始日志不进入报告或 Git。未派生子 Agent。
+初轮及手机补验均没有停启服务、改线上配置、升级库、装/启动手机App、改开关、改源码、push、PR、合入v3-lab或改DEVLOG/I_PROJECT_STATE。仅新增及验收修订本报告，并按用户授权提交本调查分支。真实正文、凭据、token、数据库及原始日志不进入报告或Git。初轮独立调查未派生子Agent；手机补验由主窗执行ADB，并委派只读源码/证据边界复核，worker未接触设备或真实数据。
 
 ### 1.1 方法
 
 - SQLite 原库用 Python `mode=ro`、`PRAGMA query_only=ON` 和读取事务打开，再用在线 backup API 备份到 **进程内 :memory:**。聚合与白名单列查询在一致内存副本中进行；关闭连接即释放，没有新增磁盘明文库。不是复制活跃 main/WAL。
 - Core 快照 integrity_check=ok；8 张业务表（另有 sqlite_sequence）与 schema_version=4。未打开正文列做语义判断；backup 在本机内存复制完整页，输出只含结构/计数/指定元数据。
 - 进程和计划任务先提取可允许的脚本/可执行文件路径、PID、时间；未输出原命令行、环境或秘密参数。
+- 10/06手机补验只用ADB设备列表、包管理/dumpsys白名单字段、设备端APK SHA256，以及run-as的指定App DB文件元数据和20字节SQLite主文件头（16字节magic、offset60的4字节user_version）。没有复制手机main/WAL/SHM、读取其正文/配置秘密、执行SQL或checkpoint；见§5.1。
 - 日志在本机解析并聚合；仅计数、时间、白名单工具/端点。近 30 天窗按 2026-09-05 至 2026-10-05 取证；可找到的现役 remote 诊断日志集中在 10/02–10/05。没有全量 30 天 HTTP 调用审计，缺日志均写“未发现调用”，不推断无人使用。
 - 默认命令入口初期返回慢；显式 PowerShell 后可正常读取。曾运行 doctor 只读诊断，未修配置、更新或改变 Defender。受保护进程/授权文件读取使用了已授权的只读权限提升，没有自动审批拒绝。
 - `i_bootstrap` 自动识别的是任务默认目录的 ephemeral 项目；没有拿它替代源码目录核验，也没有切换项目或写项目 closeout。按委派要求由主窗负责全局交接。
@@ -115,9 +116,9 @@ worker表不属于 transcript/replay 的新增任务。现役 launcher 清除未
 
 | 调用者 | 静态依据/接口 | 近30天可用证据 | 判断 |
 |---|---|---|---|
-| B3 手机 App | `C:\HereIAm\b3-writeback-local-20261003`；core_sync_client.dart:77/88；engine:80–108、250–254先capability，再backlog和submitTranscripts；Persona:353–394原子入companion队列；main.dart:1880–1920前台30秒/恢复同步 | 10条Android companion的写入窗10/03 23:25至10/04 00:21（上海）；历史激活receipt candidate8770aa60且grant启用；没有本次实机、route log或开关读取 | 现役Core提供此路径；10条落库强支持B3上传归因（推断），未证实逐请求路由；当前App实际持续调用未知 |
+| B3 手机 App | `C:\HereIAm\b3-writeback-local-20261003`；core_sync_client.dart:77/88；engine:80–108、250–254先capability，再backlog和submitTranscripts；Persona:353–394原子入companion队列；main.dart:1880–1920前台30秒/恢复同步 | 10条Android companion的写入窗10/03 23:25至10/04 00:21（上海）；历史激活receipt candidate8770aa60且grant启用；10/06现装APK已精确匹配8770，但没有当前route log、连接或capability响应 | 现装App可绑定此B3实现；10条落库仍是B3上传归因的推断，未证实逐请求路由；当前实际持续调用未知 |
 | i_remote_mcp | 现役writeback.mjs:298–309调用普通chat/messages，以frontend:claude_web身份；flush:469、chatTurn:536；不调用transcripts/capability | 现役MCP日志i_chat_turn成功151条，最后2026-10-05T08:36:59.024Z；ledger user79/assistant78全部committed，Core相同来源79/78；未发现transcript/replay接口直接调用 | **仍在用普通网页finished-turn链**；不是Android10条上传者。不能因其不走transcript认定transcript无人用 |
-| i_continuity_gateway / Codex Voice | 现役 .i/runtime/i_voice_context.mjs:141–157选择ADB、600–625只读提取；581声明no_phone_or_memory_writes；现役两mjs无chat/transcripts/chat/messages的HTTP调用 | 已确认实际网关进程/配置来源；当前手机0连接；未找到该网关到transcript的调用代码/本次授权范围中的调用日志 | **未发现调用**。Voice里的“用户转录”不是这个Core transcript接口，不新增推断 |
+| i_continuity_gateway / Codex Voice | 现役 .i/runtime/i_voice_context.mjs:141–157选择ADB、600–625只读提取；581声明no_phone_or_memory_writes；现役两mjs无chat/transcripts/chat/messages的HTTP调用 | 初轮已确认实际网关进程/配置来源，当时手机0连接；10/06手机补验已连接，未调用Voice；未找到该网关到transcript的调用代码/本次授权范围中的调用日志 | **未发现调用**。Voice里的“用户转录”不是这个Core transcript接口，不新增推断 |
 | 计划任务 | 全部任务动作白名单扫描：仅HereIAm-iCore、HereIAm-iRemoteMCP与这些路径相关；动作都为服务启动入口 | 两任务Running，进程/端口绑定如§2；未发现计划任务直接执行transcript POST或定时replay导入 | 服务启动仍使用；独立定时上传**未发现调用** |
 | 本机部署/恢复脚本 | 现役remote .state/runtime/complete-b3-full-phone-transcripts.ps1:196、deploy-b3-full-phone-transcripts.ps1:215做capability健康/未认证检查；activation receipt位于phone-transcripts-20261003-232314-877dae…/activation-receipt.json | receipt activated=true、candidate8770aa60、service05112dde、schema4、worker_features=false、unauthenticated capability401；创建2026-10-03T15:24:23Z | 已有维护检查证据；不是新companion POST证明。扫描这里的维护脚本未发现直接POST chat/transcripts |
 | replay维护脚本 | D:/memex/tools/i_core/.state/b3-sync-conflict-diagnostic.py:202–207生成approved_replays；b3-core-replay-package.py:42/84保全/打包审批；R/store启动加载 | 文件/ledger72一致；mtime如§3.1；未发现最近一次逐条replay命中的日志 | 绑定仍重要；是否仍有待补交队列**说不清** |
@@ -174,7 +175,7 @@ worker表不属于 transcript/replay 的新增任务。现役 launcher 清除未
 | 入队 | Persona:353–394纯文字companion自动原子入队；259–305授权backlog | Persona:247–260本机owner gate；263–299只有匹配device/character开关才入队 |
 | 上传 | engine:74–108先user走messages，再companion走transcripts | engine:67–110读取chat sender，全部走messages |
 | 服务端授权 | 外置local-transcript-grants绑定token/角色/日期 | store:1102–1140 schema6域能力domain_phone_capabilities；token绑定，普通配对声明不授予 |
-| 默认/当前启用 | 代码依capability；本次server grant1有效，手机当前状态未知 | 当前基线只搜到configureCompanionOutbox定义，没有生产调用点；现役schema4没有domain_phone_capabilities，不能报PR10已启用 |
+| 默认/当前启用 | 现装8770代码依每轮服务器capability，没有本地持久companion布尔开关；初轮server grant1有效。当前连接/凭据及enabled响应未读，不能由包哈希推出开启 | 当前基线只搜到configureCompanionOutbox定义，没有生产调用点；现役schema4没有domain_phone_capabilities，不能报PR10已启用 |
 | 稳定身份 | 已有chat sync_id复用，队列origin_sequence写一次；counter=outbox.max_sequence.device；永久companion.enqueued.sync_id标记及server_sequence挡backlog重排 | addCharacterMessage一次生成chat sync_id，并给同一队列复用该ID；相同counter；没有B3永久backlog标记 |
 | 发回复 | 上传已完成回复，不建Core reply job | 手机已完成回复上传，不带request_companion_reply字段；Core能力登记要求关闭/排空Core reply production |
 
@@ -186,15 +187,34 @@ worker表不属于 transcript/replay 的新增任务。现役 launcher 清除未
 
 ### 5.1 现场ADB结果与本地产物
 
-本次ADB路径：`C:\Users\Lynx-DB\AppData\Local\Android\Sdk\platform-tools\adb.exe`。普通和宿主只读devices -l均0设备，没有install/push/run-as写入/启动App/连接新地址/切开关。
+ADB路径：`C:\Users\Lynx-DB\AppData\Local\Android\Sdk\platform-tools\adb.exe`。初轮普通/宿主devices -l均0设备；10/06开始补验时仍为0，随后Windows出现Samsung Android ADB Interface（Status=OK），设备列表出现且仅有1台已授权device。用户确认USB调试已开启并允许电脑。没有kill/start-server、install/push、App启动/force-stop或连接配置修改。
 
-| 核验项 | 当前实机结果 | 独立本机/历史证据 |
+| 核验项 | 10/06当前实机结果 | 对照及边界 |
 |---|---|---|
-| 主力设备选择 | **未验证：0连接**；Core有多个Android登记记录，不能据此挑硬件 | 活跃来源962d78a6…有近期写入/ack；只是登记身份。Gateway选择逻辑只有明确serial或恰好1台设备才通过（现役Voice:141–157、600–601） |
-| versionName/versionCode | **未知** | 本地APK经aapt为1.0.30/113、包com.memexlab.hereiam.v3；output-metadata.json相符 |
-| firstInstallTime/lastUpdateTime | **未知** | 历史10/03安装事件只能说明当时；不能代替当前dumpsys字段 |
-| APK SHA256/多split | **未知**，没有pm path/split清单，不宣称单包 | 本地构建metadata为SINGLE，无split；不是当前手机split证明 |
-| 当前安装源码 | **未知** | 本地候选与历史8770aa60匹配，见下；不能升级为当前实机事实 |
+| 设备 | serial前缀 `RFCWC01…`；model=SM-S9110，Android16；USB transport；仅1台device | 单设备结合用户确认选取，未把Core登记ID当硬件身份 |
+| versionName/versionCode | **1.0.30 / 113**；包com.memexlab.hereiam.v3；DEBUGGABLE | dumpsys package现场白名单字段；与本地aapt/output-metadata一致 |
+| firstInstallTime | **2026-07-29 10:39:13（Asia/Shanghai）** | 当前dumpsys用户安装字段，不是APK构建时间 |
+| lastUpdateTime | **2026-10-03 22:41:13（Asia/Shanghai）** | 当前dumpsys；与10/03历史安装窗口吻合，时间吻合本身不绑定源码 |
+| base/split | pm path仅返回 **1个base.apk**；未列出split | 本次包管理清单，不假定未来升级仍单包 |
+| 设备APK SHA256 | **8b55be76011e8ea8ebba09a23316f7610c56bc25e2c6171846fd13ca4ab49b84** | 在手机上sha256sum读取，不下载434MB包；与本地及历史8770aa60精确一致 |
+| 当前安装源码绑定 | **8770aa6048daa78ed192212022ca2c2ff92bb394 的B3构建产物** | APK完整产物哈希+既有冻结源/构建/安装记录交叉绑定；APK自身不包含Git证书 |
+| 手机时钟/时区 | date=2026-10-06T00:54:08+0800；persist.sys.timezone=Asia/Shanghai | 只读，不设置时钟 |
+
+当前APK路径：
+`/data/app/~~gPaKvazRqVDrN1OmWJlOKg==/com.memexlab.hereiam.v3-0ZdqxbRughMdq4tHg9Cc6Q==/base.apk`。
+App dataDir：`/data/user/0/com.memexlab.hereiam.v3`。当前包的构建工作目录和历史源码差异见下方及§5.2；本次不重新构建或继承真人Gate。
+
+手机DB有限元数据补验：
+
+| 文件（相对App dataDir） | 字节数 | mtime epoch秒 / 上海时间 |
+|---|---:|---|
+| app_flutter/memex_local_Lynx.sqlite | 65052672 | 1791205474 / 2026-10-05 21:04:34 |
+| app_flutter/memex_local_Lynx.sqlite-wal | 11021032 | 1791205480 / 2026-10-05 21:04:40 |
+| app_flutter/memex_local_Lynx.sqlite-shm | 32768 | 1791205480 / 2026-10-05 21:04:40 |
+
+通过run-as定位上述精确文件；仅读主文件16字节magic并确认 `SQLite format 3\0`，再读offset60–63四字节，大端user_version=**62**。**这是指定主文件头的版本标记；没有用SQLite一致读事务验证当前有效user_version、表结构或迁移完整性。** WAL可能有尚未checkpoint的第一页；WAL存在/大小不能推出有效新提交，文件mtime也不是聊天/记录最后写入或同步时间。设备没有可直接调用的sqlite3，本轮没有安装/推送诊断程序、复制活跃main/WAL/SHM、读正文或做checkpoint。前述版本兼容风险获得了实机有限证据，但不能报完整DB验收通过。
+
+运行连接/同步边界：B3 Core连接四键在FlutterSecureStorage（core_sync_connection_store.dart:54–79），不是普通SharedPreferences的同步布尔开关；companion每轮依服务器transcript-capabilities（engine:80–108），没有本地持久布尔开关。旧notes连接 `claude_web_note_feed_v1` 也是含token的安全存储JSON（claude_web_note_feed_storage.dart:32–54）。**本次没有解密/输出这些配置；configured状态、凭据有效性、能力enabled、notes cursor及当前队列/import回执继续未知。** B3 outbox没有status列，待处理行成功后删除；不能从包哈希或文件时间声称持续上传/已排空。
 
 本地候选APK：
 `C:\HereIAm\b3-writeback-local-20261003\build\app\outputs\flutter-apk\app-hereiamv3-debug.apk`，
@@ -217,7 +237,7 @@ SHA256=`8b55be76011e8ea8ebba09a23316f7610c56bc25e2c6171846fd13ca4ab49b84`。
 | core_sync_client/protocol | B3新增transcript capability/submit及能力响应；基线只有普通chat提交。client:77/88、engine:80–108 |
 | core_sync_engine/runtime/connection_store | B3按sender筛队列、纯文字backlog、cursor按coreNode分隔、失败sync触发合并及前台同步；基线PR10的sender从chat行恢复并提交普通route。不能直接覆盖整个同步文件 |
 | persona_chat_service | B3sender字段/持久counter/永久marker/backlog、CreatedAt/ServerSequence；PR10另有owner gate，必须保留已接受队列ID与序列而非重建 |
-| app_database/tables/generated | B3schema62，主线60；61加persona created_at_ms/server_sequence，62加outbox.sender；两源码没有onDowngrade。**安装前阻断项：确认手机真实schema并设计向前兼容迁移，不对真实库实验降级** |
+| app_database/tables/generated | B3schema62，主线60；61加persona created_at_ms/server_sequence，62加outbox.sender；两源码没有onDowngrade。**安装前阻断项：进一步确认手机当前有效SQL版本及表结构，并设计向前兼容迁移，不对真实库实验降级** |
 | remember拉取与UI | B3新增4个notes文件、dependencies Provider、web_note_connection page/viewmodel、main前台30秒与resume；基线lib没有该消费者 |
 | Record Organizer | B3新增replaceOrganizedCard/deleteCard的sourceKind/外部note来源处理；importer调用现有Agent后事务更新卡/来源/更正/import回执。基线另有captures consumer与reconciler，必须避免同记录双处理 |
 | 聊天显示 | B3CreatedAt/ServerSequence排序及网页端来源标签/补充清理；装主线会失去这些B3处理，需按语义移植 |
@@ -246,7 +266,7 @@ active0、waiting0、deleted/on_phone1，与W6数量一致。没有读取text/te
 4. `lib/config/dependencies.dart:29–43`注入服务/OrganizerAgent；`main.dart:1880–1920`前台30秒/resume拉取；手动设置页也可触发。
 5. 代码所在分支为 `codex/b3-writeback-local-20261003`，实现提交3069115d及随后8770aa60；不在当前v3-lab基线。现役Core固定包并不负责这条notes入卡。
 
-**能够定位消费实现和历史绑定，但不能唯一证明这一个ack是这段App执行的。** 原账本未保存delivered_at/consumer package/install ID；本次手机未连，未读取手机memory_card_operations对应note前缀/卡前缀的import回执。已删除note和缺活跃样本也不能证明当前pull仍正常。历史部署/真人记录支持旧B3成卡/删除闭环，但本次不继承为新包Gate。
+**已定位消费实现，且10/06实机APK精确匹配包含它的8770产物；仍不能唯一证明这一个ack由这段App执行。** 原账本未保存delivered_at/consumer package/install ID；手机补验只读了安装信息及DB文件头，没有读取memory_card_operations对应note前缀/卡前缀的import回执。当前pull连接/成功次数继续未知。已删除note和缺活跃样本不能证明当前pull正常或已不用。历史部署/真人记录支持旧B3成卡/删除闭环，但本次不继承为新包Gate。
 
 ## 6. 部署风险表
 
@@ -254,10 +274,10 @@ active0、waiting0、deleted/on_phone1，与W6数量一致。没有读取text/te
 |---|---|---|---|---|
 | 替换Core丢失transcript能力/外置grant | §2/§3两路由在现役有、基线无；grant1、companion10 | Core升schema6、装新App、开启回复上传 | 移植受限过渡接口或先完成PR10客户端切换/排空，再单独退役 | 是：D1，具体过渡策略 |
 | 丢失72条replay保护 | metadata/file72匹配且事务保护现役，基线无执行代码 | Core升schema6、旧outbox恢复 | 保留durable binding与执行拒绝规则；备份需含外置文件 | 是：D2，保留/退役及条件 |
-| 手机DB62→主线60 | 两源码schemaVersion309、B3迁移1048–1058，无onDowngrade | 装新App | 必须核实当前实机schema；向前兼容升级，禁止试装降级 | 先工程修复/元数据确认；实机安装仍需具体批准 |
+| 手机DB62→主线60 | 两源码schemaVersion309、B3迁移1048–1058，无onDowngrade；10/06现装8770精确匹配，DB主文件header62（非SQL一致验证） | 装新App | 先向前兼容并保留来源/队列/notes，再用副本验迁移；禁止试装降级 | 先工程修复/一致元数据验证；实机安装仍需具体批准 |
 | notes47862消费者回退 | B3 notes/importer有；基线无；deleted ack1 | MCP切换、装新App | captures闭环完成前保留桥与回执；正式切换单一消费者 | 是：D3，过渡退役时点 |
 | B3/PR10同时入队/身份重分配 | 同sync共有counter但B3有永久marker；路线/能力不同 | 开启回复上传、装新App | 单上传器、共享不可变身份、保留counter/marker；专项再验证 | 是：D1，切换方式；工程行为已受既有幂等合同约束 |
-| 主力硬件/包/开关未知 | ADB0；仅本地hash与历史一致 | 装新App、开启回复上传 | 连接后只读核版本/安装时间/各split/hash/DB schema/队列元数据；不因10条认为当前开关开启 | 不把缺口当批准；实机Gate需完成 |
+| 安装身份已知，运行连接/队列未知 | 10/06单台SM-S9110；version113/base hash匹配8770；只读header62，未读安全存储/SQL队列/回执 | 装新App、开启回复上传 | 保留现装B3能力；补既有脱敏连接/队列/回执证据或批准的设备Gate；不因已安装或10条认为当前上传有效 | 安装核实不等于启用/安装授权；实机Gate仍需完成 |
 | MCP读写服务与仓库不同 | §2.3 mcp/writeback/i_memory hash不一致 | MCP切换 | 用当前运行policy/env/数据路径的白名单断言和候选对照，保留出站私密规则与历史边界；不整体覆盖 | 是：具体MCP切换候选另批 |
 | v4启动守卫拒绝schema6 | manifest固定4、launcher/verify_v4_state；R01只副本 | Core升schema6 | 发布全套新固定候选+备份/外置授权恢复+4→5→6副本链+旧/新客户端矩阵 | 是：具体发布/停启/备份/升级另批 |
 | no log被误读成unused | Core日志8/14、feed无request diagnostics、duplicate无last_used | 全部步骤 | 保留未知，补最小无正文审计或用授权设备Gate确认，不由缺日志直接删功能 | D1/D2/D3决策依据 |
@@ -498,13 +518,14 @@ D  tools/siyuan_tutor/subjects.md
 
 ## 7. 本报告验证和提交边界
 
-验收返修仅收紧§1、§3、§4的证据措辞，未重读线上服务、数据库、日志或手机；原调查时点和元数据不前移。
+初轮验收返修仅收紧§1、§3、§4措辞，没有前移其Core/日志元数据窗口。10/06主窗补验仅刷新手机安装、设备DB文件头/文件元数据和本地APK哈希/源码绑定，详见§5.1；未重读Core/线上日志/旧writeback账本。
 
 - 纯文档调查未运行App/Core逻辑测试、构建或设备Gate。运行的检查为分支/HEAD/status、磁盘/清单哈希、只读一致副本完整性、白名单结构/数量/身份序列、进程/任务/端口/健康绑定、ADB连接列表、本地APK元数据/哈希以及文档引用/空白检查。
 - 只有本报告可暂存/提交；提交前再核本分支与精确基线、暂存文件清单及diff --check。没有push/PR或全局状态更新。
 - 项目hook要求全局I_PROJECT_STATE。按用户已给的隔离worker例外，提交时一次性进程环境 `SKIP_PROJECT_STATE=1`，在finally恢复原环境；不修改/禁用hook、不把全局状态写进报告提交。具体提交结果以最终Git commit回执为准。
 - 本报告不含真实内容、token、凭据、原始日志/库；历史执行日志仅本机白名单聚合。未写长期记忆；没有声称ephemeral bootstrap已保存交接。
-- 未核实项：当前实机包/安装时间/split与hash、真实手机DB版本/队列/开关/import回执；每条transcript HTTP request与replay duplicate次数/最后命中；旧W6十ID一一对应；实时公网/手机网络及所有客户端行为；当前有效policy/env全字段；schema6新发布及恢复。分别是证据缺口，不是“已不用”。
+- 10/06新增白名单检查：USB/ADB枚举、dumpsys包版本/安装时间/路径、pm path全APK清单、设备端SHA256、设备时区/时间、DB路径/大小/mtime及magic/user_version头；没有App/Core逻辑测试、构建、安装或端到端功能Gate。只改本报告，主窗再次复核差异后按既有授权提交本分支。
+- 未核实项：手机当前有效SQL user_version/迁移完整性/队列、Core及notes安全存储连接/凭据/capability响应/import回执；每条transcript HTTP request与replay duplicate次数/最后命中；旧W6十ID一一对应；实时公网/手机网络及所有客户端行为；当前有效policy/env全字段；schema6新发布及恢复。分别是证据缺口，不是“已不用”。
 
 ## 8. 集中需要用户决定的部署事项
 
@@ -512,9 +533,9 @@ D  tools/siyuan_tutor/subjects.md
 
 | ID | 需要决定 | 推荐 | 其他可选及条件 |
 |---|---|---|---|
-| D1 | 从B3 transcript切PR10时是否保留受限兼容接口，以及单一上传器切换顺序 | 先把受限transcript/grant移植到schema6审阅候选；新手机保留B3已有schema/来源/队列与notes能力，实际切PR10时明确关闭旧生产上传器，排空对账后再退役旧API | 若选择直接退役，先证明当前手机已切PR10、旧pending/backlog无遗漏、身份与序列不重造；在缺实机证据时不能直接采用 |
+| D1 | 从B3 transcript切PR10时是否保留受限兼容接口，以及单一上传器切换顺序 | 先把受限transcript/grant移植到schema6审阅候选；新手机保留B3已有schema/来源/队列与notes能力，实际切PR10时明确关闭旧生产上传器，排空对账后再退役旧API | 若选择直接退役，先证明当前手机已切PR10、旧pending/backlog无遗漏、身份与序列不重造；当前实机仍是B3产物，尚不具备这些退役前提 |
 | D2 | 72条historical replay绑定是否继续保留执行保护 | 保留DB ledger+外置映射+精确duplicate/alias拒绝行为；导出加密留档作恢复输入 | 明确放弃需接受旧队列重试冲突，先核待补交队列及恢复场景；无调用日志不够。仅导出不替代在线保护 |
 | D3 | 旧remember 47862桥何时退役 | 按已定ADR迁captures，但正式Core→手机Organizer增改删/删除即时清正文/来源回执闭环验过之前保留现役桥；切换后单一消费者 | 提前关闭会让新网页记录失去现有成卡路径。active0不能作为退役依据；如明确接受功能中断，要记录暂停范围 |
-| D4 | 后续具体发布候选及分别授权范围 | 工程补齐上述缺口、获得可审查源码/包/备份恢复方案后，分别批准MCP切换、Core停启及4→5→6升级、主力手机安装/上传能力配置 | 本报告提交本身没有这些权限；当前手机0连接，不能替代实机候选身份绑定。不得用旧整库覆盖回退抹去新接受数据 |
+| D4 | 后续具体发布候选及分别授权范围 | 工程补齐上述缺口、获得可审查源码/包/备份恢复方案后，分别批准MCP切换、Core停启及4→5→6升级、主力手机安装/上传能力配置 | 本报告提交及手机只读补验没有这些权限；已绑定现装8770，但不能替代新候选安装/迁移及真人Gate。不得用旧整库覆盖回退抹去新接受数据 |
 
-建议下一步可先完成不碰线上状态的工程对齐候选与测试矩阵；主力手机连接后补只读身份/DB版本/队列元数据，再给出精确发布包和逐项授权范围。本报告不替用户选择，也不自动合入v3-lab。
+建议下一步先完成不碰线上状态的工程对齐候选与测试矩阵，保留已核实的B3源码/安装身份和DB62兼容；当前连接/队列/import回执及一致SQL版本仍缺证据，再给出精确发布包和逐项授权范围。本报告不替用户选择，也不自动合入v3-lab。
