@@ -2,7 +2,7 @@
 
 ## W3/W4/W5 并行候选与部署前只读调查（2026-10-06）
 
-用户已授权并行源码开发。本批从 v3-lab@8dde12b3 隔离：W3 codex/w3-domain-mcp-20261005，W4 codex/w4-quick-capture-20261005，W5 codex/w5-planning-views-20261005；主窗 codex/hub-parallel-20261005 实现 W7 按记录/操作存储、保留迁移状态与关闭本地去重，见[前置候选](handoffs/W7_ROW_STORAGE_20261005.md)。W3/W4/W5已普通合入该任务分支，主窗完成独立捕获/规划入口、页面外提醒、应用锁及账户DB生命周期返修；最终组合验收见[交接](handoffs/HUB_PARALLEL_SOURCE_ACCEPTANCE_20261005.md)。主窗最终Flutter235/235、Node172/172，新模块严格分析无问题，共享旧43条诊断增量0；新增实际双SQLite连接竞争修复与后台草稿保留。完整CI/候选构建按任务PR回执，不等同部署及设备Gate；尚未合入 v3-lab。
+用户已授权并行源码开发。本批从 v3-lab@8dde12b3 隔离：W3 codex/w3-domain-mcp-20261005，W4 codex/w4-quick-capture-20261005，W5 codex/w5-planning-views-20261005；主窗 codex/hub-parallel-20261005 实现 W7 按记录/操作存储、保留迁移状态与关闭本地去重，见[前置候选](handoffs/W7_ROW_STORAGE_20261005.md)。W3/W4/W5已普通合入该任务分支，主窗完成独立捕获/规划入口、页面外提醒、应用锁及账户DB生命周期返修；最终组合验收见[交接](handoffs/HUB_PARALLEL_SOURCE_ACCEPTANCE_20261005.md)。主窗最终Flutter235/235、Node172/172，新模块严格分析无问题，共享旧43条诊断增量0；新增实际双SQLite连接竞争修复与后台草稿保留。源码提交acb50dae；合成UI预览已目视复核，Android Kotlin任务成功，但完整APK在JNI/CMake环境阶段失败。完整CI按任务PR精确head回执，不等同部署及设备Gate；尚未合入 v3-lab。
 
 用户另开只读调查线程 01a10c93-10d4-73b2-928d-f740fde50046，分支 codex/predeploy-audit-20261005。报告及返修提交19588f4f只留该分支，不合入主线。现役固定 Core4 transcript/replay 未进入当前主线；10条手机 companion 最支持B3上传归因但仍为推断，持续调用未知。发现的B3手机候选 DB62 vs 主线60须先解决兼容；ADB零连接，现装包未核。仅报元数据，未停服、改配置、升级原库、安装手机或启用生产领域。
 

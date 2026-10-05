@@ -27,9 +27,16 @@
 - Node W3同套172/172、无跳过/失败；使用合成Core及随机loopback，不接现役原库。相同命令已接入现有Node CI，不增加工作流权限。
 - 强化Windows真实VM终止的行存储14 + 原同步61组合75/75；另去重/Organizer/Finance37/37。首轮组合的Windows临时目录占用错误已通过确保重开句柄在断言前finally释放修正；清理仍有限重试、失败报红。最终235项重验包含全部13处实际写入VM终止。
 - 最终新增/改动模块及专项严格分析无问题（exit0）；main/settings/AppDatabase共享旧文件按message/code忽略行偏移对照精确基线，43条完全一致（原始analyze仍exit2），新增诊断为0。不关闭lint或屏蔽测试。
-- critical checks3/3。W4首轮离线原生compile缺androidx.test runner元数据；主窗在线依赖解析已通过，后续hereIAmV3 APK构建结果另记任务PR。构建、CI Windows与三星真实侧键/速度/权限/提醒分别验收，未安装手机。
+- critical checks3/3。在线依赖解析及 :app:compileHereIAmV3DebugKotlin 任务成功（exit0，部分up-to-date）；完整 hereIAmV3 debug APK 在 jni:configureCMakeDebug[arm64-v8a] 的编译环境阶段失败，CMake临时文件无法写入，未生成可交付APK。未修共享SDK/插件缓存或跳过任务；完整包和三星真实侧键/速度/权限/提醒仍各自未验，未安装手机。
 
 - 真实双连接竞争发现Drift2.31/sqlite3 2.9.4缓存DML遇busy后阻碍后续COMMIT；最小修复在DomainStore读/写（含首次迁移）及Consumer写事务首部，以无参且不改行的UPDATE先取得写锁。busy仍向调用者抛出，不关闭缓存或升级依赖。phone/Core各两个版本实测竞争，失败连接首次原地重试返回0，两卡ID保留、一ledger，Core每版本仅一ack；单进程两独立SQLite连接的有限证据不等同Android双引擎设备验收。
+
+合成生产widget预览：
+
+- [记一下](../assets/hub_preview_20261005/quick_capture_widget.png)
+- [今日规划](../assets/hub_preview_20261005/planning_today_widget.png)
+
+生成测试1/1，430×1050；实际AppTheme、仓库CJK字体与假数据，主窗已目视确认中文/按钮/背景。截图不是当前手机安装状态或真人Gate。
 
 ## 部署前只读调查
 
