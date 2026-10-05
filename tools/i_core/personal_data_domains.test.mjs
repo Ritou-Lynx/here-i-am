@@ -73,6 +73,16 @@ test('strict business dates, timestamps, ISO weeks and all nested shapes reject 
   assert.equal(validatePersonalRecord('plan_weeks',{id:'x',data:w}),false);
   const d=day();d.queues.deep=['absent'];assert.equal(validatePersonalRecord('plan_days',{id:'x',data:d}),false);
 });
+test('unclassified area survives creation/read until an authorized planner classifies the same item',t=>{
+  const f=fixture(t),r=f.create('plan_items',item({area:'未归类'})).record;
+  assert.equal(f.get('plan_items',r.id).body.record.data.area,'未归类');
+  assert.equal(f.submit('plan_items',f.op('patch',{id:r.id,base_revision:1,patch:{area:'工作'}}),f.phone).status,403);
+  assert.equal(f.get('plan_items',r.id).body.record.data.area,'未归类');
+  const result=f.submit('plan_items',f.op('patch',{id:r.id,base_revision:1,patch:{area:'工作'}}));
+  assert.equal(result.status,201);assert.equal(result.body.record.id,r.id);
+  assert.equal(result.body.record.data.area,'工作');assert.equal(result.body.record.revision,2);
+});
+
 test('WI references exist, preserve identities and reject each relation cycle',t=>{
   const f=fixture(t),parent=f.create('plan_items',item({title:'目的',level:'目的'})).record;
   const child=f.create('plan_items',item({parent_id:parent.id})).record;
