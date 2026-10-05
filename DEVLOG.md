@@ -1,3 +1,143 @@
+## 2026-10-05 — W0 收尾与 i_core 旧失败独立修复
+
+**目标**：按用户新决定收尾 W0，逐项说明 42 项基线失败，保存运行差异，另开修复窗口。
+**源码**：两处运行 Core 为旧版；三处通用补丁归属 2004d3b8 / 6ab0278a / 05112dde，选择性收入 W0 和合成测试，保留前端权限保护，无新增 transcript/schema。
+**验证**：当前接口 344 过/0 红/1 既有跳；递归 353 过/42 红/1 跳，本轮补丁复测也与基线的 42 条失败名称逐项一致，新增失败为 0；不报全绿。
+**旧债**：42 项清单已落文档/JSON；独立修复任务 01a10b3e-cb9f-7ed0-9476-a81cc05ffdd5 已启动，逐项修代码或更新过时测试，不跳过、不屏蔽。
+**决定**：W1 明确暂缓；WI/WL 保持现有独立进度。W0 新候选复验后转 ready，再请求合入，不自动合并或部署。
+**交接**：[W0](docs/development/handoffs/W0_INTEGRATION_20261005.md)、[运行更新](docs/development/handoffs/W0_RUNTIME_UPDATE_20261005.md)、[旧失败清单](docs/development/handoffs/W0_BASELINE_FAILURES_20261005.md)。
+
+---
+## 2026-10-05 — v3-lab 基线测试对照
+
+**目标**：按用户要求在 v3-lab 单独复跑 W0 同套验证，并核对规划下一步。
+**本机**：远端 f605d501 首跑216过/43红/1跳；完整顺序复跑217过/42红/1跳，失败清单与W0逐项相同。额外快照断言隔离及顺序均通过，首跑统计保留。
+**CI**：v3-lab 独立运行37282048605四组全通过；Flutter2568过/20跳，Windows集成4/4、文件锁31/31。未合入或部署。
+**下一步**：W0 测试债和运行一致性仍需收口，当时顺序为合入后派发 W1；已由用户最新决定覆盖为 W1 暂缓，不自动释放。
+**交接**：[基线对照](docs/development/handoffs/V3_BASELINE_TEST_COMPARISON_20261005.md)；日志留本机，既有工作树与真实数据保留。
+
+---
+## 2026-10-05 — 个人数据中枢首批派发与本地交付
+
+**目标**：读取 053000d 总规划，按依赖同时推进 W0、WI、WL、W6。
+**W0**：从远端 v3-lab@f605d501 按序普通合并三个指定分支，源码候选 9b23d511；文档冲突保留各线记录。当前 API 316 过、1 跳；递归历史套件 42 红，未报全绿。
+**WI**：本地文件存储与安装工具已交付，主窗复跑 12/12；首次本机空初始化通过，今日单诚实标待补充，真实排程待事项和容量。
+**WL**：学习导师模板、可用学习块和结果接口已复核；先学后测、只学未测、考官/录音规则闭合，未安装到学习目录。
+**W6**：权威决定草案及 17 项待确认表已交付，核对链接与关键源码事实；未迁移数据。
+**边界**：三个独立包仍为各分支本地 diff。运行 MCP 磁盘五个源码哈希与 W0 不同；未部署。用户已明确允许上传，codex/w0-integrate@842a3e9a 已推送并创建草稿 PR #5；CI 四组全通过，Flutter 全量 2568 过、20 跳，Windows 集成 4/4、文件锁 31/31；v3-lab 未合入。
+**后续**：W0 合入后 W1 先交约定；约定确认才释放 W3/W4/W5；W7 等 W1 和 W6 决定。详见[派发表](docs/development/handoffs/PERSONAL_DATA_HUB_DISPATCH_20261005.md)。
+
+---
+## 2026-10-05 — 思源规划助手：动态配额与队列
+
+**目标**：用户不画待办、每天空闲时间不确定，需要一个能随时调整的个人规划系统。
+**做法**：新增 `tools/life_planner/`。规划数据只放思源"规划"数据库；手机用 Tasker 一键语音捕获进思源，dot 只负责过单、记事、收工；Codex 负责分诊、出今日单、本周账、周复盘和 Mermaid 全局地图。
+**动态调整**：所有事按块计量（深块、长块、语音块），每条主线每周定下限和目标；今日单是排好顺序的队列，只有定时的事才写钟点。容量按"用户说的 > 两周实际中位数 > 默认值"取，中午、傍晚各刷新一次。下限保不住、或连续两周没到下限时，交给用户拍板；欠账只滚一周。
+**统筹**：新增[总规划统筹交接](docs/development/handoffs/LIFE_PLAN_COORDINATION_20261005.md)，把教招、日语纳入配额，并约定学习线接口：规划助手写 `study-quota.md`，学习导师每天准备"可用学习块"。
+**边界**：仓库里只放模板，真实计划只放在本机；未改 `tools/siyuan_tutor/`；思源关联字段、手机端内核访问、Tasker 语音识别均未实测。
+
+---
+
+## 2026-10-04 — 思源学习导师首次实测修订
+
+**实测**：dot 已连电脑、读对学习单、写入 inbox；首次通话除语速外顺畅，语速调慢后一两分钟内回弹。
+**修订**：`TUTOR_RULES.md` 新增全程慢速规则（短句、日语句子说两遍、被提醒后保持到结束）与结果里的逐条纠正；`STUDY_AGENTS.md` 链接改为思源块引用 / Markdown 链接，入账时把纠正写进学习记录。纯文档，未构建。
+
+---
+
+## 2026-10-04 — 学习系统：思源学习导师 + dot 语音带练
+
+**决定**：思源作知识库与学习账本，FlexNote 只做可视化，dot 作语音带练前端（过渡期 Tasker 模拟来电）；不追求 all-in-one，学习单不经 i_core。
+**交付**：`tools/siyuan_tutor/`（f76da90）：Codex 导师指令（思源数据库账本、间隔复习、入账、每日学习单 → 思源 + `today.md`、不删除边界）、语音规则 `TUTOR_RULES.md`、日语科目表、设置说明（Codex 工具白名单、定时 `codex exec`、dot 指令）。
+**依据**：用户提供的思源 3.8.6 MCP 工具清单；内置 MCP 地址与 Bearer API Token 鉴权已核对源码。dot 仅能由用户发起通话、只用官方插件，故经本机文件交接。
+**未完**：本机初始化与账本写法实测、dot 首次通话、Tasker 来电配置；看板思源插件尚为提议。纯文档，未构建。
+
+---
+
+## 2026-10-03 — B3 写回修订：每轮两次调用 + 补记 + 近似去重
+
+**交付**：按 Lynx 决定，`i_chat_turn` 增加 `phase`：回答前 start 交用户原话取上下文，回复写完后 end 交回复原文，最后一条回复不再丢失；漏调轮次照写并带 `frontend_backfill` 补记标记，时间在前后两条间插值；长文本用不可还原的 MinHash 指纹做近似去重；返回 `last_recorded`。
+**验证**：i_remote_mcp 71/71 通过（含真实 i_core + 读取层 + MCP + OAuth 端到端）。i_core 与读取层未改。
+**未完**：Codex 重新合入 i_remote_mcp、重启，换 Project 指令；手机端显示“补记”。浏览器扩展兜底待一周反馈后定。
+
+---
+
+## 2026-10-03 — B3 写回：i_chat_turn / i_remember
+
+**交付**：i_remote_mcp 新增 `i_chat_turn`（每轮写回双方原文，内容对齐去重、漏轮补交、本机账本重试）与 `i_remember`（本机账本可真删，手机经本机拉取通道取走直接入卡）；OAuth 新增 `i.write`，需重新授权；Project 指令改为每轮先 `i_chat_turn`。
+**i_core / 读取层**：新增受限 `external-frontend` 设备身份（可写 user/companion、不能读 feed、不触发回复，不改 schema）；policy 新增 `messages.auto_share_origins`，只绕过放行清单，私密规则优先。
+**决定**：Lynx 选定前端身份路径、记录只存本机可真删、claude_web 默认出站过滤关键词、记录无需确认直接入卡。设计见 docs/development/B3_WRITEBACK_DESIGN.md。
+**验证**：i_remote_mcp 67/67、i_memory 35/35 通过（含真实 i_core + 读取层 + MCP + OAuth 合成端到端）；i_core 新增 2 项通过，全量 54 项 activity fixture 失败为既有基线（改动前同为 180/54）。
+**未完**：本机部署、配对、policy 开关、claude.ai 重新授权与 Project 指令、Flutter 显示与记录入卡、真人验收由 Codex 本机执行。
+
+---
+
+## 2026-10-03 — B2.3 固定隧道部署与脱敏日志
+
+**交付**：正式 remote MCP 切换到自有域名的 Cloudflare 固定隧道；隧道由 Windows Auto/LocalSystem 服务运行，MCP 保留登录自启。旧令牌已撤销，口令不变。
+**诊断**：HTTP/RPC 每行增加 UTC 时间与固定 UA 家族；授权 callback/resource/Origin 和工具结果只记白名单摘要，不记凭据、原始 UA、参数、内容或异常。OAuth/MCP 协议行为未变。
+**验证**：本分支合成回归 66 项通过，实际运行副本回归 74 项通过；本机 401 挑战头与两份 200 元数据均使用新 issuer。隧道服务运行、4 条边缘连接；未做重启验收。
+**边界**：真实配置、凭据、数据库、策略与日志均留本机；既有私密读取层保留。公网复测、正式 claude.ai 授权与两题真人验收待完成，Funnel 及其他映射暂留。
+
+---
+
+## 2026-10-03 — B2.3 入口 A/B：Funnel 不通，改 Cloudflare 固定隧道
+
+**现象**：claude.ai 经 Tailscale Funnel `:10000` 多次 "Couldn't reach"，同期 12 国公共节点均可达，服务端规范检查无缺项。
+**对照**：同一服务经 Cloudflare 临时隧道（443）完成 POST /register 201 与口令页，测试实例与隧道已关闭。
+**决定**：长期入口用 Cloudflare 固定隧道 + 自有域名；Funnel 不再作 claude.ai 入口。纯文档，未改代码。
+
+## 2026-10-03 — B1 本机审核读取层源码同步
+
+**交付**：从约定基线 2a27f7d7 在 codex/continuity-b1-local-policy 分支同步私密消息 ID、消息/卡片正向 ID 清单与内容 SHA-256 放行。导出纯哈希函数供本机审核复用。
+**行为**：私密排除优先；显式空清单/映射全部拒绝；未审核新增 ID 或已放行 ID 的内容修订不出站；字段省略兼容旧策略。更新 policy 后须重新打开模型。
+**验证**：i_memory 与 remote MCP 合成回归 74/74 通过，覆盖大清单、所有读取出口及远程文本/结构化投影；集成测试显式使用合成身份。
+**边界**：仅同步通用代码、合成测试和接口说明，真实 policy、关键词、ID/哈希清单、数据库、审批、日志与筛查脚本均不提交；既有正式服务和当前工作分支不变，B3 写回未实现。
+
+---
+
+## 2026-10-02 — B1×B2 整合复核 + 学习导师 A6 修订
+
+**整合**：合入 `tools/i_memory/` 与 `tools/i_remote_mcp/` 两个并行会话；新增消息级 `private_keywords`；OAuth 回调默认只收 claude.ai（额外回调走环境变量），修复注册校验回调参数错位导致的 500。
+**验证**：新增 B1×B2 集成测试（真实读取层 + MCP + OAuth，私密不出站）；`node --test` 60 项全过。
+**A6**：按 Codex 冒烟反馈修订 `STUDY_AGENTS.md`（题卡作答、重做、不会≠答错、先定位再检索、位置类型区分）。
+**未完**：B0.2 私密规则、B1.1/B1.4 真实导入、B2.3 Funnel 部署、B2.4 claude.ai 接入由本机执行。
+
+---
+
+## 2026-10-02 — 任务 B2.1/B2.2：claude.ai 远程只读 MCP
+
+**交付**：`tools/i_remote_mcp/`：Streamable HTTP MCP（`/mcp`，2025-06-18/03-26）+ 单用户 OAuth 2.1（DCR、口令页、PKCE S256、refresh 轮换、令牌只存哈希、口令限速）；只开放 `i_context`、`i_recall`，输出白名单投影。
+**数据**：经 `tools/i_memory/i_memory_read.mjs` 的 `openReadModel` 懒加载读取；测试用 fake readModel，36 项 `node --test` 通过。另交付 Project 指令 `CLAUDE_PROJECT_INSTRUCTIONS.md`。
+**需实测**：claude.ai 回调/`resource`/Origin 实际值、仅 JSON 无 SSE 是否被接受、Funnel 部署（B2.3）。未构建 App。
+
+---
+
+## 2026-10-02 — 任务 B1.2/B1.3：i_memory 记忆快照与出站策略
+
+**交付**：`tools/i_memory/`：V3 记忆卡快照导入（默认 dry-run，整体替换，FTS5 trigram）、`policy.json` 出站策略（fail closed）、`openReadModel` 只读接口。
+**验证**：`node --test tools/i_memory/*.test.mjs` 18 项通过，全部合成 fixture；未改 i_core 与 lib，未碰真实数据。
+**未完**：B1.4 真实导出、导入与私密配置由 Codex 在本机执行，步骤见 README。
+
+---
+
+## 2026-10-02 — 任务 A4：FlexNote 学习导师模板
+
+**交付**：`tools/flexnote_tutor/`：Codex 学习导师指令、科目表与设置说明，按 FlexNote 1.1.56 实际 MCP 工具编写（已核对工具名）。
+**约定**：从知识库现出新题并注明出处；学习记录卡 + 标签属性记薄弱点和掌握度；只新建、不改原笔记、不删除。
+**限制**：MCP 只操作当前打开空间、仅本机；教综拆解资料待导入（A4.5），不进 GitHub。纯文档，未构建。
+
+---
+
+## 2026-10-02 — 方向调整：白板停开发，FlexNote × 三端串联任务单
+
+**决定**：白板工作台停止开发，知识库与学习改用 FlexNote + Codex（MCP）；Here I Am 只保留时间线、记忆与身份。
+**任务单**：FlexNote 接入 Codex（A），Claude 网页 × 手机 App ×可选 ChatGPT 串联（B0–B5），按 [你]/[Codex]/[Claude] 分工。
+**边界**：轻量通道，仅本人使用；私密会话不出站；真实数据与令牌不进 GitHub。纯文档，未构建。
+**交接**：[任务单](docs/development/PLAN_20261002_FLEXNOTE_AND_THREE_FRONTEND_CONTINUITY.md)。
+
+---
+
 ## 2026-10-02 — 桌面白板工作台暂停收尾
 
 **决定**：用户因整体计划调整，暂停白板工作台开发，要求停在可随时重新接续的完整收尾状态。

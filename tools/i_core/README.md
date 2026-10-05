@@ -86,6 +86,15 @@ node --test tools/i_core/i_core_server.test.mjs
 
 测试覆盖双设备读取、重复提交、冲突回滚、身份边界、协议版本和服务重启后的持久性。
 
+## 外部前端身份（B3 写回）
+
+claude.ai 网页端经 `tools/i_remote_mcp` 写回聊天时，使用受限的外部前端设备身份，不使用 worker 密钥：
+
+- 在配对窗口内以 `platform: external-frontend`、`device_id: frontend:<小写名>`（例如 `frontend:claude_web`）配对；两者必须同时成立，已有设备不能在普通 / 前端角色之间切换。
+- 该设备可提交 `sender` 为 `user` 或 `companion` 的消息（网页端已经发生的双方轮次），`origin_device_id` 仍须是自己；不能带 `request_companion_reply=true`。
+- 该设备读取 `/v1/core/changes` 或 `/v1/core/devices/ack` 时返回 403 `chat_read_forbidden`。
+- 不改 schema；普通设备仍只能提交 `user`。手机端按 `origin_device_id` 前缀 `frontend:` 标注来源。设计见 [B3_WRITEBACK_DESIGN.md](../../docs/development/B3_WRITEBACK_DESIGN.md)。
+
 ## 一次性导入现有 V3 聊天
 
 导入器默认只预演，不修改核心。正式导入前必须停止核心；工具会先用

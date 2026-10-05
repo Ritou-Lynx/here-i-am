@@ -1,0 +1,48 @@
+{
+  "format": "w0-runtime-source-audit-v1",
+  "scope": "five controlled source files; disk bytes only, not loaded process proof",
+  "runtime_checkout_head": "2a27f7d7f6b61ff5997db45c8c2f7bde4afb9966",
+  "patch_source_commit": "3a9336b122b2fda22ff65ed32d9cee263e8fc2da",
+  "files": [
+    {
+      "file": "tools/i_core/i_core_server.mjs",
+      "runtime_git_blob": "63c34e18082cf428b62980032eea4a86f64640ba",
+      "candidate_git_blob": "77df0fa10908c3b0fad1f467f61e5a73dd3ae428",
+      "runtime_sha256": "fc1fd4a36592c4b7b136173e1f70e85838100af66bb12684643587bfbc5b278e",
+      "candidate_sha256": "f7b1b8aa779215abd6cc182cd04bc73c301163c281f4b8b5668d6bf97ac3cf6b",
+      "classification": "runtime_old_source"
+    },
+    {
+      "file": "tools/i_core/i_core_store.mjs",
+      "runtime_git_blob": "c4f8f527cee09632e962752fad0de76cefc11141",
+      "candidate_git_blob": "b48489b03a1c84ffb54103588af365d80789752f",
+      "runtime_sha256": "883a35c128ee88f7689b737de2245ef073f0c6b96902385241f30c08eb8f816d",
+      "candidate_sha256": "95121d82283c9aee1fe079af6d31f5492d8e2a2f31bb85e2fecdf278498bc36c",
+      "classification": "runtime_old_source"
+    },
+    {
+      "file": "tools/i_memory/i_memory_read.mjs",
+      "runtime_git_blob": "4181efc33dae883b56d1ec88ca3aad05a3a44cfa",
+      "candidate_git_blob": "4181efc33dae883b56d1ec88ca3aad05a3a44cfa",
+      "runtime_sha256": "cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28",
+      "candidate_sha256": "cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28",
+      "classification": "tracked_local_patch_preserved"
+    },
+    {
+      "file": "tools/i_remote_mcp/mcp.mjs",
+      "runtime_git_blob": "6b1e0927ff81b9ae513259a6df0fb101e183586b",
+      "candidate_git_blob": "6b1e0927ff81b9ae513259a6df0fb101e183586b",
+      "runtime_sha256": "4bdd55dd3bd41e4ff0e16cdce08b2c58dce007d6fe6eaee51cc2110cdfc7d09b",
+      "candidate_sha256": "4bdd55dd3bd41e4ff0e16cdce08b2c58dce007d6fe6eaee51cc2110cdfc7d09b",
+      "classification": "tracked_local_patch_preserved"
+    },
+    {
+      "file": "tools/i_remote_mcp/writeback.mjs",
+      "runtime_git_blob": "3d4236b4b294f77b193e6c9030b96934e9e390f1",
+      "candidate_git_blob": "3d4236b4b294f77b193e6c9030b96934e9e390f1",
+      "runtime_sha256": "f2aac48db1cf61a44a0c9b5b28087b90894f03396cd52830a4428532944bc52a",
+      "candidate_sha256": "f2aac48db1cf61a44a0c9b5b28087b90894f03396cd52830a4428532944bc52a",
+      "classification": "tracked_local_patch_preserved"
+    }
+  ]
+}

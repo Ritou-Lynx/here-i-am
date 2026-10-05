@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "primary_character_id": "<林埃的 character_id>",
+  "messages": {
+    "default": "private",
+    "shareable_character_ids": ["<林埃的 character_id>"],
+    "private_message_types": [],
+    "private_keywords": [],
+    "auto_share_origins": ["claude_web"]
+  },
+  "memory": {
+    "default": "shareable",
+    "private_types": [],
+    "private_structured_types": [],
+    "private_card_ids": [],
+    "private_keywords": []
+  }
+}
