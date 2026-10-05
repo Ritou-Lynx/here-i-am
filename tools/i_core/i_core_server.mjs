@@ -243,6 +243,10 @@ export function createICoreServer({
   keyPath = null,
   workerSecret = null,
   companionReplyJobsEnabled = false,
+  companionUploadMode = 'pr10',
+  localTranscriptGrants = undefined,
+  localTranscriptGrantsPath = undefined,
+  historicalReplayApprovalsPath = undefined,
   shortcutMailRelay = null,
   ownsShortcutMailRelay = shortcutMailRelay !== null,
   activityAdminSecret = null,
@@ -291,6 +295,10 @@ export function createICoreServer({
   });
   const store = new ICoreStore(databasePath, {
     companionReplyJobsEnabled,
+    companionUploadMode,
+    localTranscriptGrants,
+    localTranscriptGrantsPath,
+    historicalReplayApprovalsPath,
     clock,
     activityRecoveryFloor,
     activityRuntimeId,
@@ -441,6 +449,16 @@ export function createICoreServer({
         const paired = store.pairDevice(body, activePairingCode);
         activePairingCode = null;
         json(response, 200, paired);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/core/chat/transcript-capabilities') {
+        requireDevice(request, store);
+        json(response, 200, store.localTranscriptCapabilities(bearerToken(request)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/chat/transcripts') {
+        requireDevice(request, store);
+        json(response, 200, store.submitLocalTranscripts(bearerToken(request), await readJson(request)));
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/chat/messages') {
@@ -779,6 +797,9 @@ async function main() {
     keyPath: process.env.I_CORE_KEY ?? null,
     workerSecret: process.env.I_CORE_WORKER_SECRET ?? null,
     companionReplyJobsEnabled: process.env.I_CORE_COMPANION_REPLY_JOBS === '1',
+    companionUploadMode: process.env.I_CORE_COMPANION_UPLOAD_MODE ?? 'pr10',
+    localTranscriptGrantsPath: process.env.I_CORE_LOCAL_TRANSCRIPT_GRANTS,
+    historicalReplayApprovalsPath: process.env.I_CORE_HISTORICAL_REPLAY_APPROVALS,
     shortcutMailRelay,
     ownsShortcutMailRelay: Boolean(shortcutMailRelay),
     activityAdminSecret: process.env.I_CORE_ACTIVITY_ADMIN_SECRET ?? null,

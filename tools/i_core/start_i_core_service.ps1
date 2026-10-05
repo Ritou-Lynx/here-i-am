@@ -3,6 +3,7 @@ param(
   [string]$NodePath = '',
   [string]$StateDirectory = '',
   [string]$RuntimeLockPath = '',
+  [ValidateSet('pr10', 'legacy_b3', 'disabled')][string]$CompanionUploadMode = 'pr10',
   [ValidateRange(1, 65535)][int]$CorePort = 47841
 )
 
@@ -49,6 +50,10 @@ try {
 $env:I_CORE_DATABASE = $databasePath
 $env:I_CORE_HOST = '127.0.0.1'
 $env:I_CORE_PORT = [string]$CorePort
+# Upload routing is a deliberate launch parameter, never inherited environment.
+$env:I_CORE_COMPANION_UPLOAD_MODE = $CompanionUploadMode
+Remove-Item Env:I_CORE_LOCAL_TRANSCRIPT_GRANTS -ErrorAction SilentlyContinue
+Remove-Item Env:I_CORE_HISTORICAL_REPLAY_APPROVALS -ErrorAction SilentlyContinue
 Remove-Item Env:I_CORE_PAIRING_CODE -ErrorAction SilentlyContinue
 Remove-Item Env:I_CORE_CERT -ErrorAction SilentlyContinue
 Remove-Item Env:I_CORE_KEY -ErrorAction SilentlyContinue
