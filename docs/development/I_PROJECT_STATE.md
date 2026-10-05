@@ -6,6 +6,8 @@
 
 已交付 `tools/siyuan_tutor/`（f76da90）：按用户提供的思源 3.8.6 MCP 工具清单编写 Codex 导师指令（账本为思源数据库独立行 + 来源块链接、间隔复习、入账、每天出学习单写入思源与 `today.md`、不删除边界）、dot/GPT voice 语音规则与结果格式、日语科目表和设置说明（Codex 工具白名单、定时 `codex exec`）。思源内置 MCP 的地址与 Bearer API Token 鉴权已在源码核对。纯文档，未构建；账本单元格写法、dot 读写本机文件与语音守规矩程度待用户本机实测。看板改做思源插件（点击跳转原笔记、就地经思源 Agent 提问）尚为提议，未开工。
 
+10-04 已完成日语初始化（账本 12 点）、dot 连电脑与首次通话；按反馈修订语速、纠正记录与链接格式（44d84dd）。全量交接见 [handoffs/LEARNING_SYSTEM_AND_TOOLS_20261005.md](handoffs/LEARNING_SYSTEM_AND_TOOLS_20261005.md)，供生活规划系统等新窗口接手。
+
 ## 方向调整：白板停止开发，转向三端串联（2026-10-02）
 
 用户决定白板工作台停止开发：知识库、白板、视频标注与学习改用 FlexNote（终身版，1.1.53 起提供 MCP），由 Codex 接入。Here I Am 收敛为 i_core 上的一条时间线、一个记忆库与一份林埃身份，供 Claude 网页端、手机 App 与可选 ChatGPT 文字端共用；GPT voice 记录不迁移，私密会话不出站。任务与分工见[任务单](PLAN_20261002_FLEXNOTE_AND_THREE_FRONTEND_CONTINUITY.md)；本条只改文档，未改产品源码。
