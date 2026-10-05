@@ -77,6 +77,10 @@
 - **提醒和推送**：用户不爱点通知，通知容易堆积。更有效的是"像来电一样"的强提醒，加固定时间的语音互动。生活规划系统若需要提醒，应沿用这个结论。
 - **数据边界**（AGENTS.md）：Project Memory 和生活事实、关系记忆隔离；普通聊天不自动成为 User-truth；私密会话不出站。学习账本放在思源，不进 Memory V3。
 
+## 4.5 教师编备考
+
+深圳公办初中语文校招与 12 月教资面试的内容、目标、方法和阶段规划见 [TEACHER_EXAM_STUDY_PLAN_20261005.md](TEACHER_EXAM_STUDY_PLAN_20261005.md)。具体排期交给总规划窗口。
+
 ## 5. 给新窗口的建议
 
 - 先读本文、[项目状态](../I_PROJECT_STATE.md)、[任务单](../PLAN_20261002_FLEXNOTE_AND_THREE_FRONTEND_CONTINUITY.md)。涉及学习部分再读 `tools/siyuan_tutor/`。
