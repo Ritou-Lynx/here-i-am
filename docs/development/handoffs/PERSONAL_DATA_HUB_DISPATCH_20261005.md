@@ -4,9 +4,9 @@
 
 | 工作包 | 执行者 | 分支 | 拥有路径 | 状态与下一步 |
 |---|---|---|---|---|
-| W0 | 主 Agent i | codex/w0-integrate | 整合冲突、全局交接、派发表 | 三条分支已整合；完整递归测试 325 过、42 红、1 跳；当前接口专项复核中；上传/PR 未获自动批准 |
+| W0 | 主 Agent i | codex/w0-integrate | 整合冲突、全局交接、派发表 | 三条分支已整合；完整递归测试 325 过、42 红、1 跳；当前接口专项 316 过、1 跳、0 红；上传/PR 未获自动批准 |
 | WI | /root/wi_local_planner；Astra/high | codex/wi-local-planner | tools/life_planner/；handoffs/WI_LOCAL_PLANNER_20261005.md | 已派发，处理中；本地 plan.json、初始化和合成今日单；未知真实事项不虚构 |
-| WL | /root/wl_study_instructions；Luna/low | codex/wl-study-instructions | tools/siyuan_tutor/；handoffs/WL_STUDY_INSTRUCTIONS_20261005.md | 首版已返回，主窗要求闭合学习块/结果接口，返修中 |
+| WL | /root/wl_study_instructions；Luna/low | codex/wl-study-instructions | tools/siyuan_tutor/；handoffs/WL_STUDY_INSTRUCTIONS_20261005.md | 已交付并复核；学习块/结果接口、未学准入与只学习不测规则已闭合 |
 | W6 | /root/w6_authority_draft；Astra/high | codex/w6-authority-draft | data-authority-preflight/W6_*_20261005.md | 已派发，草案处理中；逐项决定待用户确认 |
 
 所有工作目录在正式 C 盘源码区，独立 worktree。worker 不提交、不推送、不派生，只写自身 handoff；主窗复核并统一更新状态。三个独立包不进入 W0 整合 PR。D 盘私人旧谱系和本地 v3-lab 未改动。
@@ -23,4 +23,6 @@
 
 - 完整递归测试红灯涉及现有历史迁移/固定运行包：冻结基线 bbb8025d 的 Core 源码在净化谱系不可读取，Windows PowerShell Security 模块自动加载失败。上述目录相对 v3-lab 未改动。当前 API/MCP 测试单列复核，不能据此把完整测试说成全绿。
 - 本机 remote MCP 目录 Git HEAD 为 2a27f7d7，含未提交改动。磁盘源码与候选相比，i_core_server.mjs、i_core_store.mjs、i_memory_read.mjs、mcp.mjs、writeback.mjs 五个文件哈希不同。只比对源码，未读数据库/凭据，未部署或重启；运行一致性尚未验收。
-- 自动审批拒绝推送：本轮未明确确认规划/项目状态文档的外部上传范围。尚无远端 W0 分支、PR 或新 CI 结果；需用户授权推送指定任务分支并创建 PR，不能绕过拒绝。合入 v3-lab 仍是后续独立确认。
+- 自动审批拒绝推送：本轮未明确确认规划/项目状态文档的外部上传范围。本轮未推送 W0 分支或建立 PR，无新 CI 结果；需用户授权推送指定任务分支并创建 PR，不能绕过拒绝。合入 v3-lab 仍是后续独立确认。
+
+W0 详细证据与限制见[整合交接](W0_INTEGRATION_20261005.md)。
