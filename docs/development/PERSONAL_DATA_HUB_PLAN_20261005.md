@@ -2,6 +2,8 @@
 
 **用户已确认的原则（2026-10-05）**：i_core 是个人数据唯一的仓库；思源只管成篇的文字；各个 App 是看数据的窗户，各个 Agent 是干活的，两者都不各自存一份数据。
 
+> **2026-10-05 第二轮**：用户已定宿主留在随身笔记本、手机林埃回复写入 i_core、i_remember 迁入 i_core；W6 草案已收进 `data-authority-preflight/` 并在 ADR 第 12 节合并。
+>
 > **2026-10-05 修订**：W1、W2、W5、W6、W7 五张卡已按 [个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 改写，ADR 第 11 节的拍板项定下来之前，这几张卡不开工。其他卡受到的影响：
 > - **W3**：`i_remember` 改写进 i_core `captures`（不再用本机账本和 47862 拉取通道）；加读 `plan_days` 的工具；i_memory 读取层的 policy 加领域白名单（ADR F8）。
 > - **W4**：本地待发队列用 W7-0 的通用 outbox，不另建 `quick_captures` 表；捕获页底部显示两个处理者的结果。
@@ -259,10 +261,10 @@ flowchart LR
 
 ### W6 数据权威决定（只写文档，可以并行；2026-10-05 按 ADR 修订）
 
-- **目标**：把 [ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 和本机 W6 草案（17 项待确认）合成正式决定；拍板后改写冲突的既有文档，并给每个要搬家的领域出字段映射表。
+- **目标**：把 [ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 和 [W6 草案](data-authority-preflight/W6_DATA_AUTHORITY_DECISION_DRAFT_20261005.md)（17 项待确认，ADR 第 12 节已做对照）合成正式决定；拍板后改写冲突的既有文档，并给每个要搬家的领域出字段映射表。
 - **依赖**：无；领域映射表要用到 W1 约定。
 - **产出**：
-  1. 逐项对照 ADR 第 11 节和本机 `codex/w6-authority-draft` 的 17 项，合成一份拍板清单，用户逐条确认；结果写回 ADR 第 11 节，标"已定"。
+  1. 以 ADR 第 11 节为拍板清单（W6 的 17 项已在 ADR 第 12 节对照合并），用户逐条确认；结果写回 ADR 第 11 节，标"已定"。宿主、林埃回复入 i_core、i_remember 迁移三项已在 10/05 定下。
   2. 按 ADR 第 9 节改文：PRODUCT_ROADMAP（第 77、80、92 行和 §7）、CORE_SYNC_DATA_INVENTORY（第 30、46–52 行）、Gate 1A-0 附录（生活领域按 Formal32 的格式补行，不改已冻结的 32 行）、B3_WRITEBACK_DESIGN、QUICK_CAPTURE_DESIGN、本文第 2 节现状表。
   3. 领域映射表，每个领域一份，放 `docs/development/data-authority/hub/`：旧表和字段 → i_core 领域字段；ID 怎么保留；判重键；`actor` 怎么回填（旧数据记 `import`，带 `userCorrected` 标志的字段记 `user_direct`）；回滚时怎么重建旧表。先做收支、睡眠、经期、待办卡四份。
   4. 只读统计（读真实数据，先问用户）：用已有 i_memory 快照按 `type`、`structured_type` 计数；`type=note` 的白板卡数；收支卡数和账本行数的差。只报数字。
@@ -286,18 +288,18 @@ flowchart LR
 
 1. 在 i_core 按 W6 映射表加领域定义：字段、判重键、权限；
 2. 回填脚本：默认 dry-run，保留旧 ID，`actor` 按 W6 规则回填；
-3. 影子期：手机同时写本地表和提交 intent，每天出对账报告（条数、ID、金额合计、墓碑数），连续 7 天零差异；
+3. 影子期：手机同时写本地表和提交 intent（影子数据只给对账脚本读），每天出对账报告（条数、ID、金额合计、墓碑数），连续 7 天零差异；
 4. 在副本上演练一次 ADR 7.2 的回滚；
-5. 用户授权后切换：停 Core、备份、升级，手机切开关；林埃 worker、i MCP、看板改读 i_core；
+5. 用户授权后冻结切换：停该领域旧写入和自动动作、排空待发队列、最终对账；停 Core、备份、升级，手机切开关；林埃 worker、i MCP、看板改读 i_core。一次只切一个领域；切换后出问题优先往前修，回退旧路径要另演练、另授权；
 6. 切换满 4 周没有回滚，删除旧写入代码，旧表只读保留。
 
 **领域顺序**
 
 | 卡 | 领域 | 特别事项 |
 |---|---|---|
-| W7-收支 | `ledger` | 第一个搬家的手机数据。账本行是金额的权威，收支记录卡改成由账本生成的展示；删收支卡同时删账本行（ADR 决定 15）；ai_finance 工具改为提交 intent；判重键沿用"金额 + 时间 ±2 小时" |
-| W7-睡眠 | `sleep_days` | 手机 COROS 同步改为提交 `sleep_days`（`actor=import`，按日期幂等）；手记的 `sleep_record` 卡并入 |
-| W7-经期 | `cycle` | 只给手机权限；节律由本地副本重新派生 |
+| W7-收支 | `ledger` | 第一个搬家的手机数据。缺币种不默认人民币；未付款、退款不算支出；转账、奖励、罚款等类型先列明、不并入本批。账本行是金额的权威，收支记录卡改成由账本生成的展示；删收支卡同时删账本行（ADR 决定 15）；ai_finance 工具改为提交 intent；判重键沿用"金额 + 时间 ±2 小时" |
+| W7-经期 | `cycle` | 只给手机权限；起止日、症状保留原值，未结束留空；节律由本地副本重新派生 |
+| W7-睡眠 | `sleep_days` | 保存多段、多来源原始观测，`sleep_days` 是日视图；手机 COROS 同步以 `actor=import` 提交，按来源 + 日期幂等；手记的 `sleep_record` 卡作为另一来源并存 |
 | W7-待办 | 并入 `plan_items` | 依赖 W2、W5 和 ADR 决定 13。状态映射 active → 待办、completed → 完成、cancelled → 放弃；时间字段映射到截止、定时、`remind_at`；主线留空，等 Codex 归类；Record Organizer 不再产出 task / schedule / plan 卡；日程面板改读规划副本 |
 | W7-通用卡 | fact / event 记忆卡 | 等 ADR 决定 17 和对象库；白板 `type=note` 卡不迁 |
 | — | Dreaming、节律、洞察、成长契约、话题 | 不迁，留在手机作派生产物；需要给网页端读时导出只读快照 |
