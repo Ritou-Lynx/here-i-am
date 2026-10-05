@@ -7,7 +7,8 @@ typedef QuickCaptureSubmit = Future<QuickCaptureResult> Function(
 /// UI-facing seam for W4. The host supplies the W7 outbox/domain adapter.
 /// This class deliberately has no database, router, model, or chat dependency.
 class QuickCaptureService {
-  QuickCaptureService({required this.submit, Uuid? uuid}) : _uuid = uuid ?? const Uuid();
+  QuickCaptureService({required this.submit, Uuid? uuid})
+      : _uuid = uuid ?? const Uuid();
   final QuickCaptureSubmit submit;
   final Uuid _uuid;
 
@@ -18,8 +19,9 @@ class QuickCaptureService {
     if (draft.text.trim().isEmpty) {
       return Future.error(const FormatException('empty_capture'));
     }
-    return submit(draft.captureId == null
-        ? draft.copyWith(text: draft.text)
-        : draft);
+    if (draft.text.trim().length > 2000 || draft.captureId == null) {
+      return Future.error(const FormatException('invalid_capture'));
+    }
+    return submit(draft);
   }
 }

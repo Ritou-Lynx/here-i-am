@@ -4,13 +4,23 @@ enum QuickCaptureState { editing, sending, saved, failed }
 
 @immutable
 class QuickCaptureResult {
-  const QuickCaptureResult({required this.captureId, required this.text,
-    this.organizerMessage, this.plannerMessage, this.pendingIssues = const []});
+  const QuickCaptureResult({
+    required this.captureId,
+    required this.text,
+    this.organizerMessage,
+    this.plannerMessage,
+    this.pendingIssues = const [],
+    this.deliveryMessage = '已保存在本机，待发送',
+    this.organizerOutputs = const [],
+    this.plannerOutputs = const [],
+  });
   final String captureId;
   final String text;
   final String? organizerMessage;
   final String? plannerMessage;
   final List<String> pendingIssues;
+  final String deliveryMessage;
+  final List<String> organizerOutputs, plannerOutputs;
 }
 
 @immutable
