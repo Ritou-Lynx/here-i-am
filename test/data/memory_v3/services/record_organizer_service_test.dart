@@ -274,6 +274,7 @@ void main() {
     // Other content fields should merge with existing.
     await service.updateCard(
       cardId,
+      actor: 'user_direct',
       structuredFields: {
         'amount_cny': 128,
         'merchant': '麦当劳',

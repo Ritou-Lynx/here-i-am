@@ -1,3 +1,4 @@
+import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/memory_v3/retrieval/fusion_ranker.dart';
 import 'package:memex/data/memory_v3/retrieval/intent_classifier.dart';
@@ -48,9 +49,10 @@ Tips:
       }
       final service = MemoryCardQueryService(AppDatabase.instance);
       try {
+        final pendingContext = await PersonalDataHub.forDatabase(AppDatabase.instance).recallPending(query);
         // 1. Raw FTS5 search
         final rawHits = await service.searchCards(query);
-        if (rawHits.isEmpty) {
+        if (rawHits.isEmpty && pendingContext.isEmpty) {
           return 'No memory cards found matching "$query".';
         }
 
@@ -104,6 +106,7 @@ Tips:
 
         // 6. Format output
         final buf = StringBuffer();
+        if (pendingContext.isNotEmpty) buf.writeln(pendingContext);
         buf.writeln('Found ${rankable.length} memory card(s) '
             'matching "$query" ($intentLabel):');
         buf.writeln();

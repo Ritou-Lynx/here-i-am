@@ -242,6 +242,24 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
         .go();
   }
 
+  /// Owner-controlled local enqueue gate. It does not grant server permission.
+  /// Only the registered phone's one primary character may use this queue.
+  Future<void> configureCompanionOutbox({required String deviceId,
+      required String characterId, required bool enabled}) async {
+    await _db.into(_db.kvStore).insertOnConflictUpdate(KvStoreCompanion.insert(
+      key: 'phone_companion_outbox.$deviceId',
+      bucket: const Value(_outboxBucket),
+      value: Value(enabled ? characterId : ''),
+    ));
+  }
+
+  Future<bool> _companionOutboxEnabled(String deviceId, String characterId) async {
+    final row = await (_db.select(_db.kvStore)..where((t) =>
+      t.key.equals('phone_companion_outbox.$deviceId') & t.bucket.equals(_outboxBucket)))
+      .getSingleOrNull();
+    return characterId.isNotEmpty && row?.value == characterId;
+  }
+
   Future<int> addCharacterMessage(
     String characterId,
     String content, {
@@ -255,7 +273,9 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     final originDeviceId = await DeviceIdentityService.getOrCreate();
     final attachmentsJson =
         (addenda != null && addenda.isNotEmpty) ? jsonEncode(addenda) : null;
-    final id = await _db.into(_db.personaChatMessages).insert(
+    late int id;
+    await _db.transaction(() async {
+      id = await _db.into(_db.personaChatMessages).insert(
           PersonaChatMessagesCompanion.insert(
             syncId: Value(syncId),
             originDeviceId: Value(originDeviceId),
@@ -268,6 +288,12 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
             attachmentsJson: Value(attachmentsJson),
           ),
         );
+      if (await _companionOutboxEnabled(originDeviceId, characterId)) {
+        await _enqueueOutbox(syncId: syncId, originDeviceId: originDeviceId,
+          characterId: characterId, content: content, createdAt: createdAt,
+          messageType: 'chat');
+      }
+    });
     _notifyMessageAdded(characterId);
     _scheduleDreaming(characterId);
     return id;

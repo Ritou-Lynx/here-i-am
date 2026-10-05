@@ -962,13 +962,19 @@ class RecordOrganizerServiceV3 {
     required String targetId,
     required String field,
     Object? oldValue,
-    required Object newValue,
+    required Object? newValue,
     required String correctionType,
+    String actor = 'user_direct',
   }) async {
+    if (!const ['user_direct', 'user_via_agent'].contains(actor)) {
+      throw ArgumentError('Only explicit user edits are user corrections');
+    }
     final now = DateTime.now().millisecondsSinceEpoch;
+    final correctionId = _uuid.v4();
+    await _db.transaction(() async {
     await _db.into(_db.userCorrections).insert(
           UserCorrectionsCompanion.insert(
-            id: _uuid.v4(),
+            id: correctionId,
             targetTable: targetTable,
             targetId: targetId,
             field: field,
@@ -978,6 +984,11 @@ class RecordOrganizerServiceV3 {
             createdAt: now,
           ),
         );
+    await _db.into(_db.kvStore).insert(KvStoreCompanion.insert(
+      key: 'user_correction_actor.$correctionId',
+      bucket: const Value('user_correction_actor'),
+      value: Value(actor), updatedAt: Value(now)));
+    });
   }
 
   /// High-level convenience: run the V3 Record Organizer agent on [rawInput]
@@ -1493,7 +1504,14 @@ class RecordOrganizerServiceV3 {
     Map<String, dynamic>? timeOverrides,
     Map<String, dynamic>? presentationModule,
     String sourceKind = 'companion_edit',
+    String actor = 'agent_inferred',
+    String? authorizationRef,
   }) async {
+    if (!const ['user_direct', 'user_via_agent', 'agent_inferred', 'import'].contains(actor) ||
+        (actor == 'user_via_agent' && (authorizationRef?.isEmpty ?? true))) {
+      throw ArgumentError('actor evidence required');
+    }
+    final isUserEdit = actor == 'user_direct' || actor == 'user_via_agent';
     // Snapshot the card's structured-field type before the update so we can
     // detect a menstrual_record card (whether it's being edited or repurposed).
     String? previousSfType;
@@ -1612,7 +1630,7 @@ class RecordOrganizerServiceV3 {
                 ? Value(structuredFieldsType)
                 : const Value.absent(),
             fieldsJson: Value(mergedJson),
-            userCorrected: const Value(true),
+            userCorrected: isUserEdit ? const Value(true) : const Value.absent(),
             updatedAt: Value(now),
           ));
         } else {
@@ -1621,7 +1639,7 @@ class RecordOrganizerServiceV3 {
                   cardId: cardId,
                   structuredFieldsType: structuredFieldsType ?? 'general',
                   fieldsJson: mergedJson,
-                  userCorrected: const Value(true),
+                  userCorrected: isUserEdit ? const Value(true) : const Value.absent(),
                   createdAt: now,
                   updatedAt: now,
                 ),
@@ -1636,7 +1654,7 @@ class RecordOrganizerServiceV3 {
               ..where((t) => t.cardId.equals(cardId)))
             .write(MemoryCardStructuredFieldsCompanion(
           structuredFieldsType: Value(structuredFieldsType),
-          userCorrected: const Value(true),
+          userCorrected: isUserEdit ? const Value(true) : const Value.absent(),
           updatedAt: Value(now),
         ));
         changes['structuredFieldsType'] = structuredFieldsType;
@@ -1686,6 +1704,13 @@ class RecordOrganizerServiceV3 {
       // list timestamp show the edit time instead of the event time.
       // Modifications are tracked in memory_card_operations (audit log).
       if (changes.isNotEmpty) {
+        if (!isUserEdit) {
+          final locks = await (_db.select(_db.userCorrections)..where((t) =>
+            t.targetTable.equals('memory_cards') & t.targetId.equals(cardId))).get();
+          if (locks.any((lock) => changes.containsKey(lock.field))) {
+            throw StateError('user_locked');
+          }
+        }
         await (_db.update(_db.memoryCards)..where((t) => t.id.equals(cardId)))
             .write(MemoryCardsCompanion(
           title: newTitle != null ? Value(newTitle) : const Value.absent(),
@@ -1702,13 +1727,20 @@ class RecordOrganizerServiceV3 {
               : const Value.absent(),
         ));
 
+        if (actor == 'user_direct' || actor == 'user_via_agent') {
+          for (final entry in changes.entries) {
+            await recordUserCorrection(targetTable: 'memory_cards',
+              targetId: cardId, field: entry.key, oldValue: entry.value is Map ? entry.value['old'] : null,
+              newValue: entry.value is Map ? entry.value['new'] : entry.value, correctionType: 'edit', actor: actor);
+          }
+        }
         // Audit log.
         await _db.into(_db.memoryCardOperations).insert(
               MemoryCardOperationsCompanion.insert(
                 id: _uuid.v4(),
                 cardId: cardId,
                 operationType: 'update',
-                payload: jsonEncode(changes),
+                payload: jsonEncode({...changes, '_actor': actor}),
                 sourceKind: sourceKind,
                 createdAt: now,
               ),

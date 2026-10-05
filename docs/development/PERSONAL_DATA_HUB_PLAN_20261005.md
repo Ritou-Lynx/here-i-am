@@ -281,6 +281,8 @@ W1 当前交付：[组合验收](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.m
 
 **W7-0 手机端前置**（W1 约定定稿后可开工，Flutter）
 
+> 2026-10-05有限源码验收：[手机基础主窗交接](handoffs/W7_FOUNDATION_MAIN_ACCEPTANCE_20261005.md)。114/114、分析无问题、真实Dart/Node HTTP5/5，默认空owner配置/phone；通用持久核心与现有明确caller已接，全部业务adapter/页面、真实消费触发、去重退役、逐域影子/回滚及真机仍待后续。W2源码已开[PR #9](https://github.com/Ritou-Lynx/here-i-am/pull/9)。
+
 - 所有编辑入口（界面、林埃工具、日程勾选）按字段写 `user_corrections`，带 `actor`；
 - 通用领域 outbox：把现有聊天待发队列推广到各领域，状态按 ADR 4.7；按领域的本地副本和 cursor；待同步覆盖层；`needs_resolution` 列表；
 - 领域开关 `phone / shadow / core`：按领域决定写本地表还是提交 intent；
@@ -323,7 +325,7 @@ W1 当前交付：[组合验收](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.m
 
 | 时间 | 同时开着的窗口 |
 |---|---|
-| 现在（2026-10-05 更新） | W0/42修复/W1已合入；**W2**有限源码验收·**W7-0**手机基础独立验收；下一步W3/W4/W5源码并行，WI/WL/W6/MCP独立候选与部署Gate单列 |
+| 现在（2026-10-05 更新） | W0/42修复/W1已合入；**W2**有限源码验收·**W7-0**手机基础114/114与真实互通5/5有限源码验收；下一步W3/W4/W5源码并行，WI/WL/W6/MCP独立候选与部署Gate单列 |
 | W0 合入后 | **W1**（先交约定） |
 | W1 约定定稿后 | **W1** 继续实现 · **W3** · **W4** · **W5**（后三个先接假服务） |
 | W1 完成后 | **W2** |

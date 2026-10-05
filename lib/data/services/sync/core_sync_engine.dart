@@ -69,6 +69,16 @@ class CoreSyncEngine {
         .pendingOutboxMessages(deviceId, limit: limit);
     if (pending.isEmpty) return 0;
 
+    final senders = <String, CoreMessageSender>{};
+    for (final row in pending) {
+      final chat = await PersonaChatService.instance.getMessageBySyncId(row.syncId);
+      if (chat == null) {
+        throw const CoreSyncException(code: 'outbox_origin_missing',
+          message: '待同步消息缺少本机来源，需要处理', retryable: false);
+      }
+      senders[row.syncId] = chat.isFromCharacter
+          ? CoreMessageSender.companion : CoreMessageSender.user;
+    }
     final request = CoreChatSubmitRequest(
       deviceId: deviceId,
       messages: [
@@ -78,7 +88,7 @@ class CoreSyncEngine {
             originDeviceId: row.originDeviceId,
             originSequence: row.originSequence,
             characterId: row.characterId,
-            sender: CoreMessageSender.user,
+            sender: senders[row.syncId]!,
             content: row.content,
             createdAtMs: row.createdAtMs,
             messageType: row.messageType,

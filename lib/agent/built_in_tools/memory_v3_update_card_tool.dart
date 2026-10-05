@@ -182,6 +182,7 @@ Rules:
       try {
         final updated = await RecordOrganizerServiceV3.instance.updateCard(
           cardId,
+          actor: 'agent_inferred',
           title: title,
           retrievalText: retrievalText,
           dropletLabel: dropletLabel,

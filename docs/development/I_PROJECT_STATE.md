@@ -8,7 +8,7 @@ W1最终13源码的授权只读一致副本4→5→6演练通过：[R01](handoff
 
 W2四业务域与两个默认dry-run导入脚本完成有限源码验收：[主窗验收](handoffs/W2_MAIN_ACCEPTANCE_20261005.md)。四根Core/Memory/remote MCP/continuity gateway递归42文件654项，653过/0红/1原有平台跳；完整回归后只补既有守护断言诊断，严格断言未改，定向4/4。首轮34文件的1叶子+1父级失败保留且唯一触发分支未恢复。业务仍显式注册、默认off，真实来源和周日映射/旧传输receipt另验。
 
-W7-0手机基础在独立分支复核通用outbox、真实caller、A18/A20及Dart↔Node互通；不继承服务端证据。W3/W4/W5可并行源码实施；W3部署前须完成运行MCP对齐及固定Core v4功能保全，W4/W5仍需widget和真机Gate。逐域影子/回滚/权威切换未进行。
+W2源码提交 `a00112e8` 已开 [PR #9](https://github.com/Ritou-Lynx/here-i-am/pull/9)，合并与精确head CI状态以PR回执为准。W7-0手机基础完成有限主窗验收：[交接](handoffs/W7_FOUNDATION_MAIN_ACCEPTANCE_20261005.md)，114/114、相关分析无问题，含9个真实Windows OS-kill SQLite边界；Dart↔真实W2 Node HTTP 5/5，原op丢回执恢复、稀疏merge/后入队base7→8及永久删除已验证。默认空owner配置/phone；整张W7卡的全部域adapter、真实提取触发、去重退役、页面及Android Gate尚未完成。W3/W4/W5可并行源码实施；W3部署前须完成运行MCP对齐及固定Core v4功能保全。逐域影子/回滚/权威切换未进行。
 
 ## 个人数据中枢：已合入规划与独立窗口（2026-10-05）
 

@@ -1,3 +1,4 @@
+import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
 // Copyright 2024 The Memex team. All rights reserved.
 // Aligned with Flutter Compass app: config registers only Repository/Service,
 // not ViewModels. ViewModels are created where the screen is built.
@@ -20,6 +21,7 @@ import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 /// ViewModels are created in the place that builds the screen (route builder
 /// or parent widget), using context.read<MemexRouter>() etc.
 List<SingleChildWidget> get dependencyProviders => [
+      Provider<PersonalDataHub>(create: (_) => PersonalDataHub.forDatabase(AppDatabase.instance)),
       Provider<MemexRouter>(
         create: (_) => MemexRouter(),
       ),
