@@ -66,19 +66,67 @@ class CoreSyncEngine {
   /// outbox once the core accepts its sync_id.
   Future<int> _submitOutbox({int limit = 100}) async {
     final pending = await PersonaChatService.instance
-        .pendingOutboxMessages(deviceId, limit: limit);
+        .pendingOutboxMessages(deviceId, sender: 'user', limit: limit);
+    return _submitPending(pending, transcripts: false);
+  }
+
+  Future<int> _submitCompanionOutbox({int limit = 100}) async {
+    CoreChatTranscriptCapabilities capability;
+    try {
+      capability = await client.getTranscriptCapabilities();
+    } on CoreSyncException catch (error) {
+      // Old cores and devices without a grant retain user upload and feed sync.
+      if (error.statusCode == 404 || error.statusCode == 403) return 0;
+      rethrow;
+    }
+    final service = PersonaChatService.instance;
+    if (capability.uploadMode == CoreCompanionUploadMode.pr10) {
+      final characterId =
+          await service.configuredCompanionOutboxCharacter(deviceId);
+      if (characterId == null) return 0;
+      final authorized = await service.pendingOutboxMessages(deviceId,
+          sender: 'companion',
+          characterId: characterId,
+          plainChatOnly: true,
+          limit: limit);
+      try {
+        return await _submitPending(authorized, transcripts: false);
+      } on CoreSyncException catch (error) {
+        if (error.statusCode == 403 || error.statusCode == 404) return 0;
+        rethrow;
+      }
+    }
+    if (!capability.enabled ||
+        capability.uploadMode != CoreCompanionUploadMode.legacyB3) {
+      return 0;
+    }
+    await PersonaChatService.instance.enqueueLocalCompanionBacklog(
+      originDeviceId: deviceId,
+      characterId: capability.characterId!,
+      fromCreatedAtMs: capability.fromCreatedAtMs!,
+    );
+    final pending = await PersonaChatService.instance.pendingOutboxMessages(
+      deviceId,
+      sender: 'companion',
+      characterId: capability.characterId!,
+      fromCreatedAtMs: capability.fromCreatedAtMs!,
+      plainChatOnly: true,
+      limit: limit,
+    );
+    try {
+      return await _submitPending(pending, transcripts: true);
+    } on CoreSyncException catch (error) {
+      // A grant can be revoked between capability lookup and submission.
+      // Keep the replies queued while letting ordinary feed sync continue.
+      if (error.statusCode == 403 || error.statusCode == 404) return 0;
+      rethrow;
+    }
+  }
+
+  Future<int> _submitPending(List<SyncOutboxMessage> pending,
+      {required bool transcripts}) async {
     if (pending.isEmpty) return 0;
 
-    final senders = <String, CoreMessageSender>{};
-    for (final row in pending) {
-      final chat = await PersonaChatService.instance.getMessageBySyncId(row.syncId);
-      if (chat == null) {
-        throw const CoreSyncException(code: 'outbox_origin_missing',
-          message: '待同步消息缺少本机来源，需要处理', retryable: false);
-      }
-      senders[row.syncId] = chat.isFromCharacter
-          ? CoreMessageSender.companion : CoreMessageSender.user;
-    }
     final request = CoreChatSubmitRequest(
       deviceId: deviceId,
       messages: [
@@ -88,14 +136,26 @@ class CoreSyncEngine {
             originDeviceId: row.originDeviceId,
             originSequence: row.originSequence,
             characterId: row.characterId,
-            sender: senders[row.syncId]!,
+            sender: CoreMessageSender.parse(row.sender),
             content: row.content,
             createdAtMs: row.createdAtMs,
             messageType: row.messageType,
           ),
       ],
     );
-    final response = await client.submitMessages(request);
+    final response = transcripts
+        ? await client.submitTranscripts(request)
+        : await client.submitMessages(request);
+    final sent = pending.map((row) => row.syncId).toSet();
+    final received = <String>{};
+    for (final result in response.results) {
+      if (!sent.contains(result.syncId) || !received.add(result.syncId)) {
+        throw const CoreSyncException(
+            code: 'invalid_submit_receipt',
+            message: '核心返回了不匹配的提交回执，消息已保留',
+            retryable: false);
+      }
+    }
     var resolved = 0;
     for (final result in response.results) {
       // Both outcomes mean the authority core durably owns this exact
@@ -136,8 +196,8 @@ class CoreSyncEngine {
   }
 
   /// Inserts one user or companion row from a `chat.message.upsert` event.
-  /// Remote clients still submit user messages only; companion history enters
-  /// through trusted core-side generation or maintenance imports.
+  /// Finished companion turns may arrive from an authorized phone or frontend.
+  /// Feed application only archives messages; it never enqueues a new reply.
   Future<void> _applyChatUpsert(CoreChangeEvent event) async {
     final payload = event.payload;
     final syncId = event.entityId;
@@ -156,7 +216,17 @@ class CoreSyncEngine {
     final existing =
         await PersonaChatService.instance.getMessageBySyncId(syncId);
     if (existing != null) {
-      // Already local (own submission or earlier pull); never duplicate.
+      // Preserve local content and identity; archive Core ordering only once.
+      if (existing.serverSequence == null || existing.createdAtMs == null) {
+        await (db.update(db.personaChatMessages)
+              ..where((row) => row.id.equals(existing.id)))
+            .write(PersonaChatMessagesCompanion(
+          createdAtMs:
+              Value(existing.createdAtMs ?? timestamp.millisecondsSinceEpoch),
+          serverSequence:
+              Value(existing.serverSequence ?? event.serverSequence),
+        ));
+      }
       return;
     }
 
@@ -172,6 +242,8 @@ class CoreSyncEngine {
             content: content,
             isRead: const Value(true),
             timestamp: timestamp,
+            createdAtMs: Value(timestamp.millisecondsSinceEpoch),
+            serverSequence: Value(event.serverSequence),
             messageType: Value(messageType),
           ),
         );
@@ -181,8 +253,11 @@ class CoreSyncEngine {
   /// One full sync pass. Returns the number of outbox messages submitted.
   /// Throws [CoreSyncException] on terminal errors for the caller to surface.
   Future<int> syncOnce({int submitLimit = 100}) async {
+    await PersonaChatService.instance
+        .repairLegacyCompanionOutboxSenders(deviceId);
     final submitted = await _submitOutbox(limit: submitLimit);
+    final companions = await _submitCompanionOutbox(limit: submitLimit);
     await _pullChanges();
-    return submitted;
+    return submitted + companions;
   }
 }

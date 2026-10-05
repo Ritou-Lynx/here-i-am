@@ -155,6 +155,49 @@ class CoreDevicePairResponse {
       );
 }
 
+enum CoreCompanionUploadMode { legacyB3, pr10, disabled }
+
+/// Only legacy B3 enabled+scope grants transcript permission. PR10 mode alone
+/// never grants companion authorization: local owner opt-in and Core grant remain separate.
+class CoreChatTranscriptCapabilities {
+  const CoreChatTranscriptCapabilities.disabled({
+    this.uploadMode = CoreCompanionUploadMode.disabled,
+  })  : enabled = false,
+        fromCreatedAtMs = null,
+        characterId = null;
+
+  const CoreChatTranscriptCapabilities.enabled({
+    required int this.fromCreatedAtMs,
+    required String this.characterId,
+  })  : enabled = true,
+        uploadMode = CoreCompanionUploadMode.legacyB3;
+
+  final bool enabled;
+  final int? fromCreatedAtMs;
+  final String? characterId;
+  final CoreCompanionUploadMode uploadMode;
+
+  factory CoreChatTranscriptCapabilities.fromJson(Map<String, dynamic> json) {
+    final enabled = _requiredBool(json, 'enabled');
+    final mode = json['companion_upload_mode'];
+    if (mode == 'pr10') {
+      return const CoreChatTranscriptCapabilities.disabled(
+          uploadMode: CoreCompanionUploadMode.pr10);
+    }
+    // Missing mode is the deployed B3 contract. Unknown future modes fail closed.
+    if ((mode != null && mode != 'legacy_b3') || !enabled) {
+      return const CoreChatTranscriptCapabilities.disabled();
+    }
+    final cutoff = _requiredNonNegativeInt(json, 'from_created_at_ms');
+    if (cutoff == 0) {
+      throw const FormatException('from_created_at_ms must be positive');
+    }
+    return CoreChatTranscriptCapabilities.enabled(
+        fromCreatedAtMs: cutoff,
+        characterId: _requiredString(json, 'character_id'));
+  }
+}
+
 class CoreAssetRef {
   const CoreAssetRef({
     required this.assetId,
