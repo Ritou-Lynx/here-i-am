@@ -7,13 +7,13 @@
 结论：
 
 1. 现役 Core 的 Node 进程真正指向固定包 `b3-v4-phone-transcripts-20261003`，不是调查分支源码。健康接口、原库只读一致快照均为 schema 4，健康 node_id 与该库一致。固定包全部 9 个库存文件 SHA256 与 manifest 一致。
-2. 固定包的受限 Android transcript 接口、外置 grant、72 条 historical replay 不可变绑定仍存在并生效于加载代码。当前基线没有对应 transcript 路由或 replay 保护执行代码。**保住 DB 行不等于保住授权和行为。**
-3. W6 的 Android 来源 companion 数量仍为 **10**。7 条旧回复在一次短窗口连续入库，随后 3 条与用户消息交错；这与 B3 手机的 backlog + 持续 transcript 上传设计高度吻合。标准 `import_v3_chat` 的来源和时间不吻合。没有逐请求路由审计，不能排除未留下记录的本机维护调用，也不能把这种归因写成实机逐条证明。
+2. 固定包的受限 Android transcript 接口和保护实现仍加载，外置 grant 与 72 条 historical replay 不可变绑定仍存在；这是实现和配置状态，不是近期客户端调用或 replay 例外命中的证明。当前基线没有对应 transcript 路由或 replay 保护执行代码。**保住 DB 行不等于保住授权和行为。**
+3. W6 的 Android 来源 companion 数量仍为 **10**。7 条旧回复在一次短窗口连续入库，随后 3 条与用户消息交错；这强支持 B3 手机 backlog 补交及随后 transcript 上传的归因，但仍是推断。标准 `import_v3_chat` 的来源和时间不吻合。没有逐请求路由审计，不能排除未留下记录的本机维护调用，不能写成实机逐条证明；当前持续调用仍未知。
 4. 当前基线已经包含 PR10 的 companion outbox/服务端手机能力；它走普通 chat/messages，**没有** B3 transcript/网页 notes 拉取接线。B3 手机源码 schema 为 **62**，当前基线 schema 为 **60**，没有 onDowngrade 实现。直接安装主线候选存在本地 DB 降版本与功能退化风险。
 5. 本次 ADB 在普通视图及宿主权限下都返回 **0 台设备**。当前实机 versionName/versionCode、安装时间、base/split APK SHA256、当前开关及手机 import 回执均未验证。本机 APK 与历史 8770aa60 构建/安装记录哈希一致，不能冒称它现在仍安装在主力手机。
 6. i_remember 旧账本仍只有 1 条 deleted/on_phone；手机消费者代码找到了，位于未进入本基线的 B3 分支。回执能证明账本曾被 ack，不能独立证明当时请求由哪一个硬件/哪段 App 代码发出。
 
-本轮没有停启服务、改线上配置、升级库、装/启动手机 App、改开关、改源码、push、PR、合入 v3-lab 或改 DEVLOG/I_PROJECT_STATE。只新增本报告并按用户授权提交本调查分支。真实正文、凭据、token、数据库及原始日志不进入报告或 Git。未派生子 Agent。
+本轮没有停启服务、改线上配置、升级库、装/启动手机 App、改开关、改源码、push、PR、合入 v3-lab 或改 DEVLOG/I_PROJECT_STATE。仅新增及验收修订本报告，并按用户授权提交本调查分支。真实正文、凭据、token、数据库及原始日志不进入报告或 Git。未派生子 Agent。
 
 ### 1.1 方法
 
@@ -84,15 +84,17 @@ i Gateway 现役 `i_voice_context.mjs` SHA256=`811c1582537e61f5d6b995dc8651eed81
 
 ### 3.1 路由、表和后台执行
 
-| 项 | 用途和接口 | 读写/执行 | 本次状态及可核查依据 |
-|---|---|---|---|
-| transcript capability | GET /v1/core/chat/transcript-capabilities；仅当前认证 Android 查询本设备能力 | R/server:214–217；R/store:806–824；读 devices 和启动时的 grant map，不写业务表 | **仍在用（授权能力仍加载）**。外置 grant 1条，device=962d78a6…、character=i、from_created_at_ms=1790956800000（上海10/03 00:00）；凭据绑定布尔核验=true。最近成功调用的直接日志**未发现调用**，不能说客户端现在正在轮询 |
-| transcript submit | POST /v1/core/chat/transcripts；提交已生成的双方纯文字聊天，不生成回复 | R/server:219–223；R/store:826–857；读 devices、grant、chat_messages、core_metadata replay ledger；同事务写 chat_messages/change_events；普通已登记手机、主角色、日期下限、chat、无资产/附注、最多100条 | **仍在用（现役路径 + 近期落库）**。Android companion10条，最后 change_event=1791044513291；逐请求route次数/最后HTTP调用未知。10条归因见§4 |
-| 外置 transcript grants | 授权装载、限制设备/当前token/角色/日期；不授其他设备或网页端 | R/store:203–270、388–408；默认 local-transcript-grants.json；只在 Store构造读取，不是新业务表，不是自助远程授权 | **仍在用**。文件mtime=2026-10-03T15:23:32Z，早于现进程；条目1且凭据绑定匹配。重配token会使旧grant失效；缺失默认关闭，非法文件fail closed |
-| 普通聊天 historical replay | POST /v1/core/chat/messages 对已审批的旧用户行允许精确重放确认；返回duplicate，不重写历史 | R/store:895–917、1289–1385；读取core_metadata里的绑定；比对既有v3-history用户行和incoming/existing不可变digest；预留(device,sequence)冲突拒绝；transcript明确allowApprovedHistoricalReplay=false | **仍在用（保护逻辑）**。72条绑定全部仍指向既有聊天行；每次持久化事务读取durable ledger。过去30天手机user有12次新增落库，代码必经保护检查；是否命中72条duplicate例外**说不清**，duplicate不增加change_event且无last_used审计 |
-| replay外置/耐久账本 | historical-replay-approvals.json + core_metadata.historical_replay_approvals_v1；启动合并，不允许同sync/sequence不同绑定 | R/store:40–190、388–408；外置file只读；启动时事务写core_metadata；每次请求读ledger；不是新表 | **仍在用**。外置72、ledger72；按sync_id排序后精确相同（原数组顺序不同）；均已有行。filemtime=2026-10-03T09:42:37Z。metadata没有last_updated列，不能把filemtime写成DB最后写入时间 |
-| 离线 importMessages | Store本机一次性历史导入入口，不暴露HTTP | R/store:921–943；允许companion，创建local-import来源；同事务写devices/chat_messages/change_events；基线import_v3_chat.mjs:98、115–128、200构造v3-history来源和historical_import附注 | **仍有历史数据，当前执行说不清**。最近一次历史来源末写入=1790950558335，source=v3-history-2d8a…；不是10条Android companion来源。没有发现本轮或当前后台持续执行该导入器 |
-| transcript/replay后台任务 | 固定包没有专用transcript_jobs/replay_jobs、scheduler或timer | 受控9文件库存、R/server无setInterval/setTimeout、Store只在启动/请求执行；相关旧worker表见下 | **没有独立后台任务可退役**。不能将手机前台30秒同步叫Core后台任务 |
+本节分别列出实现/配置状态与客户端近期实际调用/命中证据；“已加载”不等于“已调用”，条目数不等于调用次数。客户端近期使用未被直接证实时，判定保留为“说不清”。
+
+| 项 | 用途和接口 | 读写/执行 | 实现与配置状态 | 客户端近期调用/命中证据与判定 |
+|---|---|---|---|---|
+| transcript capability | GET /v1/core/chat/transcript-capabilities；仅当前认证 Android 查询本设备能力 | R/server:214–217；R/store:806–824；读 devices 和启动时的 grant map，不写业务表 | 接口实现仍加载；外置 grant 1条，device=962d78a6…、character=i、from_created_at_ms=1790956800000（上海10/03 00:00）；凭据绑定布尔核验=true | **说不清（接口仍提供，近期真实客户端调用未发现）**。没有近30天成功客户端调用的直接日志；维护脚本的未认证401检查不算授权客户端使用，不能说客户端现在正在轮询 |
+| transcript submit | POST /v1/core/chat/transcripts；提交已生成的双方纯文字聊天，不生成回复 | R/server:219–223；R/store:826–857；读 devices、grant、chat_messages、core_metadata replay ledger；同事务写 chat_messages/change_events；普通已登记手机、主角色、日期下限、chat、无资产/附注、最多100条 | 接口与受限授权实现仍加载，可接受符合grant的已完成聊天；不是客户端调用证明 | **说不清（10条落库强支持B3路径的推断，当前持续调用未知）**。Android companion10条，最后 change_event=1791044513291；缺逐请求路由证据，route次数/最后HTTP调用未知。归因保留为推断，见§4 |
+| 外置 transcript grants | 授权装载、限制设备/当前token/角色/日期；不授其他设备或网页端 | R/store:203–270、388–408；默认 local-transcript-grants.json；只在 Store构造读取，不是新业务表，不是自助远程授权 | 文件mtime=2026-10-03T15:23:32Z，早于现进程；条目1且凭据绑定匹配。代码在启动时读取；重配token会使旧grant失效，缺失默认关闭，非法文件fail closed | **说不清（授权配置仍加载，近期被客户端实际使用未知）**。1条grant是配置数量，不是调用次数；不能由文件存在或绑定匹配证明近期实际使用 |
+| 普通聊天 historical replay | POST /v1/core/chat/messages 对已审批的旧用户行允许精确重放确认；返回duplicate，不重写历史 | R/store:895–917、1289–1385；读取core_metadata里的绑定；比对既有v3-history用户行和incoming/existing不可变digest；预留(device,sequence)冲突拒绝；transcript明确allowApprovedHistoricalReplay=false | 保护实现仍加载；静态代码在每次持久化事务读取durable ledger；72条绑定全部仍指向既有聊天行 | **说不清（保护实现仍提供，近期例外命中未知）**。72是绑定条目数，不能写成72次调用。过去30天12条手机user新增落库仅证明数据变化，不能据此确定请求路径或例外命中；duplicate不增加change_event且无last_used审计 |
+| replay外置/耐久账本 | historical-replay-approvals.json + core_metadata.historical_replay_approvals_v1；启动合并，不允许同sync/sequence不同绑定 | R/store:40–190、388–408；外置file只读；启动时事务写core_metadata；每次请求读ledger；不是新表 | 外置72、ledger72；按sync_id排序后精确相同（原数组顺序不同）；均已有行。filemtime=2026-10-03T09:42:37Z。配置/耐久账本仍存在且加载代码保留合并与校验 | **说不清（配置存在，近期实际使用/命中未发现直接记录）**。条目数量不等于调用次数；metadata没有last_updated/last_used列，filemtime不能当成DB最后写入或最后使用时间 |
+| 离线 importMessages | Store本机一次性历史导入入口，不暴露HTTP | R/store:921–943；允许companion，创建local-import来源；同事务写devices/chat_messages/change_events；基线import_v3_chat.mjs:98、115–128、200构造v3-history来源和historical_import附注 | 本机入口仍存在；最近一次历史来源末写入=1790950558335，source=v3-history-2d8a…；不是10条Android companion来源 | **仍有历史数据，当前执行说不清**。没有发现本轮或当前后台持续执行该导入器 |
+| transcript/replay后台任务 | 固定包没有专用transcript_jobs/replay_jobs、scheduler或timer | 受控9文件库存、R/server无setInterval/setTimeout、Store只在启动/请求执行；相关旧worker表见下 | 未发现独立Core后台任务实现 | **没有独立后台任务可退役**。不能将手机前台30秒同步叫Core后台任务；客户端当前是否触发同步仍未知 |
 
 Core快照（2026-10-05T15:01:58Z附近）结构与数量：
 
@@ -113,7 +115,7 @@ worker表不属于 transcript/replay 的新增任务。现役 launcher 清除未
 
 | 调用者 | 静态依据/接口 | 近30天可用证据 | 判断 |
 |---|---|---|---|
-| B3 手机 App | `C:\HereIAm\b3-writeback-local-20261003`；core_sync_client.dart:77/88；engine:80–108、250–254先capability，再backlog和submitTranscripts；Persona:353–394原子入companion队列；main.dart:1880–1920前台30秒/恢复同步 | 10条Android companion的写入窗10/03 23:25至10/04 00:21（上海）；历史激活receipt candidate8770aa60且grant启用；没有本次实机、route log或开关读取 | 路径曾使用/现役Core支持；当前App实际执行仍未知 |
+| B3 手机 App | `C:\HereIAm\b3-writeback-local-20261003`；core_sync_client.dart:77/88；engine:80–108、250–254先capability，再backlog和submitTranscripts；Persona:353–394原子入companion队列；main.dart:1880–1920前台30秒/恢复同步 | 10条Android companion的写入窗10/03 23:25至10/04 00:21（上海）；历史激活receipt candidate8770aa60且grant启用；没有本次实机、route log或开关读取 | 现役Core提供此路径；10条落库强支持B3上传归因（推断），未证实逐请求路由；当前App实际持续调用未知 |
 | i_remote_mcp | 现役writeback.mjs:298–309调用普通chat/messages，以frontend:claude_web身份；flush:469、chatTurn:536；不调用transcripts/capability | 现役MCP日志i_chat_turn成功151条，最后2026-10-05T08:36:59.024Z；ledger user79/assistant78全部committed，Core相同来源79/78；未发现transcript/replay接口直接调用 | **仍在用普通网页finished-turn链**；不是Android10条上传者。不能因其不走transcript认定transcript无人用 |
 | i_continuity_gateway / Codex Voice | 现役 .i/runtime/i_voice_context.mjs:141–157选择ADB、600–625只读提取；581声明no_phone_or_memory_writes；现役两mjs无chat/transcripts/chat/messages的HTTP调用 | 已确认实际网关进程/配置来源；当前手机0连接；未找到该网关到transcript的调用代码/本次授权范围中的调用日志 | **未发现调用**。Voice里的“用户转录”不是这个Core transcript接口，不新增推断 |
 | 计划任务 | 全部任务动作白名单扫描：仅HereIAm-iCore、HereIAm-iRemoteMCP与这些路径相关；动作都为服务启动入口 | 两任务Running，进程/端口绑定如§2；未发现计划任务直接执行transcript POST或定时replay导入 | 服务启动仍使用；独立定时上传**未发现调用** |
@@ -163,9 +165,9 @@ worker表不属于 transcript/replay 的新增任务。现役 launcher 清除未
 - 前7条companion origin_sequence629–635，在2026-10-03T15:25:04.807–.815Z集中8毫秒落库，但客户端创建时间跨当天较早的多次聊天；这正符合B3 capability启用后enqueueLocalCompanionBacklog的时间过滤/补交。其前面同设备user622–628已较早入Core。
 - 随后companion637/639/641与user636/638/640/642交错；不是一次性的全部导入。最后10条companion写入时间为10/04 00:21:53.291（上海）。该设备user643还在10/05 18:29:10.924（上海）落库，但没有新的companion落库；**不能据此推断之后没有回复、开关关闭或上传失败**。
 - 固定包普通chat/messages只对external-frontend放companion（R/store:906–907）；当前Android没有这条例外。受限transcript能接受它，grant1条绑定该设备/i/10/03下限；旧worker表0jobs且租约过期，没有匹配的运行worker。
-- **最有依据的归因：运行时补丁配合B3手机专用transcript上传，前7条为backlog、后3条为持续链。** 支持它的有代码、grant、历史激活/安装证据和序列时间模式。DB/change_events没有accepted_route/request_id，也无HTTP请求审计，无法给这10条提供逐次路由收据。Store.importMessages允许本机传任意device ID（R/store:925–943），未登记的SQL/维护调用也无法仅由这些元数据绝对排除；扫描到的维护脚本未发现这类写入这10条的调用。没有读取正文作推断。
+- **最有依据的推断：运行时补丁配合B3手机专用transcript上传；前7条符合backlog补交，后3条符合随后交错上传。** 支持它的有代码、grant、历史激活/安装证据和序列时间模式。DB/change_events没有accepted_route/request_id，也无HTTP请求审计，无法给这10条提供逐次路由收据。Store.importMessages允许本机传任意device ID（R/store:925–943），未登记的SQL/维护调用也无法仅由这些元数据绝对排除；扫描到的维护脚本未发现这类写入这10条的调用。这不是逐请求归因证明；截至原调查证据窗口，当前持续调用仍未知。没有读取正文作推断。
 
-### 4.3 持续路径与PR10重复风险
+### 4.3 持续上传的代码能力与PR10重复风险
 
 | 对照 | B3 8770aa60 | 本基线PR10 |
 |---|---|---|
@@ -495,6 +497,8 @@ D  tools/siyuan_tutor/subjects.md
 | `lib/config/dependencies.dart` | `bfeb28d9cdd6a7fac2c67af75d0056d2473ed7e8dd19a29611a367398ba1e50b` | `1e4a30c80536f1d680583ba5ac8a00ed692501fdc0bdc7fb33c77d5ff5ead104` | false |
 
 ## 7. 本报告验证和提交边界
+
+验收返修仅收紧§1、§3、§4的证据措辞，未重读线上服务、数据库、日志或手机；原调查时点和元数据不前移。
 
 - 纯文档调查未运行App/Core逻辑测试、构建或设备Gate。运行的检查为分支/HEAD/status、磁盘/清单哈希、只读一致副本完整性、白名单结构/数量/身份序列、进程/任务/端口/健康绑定、ADB连接列表、本地APK元数据/哈希以及文档引用/空白检查。
 - 只有本报告可暂存/提交；提交前再核本分支与精确基线、暂存文件清单及diff --check。没有push/PR或全局状态更新。
