@@ -36,7 +36,7 @@ void main() {
       canonicalDirectory: _dir,
       datasetId: _id);
   P6R7ReadOnlyProjection projection(String? id) => P6R7ReadOnlyProjection(
-      userVersion: 60,
+      userVersion: 62,
       identityRows: [
         {'identity_hash': trusted(marker()).identityHash, 'task_id': id}
       ],
@@ -113,6 +113,22 @@ void main() {
         throwsFormatException);
   });
 
+  test('rejects legacy and future schema versions', () {
+    for (final version in [60, 63]) {
+      final bad = projection(_id);
+      final mismatched = P6R7ReadOnlyProjection(
+          userVersion: version,
+          identityRows: bad.identityRows,
+          taskRows: bad.taskRows);
+      expect(
+          () => P6R7RecoveryInspection.inspect(
+              markerBytes: marker(),
+              trustedOrigin: trusted(marker()),
+              projection: mismatched),
+          throwsFormatException);
+    }
+  });
+
   test('larger close receipts require an explicit bounded node budget', () {
     final bytes = utf8.encode(jsonEncode(List<int>.filled(300, 0)));
     expect(() => P6R7StrictJson.decode(bytes), throwsFormatException);
@@ -135,7 +151,7 @@ void main() {
     final task = Map<String, Object?>.from(wrong.taskRows.single)
       ..['scope_id'] = 'other';
     final bad = P6R7ReadOnlyProjection(
-        userVersion: 60, identityRows: wrong.identityRows, taskRows: [task]);
+        userVersion: 62, identityRows: wrong.identityRows, taskRows: [task]);
     expect(
         () => P6R7RecoveryInspection.inspect(
             markerBytes: marker(),
