@@ -293,6 +293,117 @@ describe('createWriteback', () => {
     assert.match(similaritySketch(base), /^[0-9a-f]+$/);
   });
 
+
+  test('explicit phases preserve repeated short users and assistants across complete rounds', async () => {
+    const { thread_id } = await turn({ phase: 'start', turns: [u('嗯')] });
+    await turn({ phase: 'end', thread_id, turns: [a('我在听')] });
+    await turn({ phase: 'start', thread_id, turns: [u('嗯')] });
+    await turn({ phase: 'end', thread_id, turns: [a('我在听')] });
+    assert.deepEqual(core.contents(), ['user:嗯', 'companion:我在听', 'user:嗯', 'companion:我在听']);
+  });
+
+  test('explicit current user and assistant fact corrections never use fuzzy dedup', async () => {
+    const user = '今天下午三点在咖啡馆见面，记得带上那本关于猫咪行为学的书，还有上次借的雨伞。';
+    const reply = '我们今天下午三点在咖啡馆见面，我会记得带上那本关于猫咪行为学的书，还有上次借的雨伞。';
+    const { thread_id } = await turn({ phase: 'start', turns: [u(user)] });
+    await turn({ phase: 'end', thread_id, turns: [a(reply)] });
+    await turn({ phase: 'start', thread_id, turns: [u(user.replace('三点', '四点'))] });
+    await turn({ phase: 'end', thread_id, turns: [a(reply.replace('三点', '四点'))] });
+    assert.deepEqual(core.contents(), [
+      'user:' + user, 'companion:' + reply,
+      'user:' + user.replace('三点', '四点'), 'companion:' + reply.replace('三点', '四点'),
+    ]);
+  });
+
+  test('an unchanged phase tail is an exact retry, including after ledger restart', async () => {
+    const { thread_id } = await turn({ phase: 'start', turns: [u('本轮问题')] });
+    const retryStart = await turn({ phase: 'start', thread_id, turns: [u('本轮问题')] });
+    assert.equal(retryStart.recorded.new_turns, 0);
+    await turn({ phase: 'end', thread_id, turns: [a('本轮回答')] });
+    const retryEnd = await turn({ phase: 'end', thread_id, turns: [a('本轮回答')] });
+    assert.equal(retryEnd.recorded.new_turns, 0);
+    wb.close();
+    wb = createWriteback({ ledger: openLedger(join(dir, 'writeback.sqlite')), coreClient: core,
+      now: () => clock.t, rateLimiter: new RateLimiter({}) });
+    assert.equal((await turn({ phase: 'end', thread_id, turns: [a('本轮回答')] })).recorded.new_turns, 0);
+    assert.deepEqual(core.contents(), ['user:本轮问题', 'companion:本轮回答']);
+  });
+
+  test('exact pending phase retry flushes the original immutable payload after restart', async () => {
+    core.down = true;
+    const { thread_id } = await turn({ phase: 'start', turns: [u('断线问题')] });
+    wb.close();
+    wb = createWriteback({ ledger: openLedger(join(dir, 'writeback.sqlite')), coreClient: core,
+      now: () => clock.t, rateLimiter: new RateLimiter({}) });
+    clock.t += 30_000;
+    core.down = false;
+    const retry = await turn({ phase: 'start', thread_id, turns: [u('断线问题')] });
+    assert.equal(retry.recorded.new_turns, 0);
+    assert.equal(retry.recorded.waiting_for_retry, 0);
+    assert.equal([...core.stored.values()][0].created_at_ms, clock.t - 30_000);
+    assert.deepEqual(core.contents(), ['user:断线问题']);
+  });
+
+  test('missing end preserves a new reply equal or similar to an older reply', async () => {
+    const original = '我们今天下午三点在咖啡馆见面，我会记得带上那本关于猫咪行为学的书，还有上次借的雨伞。';
+    for (const missingReply of [original, original.replace('三点', '四点')]) {
+      const { thread_id } = await turn({ phase: 'start', turns: [u('开始' + missingReply)] });
+      await turn({ phase: 'end', thread_id, turns: [a(original)] });
+      await turn({ phase: 'start', thread_id, turns: [u('第二个问题')] });
+      clock.t += 10_000;
+      const result = await turn({ phase: 'start', thread_id, turns: [a(missingReply), u('下个问题')] });
+      assert.equal(result.recorded.new_turns, 2);
+      assert.equal(result.recorded.backfilled_turns, 1);
+      const tail = [...core.stored.values()].slice(-2);
+      assert.equal(tail[0].content, missingReply);
+      assert.deepEqual(tail[0].addenda, [{ type: 'frontend_backfill', approximate_time: true }]);
+      assert.ok(tail[0].created_at_ms < tail[1].created_at_ms);
+    }
+  });
+
+  test('multi-turn missing history has ordered backfills and an idempotent full retry', async () => {
+    const { thread_id } = await turn({ phase: 'start', turns: [u('第一问')] });
+    const firstAt = [...core.stored.values()][0].created_at_ms;
+    clock.t += 100_000;
+    const turns = [u('第一问'), a('第一答'), u('第二问'), a('第二答'), u('第三问')];
+    const added = await turn({ phase: 'start', thread_id, turns });
+    assert.equal(added.recorded.new_turns, 4);
+    assert.equal(added.recorded.backfilled_turns, 3);
+    const rows = [...core.stored.values()];
+    assert.deepEqual(rows.map((r) => r.content), ['第一问', '第一答', '第二问', '第二答', '第三问']);
+    assert.ok(rows.slice(1).every((r, i) => r.created_at_ms > rows[i].created_at_ms));
+    assert.equal(rows[0].created_at_ms, firstAt);
+    assert.equal(rows.at(-1).created_at_ms, clock.t);
+    const repeated = await turn({ phase: 'start', thread_id, turns });
+    assert.equal(repeated.recorded.new_turns, 0);
+    assert.equal(core.stored.size, 5);
+  });
+
+  test('fuzzy assistant backfill requires a tail overlap and user prefixes stay exact', async () => {
+    const user = '今天下午三点在咖啡馆见面，记得带上那本关于猫咪行为学的书，还有上次借的雨伞。';
+    const answer = '团子今天确实有点挑食，可能是换季的关系。可以先把新猫粮和旧猫粮按一比三混着喂，观察两三天，如果还是不吃再考虑换回原来的牌子。';
+    const { thread_id } = await turn({ phase: 'start', turns: [u(user)] });
+    await turn({ phase: 'end', thread_id, turns: [a(answer)] });
+    const overlap = await turn({ phase: 'start', thread_id,
+      turns: [a(answer.replace('确实', '的确')), u('明白了')] });
+    assert.equal(overlap.recorded.new_turns, 1);
+    assert.equal(overlap.recorded.duplicate_turns_skipped, 1);
+    const correction = await turn({ phase: 'start', thread_id,
+      turns: [u(user.replace('三点', '四点')), a('收到更正'), u('最后一句')] });
+    assert.equal(correction.recorded.new_turns, 3);
+    assert.ok(core.contents().includes('user:' + user.replace('三点', '四点')));
+  });
+
+  test('phase role validation rejects malformed calls before persisting any turn', async () => {
+    for (const args of [
+      { phase: 'start', turns: [a('错误角色')] },
+      { phase: 'end', turns: [u('错误角色')] },
+      { phase: 'end', turns: [a('第一条'), a('第二条')] },
+      { phase: 'other', turns: [u('不应写入')] },
+    ]) await assert.rejects(() => turn(args), WritebackInputError);
+    assert.deepEqual(core.contents(), []);
+  });
+
   test('ledger survives reopen; origin sequences stay monotonic', async () => {
     const { thread_id } = await turn({ turns: [u('重启前')] });
     wb.close();

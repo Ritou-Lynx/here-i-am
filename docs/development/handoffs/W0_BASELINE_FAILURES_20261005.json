@@ -1,0 +1,399 @@
+{
+  "format": "w0-baseline-failures-v1",
+  "baseline_commit": "f605d5017cbc0a8eb69983e00c25cd1bba08a0eb",
+  "w0_comparison_commit": "9b23d511fc28d588c3d1fe2c73014901e4824070",
+  "runner": "Node.js v24.14.1 Windows; node --test --test-concurrency=1 --test-reporter=tap; tools/i_core recursively",
+  "failure_entries": 42,
+  "terminal_failures": 41,
+  "parent_summaries": 1,
+  "failures": [
+    {
+      "id": 1,
+      "name": "constructor preflight rejects node_id before any migration hook",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 95,
+      "column": 4,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 2,
+      "name": "constructor preflight rejects schema_version before any migration hook",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 95,
+      "column": 4,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 3,
+      "name": "formal Store constructor throw at after_ddl rolls back",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 115,
+      "column": 53,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 4,
+      "name": "formal Store constructor throw at before_commit rolls back",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 115,
+      "column": 53,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 5,
+      "name": "ControlPlane callback stages observe actual uncommitted DDL, metadata and committed transaction",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 126,
+      "column": 1,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 6,
+      "name": "throw after COMMIT stays v5 without attempting ROLLBACK or activation",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 147,
+      "column": 1,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 7,
+      "name": "actual owned child interruption: store/after_ddl",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 161,
+      "column": 3,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 8,
+      "name": "actual owned child interruption: store/before_commit",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 161,
+      "column": 3,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 9,
+      "name": "actual owned child interruption: store/after_commit",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 161,
+      "column": 3,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 10,
+      "name": "actual owned child interruption: control-delete/before_commit",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 161,
+      "column": 3,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 11,
+      "name": "actual owned child interruption: control-delete/after_commit",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 161,
+      "column": 3,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 12,
+      "name": "actual child death after active claim refuses busy and expired takeover",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 187,
+      "column": 1,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 13,
+      "name": "observed clean close permits normal same-canonical-path Core restart",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 202,
+      "column": 1,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 14,
+      "name": "damaged ledger is indeterminate and neither entry is permitted",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 219,
+      "column": 1,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 15,
+      "name": "orphan sidecar without main is indeterminate and preserved",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "line": 231,
+      "column": 1,
+      "category": "M3 migration",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 16,
+      "name": "runtime pin freezes every packaged source blob at bbb8025d",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "line": 142,
+      "column": 1,
+      "category": "Runtime pin",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 17,
+      "name": "verify-only, content tamper, and manifest mismatch never open or create external state",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "line": 166,
+      "column": 1,
+      "category": "Runtime pin",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 18,
+      "name": "schema-v4 guard rejects missing and schema-v5 state without modifying either",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "line": 188,
+      "column": 1,
+      "category": "Runtime pin",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 19,
+      "name": "guard rejects a schema-v5 write still resident in WAL and leaves all source bytes untouched",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "line": 209,
+      "column": 1,
+      "category": "Runtime pin",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 20,
+      "name": "guard rejects a schema-4 database whose table columns were changed",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "line": 241,
+      "column": 1,
+      "category": "Runtime pin",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 21,
+      "name": "pinned v4 start clears inherited enablement and holds its external runtime lock",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "line": 261,
+      "column": 1,
+      "category": "Runtime pin",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 22,
+      "name": "combined release binds frozen M3 source bytes and fixed source table rejects a baseline-restored blob",
+      "file": "tools/i_core/runtime_upgrade/r3/combination.test.mjs",
+      "line": 66,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 23,
+      "name": "post-COMMIT M3 hook throw leaves v5 with empty claim but no R3 clean receipt, so R3 refuses restart before Store construction",
+      "file": "tools/i_core/runtime_upgrade/r3/combination.test.mjs",
+      "line": 91,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 24,
+      "name": "invalid v4 shape rejects without starting migration; open sidecar and missing DB reject without constructor",
+      "file": "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+      "line": 14,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 25,
+      "name": "crash after schema5 listener creates real missing-close evidence and refuses automatic original-path restart",
+      "file": "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+      "line": 30,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 26,
+      "name": "accepted migration followed by listen failure closes the same store and supports normal original-path restart",
+      "file": "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+      "line": 50,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 27,
+      "name": "cancel with a live incomplete HTTP request forces actual child exit and keeps shutdown unconfirmed",
+      "file": "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+      "line": 68,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 28,
+      "name": "fixed PS entry defaults verify-only and rejects unknown/runtime flags before database mutation",
+      "file": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "line": 9,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 29,
+      "name": "explicit migration preserves eight old tables, dormant HTTP and clean original-path restart; lock prevents second instance",
+      "file": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "line": 24,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 30,
+      "name": "fingerprint, inventory and canonical/link path rejections precede store construction",
+      "file": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "line": 54,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 31,
+      "name": "occupied loopback rejects before migration; absent or forged receipts cannot prove exit",
+      "file": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "line": 82,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 32,
+      "name": "continuous configured service exceeds 120 seconds, public APIs work, protected operator close confirms complete Job",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 60,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 33,
+      "name": "authenticated close removed after both observers have checked it does not stop the service",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 120,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 34,
+      "name": "non-ENOENT control read failure remains fail closed",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 192,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 35,
+      "name": "explicit disabled configuration rejects all enablement routes and inherited environment; cancellation is clean",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 202,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 36,
+      "name": "parent process death reaps actual Job members but cannot mint a clean receipt or authorize crash restart",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 216,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 37,
+      "name": "config path ACL, binding, unknown fields, overlap and unsupported relay reject before store construction",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 236,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 38,
+      "name": "guardian process alone dies: live parent fails closed and reaps its root and descendants without clean receipt",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 251,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 39,
+      "name": "CREATED",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 266,
+      "column": 13,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 40,
+      "name": "DUPLICATED",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 266,
+      "column": 13,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 41,
+      "name": "PUBLISHED",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 266,
+      "column": 13,
+      "category": "R3 guardian",
+      "kind": "terminal_failure"
+    },
+    {
+      "id": 42,
+      "name": "parent death at each real guardian bootstrap barrier cannot leave suspended processes or a held runtime lock",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "line": 264,
+      "column": 1,
+      "category": "R3 guardian",
+      "kind": "parent_summary"
+    }
+  ],
+  "final_w0_verification": {
+    "tests": 396,
+    "pass": 353,
+    "fail": 42,
+    "skip": 1,
+    "test_files": 25,
+    "mode": "--test-concurrency=1 --test-reporter=tap",
+    "unique_new_failure_entries": 0,
+    "failure_name_multiset_equal": true
+  }
+}

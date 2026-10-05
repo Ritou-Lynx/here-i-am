@@ -348,7 +348,7 @@ export function createWriteback({
     return out;
   }
 
-  function planTurns(threadId, turns, characterId) {
+  function planTurns(threadId, turns, characterId, phase) {
     const t = now();
     return transaction(db, () => {
       const thread = db.prepare('SELECT thread_id FROM threads WHERE thread_id = ?').get(threadId);
@@ -367,14 +367,40 @@ export function createWriteback({
       }
       const keys = turns.map((turn) => turnKey(turn.role, turn.content));
       const sketches = turns.map((turn) => similaritySketch(turn.content));
-      // 近似相等：同角色、指纹相似度达到阈值（抄写时的细微出入不再产生重复）。
-      const nearlySame = (row, i) => row.role === turns[i].role
-        && sketchSimilarity(row.sketch, sketches[i]) >= LIMITS.fuzzyThreshold;
+      // Only an explicitly supplied historical assistant prefix may be fuzzy.
+      // A current user fact or current reply must never match by similarity.
+      const currentIndex = turns.length - 1;
       const recentRows = existingRows.slice(-LIMITS.fuzzyWindow);
-      const start = alignTurns(existing, keys, known, {
+      const nearlySame = (row, i) => i < currentIndex
+        && turns[i].role === 'assistant' && row.role === 'assistant'
+        && recentRows.includes(row)
+        && sketchSimilarity(row.sketch, sketches[i]) >= LIMITS.fuzzyThreshold;
+      const alignment = {
         same: (e, i) => existing[e] === keys[i] || nearlySame(existingRows[e], i),
-        isKnown: (i) => known.has(keys[i]) || recentRows.some((row) => nearlySame(row, i)),
-      });
+        isKnown: (i) => known.has(keys[i]),
+      };
+      let start;
+      if (phase === null) {
+        // Internal API compatibility for old chronological multi-turn batches.
+        // Public MCP always supplies its normalized phase (default: start).
+        start = alignTurns(existing, keys, known, alignment);
+      } else {
+        // The final item is the current phase; only the preceding history is aligned.
+        // A whole chronological batch repeated at the unchanged tail is also
+        // an exact retry. Do not use fuzzy equality for this current-turn test.
+        const exactRetry = keys.length <= existing.length
+          && keys.every((key, i) => existing[existing.length - keys.length + i] === key);
+        if (exactRetry) {
+          start = keys.length;
+        } else {
+          start = alignTurns(existing, keys.slice(0, currentIndex), known, {
+            same: alignment.same,
+            // A missing reply after the tail user is new, even if an older reply
+            // had identical text. Only contiguous tail overlap proves prior history.
+            isKnown: (i) => existing.length === 0 && known.has(keys[i]),
+          });
+        }
+      }
       const fresh = turns.slice(start);
       let seq = Number(db.prepare('SELECT COALESCE(MAX(seq), 0) AS s FROM turns WHERE thread_id = ?').get(threadId).s);
       const threadLast = existingRows.length ? Number(existingRows.at(-1).created_at_ms) : null;
@@ -496,9 +522,17 @@ export function createWriteback({
         throw new WritebackInputError('thread_id 格式不对；请原样使用上次返回的 thread_id，或者省略');
       }
       const turns = validateTurns(args);
+      const phase = args.phase ?? null;
+      if (phase !== null && phase !== 'start' && phase !== 'end') {
+        throw new WritebackInputError('phase 只能是 start 或 end');
+      }
+      if ((phase === 'start' && turns.at(-1).role !== 'user')
+        || (phase === 'end' && (turns.length !== 1 || turns[0].role !== 'assistant'))) {
+        throw new WritebackInputError('start 的最后一条必须是 user；end 只能包含一条 assistant');
+      }
       if (typeof characterId !== 'string' || !characterId) throw new Error('character id unavailable');
       rateLimiter.take('i_chat_turn');
-      const plan = planTurns(threadId, turns, characterId);
+      const plan = planTurns(threadId, turns, characterId, phase);
       const result = await flush();
       const pending = Number(db.prepare("SELECT COUNT(*) AS n FROM turns WHERE status = 'pending'").get().n);
       return {

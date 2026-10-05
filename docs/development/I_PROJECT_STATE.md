@@ -2,7 +2,11 @@
 
 ## 个人数据中枢首批工作包（2026-10-05）
 
-按 `PERSONAL_DATA_HUB_PLAN_20261005.md` 开始首批任务。W0 从远端 `v3-lab@f605d501` 建立隔离 `codex/w0-integrate`，按 wonderful-carson、b3-writeback、festive-ride（053000d）顺序普通合并；冲突仅为交接文档，保留各线记录。完整递归测试为 325 过、42 红、1 跳（历史基线/Windows 模块限制）；当前接口专项 316 过、1 跳、0 红。运行副本五个源码哈希不同，运行一致性未验收。用户已明确授权上传 W0 任务分支并创建草稿 PR，正在执行并等待 CI；未合入 v3-lab。见[首批派发表](handoffs/PERSONAL_DATA_HUB_DISPATCH_20261005.md)。WI、WL、W6 已基于完整候选交付独立本地 diff，未集成主线。WI 主窗复跑 12/12，并完成首次本机空初始化和待补充今日单；真实排程待事项/容量。WL 模板和学习块接口已复核，未部署到真实学习目录。W6 草案含 17 项待确认决定，引用已核；后续以 W0 正式合入为共同基线。W1 等 W0 合入后先交接口约定；W3/W4/W5 等用户确认约定；W6 只交权威决定草案，尚不迁移或上线。
+W0 从远端 `v3-lab@f605d501` 建立隔离 `codex/w0-integrate`，按 wonderful-carson、b3-writeback、festive-ride（053000d）顺序普通合并；原源码候选 9b23d511，原上传候选 842a3e9a 的四组 CI 全通过。用户要求收尾时进一步保存运行副本通用差异：两处 Core 旧版保留候选保护，三处已提交本地补丁选择性收入 W0，并补相应合成测试与协议说明，见[运行差异与更新步骤](handoffs/W0_RUNTIME_UPDATE_20261005.md)。本轮顶层 345 项：344 过、0 红、1 既有跳过；递归 396 项：353 过、42 红、1 跳。
+
+[42 项旧失败](handoffs/W0_BASELINE_FAILURES_20261005.md)在独立 v3-lab 串行基线和 W0 中完整名称集合一致，本轮补丁复测也与基线的 42 条失败名称逐项一致，新增失败为 0，不是此次合并引入。用户明确另开修复窗口逐项区分代码/测试/fixture 或环境问题，不跳过、不屏蔽：thread `01a10b3e-cb9f-7ed0-9476-a81cc05ffdd5`，分支 `codex/i-core-test-debt-20261005`，基线 f605d501。完整递归未全绿，旧失败尚未修复；用户允许 W0 按已列明基线债边界收尾，完成新增补丁验证后把[PR #5](https://github.com/Ritou-Lynx/here-i-am/pull/5)改 ready 并请求合入。新候选 CI 以 PR 的 head/Checks 回执为准；未合入、部署或安装手机。
+
+W1 用户明确暂不派发，等数据中心方向明确再决定，W0 合入不自动释放。WI/WL 现有独立工作继续：WI 已交付本地规划工具，12/12 合成测试，首次空初始化和待补充今日单通过，真实排程待事项/容量；WL 已交付学习块与结果接口并复核，未部署真实学习目录。W6 为 17 项决定草案，未迁移。三个包的独立 diff 未混入 W0。详见[首批派发表](handoffs/PERSONAL_DATA_HUB_DISPATCH_20261005.md)、[W0 交接](handoffs/W0_INTEGRATION_20261005.md)、[基线复测](handoffs/V3_BASELINE_TEST_COMPARISON_20261005.md)。
 
 ## 学习系统：思源为知识库与学习账本，dot 语音带练（2026-10-04）
 
