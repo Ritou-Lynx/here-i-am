@@ -8,7 +8,7 @@
 - 47862 保留到真实 captures 闭环 Gate；消费者切换用来源 adoption、短租约与 fencing，旧 worker 不能再写。
 - Core 真副本4→5→6保全身份/旧表/grant/72绑定，原始手机/Core/外置授权已有本机加密且恢复校验的备份。
 - 固定 schema6 包装仅离线候选与只读预检；生产 supervisor、独立恢复 floor 和部署/真机 Gate 仍分开。
-- 整合验证和 APK/PR 回执见[主窗验收](docs/development/handoffs/POST_AUDIT_SOURCE_ACCEPTANCE_20261006.md)，未安装或部署。
+- 最终本机Flutter502/502、Node组合167/167；重建APK与同B3签名核验通过，失败历史和PR精确head检查见[主窗验收](docs/development/handoffs/POST_AUDIT_SOURCE_ACCEPTANCE_20261006.md)，未安装或部署。
 ---
 
 ## 2026-10-06 — 数据中枢并行源码与 W7 存储前置

@@ -7,7 +7,7 @@
 
 主窗 `codex/post-audit-integrate-20261006` 整合 B3 Drift61/62 原文迁移、受限 transcript/grant/replay、单一上传器及 PR12 账本/day_get 跟进。隔离白板候选的重开/恢复只读门槛也同步62，旧60和未知63明确拒绝。真实主力手机 B3 schema62 一致副本两次打开，140 张表的数据/列指纹一致；Core 真实 schema4 副本 4→5→6 保留旧表、身份、grant 与完整72绑定。离线副本结果不能代替生产恢复 floor 或升级 Gate。候选包装仅准备固定源码/Node 库存和只读预检，明确未部署；生产 supervisor 与真实恢复证据仍待后续。
 
-47862 桥在 captures 真机新增/改版/删除闭环验收前继续保留；Core 网页消费切换需要独立 Gate 与来源 adoption，不能靠 UI 开关或同文匹配。Android候选构建与同B3签名校验成功，固定Core候选真实副本预检通过；[PR #13](https://github.com/Ritou-Lynx/here-i-am/pull/13)已推送供复核，未合入。最终组合验证、APK候选和本轮交付状态见[审计后主窗验收](handoffs/POST_AUDIT_SOURCE_ACCEPTANCE_20261006.md)。本节下方的并行候选说明为 PR12 合入前的历史快照。
+47862 桥在 captures 真机新增/改版/删除闭环验收前继续保留；Core 网页消费切换需要独立 Gate 与来源 adoption，不能靠 UI 开关或同文匹配。最终本机受影响Flutter组合502/502、Node组合167/167，旧失败和修复留在交接；精确提交远端CI按PR Checks回执。Android候选重建与同B3签名校验成功，固定Core候选真实副本预检通过；[PR #13](https://github.com/Ritou-Lynx/here-i-am/pull/13)已推送供复核，未合入。最终组合验证、APK候选和本轮交付状态见[审计后主窗验收](handoffs/POST_AUDIT_SOURCE_ACCEPTANCE_20261006.md)。本节下方的并行候选说明为 PR12 合入前的历史快照。
 
 ## W3/W4/W5 并行候选与部署前只读调查（2026-10-06）
 
