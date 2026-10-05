@@ -10,6 +10,7 @@ import 'package:memex/data/personal_data_hub/capture_consumer.dart';
 import 'package:memex/data/personal_data_hub/domain_protocol.dart';
 import 'package:memex/data/personal_data_hub/domain_store.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/data/services/ai_finance_service.dart';
 
 const binding = DomainBinding(
     coreInstanceId: 'synthetic-shared-core',
@@ -100,6 +101,7 @@ void main() {
         await stores.first.configureRoute('captures', route);
       }
       Set<String>? originalIds;
+      Set<String>? originalFinanceIds;
       var totalBusy = 0;
       for (var version = 1; version <= 2; version++) {
         final text = 'synthetic input version $version';
@@ -159,6 +161,11 @@ void main() {
                     for (var slot = 0; slot < 2; slot++)
                       OrganizedCard(
                           type: 'fact',
+                          structuredFieldsType: 'expense_entry',
+                          structuredFields: {
+                            'amount_cny': 10 * version,
+                            'paidAt': '2026-10-06T12:00:00'
+                          },
                           title: 'stable slot-$slot',
                           dropletLabel: 'synthetic',
                           presentationModule: {'blocks': []},
@@ -278,6 +285,20 @@ void main() {
               cards.every(
                   (card) => card.retrievalText.contains('version $version')),
               true);
+        }
+        for (final db in databases) {
+          final panel =
+              await AiFinanceService(db: db).getRecentEntries(month: '2026-10');
+          expect(panel, hasLength(2));
+          expect(panel.map((row) => row['linked_fact_id']).toSet(), slots);
+          expect(
+              panel.every((row) => row['total_amount'] == 10 * version), true);
+          final financeIds = panel.map((row) => row['id'] as String).toSet();
+          if (originalFinanceIds != null) {
+            expect(financeIds, originalFinanceIds);
+          }
+          originalFinanceIds = financeIds;
+          expect(await db.select(db.aiFinanceLedger).get(), hasLength(2));
         }
         if (originalIds != null) expect(slots, originalIds);
         originalIds = slots;
