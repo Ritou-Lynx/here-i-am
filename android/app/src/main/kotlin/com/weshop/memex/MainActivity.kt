@@ -23,7 +23,7 @@ import io.flutter.embedding.android.RenderMode
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterFragmentActivity() {
+open class MainActivity : FlutterFragmentActivity() {
     companion object {
         private const val OPENING_SPLASH_CHANNEL = "com.memexlab.memex/opening_splash"
         private const val HERE_I_AM_V3_PACKAGE = "com.memexlab.hereiam.v3"
@@ -33,6 +33,19 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private var mediaButtonChannel: MethodChannel? = null
+    private var quickCaptureChannel: MethodChannel? = null
+    private var pendingCapture: String? = null
+    private val captureUnlockWaiters = mutableListOf<MethodChannel.Result>()
+    private fun captureUnlocked(): Boolean =
+        !(getSystemService(android.content.Context.KEYGUARD_SERVICE) as android.app.KeyguardManager).isKeyguardLocked
+
+    private fun isQuickCapture(intent: Intent?): Boolean =
+        intent?.action == "com.memexlab.memex.QUICK_CAPTURE" ||
+        intent?.component?.className?.endsWith("QuickCaptureAlias") == true ||
+        this is QuickCaptureActivity
+
+    override fun getInitialRoute(): String? =
+        if (isQuickCapture(intent)) "/quick-capture" else super.getInitialRoute()
     private var openingSplashChannel: MethodChannel? = null
     private var openingSplashOverlay: FrameLayout? = null
     private var openingSplashTexture: TextureView? = null
@@ -63,7 +76,7 @@ class MainActivity : FlutterFragmentActivity() {
             it.install()
         }
         BackupImportChannelHandler.handleIntent(this, intent)
-        if (packageName == HERE_I_AM_V3_PACKAGE && savedInstanceState == null) {
+        if (packageName == HERE_I_AM_V3_PACKAGE && savedInstanceState == null && !isQuickCapture(intent)) {
             showNativeOpeningSplash()
         }
     }
@@ -72,6 +85,10 @@ class MainActivity : FlutterFragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         BackupImportChannelHandler.handleIntent(this, intent)
+        if (isQuickCapture(intent)) {
+            pendingCapture = java.util.UUID.randomUUID().toString()
+            quickCaptureChannel?.invokeMethod("capture", pendingCapture)
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -81,6 +98,45 @@ class MainActivity : FlutterFragmentActivity() {
         ChannelRegistrar.registerAll(flutterEngine, this)
         registerMediaButtonChannel(flutterEngine)
         registerOpeningSplashChannel(flutterEngine)
+        quickCaptureChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
+            "com.memexlab.memex/quick_capture").also { channel ->
+            // Cold launch already selects the capture initial route. Only warm
+            // intents need replay, avoiding a duplicate page at startup.
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "awaitCaptureUnlock" -> {
+                        if (captureUnlocked()) result.success(true)
+                        else {
+                            captureUnlockWaiters.add(result)
+                            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                val keyguard = getSystemService(android.content.Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+                                keyguard.requestDismissKeyguard(this, object : android.app.KeyguardManager.KeyguardDismissCallback() {
+                                    override fun onDismissSucceeded() {
+                                        captureUnlockWaiters.forEach { it.success(true) }
+                                        captureUnlockWaiters.clear()
+                                    }
+                                    override fun onDismissCancelled() {
+                                        captureUnlockWaiters.forEach { it.success(false) }
+                                        captureUnlockWaiters.clear()
+                                    }
+                                    override fun onDismissError() = onDismissCancelled()
+                                })
+                            }
+                        }
+                    }
+                    "takePendingCapture" -> {
+                        val action = pendingCapture
+                        pendingCapture = null
+                        result.success(action)
+                    }
+                    "finishCapture" -> {
+                        result.success(null)
+                        if (this is QuickCaptureActivity) finishAndRemoveTask()
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
     }
 
     private fun registerMediaButtonChannel(flutterEngine: FlutterEngine) {
@@ -300,6 +356,10 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (captureUnlocked()) {
+            captureUnlockWaiters.forEach { it.success(true) }
+            captureUnlockWaiters.clear()
+        }
         MediaButtonBridge.setAppBackground(false)
         val player = openingSplashPlayer
         if (openingSplashPrepared && player != null) {
@@ -321,6 +381,10 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
+        captureUnlockWaiters.forEach { it.success(false) }
+        captureUnlockWaiters.clear()
+        quickCaptureChannel?.setMethodCallHandler(null)
+        quickCaptureChannel = null
         webViewRenderProcessGuard?.uninstall()
         webViewRenderProcessGuard = null
         openingSplashHandler.removeCallbacks(openingSplashFailsafe)
