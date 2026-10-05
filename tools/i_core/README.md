@@ -60,7 +60,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\i_core\uninstall_i
 
 ### MDA-1 默认模式与升级边界
 
-本版本的 Core schema 为 `5`。即使没有 activity owner，旧 Core schema `4`
+默认聊天启动仍使用 Core schema `5`；本版本也支持显式离线迁移后的 `6`。即使没有 activity owner，旧 Core schema `4`
 也会在启动时迁移并创建活动域；默认不激活不代表零数据库写入。已有设备仍只能
 访问原聊天权限，活动 probe / reader 使用独立 scope，activity 不进入 chat feed。
 
@@ -78,6 +78,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\i_core\uninstall_i
 源码。更新运行 checkout 前须明确版本隔离或迁移窗口；本次隔离候选与运行状态
 见 [集成裁决](../../docs/development/activity/mda1/MDA1_INTEGRATION_VERDICT_20260912.md)。
 
+## 通用领域协议（W1）
+
+[领域约定](../../docs/development/I_CORE_DOMAIN_CONTRACT.md)已由用户在 2026-10-05 确认。当前源码新增 schema 6 的通用领域引擎；正常服务不注册 `example` 或任何业务领域，也不会自动从 5 升到 6。已有聊天设备令牌不能访问领域；领域令牌不能访问聊天。
+
+`DomainStore.registerDomain()`、`configurePrincipal()`、`setMode()` 是本机可信 owner 的配置方法，没有远程授予权限或改 mode 的路由。`fields[domain]` 是**写字段白名单**，包括查询旧操作时复核原写权限；它不提供部分字段只读投影。需要明细/汇总隔离时必须注册独立权限域。用户等级操作还必须通过 `domainVerifyAuthorization` 验证绑定的授权记录，生产默认拒绝未验证的用户声明；不能把已有聊天 ID 当授权证据。领域可经 `domainDedupHooks` 注入同步判重钩子，候选经过对象权限过滤，异常/异步返回拒收且不产生接受回执。
+
+领域接口为 `POST /v1/core/domains/<domain>/ops`、`GET …/ops/<op_id>`、`GET …/records/<id>`、`GET …/changes`、`GET …/snapshot`、`POST …/ack`。GET 必须有 `X-I-Core-Domain-Protocol: 1` 和 `core_instance_id`；POST 为 JSON、`domain_protocol_version: 1`，单请求单 op。主体 actor、scope、对象归属与原始写集合在幂等查找前验证；旧操作查询及重放同样复核当前完整权限。签名 cursor 不与 chat/activity 互用，领域 sequence 独立于内部 SQLite 主键。
+
+`off / shadow / frozen / authoritative` 及状态冲突按约定执行；shadow 使用独立命名空间、202 staged 结果，不产生生产接受回执。墓碑永久保留，恢复窗口 30 天；即时删除及到期维护清除正文、相关请求 payload 和快照，历史回执仅留元数据。服务运行 schema 6 时定时执行通用领域保留任务，失败状态留在 `store.domainRetentionError`。同步缓存有显式限额，不会逐出仍有效的快照。
+
+手机 companion 能力由 `ICoreStore.configurePhoneCompanion()` 在本机为已登记 Android 设备、唯一主角色及当前令牌哈希授予；客户端配对 capability 声明不能开通。只能提交自己的 origin 和该主角色，companion 请求不能包含 reply 参数。手机拥有该角色后，Core reply job 生产必须关闭且队列排空，worker 不得发布该角色的正式回复；重启、令牌轮换和 schema/角色异常均重新检查。
+
+离线升级入口是 `migrateDomainSchema()`，必须有受信 supervisor 停写证据、当前 recovery floor、独立 32 字节备份密钥和备份目录。它验证加密备份后，在一个事务内只新增领域表并前移 marker；既有表与 identity 校验不变。已有领域内容或历史 sequence 后禁止降级；空域回退用 `rollbackEmptyDomainSchema()`。CLI 仅 inspect / cleanup dry-run，不能用布尔参数冒充停写证明，真实启用须另配 owner adapter。
+
+真实副本演练入口 `validateDomainMigrationCopy()` 独立于可写迁移入口：原副本仅读字节，要求可信来源哈希、原路径绑定、恢复地板和离线复制证据；只在全新 scratch 演练，保留原绑定并标记不可激活的 `backup_read_only`，最后清理 scratch。加密备份保留 30 天，`cleanupExpiredDomainBackups()` 默认预览；执行必须有明确 owner 授权，保留无正文的认证清理回执。当前只跑合成测试，未读取真实副本或切换运行服务。
+
+验证范围、候选哈希及未完成的客户端/真实副本 Gate 见 [W1 实现交接](../../docs/development/handoffs/W1_DOMAIN_IMPLEMENTATION_20261005.md)。
+
 ## 验证
 
 ```powershell
@@ -93,7 +111,7 @@ claude.ai 网页端经 `tools/i_remote_mcp` 写回聊天时，使用受限的外
 - 在配对窗口内以 `platform: external-frontend`、`device_id: frontend:<小写名>`（例如 `frontend:claude_web`）配对；两者必须同时成立，已有设备不能在普通 / 前端角色之间切换。
 - 该设备可提交 `sender` 为 `user` 或 `companion` 的消息（网页端已经发生的双方轮次），`origin_device_id` 仍须是自己；不能带 `request_companion_reply=true`。
 - 该设备读取 `/v1/core/changes` 或 `/v1/core/devices/ack` 时返回 403 `chat_read_forbidden`。
-- 不改 schema；普通设备仍只能提交 `user`。手机端按 `origin_device_id` 前缀 `frontend:` 标注来源。设计见 [B3_WRITEBACK_DESIGN.md](../../docs/development/B3_WRITEBACK_DESIGN.md)。
+- schema 5 的普通设备仍只能提交 `user`；schema 6 的显式手机授权例外见下节。手机端按 `origin_device_id` 前缀 `frontend:` 标注来源。设计见 [B3_WRITEBACK_DESIGN.md](../../docs/development/B3_WRITEBACK_DESIGN.md)。
 
 ## 一次性导入现有 V3 聊天
 
