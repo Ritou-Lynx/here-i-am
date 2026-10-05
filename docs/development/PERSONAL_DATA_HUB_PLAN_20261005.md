@@ -2,9 +2,9 @@
 
 **用户已确认的原则（2026-10-05）**：i_core 是个人数据唯一的仓库；思源只管成篇的文字；各个 App 是看数据的窗户，各个 Agent 是干活的，两者都不各自存一份数据。
 
-> **2026-10-05 第二轮**：用户已定宿主留在随身笔记本、手机林埃回复写入 i_core、i_remember 迁入 i_core；W6 草案已收进 `data-authority-preflight/` 并在 ADR 第 12 节合并。
+> **2026-10-05 已确认**：ADR 第 11 节全部决定和第 1.3 节七条冲突的处理都已由用户确认（宿主留在随身笔记本、不上云；手机林埃回复写入 i_core；i_remember 迁入 i_core；其余按推荐）。W6 草案已收进 `data-authority-preflight/` 并在 ADR 第 12 节合并；路线图、同步数据清单、B3、快速捕获和 Gate 1A-0 附录已同步改文。
 >
-> **2026-10-05 修订**：W1、W2、W5、W6、W7 五张卡已按 [个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 改写，ADR 第 11 节的拍板项定下来之前，这几张卡不开工。其他卡受到的影响：
+> **2026-10-05 修订**：W1、W2、W5、W6、W7 五张卡已按 [个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 改写。其他卡受到的影响：
 > - **W3**：`i_remember` 改写进 i_core `captures`（不再用本机账本和 47862 拉取通道）；加读 `plan_days` 的工具；i_memory 读取层的 policy 加领域白名单（ADR F8）。
 > - **W4**：本地待发队列用 W7-0 的通用 outbox，不另建 `quick_captures` 表；捕获页底部显示两个处理者的结果。
 > - **W8**：今日队列写 `plan_days`；`capture_sync` 用 `captures:read`、`captures:ack` 范围令牌，不用 worker 密钥。
@@ -29,14 +29,16 @@
 
 | 数据 | 现在在哪 | 以谁为准 |
 |---|---|---|
-| 聊天记录 | i_core `chat_messages` | i_core |
+| 聊天记录 | 用户消息和网页端双方轮次在 i_core `chat_messages`；**手机上林埃的回复只在手机**（不进待发队列），i_core 里只有一次性导入的旧回复 | 用户消息以 i_core 为准；手机林埃回复暂无跨端权威（W1 放宽后由 W7-0 补上） |
 | 手机活动（MDA） | i_core activity 域（默认关闭） | i_core |
 | 收支、待办、睡眠、计划等记忆卡 | 手机 Memory V3（Drift） | 手机。电脑上只有 `tools/i_memory` 用 ADB 导出的只读快照 |
-| "帮我记一下"的记录 | `tools/i_remote_mcp/.state/writeback.sqlite`，手机再拉取成记忆卡 | 先在 i_remote_mcp，再到手机 |
+| "帮我记一下"的记录 | `tools/i_remote_mcp/.state/writeback.sqlite`；手机拉取端**没实现**，记录目前到不了手机 | i_remote_mcp（决定迁入 i_core `captures`） |
 | 学习账本、招聘日历 | 思源数据库 | 思源 |
-| 规划 | 方案写好了，**没建**（原计划放思源，现已作废） | 无 |
+| 规划 | WI 过渡期本机文件（`plan.json` / `week.md` / `today.md`） | 本机文件，W2 后迁入 i_core |
 | 教招档案 | `D:\教师招聘备考系统` | 只读档案 |
 | 健康 | COROS 手表 | COROS |
+
+详细盘点（含写入者、读取者和代码位置）见 [ADR 第 2 节](PERSONAL_DATA_HUB_ADR_20261005.md)。
 
 i_core 现在能做的：设备配对和令牌、聊天消息的幂等提交、按顺序的 change feed、每台设备的游标、worker 租约、activity 控制面。schema 是 5。它**还没有**领域表的通用做法，也没有按领域授权的令牌范围。
 
@@ -127,7 +129,7 @@ flowchart LR
 ### W1 i_core 领域框架（线性，关键路径；2026-10-05 按 ADR 修订）
 
 - **目标**：让 i_core 能承载会被修改、删除、合并的领域记录：统一的记录信封、字段级合并、墓碑、按领域的变更流、范围令牌和离线 intent 协议。实现不绑定 Windows，以后可以直接搬到常开主机。
-- **依赖**：W0；[ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 第 11 节决定 1、4～10、16 拍板（约定要用到）。
+- **依赖**：W0 合入 `v3-lab`；[ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 的决定已于 10/05 全部确认。
 - **产出**：
   1. **先交接口约定** `docs/development/I_CORE_DOMAIN_CONTRACT.md`，用户确认后再写代码。必须写清：
      - 记录信封（ADR 4.1）和只追加的 `domain_ops` 操作表；`actor` 为用户的行就是 Core 端的用户修正记录；
@@ -159,7 +161,7 @@ flowchart LR
 ### W2 记一下 + 规划两个领域（线性，依赖 W1；2026-10-05 按 ADR 修订）
 
 - **目标**：在 i_core 里建 `captures`（网页端 i_remember 的记录也并进来）和规划三张表 `plan_items`、`plan_weeks`、`plan_days`。
-- **依赖**：W1；ADR 决定 12、14、20 拍板。
+- **依赖**：W1（ADR 决定 12、14、20 已确认）。
 - **产出**：所有表都按 W1 的领域约定建。
   - `captures`：原话、来源（`phone_quick` / `claude_web` / `dot` / `codex`）、记录时间、按处理者分开的处理结果（ADR 8.1：`organizer`、`planner` 各自的状态和产出 id）。作者可以改、可以删；`claude_web` 来源删除时立即清正文（B3 决定 2）；删除时记下需要连带处理的派生记录 id，删除本身由各领域执行（ADR 4.4）。
   - `plan_items`：字段按 `tools/life_planner/PLANNER_AGENTS.md` 的"规划库字段"，去掉思源专用部分；上级、前置、替代为都用 id；加 `remind_at`。判重键：规范化标题 + 截止或定时。手机令牌在这张表上只有 `plan:status`（完成、不做了）。
@@ -213,7 +215,7 @@ flowchart LR
 ### W5 手机：今天 / 本周页（W1 约定定稿后可开工；2026-10-05 按 ADR 修订）
 
 - **目标**：在手机上看今日队列和本周进度，可以点"完成""不做了"；电脑不开时也能看、能点。
-- **依赖**：W1 约定；W7-0 的通用 outbox 和本地副本（没就绪时先用假实现）；ADR 决定 3、18 拍板（本页是路线图"手机暂停新页面"的例外）。
+- **依赖**：W1 约定；W7-0 的通用 outbox 和本地副本（没就绪时先用假实现）。本页是路线图"手机暂停新页面"的已确认例外。
 - **产出**：
   - 订阅 `plan_days`、`plan_weeks`、`plan_items` 的变更流，存本地副本；
   - 今天页：按 `plan_days` 的顺序显示队列，以及"这次改了什么"、待拍板、今晚关灯时间、生成时间；
@@ -264,8 +266,8 @@ flowchart LR
 - **目标**：把 [ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 和 [W6 草案](data-authority-preflight/W6_DATA_AUTHORITY_DECISION_DRAFT_20261005.md)（17 项待确认，ADR 第 12 节已做对照）合成正式决定；拍板后改写冲突的既有文档，并给每个要搬家的领域出字段映射表。
 - **依赖**：无；领域映射表要用到 W1 约定。
 - **产出**：
-  1. 以 ADR 第 11 节为拍板清单（W6 的 17 项已在 ADR 第 12 节对照合并），用户逐条确认；结果写回 ADR 第 11 节，标"已定"。宿主、林埃回复入 i_core、i_remember 迁移三项已在 10/05 定下。
-  2. 按 ADR 第 9 节改文：PRODUCT_ROADMAP（第 77、80、92 行和 §7）、CORE_SYNC_DATA_INVENTORY（第 30、46–52 行）、Gate 1A-0 附录（生活领域按 Formal32 的格式补行，不改已冻结的 32 行）、B3_WRITEBACK_DESIGN、QUICK_CAPTURE_DESIGN、本文第 2 节现状表。
+  1. ~~拍板清单~~ ✅ 10/05 全部确认，结果在 ADR 第 11 节。
+  2. ~~改写冲突文档~~ ✅ 10/05 已改，清单见 ADR 第 9 节。
   3. 领域映射表，每个领域一份，放 `docs/development/data-authority/hub/`：旧表和字段 → i_core 领域字段；ID 怎么保留；判重键；`actor` 怎么回填（旧数据记 `import`，带 `userCorrected` 标志的字段记 `user_direct`）；回滚时怎么重建旧表。先做收支、睡眠、经期、待办卡四份。
   4. 只读统计（读真实数据，先问用户）：用已有 i_memory 快照按 `type`、`structured_type` 计数；`type=note` 的白板卡数；收支卡数和账本行数的差。只报数字。
   5. 在本机核实 ADR 第 10 节里电脑上能查的几项：手机上林埃的回复是否进了 i_core、i_remember 记录的 `phone_status`、运行副本和仓库的差异。

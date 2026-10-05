@@ -2,7 +2,13 @@
 
 > 2026-10-05 补充：捕获表按[个人数据中枢规划](PERSONAL_DATA_HUB_PLAN_20261005.md)的领域约定实现（W2），App 部分是 W4，电脑端唤起 Codex 并入 W8。
 
-**状态：设计稿，待用户确认后开发。** 服务于 [`tools/life_planner/`](../../tools/life_planner/README.md)：手机上随手记的事，要在几分钟内到达电脑上的规划助手（Codex），由它分诊和重排。
+> **2026-10-05 按[个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 第 8 节修订（用户已确认），以下几处以 ADR 为准：**
+> - 所有"记一下"（侧键、网页端 i_remember、dot）进同一个 `captures` 收件箱；手机 Record Organizer 处理其中的生活记录（消费、睡眠、经期、事实），Codex 处理待办和时间变化，各自在 capture 上记处理结果。§2、§9 第 1 条"捕获完全不让林埃看到"作废；捕获仍不进聊天时间线、不触发林埃回复。
+> - §5 电脑端接口不用 `I_CORE_WORKER_SECRET`，改用 `captures:read`、`captures:ack` 范围令牌。表结构按 W1 领域约定，由 W2 定。
+> - §4 不另建 `quick_captures` 表，用 W7-0 的通用 outbox。
+> - §7 今日单不单独推回手机，手机直接读 `plan_days` 副本。
+
+**状态：设计稿，已按上面的修订确认。** 服务于 [`tools/life_planner/`](../../tools/life_planner/README.md)：手机上随手记的事，要在几分钟内到达电脑上的规划助手（Codex），由它分诊和重排。
 
 ## 1. 为什么要做
 

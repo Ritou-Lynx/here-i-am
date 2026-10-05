@@ -122,6 +122,8 @@ claude.ai Project 的主对话是协调者，不能调用 MCP；只有它派出�
 
 ## 3. i_remember
 
+> 2026-10-05 起被[个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 决定 14 替代：记录存 i_core 的 `captures` 领域（`source=claude_web`），不再存本机账本；"删除立即清正文"保留。`i_remember` 的工具接口对 claude.ai 不变。
+
 **输入**：`{ action: add | update | delete | list, text?, note_id? }`，`text` 不超过 2000 字。只在用户明确说“帮我记一下 / 记住这个”时调用，`text` 尽量保留用户原话。
 
 - `add`：同一正文已存在且有效时，直接返回原记录（`duplicate: true`），重放无副作用。
@@ -165,6 +167,8 @@ claude.ai Project 的主对话是协调者，不能调用 MCP；只有它派出�
 - 用户选择启用：本机 `tools/i_memory/.state/policy.json` 要加 `"auto_share_origins": ["claude_web"]`（由 Codex 在本机修改，真实 policy 不进仓库）。
 
 ## 7. 手机拉取通道（交给 Codex 实现 Flutter 端）
+
+> 2026-10-05 起被[个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 替代：手机经 i_core 的 `captures` 变更流取记录（总规划 W7-0），不再实现 47862 拉取端。下文保留作历史。
 
 i_remote_mcp 在启用写回、且签发过手机令牌（`issue-phone-token`）后，另起一个**只监听 127.0.0.1:47862** 的 HTTP 服务。它不接到 Cloudflare 公网隧道上，手机经 Tailscale Serve 访问（与 i_core 同样方式）。
 

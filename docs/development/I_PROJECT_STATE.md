@@ -2,7 +2,7 @@
 
 ## 个人数据中枢 ADR（2026-10-05）
 
-按用户确认的三条原则写了[个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md)，并改写[总规划](PERSONAL_DATA_HUB_PLAN_20261005.md)的 W1、W2、W5、W6、W7 卡。只写设计，未改代码、未动数据。ADR 以 `codex/w0-integrate@842a3e9` 的代码为准盘点了每类数据的位置、写入者、读取者和同步方式，发现：手机上林埃的回复不进 i_core；记忆卡硬删除、无版本、`user_corrections` 无写入方；i_remember 记录到不了手机；三项服务都依赖同一台电脑开机。推荐：宿主先留电脑、上海实测后再定；i_core 分配版本、字段级合并、用户修改优先、30 天墓碑；手机是 Record Organizer、Dreaming、提醒、check-in 的唯一执行者，产出作为 intent 交 i_core；按领域授权，经期只给手机；迁移先建记一下和规划，第一个搬家的手机数据是收支，每个领域走影子、切换、退役三步；三种"记一下"并成一个收件箱。第二轮（同日）：用户定下宿主留在随身笔记本、不上云，手机林埃回复写入 i_core，i_remember 迁入 i_core；W6 草案已收进 `data-authority-preflight/` 并在 ADR 第 12 节合并，C1–C7 冲突各有推荐处理。ADR 第 11 节其余各项待用户拍板，拍板前 W1、W2、W5、W6、W7 不开工；与 PRODUCT_ROADMAP、CORE_SYNC_DATA_INVENTORY、B3 决定 2 的冲突待拍板后由 W6 改文。
+按用户确认的三条原则写了[个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md)，并改写[总规划](PERSONAL_DATA_HUB_PLAN_20261005.md)的 W1、W2、W5、W6、W7 卡。只写设计，未改代码、未动数据。ADR 以 `codex/w0-integrate@842a3e9` 的代码为准盘点了每类数据的位置、写入者、读取者和同步方式，发现：手机上林埃的回复不进 i_core；记忆卡硬删除、无版本、`user_corrections` 无写入方；i_remember 记录到不了手机；三项服务都依赖同一台电脑开机。推荐：宿主先留电脑、上海实测后再定；i_core 分配版本、字段级合并、用户修改优先、30 天墓碑；手机是 Record Organizer、Dreaming、提醒、check-in 的唯一执行者，产出作为 intent 交 i_core；按领域授权，经期只给手机；迁移先建记一下和规划，第一个搬家的手机数据是收支，每个领域走影子、切换、退役三步；三种"记一下"并成一个收件箱。第二轮（同日）：用户定下宿主留在随身笔记本、不上云，手机林埃回复写入 i_core，i_remember 迁入 i_core；W6 草案已收进 `data-authority-preflight/` 并在 ADR 第 12 节合并，C1–C7 冲突各有推荐处理。随后用户确认全部决定和冲突处理按推荐，ADR 状态为已确认；PRODUCT_ROADMAP、CORE_SYNC_DATA_INVENTORY、B3、QUICK_CAPTURE 已同步改文，新增 Gate 1A-0 生活领域附录。下一步：W0 与本分支合入 v3-lab 后派发 W1（先交接口约定）。
 
 ## 个人数据中枢首批工作包（2026-10-05）
 

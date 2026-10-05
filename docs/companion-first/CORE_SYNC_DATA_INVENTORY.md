@@ -27,7 +27,7 @@
 | User-truth | `memory_cards`、sources、structured fields、relations、assets、operations | 只有显式记录、外部数据流或用户修正才能写 | 只读投影 + 待提交操作 |
 | 用户修正 | `user_corrections`、召回反馈 | 作为独立 append-only 操作写核心 | 本地 optimistic 状态 |
 | Topic Thread | threads、sessions | 核心整理；`corePositions` 仍需用户确认 | 当前相关话题缓存 |
-| Check-in / 提醒 | `system_message_queue` 及提醒语义 | 只由核心调度与领取，防止多端重复 | 设备只接收投递结果 |
+| Check-in / 提醒 | `system_message_queue` 及提醒语义 | 2026-10-05 修订：单一执行者是手机，防止多端重复。林埃给自己留的提醒是手机本机状态，不同步；用户的定时事项属于规划领域，在核心，手机据此派生闹钟 | 手机执行；规划副本 |
 | 角色与 Agent 配置 | Character YAML、agent config、可移植设置 | 核心保存当前版本；修改走带版本操作 | 必要配置缓存 |
 
 ### 2.2 后续纳入核心的事实域
@@ -49,7 +49,9 @@
 - Memory Recall trace。用户的“有帮助 / 不相关”是独立事实，不能因重建 trace 丢失。
 - Record Organizer 生成的 Memory Card 展示与结构化结果；其来源和人工修正必须可追溯。
 
-投影必须带生成版本、来源引用和更新时间。模型升级时由核心重建或迁移，不能让多台设备分别生成后合并。
+投影必须带生成版本、来源引用和更新时间。模型升级时重建或迁移，不能让多台设备分别生成后合并。
+
+> 2026-10-05 修订（[个人数据中枢 ADR](../development/PERSONAL_DATA_HUB_ADR_20261005.md) 第 5 节）：上面"由核心唯一生成"改为"单一执行者生成"。Record Organizer、Dreaming、Life Insight、User Rhythm、Growth Pact 的执行者是手机；Record Organizer 的结果作为 intent 交核心接受，Dreaming 等派生产物暂留手机，需要时导出只读快照。仍然禁止多台设备各自生成再合并。
 
 ## 4. 可重建缓存
 
