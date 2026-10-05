@@ -2,7 +2,7 @@
 
 ## 个人数据中枢首批工作包（2026-10-05）
 
-按 `PERSONAL_DATA_HUB_PLAN_20261005.md` 开始首批任务。W0 从远端 `v3-lab@f605d501` 建立隔离 `codex/w0-integrate`，按 wonderful-carson、b3-writeback、festive-ride（053000d）顺序普通合并；冲突仅为交接文档，保留各线记录。整合候选的测试、运行副本比对及 PR 尚待完成，未合入 v3-lab。WI、WL、W6 使用完整整合候选作为独立工作输入，后续以 W0 正式合入为共同基线。W1 等 W0 合入后先交接口约定；W3/W4/W5 等用户确认约定；W6 只交权威决定草案，尚不迁移或上线。
+按 `PERSONAL_DATA_HUB_PLAN_20261005.md` 开始首批任务。W0 从远端 `v3-lab@f605d501` 建立隔离 `codex/w0-integrate`，按 wonderful-carson、b3-writeback、festive-ride（053000d）顺序普通合并；冲突仅为交接文档，保留各线记录。完整递归测试为 325 过、42 红、1 跳（历史基线/Windows 模块限制）；当前接口专项复核中。运行副本五个源码哈希不同，运行一致性未验收。自动审批拒绝外部上传，尚无 PR 或新 CI，未合入 v3-lab。见[首批派发表](handoffs/PERSONAL_DATA_HUB_DISPATCH_20261005.md)。WI、WL、W6 使用完整整合候选作为独立工作输入，后续以 W0 正式合入为共同基线。W1 等 W0 合入后先交接口约定；W3/W4/W5 等用户确认约定；W6 只交权威决定草案，尚不迁移或上线。
 
 ## 学习系统：思源为知识库与学习账本，dot 语音带练（2026-10-04）
 
