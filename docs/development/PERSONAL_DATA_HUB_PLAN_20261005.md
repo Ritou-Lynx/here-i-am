@@ -2,6 +2,13 @@
 
 **用户已确认的原则（2026-10-05）**：i_core 是个人数据唯一的仓库；思源只管成篇的文字；各个 App 是看数据的窗户，各个 Agent 是干活的，两者都不各自存一份数据。
 
+> **2026-10-05 修订**：W1、W2、W5、W6、W7 五张卡已按 [个人数据中枢 ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 改写，ADR 第 11 节的拍板项定下来之前，这几张卡不开工。其他卡受到的影响：
+> - **W3**：`i_remember` 改写进 i_core `captures`（不再用本机账本和 47862 拉取通道）；加读 `plan_days` 的工具；i_memory 读取层的 policy 加领域白名单（ADR F8）。
+> - **W4**：本地待发队列用 W7-0 的通用 outbox，不另建 `quick_captures` 表；捕获页底部显示两个处理者的结果。
+> - **W8**：今日队列写 `plan_days`；`capture_sync` 用 `captures:read`、`captures:ack` 范围令牌，不用 worker 密钥。
+> - **第 2 节现状表**有两处和代码不符：手机上林埃的回复不在 i_core；网页端"帮我记一下"的记录目前到不了手机。以 ADR 第 2 节为准。
+> - **新增并行项**：W7-0（手机端前置）在 W1 约定定稿后即可开工。
+
 本文给 Codex 分窗口执行用。每个窗口开工前先读本文的第 1～4 节，再读自己的任务卡（第 5 节）。
 
 ---
@@ -115,45 +122,56 @@ flowchart LR
   另外告诉我：我电脑上运行 i_remote_mcp 的目录现在在哪个提交，和合并结果有没有差别。
   ```
 
-### W1 i_core 领域框架（线性，关键路径）
+### W1 i_core 领域框架（线性，关键路径；2026-10-05 按 ADR 修订）
 
-- **目标**：让 i_core 能按统一的方式加领域表，并支持按领域授权。
-- **依赖**：W0。
+- **目标**：让 i_core 能承载会被修改、删除、合并的领域记录：统一的记录信封、字段级合并、墓碑、按领域的变更流、范围令牌和离线 intent 协议。实现不绑定 Windows，以后可以直接搬到常开主机。
+- **依赖**：W0；[ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 第 11 节决定 1、4～10、16 拍板（约定要用到）。
 - **产出**：
-  1. **先交接口约定**，写成 `docs/development/I_CORE_DOMAIN_CONTRACT.md`：
-     - 领域表的通用字段：`id`（客户端 UUID，用来去重）、`created_at`、`updated_at`、`deleted_at`（软删除）、`revision`、`source`（哪个设备或 Agent 写的）；
-     - 每个领域单独的 change feed 和游标，不混进聊天 feed；
-     - 令牌的领域范围：`domain:<名>:read`、`domain:<名>:write`；
-     - 新领域的迁移写法（schema 版本、迁移前自动备份、回滚说明）；
-     - API 形状：`GET/POST /v1/core/domains/<名>/...`。
+  1. **先交接口约定** `docs/development/I_CORE_DOMAIN_CONTRACT.md`，用户确认后再写代码。必须写清：
+     - 记录信封（ADR 4.1）和只追加的 `domain_ops` 操作表；`actor` 为用户的行就是 Core 端的用户修正记录；
+     - 版本与合并（ADR 4.2、4.3）：带基准版本提交、字段级合并、四级 `actor`、`user_locked`、`stale_base`、`needs_resolution`；
+     - 删除（ADR 4.4）：墓碑、30 天内恢复、到期清正文、墓碑挡住旧 ID 再创建；各领域可配置"删除立即清正文"；
+     - 判重与合并（ADR 4.5）：领域判重键钩子、`duplicate_of`、`possible_duplicate`、显式 `merge` op；
+     - intent 状态、错误码、TTL 和容量常量（ADR 4.7，写成版本化常量）；
+     - 按领域的状态型变更流、cursor、ack、保留水位与 `resync_required`（ADR 4.8）；
+     - 令牌范围 `<领域>:<动作>` 和主体表（ADR 第 6 节）；现有设备令牌默认只有聊天权限，行为不变；
+     - 领域开关 `off / shadow / authoritative / frozen`（ADR 7.2）；
+     - schema 5 → 6 只加表；迁移前自动离线备份；回滚说明；
+     - API 形状：`POST /v1/core/domains/<领域>/ops`、`GET …/changes`、`POST …/ack`、`GET …/snapshot`、`GET …/records/<id>`；
+     - 聊天的一处放宽（ADR 决定 4）：普通手机设备可以提交自己生成的 `companion` 消息，限定主角色、`origin_device_id` 是自己、不能带 `request_companion_reply`；
+     - 宿主无关：核心路径不依赖 Windows；数据目录、监听地址、证书都走环境变量。
 
-     约定写好先给用户看，确认后立即在本文 W1 标题后写"约定已定稿"，W3、W4、W5 就可以开工。
-  2. 实现：迁移框架（schema 5 → 6，只加表）、令牌范围模型（现有设备令牌默认只有聊天权限，行为不变）、通用的领域 feed，再加一个最小的示例领域和完整测试。
-- **不做**：不建具体业务领域（那是 W2）；不动聊天和 activity 现有行为。
-- **验证**：`node --test tools/i_core` 全过；从真实的 schema 5 库副本迁移成功（只用本机副本，结论不含数据）；旧设备令牌访问新领域被拒。
+     约定定稿后在本卡标题后写"约定已定稿"，W3、W4、W5、W7-0 就可以开工。
+  2. 实现：迁移框架、范围令牌、通用领域引擎（合并、墓碑、判重钩子、变更流、领域开关）、聊天 companion 放宽、一个最小示例领域，以及全套测试。
+- **不做**：具体业务领域（W2、W7）；对象库（ADR 4.6 b，迁移通用记忆卡前另开卡）；搬宿主；不改 activity。
+- **验证**：`node --test` 覆盖合并规则矩阵（同版本；不同字段并发；同字段不同等级；两个用户冲突进待处理；AI 改用户锁定字段被拒）、重发去重与 `idempotency_conflict`、删除后修改被拒、墓碑挡住旧 ID、到期清正文、领域开关各状态、旧令牌访问新领域被拒、cursor 落后返回 `resync_required`、普通设备提交 companion 的边界、重启后数据还在；从真实 schema 5 库的本机副本迁移成功（只用本机副本，结论不含数据）。
 - **开场提示词**：
   ```text
-  读 PERSONAL_DATA_HUB_PLAN_20261005.md 第 1～4 节和 W1 卡，以及 tools/i_core/README.md、
-  i_core_store.mjs、i_core_server.mjs。先只写 docs/development/I_CORE_DOMAIN_CONTRACT.md，
-  写完给我看，不要先写代码。我确认后再实现迁移框架、令牌范围和通用领域 feed。
+  读 docs/development/PERSONAL_DATA_HUB_ADR_20261005.md（重点第 4、6、7.2 节和第 11 节的拍板结果）、
+  PERSONAL_DATA_HUB_PLAN_20261005.md 的 W1 卡、data-authority/gate1a0/ 下的 AUTHORITY_ROOT 和 OUTBOX 两份 ADR，
+  以及 tools/i_core/README.md、i_core_store.mjs、i_core_server.mjs。
+  先只写 docs/development/I_CORE_DOMAIN_CONTRACT.md，写完给我看，不要先写代码。
+  我确认后再实现迁移框架、范围令牌、通用领域引擎和聊天 companion 放宽。
   ```
 
-### W2 记一下 + 规划两个领域（线性，依赖 W1）
+### W2 记一下 + 规划两个领域（线性，依赖 W1；2026-10-05 按 ADR 修订）
 
-- **目标**：在 i_core 里建 `captures` 和 `plan_items`（加上 `plan_weeks`，存每周配额和容量）。
-- **依赖**：W1。
-- **产出**：表和 API 都按领域约定来。字段从这两份文档搬过来：
-  - `captures`：按 `docs/development/QUICK_CAPTURE_DESIGN_20261005.md` 第 5 节；
-  - `plan_items`：按 `tools/life_planner/PLANNER_AGENTS.md` 的"规划库字段"，去掉思源专用的部分。上级、前置、替代为都用 id 引用。
-
-  再加一个本机脚本，把过渡期规划助手的本机文件（见 WI）导入 i_core。
-- **不做**：不做 UI，不做 MCP。
-- **验证**：node 测试覆盖重复提交、软删除、领域权限、feed 游标，以及导入脚本的重复运行。
+- **目标**：在 i_core 里建 `captures`（网页端 i_remember 的记录也并进来）和规划三张表 `plan_items`、`plan_weeks`、`plan_days`。
+- **依赖**：W1；ADR 决定 12、14、20 拍板。
+- **产出**：所有表都按 W1 的领域约定建。
+  - `captures`：原话、来源（`phone_quick` / `claude_web` / `dot` / `codex`）、记录时间、按处理者分开的处理结果（ADR 8.1：`organizer`、`planner` 各自的状态和产出 id）。作者可以改、可以删；`claude_web` 来源删除时立即清正文（B3 决定 2）；删除时记下需要连带处理的派生记录 id，删除本身由各领域执行（ADR 4.4）。
+  - `plan_items`：字段按 `tools/life_planner/PLANNER_AGENTS.md` 的"规划库字段"，去掉思源专用部分；上级、前置、替代为都用 id；加 `remind_at`。判重键：规范化标题 + 截止或定时。手机令牌在这张表上只有 `plan:status`（完成、不做了）。
+  - `plan_weeks`：每周预计和实际容量、各主线配额和完成块数、欠账。
+  - `plan_days`：今日队列（有序的事项 id）、版本号、"这次改了什么"、待拍板、今晚关灯时间（ADR 8.2）。`today.md` 以后是它的投影。
+  - 两个本机导入脚本，默认 dry-run：WI 的本机规划文件 → `plan_*`；i_remote_mcp 账本里的 `notes` → `captures`（保留 note_id、revision 和删除标记，已删除的不带正文）。
+- **不做**：UI；MCP 工具和 i_remote_mcp 改写（W3）；排期逻辑（W8）。
+- **验证**：node 测试覆盖重复提交、手机令牌只能改状态、规划令牌读不到聊天、`claude_web` 记录删除即清正文、两个处理者并发写处理结果互不覆盖、各领域变更流和 cursor，以及两个导入脚本的 dry-run 和重复运行。
 - **开场提示词**：
   ```text
-  读 PERSONAL_DATA_HUB_PLAN_20261005.md、I_CORE_DOMAIN_CONTRACT.md、QUICK_CAPTURE_DESIGN_20261005.md
-  第 5 节、tools/life_planner/PLANNER_AGENTS.md 的规划库字段。按 W2 卡在 i_core 加 captures、
-  plan_items、plan_weeks 三个领域和 WI 文件的导入脚本，写测试。上线到我电脑的步骤单独列出来，先不要执行。
+  读 PERSONAL_DATA_HUB_ADR_20261005.md 第 4、8 节、I_CORE_DOMAIN_CONTRACT.md、PERSONAL_DATA_HUB_PLAN_20261005.md 的 W2 卡、
+  tools/life_planner/PLANNER_AGENTS.md 的规划库字段，以及 tools/i_remote_mcp/writeback.mjs 的 notes 表。
+  按 W2 卡在 i_core 加 captures、plan_items、plan_weeks、plan_days 四个领域和两个导入脚本，写测试。
+  上线到我电脑的步骤单独列出来，先不要执行。
   ```
 
 ### W3 i MCP 领域工具（W1 约定定稿后可开工，W2 完成后接真的）
@@ -190,19 +208,23 @@ flowchart LR
   真机安装前先问我。
   ```
 
-### W5 手机：今天 / 本周页（W1 约定定稿后可开工）
+### W5 手机：今天 / 本周页（W1 约定定稿后可开工；2026-10-05 按 ADR 修订）
 
-- **目标**：在手机上看今天的队列和本周进度，可以点"完成"。
+- **目标**：在手机上看今日队列和本周进度，可以点"完成""不做了"；电脑不开时也能看、能点。
+- **依赖**：W1 约定；W7-0 的通用 outbox 和本地副本（没就绪时先用假实现）；ADR 决定 3、18 拍板（本页是路线图"手机暂停新页面"的例外）。
 - **产出**：
-  - 读 `plan_items` 和 `plan_weeks` 的领域 feed；
-  - 今天的队列，本周各主线进度条；
-  - 点"完成"或"不做了"写回 i_core（需要 `plan` 的写权限，只开放这两种状态改动）。
-- **不做**：手机上不做排程，排程是 Codex 的事。
-- **验证**：widget 测试；用假 feed 演示今日单被重排后，页面自动更新。
+  - 订阅 `plan_days`、`plan_weeks`、`plan_items` 的变更流，存本地副本；
+  - 今天页：按 `plan_days` 的顺序显示队列，以及"这次改了什么"、待拍板、今晚关灯时间、生成时间；
+  - 本周页：各主线配额进度条；
+  - "完成""不做了"作为 `plan:status` intent 进 outbox，本地立即显示并标"待同步"；被拒或进 `needs_resolution` 时给出提示；
+  - 电脑离线提示："今日单生成于 X；新记的事等电脑上线后安排"；
+  - 有 `remind_at` 的事项派生本地闹钟（复用 `CheckinService.scheduleReminderAlarm`）。
+- **不做**：手机上不排程、不重排；旧日程面板先不动（W7-待办 再合并）。
+- **验证**：widget 测试——假变更流推来新一版今日单后页面自动更新；离线点完成显示待同步，恢复后转为已接受；被拒时有提示；有 `remind_at` 的事项生成闹钟。CI 的 Windows 构建。真机安装前先问我。
 - **开场提示词**：
   ```text
-  读 PERSONAL_DATA_HUB_PLAN_20261005.md、I_CORE_DOMAIN_CONTRACT.md 和 tools/life_planner/PLANNER_AGENTS.md
-  的今日单格式。按 W5 卡做手机的今天/本周页，先用假 feed。
+  读 PERSONAL_DATA_HUB_ADR_20261005.md 第 4.7、8 节、I_CORE_DOMAIN_CONTRACT.md、PERSONAL_DATA_HUB_PLAN_20261005.md 的 W5 卡，
+  以及 tools/life_planner/PLANNER_AGENTS.md 的今日单格式。按 W5 卡做手机的今天/本周页，先用假变更流和假 outbox。
   ```
 
 ### W8 规划助手切到 i_core（依赖 W2、W3）
@@ -235,27 +257,52 @@ flowchart LR
   按 WI 改成本机文件存储（plan.json），不建思源规划库，然后帮我装好并出第一份今日单。
   ```
 
-### W6 数据权威决定（只写文档，可以并行）
+### W6 数据权威决定（只写文档，可以并行；2026-10-05 按 ADR 修订）
 
-- **目标**：决定手机 Memory V3 里的生活数据，以后以 i_core 为准的规则和顺序。
-- **依赖**：无，可以和 W1～W5 同时做。
-- **产出**：在 `docs/development/data-authority-preflight/` 的 A1 文档基础上，写一份正式决定：
-  - 哪些卡片类型迁到 i_core 的哪个领域；
-  - 迁移期间手机怎么写（直接写 i_core，还是先写本地再同步）；
-  - 冲突以谁为准；
-  - 回滚办法。
-  - 每一项都由用户拍板。
+- **目标**：把 [ADR](PERSONAL_DATA_HUB_ADR_20261005.md) 和本机 W6 草案（17 项待确认）合成正式决定；拍板后改写冲突的既有文档，并给每个要搬家的领域出字段映射表。
+- **依赖**：无；领域映射表要用到 W1 约定。
+- **产出**：
+  1. 逐项对照 ADR 第 11 节和本机 `codex/w6-authority-draft` 的 17 项，合成一份拍板清单，用户逐条确认；结果写回 ADR 第 11 节，标"已定"。
+  2. 按 ADR 第 9 节改文：PRODUCT_ROADMAP（第 77、80、92 行和 §7）、CORE_SYNC_DATA_INVENTORY（第 30、46–52 行）、Gate 1A-0 附录（生活领域按 Formal32 的格式补行，不改已冻结的 32 行）、B3_WRITEBACK_DESIGN、QUICK_CAPTURE_DESIGN、本文第 2 节现状表。
+  3. 领域映射表，每个领域一份，放 `docs/development/data-authority/hub/`：旧表和字段 → i_core 领域字段；ID 怎么保留；判重键；`actor` 怎么回填（旧数据记 `import`，带 `userCorrected` 标志的字段记 `user_direct`）；回滚时怎么重建旧表。先做收支、睡眠、经期、待办卡四份。
+  4. 只读统计（读真实数据，先问用户）：用已有 i_memory 快照按 `type`、`structured_type` 计数；`type=note` 的白板卡数；收支卡数和账本行数的差。只报数字。
+  5. 在本机核实 ADR 第 10 节里电脑上能查的几项：手机上林埃的回复是否进了 i_core、i_remember 记录的 `phone_status`、运行副本和仓库的差异。
 - **不做**：不改代码，不动数据。
 
-### W7 记忆卡逐领域迁移（依赖 W1、W6；领域之间可以并行）
+### W7 逐领域迁移（依赖 W1、W6；按 ADR 7.3 的顺序；2026-10-05 按 ADR 修订）
 
-- 每个领域开一个窗口：收支、经期、睡眠摘要（含 COROS 导入）、"帮我记一下"的记录并入 i_core、待办和计划卡并入 `plan_items`。
-- 每个窗口都要做的事：
-  - 在 i_core 建领域表；
-  - 手机端改为写 i_core；
-  - 一次性迁移脚本，可以先空跑；
-  - 林埃 worker 和 i MCP 的读取改到新表。
-- 上线前要用户停 Core、备份。
+**W7-0 手机端前置**（W1 约定定稿后可开工，Flutter）
+
+- 所有编辑入口（界面、林埃工具、日程勾选）按字段写 `user_corrections`，带 `actor`；
+- 通用领域 outbox：把现有聊天待发队列推广到各领域，状态按 ADR 4.7；按领域的本地副本和 cursor；待同步覆盖层；`needs_resolution` 列表；
+- 领域开关 `phone / shadow / core`：按领域决定写本地表还是提交 intent；
+- 林埃的回复进待发队列，以 `companion` 提交（依赖 W1 的放宽）；
+- 已切换的领域关掉启动去重和本地判重删除，改由 i_core 判重；
+- 消费 `captures` 变更流（代替从没实现的 47862 拉取端），把 `claude_web` 来源的记录交给 Record Organizer；
+- 林埃召回时，待同步的记录注入时标"未同步"。
+- **验证**：单元和 widget 测试；离线写入 → 恢复补交 → 回执；在"写本地后、提交前、回执前"三处注入崩溃；重复回执幂等。
+
+**每个领域都走的步骤**
+
+1. 在 i_core 按 W6 映射表加领域定义：字段、判重键、权限；
+2. 回填脚本：默认 dry-run，保留旧 ID，`actor` 按 W6 规则回填；
+3. 影子期：手机同时写本地表和提交 intent，每天出对账报告（条数、ID、金额合计、墓碑数），连续 7 天零差异；
+4. 在副本上演练一次 ADR 7.2 的回滚；
+5. 用户授权后切换：停 Core、备份、升级，手机切开关；林埃 worker、i MCP、看板改读 i_core；
+6. 切换满 4 周没有回滚，删除旧写入代码，旧表只读保留。
+
+**领域顺序**
+
+| 卡 | 领域 | 特别事项 |
+|---|---|---|
+| W7-收支 | `ledger` | 第一个搬家的手机数据。账本行是金额的权威，收支记录卡改成由账本生成的展示；删收支卡同时删账本行（ADR 决定 15）；ai_finance 工具改为提交 intent；判重键沿用"金额 + 时间 ±2 小时" |
+| W7-睡眠 | `sleep_days` | 手机 COROS 同步改为提交 `sleep_days`（`actor=import`，按日期幂等）；手记的 `sleep_record` 卡并入 |
+| W7-经期 | `cycle` | 只给手机权限；节律由本地副本重新派生 |
+| W7-待办 | 并入 `plan_items` | 依赖 W2、W5 和 ADR 决定 13。状态映射 active → 待办、completed → 完成、cancelled → 放弃；时间字段映射到截止、定时、`remind_at`；主线留空，等 Codex 归类；Record Organizer 不再产出 task / schedule / plan 卡；日程面板改读规划副本 |
+| W7-通用卡 | fact / event 记忆卡 | 等 ADR 决定 17 和对象库；白板 `type=note` 卡不迁 |
+| — | Dreaming、节律、洞察、成长契约、话题 | 不迁，留在手机作派生产物；需要给网页端读时导出只读快照 |
+
+- 上线前要用户停 Core、备份；真实数据的每次切换都要用户点头。
 
 ### WL 学习线（独立并行）
 
