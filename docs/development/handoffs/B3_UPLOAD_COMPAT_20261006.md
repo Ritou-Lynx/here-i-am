@@ -34,3 +34,15 @@
 - 真实过渡 Core 仍须显式 legacy_b3，保全原手机 deviceUUID、共享 sequence counter、队列与 marker、外置 grant 和72条 replay绑定。PR10切换须独立 owner grant，旧路径排空/关闭后再切，不以能力存在替代授权。
 - 手机实际升级后能力查询、旧队列补交、断线/恢复、无重复气泡和 serverSequence 归档仍需固定构建候选的设备证据。
 - 本提交按主控明确授权只使用该次 `SKIP_PROJECT_STATE=1` 例外并 finally 恢复原环境；未 push、未建 PR、未合主线。
+
+
+## 独立复核返修：排序与新增 feed 通知
+
+- 返修基线为上传器提交 `446e15d63317ba023e8dff01f9314f268713a83c`。主控明确扩展拥有范围至共享排序文件、Persona service、Engine、界面指定两个选择排序点和专项测试；仍未修改 schema、main/DI、notes、Core、全局状态或 runtime hub。
+- 从 B3 源码选择性恢复 `persona_chat_order.dart`：统一毫秒时间 → serverSequence（缺失时 id）→ id 的全序；缺毫秒字段时回退已有 timestamp。列表、搜索、最新消息、定位计数使用同一数据库排序；选择转记录和导出仅替换指定两处 sort，并增加一个 import，未整文件格式化。
+- Engine 每页仅收集真正新增的 chat 角色，按角色去重发 `PersonaChatMessageAddedMessage` 并调用既有 Dreaming backlog scheduler。重复 feed、本机回声和非 chat 行不触发；回声仍只补缺失归档字段，不重写正文、不创建 outbox 或回复。保留原逐行数据库写入与分页 cursor 保存/ack 顺序；通知及调度在该页写入完成后。
+- 新增可注入的调度回调仅供合成验证，生产默认仍调用既有 scheduler。没有改其授权、任务生成或执行规则。
+- 五套专项/相邻回归共 **56/56 pass**：`persona_chat_order_test`、`core_sync_import_notification_test`、`persona_chat_service_test`、`core_sync_transcript_test`、`core_sync_engine_test`。其中新增6项覆盖同秒不同毫秒、同毫秒序号逆 id、37条多页列表/搜索/定位一致、新增通知与调度、同角色每页合并、重复与本机回声零触发。首跑通知 fixture 未连接 EventBus 导致2项失败，补连接/清理后完整复跑通过。
+- 变更 service/order/engine 与两个新测试的 `dart analyze`：**No issues found**。包含整个既有 UI 文件的分析无 error，报告19项既有 warning/info；逐项核对诊断源码行与返修基线完全一致（仅 import 增一行）。未顺手修无关 UI 警告。`git diff --check` 通过。
+- 不扩大两代共有的 user-submit 失败阻 pull 行为，也不新增资产发送产品支持；没有 App build、ADB、安装、生产或真实数据验证。设备 Gate 仍由主控负责。
+- 本返修独立提交按已授权范围使用该次 `SKIP_PROJECT_STATE=1` 并 finally 恢复原环境值；不 push、不建 PR、不合主线。

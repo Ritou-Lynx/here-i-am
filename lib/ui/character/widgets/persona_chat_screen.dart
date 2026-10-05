@@ -46,6 +46,7 @@ import 'package:memex/domain/models/llm_config.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/intimacy_profile_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
+import 'package:memex/data/services/persona_chat_order.dart';
 import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
@@ -4227,7 +4228,7 @@ only after you have written the goodbye you want the user to hear.''',
     final selected = _messages
         .where((m) => _selectedMessageIds.contains(m.id))
         .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      ..sort(compareChatMessages);
 
     if (selected.isEmpty) return;
 
@@ -4485,7 +4486,7 @@ only after you have written the goodbye you want the user to hear.''',
     final selected = _messages
         .where((m) => _selectedMessageIds.contains(m.id))
         .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      ..sort(compareChatMessages);
     if (selected.isEmpty || !mounted) return;
 
     final threads =

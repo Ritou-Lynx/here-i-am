@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/services/device_identity_service.dart';
+import 'package:memex/data/services/persona_chat_order.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:uuid/uuid.dart';
@@ -28,7 +29,8 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     return (_db.select(_db.personaChatMessages)
           ..where((t) => t.characterId.equals(characterId))
           ..orderBy([
-            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(chatCreatedAtMs(t)),
+            (t) => OrderingTerm.desc(chatSequence(t)),
             (t) => OrderingTerm.desc(t.id),
           ])
           ..limit(limit, offset: offset))
@@ -46,7 +48,8 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
           ..where((t) =>
               t.characterId.equals(characterId) & t.content.like('%$trimmed%'))
           ..orderBy([
-            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(chatCreatedAtMs(t)),
+            (t) => OrderingTerm.desc(chatSequence(t)),
             (t) => OrderingTerm.desc(t.id),
           ])
           ..limit(limit))
@@ -153,18 +156,21 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     String characterId,
     PersonaChatMessage message,
   ) async {
-    final countExp = _db.personaChatMessages.id.count();
-    final row = await (_db.selectOnly(_db.personaChatMessages)
+    final table = _db.personaChatMessages;
+    final time = chatCreatedAtMs(table);
+    final sequence = chatSequence(table);
+    final messageTime =
+        message.createdAtMs ?? message.timestamp.millisecondsSinceEpoch;
+    final messageSequence = message.serverSequence ?? message.id;
+    final countExp = table.id.count();
+    final row = await (_db.selectOnly(table)
           ..addColumns([countExp])
-          ..where(
-            _db.personaChatMessages.characterId.equals(characterId) &
-                (_db.personaChatMessages.timestamp
-                        .isBiggerThanValue(message.timestamp) |
-                    (_db.personaChatMessages.timestamp
-                            .equals(message.timestamp) &
-                        _db.personaChatMessages.id
-                            .isBiggerThanValue(message.id))),
-          ))
+          ..where(table.characterId.equals(characterId) &
+              (time.isBiggerThanValue(messageTime) |
+                  (time.equals(messageTime) &
+                      (sequence.isBiggerThanValue(messageSequence) |
+                          (sequence.equals(messageSequence) &
+                              table.id.isBiggerThanValue(message.id)))))))
         .getSingle();
     return row.read(countExp) ?? 0;
   }
@@ -693,7 +699,11 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
   Future<PersonaChatMessage?> getLastMessage(String characterId) async {
     final results = await (_db.select(_db.personaChatMessages)
           ..where((t) => t.characterId.equals(characterId))
-          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..orderBy([
+            (t) => OrderingTerm.desc(chatCreatedAtMs(t)),
+            (t) => OrderingTerm.desc(chatSequence(t)),
+            (t) => OrderingTerm.desc(t.id),
+          ])
           ..limit(1))
         .get();
     return results.isEmpty ? null : results.first;

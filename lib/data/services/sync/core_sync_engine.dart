@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:logging/logging.dart';
+import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
+import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/sync/core_sync_client.dart';
 import 'package:memex/data/services/sync/core_sync_protocol.dart';
@@ -21,6 +23,7 @@ class CoreSyncEngine {
     required this.client,
     required this.deviceId,
     this.coreNodeId,
+    this.scheduleImportedChat,
     String? initialCursor,
   }) : _initialCursor = initialCursor;
 
@@ -28,6 +31,10 @@ class CoreSyncEngine {
   final CoreSyncClient client;
   final String deviceId;
   final String? coreNodeId;
+
+  /// Test seam for the existing post-import backlog scheduler; no reply generation.
+  final Future<void> Function(AppDatabase db, String characterId)?
+      scheduleImportedChat;
 
   /// Cursor returned by the pair response for this device. Used as the start
   /// of the change feed until the first successful pull persists a cursor.
@@ -180,12 +187,29 @@ class CoreSyncEngine {
     while (pages < 12) {
       final page = await client.fetchChanges(cursor: cursor, limit: pageLimit);
       if (page.events.isEmpty) break;
+      final importedCharacters = <String>{};
       for (final event in page.events) {
         if (event.kind == 'chat.message.upsert') {
-          await _applyChatUpsert(event);
+          final characterId = await _applyChatUpsert(event);
+          if (characterId != null) importedCharacters.add(characterId);
         }
         // Unknown kinds are ignored but the cursor still advances, so old
         // clients never get stuck on future event kinds.
+      }
+      for (final characterId in importedCharacters) {
+        EventBusService.instance.emitEvent(
+          PersonaChatMessageAddedMessage(characterId: characterId),
+        );
+        // Imported history only wakes the existing backlog scheduler. It must
+        // never enter the local send/outbox or companion reply production path.
+        if (scheduleImportedChat case final schedule?) {
+          await schedule(db, characterId);
+        } else {
+          await DreamingSchedulerService.scheduleEventDrivenBatchIfNeeded(
+            db: db,
+            characterId: characterId,
+          );
+        }
       }
       cursor = page.nextCursor;
       pages++;
@@ -198,15 +222,15 @@ class CoreSyncEngine {
   /// Inserts one user or companion row from a `chat.message.upsert` event.
   /// Finished companion turns may arrive from an authorized phone or frontend.
   /// Feed application only archives messages; it never enqueues a new reply.
-  Future<void> _applyChatUpsert(CoreChangeEvent event) async {
+  Future<String?> _applyChatUpsert(CoreChangeEvent event) async {
     final payload = event.payload;
     final syncId = event.entityId;
     final sender = CoreMessageSender.parse(payload['sender']);
-    if (sender == CoreMessageSender.system) return;
+    if (sender == CoreMessageSender.system) return null;
 
     final content = payload['content']?.toString() ?? '';
     final characterId = payload['character_id']?.toString() ?? '';
-    if (syncId.isEmpty || content.isEmpty || characterId.isEmpty) return;
+    if (syncId.isEmpty || content.isEmpty || characterId.isEmpty) return null;
 
     final createdAtMs = payload['created_at_ms'];
     final timestamp = createdAtMs is int
@@ -227,7 +251,7 @@ class CoreSyncEngine {
               Value(existing.serverSequence ?? event.serverSequence),
         ));
       }
-      return;
+      return null;
     }
 
     final originDeviceId = payload['origin_device_id']?.toString() ?? deviceId;
@@ -248,6 +272,7 @@ class CoreSyncEngine {
           ),
         );
     _logger.info('CoreSyncEngine: applied chat.message.upsert $syncId');
+    return messageType == 'chat' ? characterId : null;
   }
 
   /// One full sync pass. Returns the number of outbox messages submitted.
