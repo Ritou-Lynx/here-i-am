@@ -7,6 +7,37 @@
 - 内置单用户 OAuth 2.1：DCR、口令授权页、PKCE S256、refresh token 轮换；令牌、授权码和口令只存哈希。
 - 只用 Node 22 内置模块，无 npm 依赖。
 
+## W3 领域工具（源码候选，默认未启用）
+
+`domain_tools.mjs` 仅通过 schema6 Core 的领域 HTTP API 访问 captures、plan_items、plan_weeks、plan_days。没有数据库连接、worker 密钥、聊天读取或授权签发能力。Core 注册/模式、受信授权 verifier 和 scoped principal 由 owner 配置；本模块不升级/注册/启用领域。
+
+| 工具 | Core 权限 | 操作 |
+|---|---|---|
+| `capture_add` | captures:create | 固定来源，user_via_agent，需要已验证 authorization_ref |
+| `capture_list` | captures:read | 指定 id 或一致快照分页；返回有效 organizer/planner 处理状态 |
+| `capture_ack` | captures:ack | 只写 planner；input_revision 绑定 text 的 field revision |
+| `plan_list` | plan_items:read | 指定 id 或快照分页 |
+| `plan_upsert` | plan_items:create / patch | base_revision=0 创建；其他版本只改提供的 data 字段 |
+| `plan_set_status` | plan_items:status | 仅完成/放弃，固定 user_direct，需受信交互凭据与授权引用 |
+| `week_get` / `week_set` | plan_weeks:read / create / patch | 完整周字段、容量、主线配额、欠账 |
+| `day_get` / `day_set` | plan_days:read / create / patch | 今日队列和版本；更新须提交整个 edition 原子组 |
+
+写入必须提供 `op_id`、稳定 `id`、`base_revision`、`created_at`、`expires_at`；时间使用 UTC 毫秒格式。新 op_id/id 为 UUID；修改迁入记录保留旧 id。网络失败返回 `transport_unknown`，原样重试；重复 op_id 改内容是 `idempotency_conflict`。不会自动读取最新版本并覆盖，不把 `needs_resolution` 当 accepted。Core 原始 `reason`、receipt、tombstone 会保留；字段错误/拒绝/冲突的 MCP `isError=true`。upsert 创建需全部业务字段，patch 可提供部分字段但必须完整满足原子组；Core 是最终校验者。
+
+读工具使用 `{id}` 或 `{limit,snapshot_token,page_token}`，两种不能混用。分页返回 snapshot manifest、digest 和 next_page_token；最后一页确认该短期查询的 cursor 并释放快照，不保存本地副本。调用方若维护耐久同步副本，应直接使用 Core feed/snapshot 协议，不把本查询确认当成耐久副本提交。周键/日期属于业务字段，先分页找到目标 record id；本层不臆造其 id。
+
+本机入口为 `node tools/i_remote_mcp/planner_server.mjs <外置私有配置.json>`。配置至少包含 `enabled:true`、`core_url`、`core_instance_id`、`credentials:[{token,scopes}]`，可指定 `port`（默认 47863）。token 必须是 Core 已签发的 scoped token，原样转发；不是网页 OAuth、聊天设备或 worker key。入口硬编码绑定 `127.0.0.1`，拒绝浏览器 Origin/Fetch 请求，未挂到公网 server；不创建聊天 handlers。最小规划配置的 scopes 是 captures:read/ack 和三个 plan 域的 read/create/patch。需要显式捕获或用户点完成时，另行配置最小 captures:create 或 plan_items:status 凭据；Core 仍需相应受信 actor/来源能力。
+
+配置中的 scopes 是**目录上限**，不是新授权：Core 当前没有远程 token introspection，目录不能证明配置未过期；每条数据操作都由 Core 用同一真实 token 检查当前 generation/scope/归属，撤销或缩权立即拒绝。不能把目录声明说成已核验的真实 grants。若要求目录随权限即时变化，先增加经过审计的 Core introspection 接口；本包没有自造接口或开库绕过。
+
+网页端仅可增加 `capture_add`、`week_get`、`day_get`；规划写工具在 createApp 装配时拒绝。显式添加 `server.mjs serve --domain-config <外置私有配置.json>` 才选择 Core notes 后端。配置为 `enabled:true, remember_backend:"core", core_url, core_instance_id, token, scopes`，scopes 限 captures:read/create/patch/delete。该 principal 必须 owner-only、来源限定 claude_web、actor 为 user_via_agent。可附 `plan_reads:{token,scopes}`，只能 plan_weeks:read/plan_days:read，并必须为另一 token：captures 的全局 owner-only 约束不能为读取计划而放宽。网页仍额外执行 OAuth i.read/i.write。未传配置保持原 B3 路径；Core 模式禁止旧 47862 note feed，记录不双写旧账本。聊天轮次仍使用既有独立 B3 账本。
+
+Core `i_remember` 保留 add/update/delete/list 与 note_id 输出；写入增加上述稳定 intent 字段及 `authorization_ref`，update/delete 支持旧 note_id。新记录 provenance=claude_web，两个处理者按需处理；旧迁入 i_remember 记录 planner 始终 skipped。删除 permanent=true，Core 在线正文即时清除；不宣称物理页/WAL/离线备份已抹除，也不宣称下游用户改卡已删除。重试按 op_id 判重，不用正文 hash 猜测两个新记录是否相同。缺少受信授权引用时拒绝；MCP 不通过自动读取聊天制造证据。Core notes 不可用时上下文/聊天结果明确返回 remembered_notes_error，保留既有聊天结果，不回退旧 notes。
+
+迁移复用 `tools/i_core/import_personal_notes.mjs` 的显式、默认 dry-run 流程；本包只验证合成关闭副本的 adoption、旧 ID/revision、即时墓碑及 planner skipped。没有读取真实 notes，没有运行生产迁移。生产切换仍须生命周期修复、现役 transcript/replay 保全、owner 凭据与 verifier、旧写入冻结及真实状态备份/对账等独立验收。
+
+i_memory 的 v2 policy 增加必填 `domains:["chat","memory_v3"]`，可选其子集或空集；未列领域所有正文/ID/统计/快照时间出口均不读。未知领域拒绝；captures/plan/后续生活领域必须走 scoped API。v1 仅兼容固定的旧 chat/memory_v3 读取，不会自动获得新 Core 表；生产 policy 升到 v2 仍由 owner 执行，本包不改真实配置。
+
 ## 文件
 
 | 文件 | 作用 |
