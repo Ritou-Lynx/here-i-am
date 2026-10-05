@@ -15,6 +15,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:drift/drift.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
@@ -27,6 +28,8 @@ import '../agents/record_organizer_agent/agent.dart';
 import '../models/organized_record.dart';
 import 'life_insight_scheduler.dart';
 import 'user_rhythm_service.dart';
+
+part 'capture_card_reconciler.dart';
 
 /// Robust date-time parser for LLM-generated time fields.
 ///
@@ -1740,7 +1743,9 @@ class RecordOrganizerServiceV3 {
                 id: _uuid.v4(),
                 cardId: cardId,
                 operationType: 'update',
-                payload: jsonEncode({...changes, '_actor': actor}),
+                payload: jsonEncode({...changes, '_actor': actor,
+                  if (actor == 'user_via_agent') '_authorization_ref': authorizationRef,
+                }),
                 sourceKind: sourceKind,
                 createdAt: now,
               ),

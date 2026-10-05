@@ -185,6 +185,7 @@ W1 当前交付：[组合验收](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.m
 ### W3 i MCP 领域工具（W1 约定定稿后可开工，W2 完成后接真的）
 
 - **目标**：Agent 用同一套工具读写规划和记一下。
+- **切换前置**：W3 将 `i_remember` 切到 i_core 前，必须先合入 PR #9/#10 复核修复并通过回归：`claude_web` 原记录改版本时更新原卡；明确删除时只删除来源生成且未被用户修改的卡，保留已修改的卡并提供提示。来源暂时不可见、权限变化或缓存丢失不能当作删除。源码工具开发可继续，切换要等此项完成。
 - **产出**：在 `tools/i_remote_mcp` 加以下工具，按令牌范围开放：
   - `capture_add`、`capture_list`、`capture_ack`；
   - `plan_list`、`plan_upsert`、`plan_set_status`；
@@ -207,8 +208,9 @@ W1 当前交付：[组合验收](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.m
 - **产出**：按 `QUICK_CAPTURE_DESIGN_20261005.md` 第 3、4 节实现：
   - 入口：launcher alias"记一下"、图标长按改指向新页、下拉快捷开关；
   - 捕获页：本机流式识别、可以编辑、本地待发送队列、断网补发。
+  - 按 ADR 决定 12，侧键“记一下”的生活事实也交给 Record Organizer（消费、睡眠、经期、事实、事件）；待办与时间变化交给 Codex。两类处理者各自回写 capture 处理结果，混合输入各取所需。侧键是用户显式记录，普通聊天仍不自动成卡。版本更新与删除沿用 capture 来源关系，不重复生成整套卡。
 - **不做**：不复用旧的 `MemexRouter.submitInput`；不进聊天时间线；侧键长按设为数字助理先不做。
-- **验证**：Flutter widget 测试，CI 的 Windows 构建；真机验证侧键双击能不能选到"记一下"、冷启动要多久（L3，需要用户的三星手机）。
+- **验证**：Flutter widget 测试，CI 的 Windows 构建；侧键生活事实进入 Record Organizer，生活事实与待办混合输入分流正确，离线重试及同一 capture 改版本不重复成卡；真机验证侧键双击能不能选到"记一下"、冷启动要多久（L3，需要用户的三星手机）。
 - **开场提示词**：
   ```text
   读 PERSONAL_DATA_HUB_PLAN_20261005.md、QUICK_CAPTURE_DESIGN_20261005.md、I_CORE_DOMAIN_CONTRACT.md
@@ -281,16 +283,22 @@ W1 当前交付：[组合验收](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.m
 
 **W7-0 手机端前置**（W1 约定定稿后可开工，Flutter）
 
-> 2026-10-05有限源码验收：[手机基础主窗交接](handoffs/W7_FOUNDATION_MAIN_ACCEPTANCE_20261005.md)。114/114、分析无问题、真实Dart/Node HTTP5/5，默认空owner配置/phone；通用持久核心与现有明确caller已接，全部业务adapter/页面、真实消费触发、去重退役、逐域影子/回滚及真机仍待后续。W2源码已开[PR #9](https://github.com/Ritou-Lynx/here-i-am/pull/9)。
+> 2026-10-05有限源码验收：[手机基础主窗交接](handoffs/W7_FOUNDATION_MAIN_ACCEPTANCE_20261005.md)。114/114、分析无问题、真实Dart/Node HTTP5/5，默认空owner配置/phone；通用持久核心与现有明确caller已接，全部业务adapter/页面、真实消费触发、去重退役、逐域影子/回滚及真机仍待后续。W2 [PR #9](https://github.com/Ritou-Lynx/here-i-am/pull/9) 与手机基础 [PR #10](https://github.com/Ritou-Lynx/here-i-am/pull/10) 已合入；以下新增前置仍须实现，不能继承基础验收结论。
 
-- 所有编辑入口（界面、林埃工具、日程勾选）按字段写 `user_corrections`，带 `actor`；
+**逐领域迁移前必须完成（2026-10-05 用户指定）**：
+
+- 手机同步状态按记录存储：领域副本、墓碑、用户修正按记录，outbox 按操作独立持久化；cursor、绑定等小型领域元数据可以单独存储。禁止把所有领域、记录与队列整体编码成一行 JSON。当前 `DomainStore` 基础仍采用整行状态，尚未完成此项；改造要保留旧状态、稳定 `op_id` 和回执，并验证单记录写入、事务性 feed/cursor 更新、旧状态迁移和崩溃恢复。
+- `plan_items.area` 允许“未归类”。Core 现有 schema 已允许字符串；手机显示、筛选、旧卡回填及导入必须保留该值，等 Codex 明确归类，不能强猜现有主线。
+- 切换某领域前就关闭该领域的启动去重和本地判重删除，切换后由 i_core 判重；覆盖冷启动和重启验证。尚未切换的领域按原路径运行。
+
+- 所有编辑入口（界面、林埃工具、日程勾选）按字段写 `user_corrections`，带 `actor`；林埃按本轮用户要求改卡使用 `user_via_agent`，`authorizationRef` 绑定触发消息 `sync_id`，缺失或不可信时明确失败并说明原因；
 - 通用领域 outbox：把现有聊天待发队列推广到各领域，状态按 ADR 4.7；按领域的本地副本和 cursor；待同步覆盖层；`needs_resolution` 列表；
 - 领域开关 `phone / shadow / core`：按领域决定写本地表还是提交 intent；
 - 林埃的回复进待发队列，以 `companion` 提交（依赖 W1 的放宽）；
 - 已切换的领域关掉启动去重和本地判重删除，改由 i_core 判重；
 - 消费 `captures` 变更流（代替从没实现的 47862 拉取端），把 `claude_web` 来源的记录交给 Record Organizer；
 - 林埃召回时，待同步的记录注入时标"未同步"。
-- **验证**：单元和 widget 测试；离线写入 → 恢复补交 → 回执；在"写本地后、提交前、回执前"三处注入崩溃；重复回执幂等。
+- **验证**：单元和 widget 测试；离线写入 → 恢复补交 → 回执；在"写本地后、提交前、回执前"三处注入崩溃；重复回执幂等。真实 SQLite 验证按记录写入而非整块重写、feed 与 cursor 原子提交、旧整行状态迁移和回滚；验证“未归类”的创建、读取与后续归类；领域切换后的冷启动不得再自动删除卡。
 
 **每个领域都走的步骤**
 
@@ -298,7 +306,7 @@ W1 当前交付：[组合验收](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.m
 2. 回填脚本：默认 dry-run，保留旧 ID，`actor` 按 W6 规则回填；
 3. 影子期：手机同时写本地表和提交 intent（影子数据只给对账脚本读），每天出对账报告（条数、ID、金额合计、墓碑数），连续 7 天零差异；
 4. 在副本上演练一次 ADR 7.2 的回滚；
-5. 用户授权后冻结切换：停该领域旧写入和自动动作、排空待发队列、最终对账；停 Core、备份、升级，手机切开关；林埃 worker、i MCP、看板改读 i_core。一次只切一个领域；切换后出问题优先往前修，回退旧路径要另演练、另授权；
+5. 用户授权后冻结切换：先关该领域启动去重和本地判重删除，停该领域旧写入及其他自动动作、排空待发队列、最终对账；停 Core、备份、升级，手机切开关；林埃 worker、i MCP、看板改读 i_core。一次只切一个领域；切换后出问题优先往前修，回退旧路径要另演练、另授权；
 6. 切换满 4 周没有回滚，删除旧写入代码，旧表只读保留。
 
 **领域顺序**
@@ -308,7 +316,7 @@ W1 当前交付：[组合验收](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.m
 | W7-收支 | `ledger` | 第一个搬家的手机数据。缺币种不默认人民币；未付款、退款不算支出；转账、奖励、罚款等类型先列明、不并入本批。账本行是金额的权威，收支记录卡改成由账本生成的展示；删收支卡同时删账本行（ADR 决定 15）；ai_finance 工具改为提交 intent；判重键沿用"金额 + 时间 ±2 小时" |
 | W7-经期 | `cycle` | 只给手机权限；起止日、症状保留原值，未结束留空；节律由本地副本重新派生 |
 | W7-睡眠 | `sleep_days` | 保存多段、多来源原始观测，`sleep_days` 是日视图；手机 COROS 同步以 `actor=import` 提交，按来源 + 日期幂等；手记的 `sleep_record` 卡作为另一来源并存 |
-| W7-待办 | 并入 `plan_items` | 依赖 W2、W5 和 ADR 决定 13。状态映射 active → 待办、completed → 完成、cancelled → 放弃；时间字段映射到截止、定时、`remind_at`；主线留空，等 Codex 归类；Record Organizer 不再产出 task / schedule / plan 卡；日程面板改读规划副本 |
+| W7-待办 | 并入 `plan_items` | 依赖 W2、W5 和 ADR 决定 13。状态映射 active → 待办、completed → 完成、cancelled → 放弃；时间字段映射到截止、定时、`remind_at`；主线设为“未归类”，等 Codex 明确归类；Record Organizer 不再产出 task / schedule / plan 卡；日程面板改读规划副本 |
 | W7-通用卡 | fact / event 记忆卡 | 等 ADR 决定 17 和对象库；白板 `type=note` 卡不迁 |
 | — | Dreaming、节律、洞察、成长契约、话题 | 不迁，留在手机作派生产物；需要给网页端读时导出只读快照 |
 

@@ -1,6 +1,6 @@
 # 林埃的项目状态
 
-## W1 已合入与 W2 有限源码验收（2026-10-05）
+## W1、W2 与 W7-0 源码已合入（2026-10-05）
 
 42既有失败修复经 [PR #7](https://github.com/Ritou-Lynx/here-i-am/pull/7) 合入 `38ed6b88`；用户已确认[领域接口约定](I_CORE_DOMAIN_CONTRACT.md)。W1 [PR #8](https://github.com/Ritou-Lynx/here-i-am/pull/8) 五类精确 head 检查全过，普通合入 `v3-lab@dc29fd5e`，合并树等于已测 head；[合并回执](handoffs/W1_DOMAIN_MERGE_20261005.json)。原工作副本保留，正式主副本已仅快进源码。
 
@@ -8,7 +8,13 @@ W1最终13源码的授权只读一致副本4→5→6演练通过：[R01](handoff
 
 W2四业务域与两个默认dry-run导入脚本完成有限源码验收：[主窗验收](handoffs/W2_MAIN_ACCEPTANCE_20261005.md)。四根Core/Memory/remote MCP/continuity gateway递归42文件654项，653过/0红/1原有平台跳；完整回归后只补既有守护断言诊断，严格断言未改，定向4/4。首轮34文件的1叶子+1父级失败保留且唯一触发分支未恢复。业务仍显式注册、默认off，真实来源和周日映射/旧传输receipt另验。
 
-W2源码提交 `a00112e8` 已开 [PR #9](https://github.com/Ritou-Lynx/here-i-am/pull/9)，合并与精确head CI状态以PR回执为准。W7-0手机基础完成有限主窗验收：[交接](handoffs/W7_FOUNDATION_MAIN_ACCEPTANCE_20261005.md)，114/114、相关分析无问题，含9个真实Windows OS-kill SQLite边界；Dart↔真实W2 Node HTTP 5/5，原op丢回执恢复、稀疏merge/后入队base7→8及永久删除已验证。默认空owner配置/phone；整张W7卡的全部域adapter、真实提取触发、去重退役、页面及Android Gate尚未完成。W3/W4/W5可并行源码实施；W3部署前须完成运行MCP对齐及固定Core v4功能保全。逐域影子/回滚/权威切换未进行。
+W2源码提交 `a00112e8` 经 [PR #9](https://github.com/Ritou-Lynx/here-i-am/pull/9) 合入 `652536cf`；手机基础 `feffba94` 经 [PR #10](https://github.com/Ritou-Lynx/here-i-am/pull/10) 合入 `21a813ef`。两项均已核实五类精确 head 检查成功，普通合并树等于各自已测树；正式主副本已快进源码。W7-0手机基础完成有限主窗验收：[交接](handoffs/W7_FOUNDATION_MAIN_ACCEPTANCE_20261005.md)，114/114、相关分析无问题，含9个真实Windows OS-kill SQLite边界；Dart↔真实W2 Node HTTP 5/5，原op丢回执恢复、稀疏merge/后入队base7→8及永久删除已验证。默认空owner配置/phone；整张W7卡的全部域adapter、真实提取触发、去重退役、页面及Android Gate尚未完成。W3/W4/W5可并行源码实施；W3部署前须完成运行MCP对齐及固定Core v4功能保全。逐域影子/回滚/权威切换未进行。
+
+## PR #9/#10 复核返修与下游前置（2026-10-05）
+
+两处返修已完成主窗有限源码验收：[交接](handoffs/PR9_PR10_REVIEW_FIXES_MAIN_ACCEPTANCE_20261005.md)、[回执](handoffs/PR9_PR10_REVIEW_FIXES_VALIDATION_20261005.json)。改卡工具绑定真实触发用户消息 sync_id，以 user_via_agent 改写，缺授权说明原因并拒绝；真实日程勾完成再委托改回未完成成功。claude_web 同源版本更新原卡 ID，明确删除清未修改产出、保护用户改卡并提供中文提示；竞态、持久幂等、FTS/ledger/ack 事务及旧映射兼容已覆盖。Flutter 118/118、Core 14/14、相关分析无问题，最终源码哈希稳定；精确 head CI 与合并以任务 PR 回执为准。
+
+W3 切 i_remember 前须先合入生命周期修复。W4 已明确侧键生活事实交 Record Organizer（ADR 决定12）。W7 新增按记录/操作持久化、area 允许“未归类”、切换前关闭该领域启动去重的硬前置；当前整行 JSON 状态及去重退役仍待实现，不继承基础验收。保护卡来源原话保留（自动审批拒绝额外清空）；旧无基线或多卡歧义保留待处理。本次未部署、升级原库、安装手机或切换业务领域。
 
 ## 个人数据中枢：已合入规划与独立窗口（2026-10-05）
 

@@ -21,7 +21,7 @@
 - 按下侧键后 2 秒内能开始说话，说完点一下就走。
 - 联网时，记下的话 1 分钟内到达电脑；离线时先存在手机上，联网后自动补发，不丢、不重复。
 - 到达电脑后，几分钟内唤起 Codex 重排今日单。
-- **不进聊天时间线，不触发林埃回复，不自动变成记忆。** 这遵守 AGENTS 的约定："普通聊天不自动成为 User-truth"，Project Memory 和生活事实隔离。捕获是给规划助手的原始输入，不是生活事实。
+- **不进聊天时间线，不触发林埃回复。** 侧键“记一下”是用户显式记录：其中生活事实交给 Record Organizer 成卡（ADR 决定 12），待办与时间变化交给 Codex；混合内容按类型分工并各自确认处理结果。普通聊天仍不自动成为 User-truth，Project Memory 与生活事实隔离。
 - 不扩大旧 Memex 链路：现有图标长按的"记一下"打开的是旧输入框，走 `MemexRouter.submitInput`；新入口不复用这条路。
 
 ## 3. 入口
@@ -43,7 +43,7 @@ alias 和图标长按都指向 `MainActivity`。`MainActivity` 根据启动它�
 - 本机识别模型还没下载时，不弹下载窗口拦人：先用系统语音识别（`RecognizerIntent`）或键盘，页面上提示一次可以去下载本机模型。
 - 发送后提示"记了"，页面关闭，回到原来的 App。捕获页不进最近任务列表（`excludeFromRecents`，单独的 taskAffinity）。
 - 页面底部显示最近 3 条的送达状态：待发送 / 已到电脑 / 已安排。第三期再加"今天的队列"（见第 7 节）。
-- 离线时先写进本地 Drift 表 `quick_captures`，作为待发送队列，下次同步时补发。按 AGENTS，新表和旧卡片不建外键。
+- 离线时先写进 W7-0 的通用领域 outbox，下次同步时补发，不另建 `quick_captures` 队列。W7 迁移前将副本和队列改为按记录/操作独立持久化，不能把整个同步状态存成一行 JSON。
 
 ## 5. i_core 捕获通道
 
@@ -57,7 +57,7 @@ alias 和图标长按都指向 `MainActivity`。`MainActivity` 根据启动它�
 - **电脑端接口**（本机 `I_CORE_WORKER_SECRET`）：
   - `GET /v1/core/workers/captures?pending=1`：取还没送达的；
   - `POST /v1/core/workers/captures/ack`：确认已送达。
-- **隔离**：捕获不写 `change_events` 的聊天 feed；陪伴、记忆、dreaming worker 读不到；不进 Memory V3。
+- **处理与隔离**：以 W1/W2 领域接口和范围令牌为准，捕获不写聊天 feed。生活记录由手机 Record Organizer 消费后进入 Memory V3；规划处理者只处理待办和时间，不因此获得聊天读取权限。来源改版本时更新原产出卡，明确删除时清除未被用户修改的产出、保留已修改卡并提示；W3 切换 `i_remember` 前必须合入此生命周期修复。
 - **测试**：沿用 `i_core_server.test.mjs` 的方式，覆盖重复提交、身份边界、协议版本、重启后数据还在，以及从 schema 5 迁移上来。
 
 ## 6. 电脑端 `capture_sync.mjs`
