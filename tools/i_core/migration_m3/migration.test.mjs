@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -9,13 +10,13 @@ import { ActivityControlPlane } from '../activity_control_plane.mjs';
 import { ICoreStore, activityDatabaseBindingDigest } from '../i_core_store.mjs';
 import {
   capture, classify, cleanEnv, createLab, describe, fingerprints, inspect, logicalView,
-  preservedOldRows, repository, runV4Guard, sha, verifyLegacyEntry,
+  preservedOldRows, runV4Guard, sha, verifyLegacyEntry,
 } from '../test_fixtures/migration_m3/lab.mjs';
 
 const evidence = [];
-const output = path.join(repository, 'docs/development/activity/mda2/migration/m3/evidence');
+// Evidence belongs to this test process; recursive runners must not overwrite it.
+const output = mkdtempSync(path.join(tmpdir(), 'i-core-m3-matrix-'));
 after(() => {
-  mkdirSync(output, { recursive: true });
   writeFileSync(path.join(output, 'matrix.json'), JSON.stringify({
     format: 'm3-synthetic-migration-evidence-v1', node_version: process.version,
     node_sha256: sha(readFileSync(process.execPath)), platform: process.platform,
@@ -23,7 +24,7 @@ after(() => {
   }, null, 2) + '\n');
 });
 function record(name, lab, detail) {
-  evidence.push({ name, passed: true, old_source_sha256: lab.old_source_sha256,
+  evidence.push({ name, passed: true, fixture_source: 'public_synthetic_schema4', fixture_source_sha256: lab.fixture_source_sha256,
     before: describe(lab.baseline), ...detail });
 }
 const options = { clock: () => 1000000, activityEnabled: true, activityRuntimeId: 'm3-main', activityRuntimeLeaseMs: 1000 };

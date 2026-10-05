@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BASELINE, NODE_SHA256, prepareRuntimePin, SOURCE_FILES } from './prepare_runtime_pin.mjs';
+import { BASELINE, NODE_SHA256, prepareRuntimePin } from './prepare_runtime_pin.mjs';
+import { prepareSyntheticRuntimePin, syntheticSourceFiles } from '../test_fixtures/schema4/runtime_pin_lab.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repository = path.resolve(here, '..', '..', '..');
@@ -49,10 +50,10 @@ function verifyOnly(release, manifestSha256, stateDirectory = '') {
   return powerShell([path.join(release, 'start_pinned_i_core.ps1'), '-ManifestSha256', manifestSha256, ...(stateDirectory ? ['-StateDirectory', stateDirectory] : [])]);
 }
 
-function prepare(t) {
+async function prepare(t) {
   const root = sandbox(t);
   const release = path.join(root, 'release');
-  const result = prepareRuntimePin({ repository, output: release, nodePath });
+  const result = await prepareSyntheticRuntimePin({ root, repository, nodePath });
   return { root, release, ...result };
 }
 
@@ -139,33 +140,39 @@ async function terminateOwnedProcess(child) {
   if (child.exitCode === null) await new Promise(resolve => child.once('exit', resolve));
 }
 
-test('runtime pin freezes every packaged source blob at bbb8025d', (t) => {
+test('runtime pin test package binds every source byte to its explicit synthetic Git commit', async (t) => {
   if (!onlyWindows(t)) return;
-  const { release, manifest_sha256: manifestSha256 } = prepare(t);
+  const { release, fixtureRepository, sourceCommit, manifest_sha256: manifestSha256 } = await prepare(t);
   const manifest = JSON.parse(readFileSync(path.join(release, 'manifest.json'), 'utf8'));
-  assert.equal(manifest.source_commit, BASELINE);
+  assert.equal(BASELINE, 'bbb8025d99fc0acaa846d58b4e5a94cef90f8756');
+  assert.equal(manifest.source_commit, sourceCommit);
+  assert.notEqual(sourceCommit, BASELINE);
+  assert.equal(manifest.release, 'synthetic-public-schema4-test-only');
   assert.equal(manifest.core_schema_version, 4);
   assert.equal(sha256(readFileSync(nodePath)), NODE_SHA256);
   const wrapper = readFileSync(path.join(release, 'start_pinned_i_core.ps1'), 'utf8');
   assert.match(wrapper, /Get-ChildItem Env: \| Where-Object \{ \$_.Name -like 'I_CORE_\*' \}/);
   assert.match(wrapper, /Remove-Item Env:NODE_OPTIONS/);
-  for (const source of SOURCE_FILES) {
+  for (const source of syntheticSourceFiles) {
     const entry = manifest.files.find(file => file.path === source);
     assert.ok(entry, `manifest must include ${source}`);
-    const baseline = spawnSync('git', ['-C', repository, 'show', `${BASELINE}:${source}`], { encoding: null, windowsHide: true });
-    const blob = spawnSync('git', ['-C', repository, 'rev-parse', `${BASELINE}:${source}`], { encoding: 'utf8', windowsHide: true });
+    const baseline = spawnSync('git', ['-C', fixtureRepository, 'show', `${sourceCommit}:${source}`], { encoding: null, windowsHide: true });
+    const blob = spawnSync('git', ['-C', fixtureRepository, 'rev-parse', `${sourceCommit}:${source}`], { encoding: 'utf8', windowsHide: true });
     assert.equal(baseline.status, 0);
     assert.equal(blob.status, 0);
     assert.equal(entry.source_blob, blob.stdout.trim());
     assert.equal(entry.sha256, sha256(baseline.stdout));
     assert.deepEqual(readFileSync(path.join(release, source)), baseline.stdout);
+    if (!source.endsWith('/i_core_store.mjs')) {
+      assert.deepEqual(baseline.stdout, readFileSync(path.join(repository, source)), 'public server, relay and dependencies must remain unmodified');
+    }
   }
   assert.equal(verifyOnly(release, manifestSha256).status, 0);
 });
 
-test('verify-only, content tamper, and manifest mismatch never open or create external state', (t) => {
+test('verify-only, content tamper, and manifest mismatch never open or create external state', async (t) => {
   if (!onlyWindows(t)) return;
-  const { root, release, manifest_sha256: manifestSha256 } = prepare(t);
+  const { root, release, manifest_sha256: manifestSha256 } = await prepare(t);
   const absentState = path.join(root, 'absent-state');
   const verified = verifyOnly(release, manifestSha256, absentState);
   assert.equal(verified.status, 0, verified.stderr);
@@ -177,7 +184,7 @@ test('verify-only, content tamper, and manifest mismatch never open or create ex
   assert.match(manifestMismatch.stderr, /manifest hash mismatch/i);
   assert.equal(existsSync(absentState), false);
 
-  const content = prepare(t);
+  const content = await prepare(t);
   writeFileSync(path.join(content.release, 'tools', 'i_core', 'i_core_server.mjs'), '// synthetic tamper\n', { flag: 'a' });
   const rejected = verifyOnly(content.release, content.manifest_sha256, absentState);
   assert.notEqual(rejected.status, 0);
@@ -185,9 +192,9 @@ test('verify-only, content tamper, and manifest mismatch never open or create ex
   assert.equal(existsSync(absentState), false);
 });
 
-test('schema-v4 guard rejects missing and schema-v5 state without modifying either', (t) => {
+test('schema-v4 guard rejects missing and schema-v5 state without modifying either', async (t) => {
   if (!onlyWindows(t)) return;
-  const { root, release, manifest_sha256: manifestSha256 } = prepare(t);
+  const { root, release, manifest_sha256: manifestSha256 } = await prepare(t);
   const missing = path.join(root, 'missing-state');
   mkdirSync(missing);
   const missingResult = powerShell([path.join(release, 'start_pinned_i_core.ps1'), '-ManifestSha256', manifestSha256, '-Start', '-StateDirectory', missing, '-CorePort', '48137']);
@@ -208,7 +215,7 @@ test('schema-v4 guard rejects missing and schema-v5 state without modifying eith
 
 test('guard rejects a schema-v5 write still resident in WAL and leaves all source bytes untouched', async (t) => {
   if (!onlyWindows(t)) return;
-  const { root, release } = prepare(t);
+  const { root, release } = await prepare(t);
   const state = path.join(root, 'wal-schema-five');
   mkdirSync(state);
   seedV4(release, state);
@@ -238,9 +245,9 @@ test('guard rejects a schema-v5 write still resident in WAL and leaves all sourc
   }
 });
 
-test('guard rejects a schema-4 database whose table columns were changed', (t) => {
+test('guard rejects a schema-4 database whose table columns were changed', async (t) => {
   if (!onlyWindows(t)) return;
-  const { root, release } = prepare(t);
+  const { root, release } = await prepare(t);
   const state = path.join(root, 'column-tamper');
   mkdirSync(state);
   seedV4(release, state);
@@ -258,9 +265,9 @@ test('guard rejects a schema-4 database whose table columns were changed', (t) =
   assertNoPreflightCopies(state);
 });
 
-test('pinned v4 start clears inherited enablement and holds its external runtime lock', async (t) => {
+test('synthetic schema4 pin with public server clears inherited enablement and holds its external runtime lock', async (t) => {
   if (!onlyWindows(t)) return;
-  const { root, release, manifest_sha256: manifestSha256 } = prepare(t);
+  const { root, release, manifest_sha256: manifestSha256 } = await prepare(t);
   const state = path.join(root, 'state');
   mkdirSync(state);
   seedV4(release, state);
@@ -320,4 +327,18 @@ test('pinned v4 start clears inherited enablement and holds its external runtime
     await terminateOwnedProcess(lockedChild);
     await assertPortReleased(lockedPort);
   }
+});
+
+// Sanitized history must never silently substitute HEAD for the missing frozen source.
+test('production builder and launcher fail closed on unavailable or synthetic provenance', async t => {
+  if (!onlyWindows(t)) return;
+  const { root, release, fixtureRepository, manifest_sha256: manifestSha256 } = await prepare(t);
+  const absent = path.join(root, 'production-release');
+  assert.throws(() => prepareRuntimePin({ repository: fixtureRepository, output: absent, nodePath }), /bbb8025d99fc0acaa846d58b4e5a94cef90f8756/);
+  assert.equal(existsSync(absent), false);
+  const productionWrapper = readFileSync(path.join(here, 'start_pinned_i_core.ps1'));
+  writeFileSync(path.join(release, 'start_pinned_i_core.ps1'), productionWrapper);
+  const rejected = verifyOnly(release, manifestSha256);
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /only accepts the reviewed schema-v4 release/i);
 });

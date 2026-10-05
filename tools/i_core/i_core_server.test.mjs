@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { request as httpRequest } from 'node:http';
+import { json as readJson } from 'node:stream/consumers';
 import path from 'node:path';
 import test from 'node:test';
 import {
@@ -37,17 +39,25 @@ async function jsonRequest(url, {
   protocol = true,
   headers = {},
 } = {}) {
-  const response = await fetch(url, {
-    method,
-    headers: {
-      ...(protocol ? { 'x-core-protocol': '0.1' } : {}),
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(body ? { 'content-type': 'application/json' } : {}),
-      ...headers,
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+  // Owned loopback fixtures may use any OS-assigned port and restart immediately.
+  // Avoid fetch's browser port restrictions and sockets pooled across fixtures.
+  const payload = body ? JSON.stringify(body) : undefined;
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(url, {
+      method,
+      agent: false,
+      headers: {
+        ...(protocol ? { 'x-core-protocol': '0.1' } : {}),
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(payload ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } : {}),
+        ...headers,
+      },
+    }, response => {
+      readJson(response).then(body => resolve({ status: response.statusCode, body }), reject);
+    });
+    request.once('error', reject);
+    request.end(payload);
   });
-  return { status: response.status, body: await response.json() };
 }
 
 function shortcutMailRelay(directory, dispatches) {
@@ -414,7 +424,8 @@ test('change feed and node identity survive service restart', async (t) => {
     databasePath: path.join(directory, 'core.sqlite'),
     pairingCode: '654321',
   });
-  const address = await secondCore.listen({ port: 0 });
+  // Reuse the endpoint deliberately to cover client connections across restart.
+  const address = await secondCore.listen({ port: Number(new URL(first.baseUrl).port) });
   t.after(async () => {
     await secondCore.close();
     rmSync(directory, { recursive: true, force: true });

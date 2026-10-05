@@ -7,6 +7,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { seedSchema4 } from '../../schema4/synthetic_schema4.mjs';
 import { cleanEnvironment, plainPath, prepareRelease, sha256 } from '../../../runtime_upgrade/r3/package.mjs';
 
 export const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
@@ -59,20 +60,16 @@ export async function createLab(t) {
   const release = owned('release');
   const packageResult = prepareRelease({ repository, output: release });
   const state = owned('state'); mkdirSync(state); protect(state);
-  const oldSource = owned('v4-store.mjs');
-  writeFileSync(oldSource, execFileSync('git', ['-C', repository, 'show', 'bbb8025d99fc0acaa846d58b4e5a94cef90f8756:tools/i_core/i_core_store.mjs'],
-    { windowsHide: true, env: cleanEnvironment(), timeout: 20000 }));
-  const old = await import(pathToFileURL(oldSource));
+  // Public synthetic schema4 rows; no dependency on private historical source.
   const database = path.join(state, 'i-core.sqlite');
-  const legacy = new old.ICoreStore(database);
-  const paired = legacy.pairDevice({ device_id: 'synthetic-chat-device', display_name: 'synthetic', platform: 'test', client_version: '1', capabilities: ['chat'] }, 'synthetic-pairing-code');
-  legacy.submitMessages('synthetic-chat-device', { device_id: 'synthetic-chat-device', messages: [{
-    sync_id: 'synthetic-chat-1', origin_device_id: 'synthetic-chat-device', origin_sequence: 1,
-    character_id: 'lin-ai', sender: 'user', content: 'synthetic R3 migration fixture', created_at_ms: 1000000,
-    message_type: 'chat', asset_refs: [], addenda: [],
-  }] });
-  const identity = legacy.nodeId;
-  legacy.close();
+  seedSchema4(database);
+  // R3 starts with workers/jobs disabled, as its original chat-only v4 input did.
+  // M3's representative stale claim must not compete with this scenario's r3-turn.
+  const seed = new DatabaseSync(database);
+  try { seed.exec('DELETE FROM companion_reply_shadow_runs; DELETE FROM companion_reply_jobs; DELETE FROM worker_leases;'); }
+  finally { seed.close(); }
+  const paired = { device_token: 'synthetic-token' };
+  const identity = 'm3-synthetic-node';
   const inspect = (action, filename = database) => {
     const before = sha256(readFileSync(filename));
     const db = new DatabaseSync(`${pathToFileURL(filename).href}?mode=ro&immutable=1`, { readOnly: true });
@@ -102,7 +99,9 @@ export async function createLab(t) {
       }
     };
     run.ready = async () => {
-      const ready = await until(() => run.read('ready.json') || run.closed);
+      // Includes cold PowerShell/C# startup under the recursive parallel suite.
+      // Startup is independent of the short wait budget used by cancellation tests.
+      const ready = await until(() => run.read('ready.json') || run.closed, 60000);
       assert.notEqual(ready, true, run.stderr + run.stdout + JSON.stringify(run.read('child.json')));
       return ready;
     };

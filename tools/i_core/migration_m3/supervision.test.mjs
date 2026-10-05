@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cleanEnv, repository } from '../test_fixtures/migration_m3/lab.mjs';
 import { removeOwnedRoot, startSupervised, until } from './supervision.mjs';
 const receipts = [];
 after(() => {
-  const output = path.join(repository, 'docs/development/activity/mda2/migration/m3/evidence');
-  mkdirSync(output, { recursive: true });
+  const output = mkdtempSync(path.join(tmpdir(), 'i-core-m3-supervision-'));
   writeFileSync(path.join(output, 'supervision.json'), JSON.stringify({ cases: receipts }, null, 2) + '\n');
 });
 test('normal supervised root closes with actual zero-process Job accounting', async () => {

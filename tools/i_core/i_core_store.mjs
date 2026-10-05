@@ -293,7 +293,7 @@ export function preflightCoreIdentity(databasePath) {
   }
 }
 
-function withReadOnlyActivitySnapshot(databasePath, inspect, { allowMissing = false } = {}) {
+function withReadOnlyActivitySnapshot(databasePath, inspect, { allowMissing = false, temporaryPrefix = 'activity-preflight-' } = {}) {
   const suffixes = ['', '-journal', '-wal', '-shm'];
   if (!existsSync(databasePath)) {
     if (suffixes.slice(1).some((suffix) => existsSync(`${databasePath}${suffix}`))) {
@@ -316,7 +316,7 @@ function withReadOnlyActivitySnapshot(databasePath, inspect, { allowMissing = fa
       // Never ask SQLite to open the source WAL/journal: even readOnly=true can
       // create sidecars or update its shared-memory read marks. Recovery and
       // classification happen only in an owned temporary copy of the full view.
-      temporaryDirectory = mkdtempSync(path.join(tmpdir(), 'activity-preflight-'));
+      temporaryDirectory = mkdtempSync(path.join(tmpdir(), temporaryPrefix));
       const candidate = path.join(temporaryDirectory, 'candidate.sqlite');
       before.forEach((bytes, index) => {
         if (bytes != null) writeFileSync(`${candidate}${suffixes[index]}`, bytes);
@@ -355,7 +355,11 @@ export function preflightActivityCommitmentVersion(databasePath) {
   return withReadOnlyActivitySnapshot(databasePath, assertSupportedActivityCommitment, { allowMissing: true });
 }
 
-export function verifyActivityRecoveryCandidate(databasePath, floor) {
+export function verifyActivityRecoveryCandidate(databasePath, floor, options = {}) {
+  const temporaryPrefix = options.testOnlyTemporaryPrefix;
+  if (temporaryPrefix !== undefined && !/^activity-preflight-[A-Za-z0-9_-]+-$/.test(temporaryPrefix)) {
+    throw new CoreStoreError('activity_preflight_prefix_invalid', 'Activity preflight temporary prefix is invalid.', { status: 500 });
+  }
   return withReadOnlyActivitySnapshot(databasePath, (db) => {
     assertSupportedActivityCommitment(db);
     if (!coreTableExists(db, 'core_metadata')) {
@@ -368,7 +372,7 @@ export function verifyActivityRecoveryCandidate(databasePath, floor) {
     }
     const result = assertActivityRecoveryFloorForDatabase(db, floor, { nodeId, cursorSecret });
     return { ...result, activation_authorized: false };
-  });
+  }, temporaryPrefix === undefined ? {} : { temporaryPrefix });
 }
 
 function cleanupSqliteStaging(stagingPath) {

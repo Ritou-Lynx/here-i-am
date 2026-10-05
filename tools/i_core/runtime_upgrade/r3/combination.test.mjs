@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -10,7 +9,6 @@ import { sha256, verifyRelease } from './package.mjs';
 
 // This file is copied byte-for-byte into tools/i_core/runtime_upgrade/r3/ before it runs.
 // All relative imports intentionally resolve from that R3 directory, not this template directory.
-const BASELINE = '1b6a2961ec9e9705273b8dbed3dd5a9ec5c121f5';
 const FROZEN_STORE = '883a35c128ee88f7689b737de2245ef073f0c6b96902385241f30c08eb8f816d';
 const FROZEN_ACP = '525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222';
 const SOURCES = [
@@ -59,15 +57,13 @@ function rewriteManifest(release) {
   writeFileSync(manifestPath, raw);
   return sha256(raw);
 }
-function baselineBytes(repository, relative) {
-  return execFileSync('git', ['-C', repository, 'show', `${BASELINE}:${relative}`], { windowsHide: true, timeout: 20000 });
-}
 
-test('combined release binds frozen M3 source bytes and fixed source table rejects a baseline-restored blob', async t => {
+test('combined release binds frozen M3 source bytes and fixed source table rejects a rehashed substituted blob', async t => {
   const lab = await createLab(t);
   const manifest = JSON.parse(readFileSync(path.join(lab.release, 'manifest.json')));
-  assert.equal(manifest.candidate_id, 'mda2-r3-m3-combined-c3-control-race');
-  assert.equal(manifest.source_mode, 'baseline-plus-lf-normalized-m3-r2');
+  assert.equal(manifest.candidate_id, 'i-core-r3-sanitized-f605d501');
+  assert.equal(manifest.source_mode, 'sanitized-fixed-source-baseline');
+  assert.equal(manifest.source_commit, 'f605d5017cbc0a8eb69983e00c25cd1bba08a0eb');
   for (const [relative, expected] of SOURCES) assert.equal(sha256(readFileSync(releaseFile(lab, relative))), expected, relative);
   const { ICoreStore } = await releaseStore(lab);
   assert.equal(typeof ICoreStore, 'function');
@@ -77,7 +73,7 @@ test('combined release binds frozen M3 source bytes and fixed source table rejec
     const target = releaseFile(lab, relative);
     const original = readFileSync(target);
     try {
-      writeFileSync(target, baselineBytes(fileURLToPath(new URL('../../../../', import.meta.url)), relative));
+      writeFileSync(target, Buffer.concat([Buffer.from('// synthetic substituted source blob\n'), original]));
       const tamperedManifest = rewriteManifest(lab.release);
       assert.throws(() => verifyRelease(lab.release, tamperedManifest), /release_content_mismatch/);
     } finally {

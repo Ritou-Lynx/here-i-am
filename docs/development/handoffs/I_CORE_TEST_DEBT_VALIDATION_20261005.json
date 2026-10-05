@@ -1,0 +1,546 @@
+{
+  "format": "i-core-test-debt-validation-v1",
+  "baseline_commit": "f605d5017cbc0a8eb69983e00c25cd1bba08a0eb",
+  "branch": "codex/i-core-test-debt-20261005",
+  "node_version": "v24.14.1",
+  "node_sha256": "58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f",
+  "platform": "win32",
+  "candidate_source_sha256": "ce014db22d31e983d190e0bcdcf584fca6dfab16a6b4a60096829d77bdb8d587",
+  "source_digest_definition": "SHA256(sorted path + NUL + SHA256(actual bytes) + LF)",
+  "source_entries": [
+    {
+      "path": "tools/i_core/activity_control_plane.test.mjs",
+      "sha256": "b4ac0c1fd52ae82987873d022a0654189e0de33dda948774f3c8b49dca48bca1"
+    },
+    {
+      "path": "tools/i_core/i_core_server.test.mjs",
+      "sha256": "a1731b18ca104619a93c91d72f9a0faf12df581271647a35fda88425fa178dc7"
+    },
+    {
+      "path": "tools/i_core/i_core_store.mjs",
+      "sha256": "f433c8e77de2ec4d2b1cbe3ba6bb94a4edc1f1024bd3bcb06f93a2a74cfb0f3f"
+    },
+    {
+      "path": "tools/i_core/migration_m3/migration.test.mjs",
+      "sha256": "7f14a71ffe17219b47b71c5d3063fb5d017fa59e5717864cbe952d30fb461b45"
+    },
+    {
+      "path": "tools/i_core/migration_m3/supervision.mjs",
+      "sha256": "f3ebcdc36f0a0e1bbcaccae8793812670763159da5c0766afa1378e07cc58db4"
+    },
+    {
+      "path": "tools/i_core/migration_m3/supervision.test.mjs",
+      "sha256": "d73e82cca9f45fd0ec1f169092df051d5ae53860b82dbef7b3fed1769c3fd56f"
+    },
+    {
+      "path": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "sha256": "8cbf40b14376eeacb7cf321ee5b82a66c0f6a4458a8f5750d2830eb4105f813d"
+    },
+    {
+      "path": "tools/i_core/runtime_upgrade/r3/combination.test.mjs",
+      "sha256": "a03567761196fcaf84bee3fd02362f8b752de79d7e06a7dcfa27f55098171b8e"
+    },
+    {
+      "path": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "sha256": "493c19a90689ec3a3342c35871df7fa5224866e3c0279a90ccf93d1f91766205"
+    },
+    {
+      "path": "tools/i_core/runtime_upgrade/r3/package.mjs",
+      "sha256": "71b59942886a73c36c24eb8e7ce3d7e3f8f0b86bae6693ff3fe1c08e567e444d"
+    },
+    {
+      "path": "tools/i_core/runtime_upgrade/r3/start_schema5.ps1",
+      "sha256": "af607571e505017848ff98903695c6deaba70a3e2d5be33a2039c09bf6a44e30"
+    },
+    {
+      "path": "tools/i_core/test_fixtures/migration_m3/lab.mjs",
+      "sha256": "f4da8e54969e8b2287d1c77ee5832a84b0171dc75b3aeed9260f958a7907ead1"
+    },
+    {
+      "path": "tools/i_core/test_fixtures/runtime_upgrade/r3/descendant_fixture.mjs",
+      "sha256": "de8116b3bb4c382f1dcfc4b2e31c4e408a3e2327ac1e5a1275c30d0d9153b857"
+    },
+    {
+      "path": "tools/i_core/test_fixtures/runtime_upgrade/r3/lab.mjs",
+      "sha256": "718ae505105ad6ae20310e208541317922e744e334a71f2d23839cc79f52ebb9"
+    },
+    {
+      "path": "tools/i_core/test_fixtures/schema4/runtime_pin_lab.mjs",
+      "sha256": "747508d2126511771b3cb3a4c180cb0f0a6a77c3e1fbfbea6a412cb90c1ebe5f"
+    },
+    {
+      "path": "tools/i_core/test_fixtures/schema4/synthetic_schema4.mjs",
+      "sha256": "9c6a939024bf421a9fc886415ceac82d0d7321cdfde0e69c23edd2653c863eee"
+    }
+  ],
+  "test_files": [
+    "tools/i_core/activity_control_plane.test.mjs",
+    "tools/i_core/activity_fixture_contract.test.mjs",
+    "tools/i_core/activity_fixture_http_runner.test.mjs",
+    "tools/i_core/companion_worker.test.mjs",
+    "tools/i_core/i_core_autostart.test.mjs",
+    "tools/i_core/i_core_server.test.mjs",
+    "tools/i_core/import_v3_chat.test.mjs",
+    "tools/i_core/migration_m3/migration.test.mjs",
+    "tools/i_core/migration_m3/supervision.test.mjs",
+    "tools/i_core/run_mda1_human_gate.test.mjs",
+    "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+    "tools/i_core/runtime_upgrade/r3/combination.test.mjs",
+    "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+    "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+    "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+    "tools/i_core/shortcut_mail_relay.test.mjs"
+  ],
+  "validation_started_at": "2026-10-05T09:36:06.222Z",
+  "status": "passed",
+  "runs": [
+    {
+      "mode": "default",
+      "command": "node --test --test-reporter=tap <16 sorted recursive test files>",
+      "log": "%TEMP%/i-core-debt-accepted-default-20261005.log",
+      "status": "passed",
+      "exit_code": 0,
+      "tests": 261,
+      "pass": 260,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 1,
+      "todo": 0,
+      "duration_ms": 391536.1139,
+      "log_sha256": "fc77f9a294d8c3e089f5a3f1371ebfe47dcbe97438605869eb0d108025261c80",
+      "continuous_evidence": {
+        "listening_elapsed_ms": 125024.35699999999,
+        "manifest_sha256": "f1bb9a22b181a2d2060cc258434d66d212cc3b9d79fc66296f1e62836d47de9a",
+        "listener_closed": true,
+        "lock_released": true,
+        "clean_receipt": true,
+        "original_path_restart": true,
+        "job_active_zero_query": true,
+        "service_exit_confirmed": true,
+        "member_exit_confirmed": true,
+        "grandchild_exit_confirmed": true,
+        "guardian_exit_confirmed": true,
+        "parent_exit_confirmed": true
+      }
+    },
+    {
+      "mode": "serial",
+      "command": "node --test --test-concurrency=1 --test-reporter=tap <same 16 sorted recursive test files>",
+      "log": "%TEMP%/i-core-debt-accepted-serial-20261005.log",
+      "status": "passed",
+      "exit_code": 0,
+      "tests": 261,
+      "pass": 260,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 1,
+      "todo": 0,
+      "duration_ms": 910713.9867,
+      "log_sha256": "2ac0c94cf8b51bdec6aa9dd87b7567c8ab20f16e3f2d0c03a70e4a04734fc948",
+      "continuous_evidence": {
+        "listening_elapsed_ms": 125015.5968,
+        "manifest_sha256": "f1bb9a22b181a2d2060cc258434d66d212cc3b9d79fc66296f1e62836d47de9a",
+        "listener_closed": true,
+        "lock_released": true,
+        "clean_receipt": true,
+        "original_path_restart": true,
+        "job_active_zero_query": true,
+        "service_exit_confirmed": true,
+        "member_exit_confirmed": true,
+        "grandchild_exit_confirmed": true,
+        "guardian_exit_confirmed": true,
+        "parent_exit_confirmed": true
+      }
+    }
+  ],
+  "baseline_failure_entries": 42,
+  "baseline_terminal_failures": 41,
+  "baseline_parent_summaries": 1,
+  "failure_matrix": [
+    {
+      "id": 1,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "constructor preflight rejects node_id before any migration hook",
+      "current_name": "constructor preflight rejects node_id before any migration hook",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 2,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "constructor preflight rejects schema_version before any migration hook",
+      "current_name": "constructor preflight rejects schema_version before any migration hook",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 3,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "formal Store constructor throw at after_ddl rolls back",
+      "current_name": "formal Store constructor throw at after_ddl rolls back",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 4,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "formal Store constructor throw at before_commit rolls back",
+      "current_name": "formal Store constructor throw at before_commit rolls back",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 5,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "ControlPlane callback stages observe actual uncommitted DDL, metadata and committed transaction",
+      "current_name": "ControlPlane callback stages observe actual uncommitted DDL, metadata and committed transaction",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 6,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "throw after COMMIT stays v5 without attempting ROLLBACK or activation",
+      "current_name": "throw after COMMIT stays v5 without attempting ROLLBACK or activation",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 7,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "actual owned child interruption: store/after_ddl",
+      "current_name": "actual owned child interruption: store/after_ddl",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 8,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "actual owned child interruption: store/before_commit",
+      "current_name": "actual owned child interruption: store/before_commit",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 9,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "actual owned child interruption: store/after_commit",
+      "current_name": "actual owned child interruption: store/after_commit",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 10,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "actual owned child interruption: control-delete/before_commit",
+      "current_name": "actual owned child interruption: control-delete/before_commit",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 11,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "actual owned child interruption: control-delete/after_commit",
+      "current_name": "actual owned child interruption: control-delete/after_commit",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 12,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "actual child death after active claim refuses busy and expired takeover",
+      "current_name": "actual child death after active claim refuses busy and expired takeover",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 13,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "observed clean close permits normal same-canonical-path Core restart",
+      "current_name": "observed clean close permits normal same-canonical-path Core restart",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 14,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "damaged ledger is indeterminate and neither entry is permitted",
+      "current_name": "damaged ledger is indeterminate and neither entry is permitted",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 15,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/migration_m3/migration.test.mjs",
+      "original_name": "orphan sidecar without main is indeterminate and preserved",
+      "current_name": "orphan sidecar without main is indeterminate and preserved",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 16,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "original_name": "runtime pin freezes every packaged source blob at bbb8025d",
+      "current_name": "runtime pin test package binds every source byte to its explicit synthetic Git commit",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 17,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "original_name": "verify-only, content tamper, and manifest mismatch never open or create external state",
+      "current_name": "verify-only, content tamper, and manifest mismatch never open or create external state",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 18,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "original_name": "schema-v4 guard rejects missing and schema-v5 state without modifying either",
+      "current_name": "schema-v4 guard rejects missing and schema-v5 state without modifying either",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 19,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "original_name": "guard rejects a schema-v5 write still resident in WAL and leaves all source bytes untouched",
+      "current_name": "guard rejects a schema-v5 write still resident in WAL and leaves all source bytes untouched",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 20,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "original_name": "guard rejects a schema-4 database whose table columns were changed",
+      "current_name": "guard rejects a schema-4 database whose table columns were changed",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 21,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_pin/runtime_pin.test.mjs",
+      "original_name": "pinned v4 start clears inherited enablement and holds its external runtime lock",
+      "current_name": "synthetic schema4 pin with public server clears inherited enablement and holds its external runtime lock",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 22,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/combination.test.mjs",
+      "original_name": "combined release binds frozen M3 source bytes and fixed source table rejects a baseline-restored blob",
+      "current_name": "combined release binds frozen M3 source bytes and fixed source table rejects a rehashed substituted blob",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 23,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/combination.test.mjs",
+      "original_name": "post-COMMIT M3 hook throw leaves v5 with empty claim but no R3 clean receipt, so R3 refuses restart before Store construction",
+      "current_name": "post-COMMIT M3 hook throw leaves v5 with empty claim but no R3 clean receipt, so R3 refuses restart before Store construction",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 24,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+      "original_name": "invalid v4 shape rejects without starting migration; open sidecar and missing DB reject without constructor",
+      "current_name": "invalid v4 shape rejects without starting migration; open sidecar and missing DB reject without constructor",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 25,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+      "original_name": "crash after schema5 listener creates real missing-close evidence and refuses automatic original-path restart",
+      "current_name": "crash after schema5 listener creates real missing-close evidence and refuses automatic original-path restart",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 26,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+      "original_name": "accepted migration followed by listen failure closes the same store and supports normal original-path restart",
+      "current_name": "accepted migration followed by listen failure closes the same store and supports normal original-path restart",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 27,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/faults.test.mjs",
+      "original_name": "cancel with a live incomplete HTTP request forces actual child exit and keeps shutdown unconfirmed",
+      "current_name": "cancel with a live incomplete HTTP request forces actual child exit and keeps shutdown unconfirmed",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 28,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "original_name": "fixed PS entry defaults verify-only and rejects unknown/runtime flags before database mutation",
+      "current_name": "fixed PS entry defaults verify-only and rejects unknown/runtime flags before database mutation",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 29,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "original_name": "explicit migration preserves eight old tables, dormant HTTP and clean original-path restart; lock prevents second instance",
+      "current_name": "explicit migration preserves eight old tables, dormant HTTP and clean original-path restart; lock prevents second instance",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 30,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "original_name": "fingerprint, inventory and canonical/link path rejections precede store construction",
+      "current_name": "fingerprint, inventory and canonical/link path rejections precede store construction",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 31,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/lifecycle.test.mjs",
+      "original_name": "occupied loopback rejects before migration; absent or forged receipts cannot prove exit",
+      "current_name": "occupied loopback rejects before migration; absent or forged receipts cannot prove exit",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 32,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "continuous configured service exceeds 120 seconds, public APIs work, protected operator close confirms complete Job",
+      "current_name": "continuous configured service exceeds 120 seconds, public APIs work, protected operator close confirms complete Job",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 33,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "authenticated close removed after both observers have checked it does not stop the service",
+      "current_name": "authenticated close removed after both observers have checked it does not stop the service",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 34,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "non-ENOENT control read failure remains fail closed",
+      "current_name": "non-ENOENT control read failure remains fail closed",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 35,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "explicit disabled configuration rejects all enablement routes and inherited environment; cancellation is clean",
+      "current_name": "explicit disabled configuration rejects all enablement routes and inherited environment; cancellation is clean",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 36,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "parent process death reaps actual Job members but cannot mint a clean receipt or authorize crash restart",
+      "current_name": "parent process death reaps actual Job members but cannot mint a clean receipt or authorize crash restart",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 37,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "config path ACL, binding, unknown fields, overlap and unsupported relay reject before store construction",
+      "current_name": "config path ACL, binding, unknown fields, overlap and unsupported relay reject before store construction",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 38,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "guardian process alone dies: live parent fails closed and reaps its root and descendants without clean receipt",
+      "current_name": "guardian process alone dies: live parent fails closed and reaps its root and descendants without clean receipt",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 39,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "CREATED",
+      "current_name": "CREATED",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 40,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "DUPLICATED",
+      "current_name": "DUPLICATED",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 41,
+      "kind": "terminal_failure",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "PUBLISHED",
+      "current_name": "PUBLISHED",
+      "default": "passed",
+      "serial": "passed"
+    },
+    {
+      "id": 42,
+      "kind": "parent_summary",
+      "file": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+      "original_name": "parent death at each real guardian bootstrap barrier cannot leave suspended processes or a held runtime lock",
+      "current_name": "parent death at each real guardian bootstrap barrier cannot leave suspended processes or a held runtime lock",
+      "default": "passed",
+      "serial": "passed"
+    }
+  ],
+  "validation_completed_at": "2026-10-05T09:53:12.871Z",
+  "source_unchanged_after_runs": true,
+  "original_skip": {
+    "name": "case-distinct live paths never collapse when the filesystem supports distinct names",
+    "reason": "the test directory is case-insensitive and cannot represent two distinct file identities",
+    "new_skip_added": false
+  }
+}

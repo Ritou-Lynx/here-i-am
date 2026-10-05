@@ -4,7 +4,8 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSy
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const BASELINE = '1b6a2961ec9e9705273b8dbed3dd5a9ec5c121f5';
+// Same accepted source bytes, addressed through the public sanitized history.
+export const BASELINE = 'f605d5017cbc0a8eb69983e00c25cd1bba08a0eb';
 export const NODE_SHA256 = '58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f';
 export const SOURCES = Object.freeze({
   'tools/i_core/i_core_server.mjs': '7d22539e0af4fb9bcdea276dfcabea3d8af8985bb96c855aacce35de9bede679',
@@ -14,32 +15,26 @@ export const SOURCES = Object.freeze({
   'tools/i_core/strict_smtp_tls_validation.ps1': '395e1c810f186a4136ad8b16ee4734e32322a4ba8064508f034ee0f21b6812ed',
   'tools/i_core/activity_control_plane.mjs': '525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222',
 });
-export const SOURCE_OVERRIDES = Object.freeze({
-  "tools/i_core/i_core_store.mjs": "883a35c128ee88f7689b737de2245ef073f0c6b96902385241f30c08eb8f816d",
-  "tools/i_core/activity_control_plane.mjs": "525295357490814c69fb204358e019f862e916c09efc5f5ff85b99043f83f222"
-});
-export const CANDIDATE_ID = 'mda2-r3-m3-combined-c3-control-race';
-export const SOURCE_MODE = 'baseline-plus-lf-normalized-m3-r2';
-export const SOURCE_RAW_HASHES = Object.freeze({
-  "tools/i_core/activity_control_plane.mjs": "93ca104158fac15eb567f6d66857bdb9dcabfd4093cd33ea79158ba9718553ff",
-  "tools/i_core/i_core_store.mjs": "234ec17834622519174d470e21489f803f0ddcab0eaa4445a74b284e3844b302"
-});
+export const CANDIDATE_ID = 'i-core-r3-sanitized-f605d501';
+export const SOURCE_MODE = 'sanitized-fixed-source-baseline';
 export const SOURCE_PROVENANCE = Object.freeze({
   baseline_commit: BASELINE,
-  source_normalization: 'CRLF-to-LF only',
+  source_normalization: 'none; exact sanitized Git blobs',
   m3_patch_sha256: '4e81ee2c036b22d62875477a4f7aa77a1a98aa508569f8baf2c9a0d869d9bef8',
   m3_verification_sha256: '9fa6e9d41503747e8c91837b9ef96e4127b9eefd6245b7d0f79e349f9d280b81',
   files: Object.freeze(Object.entries(SOURCES).map(([name, sha256]) => Object.freeze({
-    path: name, sha256, original_sha256: SOURCE_RAW_HASHES[name] ?? sha256,
-    origin: Object.hasOwn(SOURCE_OVERRIDES, name) ? 'lf-normalized-frozen-m3-r2' : 'baseline-git',
+    path: name, sha256, original_sha256: sha256, origin: 'sanitized-baseline-git',
   }))),
 });
 export const WRAPPERS = Object.freeze(['package.mjs', 'start_schema5.ps1', 'owned_job.ps1', 'runtime_child.mjs', 'configuration.mjs', 'protected_paths.ps1', 'request_stop.ps1', 'job_guardian.ps1']);
 export const INVENTORY = Object.freeze([...Object.keys(SOURCES), ...WRAPPERS, 'verify_v4_state.mjs', 'runtime/node.exe'].sort());
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export function cleanEnvironment(env = process.env) {
-  return Object.fromEntries(Object.entries(env).filter(([key]) => !key.toUpperCase().startsWith('I_CORE_')
-    && !['NODE_OPTIONS', 'NODE_PATH', 'NODE_EXTRA_CA_CERTS', 'OPENSSL_CONF', 'SSL_CERT_FILE', 'SSL_CERT_DIR'].includes(key.toUpperCase())));
+  const clean = Object.fromEntries(Object.entries(env).filter(([key]) => !key.toUpperCase().startsWith('I_CORE_')
+    && !['NODE_OPTIONS', 'NODE_PATH', 'NODE_EXTRA_CA_CERTS', 'OPENSSL_CONF', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'PSMODULEPATH'].includes(key.toUpperCase())));
+  // A Windows PowerShell 5.1 child must not autoload inherited PowerShell 7 modules.
+  if (process.platform === 'win32') clean.PSModulePath = path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/Modules');
+  return clean;
 }
 export function plainPath(target, { existing = true } = {}) {
   if (typeof target !== 'string' || !/^[A-Za-z]:[\\/]/.test(target)
@@ -106,9 +101,7 @@ export function prepareRelease({ repository, output, nodePath = process.execPath
   const here = path.dirname(fileURLToPath(import.meta.url));
   const content = new Map();
   for (const [name, hash] of Object.entries(SOURCES)) {
-    const bytes = Object.hasOwn(SOURCE_OVERRIDES, name)
-      ? readFileSync(plainPath(path.join(repository, name)))
-      : execFileSync('git', ['-C', repository, 'show', `${BASELINE}:${name}`],
+    const bytes = execFileSync('git', ['-C', repository, 'show', `${BASELINE}:${name}`],
         { windowsHide: true, timeout: 20000, env: cleanEnvironment(), maxBuffer: 4 * 1024 * 1024 });
     if (sha256(bytes) !== hash) throw new Error('accepted_source_mismatch');
     content.set(name, bytes);
