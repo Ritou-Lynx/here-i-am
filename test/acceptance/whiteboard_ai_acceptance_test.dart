@@ -510,9 +510,18 @@ Future<void> _undo(WidgetTester tester, String actionId) async {
   await _scrollChatTo(
       tester, find.byKey(ValueKey('workbench_action_$actionId')));
   final button = find.byKey(ValueKey('workbench_action_undo_$actionId'));
-  await _pumpUntil(tester, () => button.evaluate().isNotEmpty);
-  await tester.ensureVisible(button);
-  await tester.tap(button);
+  final hitTarget = button.hitTestable();
+  // ensureVisible changes the scroll offset without laying out the next frame.
+  // Use the existing wait budget for a real pointer target, not just a built row.
+  await _pumpUntil(tester, () => hitTarget.evaluate().isNotEmpty,
+      refresh: () async {
+    if (button.evaluate().isEmpty) return;
+    await tester.ensureVisible(button);
+    await tester.pump();
+  });
+  expect(hitTarget, findsOneWidget,
+      reason: 'Undo $actionId must receive the tap after scroll layout');
+  await tester.tap(hitTarget);
   await tester.pump();
   for (var index = 0; index < 10; index++) {
     await tester.runAsync(
@@ -565,6 +574,7 @@ Future<void> _scrollChatTo(WidgetTester tester, Finder target) async {
   tester.state<ScrollableState>(chatList).position.jumpTo(0);
   await tester.pump();
   await tester.scrollUntilVisible(target, 120, scrollable: chatList);
+  await tester.pump();
 }
 
 Future<void> _say(WidgetTester tester, String text) async {
