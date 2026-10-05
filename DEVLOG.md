@@ -1,3 +1,16 @@
+## 2026-10-06 — PREDEPLOY 审计后兼容修复
+- 核实 B3 与正式副本同根、与 D 私人旧谱系可达提交零交集；敏感路径/字面凭据筛查后推同名备份分支。
+- PR12 精确 head 五类 CI 通过后普通合入 v3-lab@64aea693，手机与服务仍保持原候选。
+- Drift61/62 逐字采用 B3，保留旧迁移；后续从63起，真实62副本两次打开且140表数据/列保全。
+- schema6 源码保全受限 transcript、当前 credential grant 和72 replay；手机每轮仅选 B3 或 PR10 上传路径。
+- 补回毫秒/序号聊天排序及真正新增 feed 的 UI 通知和既有 backlog 调度，不产生回复或新 outbox。
+- 捕获收支卡投影到现有账本；同源修订复用行，删捕获清属主行；day_get 按独立读权限返回标题。
+- 47862 保留到真实 captures 闭环 Gate；消费者切换用来源 adoption、短租约与 fencing，旧 worker 不能再写。
+- Core 真副本4→5→6保全身份/旧表/grant/72绑定，原始手机/Core/外置授权已有本机加密且恢复校验的备份。
+- 固定 schema6 包装仅离线候选与只读预检；生产 supervisor、独立恢复 floor 和部署/真机 Gate 仍分开。
+- 整合验证和 APK/PR 回执见[主窗验收](docs/development/handoffs/POST_AUDIT_SOURCE_ACCEPTANCE_20261006.md)，未安装或部署。
+---
+
 ## 2026-10-06 — 数据中枢并行源码与 W7 存储前置
 - 从8dde12b3隔离派发W3领域MCP、W4记一下、W5今天/本周；主窗顺序整合共享入口。
 - W7用逐记录/修正/操作kv行替代整块JSON，事务迁移保留ID/op/回执；删除本机记录清目标修正文。

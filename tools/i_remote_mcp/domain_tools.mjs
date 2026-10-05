@@ -46,7 +46,7 @@ const definitions = [
   write('plan_set_status', 'plan_items', 'status', {status:{type:'string',enum:['完成','放弃']}}, ['status','authorization_ref']),
   read('week_get', 'plan_weeks', 'Read a week by stable record id, or snapshot pages to locate week_key.'),
   write('week_set', 'plan_weeks', 'upsert', {data:dataSchema('plan_weeks')}, ['data']),
-  read('day_get', 'plan_days', 'Read a day by stable record id, or snapshot pages to locate date.'),
+  read('day_get', 'plan_days', 'Read a day by stable record id, or snapshot pages to locate date. Returns current referenced item titles with item revisions when plan_items:read is granted; queues retain stable IDs. Title lookup is bounded and is not an atomic cross-domain snapshot.'),
   write('day_set', 'plan_days', 'upsert', {data:dataSchema('plan_days')}, ['data']),
 ];
 export const DOMAIN_TOOLS = Object.freeze(definitions.map(tool => ({...tool,
@@ -95,6 +95,39 @@ export function createDomainClient({coreUrl, token, coreInstanceId, fetchImpl = 
   };
 }
 
+// Resolve only the display fields allowed by the separately scoped plan reader.
+// Keep canonical day records and their queue identities unchanged.
+async function withDayItemTitles(result, client, scopes) {
+  const days = result.record ? [result.record] : Array.isArray(result.records) ? result.records : [];
+  if (!days.length || result.http_status !== 200) return result;
+  const ids = [...new Set(days.filter(day => !day.deleted_at).flatMap(day =>
+    Object.values(day.data?.queues ?? {}).flat()).filter(id => typeof id === 'string'))];
+  const item_titles = {}, item_title_issues = [];
+  if (!scopes.includes('plan_items:read')) {
+    for (const id of ids) item_title_issues.push({id, reason:'scope_forbidden'});
+    return {...result, item_titles, item_title_issues};
+  }
+  const bounded = ids.slice(0, 500);
+  for (const id of ids.slice(500)) item_title_issues.push({id, reason:'lookup_limit'});
+  let index = 0;
+  await Promise.all(Array.from({length:Math.min(4, bounded.length)}, async () => {
+    while (index < bounded.length) {
+      const id = bounded[index++];
+      let response;
+      try { response = await client.record('plan_items', id); }
+      catch { response = null; }
+      const item = response?.record;
+      if (response?.http_status === 200 && item && !item.deleted_at && typeof item.data?.title === 'string') {
+        item_titles[id] = {title:item.data.title, revision:item.revision};
+      } else {
+        item_title_issues.push({id, reason:response?.http_status === 403 ? 'scope_forbidden' :
+          response?.http_status === 404 || item?.deleted_at ? 'not_found' : 'unavailable'});
+      }
+    }
+  }));
+  return {...result, item_titles, item_title_issues};
+}
+
 export function createDomainTools({client, scopes, surface = 'planner', captureSource = 'codex'}) {
   if(!client || !Array.isArray(scopes) || scopes.some(s=>typeof s!=='string') || !['planner','web'].includes(surface)) throw new Error('invalid_domain_configuration');
   if(!['codex','dot','claude_web'].includes(captureSource) || surface==='web'&&captureSource!=='claude_web')throw new Error('invalid_capture_source');
@@ -103,11 +136,11 @@ export function createDomainTools({client, scopes, surface = 'planner', captureS
     checkArgs(args,Object.keys(tool.inputSchema.properties),tool.inputSchema.required);
     if(!scopes.includes(scopeFor(tool,args)))return {error:{code:'scope_forbidden',retryable:false},http_status:403};
     if(tool.read) {
-      if(args.id!==undefined){if(Object.keys(args).length!==1)fail('invalid_request');return client.record(tool.domain,args.id);}
+      if(args.id!==undefined){if(Object.keys(args).length!==1)fail('invalid_request');const result=await client.record(tool.domain,args.id);return tool.name==='day_get'?withDayItemTitles(result,client,scopes):result;}
       if(args.limit!==undefined&&(!Number.isSafeInteger(args.limit)||args.limit<1||args.limit>500))fail('invalid_limit');
       const page=await client.snapshot(tool.domain,args);
       if(page.manifest?.base_cursor&&!page.next_page_token)await client.acknowledge(tool.domain,page.manifest.base_cursor,page.snapshot_id);
-      return page;
+      return tool.name==='day_get'?withDayItemTitles(page,client,scopes):page;
     }
     if(!Number.isSafeInteger(args.base_revision)||args.base_revision<0)fail('invalid_base');
     const kind = tool.kind==='upsert'?(args.base_revision===0?'create':'patch'):tool.kind;
