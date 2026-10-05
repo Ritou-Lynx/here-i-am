@@ -116,7 +116,7 @@ class ScheduleViewModel extends ChangeNotifier {
               ? 'active'
               : 'completed';
 
-      await organizer.updateCard(cardId, status: newStatus);
+      await organizer.updateCard(cardId, status: newStatus, actor: 'user_direct', sourceKind: 'schedule_toggle');
       await _refresh();
     });
   }

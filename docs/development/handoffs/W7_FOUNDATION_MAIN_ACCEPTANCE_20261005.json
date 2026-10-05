@@ -1,0 +1,215 @@
+{
+  "format": "w7-foundation-main-acceptance-v1",
+  "base": "a00112e8c69d20971053845d02083e70fea1ab6d",
+  "base_pr": "https://github.com/Ritou-Lynx/here-i-am/pull/9",
+  "scope": "finite_phone_foundation_source_and_explicit_caller_integration",
+  "full_source_suite": {
+    "tests": 114,
+    "passed": 114,
+    "failed": 0,
+    "skipped": 0,
+    "worker_new_directory": 71,
+    "adjacent": 43,
+    "log_sha256": "f906784142c292f1fabaca47eab26ddc902337e7299c8e5d385c6b17f17f930a",
+    "owned_19_source_prepost_guard_verified": true
+  },
+  "actual_node_dart_interop": {
+    "tests": 5,
+    "passed": 5,
+    "failed": 0,
+    "log_sha256": "8db387e87b199feeaea4dc9b557e7317a95e3543b0dd6d53ab557468c2a68ad4",
+    "source_guard_21_prepost_verified": true,
+    "uses_actual_domain_http_store_schema": true,
+    "synthetic_in_memory_and_loopback_only": true,
+    "core_source_binding": {
+      "tools/i_core/domain_schema.mjs": {
+        "executed_raw_sha256": "d384fa36010256fb0aa151f7a4096cd87619f4125b0a577e1a3c7f59d9a44d10",
+        "git_blob_sha256": "692d5d67c9d222bd207eb15b56669f7a0ed85ba3cfbef2a6b7f3d68ae020c7d8",
+        "exact_or_eol_only_verified": true
+      },
+      "tools/i_core/domain_store.mjs": {
+        "executed_raw_sha256": "600f0a32be0f5e66ac3c9e719e066f360055b0c1b28b4ee870bcb8ef157addb0",
+        "git_blob_sha256": "600f0a32be0f5e66ac3c9e719e066f360055b0c1b28b4ee870bcb8ef157addb0",
+        "exact_or_eol_only_verified": true
+      },
+      "tools/i_core/domain_http.mjs": {
+        "executed_raw_sha256": "5522ef6281bb45bf9ff9ca45279e75640ec9f36ccf665069da819166fe6ebb50",
+        "git_blob_sha256": "3ff57a91eb9b8bcea9dac72396eb76efbdadc54586b7620474581397cb71fc31",
+        "exact_or_eol_only_verified": true
+      }
+    }
+  },
+  "static_analysis": {
+    "result": "No issues found",
+    "includes_manual_interop": true,
+    "log_sha256": "5e6f2c1a054ddf473a942098e0462ba4e1a3339303b376eac738c72636ef0190"
+  },
+  "candidate_raw_sha256": {
+    "lib/agent/built_in_tools/memory_v3_query_tool.dart": "f17209c5c81e04f0e0ea67ef44a47d236333bbe9f3f12a8702c350052e4e2f75",
+    "lib/agent/built_in_tools/memory_v3_update_card_tool.dart": "8da57e6db72279c18f709dcd218e91184c345d2b44ff1f64e1e48b92b1febb6a",
+    "lib/config/dependencies.dart": "f79de6608db1845cc23cc8fe628fca53a9e3a8b723b13ed56255d5842155c007",
+    "lib/data/memory_v3/services/record_organizer_service.dart": "eb052a7e5f4734a65c0ddf04109c7e32c4fdf56f5e90ddfd0ca685c0419491c6",
+    "lib/data/personal_data_hub/capture_consumer.dart": "c1bd580b17c56bec5ea534b9f2c86b5843a413ab03ff5b20c461b01121b3b601",
+    "lib/data/personal_data_hub/domain_http_transport.dart": "49cca551f572231b8430f8b0c51e424aa0627cf0277d64cea8e448aa894be687",
+    "lib/data/personal_data_hub/domain_protocol.dart": "4c3e825ff4c78caa5caa9f780bd9583c58bfaeb2e27174af2538baeedf053741",
+    "lib/data/personal_data_hub/domain_store.dart": "c02d6b9f48a661b8b811f5cfa810806f6c68f5ba10b94b1a1525318be8db3330",
+    "lib/data/personal_data_hub/domain_sync_engine.dart": "c9bdba280fe270c1da88f921316576d6200e8ae485abf120ec04800c1a915ccd",
+    "lib/data/personal_data_hub/personal_data_hub.dart": "b3d83d2943c5fbefcbe9a14c3a92aa59b15fbee2e867796458ff747979516516",
+    "lib/data/services/persona_chat_service.dart": "e3b788b6e1b4ccd3a8d5af5b867f4397efac46b938d5f61392a0a00b452443cf",
+    "lib/data/services/sync/core_sync_engine.dart": "0973b8315f42e406ffd83f9fe7561cc939fc2ec5a4dda8e762c9c1c2f80872f4",
+    "lib/data/services/sync/core_sync_runtime_service.dart": "2d6b139e77ca5a19e79ec120777cc8716628006a7c6f0467fb70b725d8678b78",
+    "lib/ui/companion/view_models/schedule_view_model.dart": "d08359471717421ceeedd62893f509be1f4a4590ccb64fc4c7fa279e0a5d34a6",
+    "test/data/memory_v3/services/record_organizer_service_test.dart": "1354b349226717d43acddbd88dc3a87ebec556275cc634e3e61e27207de652fc",
+    "test/data/personal_data_hub/app_integration_test.dart": "8667e68a6d72bc46a2c0fc250ced0175662cdfd3870813f3790bc4b71ab0dd71",
+    "test/data/personal_data_hub/crash_worker.dart": "a5bb21727df5ef49eddf76b8a1fe76948240be1c3a8d61577ebe6edcaac96a30",
+    "test/data/personal_data_hub/domain_protocol_test.dart": "5705465b8dc4d41633d3b28990e5fd1c218b1e21095dd9dc5cc343e72619ef18",
+    "test/data/personal_data_hub/domain_sync_test.dart": "6b52c5e0dd29702b1e6206fa969310c3efecc397043f52059cb80d5da0e45ce8",
+    "tools/personal_data_hub/node_core_domain_fixture.mjs": "97de91abceaf3a5d7b009a0bf9a495009a44944450a4c009927fcc53aa19b324",
+    "test/integration/personal_data_hub/client_core_interop.dart": "e1c2454a47ae16d18ae916d53731b98623c0cbf637aa093cf3dfb007b5575661"
+  },
+  "crash_evidence": {
+    "actual_os_killed_sqlite_children": 9,
+    "host": "Windows Dart VM",
+    "actual_app_database_transactions": true,
+    "not_android_device_evidence": true
+  },
+  "production_services_changed": false,
+  "phone_installed": false,
+  "domain_authority_switched": false,
+  "open_boundaries": [
+    "W4/W5 pages, widget tests and configuration/needs_resolution UI",
+    "per-domain business adapters and dedup retirement",
+    "explicit owner credentials, companion grants and real capture extraction trigger",
+    "7-day shadow counts, rollback and authorized per-domain cutover",
+    "Android device background/OS kill and multi-process App gates"
+  ],
+  "git_blob_binding": {
+    "lib/agent/built_in_tools/memory_v3_query_tool.dart": {
+      "raw_sha256": "f17209c5c81e04f0e0ea67ef44a47d236333bbe9f3f12a8702c350052e4e2f75",
+      "staged_blob_sha256": "0d18527502d7d40e5b45bbcdf1c87753fd5f434f0467fcc54d13c17fdb2b8ab0",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/agent/built_in_tools/memory_v3_update_card_tool.dart": {
+      "raw_sha256": "8da57e6db72279c18f709dcd218e91184c345d2b44ff1f64e1e48b92b1febb6a",
+      "staged_blob_sha256": "70804bd6dbccb1a91dbfedad9c51b64a8297186c1fc962a05d207fa2a6e83ed4",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/config/dependencies.dart": {
+      "raw_sha256": "f79de6608db1845cc23cc8fe628fca53a9e3a8b723b13ed56255d5842155c007",
+      "staged_blob_sha256": "bfeb28d9cdd6a7fac2c67af75d0056d2473ed7e8dd19a29611a367398ba1e50b",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/memory_v3/services/record_organizer_service.dart": {
+      "raw_sha256": "eb052a7e5f4734a65c0ddf04109c7e32c4fdf56f5e90ddfd0ca685c0419491c6",
+      "staged_blob_sha256": "735ad9c90d0d29b8a8791faac4150066700b694043dbc0c52662c48413ae73d0",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/personal_data_hub/capture_consumer.dart": {
+      "raw_sha256": "c1bd580b17c56bec5ea534b9f2c86b5843a413ab03ff5b20c461b01121b3b601",
+      "staged_blob_sha256": "12ead993bbf74b847e28a25a2fd8a671ffe4d08b792ca927fcf327f368ebb5ee",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/personal_data_hub/domain_http_transport.dart": {
+      "raw_sha256": "49cca551f572231b8430f8b0c51e424aa0627cf0277d64cea8e448aa894be687",
+      "staged_blob_sha256": "711d32d99bc45f6171aa5475f78d96621eef4f169d6f244d98657dfebb3183eb",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/personal_data_hub/domain_protocol.dart": {
+      "raw_sha256": "4c3e825ff4c78caa5caa9f780bd9583c58bfaeb2e27174af2538baeedf053741",
+      "staged_blob_sha256": "3716fd217d97aadd73b49acccb005f6b4d9120fe04f43e18f730505087783c89",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/personal_data_hub/domain_store.dart": {
+      "raw_sha256": "c02d6b9f48a661b8b811f5cfa810806f6c68f5ba10b94b1a1525318be8db3330",
+      "staged_blob_sha256": "3de23d584d3f01e9440d2957e63188030604237e40d261d47e2306dc00c2036b",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/personal_data_hub/domain_sync_engine.dart": {
+      "raw_sha256": "c9bdba280fe270c1da88f921316576d6200e8ae485abf120ec04800c1a915ccd",
+      "staged_blob_sha256": "3dfcdb15fce316c66c2be5faa612245934b6e23c4a234d94fa29f70f1b12098b",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/personal_data_hub/personal_data_hub.dart": {
+      "raw_sha256": "b3d83d2943c5fbefcbe9a14c3a92aa59b15fbee2e867796458ff747979516516",
+      "staged_blob_sha256": "79fd6c37b4b3a90fd75264dff23a5b6738f24e42a25bbc603e3c96313516417c",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/services/persona_chat_service.dart": {
+      "raw_sha256": "e3b788b6e1b4ccd3a8d5af5b867f4397efac46b938d5f61392a0a00b452443cf",
+      "staged_blob_sha256": "e3b788b6e1b4ccd3a8d5af5b867f4397efac46b938d5f61392a0a00b452443cf",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "lib/data/services/sync/core_sync_engine.dart": {
+      "raw_sha256": "0973b8315f42e406ffd83f9fe7561cc939fc2ec5a4dda8e762c9c1c2f80872f4",
+      "staged_blob_sha256": "db91306b44281b6064e0f5e09f21364e7f104228b6418e7a25536c7b3760b813",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/data/services/sync/core_sync_runtime_service.dart": {
+      "raw_sha256": "2d6b139e77ca5a19e79ec120777cc8716628006a7c6f0467fb70b725d8678b78",
+      "staged_blob_sha256": "4db5523af4aca5c58da1a26ae526f3074cdce7d55f37c94fed95e65017d83ab6",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "lib/ui/companion/view_models/schedule_view_model.dart": {
+      "raw_sha256": "d08359471717421ceeedd62893f509be1f4a4590ccb64fc4c7fa279e0a5d34a6",
+      "staged_blob_sha256": "2a0223936beaf90cfc8590c19a95f386bb1a451673270c2087e0bc36468907aa",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "test/data/memory_v3/services/record_organizer_service_test.dart": {
+      "raw_sha256": "1354b349226717d43acddbd88dc3a87ebec556275cc634e3e61e27207de652fc",
+      "staged_blob_sha256": "7a1d7b1533269e88955c5f14b66bb575fa9879ff6572cb20dee8a84aa888f3eb",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "test/data/personal_data_hub/app_integration_test.dart": {
+      "raw_sha256": "8667e68a6d72bc46a2c0fc250ced0175662cdfd3870813f3790bc4b71ab0dd71",
+      "staged_blob_sha256": "83332ef4e3bb4f14e05424037f42b5a96ede6d9130e732a11c312796c70044be",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "test/data/personal_data_hub/crash_worker.dart": {
+      "raw_sha256": "a5bb21727df5ef49eddf76b8a1fe76948240be1c3a8d61577ebe6edcaac96a30",
+      "staged_blob_sha256": "564d12dacca7ac728d7c12b9ea7c76ba8e265a34a1fa2e65d3571fecc8d7ace4",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "test/data/personal_data_hub/domain_protocol_test.dart": {
+      "raw_sha256": "5705465b8dc4d41633d3b28990e5fd1c218b1e21095dd9dc5cc343e72619ef18",
+      "staged_blob_sha256": "5705465b8dc4d41633d3b28990e5fd1c218b1e21095dd9dc5cc343e72619ef18",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "test/data/personal_data_hub/domain_sync_test.dart": {
+      "raw_sha256": "6b52c5e0dd29702b1e6206fa969310c3efecc397043f52059cb80d5da0e45ce8",
+      "staged_blob_sha256": "086fc30f84e66fb0a9b4ef2f2a30e05f1ab004a1b5a7f16eddb3553afa522457",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    },
+    "tools/personal_data_hub/node_core_domain_fixture.mjs": {
+      "raw_sha256": "97de91abceaf3a5d7b009a0bf9a495009a44944450a4c009927fcc53aa19b324",
+      "staged_blob_sha256": "97de91abceaf3a5d7b009a0bf9a495009a44944450a4c009927fcc53aa19b324",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "test/integration/personal_data_hub/client_core_interop.dart": {
+      "raw_sha256": "e1c2454a47ae16d18ae916d53731b98623c0cbf637aa093cf3dfb007b5575661",
+      "staged_blob_sha256": "bff5c57ff6f678b9f4b8a22f010f7715efc6a13b94714ccd2d887e11268e2d95",
+      "same_bytes": false,
+      "eol_normalization_only": true
+    }
+  },
+  "eol_only_files": 18
+}

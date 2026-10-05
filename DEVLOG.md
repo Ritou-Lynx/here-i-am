@@ -1,3 +1,14 @@
+## 2026-10-05 — 手机领域基础与真实 Core 互通验收
+
+**源码**：基于W1合并及W2 PR#9已验a00112e8；通用outbox/副本/cursor/开关、companion队列、actor更正、显式capture消费与召回接线。
+**复核**：修复wire毫秒、canonical数字、稀疏merge回执/目标存活、正文/provenance清理及旧回执/完成后merge目标版本下限；未改旧强断言。
+**验证**：主窗114/114，含9个真实OS-kill SQLite边界和AppDatabase事务；相关分析无问题，19源码测试前后守卫一致。
+**互通**：实际Dart/Node HTTP 5/5，含接受后丢响应、两页snapshot、丢merge回执、完成后新入队base7→8及永久墓碑；21源码绑定。
+**边界**：默认空配置/phone，不启用业务或改运行库；页面、全部业务adapter、模型触发、影子对账/回滚和真机Gate尚未完成。
+**下游**：W3领域MCP、W4捕获页/入口、W5今日/本周页按约定可并行源码实现；现役MCP/Core部署须先对齐并保全固定v4功能。
+**交接**：[手机基础主窗验收](docs/development/handoffs/W7_FOUNDATION_MAIN_ACCEPTANCE_20261005.md)。
+
+---
 ## 2026-10-05 — W1 合入与 W2 四业务域源码验收
 
 **主线**：42旧失败修复PR#7合入38ed6b88；W1 PR#8五类head检查全过，普通合入dc29fd5e，合并树等于已测树。
