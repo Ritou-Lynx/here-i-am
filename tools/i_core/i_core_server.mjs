@@ -11,6 +11,7 @@ import {
   preflightActivityCommitmentVersion,
   preflightAuthoritySecretSeparation,
   verifyActivityRecoveryCandidate,
+  isExternalFrontendDevice,
 } from './i_core_store.mjs';
 import { ACTIVITY_MAX_REQUEST_BYTES } from './activity_control_plane.mjs';
 import {
@@ -83,6 +84,18 @@ function requireProtocol(request) {
       { status: 426 },
     );
   }
+}
+
+function requireFeedReader(request, store) {
+  const device = requireDevice(request, store);
+  if (isExternalFrontendDevice(device)) {
+    throw new CoreStoreError(
+      'chat_read_forbidden',
+      'External frontend credentials can only append turns.',
+      { status: 403 },
+    );
+  }
+  return device;
 }
 
 function requireDevice(request, store) {
@@ -415,7 +428,7 @@ export function createICoreServer({
         return;
       }
       if (request.method === 'GET' && url.pathname === '/v1/core/changes') {
-        requireDevice(request, store);
+        requireFeedReader(request, store);
         const cursor = url.searchParams.get('cursor') ?? store.encodeCursor(0);
         const limitRaw = url.searchParams.get('limit') ?? '100';
         if (!/^\d+$/.test(limitRaw)) {
@@ -425,7 +438,7 @@ export function createICoreServer({
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/devices/ack') {
-        const device = requireDevice(request, store);
+        const device = requireFeedReader(request, store);
         json(response, 200, store.acknowledgeCursor(device.device_id, await readJson(request)));
         return;
       }
