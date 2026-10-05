@@ -25,15 +25,33 @@ const fixtureBinding = DomainBinding(
     principalId: 'phone-test',
     generation: 1,
     installationId: 'installation-test');
+void publishReady(String file, String content) {
+  final temporary = File('$file.ready.tmp');
+  temporary.writeAsStringSync(content, flush: true);
+  // The handle has closed before this same-directory atomic publication.
+  temporary.renameSync('$file.ready');
+}
+
 Future<void> main(List<String> args) async {
   final db = CrashDatabase(File(args[0]));
   final store = DomainStore(db, binding: fixtureBinding, testFault: (point) {
     if (point == args[1]) {
       // The parent kills this process while SQLite is open (with/without txn).
-      File('${args[0]}.ready').writeAsStringSync('$point:$pid', flush: true);
+      publishReady(args[0], '$point:$pid');
       sleep(const Duration(seconds: 45));
     }
   });
+  if (args[2].startsWith('fixture_')) {
+    await db.customSelect('SELECT 1').get();
+    stdout.writeln('crash-writer:$pid');
+    await stdout.flush();
+    if (args[2] == 'fixture_bad_ready') publishReady(args[0], 'malformed');
+    sleep(const Duration(seconds: 45));
+    await db.close();
+    return;
+  }
+  stdout.writeln('crash-writer:$pid');
+  await stdout.flush();
   if (args[2] == 'enqueue') {
     await store.configureRoute('example', DomainRoute.core);
     await store.enqueue('example',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as path;
@@ -11,24 +12,126 @@ import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
 import 'package:memex/db/app_database.dart';
 import 'crash_worker.dart' show CrashDatabase, fixtureBinding;
 
-/// Verify that the OS killed the SQLite writer, including Windows Dart's child VM.
-Future<void> terminateCrashProcess(
-    Process process, File ready, String point) async {
-  final evidence = ready.readAsStringSync().split(':');
-  expect(evidence.first, point);
-  final writerPid = int.parse(evidence.last);
-  expect(writerPid, greaterThan(0));
-  if (Platform.isWindows) {
-    final result =
-        await Process.run('taskkill', ['/PID', '${process.pid}', '/T', '/F']);
-    expect(result.exitCode, 0, reason: '${result.stdout} ${result.stderr}');
-    expect('${result.stdout}', contains('$writerPid'),
-        reason: 'OS receipt must include the actual SQLite writer');
-  } else {
-    expect(writerPid, process.pid);
-    expect(process.kill(), true);
+/// Keep the first failure visible even when releasing a fixture also fails.
+Future<T> withCrashCleanup<T>(
+    Future<T> Function() action, Future<void> Function() cleanup) async {
+  Object? primary;
+  StackTrace? primaryStack;
+  try {
+    return await action();
+  } catch (error, stack) {
+    primary = error;
+    primaryStack = stack;
+    rethrow;
+  } finally {
+    try {
+      await cleanup();
+    } catch (error, stack) {
+      if (primary != null) {
+        Error.throwWithStackTrace(
+            StateError(
+                '$primary\nAdditional fixture cleanup failure: $error\n$stack'),
+            primaryStack!);
+      }
+      rethrow;
+    }
   }
-  await process.exitCode.timeout(const Duration(seconds: 10));
+}
+
+/// Identity comes from the launched writer's stdout, independently of ready.
+Future<void> runCrashProcess(File file, String point, String mode,
+    {Duration readyTimeout = const Duration(seconds: 30),
+    void Function(int writerPid, String osReceipt)? onTerminated}) async {
+  final process = await Process.start(resolveCrashDart(), [
+    '--disable-dart-dev',
+    'test/data/personal_data_hub/crash_worker.dart',
+    file.path,
+    point,
+    mode
+  ]);
+  final output = StringBuffer();
+  final writer = Completer<int>();
+  int? writerPid;
+  var exited = false;
+  final exit = process.exitCode.then((code) {
+    exited = true;
+    return code;
+  });
+  final stdoutDone = process.stdout
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .forEach((line) {
+    output.writeln(line);
+    if (line.startsWith('crash-writer:') && !writer.isCompleted) {
+      writerPid = int.parse(line.substring('crash-writer:'.length));
+      writer.complete(writerPid);
+    }
+  });
+  final stderrDone =
+      process.stderr.transform(utf8.decoder).forEach(output.write);
+  await withCrashCleanup(() async {
+    final actualWriter =
+        await writer.future.timeout(const Duration(seconds: 30));
+    expect(actualWriter, greaterThan(0));
+    final ready = File('${file.path}.ready');
+    final elapsed = Stopwatch()..start();
+    while (!ready.existsSync() && !exited && elapsed.elapsed < readyTimeout) {
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    if (!ready.existsSync()) {
+      fail('Crash fixture did not reach $point: $output');
+    }
+    final evidence = ready.readAsStringSync().split(':');
+    expect(evidence, hasLength(2), reason: 'Complete atomic ready receipt');
+    expect(evidence.first, point);
+    expect(int.parse(evidence.last), actualWriter,
+        reason: 'Ready identity must match this launched writer');
+  }, () async {
+    String osReceipt = '';
+    int? killCode;
+    // Wait and drain even if OS invocation or receipt assertions fail.
+    await withCrashCleanup(() async {
+      if (Platform.isWindows) {
+        final result = await Process.run(
+            'taskkill', ['/PID', '${process.pid}', '/T', '/F']);
+        killCode = result.exitCode;
+        osReceipt = '${result.stdout} ${result.stderr}';
+        // A launcher can exit before its VM. Only target this launched writer.
+        if (writerPid != null && !osReceipt.contains('$writerPid')) {
+          final child =
+              await Process.run('taskkill', ['/PID', '$writerPid', '/T', '/F']);
+          osReceipt += '\n${child.stdout} ${child.stderr}';
+          if (child.exitCode == 0) killCode = 0;
+        }
+      } else {
+        expect(writerPid, process.pid);
+        expect(process.kill(ProcessSignal.sigkill), true);
+      }
+    }, () async {
+      await Future.wait([exit.then<void>((_) {}), stdoutDone, stderrDone])
+          .timeout(const Duration(seconds: 10));
+    });
+    if (Platform.isWindows) {
+      // Launcher exit alone is not proof of actual VM termination.
+      if (writerPid != null) {
+        final wait = await Process.run('powershell.exe', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          '\$p=Get-Process -Id $writerPid -ErrorAction SilentlyContinue; '
+              'if (\$null -ne \$p -and !\$p.WaitForExit(10000)) { exit 1 }; exit 0'
+        ]);
+        expect(wait.exitCode, 0, reason: 'Actual SQLite writer must exit');
+      }
+      expect(killCode, 0, reason: osReceipt);
+      expect(writerPid, isNotNull, reason: 'Actual writer identity required');
+      expect(osReceipt, contains('$writerPid'),
+          reason: 'OS receipt must include the actual SQLite writer');
+    }
+    printOnFailure('Crash fixture $point: launcher=${process.pid}; '
+        'writer=$writerPid; exit=${await exit}; output=closed; OS=$osReceipt');
+    onTerminated?.call(writerPid!, osReceipt);
+  });
 }
 
 Future<void> deleteCrashFixture(Directory directory) async {
@@ -1518,11 +1621,59 @@ void main() {
     });
   }
 
+  test('crash fixture retains primary error when cleanup also fails', () async {
+    await expectLater(
+        withCrashCleanup(() async => throw StateError('primary-ready-failure'),
+            () async => throw StateError('secondary-cleanup-failure')),
+        throwsA(isA<StateError>().having(
+            (e) => e.message,
+            'first error followed by cleanup evidence',
+            allOf(
+                contains('primary-ready-failure'),
+                contains('Additional fixture cleanup failure'),
+                contains('secondary-cleanup-failure')))));
+  });
+
+  for (final mode in ['fixture_no_ready', 'fixture_bad_ready']) {
+    test('crash fixture $mode preserves first failure and terminates writer',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('w7-crash-failure-');
+      await withCrashCleanup(() async {
+        final file = File('${directory.path}/failure.sqlite');
+        int? stoppedWriter;
+        String? receipt;
+        await expectLater(
+            runCrashProcess(file, 'failure-point', mode,
+                readyTimeout: const Duration(milliseconds: 300),
+                onTerminated: (writer, evidence) {
+              stoppedWriter = writer;
+              receipt = evidence;
+            }),
+            throwsA(isA<TestFailure>().having(
+                (e) => e.message,
+                'first failure',
+                contains(mode == 'fixture_no_ready'
+                    ? 'Crash fixture did not reach'
+                    : 'Complete atomic ready receipt'))));
+        expect(stoppedWriter, greaterThan(0));
+        if (Platform.isWindows) expect(receipt, contains('$stoppedWriter'));
+        // SQLite was opened before the failure-mode handshake.
+        final reopened = CrashDatabase(file);
+        await withCrashCleanup(() async {
+          expect(await reopened.customSelect('SELECT 1 AS alive').getSingle(),
+              isNotNull);
+        }, reopened.close);
+      }, () => deleteCrashFixture(directory));
+      expect(directory.existsSync(), false);
+    });
+  }
+
   test('A20 OS-killed SQLite processes preserve only full before/after states',
       () async {
     final directory =
         await Directory.systemTemp.createTemp('w7-crash-synthetic-');
-    try {
+    await withCrashCleanup(() async {
       for (final point in [
         'enqueue_before_commit',
         'enqueue_after_commit',
@@ -1557,29 +1708,7 @@ void main() {
                 : point.startsWith('snapshot')
                     ? 'snapshot'
                     : 'enqueue';
-        final process = await Process.start(resolveCrashDart(), [
-          '--disable-dart-dev',
-          'test/data/personal_data_hub/crash_worker.dart',
-          file.path,
-          point,
-          mode
-        ]);
-        final errors = StringBuffer();
-        process.stdout.transform(utf8.decoder).listen(errors.write);
-        process.stderr.transform(utf8.decoder).listen(errors.write);
-        var exited = false;
-        process.exitCode.then((_) {
-          exited = true;
-        });
-        final ready = File('${file.path}.ready');
-        for (var i = 0; i < 300 && !ready.existsSync() && !exited; i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-        }
-        if (!ready.existsSync()) {
-          process.kill();
-          fail('Crash fixture did not reach $point: $errors');
-        }
-        await terminateCrashProcess(process, ready, point);
+        await runCrashProcess(file, point, mode);
         local = CrashDatabase(file);
         durable = DomainStore(local, binding: fixtureBinding);
         late Json after;
@@ -1606,8 +1735,6 @@ void main() {
           expect(after, before, reason: point);
         }
       }
-    } finally {
-      await deleteCrashFixture(directory);
-    }
+    }, () => deleteCrashFixture(directory));
   }, timeout: const Timeout(Duration(minutes: 3)));
 }
