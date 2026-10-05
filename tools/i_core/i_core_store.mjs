@@ -492,6 +492,8 @@ export class ICoreStore {
     domainVerifyAuthorization = undefined,
     domainTestOnlyFault = undefined,
     domainDedupHooks = undefined,
+    domainHooks = undefined,
+    domainVerifyLegacyAdoption = undefined,
   } = {}) {
     preflightActivityCommitmentVersion(databasePath);
     if (activityRecoveryFloor) {
@@ -541,6 +543,8 @@ export class ICoreStore {
           ...(domainVerifyAuthorization === undefined ? {} : { verifyAuthorization: domainVerifyAuthorization }),
           ...(domainTestOnlyFault === undefined ? {} : { testOnlyFault: domainTestOnlyFault }),
           ...(domainDedupHooks === undefined ? {} : { dedupHooks: domainDedupHooks }),
+          ...(domainHooks === undefined ? {} : { domainHooks }),
+          ...(domainVerifyLegacyAdoption === undefined ? {} : { verifyLegacyAdoption: domainVerifyLegacyAdoption }),
         });
         if (this.companionReplyJobsEnabled && this.#phoneOwnsCharacter(this.#metadata('domain_primary_character_id'))) {
           throw new CoreStoreError('companion_executor_conflict', 'Phone ownership requires Core reply production to remain disabled.', { status: 409 });

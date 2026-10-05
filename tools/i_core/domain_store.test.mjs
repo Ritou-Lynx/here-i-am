@@ -10,12 +10,12 @@ import { DOMAIN_SCHEMA_SQL } from './domain_schema.mjs';
 const start=Date.parse('2026-10-05T00:00:00.000Z');
 const schema={version:1,fields:{title:{type:'string',required:true},note:{type:'string',nullable:true},amount:{type:'number'},currency:{type:'string'},status:{type:'string',enum:['open','done','cancelled']},links:{type:'array'},planner:{type:'object'},organizer:{type:'object'}},groups:{money:['amount','currency']},statusFields:['status'],referenceFields:['links'],processors:{planner:['planner'],organizer:['organizer']},dedupFields:['title'],immediateDeleteSources:['immediate']};
 const all=['read','create','patch','status','ack','delete','restore','merge','purge'];
-function fixture(t,{file=false,verification=true,mode='authoritative'}={}){
- const dir=file?mkdtempSync(path.join(tmpdir(),'i-domain-synthetic-')):null;const name=file?path.join(dir,'fixture.sqlite'):':memory:';let db=new DatabaseSync(name);db.exec("CREATE TABLE core_metadata(key TEXT PRIMARY KEY,value TEXT);INSERT INTO core_metadata VALUES('schema_version','6'),('node_id','core-test'),('cursor_secret','synthetic-secret-only');");db.exec(DOMAIN_SCHEMA_SQL);let now=start;const options={nodeId:'core-test',cursorSecret:'synthetic-secret-only',clock:()=>now,verifyAuthorization:verification?({request,authorizationRef,targets})=>authorizationRef==='bound:'+request.op_id&&targets.every(x=>x.id):null};let store=new DomainStore(db,options);store.registerDomain('example',schema,{mode});
+function fixture(t,{file=false,verification=true,mode='authoritative',domainHooks={},requiredHooksVersion=null,serverDerivedFields=[],extraFields={},testOnlyFault=null}={}){
+ const dir=file?mkdtempSync(path.join(tmpdir(),'i-domain-synthetic-')):null;const name=file?path.join(dir,'fixture.sqlite'):':memory:';let db=new DatabaseSync(name);db.exec("CREATE TABLE core_metadata(key TEXT PRIMARY KEY,value TEXT);INSERT INTO core_metadata VALUES('schema_version','6'),('node_id','core-test'),('cursor_secret','synthetic-secret-only');");db.exec(DOMAIN_SCHEMA_SQL);let now=start;const options={domainHooks,testOnlyFault,nodeId:'core-test',cursorSecret:'synthetic-secret-only',clock:()=>now,verifyAuthorization:verification?({request,authorizationRef,targets})=>authorizationRef==='bound:'+request.op_id&&targets.every(x=>x.id):null};let store=new DomainStore(db,options);store.registerDomain('example',{...schema,fields:{...schema.fields,...extraFields}},{mode,requiredHooksVersion,serverDerivedFields});
  const principal=(id='agent',extra={})=>{const issued=store.configurePrincipal({principal_id:id,device_id:'device-'+id,installation_id:'install-'+id,scopes:all.map(a=>'example:'+a),actors:id==='user'?['user_direct','user_via_agent']:['agent_inferred','import'],trusted_interactive:id==='user',import_sources:['fixture'],...extra});return {p:store.authenticate(issued.token),...issued};};
  const a=principal(),u=principal('user');const intent=(kind='create',overrides={})=>{const op={domain_protocol_version:1,core_instance_id:'core-test',op_id:randomUUID(),schema_version:1,kind,id:randomUUID(),base_revision:kind==='create'?0:1,created_at:new Date(now).toISOString(),expires_at:new Date(now+DOMAIN_POLICY.intentTtl).toISOString(),actor:'agent_inferred',...(kind==='create'?{data:{title:randomUUID(),note:null,status:'open',links:[]},provenance:{source:'fixture',source_refs:[],import_batch_id:null}}:{}),...overrides};if(['user_direct','user_via_agent'].includes(op.actor)&&!Object.hasOwn(overrides,'authorization_ref'))op.authorization_ref='bound:'+op.op_id;return op;};
  t.after(()=>{db.close();if(dir)rmSync(dir,{recursive:true,force:true});});
- return {get db(){return db;},get s(){return store;},a,u,principal,intent,tick(ms){now+=ms;},submit(op,p=a.p){return store.submit(p,'example',op);},make(data={},actor='agent_inferred'){const op=intent('create',{data:{title:randomUUID(),note:null,status:'open',links:[],...data},actor});const result=store.submit(actor==='agent_inferred'?a.p:u.p,'example',op);assert.equal(result.status,201,JSON.stringify(result));return {op,r:result.body.record,result};},get(id,p=a.p){return store.getRecord(p,'example',id,'core-test');},snapshot(p=a.p,query={}){return store.snapshot(p,'example',{core_instance_id:'core-test',...query});},counts(){return ['domain_records','domain_receipts','domain_changes'].map(table=>db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n);},reopen(){db.close();db=new DatabaseSync(name);store=new DomainStore(db,options);}};
+ return {get db(){return db;},get s(){return store;},a,u,principal,intent,tick(ms){now+=ms;},submit(op,p=a.p){return store.submit(p,'example',op);},make(data={},actor='agent_inferred'){const op=intent('create',{data:{title:randomUUID(),note:null,status:'open',links:[],...data},actor});const result=store.submit(actor==='agent_inferred'?a.p:u.p,'example',op);assert.equal(result.status,201,JSON.stringify(result));return {op,r:result.body.record,result};},get(id,p=a.p){return store.getRecord(p,'example',id,'core-test');},snapshot(p=a.p,query={}){return store.snapshot(p,'example',{core_instance_id:'core-test',...query});},counts(){return ['domain_records','domain_receipts','domain_changes'].map(table=>db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n);},reopen(overrides={}){db.close();db=new DatabaseSync(name);store=new DomainStore(db,{...options,...overrides});}};
 }
 const reason=r=>r.body.error?.code??r.body.reason;
 const patch=(f,id,base,data,actor='agent_inferred')=>f.intent('patch',{id,base_revision:base,patch:data,actor});
@@ -81,3 +81,148 @@ test('consumer cache keys remain distinct for opaque identities containing delim
 
 test('historical merge lookup requires its full original scope and reference-field footprint',t=>{const f=fixture(t);const source=f.make({title:'source'}).r,target=f.submit(f.intent('create',{data:{title:'target',note:null,status:'open'}})).body.record,reference=f.make({links:[source.id]}).r;const op=mergeIntent(f,source,target,[{id:reference.id,base_revision:1,patch:{links:[target.id]}}],{...target.data,title:'merged'});assert.equal(f.submit(op,f.u.p).status,201);const meta=JSON.parse(f.db.prepare('SELECT op_meta_json FROM domain_ops WHERE op_id=?').get(op.op_id).op_meta_json);assert.deepEqual(meta.required_scopes,['read','patch','delete','merge']);assert.deepEqual(meta.target_fields.find(x=>x.id===reference.id).fields,['links']);assert.ok(!meta.fields.includes('links'));assert.ok(!meta.target_fields.find(x=>x.id===target.id).fields.includes('links'));assert.deepEqual(new Set(meta.target_fields.map(x=>x.id)),new Set([source.id,target.id,reference.id]));const rotate=config=>{const credential=f.s.configurePrincipal({principal_id:'user',device_id:'device-user',installation_id:'install-user',actors:['user_direct'],trusted_interactive:true,...config});return f.s.authenticate(credential.token);};const mergeOnly=rotate({scopes:['example:merge']});const deniedScopes=f.s.getOperation(mergeOnly,'example',op.op_id,'core-test');assert.equal(deniedScopes.status,403);assert.equal(reason(deniedScopes),'scope_forbidden');assert.equal(reason(f.submit(op,mergeOnly)),'scope_forbidden');for(const id of [source.id,target.id,reference.id])assert.ok(!JSON.stringify(deniedScopes).includes(id));const deniedReference=rotate({scopes:all.map(action=>'example:'+action),fields:{example:Object.keys(schema.fields).filter(field=>field!=='links')}});const deniedFields=f.s.getOperation(deniedReference,'example',op.op_id,'core-test');assert.equal(deniedFields.status,403);assert.equal(reason(deniedFields),'scope_forbidden');assert.equal(reason(f.submit(op,deniedReference)),'scope_forbidden');for(const id of [source.id,target.id,reference.id])assert.ok(!JSON.stringify(deniedFields).includes(id));const allowed=rotate({scopes:all.map(action=>'example:'+action),fields:{example:Object.keys(schema.fields)}});assert.equal(f.s.getOperation(allowed,'example',op.op_id,'core-test').status,200);});
 test('historical purge lookup still requires delete scope after credential rotation',t=>{const f=fixture(t),{r}=f.make();assert.equal(f.submit(user(f,'delete',r.id,1),f.u.p).status,201);const purge=user(f,'purge',r.id,2);assert.equal(f.submit(purge,f.u.p).status,201);const meta=JSON.parse(f.db.prepare('SELECT op_meta_json FROM domain_ops WHERE op_id=?').get(purge.op_id).op_meta_json);assert.deepEqual(meta.required_scopes,['delete','purge']);const token=f.s.configurePrincipal({principal_id:'user',device_id:'device-user',installation_id:'install-user',actors:['user_direct'],trusted_interactive:true,scopes:['example:purge']});const principal=f.s.authenticate(token.token);const result=f.s.getOperation(principal,'example',purge.op_id,'core-test');assert.equal(reason(f.submit(purge,principal)),'scope_forbidden');assert.equal(result.status,403);assert.equal(reason(result),'scope_forbidden');assert.ok(!JSON.stringify(result).includes(r.id));assert.equal(result.body.receipt,undefined);});
+
+
+const policyHook = (overrides={}) => ({version:'synthetic-business-v1',authorizeOperation:()=>true,validateTransition:()=>true,...overrides});
+function policyFixture(t,hook=policyHook(),options={}) {
+ return fixture(t,{domainHooks:{example:hook},requiredHooksVersion:hook.version,...options});
+}
+const derivedFixture=(t,hook,options={})=>policyFixture(t,hook,{serverDerivedFields:['completed_at'],extraFields:{completed_at:{type:'string',nullable:true}},...options});
+const operationCount=f=>f.db.prepare('SELECT COUNT(*) n FROM domain_ops').get().n;
+
+test('W2 required business hook version persists and a missing bundle fails per-domain reads/writes/replay',t=>{
+ const f=policyFixture(t,policyHook(),{file:true});const created=f.make();const before=f.counts();
+ f.reopen({domainHooks:{}});
+ assert.equal(reason(f.get(created.r.id)),'schema_not_ready');
+ assert.equal(reason(f.submit(created.op)),'schema_not_ready');
+ assert.equal(reason(f.s.getOperation(f.a.p,'example',created.op.op_id,'core-test')),'schema_not_ready');
+ assert.deepEqual(f.counts(),before);assert.ok(f.s.authenticate(f.a.token));
+ f.reopen({domainHooks:{example:policyHook({version:'different'})}});assert.equal(reason(f.get(created.r.id)),'schema_not_ready');
+ f.reopen();assert.equal(f.get(created.r.id).status,200);
+ assert.equal(JSON.parse(f.db.prepare('SELECT schema_json FROM domain_registry').get().schema_json).requiredHooksVersion,'synthetic-business-v1');
+});
+
+test('W2 callbacks reject throw, Promise and malformed results without terminal operation or accepted writes',t=>{
+ for(const part of ['authorizeOperation','validateTransition'])for(const bad of [()=>{throw new Error('private hook detail');},()=>Promise.resolve(true),()=>({unexpected:true})]){
+  const f=policyFixture(t,policyHook({[part]:bad}));const op=f.intent();const before=f.counts();
+  assert.equal(reason(f.submit(op)),'schema_not_ready');assert.deepEqual(f.counts(),before);assert.equal(operationCount(f),0);
+ }
+});
+
+test('W2 hook input is deeply immutable and reentrant engine access fails closed',t=>{
+ const hook=policyHook({authorizeOperation:ctx=>{ctx.request.data.title='host mutation';return true;}});const f=policyFixture(t,hook);const op=f.intent();
+ assert.equal(reason(f.submit(op)),'schema_not_ready');assert.notEqual(op.data.title,'host mutation');assert.equal(operationCount(f),0);
+ hook.authorizeOperation=()=>{f.s.configurePrincipal({principal_id:'bad'});return true;};assert.equal(reason(f.submit(op)),'schema_not_ready');
+});
+
+test('W2 final validation sees merged complete data and rejects nested/date constraints atomically',t=>{
+ const hook=policyHook({validateTransition:({next})=>next.deleted_at||!next.data.planner||next.data.planner.valid===true});
+ const f=policyFixture(t,hook),{r}=f.make({planner:{valid:true},note:'before'});const before=f.counts();
+ const bad=patch(f,r.id,1,{planner:{valid:false},note:'must roll back'});assert.equal(reason(f.submit(bad)),'invalid_request');
+ assert.deepEqual(f.counts(),before);assert.equal(f.get(r.id).body.record.data.note,'before');
+});
+
+test('W2 status derivation uses authorized offline action time, keeps Core acceptance time and denies injected fields',t=>{
+ let derivations=0;const hook=policyHook({
+  authorizeOperation:ctx=>ctx.kind!=='status'||ctx.phase==='lookup'?ctx.phase!=='lookup'||ctx.operation.kind!=='status'||ctx.matchesOperationValue('status','done'):ctx.request.patch.status==='done',
+  deriveFields:({request})=>{derivations++;return {completed_at:request.created_at};},
+  validateTransition:({next})=>next.data.status!=='done'||typeof next.data.completed_at==='string',
+ });
+ const f=derivedFixture(t,hook),{r}=f.make({completed_at:null});const phone=f.principal('user',{scopes:['example:read','example:status'],fields:{example:['status']}});
+ const op=user(f,'status',r.id,1,{patch:{status:'done'}});f.tick(3600000);const result=f.submit(op,phone.p);
+ assert.equal(result.status,201,JSON.stringify(result));assert.equal(result.body.record.data.completed_at,op.created_at);assert.notEqual(result.body.receipt.accepted_at,op.created_at);assert.equal(derivations,1);
+ assert.equal(f.s.getOperation(phone.p,'example',op.op_id,'core-test').status,200);
+ assert.equal(f.submit(op,phone.p).body.outcome,'duplicate');assert.equal(derivations,1);
+ const injected=user(f,'status',r.id,2,{patch:{status:'done',completed_at:new Date(start).toISOString()}});assert.equal(reason(f.submit(injected,phone.p)),'scope_forbidden');
+ assert.equal(reason(f.submit(user(f,'status',r.id,2,{patch:{status:'open'}}),phone.p)),'scope_forbidden');
+ hook.authorizeOperation=()=>false;assert.equal(reason(f.submit(op,phone.p)),'scope_forbidden');assert.equal(reason(f.s.getOperation(phone.p,'example',op.op_id,'core-test')),'scope_forbidden');
+});
+
+test('W2 derived field conflicts roll back status and non-user/merge operations never invoke derivation',t=>{
+ let calls=0;const hook=policyHook({deriveFields:({request})=>{calls++;return {completed_at:request.created_at};}});
+ const f=derivedFixture(t,hook),{r}=f.make({completed_at:null});
+ assert.equal(f.submit(patch(f,r.id,1,{completed_at:'2026-10-05T00:01:00.000Z'},'user_direct'),f.u.p).status,201);
+ const before=f.counts();assert.equal(reason(f.submit(user(f,'status',r.id,1,{patch:{status:'done'}}),f.u.p)),'user_conflict');assert.deepEqual(f.counts(),before);assert.equal(f.get(r.id).body.record.data.status,'open');
+ const callCount=calls;assert.equal(f.submit(f.intent('status',{id:r.id,base_revision:2,patch:{status:'cancelled'}})).status,201);assert.equal(calls,callCount);
+ const target=f.make({completed_at:null});const source=f.make({completed_at:null});const merge=user(f,'merge',source.r.id,1,{target_id:target.r.id,target_base_revision:1,target_data:{...target.r.data,note:'merged'},reference_updates:[]});
+ assert.equal(f.submit(merge,f.u.p).status,201);assert.equal(calls,callCount);
+});
+
+test('W2 malformed derived fields and missing derive implementation fail closed with no terminal state',t=>{
+ for(const derive of [undefined,()=>({title:'injected'}),()=>Promise.resolve({completed_at:null}),()=>{throw new Error('private');}]){
+  const hook=policyHook({deriveFields:()=>({completed_at:null})});const f=derivedFixture(t,hook);const {r}=f.make({completed_at:null});hook.deriveFields=derive;const before=operationCount(f);
+  assert.equal(reason(f.submit(user(f,'status',r.id,1,{patch:{status:'done'}}),f.u.p)),'schema_not_ready');assert.equal(operationCount(f),before);assert.equal(f.db.prepare('SELECT revision FROM domain_records WHERE id=?').get(r.id).revision,1);
+ }
+});
+
+test('W2 processor input versions permit independent acknowledgements and preserve historical deletion references',t=>{
+ const hook=policyHook({validateTransition:({request,current,next})=>{
+  if(request.kind!=='ack_capture')return true;
+  const value=next.data[request.processor];if(value.input_revision!==current.field_meta.title.rev)return {valid:false,code:'stale_base'};
+  return {valid:true,derived_refs:value.outputs.map(id=>({domain:'target_domain',id}))};
+ }});
+ const f=policyFixture(t,hook);const {r}=f.make({},'user_direct');const planner=f.principal('processor',{processor:'planner'}),organizer=f.principal('organizer',{processor:'organizer'});
+ const ack=(who,base,input,outputs)=>f.intent('ack_capture',{id:r.id,base_revision:base,processor:who,disposition:{[who]:{status:'done',input_revision:input,outputs}}});
+ const first=ack('planner',1,1,['old-output']);assert.equal(f.submit(first,planner.p).status,201);assert.equal(f.submit(ack('organizer',1,1,[]),organizer.p).status,201);
+ assert.equal(f.submit(patch(f,r.id,3,{title:'edited original'},'user_direct'),f.u.p).status,201);
+ const before=f.counts();assert.equal(reason(f.submit(ack('planner',2,1,['stale-output']),planner.p)),'stale_base');assert.deepEqual(f.counts(),before);
+ assert.equal(f.submit(ack('planner',4,4,['new-output']),planner.p).status,201);
+ const deletion=user(f,'delete',r.id,5,{permanent:true});const removed=f.submit(deletion,f.u.p);assert.equal(removed.status,201);
+ const metadata=JSON.parse(f.db.prepare('SELECT op_meta_json FROM domain_ops WHERE op_id=?').get(deletion.op_id).op_meta_json);
+ assert.deepEqual(metadata.cascade_pending,[{domain:'target_domain',id:'new-output'},{domain:'target_domain',id:'old-output'}]);
+ assert.equal(JSON.stringify(removed).includes('old-output'),false);assert.equal(JSON.stringify(f.get(r.id)).includes('new-output'),false);
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM domain_records').get().n,1);
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM domain_op_payloads').get().n,0);
+ assert.equal(f.submit(deletion,f.u.p).body.outcome,'duplicate');
+});
+
+test('W2 user-supplied processor defaults remain locked and deleting with a failing hook rolls back scrub',t=>{
+ const hook=policyHook();const f=policyFixture(t,hook);const {r}=f.make({planner:{status:'pending'}},'user_direct');const p=f.principal('processor',{processor:'planner'});
+ const ack=f.intent('ack_capture',{id:r.id,base_revision:1,processor:'planner',disposition:{planner:{status:'done'}}});assert.equal(reason(f.submit(ack,p.p)),'user_locked');
+ const before=f.counts(),payloads=f.db.prepare('SELECT COUNT(*) n FROM domain_op_payloads').get().n;
+ hook.validateTransition=({next})=>{if(next.deleted_at)throw new Error('synthetic policy unavailable');return true;};
+ assert.equal(reason(f.submit(user(f,'delete',r.id,1,{permanent:true}),f.u.p)),'schema_not_ready');assert.deepEqual(f.counts(),before);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM domain_op_payloads').get().n,payloads);assert.equal(f.get(r.id).status,200);
+});
+
+test('W2 hook lookup requires target read scope and returns a frozen authorized projection',t=>{
+ let seen;const hook=policyHook({validateTransition:ctx=>{if(ctx.request.kind==='patch')seen=ctx.lookupRecord('example',ctx.current.id);return true;}});
+ const f=policyFixture(t,hook),{r}=f.make();const writeOnly=f.principal('limited',{scopes:['example:patch']});
+ assert.equal(f.submit(patch(f,r.id,1,{note:'write-only'}),writeOnly.p).status,201);assert.equal(seen,null);
+ assert.equal(f.submit(patch(f,r.id,2,{note:'readable'})).status,201);assert.equal(Object.isFrozen(seen.data),true);
+});
+
+
+test('W2 merge validators observe the complete final graph and any final rejection rolls back every target',t=>{
+ let reject=false,observed=false;const hook=policyHook({validateTransition:ctx=>{
+  if(ctx.request.kind!=='merge')return true;
+  if(ctx.next.id===ctx.request.target_id){
+   const reference=ctx.lookupRecord('example',ctx.request.reference_updates[0].id);
+   observed=reference.data.links[0]===ctx.request.target_id;assert.equal(observed,true);
+  }
+  return !reject;
+ }});
+ const f=policyFixture(t,hook),source=f.make(),target=f.make(),reference=f.make({links:[source.r.id]});
+ const raw=user(f,'merge',source.r.id,1,{target_id:target.r.id,target_base_revision:1,target_data:{...target.r.data,note:'new target'},reference_updates:[{id:reference.r.id,base_revision:1,patch:{links:[target.r.id]}}]});
+ const before=f.counts();reject=true;assert.equal(reason(f.submit(raw,f.u.p)),'invalid_request');assert.deepEqual(f.counts(),before);assert.equal(f.get(reference.r.id).body.record.data.links[0],source.r.id);
+ reject=false;const retry={...raw,op_id:randomUUID()};retry.authorization_ref='bound:'+retry.op_id;assert.equal(f.submit(retry,f.u.p).status,201);assert.equal(observed,true);
+});
+
+test('W2 cascade registration and source scrub roll back together at the precommit fault barrier',t=>{
+ let crash=false;const hook=policyHook({validateTransition:ctx=>ctx.request.kind==='ack_capture'?{valid:true,derived_refs:[{domain:'target_domain',id:'derived-record'}]}:true});
+ const f=policyFixture(t,hook,{testOnlyFault:phase=>{if(crash&&phase==='before_commit')throw new Error('synthetic crash');}}),{r}=f.make();const processor=f.principal('processor',{processor:'planner'});
+ assert.equal(f.submit(f.intent('ack_capture',{id:r.id,base_revision:1,processor:'planner',disposition:{planner:{status:'done'}}}),processor.p).status,201);
+ const deletion=user(f,'delete',r.id,2,{permanent:true}),before=f.counts(),ops=operationCount(f);crash=true;
+ assert.throws(()=>f.submit(deletion,f.u.p),/synthetic crash/);assert.deepEqual(f.counts(),before);assert.equal(operationCount(f),ops);assert.equal(f.get(r.id).status,200);
+ crash=false;assert.equal(f.submit(deletion,f.u.p).status,201);const metadata=JSON.parse(f.db.prepare('SELECT op_meta_json FROM domain_ops WHERE op_id=?').get(deletion.op_id).op_meta_json);assert.equal(metadata.cascade_pending.length,1);
+});
+
+test('W2 user evidence remains mandatory before trusted derived fields can run',t=>{
+ let called=false;const f=derivedFixture(t,policyHook({deriveFields:()=>{called=true;return {completed_at:'2026-10-05T00:00:00.000Z'};}}),{verification:false});
+ const {r}=f.make({completed_at:null}),before=f.counts();const forged=user(f,'status',r.id,1,{patch:{status:'done'}});
+ assert.equal(reason(f.submit(forged,f.u.p)),'actor_not_authorized');assert.equal(called,false);assert.deepEqual(f.counts(),before);
+});
+
+
+test('W2 derived-reference dedup keeps opaque domain/id tuples distinct',t=>{
+ const f=policyFixture(t,policyHook());assert.deepEqual(f.s.referenceList([{domain:'a:b',id:'c'},{domain:'a',id:'b:c'},{domain:'a:b',id:'c'}]),[{domain:'a',id:'b:c'},{domain:'a:b',id:'c'}]);
+});
