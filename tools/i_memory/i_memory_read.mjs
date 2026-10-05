@@ -119,7 +119,12 @@ export function loadPolicy(policyPath) {
     fail(`cannot parse JSON (${error.message})`);
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('root must be an object');
-  if (raw.schema_version !== 1) fail('schema_version must be 1');
+  if (![1,2].includes(raw.schema_version)) fail('schema_version must be 1 or 2');
+  // v1 compatibility is permanently restricted to its two original domains.
+  // New Core domains always use scoped HTTP; database visibility never grants access.
+  const domains = raw.schema_version === 1 && raw.domains === undefined
+    ? ['chat','memory_v3'] : stringArray(raw.domains, 'domains');
+  if(new Set(domains).size!==domains.length || domains.some(domain=>!['chat','memory_v3'].includes(domain)))fail('unsupported domain');
   if (typeof raw.primary_character_id !== 'string' || !raw.primary_character_id.trim()) {
     fail('primary_character_id must be a non-empty string');
   }
@@ -127,6 +132,7 @@ export function loadPolicy(policyPath) {
   if (!messages || typeof messages !== 'object' || Array.isArray(messages)) fail('messages must be an object');
   if (!memory || typeof memory !== 'object' || Array.isArray(memory)) fail('memory must be an object');
   return {
+    domains: new Set(domains),
     primaryCharacterId: raw.primary_character_id.trim(),
     messages: {
       default: exposure(messages.default, 'messages.default'),
@@ -360,7 +366,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
 
   return {
     policySummary() {
-      const snapshot = memoryMeta('snapshot_at_ms');
+      const snapshot = policy.domains.has('memory_v3') ? memoryMeta('snapshot_at_ms') : null;
       return {
         primaryCharacterId: policy.primaryCharacterId,
         memorySnapshotAtMs: snapshot == null ? null : Number(snapshot),
@@ -368,6 +374,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     recentMessages({ limit = 20, characterId } = {}) {
+      if(!policy.domains.has('chat'))return [];
       const id = messageCharacter(characterId);
       if (!id) return [];
       const rows = core.prepare(`
@@ -381,6 +388,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     searchMessages({ query, limit = 10, characterId } = {}) {
+      if(!policy.domains.has('chat'))return [];
       const id = messageCharacter(characterId);
       const terms = queryTerms(query);
       if (!id || terms.length === 0) return [];
@@ -407,6 +415,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     searchMemory({ query, limit = 8 } = {}) {
+      if(!policy.domains.has('memory_v3'))return [];
       const db = memoryDb();
       const terms = queryTerms(query);
       if (!db || terms.length === 0) return [];
@@ -444,6 +453,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     getMemoryCards({ ids } = {}) {
+      if(!policy.domains.has('memory_v3'))return [];
       const db = memoryDb();
       if (!db || !Array.isArray(ids) || ids.length === 0) return [];
       const unique = [...new Set(ids.filter((id) => typeof id === 'string'))].slice(0, MAX_IDS);
@@ -456,22 +466,22 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     stats() {
-      const shareableIds = [...policy.messages.shareableCharacterIds];
-      const total = Number(core.prepare('SELECT COUNT(*) AS n FROM chat_messages').get().n);
+      const shareableIds = policy.domains.has('chat') ? [...policy.messages.shareableCharacterIds] : [];
+      const total = policy.domains.has('chat') ? Number(core.prepare('SELECT COUNT(*) AS n FROM chat_messages').get().n) : 0;
       const shareable = shareableIds.length
         ? Number(core.prepare(`
             SELECT COUNT(*) AS n FROM chat_messages
             WHERE character_id IN (${shareableIds.map(() => '?').join(', ')}) ${typeFilter}
           `).get(...shareableIds, ...filterParams).n)
         : 0;
-      const db = memoryDb();
+      const db = policy.domains.has('memory_v3') ? memoryDb() : null;
       let memoryStats = { shareable: 0, private: 0 };
       if (db) {
         const rows = db.prepare(`SELECT ${CARD_COLUMNS} FROM memory_cards`).all();
         const privateCount = rows.filter(isPrivateCard).length;
         memoryStats = { shareable: rows.length - privateCount, private: privateCount };
       }
-      const snapshot = memoryMeta('snapshot_at_ms');
+      const snapshot = policy.domains.has('memory_v3') ? memoryMeta('snapshot_at_ms') : null;
       return {
         messages: { shareable, private: total - shareable },
         memory: memoryStats,

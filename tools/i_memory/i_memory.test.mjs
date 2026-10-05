@@ -131,6 +131,31 @@ function openModel(extra = {}) {
   return openReadModel({ coreDbPath: core, memoryDbPath: out, policyPath, ...extra });
 }
 
+describe('W3 explicit domain allowlist',()=>{
+  test('v2 requires exact supported domains; new Core domains cannot use direct database reads',()=>{
+    for(const domains of [undefined,null,'chat',['chat','chat'],['cycle'],['captures'],['plan_items'],['*']]){
+      writeFileSync(policyPath,JSON.stringify(policy({schema_version:2,domains})));
+      assert.throws(()=>openModel(),/policy invalid/);
+    }
+  });
+  test('empty allowlist denies chat and memory, including metadata and ID retrieval',()=>{
+    writeFileSync(policyPath,JSON.stringify(policy({schema_version:2,domains:[]})));
+    const model=openModel();try{
+      assert.deepEqual(model.recentMessages(),[]);assert.deepEqual(model.searchMessages({query:'咖啡'}),[]);
+      assert.deepEqual(model.searchMemory({query:'咖啡'}),[]);assert.deepEqual(model.getMemoryCards({ids:['card-coffee']}),[]);
+      assert.equal(model.policySummary().memorySnapshotAtMs,null);
+      assert.deepEqual(model.stats(),{messages:{shareable:0,private:0},memory:{shareable:0,private:0},memorySnapshotAtMs:null});
+    }finally{model.close();}
+  });
+  test('chat-only allowlist preserves outbound filters without granting memory',()=>{
+    writeFileSync(policyPath,JSON.stringify(policy({schema_version:2,domains:['chat']})));
+    const model=openModel();try{
+      assert.ok(model.recentMessages().length>0);assert.deepEqual(model.searchMemory({query:'咖啡'}),[]);
+      assert.ok(model.recentMessages().every(message=>message.characterId===LIN));
+    }finally{model.close();}
+  });
+});
+
 function readOut(sql) {
   const db = new DatabaseSync(out, { readOnly: true });
   try {
