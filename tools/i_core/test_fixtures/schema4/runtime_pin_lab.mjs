@@ -7,7 +7,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { BASELINE, SOURCE_FILES } from '../../runtime_pin/prepare_runtime_pin.mjs';
 
-export const syntheticSourceFiles = [...SOURCE_FILES, 'tools/i_core/activity_control_plane.mjs'];
+export const syntheticSourceFiles = [...SOURCE_FILES, 'tools/i_core/activity_control_plane.mjs', 'tools/i_core/domain_http.mjs', 'tools/i_core/domain_store.mjs', 'tools/i_core/domain_schema.mjs'];
 function replaceOnce(source, before, after) {
   assert.equal(source.split(before).length, 2, `fixture transform must match exactly once: ${before}`);
   return source.replace(before, after);
@@ -53,13 +53,13 @@ export async function prepareSyntheticRuntimePin({ root, repository, nodePath })
   mkdirSync(runtime);
   let builder = readFileSync(path.join(repository, 'tools/i_core/runtime_pin/prepare_runtime_pin.mjs'), 'utf8');
   builder = replaceOnce(builder, BASELINE, sourceCommit);
-  builder = replaceOnce(builder, "'i_core_server.mjs', 'i_core_store.mjs',", "'i_core_server.mjs', 'i_core_store.mjs', 'activity_control_plane.mjs',");
+  builder = replaceOnce(builder, "'i_core_server.mjs', 'i_core_store.mjs',", "'i_core_server.mjs', 'i_core_store.mjs', 'activity_control_plane.mjs', 'domain_http.mjs', 'domain_store.mjs', 'domain_schema.mjs',");
   builder = replaceOnce(builder, "release: 'v4-bbb8025d'", "release: 'synthetic-public-schema4-test-only'");
   writeFileSync(path.join(runtime, 'prepare_runtime_pin.mjs'), builder);
   let wrapper = readFileSync(path.join(repository, 'tools/i_core/runtime_pin/start_pinned_i_core.ps1'), 'utf8');
   wrapper = replaceOnce(wrapper, BASELINE, sourceCommit);
-  wrapper = replaceOnce(wrapper, "'tools/i_core/i_core_server.mjs', 'tools/i_core/i_core_store.mjs',", "'tools/i_core/i_core_server.mjs', 'tools/i_core/i_core_store.mjs', 'tools/i_core/activity_control_plane.mjs',");
-  wrapper = replaceOnce(wrapper, "@('i_core_server.mjs', 'i_core_store.mjs',", "@('i_core_server.mjs', 'i_core_store.mjs', 'activity_control_plane.mjs',");
+  wrapper = replaceOnce(wrapper, "'tools/i_core/i_core_server.mjs', 'tools/i_core/i_core_store.mjs',", "'tools/i_core/i_core_server.mjs', 'tools/i_core/i_core_store.mjs', 'tools/i_core/activity_control_plane.mjs', 'tools/i_core/domain_http.mjs', 'tools/i_core/domain_store.mjs', 'tools/i_core/domain_schema.mjs',");
+  wrapper = replaceOnce(wrapper, "@('i_core_server.mjs', 'i_core_store.mjs',", "@('i_core_server.mjs', 'i_core_store.mjs', 'activity_control_plane.mjs', 'domain_http.mjs', 'domain_store.mjs', 'domain_schema.mjs',");
   writeFileSync(path.join(runtime, 'start_pinned_i_core.ps1'), wrapper);
   writeFileSync(path.join(runtime, 'verify_v4_state.mjs'), readFileSync(path.join(repository, 'tools/i_core/runtime_pin/verify_v4_state.mjs')));
   const { prepareRuntimePin } = await import(pathToFileURL(path.join(runtime, 'prepare_runtime_pin.mjs')));

@@ -14,6 +14,7 @@ import {
   isExternalFrontendDevice,
 } from './i_core_store.mjs';
 import { ACTIVITY_MAX_REQUEST_BYTES } from './activity_control_plane.mjs';
+import { createDomainRequestHandler } from './domain_http.mjs';
 import {
   SHORTCUT_WORKFLOW,
   ShortcutMailRelayError,
@@ -250,6 +251,9 @@ export function createICoreServer({
   activityRuntimeId = undefined,
   activityRuntimeLeaseMs = undefined,
   activityRetentionIntervalMs = 60_000,
+  domainVerifyAuthorization = undefined,
+  domainTestOnlyFault = undefined,
+  domainDedupHooks = undefined,
   clock = Date.now,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
@@ -291,6 +295,13 @@ export function createICoreServer({
     activityRuntimeLeaseMs,
     activityEnabled: Boolean(activityAdminSecret),
     activityAutoActivate: false,
+    domainVerifyAuthorization,
+    domainTestOnlyFault,
+    domainDedupHooks,
+  });
+  const handleDomainRequest = createDomainRequestHandler({
+    getStore: () => store.domains,
+    authenticateDevice: (token) => store.authenticate(token),
   });
   let pairingEndpointEnabled = pairingCode !== null;
   let activePairingCode = pairingEndpointEnabled && !store.isPairingCodeConsumed(pairingCode)
@@ -305,6 +316,12 @@ export function createICoreServer({
           workerLeasesEnabled: Boolean(workerSecret),
           activityOwnerConfigured: Boolean(activityAdminSecret),
         }));
+        return;
+      }
+      // Preserve synchronous legacy body listener setup, including read-only wire observers.
+      const domainPath = (request.url ?? '').split('?')[0];
+      if (domainPath === '/v1/core/domains' || domainPath.startsWith('/v1/core/domains/')) {
+        await handleDomainRequest(request, response);
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/activity/probes/pair') {
@@ -567,6 +584,7 @@ export function createICoreServer({
   let closed = false;
   let ownedRelayClosed = false;
   let activityRetentionTimer = null;
+  let domainRetentionTimer = null;
   function closeOwnedRelay() {
     if (!ownsShortcutMailRelay || ownedRelayClosed) return;
     try {
@@ -580,6 +598,10 @@ export function createICoreServer({
     if (activityRetentionTimer !== null) {
       clearInterval(activityRetentionTimer);
       activityRetentionTimer = null;
+    }
+    if (domainRetentionTimer !== null) {
+      clearInterval(domainRetentionTimer);
+      domainRetentionTimer = null;
     }
     if (server.listening) {
       try {
@@ -605,6 +627,18 @@ export function createICoreServer({
     if (closed) return;
     closed = true;
     await closeResources();
+  }
+  if (store.domains) {
+    domainRetentionTimer = setInterval(() => {
+      if (closed) return;
+      try {
+        const result = store.domains.runRetention();
+        store.domainRetentionError = result.status === 200 ? null : 'domain_retention_failed';
+      } catch {
+        store.domainRetentionError = 'domain_retention_failed';
+      }
+    }, activityRetentionIntervalMs);
+    domainRetentionTimer.unref();
   }
   return {
     server,

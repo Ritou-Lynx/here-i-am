@@ -16,8 +16,13 @@ import {
   rollbackActivitySchema,
 } from './activity_control_plane.mjs';
 
+import { DomainStore } from './domain_store.mjs';
+import { assertDomainSchemaReady } from './domain_schema.mjs';
+
 export const CORE_PROTOCOL_VERSION = '0.1';
-export const CORE_STORE_SCHEMA_VERSION = 5;
+export const CORE_STORE_SCHEMA_VERSION = 6;
+// Existing chat databases remain schema 5 until explicit offline domain migration.
+export const CORE_LEGACY_CHAT_SCHEMA_VERSION = 5;
 export const MAX_MESSAGE_BATCH = 100;
 export const CORE_WORKLOADS = Object.freeze([
   'companion_reply',
@@ -274,7 +279,7 @@ export function preflightCoreIdentity(databasePath) {
     const schemaVersion = metadata.get('schema_version');
     const nodeId = metadata.get('node_id');
     const cursorSecret = metadata.get('cursor_secret');
-    if (!/^[45]$/.test(schemaVersion ?? '')) {
+    if (!/^[456]$/.test(schemaVersion ?? '')) {
       throw new CoreStoreError(
         'unsupported_core_schema_version',
         'Core schema version is not compatible with this binary.',
@@ -484,6 +489,9 @@ export class ICoreStore {
     activityAutoActivate = true,
     eventIdPrefixFactory = undefined,
     testOnlyActivityMigrationHook = undefined,
+    domainVerifyAuthorization = undefined,
+    domainTestOnlyFault = undefined,
+    domainDedupHooks = undefined,
   } = {}) {
     preflightActivityCommitmentVersion(databasePath);
     if (activityRecoveryFloor) {
@@ -525,6 +533,19 @@ export class ICoreStore {
         ...(eventIdPrefixFactory === undefined ? {} : { eventIdPrefixFactory }),
         ...(testOnlyActivityMigrationHook === undefined ? {} : { testOnlyMigrationHook: testOnlyActivityMigrationHook }),
       });
+      this.domains = null;
+      if (this.#metadata('schema_version') === '6' && rolePreflight.role !== 'backup_read_only') {
+        assertDomainSchemaReady(this.db);
+        this.domains = new DomainStore(this.db, {
+          nodeId: this.nodeId, cursorSecret: this.cursorSecret, clock,
+          ...(domainVerifyAuthorization === undefined ? {} : { verifyAuthorization: domainVerifyAuthorization }),
+          ...(domainTestOnlyFault === undefined ? {} : { testOnlyFault: domainTestOnlyFault }),
+          ...(domainDedupHooks === undefined ? {} : { dedupHooks: domainDedupHooks }),
+        });
+        if (this.companionReplyJobsEnabled && this.#phoneOwnsCharacter(this.#metadata('domain_primary_character_id'))) {
+          throw new CoreStoreError('companion_executor_conflict', 'Phone ownership requires Core reply production to remain disabled.', { status: 409 });
+        }
+      }
     } catch (error) {
       this.db.close();
       throw error;
@@ -535,7 +556,7 @@ export class ICoreStore {
     const existingMetadata = this.db.prepare("SELECT 1 AS found FROM sqlite_master WHERE type='table' AND name='core_metadata'").get();
     if (existingMetadata) {
       const rawVersion = this.db.prepare("SELECT value FROM core_metadata WHERE key='schema_version'").get()?.value;
-      if (rawVersion != null && !/^[45]$/.test(rawVersion)) {
+      if (rawVersion != null && !/^[456]$/.test(rawVersion)) {
         throw new CoreStoreError(
           'unsupported_core_schema_version',
           'Core schema version is not compatible with this binary.',
@@ -653,7 +674,7 @@ export class ICoreStore {
       const nodeId = this.#metadata('node_id');
       const cursorSecret = this.#metadata('cursor_secret');
       const schemaVersion = this.#metadata('schema_version');
-      const ready = /^[45]$/.test(schemaVersion ?? '')
+      const ready = /^[456]$/.test(schemaVersion ?? '')
         && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(nodeId ?? '')
         && /^[A-Za-z0-9_-]{43}$/.test(cursorSecret ?? '')
         && nodeId === this.nodeId
@@ -695,6 +716,7 @@ export class ICoreStore {
           ? ['companion_reply_jobs']
           : []),
         ...(activityReady ? [ACTIVITY_CONTRACT] : []),
+        ...(this.domains ? ['domains_v1'] : []),
       ] : [],
       activity: {
         contract: ACTIVITY_CONTRACT,
@@ -1072,6 +1094,56 @@ export class ICoreStore {
     return sequence;
   }
 
+  // Owner-only in-process configuration. Pairing declarations never grant this capability.
+  configurePhoneCompanion({ device_id, character_id, enabled = true }) {
+    if (!this.domains || this.#metadata('schema_version') !== '6') {
+      throw new CoreStoreError('schema_not_ready', 'Explicit domain migration is required.', { status: 503 });
+    }
+    const deviceId = requiredString(device_id, 'device_id');
+    const characterId = requiredString(character_id, 'character_id');
+    if (typeof enabled !== 'boolean') throw new CoreStoreError('invalid_request', 'enabled must be boolean.');
+    this.domains.ready();
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const device = this.db.prepare('SELECT * FROM devices WHERE device_id=?').get(deviceId);
+      if (!device || device.platform !== 'android' || isExternalFrontendDevice(device) || deviceId.startsWith('frontend:')) {
+        throw new CoreStoreError('phone_device_required', 'Only an enrolled Android device may receive this capability.', { status: 403 });
+      }
+      const primary = this.#metadata('domain_primary_character_id');
+      if (primary && primary !== characterId) {
+        throw new CoreStoreError('primary_character_mismatch', 'The capability must name the registered primary character.', { status: 403 });
+      }
+      if (enabled && (this.companionReplyJobsEnabled || this.db.prepare(
+        "SELECT 1 FROM companion_reply_jobs WHERE character_id=? AND status IN ('pending','claimed') LIMIT 1",
+      ).get(characterId))) {
+        throw new CoreStoreError('companion_executor_conflict', 'Disable and drain Core reply production before enrollment.', { status: 409 });
+      }
+        if (!primary) this.#setMetadata('domain_primary_character_id', characterId);
+      this.db.prepare(`INSERT INTO domain_phone_capabilities(device_id,character_id,token_hash,enabled,configured_at)
+        VALUES (?,?,?,?,?) ON CONFLICT(device_id,character_id) DO UPDATE SET
+        token_hash=excluded.token_hash,enabled=excluded.enabled,configured_at=excluded.configured_at`)
+        .run(deviceId, characterId, device.token_hash, enabled ? 1 : 0, new Date(this.clock()).toISOString());
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    return { device_id: deviceId, character_id: characterId, enabled };
+  }
+
+  #phoneCompanionCapability(device) {
+    if (!this.domains || device?.platform !== 'android' || device.device_id.startsWith('frontend:')) return null;
+    this.domains.ready();
+    return this.db.prepare(`SELECT character_id FROM domain_phone_capabilities
+      WHERE device_id=? AND character_id=? AND token_hash=? AND enabled=1`)
+      .get(device.device_id, this.#metadata('domain_primary_character_id'), device.token_hash) ?? null;
+  }
+
+  #phoneOwnsCharacter(characterId) {
+    if (!this.domains || characterId !== this.#metadata('domain_primary_character_id')) return false;
+    this.domains.ready();
+    return Boolean(this.db.prepare(`SELECT 1 FROM domain_phone_capabilities p JOIN devices d ON d.device_id=p.device_id
+      WHERE p.character_id=? AND p.enabled=1 AND p.token_hash=d.token_hash
+      AND d.platform='android' AND d.device_id NOT LIKE 'frontend:%' LIMIT 1`).get(characterId));
+  }
+
   submitMessages(authenticatedDeviceId, raw) {
     const deviceId = requiredString(raw?.device_id, 'device_id');
     if (deviceId !== authenticatedDeviceId) {
@@ -1100,16 +1172,13 @@ export class ICoreStore {
         'request_companion_reply must be a boolean when provided.',
       );
     }
-    if (raw?.request_companion_reply === true && !this.companionReplyJobsEnabled) {
-      throw new CoreStoreError(
-        'feature_disabled',
-        'This core is not accepting companion reply jobs yet.',
-        { status: 503, retryable: true },
-      );
+    const device = this.db.prepare('SELECT * FROM devices WHERE device_id=?').get(authenticatedDeviceId);
+    const frontend = isExternalFrontendDevice(device);
+    const phoneCapability = this.#phoneCompanionCapability(device);
+    const hasCompanion = raw.messages.some((message) => message?.sender === 'companion');
+    if (phoneCapability && ((hasCompanion && Object.hasOwn(raw, 'request_companion_reply')) || raw.request_companion_reply === true)) {
+      throw new CoreStoreError('phone_reply_request_forbidden', 'The phone syncs finished messages and cannot request Core replies.', { status: 403 });
     }
-    const frontend = isExternalFrontendDevice(this.db.prepare(`
-      SELECT device_id, platform FROM devices WHERE device_id = ?
-    `).get(authenticatedDeviceId));
     if (frontend && raw?.request_companion_reply === true) {
       throw new CoreStoreError(
         'invalid_request',
@@ -1117,12 +1186,22 @@ export class ICoreStore {
         { status: 403 },
       );
     }
+    if (raw?.request_companion_reply === true && !this.companionReplyJobsEnabled) {
+      throw new CoreStoreError(
+        'feature_disabled',
+        'This core is not accepting companion reply jobs yet.',
+        { status: 503, retryable: true },
+      );
+    }
     const messages = raw.messages
-      .map((message) => normalizeMessage(message, authenticatedDeviceId, { allowCompanion: frontend }))
+      .map((message) => normalizeMessage(message, authenticatedDeviceId, { allowCompanion: frontend || Boolean(phoneCapability) }))
       .sort((left, right) => left.origin_sequence - right.origin_sequence);
+    if (phoneCapability && messages.some((message) => message.sender === 'companion' && message.character_id !== phoneCapability.character_id)) {
+      throw new CoreStoreError('primary_character_mismatch', 'Phone companion messages must name the registered primary character.', { status: 403 });
+    }
     return this.#persistMessages(messages, {
       enqueueCompanionReplies:
-        this.companionReplyJobsEnabled && raw?.request_companion_reply === true,
+        !phoneCapability && this.companionReplyJobsEnabled && raw?.request_companion_reply === true,
     });
   }
 
@@ -1499,6 +1578,10 @@ export class ICoreStore {
     allowSemanticExisting = false,
     enqueueCompanionReplies = false,
   } = {}) {
+    if (['core-worker', 'core-authority'].includes(localDevice?.platform)
+      && messages.some((message) => this.#phoneOwnsCharacter(message.character_id))) {
+      throw new CoreStoreError('companion_publish_shadow_only', 'Core worker publication is shadow-only for the phone-owned character.', { status: 403 });
+    }
     const results = [];
     this.db.exec('BEGIN IMMEDIATE');
     try {

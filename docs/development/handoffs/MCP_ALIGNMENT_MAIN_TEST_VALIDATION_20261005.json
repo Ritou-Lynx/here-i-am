@@ -1,0 +1,13 @@
+{
+  "tests": 125,
+  "pass": 125,
+  "fail": 0,
+  "cancelled": 0,
+  "skipped": 0,
+  "todo": 0,
+  "log_sha256": "014b668a641db11ff4cead4e43a66c91bda26b7c033e408e889724738a7922a9",
+  "format": "mcp-alignment-main-synthetic-tests-v1",
+  "source_candidate": "w0_exact_6771015_source_package",
+  "synthetic_only": true,
+  "live_runtime_changed": false
+}

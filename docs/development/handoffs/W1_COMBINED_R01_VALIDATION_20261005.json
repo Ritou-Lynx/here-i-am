@@ -1,0 +1,69 @@
+{
+  "format": "w1-r01-derived-real-copy-validation-v1",
+  "occurred_at": "2026-10-05T12:20:27.936Z",
+  "authorized_scope": "local_consistent_copy_schema4_to_5_to_6",
+  "evidence_scope": "real_schema4_database_snapshot_and_derived_empty_activity_schema5_not_existing_live_schema5_history",
+  "source_snapshot": {
+    "format": "local-core4-consistent-backup-v1",
+    "sqlite_backup_api": true,
+    "source_query_only": true,
+    "source_read_transaction": true,
+    "source_schema_version": 4,
+    "old_table_count": 8,
+    "snapshot_consistent": true,
+    "old_schema_rows_sequences_verified": true,
+    "sqlite_sidecars_absent": true
+  },
+  "schema4_to_5": {
+    "ok": true,
+    "old_ddl_verified": true,
+    "old_rows_verified": true,
+    "old_metadata_preserved_except_two_schema_markers": true,
+    "original_node_and_cursor_secret_preserved": true,
+    "old_sequences_verified": true,
+    "activity_empty": true,
+    "runtime_never_activated": true
+  },
+  "schema5_to_6": {
+    "ok": true,
+    "validation_only": true,
+    "source_schema_version": 5,
+    "validated_schema_version": 6,
+    "integrity_verified": true,
+    "legacy_verified": true,
+    "candidate_unchanged": true,
+    "source_binding_preserved": true,
+    "recovery_floor_verified": true,
+    "activation_supported": false,
+    "domain_table_count": 12,
+    "backup": {
+      "backup_id": "0872b2e0-4979-4c49-aa5b-eb3a696a15e3",
+      "verified": true,
+      "role": "backup_read_only"
+    },
+    "physical_erasure_verified": false,
+    "scratch_removed": true
+  },
+  "plain_owned_copies_removed": true,
+  "secret_or_user_rows_in_report": false,
+  "runtime_registered": false,
+  "source_core_constructed": false,
+  "production_feature_compatibility_verified": false,
+  "private_backup_retention_days": 30,
+  "physical_erasure_verified": false,
+  "candidate_code_sha256": {
+    "tools/i_core/activity_control_plane.mjs": "18fe801708b5d1ff01deefe09e3ec9871a647a771522df0045e8b6c241fa27ce",
+    "tools/i_core/domain_companion.test.mjs": "33f614a4a73e89ad35b6d039b4d7851f4079f721a540b116a9a357bd1b6247e7",
+    "tools/i_core/domain_copy_validation.test.mjs": "bdd93f2cca4ef67999f8c2467aa7bff42ae948a4924911b4907382bd32d9a0f0",
+    "tools/i_core/domain_http.mjs": "f3917f8fae8f20421aed71bdd55cdd65027726734a7825cc8987758581a304ea",
+    "tools/i_core/domain_http.test.mjs": "9e9013b27502cf33ad85df77228efbce1579c9721aaf86390c29f22ba8de8a0f",
+    "tools/i_core/domain_migrate.mjs": "db1b9bf87558463cac4532a36a2fb6405f16771ca15f2487e937e1b96d28da82",
+    "tools/i_core/domain_migrate.test.mjs": "4991e640f7692b76d4f93c91bac22b1752f7001b37dcb834bdbabcf5e9d124e2",
+    "tools/i_core/domain_schema.mjs": "4fe326d383e1ab6a5e94602aa0a83d1505b06fffc5a2517e620b54576de8ec34",
+    "tools/i_core/domain_schema.test.mjs": "7fb0f5848aee17b5be83f973fa150f7da02e9303e6f30e8ce81f11101a0997b5",
+    "tools/i_core/domain_store.mjs": "96a5b292c281087c3a70efc32d9fcfb053da0466d9004c0a196cbfe1f721b0f6",
+    "tools/i_core/domain_store.test.mjs": "10dbfd0386edaf5ba83d735c774ac1101a53b530cf28cdd13bd98efb5cb0bd06",
+    "tools/i_core/i_core_server.mjs": "073c7f24e586c5984bae6e5f358ac2f3c54b2d751d6cd9db3024eddbfbb2eb06",
+    "tools/i_core/i_core_store.mjs": "bc249946d526dca3e06ed9189f0cbe2ba3aa84cbe84c4a535ec5e56e56afa051"
+  }
+}

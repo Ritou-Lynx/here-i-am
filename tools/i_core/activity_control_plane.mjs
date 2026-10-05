@@ -1690,7 +1690,7 @@ export function activitySchemaStatus(db, {
   const expectedChecksum = canonicalActivityDigest(activityMigrationSql());
   if (
     !migration || migration.state !== 'committed' || migration.checksum !== expectedChecksum
-    || metadataVersion !== ACTIVITY_SCHEMA_VERSION || coreSchemaVersion !== 5
+    || metadataVersion !== ACTIVITY_SCHEMA_VERSION || ![5, 6].includes(coreSchemaVersion)
   ) {
     return { ready: false, schema_version: metadataVersion ?? 0, reason: 'migration_invariant_failed', missing_tables: [] };
   }
@@ -2363,6 +2363,9 @@ export function migrateActivitySchema(db, {
 }
 
 export function rollbackActivitySchema(db) {
+  if (db.prepare("SELECT value FROM core_metadata WHERE key='schema_version'").get()?.value === '6') {
+    fail('domain_schema_present', 'Domain schema must be handled before an activity-only rollback.', { status: 409 });
+  }
   const status = activitySchemaStatus(db);
   if (!status.ready) fail('activity_schema_not_ready', 'Activity schema is not in a committed state.', { status: 409 });
   const protectedRows = ['activity_events', 'activity_principals', 'activity_deletion_receipts']
