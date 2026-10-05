@@ -1,5 +1,11 @@
 # 林埃的项目状态
 
+## W3/W4/W5 并行候选与部署前只读调查（2026-10-05）
+
+用户已授权并行源码开发。本批从 v3-lab@8dde12b3 隔离：W3 codex/w3-domain-mcp-20261005，W4 codex/w4-quick-capture-20261005，W5 codex/w5-planning-views-20261005；主窗 codex/hub-parallel-20261005 实现 W7 按记录/操作存储、保留迁移状态与关闭本地去重，见[前置候选](handoffs/W7_ROW_STORAGE_20261005.md)。主窗组合接线和验收进行中；各 worker 有限测试不代替组合验收，尚未合入 v3-lab。
+
+用户另开只读调查线程 01a10c93-10d4-73b2-928d-f740fde50046，分支 codex/predeploy-audit-20261005。报告及返修提交19588f4f只留该分支，不合入主线。现役固定 Core4 transcript/replay 未进入当前主线；10条手机 companion 最支持B3上传归因但仍为推断，持续调用未知。发现的B3手机候选 DB62 vs 主线60须先解决兼容；ADB零连接，现装包未核。仅报元数据，未停服、改配置、升级原库、安装手机或启用生产领域。
+
 ## W1、W2 与 W7-0 源码已合入（2026-10-05）
 
 42既有失败修复经 [PR #7](https://github.com/Ritou-Lynx/here-i-am/pull/7) 合入 `38ed6b88`；用户已确认[领域接口约定](I_CORE_DOMAIN_CONTRACT.md)。W1 [PR #8](https://github.com/Ritou-Lynx/here-i-am/pull/8) 五类精确 head 检查全过，普通合入 `v3-lab@dc29fd5e`，合并树等于已测 head；[合并回执](handoffs/W1_DOMAIN_MERGE_20261005.json)。原工作副本保留，正式主副本已仅快进源码。

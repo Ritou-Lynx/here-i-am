@@ -30,7 +30,7 @@ Future<void> main(List<String> args) async {
   final store = DomainStore(db, binding: fixtureBinding, testFault: (point) {
     if (point == args[1]) {
       // The parent kills this process while SQLite is open (with/without txn).
-      File('${args[0]}.ready').writeAsStringSync(point, flush: true);
+      File('${args[0]}.ready').writeAsStringSync('$point:$pid', flush: true);
       sleep(const Duration(seconds: 45));
     }
   });
@@ -77,6 +77,23 @@ Future<void> main(List<String> args) async {
       }
     });
     await store.fault('receipt_after_commit');
+  } else if (args[2] == 'migration') {
+    await store.read();
+  } else if (args[2] == 'feed') {
+    await store.applyPage('example', {
+      'records': [
+        {
+          'id': 'feed-new',
+          'domain': 'example',
+          'revision': 2,
+          'core_instance_id': 'core-test',
+          'data': {'title': 'new'}
+        }
+      ],
+      'next_cursor': 'cursor-feed-new',
+      'policy_version': DomainPolicy.version
+    });
+    await store.fault('feed_after_commit');
   } else if (args[2] == 'snapshot') {
     await store.replaceSnapshot('example', [
       {

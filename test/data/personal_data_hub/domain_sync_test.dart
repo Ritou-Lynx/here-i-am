@@ -11,6 +11,45 @@ import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
 import 'package:memex/db/app_database.dart';
 import 'crash_worker.dart' show CrashDatabase, fixtureBinding;
 
+/// Verify that the OS killed the SQLite writer, including Windows Dart's child VM.
+Future<void> terminateCrashProcess(
+    Process process, File ready, String point) async {
+  final evidence = ready.readAsStringSync().split(':');
+  expect(evidence.first, point);
+  final writerPid = int.parse(evidence.last);
+  expect(writerPid, greaterThan(0));
+  if (Platform.isWindows) {
+    final result =
+        await Process.run('taskkill', ['/PID', '${process.pid}', '/T', '/F']);
+    expect(result.exitCode, 0, reason: '${result.stdout} ${result.stderr}');
+    expect('${result.stdout}', contains('$writerPid'),
+        reason: 'OS receipt must include the actual SQLite writer');
+  } else {
+    expect(writerPid, process.pid);
+    expect(process.kill(), true);
+  }
+  await process.exitCode.timeout(const Duration(seconds: 10));
+}
+
+Future<void> deleteCrashFixture(Directory directory) async {
+  final root =
+      Directory.systemTemp.absolute.path.toLowerCase() + Platform.pathSeparator;
+  if (!directory.absolute.path.toLowerCase().startsWith(root)) {
+    throw StateError('Unsafe synthetic cleanup path');
+  }
+  for (var attempt = 0;; attempt++) {
+    try {
+      await directory.delete(recursive: true);
+      return;
+    } on PathAccessException catch (error) {
+      if (!Platform.isWindows ||
+          error.osError?.errorCode != 32 ||
+          attempt >= 29) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+}
+
 String resolveCrashDart({
   Map<String, String>? environment,
   String? resolvedExecutable,
@@ -1517,7 +1556,7 @@ void main() {
                     ? 'snapshot'
                     : 'enqueue';
         final process = await Process.start(resolveCrashDart(), [
-          'run',
+          '--disable-dart-dev',
           'test/data/personal_data_hub/crash_worker.dart',
           file.path,
           point,
@@ -1538,8 +1577,7 @@ void main() {
           process.kill();
           fail('Crash fixture did not reach $point: $errors');
         }
-        expect(process.kill(), true);
-        await process.exitCode.timeout(const Duration(seconds: 10));
+        await terminateCrashProcess(process, ready, point);
         local = CrashDatabase(file);
         durable = DomainStore(local, binding: fixtureBinding);
         final after = await durable.read();
@@ -1561,7 +1599,7 @@ void main() {
         await local.close();
       }
     } finally {
-      await directory.delete(recursive: true);
+      await deleteCrashFixture(directory);
     }
   }, timeout: const Timeout(Duration(minutes: 3)));
 }
