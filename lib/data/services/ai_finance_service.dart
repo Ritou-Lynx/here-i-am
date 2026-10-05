@@ -3,6 +3,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/db/daos/ai_finance_dao.dart';
 import 'package:drift/drift.dart';
 import 'package:synchronized/synchronized.dart';
+import 'package:memex/data/personal_data_hub/domain_row_storage.dart';
 
 class AiFinanceRecordResult {
   const AiFinanceRecordResult({
@@ -72,7 +73,7 @@ class AiFinanceService {
     String? transferDirection,
     DateTime? occurredAt,
   }) async {
-    return _recordLock.synchronized(() async {
+    return _recordLock.synchronized(() => _db.transaction(() async {
       final id = _uuid.v4();
       final now = (occurredAt ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
       final normalizedEntryType = entryType.trim().toLowerCase();
@@ -114,7 +115,7 @@ class AiFinanceService {
         notes: Value(_cleanNullableText(notes)),
       ));
       return AiFinanceRecordResult(id: id, created: true);
-    });
+    }));
   }
 
   /// Returns the user-facing real ledger alongside the derived AI position.
@@ -413,6 +414,10 @@ class AiFinanceService {
     required String? transferDirection,
     required int nowEpoch,
   }) async {
+    if ((await DomainRowStorage.suppressedDedupeDomains(_db))
+        .contains('ledger')) {
+      return null;
+    }
     final normalizedFactId = _normalizeText(linkedFactId);
     if (normalizedFactId != null) {
       final linkedRows = await _dao.getSharedEntries(

@@ -1,12 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import 'domain_protocol.dart';
+import 'domain_row_storage.dart';
 
 /// Persists in the existing kv_store on the injected AppDatabase connection.
-/// Every local write / outbox change / cursor change uses that database's real
-/// transaction. No schema migration, global database, or filesystem is opened.
+/// Records, tombstones, corrections and outbox operations own separate rows.
+/// Every local write / outbox change / cursor change uses a real transaction. No schema migration, global database, or filesystem is opened.
 class DomainStore {
   DomainStore(this.db,
       {required this.binding,
@@ -20,36 +20,53 @@ class DomainStore {
   final DateTime Function() clock;
   final FutureOr<void> Function(String point)? testFault;
   final int maxItems, maxBytes;
-  String get _key => 'personal_data_hub.v1.${binding.installationId}';
   Future<void> fault(String point) async {
     await testFault?.call(point);
   }
 
+  late final _rows = DomainRowStorage(db,
+      installationId: binding.installationId, clock: clock, fault: fault);
+
+  /// Acquire the SQLite writer slot before reads or cached, parameterized DML.
+  /// Call only inside the injected database's active transaction.
+  /// This parameter-free sqlite3_exec statement changes no rows. If a second
+  /// connection owns the slot, SQLITE_BUSY leaves no cached statement active,
+  /// so the caller can retry the entire operation on this same connection.
+  Future<void> acquireWriteLock() =>
+      db.customStatement('UPDATE kv_store SET updated_at=updated_at WHERE 0');
+
+  /// A coherent SQLite snapshot. Old state migrates atomically on first access;
+  /// IDs, pending request bodies, sealed operations and receipts are preserved.
   Future<Json> read() async {
-    final rows = await db.customSelect(
-      'SELECT value FROM kv_store WHERE key = ? AND bucket = ?',
-      variables: [Variable(_key), const Variable('personal_data_hub')],
-    ).get();
-    return rows.isEmpty
-        ? {'domains': <String, dynamic>{}, 'outbox': <dynamic>[]}
-        : jsonObject(jsonDecode(rows.single.read<String>('value')));
+    final loaded = await db.transaction(() async {
+      // Reads can also migrate legacy storage and therefore need the fence.
+      await acquireWriteLock();
+      return _rows.read();
+    });
+    if (loaded.migrated) await fault('legacy_migration_after_commit');
+    return loaded.state;
   }
 
-  Future<T> transaction<T>(Future<T> Function(Json state) work) =>
-      db.transaction(() async {
-        final state = await read();
-        final result = await work(state);
-        await db.customStatement(
-            'INSERT INTO kv_store(key,value,bucket,updated_at) VALUES(?,?,?,?) '
-            'ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at',
-            [
-              _key,
-              jsonEncode(state),
-              'personal_data_hub',
-              clock().millisecondsSinceEpoch
-            ]);
-        await fault('before_local_commit');
-        return result;
+  Future<T> transaction<T>(Future<T> Function(Json state) work) async {
+    var migrated = false;
+    final result = await db.transaction(() async {
+      await acquireWriteLock();
+      final loaded = await _rows.read();
+      migrated = loaded.migrated;
+      final result = await work(loaded.state);
+      await _rows.save(loaded.state);
+      await fault('before_local_commit');
+      return result;
+    });
+    if (migrated) await fault('legacy_migration_after_commit');
+    return result;
+  }
+
+  /// Explicit owner prerequisite; never implicitly restore destructive cleanup.
+  Future<void> disableLocalDedupe(String name) => transaction((s) async {
+        final d = domain(s, name);
+        checkBinding(d, name);
+        d['local_dedupe_disabled'] = true;
       });
 
   Json domain(Json s, String name) => s['domains'].putIfAbsent(
@@ -85,6 +102,9 @@ class DomainStore {
                 o['domain'] == name &&
                 !['accepted', 'duplicate'].contains(o['state']))) {
           throw const DomainFailure('outbox_not_drained');
+        }
+        if (route != DomainRoute.phone) {
+          d['local_dedupe_disabled'] = true;
         }
         d['route'] = route.name;
         if (old != route.name) {
@@ -154,6 +174,8 @@ class DomainStore {
       if (!['restore', 'delete', 'purge'].contains(kind) &&
           touched.any((target) =>
               d['records'][target]?['deleted_at'] != null ||
+              (route != 'core' &&
+                  d['phone_records'][target]?['deleted_at'] != null) ||
               (d['hidden_ids'] as Map? ?? {}).containsKey(target))) {
         throw const DomainFailure('deleted_target');
       }
@@ -268,6 +290,11 @@ class DomainStore {
       if (route != 'core') {
         if (phoneWrite != null) await phoneWrite();
         _overlay(d['phone_records'] as Json, intent);
+        if (route == 'phone' && ['delete', 'purge'].contains(kind)) {
+          for (final correction in d['corrections'] as List) {
+            if (correction['id'] == id) correction.remove('value');
+          }
+        }
       }
       final patch = fields['patch'] ?? fields['data'] ?? {};
       if (actor.startsWith('user_')) {
@@ -290,19 +317,33 @@ class DomainStore {
 
   static void _overlay(Json records, Json intent) {
     final id = intent['id'] as String;
-    if (intent['kind'] == 'delete') {
-      records.remove(id);
+    if (intent['kind'] == 'delete' || intent['kind'] == 'purge') {
+      final old = records[id];
+      records[id] = {
+        'id': id,
+        'revision': old?['revision'] ?? 0,
+        'local_input_version': (old?['local_input_version'] as int? ?? 0) + 1,
+        'deleted_at': intent['created_at'],
+        'local_delete_action': intent['op_id'],
+        'body_state': 'purged',
+      };
       return;
     }
     if (intent['kind'] == 'create') {
       records[id] = {
         'id': id,
         'data': copyJson(jsonObject(intent['data'])),
+        'provenance': copyJson(jsonObject(intent['provenance'])),
+        'local_input_version': 1,
         'revision': 0
       };
     } else if (intent['patch'] is Map) {
       final current =
           records[id] ?? {'id': id, 'data': <String, dynamic>{}, 'revision': 0};
+      if ((intent['patch'] as Map).containsKey('text')) {
+        current['local_input_version'] =
+            (current['local_input_version'] as int? ?? 0) + 1;
+      }
       current['data'] = {
         ...?current['data'] as Map?,
         ...intent['patch'] as Map

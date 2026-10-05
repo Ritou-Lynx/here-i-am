@@ -21,6 +21,7 @@ import 'package:drift/drift.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
 import 'package:memex/data/services/proactive_outing_service.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/data/personal_data_hub/domain_row_storage.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:uuid/uuid.dart';
 
@@ -255,11 +256,11 @@ class RecordOrganizerServiceV3 {
 
   static bool get isInitialized => _instance != null;
 
-  static void init(AppDatabase db) {
+  static Future<void> init(AppDatabase db) {
     _instance = RecordOrganizerServiceV3(db);
     // Schedule a one-time FTS backfill if needed. Non-blocking; runs in the
     // next microtask so it does not delay app startup.
-    Future.microtask(() async {
+    return Future.microtask(() async {
       try {
         // Ensure FTS tables exist before backfilling — this is a no-op if
         // they were already created by migration, but catches cases where
@@ -320,7 +321,16 @@ class RecordOrganizerServiceV3 {
       card.type == 'plan' ||
       (card.type == 'event' && _isMoneyCard(card.structuredFieldsType ?? ''));
 
-  Future<int> dedupeExistingScheduleCards() async {
+  static String? _localDedupeDomain(String type, String? fieldsType) {
+    if (const {'task', 'schedule', 'plan'}.contains(type)) return 'plan_items';
+    if (type == 'event' && _isMoneyCard(fieldsType ?? '')) return 'ledger';
+    return null;
+  }
+
+  Future<int> dedupeExistingScheduleCards() =>
+      _db.transaction(_dedupeExistingScheduleCards);
+
+  Future<int> _dedupeExistingScheduleCards() async {
     var removed = 0;
     try {
       final activeRows = await (_db.select(_db.memoryCards)
@@ -362,10 +372,14 @@ class RecordOrganizerServiceV3 {
       // usually a non-money event and the whole group is skipped
       // (2026-08-02 real-device: the oldest event was "排查杯子归属问题bug"
       // with no fields, so all money duplicates survived).
+      final suppressed = await DomainRowStorage.suppressedDedupeDomains(_db);
       final byType =
           <String, List<({int createdAt, String id, String title})>>{};
       for (final row in activeRows) {
         final meta = sfByCard[row.id];
+        if (suppressed.contains(_localDedupeDomain(row.type, meta?.fieldsType))) {
+          continue;
+        }
         final isMoneyEvent = row.type == 'event' &&
             meta != null &&
             _isMoneyCard(meta.fieldsType ?? '');
@@ -748,6 +762,11 @@ class RecordOrganizerServiceV3 {
     double? amountCny,
     String? structuredFieldsType,
   }) async {
+    final domain = _localDedupeDomain(type, structuredFieldsType);
+    if (domain != null &&
+        (await DomainRowStorage.suppressedDedupeDomains(_db)).contains(domain)) {
+      return null;
+    }
     const windowMs = 2 * 60 * 60 * 1000; // ±2h
     // Real-device lesson (2026-08-02): an agent FALSELY re-recorded the same
     // three dinners 50 min after the legit records (user message "去晒衣服啦"
@@ -851,6 +870,7 @@ class RecordOrganizerServiceV3 {
       );
       if (hits.isEmpty) return const [];
       final summaries = <String>[];
+      final suppressed = await DomainRowStorage.suppressedDedupeDomains(_db);
       for (final hit in hits) {
         if (summaries.length >= 5) break;
         final cardId = hit['card_id'] as String;
@@ -869,6 +889,10 @@ class RecordOrganizerServiceV3 {
         final isToDo =
             row.type == 'task' || row.type == 'schedule' || row.type == 'plan';
         if (!isToDo && row.type != 'event') {
+          continue;
+        }
+        if (suppressed.contains(
+            _localDedupeDomain(row.type, sf?.structuredFieldsType))) {
           continue;
         }
         var extra = '';

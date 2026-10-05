@@ -1,3 +1,5 @@
+import 'package:go_router/go_router.dart';
+import 'package:memex/routing/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
@@ -44,6 +46,10 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   final Set<int> _visitedIndexes = {0};
 
   void _selectTab(int index) {
+    if (index == 5) {
+      context.push(AppRoutes.planning);
+      return;
+    }
     setState(() {
       _currentIndex = index;
       _visitedIndexes.add(index);
@@ -58,6 +64,7 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
       'Ledger',
       'Health',
       '话题线索',
+      '今天 / 本周',
     ];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
