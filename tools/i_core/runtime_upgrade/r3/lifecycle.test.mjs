@@ -4,13 +4,16 @@ import net from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
 import { createLab, confirmedReceipt } from '../../test_fixtures/runtime_upgrade/r3/lab.mjs';
-import { plainPath, sha256, verifyRelease } from './package.mjs';
+import { cleanEnvironment, plainPath, sha256, verifyRelease } from './package.mjs';
 
 test('fixed PS entry defaults verify-only and rejects unknown/runtime flags before database mutation', async t => {
+  const cleaned = cleanEnvironment({ ...process.env, pSmOdUlEpAtH: 'Z:/untrusted-modules' });
+  assert.deepEqual(Object.keys(cleaned).filter(key => key.toUpperCase() === 'PSMODULEPATH'), ['PSModulePath']);
+  assert.equal(cleaned.PSModulePath, path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/Modules'));
   const lab = await createLab(t), before = sha256(readFileSync(lab.database));
   const sentinel = lab.owned('must-not-exist.sqlite');
   const env = { I_CORE_DATABASE: sentinel, I_CORE_ACTIVITY_ADMIN_SECRET: 'inherited-synthetic-owner', I_CORE_COMPANION_REPLY_JOBS: '1',
-    I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED: '1', I_CORE_WORKER_SECRET: 'synthetic-worker', NODE_OPTIONS: '--require=Z:/no-such-script.cjs', NODE_PATH: 'Z:/untrusted' };
+    I_CORE_SHORTCUT_MAIL_MANUAL_TEST_ENABLED: '1', I_CORE_WORKER_SECRET: 'synthetic-worker', PSModulePath: 'Z:/untrusted-modules', NODE_OPTIONS: '--require=Z:/no-such-script.cjs', NODE_PATH: 'Z:/untrusted' };
   const verify = await lab.launch({ start: false, env }).wait();
   assert.equal(verify.exit, 0, verify.stderr); assert.match(verify.stdout, /verified_only/);
   for (const args of [['-Restore'], ['-MigrateV4'], ['-StateDirectory', lab.state]]) {
@@ -36,7 +39,7 @@ test('explicit migration preserves eight old tables, dormant HTTP and clean orig
   const base = `http://127.0.0.1:${ready.address.port}`;
   const health = await (await fetch(base + '/v1/core/health')).json(); assert.equal(health.schema_version, 5);
   const chat = await fetch(base + '/v1/core/changes?limit=20', { headers: { Authorization: `Bearer ${lab.paired.device_token}`, 'x-core-protocol': '0.1' } });
-  assert.equal(chat.status, 200); assert.match(await chat.text(), /synthetic R3 migration fixture/);
+  assert.equal(chat.status, 200); assert.match(await chat.text(), /M3 synthetic migration fixture/);
   const second = await lab.launch({ migrate: false }).wait(); assert.equal(second.exit, 2); assert.match(second.stderr, /runtime_lock_busy/);
   await run.stop(); const stopped = await run.wait();
   assert.equal(stopped.exit, 0, JSON.stringify(stopped)); assert.equal(stopped.child.store_close_confirmed, true);

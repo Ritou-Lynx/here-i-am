@@ -54,7 +54,7 @@ try {
   $expected = @('tools/i_core/i_core_server.mjs','tools/i_core/i_core_store.mjs','tools/i_core/shortcut_mail_relay.mjs',
     'tools/i_core/send_shortcut_mail.ps1','tools/i_core/strict_smtp_tls_validation.ps1','tools/i_core/activity_control_plane.mjs',
     'package.mjs','start_schema5.ps1','owned_job.ps1','runtime_child.mjs','configuration.mjs','protected_paths.ps1','request_stop.ps1','job_guardian.ps1','verify_v4_state.mjs','runtime/node.exe')
-  if ($manifest.format -ne 'i-core-schema5-candidate-r3' -or $manifest.source_commit -ne '1b6a2961ec9e9705273b8dbed3dd5a9ec5c121f5' -or
+  if ($manifest.format -ne 'i-core-schema5-candidate-r3' -or $manifest.source_commit -ne 'f605d5017cbc0a8eb69983e00c25cd1bba08a0eb' -or
       $manifest.core_schema_version -ne 5 -or $manifest.node_version -ne 'v24.14.1' -or
       $manifest.node_sha256 -ne '58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f' -or
       @($manifest.files).Count -ne $expected.Count -or

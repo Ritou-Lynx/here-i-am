@@ -2118,18 +2118,20 @@ test('direct recovery verification uses an isolated committed view for every acc
         return { size: bytes.length, bytes: bytes.toString('hex') };
       });
       const before = files();
-      const temporarySnapshotsBefore = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith('activity-preflight-')));
+      const temporaryPrefix = `activity-preflight-${process.pid}-${mode}-${outcome}-`;
+      const temporarySnapshotsBefore = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith(temporaryPrefix)));
+      assert.throws(() => verifyActivityRecoveryCandidate(databasePath, floor, { testOnlyTemporaryPrefix: 'activity-preflight-../outside-' }), (error) => error?.code === 'activity_preflight_prefix_invalid');
       if (outcome === 'valid') {
-        const verified = verifyActivityRecoveryCandidate(databasePath, floor);
+        const verified = verifyActivityRecoveryCandidate(databasePath, floor, { testOnlyTemporaryPrefix: temporaryPrefix });
         assert.equal(verified.ok, true);
         assert.equal(verified.activation_authorized, false);
       } else {
         const expectedCode = outcome.startsWith('unsupported-') ? 'activity_integrity_upgrade_unsupported'
           : outcome === 'stale-floor' ? 'stale_activity_restore' : 'recovery_lineage_unverified';
-        assertActivityError(() => verifyActivityRecoveryCandidate(databasePath, floor), expectedCode);
+        assertActivityError(() => verifyActivityRecoveryCandidate(databasePath, floor, { testOnlyTemporaryPrefix: temporaryPrefix }), expectedCode);
       }
       assert.deepEqual(files(), before, `${mode}:${outcome}`);
-      assert.deepEqual(readdirSync(tmpdir()).filter((name) => name.startsWith('activity-preflight-') && !temporarySnapshotsBefore.has(name)), [], `${mode}:${outcome}: temporary snapshot cleaned`);
+      assert.deepEqual(readdirSync(tmpdir()).filter((name) => name.startsWith(temporaryPrefix) && !temporarySnapshotsBefore.has(name)), [], `${mode}:${outcome}: temporary snapshot cleaned`);
       if (sourceConnectionOpen) db.close();
       rmSync(directory, { recursive: true, force: true });
     }
