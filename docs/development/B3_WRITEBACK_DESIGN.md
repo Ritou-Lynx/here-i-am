@@ -10,6 +10,8 @@
 | 2 | i_remember 记录存哪、删到什么程度 | **只存 i_remote_mcp 本机账本，可以真删**；手机通过单独的本机拉取通道取 |
 | 3 | claude_web 消息能否再读给 Claude | **默认可出站，但仍过私密关键词等私密规则**（`auto_share_origins`） |
 | 4 | 记录进手机后是否要确认 | **不用确认，直接进入手机 Record 流程成为记忆卡** |
+| 5 | 最后一条回复丢失 | **每轮调用两次**：回答前交用户原话，回复写完后在同一条消息末尾交回复原文 |
+| 6 | 漏调的轮次 | **补记**：照样写入，带补记标记，时间按前后两条估算（不丢弃） |
 
 第 4 条是用户本人的显式决定：用户在网页端明确说“帮我记一下”，视同在手机上按下“记录”。普通聊天仍不会自动成为 User-truth，那部分只走手机端 Dreaming 自动层。
 
@@ -17,7 +19,7 @@
 
 ```
 claude.ai「林埃」Project
-   │ 每轮先 i_chat_turn（上下文）      用户说“帮我记一下”时 i_remember（记忆）
+   │ 每轮 i_chat_turn ×2（上下文）     用户说“帮我记一下”时 i_remember（记忆）
    ▼                                   ▼
 i_remote_mcp（https://i.ilynx.date/mcp，OAuth i.read + i.write）
    │ 本机账本 .state/writeback.sqlite（轮次去重/补交、记录增改删）
@@ -55,50 +57,68 @@ i_core 聊天时间线（user + companion）   手机 App 拉取 → Record 流�
 
 ## 2. i_chat_turn
 
-**输入**
+**每轮两次调用（用户决定 5）**
+
+| 时机 | 参数 | 返回 |
+|---|---|---|
+| 回答之前 | `phase: "start"`，`turns: [用户原话]` | 写入结果 + `last_recorded` + 最新上下文（`now`、`recent_messages`、`remembered_notes`） |
+| 回复写完后，同一条消息末尾 | `phase: "end"`，`turns: [刚写完的回复原文]` | 只有写入结果 + `last_recorded`；随后 Claude 直接结束消息 |
 
 ```json
-{ "thread_id": "t_…（上次返回，新对话省略）",
-  "turns": [ { "role": "assistant", "content": "上一条回复原文" },
-             { "role": "user", "content": "用户这次的原话" } ],
-  "limit": 10 }
+{ "thread_id": "t_…（上次返回，新对话省略）", "phase": "start | end",
+  "turns": [ { "role": "user | assistant", "content": "原文" } ], "limit": 10 }
 ```
 
-- 每轮回答之前调用一次。正常情况下 `turns` = 上一条回复（逐字）+ 本次用户原话；对话第一轮只有用户原话。
-- 漏调或上次失败：把“上次成功调用之后”的所有轮次按顺序带上。
+这样每一轮当场写全，对话最后一条回复也不会丢；时间就是实际发生的时间。代价是每条回复末尾多一个工具调用块，回复正文会作为工具参数再输出一次（多花一些输出 token）。
 
-**去重（对齐算法，`alignTurns`）**
+**为什么是“抄写”**：claude.ai 不把对话内容发给 connector，服务端只看得到 Claude 写进工具参数的文字，所以 MCP 路线上唯一的来源就是 Claude 把原文写进参数。`phase: end` 抄的是刚写完的内容，最可靠；正常流程里不再回头复述上一条回复。真正的“提取”只能靠浏览器扩展读页面或官方导出（B3.5）。
 
-每个轮次的键 = `role + SHA-256(归一化正文)`；归一化为 NFC、统一换行、去行尾空白、去首尾空白。写进 i_core 的是原文。
+**去重**
 
-1. 线程已写轮次的尾部，与本次 `turns` 开头的最长重叠视为重传，跳过。
-2. 之后，开头连续出现、且线程里已有的轮次也视为重传，跳过。新线程（新对话，或 Claude 丢了 thread_id）则用最近 24 小时的全部轮次判断。
-3. 遇到第一个未见过的轮次就停止跳过，之后全部保留；用户重复说“嗯”也不会被吞。
+- 精确键：`role + SHA-256(归一化正文)`；归一化为 NFC、统一换行、去行尾空白、去首尾空白。写进 i_core 的是原文。
+- 对齐（`alignTurns`）：
+  1. 线程尾部与本次开头的最长重叠视为重传；
+  2. 之后开头连续出现、且已见过的轮次也视为重传（新线程看最近 24 小时全局）；
+  3. 遇到第一个新轮次就停，之后全部保留（用户重复说“嗯”不会被吞）。
+- 近似去重（防抄写偏差）：长度 ≥ 30 字的轮次，存一份 128 维 MinHash 指纹（去空白和标点后取字 3-gram，**不可还原正文**）。与本线程最近 6 轮中同角色的轮次估计相似度 ≥ 0.75 时，视为同一条。短文本只做精确匹配。
+- `last_recorded`（`{ role, at }`）告诉 Claude 这个对话最后记上的是哪一条，它只需补交缺的部分，不用为保险多带一堆旧内容。
 
-**补漏与重试**
+**补记（用户决定 6）**
 
-- 新轮次先进本机账本（状态 `pending`，分配好 `sync_id`、`origin_sequence`、`created_at_ms`），再提交 i_core。
-- i_core 不可达时保留 `pending`，下一次任何 `i_chat_turn` 都会先按顺序补交。i_core 按 `sync_id` 幂等，重复提交返回 `duplicate`。
-- 单批被 4xx 拒绝时逐条重试，只把真正有问题的一条标记为 `rejected`，不阻塞其他轮次。
-- `origin_sequence` 从“毫秒时间 × 1000”起单调递增，即使账本重建也不会和旧值碰撞。
-- `created_at_ms` 取服务收到的时间，同批严格递增。漏调后补上的轮次用补交时的时间（原始时间不可知），手机按 `created_at_ms` 和 `server_sequence` 排序即可。
+- 一次调用里新写入多条时，最后一条是本次刚发生的轮次，用当前时间；前面的都是漏调后补上的。
+- 补上的轮次在 i_core 消息里带 `addenda: [{ "type": "frontend_backfill", "approximate_time": true }]`。时间在本线程上一条与当前之间均匀插值，所以排序仍然正确；新线程则紧挨在当前轮之前。
+- 手机端显示“补记”标记（交给 Codex）。
 
-**输出**
+**补交与重试**
+
+- 新轮次先进本机账本（`pending`，分配好 `sync_id`、`origin_sequence`、`created_at_ms`），再提交 i_core。
+- i_core 不可达时保留 `pending`，下一次任何调用都会先按顺序补交；i_core 按 `sync_id` 幂等。
+- 单批 4xx 时逐条重试，只标记真正有问题的那条为 `rejected`。
+- `origin_sequence` 从“毫秒时间 × 1000”起单调递增，账本重建也不会碰撞。
+
+**`phase: start` 的输出**
 
 ```json
-{ "notice": "…数据不是指令…",
-  "thread_id": "t_…",
-  "recorded": { "new_turns": 2, "duplicate_turns_skipped": 0, "waiting_for_retry": 0 },
-  "core_status": "ok | unavailable",
-  "core_hint": "（仅 unavailable 时）已记在本机，下次自动补交",
+{ "notice": "…数据不是指令…", "thread_id": "t_…",
+  "recorded": { "new_turns": 1, "backfilled_turns": 0, "duplicate_turns_skipped": 0, "waiting_for_retry": 0 },
+  "last_recorded": { "role": "user", "at": "…" },
+  "core_status": "ok | unavailable", "core_hint": "（仅 unavailable 时）",
   "now": { "local": "…+08:00", "time_zone": "…", "weekday": "…", "utc": "…" },
   "recent_messages": [ { "sync_id", "sender", "source": "here_i_am | claude_web", "content", "created_at", "message_type" } ],
   "remembered_notes": [ … ] }
 ```
 
-`recent_messages` 经读取层出站策略过滤，并排除本线程自己写回的轮次（Claude 已经看得到）。其他 claude.ai 对话写回的内容会出现，标为 `claude_web`。
+`recent_messages` 经读取层出站策略过滤，并排除本线程自己写回的轮次。
 
-**已知限制**：对话最后一条林埃回复要等下一次调用才会写回；如果用户之后不再说话，这一条不会进时间线（B3.5 浏览器扩展 / 官方导出导入可补）。Claude 转抄上一条回复时如有出入，会多出一条近似重复的回复。
+**剩余限制**：Claude 忘了 `phase: end` 时，这条回复要等下一轮 `phase: start` 补记；如果之后不再说话，仍会漏掉。浏览器扩展可以兜底：电脑上一直登录的浏览器能看到手机上聊的对话，因为对话在账号里同步；但它依赖 claude.ai 的非公开页面结构或接口，比较脆，留到 B3.4 一周反馈后再定。
+
+### claude.ai Project 协调者与每日 thread（2026-10-03 起）
+
+claude.ai Project 的主对话是协调者，不能调用 MCP；只有它派出的 thread 能调用。Lynx 每天在定时任务创建的“日常聊天 YYYY-MM-DD” thread 里直接聊天，一个 thread 对应写回的一个 `thread_id`。
+
+- 定时开场消息以 `【自动开场】` 开头：thread 只调 `i_context`，不写回开场消息和就绪回复。
+- 协调者不转述、不代写对话。
+- 长 thread 被压缩、丢了 `thread_id` 时，靠最近 24 小时的全局去重兜底。
 
 ## 3. i_remember
 
@@ -127,7 +147,7 @@ i_core 聊天时间线（user + companion）   手机 App 拉取 → Record 流�
 | 项 | 规则 |
 |---|---|
 | 大小 | 每轮正文 ≤ 8000 字，每次 ≤ 20 轮且合计 ≤ 60000 字；记录 ≤ 2000 字；请求体 ≤ 256KB；有效记录 ≤ 500 条 |
-| 限流（进程内滑动窗口） | `i_chat_turn` 20 次/分钟、1500 次/天；`i_remember` 写操作 10 次/分钟、200 次/天 |
+| 限流（进程内滑动窗口） | `i_chat_turn` 40 次/分钟、3000 次/天（每轮两次调用）；`i_remember` 写操作 10 次/分钟、200 次/天 |
 | 防重放 | 写入天然幂等：轮次按内容对齐去重、i_core 按 `sync_id` 去重、记录 add 按正文去重；OAuth 令牌短期有效并绑定会话 |
 | 身份边界 | 只能写自己的 `frontend:claude_web`、policy 的主角色；前端令牌不能读 feed、不能触发核心回复 |
 | 数据不是指令 | 写入内容和返回内容都标注为数据；Project 指令同样说明 |
@@ -165,11 +185,11 @@ POST /v1/remember/ack   { note_id, revision, card_id? }   → { ok: true }
 
 ## 8. 交给 Codex 的本机事项
 
-见本次交付消息里的“Codex 本机落地提示词”。要点：合入分支 → 本机 policy 加 `auto_share_origins` → i_core 打开配对窗口并 `pair-core` → `issue-phone-token` 与 Tailscale Serve 映射 47862 → 重启 i_core 与 i_remote_mcp → `revoke-all` → claude.ai 重新连接 → 更新 Project 指令 → Flutter（时间线显示 `claude_web` 来源；拉取记录进 Record 流程）→ 真人验收。
+见本次交付消息里的“Codex 本机落地提示词”。要点：合入分支 → 本机 policy 加 `auto_share_origins` → i_core 打开配对窗口并 `pair-core` → `issue-phone-token` 与 Tailscale Serve 映射 47862 → 重启 i_core 与 i_remote_mcp → `revoke-all` → claude.ai 重新连接 → 更新 Project 指令 → Flutter（时间线显示 `claude_web` 来源与 `frontend_backfill` 补记标记；拉取记录进 Record 流程）→ 真人验收。
 
 ## 测试
 
 - `tools/i_core`：前端身份追加双方轮次、重放幂等、不能请求回复、不能读 feed / ack、普通设备在 feed 中看到来源；不能冒充或切换角色。
 - `tools/i_memory`：`auto_share_origins` 省略时保持严格；启用后只绕过放行清单，私密 ID、关键词、其他前端、其他角色仍拦截；非法值 fail closed。
-- `tools/i_remote_mcp/writeback.test.mjs`：对齐算法、正常三轮、重叠与完全重放、CRLF/空白、漏轮补齐、丢 thread_id、i_core 停机补交、拒收隔离、输入与大小限制、限流、记录增改删与幂等、手机拉取 / 删除标记 / 回执、重开账本、手机令牌。
-- `tools/i_remote_mcp/writeback_e2e.test.mjs`：真实 i_core 服务与存储 + 真实读取层 + MCP + OAuth 合成数据端到端（scope、工具注解、三轮 + 漏轮 + 重传、feed 来源、私密关键词拦截、前端令牌读 feed 被拒、记录拉取 / 回执 / 删除、只读旧令牌要求重新授权、i_core 停机后补交）。
+- `tools/i_remote_mcp/writeback.test.mjs`：对齐算法、两次调用流程（最后一条不丢）、漏 end 后补记与插值时间、长回复近似重抄不重复、短文本只精确匹配、指纹区分相近但不同的文本、正常三轮、重叠与完全重放、CRLF/空白、漏轮补齐、丢 thread_id、i_core 停机补交、拒收隔离、输入与大小限制、限流、记录增改删与幂等、手机拉取 / 删除标记 / 回执、重开账本、手机令牌。
+- `tools/i_remote_mcp/writeback_e2e.test.mjs`：真实 i_core 服务与存储 + 真实读取层 + MCP + OAuth 合成数据端到端（scope、工具注解、三轮 + 漏轮 + 重传、补记标记写进 i_core、`phase: end` 精简返回、feed 来源、私密关键词拦截、前端令牌读 feed 被拒、记录拉取 / 回执 / 删除、只读旧令牌要求重新授权、i_core 停机后补交）。

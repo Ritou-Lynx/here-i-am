@@ -20,6 +20,8 @@
 
 i_core 新增受限 `external-frontend` 设备身份 `frontend:claude_web`：可提交 user/companion、不能读 feed/ack、不能请求核心回复，不改 schema，不需要 worker 密钥。读取层新增 `messages.auto_share_origins`：列出的前端来源只跳过 ID/哈希放行清单，私密类型、关键词和私密 ID 仍优先；省略时保持旧行为。
 
+修订（同日，Lynx 决定）：`i_chat_turn` 改为每轮两次调用（start 交用户原话并取上下文，end 在回复末尾交回复原文），对话最后一条回复不再丢；漏调轮次照写并带 `frontend_backfill` 补记标记、时间插值；长文本 MinHash 近似去重；返回 `last_recorded`。i_remote_mcp 回归 71/71。部署只需重新合入 i_remote_mcp 文件、重启 MCP、更换 Project 指令；手机端另加“补记”显示。
+
 合成验证：i_remote_mcp 67/67（含真实 i_core 服务与存储 + 真实读取层 + MCP + OAuth 端到端）、i_memory 35/35 通过；i_core 新增 2 项通过，全量仍有 54 项 activity fixture 合同失败，与改动前基线一致。未部署、未接真实数据。待 Codex 本机：合入、policy 开关、i_core 配对窗口 + `pair-core`、手机令牌与 Tailscale Serve、重启、`revoke-all` 与 claude.ai 重新连接、Project 指令、Flutter 来源显示与记录入卡、真人验收。
 
 ## B2.3 固定隧道与运行诊断（2026-10-03）
