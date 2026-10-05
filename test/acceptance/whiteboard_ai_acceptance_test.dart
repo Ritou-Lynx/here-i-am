@@ -506,6 +506,9 @@ Future<CardContract> _card(
         .card;
 
 Future<void> _undo(WidgetTester tester, String actionId) async {
+  // The newest-first list builds lazily; an older action need not be mounted.
+  await _scrollChatTo(
+      tester, find.byKey(ValueKey('workbench_action_$actionId')));
   final button = find.byKey(ValueKey('workbench_action_undo_$actionId'));
   await _pumpUntil(tester, () => button.evaluate().isNotEmpty);
   await tester.ensureVisible(button);
