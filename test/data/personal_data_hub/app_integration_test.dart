@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/memory_v3/models/organized_record.dart';
@@ -24,12 +25,32 @@ OrganizedCard card(String type) => OrganizedCard(
     arousal: 0);
 
 class ChatClient extends CoreSyncClient {
-  ChatClient()
+  ChatClient() : this._(Dio());
+  ChatClient._(Dio dio)
       : super(
             baseUrl: 'http://localhost',
             deviceId: 'fixture',
-            deviceToken: 'unused');
+            deviceToken: 'unused',
+            dio: dio) {
+    // Exercise the real capabilities GET and JSON parser. PR10 mode is routing
+    // information; neither legacy enabled nor an owner/server grant is implied.
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      capabilityRequests++;
+      expect(options.method, 'GET');
+      expect(options.uri.path,
+          '${CoreSyncProtocol.basePath}/chat/transcript-capabilities');
+      handler.resolve(Response<Map<String, dynamic>>(
+          requestOptions: options,
+          statusCode: 200,
+          data: {'enabled': false, 'companion_upload_mode': 'pr10'}));
+    }));
+  }
+  int capabilityRequests = 0;
   CoreChatSubmitRequest? sent;
+  @override
+  Future<CoreChatSubmitResponse> submitTranscripts(
+          CoreChatSubmitRequest request) async =>
+      throw StateError('PR10 must never use the legacy transcript uploader');
   bool forbidden = true;
   @override
   Future<CoreChatSubmitResponse> submitMessages(CoreChatSubmitRequest r) async {
@@ -79,6 +100,12 @@ void main() {
     final device = await DeviceIdentityService.getOrCreate();
     await service.addCharacterMessage('primary', 'before opt in');
     expect(await service.pendingOutboxMessages(device), isEmpty);
+    final client = ChatClient();
+    final engine = CoreSyncEngine(db: db, client: client, deviceId: device);
+    expect(await engine.syncOnce(), 0);
+    expect(client.capabilityRequests, 1);
+    expect(client.sent, isNull);
+    expect(await service.pendingOutboxMessages(device), isEmpty);
     await service.configureCompanionOutbox(
         deviceId: device, characterId: 'primary', enabled: true);
     await service.addCharacterMessage('other', 'must stay local');
@@ -86,14 +113,21 @@ void main() {
     final pending = await service.pendingOutboxMessages(device);
     expect(pending, hasLength(1));
     expect(pending.single.content, 'synthetic reply');
-    final client = ChatClient();
-    final engine = CoreSyncEngine(db: db, client: client, deviceId: device);
-    await expectLater(engine.syncOnce(), throwsA(isA<CoreSyncException>()));
+    await expectLater(
+        engine.syncOnce(),
+        throwsA(isA<CoreSyncException>().having(
+            (error) => error.code, 'code', 'sender_not_allowed')));
+    expect(client.capabilityRequests, 2);
+    expect(client.sent, isNotNull);
     expect(client.sent!.messages.single.sender, CoreMessageSender.companion);
     expect(client.sent!.toJson().containsKey('request_companion_reply'), false);
     expect(await service.pendingOutboxMessages(device), hasLength(1));
+    expect((await service.pendingOutboxMessages(device)).single, pending.single);
+    final refusedPayload = client.sent!.toJson();
     client.forbidden = false;
     await engine.syncOnce();
+    expect(client.capabilityRequests, 3);
+    expect(client.sent!.toJson(), refusedPayload);
     expect(await service.pendingOutboxMessages(device), isEmpty);
     expect((await service.getMessages('primary')), hasLength(2));
   });
