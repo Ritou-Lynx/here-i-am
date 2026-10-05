@@ -250,6 +250,7 @@ extension CaptureCardReconciler on RecordOrganizerServiceV3 {
     required OrganizedRecord organized,
     required RecordSource source,
     bool deleted = false,
+    bool includePlanningCards = false,
   }) =>
       _db.transaction(() async {
         if (source.sourceKind != 'import' ||
@@ -257,7 +258,9 @@ extension CaptureCardReconciler on RecordOrganizerServiceV3 {
           throw ArgumentError('capture source required');
         }
         final cards = organized.cards
-            .where((c) => !const ['task', 'schedule', 'plan'].contains(c.type))
+            .where((c) =>
+                includePlanningCards ||
+                !const ['task', 'schedule', 'plan'].contains(c.type))
             .toList();
         final old = previous.map((s) => Map<String, dynamic>.from(s)).toList();
         final unmatched = cards.toList();

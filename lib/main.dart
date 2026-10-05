@@ -1,3 +1,4 @@
+import 'package:memex/data/memory_v3/notes/claude_web_note_feed_service.dart';
 import 'package:memex/data/personal_data_hub/personal_data_hub_runtime_owner.dart';
 import 'package:memex/ui/quick_capture/quick_capture_access_gate.dart';
 import 'package:memex/ui/quick_capture/quick_capture_launch_bridge.dart';
@@ -990,6 +991,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       }
       _eventBus.connect();
       await CoreSyncRuntimeService.instance.initialize();
+      if (mounted && AppDatabase.isInitialized) {
+        unawaited(context.read<ClaudeWebNoteFeedService>().syncOnce());
+      }
     });
 
     // Check and report all health data
@@ -1965,6 +1969,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         _eventBus.connect();
       }
       unawaited(CoreSyncRuntimeService.instance.syncNow(reason: 'resume'));
+      if (mounted && AppDatabase.isInitialized) {
+        unawaited(context.read<ClaudeWebNoteFeedService>().syncOnce());
+      }
       // Consume any quick action that arrived while in background.
       // Use synchronous check; platform callback fires before resumed,
       // so no need for the 2-sec wait (which could catch a re-delivered intent).

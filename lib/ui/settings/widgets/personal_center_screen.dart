@@ -1,3 +1,4 @@
+import 'package:memex/ui/settings/widgets/web_note_connection_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -628,6 +629,12 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
               ),
             ]),
             _DestinationGroup('外部连接', [
+              _Destination(
+                icon: Icons.note_add_outlined,
+                title: '网页端记录通道',
+                subtitle: '同步明确记下的内容与后续修改',
+                onTap: () => open(const WebNoteConnectionPage()),
+              ),
               _Destination(
                 icon: Icons.favorite_outline_rounded,
                 title: '实时心率设备',

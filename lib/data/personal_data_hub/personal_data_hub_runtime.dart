@@ -5,6 +5,7 @@ import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/services/device_identity_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'capture_consumer.dart';
+import 'capture_consumer_ownership.dart';
 import 'domain_protocol.dart';
 import 'domain_store.dart';
 import 'personal_data_hub.dart';
@@ -27,6 +28,7 @@ class PersonalDataHubRuntime implements PlanningReader {
     required this.alarms,
     required this.clock,
     required this.enablePlanningReminders,
+    required this.ownsCaptureConnectionLifetime,
     this.planningAuthorize,
     this.quickCaptureAuthorize,
     this.extract,
@@ -37,6 +39,7 @@ class PersonalDataHubRuntime implements PlanningReader {
     required AppDatabase db,
     required PlanningAlarmScheduler alarms,
     bool enablePlanningReminders = true,
+    bool ownsCaptureConnectionLifetime = false,
     PersonalDataHub? hub,
     PlanningAuthorize? planningAuthorize,
     QuickCaptureAuthorizationIssuer? quickCaptureAuthorize,
@@ -54,6 +57,7 @@ class PersonalDataHubRuntime implements PlanningReader {
       hub: owner,
       alarms: alarms,
       enablePlanningReminders: enablePlanningReminders,
+      ownsCaptureConnectionLifetime: ownsCaptureConnectionLifetime,
       clock: clock ?? DateTime.now,
       planningAuthorize: planningAuthorize,
       quickCaptureAuthorize: quickCaptureAuthorize,
@@ -67,6 +71,9 @@ class PersonalDataHubRuntime implements PlanningReader {
               installationId: installationId),
           clock: clock),
     );
+    if (ownsCaptureConnectionLifetime) {
+      CaptureConsumerOwnership.forDatabase(db).resume();
+    }
     runtime._subscription = db
         .tableUpdates(const TableUpdateQuery.onTableName('kv_store'))
         .listen((_) => runtime._backgroundRefresh());
@@ -94,6 +101,7 @@ class PersonalDataHubRuntime implements PlanningReader {
 
   /// Capture-only engines must never own or cancel the main engine's alarms.
   final bool enablePlanningReminders;
+  final bool ownsCaptureConnectionLifetime;
   final DateTime Function() clock;
   final PlanningAuthorize? planningAuthorize;
   final QuickCaptureAuthorizationIssuer? quickCaptureAuthorize;
@@ -320,7 +328,15 @@ class PersonalDataHubRuntime implements PlanningReader {
         if (consume && epoch == _ownerEpoch && !_disposed) {
           _quick();
           try {
-            await _consumer?.consume();
+            final ownership = CaptureConsumerOwnership.forDatabase(db);
+            // Phone quick captures have a distinct source and never wait for
+            // the remote web bridge's Gate, lease, or network response.
+            await _consumer?.consume(allowRemoteWeb: false);
+            if (await ownership.coreSelected()) {
+              await ownership.runCore((lease) async {
+                await _consumer?.consume(verifyRemoteOwnership: lease.verify);
+              }, bindingFingerprint: canonicalJson(_captureStore.binding.forDomain('captures')));
+            }
           } on DomainFailure catch (error) {
             if (error.code != 'binding_changed' || epoch == _ownerEpoch) {
               rethrow;
@@ -348,6 +364,9 @@ class PersonalDataHubRuntime implements PlanningReader {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    if (ownsCaptureConnectionLifetime) {
+      await CaptureConsumerOwnership.forDatabase(db).suspend();
+    }
     await _subscription?.cancel();
     await _hubSubscription?.cancel();
     try {

@@ -91,6 +91,7 @@ class CaptureConsumer {
             'input_version': before['input_version'],
             'deleted': true,
             'local_pending': true,
+            'source': 'phone_quick',
             ...reconciled
           });
           await store.fault('capture_before_commit');
@@ -146,6 +147,7 @@ class CaptureConsumer {
           'input_version': current['local_input_version'] ?? 1,
           'input_digest': digest,
           'local_pending': true,
+          'source': 'phone_quick',
           'deleted': false,
           ...reconciled,
         });
@@ -205,8 +207,10 @@ class CaptureConsumer {
     return result;
   }
 
-  Future<void> _upgradeLegacy() => db.transaction(() async {
+  Future<void> _upgradeLegacy(Future<void> Function()? verifyOwnership) =>
+      db.transaction(() async {
         await store.acquireWriteLock();
+        await verifyOwnership?.call();
         final rows = await db
             .customSelect(
               "SELECT key,value FROM kv_store WHERE bucket='capture_consumer'",
@@ -298,7 +302,9 @@ class CaptureConsumer {
                 ),
           ));
 
-  Future<int> consume() async {
+  Future<int> consume(
+      {bool allowRemoteWeb = true,
+      Future<void> Function()? verifyRemoteOwnership}) async {
     if (!identical(db, store.db) || !organizer.captureUsesDatabase(db)) {
       throw const DomainFailure('database_mismatch');
     }
@@ -307,7 +313,7 @@ class CaptureConsumer {
     store.checkBinding(d, 'captures');
     if (d['route'] == 'phone') return _consumePhone(d);
     if (d['route'] != 'core') return 0;
-    await _upgradeLegacy();
+    if (allowRemoteWeb) await _upgradeLegacy(verifyRemoteOwnership);
     final pendingIds = (state['outbox'] as List)
         .where((o) =>
             o['domain'] == 'captures' &&
@@ -329,10 +335,17 @@ class CaptureConsumer {
     };
     for (final id in ids) {
       final ledger = await _ledger(id);
+      final recordSource = d['records'][id]?['provenance']?['source'] ??
+          d['records'][id]?['data']?['source'] ??
+          ledger?['source'];
+      // Bodyless tombstones and unknown old receipts are not assumed to be
+      // phone quick captures. The web owner gate covers deletes as well.
+      if (!allowRemoteWeb && recordSource != 'phone_quick') continue;
       if (_deleted(state, d, id)) {
         if (ledger == null || ledger['deleted'] == true) continue;
         await db.transaction(() async {
           await store.acquireWriteLock();
+          await verifyRemoteOwnership?.call();
           final latestState = await store.read();
           final latest = store.domain(latestState, 'captures');
           store.checkBinding(latest, 'captures');
@@ -357,6 +370,7 @@ class CaptureConsumer {
             'schema': 1,
             'capture_id': id,
             'input_version': before['input_version'],
+            'source': recordSource,
             'deleted': true,
             ...reconciled,
           });
@@ -384,6 +398,7 @@ class CaptureConsumer {
           ['done', 'skipped'].contains(completed['status'])) {
         await db.transaction(() async {
           await store.acquireWriteLock();
+          await verifyRemoteOwnership?.call();
           if (await _ledger(id) != null) return;
           final slots = await organizer.captureLegacySlots(
             (completed['outputs'] as List? ?? []).whereType<String>().toList(),
@@ -416,6 +431,7 @@ class CaptureConsumer {
           alreadyExtracted ? OrganizedRecord(cards: []) : await extract(text);
       await db.transaction(() async {
         await store.acquireWriteLock();
+        await verifyRemoteOwnership?.call();
         final latestState = await store.read();
         final latest = store.domain(latestState, 'captures');
         store.checkBinding(latest, 'captures');
@@ -508,6 +524,7 @@ class CaptureConsumer {
           'input_version': version,
           'input_digest': digest,
           'local_pending': false,
+          'source': recordSource,
           'deleted': false,
           ...reconciled,
         });
