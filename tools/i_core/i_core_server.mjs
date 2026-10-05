@@ -254,6 +254,8 @@ export function createICoreServer({
   domainVerifyAuthorization = undefined,
   domainTestOnlyFault = undefined,
   domainDedupHooks = undefined,
+  domainHooks = undefined,
+  domainVerifyLegacyAdoption = undefined,
   clock = Date.now,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
@@ -298,6 +300,8 @@ export function createICoreServer({
     domainVerifyAuthorization,
     domainTestOnlyFault,
     domainDedupHooks,
+    domainHooks,
+    domainVerifyLegacyAdoption,
   });
   const handleDomainRequest = createDomainRequestHandler({
     getStore: () => store.domains,

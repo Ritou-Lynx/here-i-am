@@ -1,0 +1,169 @@
+{
+  "format": "w2-main-acceptance-v1",
+  "base": "dc29fd5e1ed8694bf301929bf011cf53bbce16e3",
+  "scope": "finite_source_implementation_with_synthetic_validation",
+  "initial_run_preserved": {
+    "tests": 570,
+    "pass": 567,
+    "fail": 2,
+    "skipped": 1,
+    "cancelled": 0,
+    "duration_ms": 432482.0218,
+    "log_sha256": "8951ee0f892dc776d7e36c0717edce236f0fb7b4d63822bf664afe39f3e6b84e",
+    "test_files": 34,
+    "roots": [
+      "tools/i_core",
+      "tools/i_memory",
+      "tools/i_continuity_gateway"
+    ],
+    "terminal_leaf_failures": 1,
+    "parent_failure_entries": 1,
+    "missing_remote_mcp_in_this_first_run": true,
+    "classification": "existing_guardian_observation_and_missing_diagnostic; unique_original_trigger_not_recoverable"
+  },
+  "final_full_run": {
+    "tests": 654,
+    "pass": 653,
+    "fail": 0,
+    "skipped": 1,
+    "cancelled": 0,
+    "duration_ms": 349474.8934,
+    "log_sha256": "92039403580442fc2324cf436ceb5edcff0ac7b102f65bb1b94d1e52cb323197",
+    "test_files": 42,
+    "roots": [
+      "tools/i_core",
+      "tools/i_memory",
+      "tools/i_remote_mcp",
+      "tools/i_continuity_gateway"
+    ],
+    "source_paths": 135,
+    "source_guard_verified": true,
+    "run_before_diagnostic_message_patch": true
+  },
+  "diagnostic_change": {
+    "path": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+    "change": "one_assertion_failure_message_only_plus_optional_eol_normalization",
+    "assertions_relaxed": false,
+    "pre_raw_sha256": "7ca10fcd07d7c0c2ad316093938ab40f38321bd25a8ff003e2d35cea401f365b",
+    "post_raw_sha256": "3ff1a4576e503d915479eefb4ffff947fdb9da9fb124d329643c83aeeb3387e9",
+    "original_text_reconstruction_verified": true
+  },
+  "post_diagnostic_targeted_run": {
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "duration_ms": 30922.1859,
+    "log_sha256": "7612eb8069f3465cccaea742ad31fd7882728ea07ef1f89af363417ff96956dd",
+    "run_after_diagnostic_message_patch": true
+  },
+  "candidate_raw_sha256": {
+    "tools/i_core/domain_store.mjs": "600f0a32be0f5e66ac3c9e719e066f360055b0c1b28b4ee870bcb8ef157addb0",
+    "tools/i_core/domain_store.test.mjs": "2e94222dd779acb6fb0cec673da31db60ca6d7652238bebb3912acbe8cf1ed85",
+    "tools/i_core/domain_adoption.test.mjs": "313e5d0edab221e23afc75947207b167bf56fa571d7f70099990cb95e9cc9d33",
+    "tools/i_core/i_core_server.mjs": "ed5595587bcf94128d1fd029fc5a8ad793534fa4adeb82f6d1caefed281ddbc4",
+    "tools/i_core/i_core_store.mjs": "2bf42b7f48e14461c98e950974d44613d2068aaff562a3dc147275a35131c54e",
+    "tools/i_core/personal_data_domains.mjs": "5cebafa58e7607315b16f320e0d10c1839fbf3b0ed5f0c56b7aa81aec12fa6e2",
+    "tools/i_core/personal_data_domains.test.mjs": "d868fd7061d9adb894c80282f25da957c7edb1005ca3667acd4d606ed561aea1",
+    "tools/i_core/import_personal_notes.mjs": "713c0b5aeb30a5f9f1131217e517adc455f24a2953a45ff84a3cedeec0eab716",
+    "tools/i_core/import_personal_notes.test.mjs": "a82a9fb373e4373dc93eb37f76a8154d9c1c123e6d3fc89d26c8358b5cbdd70d",
+    "tools/i_core/import_local_plan.mjs": "42b919401d81bc487301026c8c1be2f62a290feb6a57765bedb4945bbca57493",
+    "tools/i_core/import_local_plan.test.mjs": "e1fb2f35554916aebadc043d42e68bbfbf56794b5045c136d440e0e09f90380e",
+    "tools/i_core/personal_data_http.test.mjs": "0cf81056e1e2ae93e87db1d0b34308e94886ba5ade5e2f339efe04144d6907f5",
+    "tools/i_core/runtime_upgrade/r3/service.test.mjs": "3ff1a4576e503d915479eefb4ffff947fdb9da9fb124d329643c83aeeb3387e9"
+  },
+  "source_guard_only_difference_after_full_run": "tools/i_core/runtime_upgrade/r3/service.test.mjs",
+  "production_business_domains_enabled": false,
+  "real_business_data_imported": false,
+  "production_services_changed": false,
+  "phone_installed": false,
+  "open_boundaries": [
+    "existing v4 transcript/replay runtime compatibility",
+    "explicit owner policy/credentials and business activation",
+    "real import mapping review including week/day Markdown and existing receipts",
+    "source migration dry-run and authorized cutover",
+    "W3 domain MCP and W4/W5 phone UI"
+  ],
+  "git_blob_binding": {
+    "tools/i_core/domain_store.mjs": {
+      "raw_sha256": "600f0a32be0f5e66ac3c9e719e066f360055b0c1b28b4ee870bcb8ef157addb0",
+      "staged_blob_sha256": "600f0a32be0f5e66ac3c9e719e066f360055b0c1b28b4ee870bcb8ef157addb0",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/domain_store.test.mjs": {
+      "raw_sha256": "2e94222dd779acb6fb0cec673da31db60ca6d7652238bebb3912acbe8cf1ed85",
+      "staged_blob_sha256": "2e94222dd779acb6fb0cec673da31db60ca6d7652238bebb3912acbe8cf1ed85",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/domain_adoption.test.mjs": {
+      "raw_sha256": "313e5d0edab221e23afc75947207b167bf56fa571d7f70099990cb95e9cc9d33",
+      "staged_blob_sha256": "313e5d0edab221e23afc75947207b167bf56fa571d7f70099990cb95e9cc9d33",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/i_core_server.mjs": {
+      "raw_sha256": "ed5595587bcf94128d1fd029fc5a8ad793534fa4adeb82f6d1caefed281ddbc4",
+      "staged_blob_sha256": "ed5595587bcf94128d1fd029fc5a8ad793534fa4adeb82f6d1caefed281ddbc4",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/i_core_store.mjs": {
+      "raw_sha256": "2bf42b7f48e14461c98e950974d44613d2068aaff562a3dc147275a35131c54e",
+      "staged_blob_sha256": "2bf42b7f48e14461c98e950974d44613d2068aaff562a3dc147275a35131c54e",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/personal_data_domains.mjs": {
+      "raw_sha256": "5cebafa58e7607315b16f320e0d10c1839fbf3b0ed5f0c56b7aa81aec12fa6e2",
+      "staged_blob_sha256": "5cebafa58e7607315b16f320e0d10c1839fbf3b0ed5f0c56b7aa81aec12fa6e2",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/personal_data_domains.test.mjs": {
+      "raw_sha256": "d868fd7061d9adb894c80282f25da957c7edb1005ca3667acd4d606ed561aea1",
+      "staged_blob_sha256": "d868fd7061d9adb894c80282f25da957c7edb1005ca3667acd4d606ed561aea1",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/import_personal_notes.mjs": {
+      "raw_sha256": "713c0b5aeb30a5f9f1131217e517adc455f24a2953a45ff84a3cedeec0eab716",
+      "staged_blob_sha256": "713c0b5aeb30a5f9f1131217e517adc455f24a2953a45ff84a3cedeec0eab716",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/import_personal_notes.test.mjs": {
+      "raw_sha256": "a82a9fb373e4373dc93eb37f76a8154d9c1c123e6d3fc89d26c8358b5cbdd70d",
+      "staged_blob_sha256": "a82a9fb373e4373dc93eb37f76a8154d9c1c123e6d3fc89d26c8358b5cbdd70d",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/import_local_plan.mjs": {
+      "raw_sha256": "42b919401d81bc487301026c8c1be2f62a290feb6a57765bedb4945bbca57493",
+      "staged_blob_sha256": "42b919401d81bc487301026c8c1be2f62a290feb6a57765bedb4945bbca57493",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/import_local_plan.test.mjs": {
+      "raw_sha256": "e1fb2f35554916aebadc043d42e68bbfbf56794b5045c136d440e0e09f90380e",
+      "staged_blob_sha256": "e1fb2f35554916aebadc043d42e68bbfbf56794b5045c136d440e0e09f90380e",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/personal_data_http.test.mjs": {
+      "raw_sha256": "0cf81056e1e2ae93e87db1d0b34308e94886ba5ade5e2f339efe04144d6907f5",
+      "staged_blob_sha256": "0cf81056e1e2ae93e87db1d0b34308e94886ba5ade5e2f339efe04144d6907f5",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    },
+    "tools/i_core/runtime_upgrade/r3/service.test.mjs": {
+      "raw_sha256": "3ff1a4576e503d915479eefb4ffff947fdb9da9fb124d329643c83aeeb3387e9",
+      "staged_blob_sha256": "3ff1a4576e503d915479eefb4ffff947fdb9da9fb124d329643c83aeeb3387e9",
+      "same_bytes": true,
+      "eol_normalization_only": false
+    }
+  },
+  "eol_only_files": 0
+}

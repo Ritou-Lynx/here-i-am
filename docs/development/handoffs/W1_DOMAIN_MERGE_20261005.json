@@ -1,0 +1,19 @@
+{
+  "pr_url": "https://github.com/Ritou-Lynx/here-i-am/pull/8",
+  "head_sha": "859b77b5f478d7bf09897c3eb96f00f1df779bed",
+  "base_branch": "v3-lab",
+  "merged": true,
+  "merge_commit_sha": "dc29fd5e1ed8694bf301929bf011cf53bbce16e3",
+  "merged_at": "2026-10-05T12:44:11Z",
+  "remote_v3_sha": "dc29fd5e1ed8694bf301929bf011cf53bbce16e3",
+  "checked_categories": [
+    "PR Policy Preflight",
+    "Bridge Node tests (Linux)",
+    "Flutter whiteboard + workbench (Linux)",
+    "Flutter full suite (Linux)",
+    "Windows build + whiteboard integration"
+  ],
+  "check_count": 9,
+  "production_switch_performed": false,
+  "merged_tree_equals_tested_head_tree": true
+}

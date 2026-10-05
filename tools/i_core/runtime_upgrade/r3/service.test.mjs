@@ -285,7 +285,7 @@ test('parent death at each real guardian bootstrap barrier cannot leave suspende
       assert.equal(existsSync(path.join(lab.state,'r3-lifecycle.json')),false);
       assert.equal(sha256(readFileSync(lab.database)),before);
       for(const field of ['service_exit_code','member_exit_code','grandchild_exit_code']) assert.equal(report[field],137);
-      const guardian=run.read('guardian.json');assert.equal(guardian.run_id,run.read('launch.json').token);assert.equal(guardian.result.parent_exit_observed,true);assert.equal(guardian.result.job_empty_confirmed,true);
+      const guardian=run.read('guardian.json');assert.equal(guardian.run_id,run.read('launch.json').token);assert.equal(guardian.result.parent_exit_observed,true,JSON.stringify({stage,guardian:guardian.result,process_witness:report}));assert.equal(guardian.result.job_empty_confirmed,true);
       execFileSync(ps,['-NoProfile','-NonInteractive','-Command',`$ErrorActionPreference='Stop'; $f=[IO.File]::Open(${quote(path.join(lab.state,'shortcut-mail-relay.runtime.lock'))},[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None); $f.Dispose()`],{windowsHide:true,env:cleanEnvironment(),timeout:10000});
       await assert.rejects(request({address:{port}},'/health'));
       sub.diagnostic(JSON.stringify({scenario:'bootstrap_parent_death',stage,manifest_sha256:lab.packageResult.manifest_sha256,base_owned_job_sha256:sha256(Buffer.from(original)),instrumented_owned_job_sha256:sourceEntry.sha256,parent_exit_confirmed:run.closed,parent_exit_code:run.exit,guardian_reason:guardian.result.reason,listener_never_started:true,original_database_bytes_unchanged:true,lock_released:true,clean_receipt:false,...report}));

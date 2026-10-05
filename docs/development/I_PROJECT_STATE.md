@@ -1,22 +1,24 @@
 # 林埃的项目状态
 
-## W1 组合验收与下游实现（2026-10-05）
+## W1 已合入与 W2 有限源码验收（2026-10-05）
 
-用户已确认[接口约定](I_CORE_DOMAIN_CONTRACT.md)。W1通用框架与42修复提交 `6895e86b` 已在隔离分支 `codex/w1-integration-20261005` 组合：全部递归Core/Memory/MCP **507过/0红/1原有跳**（31文件/508项），合成pin专项7/7，生产来源守卫不变；[组合交接与绑定](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.md)。42修复已提交并开[PR #7](https://github.com/Ritou-Lynx/here-i-am/pull/7)，五类head检查全绿后普通合入 `v3-lab@38ed6b88`；原修复窗和原W1未提交副本保留。
+42既有失败修复经 [PR #7](https://github.com/Ritou-Lynx/here-i-am/pull/7) 合入 `38ed6b88`；用户已确认[领域接口约定](I_CORE_DOMAIN_CONTRACT.md)。W1 [PR #8](https://github.com/Ritou-Lynx/here-i-am/pull/8) 五类精确 head 检查全过，普通合入 `v3-lab@dc29fd5e`，合并树等于已测 head；[合并回执](handoffs/W1_DOMAIN_MERGE_20261005.json)。原工作副本保留，正式主副本已仅快进源码。
 
-用户追加批准的只读一致副本4→5→6，已按最终组合13源码重演通过（[最终R01](handoffs/W1_COMBINED_R01_VALIDATION_20261005.json)）：八表/行/序号/身份/replay元数据保全、独立加密备份/明文清理；现役库仍4且Core/MCP运行。输入为真实schema4派生的新空activity5，不覆盖已有真实activity历史、现役固定v4全部功能或外置授权；未切换服务/升级原库/签发生产领域凭据/安装手机。
+W1最终13源码的授权只读一致副本4→5→6演练通过：[R01](handoffs/W1_COMBINED_R01_VALIDATION_20261005.json)。八表/行/序号/身份/replay保全，独立加密备份与明文清理；输入为真实schema4派生的新空activity5，不证明已有真实activity历史、现役固定v4功能或外置授权兼容。未升级原库/切换服务/签发生产领域凭据/安装手机。
 
-W2已核对四域业务结构/权限，实际实现随后补受控本机历史导入、业务值/嵌套/输入版本与派生删除引用。W7-0已在独立手机分支实现通用基础与真实caller接线；A18/A20客户端事务与崩溃范围仍须实际测试，不继承服务端证据。W3需先完成MCP对齐发布前检查；W4/W5可基于已确认接口用假服务开发。
+W2四业务域与两个默认dry-run导入脚本完成有限源码验收：[主窗验收](handoffs/W2_MAIN_ACCEPTANCE_20261005.md)。四根Core/Memory/remote MCP/continuity gateway递归42文件654项，653过/0红/1原有平台跳；完整回归后只补既有守护断言诊断，严格断言未改，定向4/4。首轮34文件的1叶子+1父级失败保留且唯一触发分支未恢复。业务仍显式注册、默认off，真实来源和周日映射/旧传输receipt另验。
+
+W7-0手机基础在独立分支复核通用outbox、真实caller、A18/A20及Dart↔Node互通；不继承服务端证据。W3/W4/W5可并行源码实施；W3部署前须完成运行MCP对齐及固定Core v4功能保全，W4/W5仍需widget和真机Gate。逐域影子/回滚/权威切换未进行。
 
 ## 个人数据中枢：已合入规划与独立窗口（2026-10-05）
 
-正式[ADR](PERSONAL_DATA_HUB_ADR_20261005.md)二十项/C1–C7 已确认。W0 [PR #5](https://github.com/Ritou-Lynx/here-i-am/pull/5)与 happy@5447c5c4 **整个分支**经[PR #6](https://github.com/Ritou-Lynx/here-i-am/pull/6)普通合入 `v3-lab@6508f1ab5ac2ed57155e95047942875f14fa0c47`，2026-10-05 10:14:46Z；PR#6五项 head 检查成功，合并树等于已测候选树，happy为祖先。未同步 D 私人谱系或切换正式主工作区；W1只在隔离副本写。
+正式[ADR](PERSONAL_DATA_HUB_ADR_20261005.md)二十项/C1–C7 已确认。W0 [PR #5](https://github.com/Ritou-Lynx/here-i-am/pull/5)与 happy@5447c5c4 **整个分支**经[PR #6](https://github.com/Ritou-Lynx/here-i-am/pull/6)普通合入 `v3-lab@6508f1ab5ac2ed57155e95047942875f14fa0c47`，2026-10-05 10:14:46Z；PR#6五项 head 检查成功，合并树等于已测候选树，happy为祖先。未同步 D 私人谱系或切换运行服务；后续源码合入状态见本页首节。
 
 用户指定的新窗口均已完成交接，详见[当前派发](handoffs/PERSONAL_DATA_HUB_DISPATCH_NEXT_20261005.md)。W6 `01a10b7f-d9ae-7bd3-9d2e-26944c3c6f94`完成四域字段映射并在直接获批后只读统计：收支卡74/账本92，仅总数差18；Core已有10条登记Android来源companion；i_remember活动0、删除on_phone1。不能据此证明持续上传/当前消费或具体漏记，旧“全部不在Core/全部等手机”推断已纠正。
 
 MCP对齐 `01a10b80-a21c-7a23-b9f3-3a2a4a2423fb`完成受控源码备份、W0 exact候选、125/125、9/9、2/2合成测试和切换/回滚方案。**实际Core为含transcript/replay的固定v4包**，不能直接被W0/W1覆盖；该窗仅请求独立远程MCP停启/账本及外置配置备份/源码入口切换授权，未执行。主窗已只读核实当前库 schema4，副本链通过仍不证明现役 transcript/replay 功能兼容；Core 升级须先保全这些功能。
 
-42项旧失败完成主窗 diff/逐项证据验收，原16文件独立复跑260过/0红/1既有跳；移植到当前v3-lab@6508f1ab的隔离候选同套262过/0红/1既有跳（保留W0两项frontend负例），未新增跳过/屏蔽。WI源码/12测试、WL指令/链接已验收；W6确定映射与MCP字节比对文案各修正后通过有限交接验收。详见[分派验收](handoffs/DISPATCH_ACCEPTANCE_20261005.md)。42修复PR #7已普通合入，W1联合候选已主窗复验；WI/WL/W6/MCP保留独立候选，当前无生产切换、手机安装或真实业务迁移。
+42项旧失败完成主窗 diff/逐项证据验收，原16文件独立复跑260过/0红/1既有跳；移植到当前v3-lab@6508f1ab的隔离候选同套262过/0红/1既有跳（保留W0两项frontend负例），未新增跳过/屏蔽。WI源码/12测试、WL指令/链接已验收；W6确定映射与MCP字节比对文案各修正后通过有限交接验收。详见[分派验收](handoffs/DISPATCH_ACCEPTANCE_20261005.md)。42修复PR #7已普通合入，W1已联合复验并经PR#8合入；WI/WL/W6/MCP保留独立候选，当前无生产切换、手机安装或真实业务迁移。
 
 ## 学习系统：思源为知识库与学习账本，dot 语音带练（2026-10-04）
 
