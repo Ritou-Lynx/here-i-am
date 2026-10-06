@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, unlinkSync, readdirSync, existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -9,6 +9,10 @@ import { syntheticRoot } from '../../test_fixtures/release_schema6/synthetic_pat
 import { parseConfiguration } from './configuration.mjs';
 import { stateDigest } from './common.mjs';
 import { assertOfflineLease } from './offline_lease.mjs';
+import { ICoreStore } from '../../i_core_store.mjs';
+import { rollbackActivitySchema } from '../../activity_control_plane.mjs';
+import { rawFileHash, RAW_SUFFIXES } from '../raw_state_backup.mjs';
+import { RECOVERY_PENDING } from '../recovery_adapter.mjs';
 import { createRuntimeLab as lab, until, api, health, cleanReceipt, removeOwned } from './test-fixture.mjs';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const secret=()=>randomBytes(32).toString('hex');
@@ -54,6 +58,10 @@ test('Windows fixed production entry: real loopback, credential-free argv, authe
 test('Windows entry rejects injected Node config, unbound config, manifest extra file and nonempty initialization', {skip:process.platform!=='win32',timeout:180000},async t=>{
  const l=await lab(t);
  const injected=l.launch({initial:true,env:{NODE_OPTIONS:'--trace-warnings'}});await injected.wait();assert.notEqual(injected.exit,0);assert.equal(injected.read('launch.json'),null);
+ const badJson=path.join(path.dirname(l.configPath),'invalid.json'),hiddenSecret=secret();writeFileSync(badJson,'{"pairing_secret":"'+hiddenSecret+'",BROKEN');
+ const malformed=l.launch({initial:true,config:badJson});await malformed.wait();assert.notEqual(malformed.exit,0);
+ const malformedOutput=malformed.stdout+malformed.stderr+JSON.stringify(malformed.read('child.json'));
+ assert.match(malformedOutput,/config_json_rejected/);assert.equal(malformedOutput.includes(hiddenSecret),false);
  const wrong=path.join(path.dirname(l.configPath),'wrong.json');writeFileSync(wrong,JSON.stringify({...l.configuration,manifest_sha256:secret()}));
  const unbound=l.launch({initial:true,config:wrong});await unbound.wait();assert.notEqual(unbound.exit,0);assert.match(JSON.stringify(unbound.read('child.json')),/config_binding_mismatch/);
  // Rejected initialization left its runtime lock file; an occupied state root
@@ -70,10 +78,30 @@ for(const target of ['guardian','parent','child'])test('Windows '+target+' death
  await assert.rejects(health(ready));
  await until(()=>{try{process.kill(run.read('guardian-ready.json').pid,0);return false;}catch{return true;}},20000);
  const marker=JSON.parse(readFileSync(path.join(l.state,'s6-lifecycle.json')));assert.equal(marker.phase,'recovery_required');
+ // Filename survives process death. The kernel handle does not, so the next
+ // fixed parent must acquire the same carrier without deleting a stale lock.
+ assert.equal(existsSync(path.join(l.root,'custody','custody.lock')),true);
  const restart=l.launch();const recovered=await restart.ready();assert.equal(recovered.health.schema_version,6);
  assert.ok(readdirSync(path.join(l.root,'backups')).some(n=>n.startsWith('raw-')));
  assert.ok(readdirSync(path.join(l.root,'custody')).some(n=>n.endsWith('.recovery.json')));
  restart.stop();await restart.wait();cleanReceipt(restart);l.completed=true;
+});
+
+test('Windows next fixed start rejects precommit and commit-started migration interruption latches without touching schema4 bytes',{skip:process.platform!=='win32',timeout:180000},async t=>{
+ const l=await lab(t),filename=path.join(l.state,'i-core.sqlite');
+ const core=new ICoreStore(filename,{activityEnabled:false,companionUploadMode:'legacy_b3'}),nodeId=core.nodeId;core.close();
+ const db=new DatabaseSync(filename);rollbackActivitySchema(db);db.close();
+ writeFileSync(l.configPath,JSON.stringify({...l.configuration,node_id:nodeId}));
+ // This is the next-login half of the portable adapter fault injection test:
+ // emulate its durable latch, then exercise the unmodified fixed Windows entry.
+ const hashes=()=>RAW_SUFFIXES.map(s=>existsSync(filename+s)?rawFileHash(filename+s):null),before=hashes();
+ for(const commitStarted of [false,true]){
+  writeFileSync(path.join(l.state,RECOVERY_PENDING),JSON.stringify({format:'i-core-recovery-pending-v1',databasePath:filename,kind:'schema4_copy_adoption',commitStarted,failureCode:'migration_interrupted'}));
+  const run=l.launch();await run.wait();assert.notEqual(run.exit,0);assert.equal(run.read('ready.json'),null);
+  assert.equal(run.read('child.json')?.error_code,'recovery_interrupted_review_required');assert.deepEqual(hashes(),before);
+  assert.equal(JSON.parse(readFileSync(path.join(l.state,RECOVERY_PENDING))).commitStarted,commitStarted);
+ }
+ l.completed=true;
 });
 
 

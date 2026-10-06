@@ -16,6 +16,13 @@ if(-not [Schema6OwnedJob]::Contains($RunId,[uint32]$ChildPid)) { throw 'offline_
 $busy=$false
 try { $handle=[IO.File]::Open((Join-Path $launch.state 'shortcut-mail-relay.runtime.lock'),'Open','ReadWrite','None'); $handle.Dispose() } catch [IO.IOException] { $busy=$true }
 if(-not $busy) { throw 'offline_lock_not_held' }
+$settings=Get-Content -LiteralPath $launch.configuration_file -Raw | ConvertFrom-Json
+Assert-ProtectedPath $settings.recovery_custody_directory -Root
+$custodyLockPath=Join-Path $settings.recovery_custody_directory 'custody.lock'
+Assert-ProtectedPath $custodyLockPath
+$custodyBusy=$false
+try { $custodyProbe=[IO.File]::Open($custodyLockPath,'Open','ReadWrite','None'); $custodyProbe.Dispose() } catch [IO.IOException] { $custodyBusy=$true }
+if(-not $custodyBusy) { throw 'offline_custody_lock_not_held' }
 if($CheckDatabase) {
  $databaseHandles=@()
  try {

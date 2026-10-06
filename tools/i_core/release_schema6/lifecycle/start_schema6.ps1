@@ -47,6 +47,7 @@ function Assert-Tree([string]$Root) {
   }
 }
 $lock = $null
+$custodyLock = $null
 $configHandle = $null
 $externalHandles = @()
 try {
@@ -93,7 +94,8 @@ try {
     $configHandle=[IO.File]::Open($ConfigurationFile,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
   }
   if($InitializeEmpty -and $OfflineOperation) { throw 'operation_conflict' }
-  $configuration = Get-Content -LiteralPath $ConfigurationFile -Raw | ConvertFrom-Json
+  try { $configuration = Get-Content -LiteralPath $ConfigurationFile -Raw | ConvertFrom-Json }
+  catch { throw 'config_json_rejected' }
   foreach($name in @('grants_path','approvals_path','recovery_key_path')) {
     $external = $configuration.$name
     if(-not $external) { throw 'external_configuration_path_required' }
@@ -121,6 +123,11 @@ try {
     'shortcut-mail-relay.runtime.lock','s6-lifecycle.json')) { Assert-PlainPath (Join-Path $StateDirectory $name) }
   try { $lock = [IO.File]::Open((Join-Path $StateDirectory 'shortcut-mail-relay.runtime.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None) }
   catch { throw 'runtime_lock_busy' }
+  $custodyLockPath=Join-Path $configuration.recovery_custody_directory 'custody.lock'
+  Assert-PlainPath $custodyLockPath
+  if(Test-Path -LiteralPath $custodyLockPath) { Assert-ProtectedPath $custodyLockPath }
+  try { $custodyLock=[IO.File]::Open($custodyLockPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None) }
+  catch { throw 'custody_lock_busy' }
   if ($CorePort -ne 0) {
     $probe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$CorePort)
     $probe.Server.ExclusiveAddressUse = $true
@@ -183,6 +190,7 @@ try {
       }
     }
   }
+  $custodyLock.Dispose(); $custodyLock=$null
   $lock.Dispose(); $lock=$null
   $lockReleased=$false
   try { $probeLock=[IO.File]::Open((Join-Path $StateDirectory 'shortcut-mail-relay.runtime.lock'),[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None); $probeLock.Dispose(); $lockReleased=$true } catch { }
@@ -195,4 +203,4 @@ try {
 } catch {
   [Console]::Error.WriteLine((@{status='rejected';code=$_.Exception.Message} | ConvertTo-Json -Compress))
   exit 2
-} finally { if ($null -ne $lock) { $lock.Dispose() }; if ($null -ne $configHandle) { $configHandle.Dispose() }; foreach($handle in $externalHandles) { $handle.Dispose() } }
+} finally { if ($null -ne $custodyLock) { $custodyLock.Dispose() }; if ($null -ne $lock) { $lock.Dispose() }; if ($null -ne $configHandle) { $configHandle.Dispose() }; foreach($handle in $externalHandles) { $handle.Dispose() } }

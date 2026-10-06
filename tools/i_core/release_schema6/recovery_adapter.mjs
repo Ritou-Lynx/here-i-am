@@ -6,8 +6,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { activityRecoveryManifestForDatabase, assertActivityRecoveryFloorForDatabase, assertActivityRecoveryProgressForDatabase, activitySchemaStatus, migrateActivitySchema } from '../activity_control_plane.mjs';
 import { migrateDomainSchema, rollbackEmptyDomainSchema } from '../domain_migrate.mjs';
 import { assertDomainSchemaReady, DOMAIN_SCHEMA_SQL } from '../domain_schema.mjs';
+import { canonicalJSON } from '../domain_store.mjs';
+import { publicLifecycleErrorCode } from './lifecycle/common.mjs';
 import { plainPath, sha256, fail } from './package.mjs';
-import { assertOfflineLease } from './lifecycle/offline_lease.mjs';
+import { assertOfflineLease, withOfflineCustodyLock } from './lifecycle/offline_lease.mjs';
 import { verifyInitialRuntimeBackup } from './backup_bundle.mjs';
 import { preserveRawState, verifyRawState, assertRawUnchanged, rawFileHash, RAW_SUFFIXES } from './raw_state_backup.mjs';
 import { isInspectionDatabasePath } from '../inspection_read_only.mjs';
@@ -96,11 +98,7 @@ function withCustodyLock(input, work) {
  const options=configured(input);
  proof(options,'before_custody_lock');
  mkdirSync(options.custodyDirectory,{recursive:true,mode:0o700});plainPath(options.custodyDirectory);
- const lockPath=path.join(options.custodyDirectory,'custody.lock');
- let fd;try{fd=openSync(lockPath,'wx',0o600);}catch{fail('custody_concurrent_operation');}
- const stat=lstatSync(lockPath);options.custodyLock={path:lockPath,ino:stat.ino,dev:stat.dev};
- try{writeFileSync(fd,'i-core-custody-lock-v1\n');fsyncSync(fd);return work(options);}
- finally{closeSync(fd);const current=lstatSync(plainPath(lockPath));if(current.ino!==stat.ino||current.dev!==stat.dev)fail('custody_lock_lost');unlinkSync(lockPath);}
+ return withOfflineCustodyLock(options.supervisorLease,{databasePath:options.databasePath,custodyDirectory:options.custodyDirectory},()=>work(options));
 }
 function writeHead(options, body, previous) {
  proof(options,'before_custody_head_commit');
@@ -111,7 +109,7 @@ function writeHead(options, body, previous) {
   custodySha256:body.custodySha256,receiptId:body.receiptId,nodeId:body.nodeId,databasePath:options.databasePath};
  const raw=Buffer.from(JSON.stringify({...head,authentication:mac(head,options.custodyKey)})+'\n'),headSha256=sha256(raw);
  writeFileSync(path.join(options.custodyDirectory,headSha256+'.head.json'),raw,{flag:'wx',mode:0o600,flush:true});
- const pending=path.join(options.custodyDirectory,'current-head.pending');writeFileSync(pending,raw,{flag:'wx',mode:0o600,flush:true});
+ const pending=path.join(options.custodyDirectory,'current-head-'+randomUUID()+'.pending');writeFileSync(pending,raw,{flag:'wx',mode:0o600,flush:true});
  renameSync(pending,path.join(options.custodyDirectory,'current-head.json'));
  const checked=readHead(options);if(checked.headSha256!==headSha256)fail('custody_head_write_unverified');
  proof(options,'after_custody_head_commit');
@@ -163,8 +161,8 @@ function legacyDigest(db) {
 function receiptMatches(receipt, info) {
  if (receipt.nodeId !== info.nodeId || receipt.databaseSha256 !== info.databaseSha256) fail('clean_close_identity_mismatch');
 }
-// Bounded prefix evidence for immutable operation histories. Mutable domain
-// records are deliberately absent: their ordinary edits are legitimate progress.
+// Bounded prefix evidence for immutable operation histories. Mutable records
+// carry revision/hash witnesses; accepted higher revisions remain valid progress.
 function prefix(db,table,cut=null){
  const boundary=cut??Number(db.prepare('SELECT COALESCE(MAX(rowid),0) AS n FROM '+quote(table)).get().n);
  if(!Number.isSafeInteger(boundary)||boundary<0)fail('progress_sequence_invalid');
@@ -173,6 +171,63 @@ function prefix(db,table,cut=null){
  for(const row of statement.iterate(boundary)){digest.update(encode(row)).update('\n');count++;}
  return {table,cut:boundary,count,sha256:digest.digest('hex')};
 }
+const recordKey=r=>JSON.stringify([r.namespace,r.domain,r.id]);
+function domainRecordWitness(db){
+ if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='domain_records'").get())return [];
+ const records=[];
+ for(const r of db.prepare('SELECT * FROM domain_records ORDER BY namespace,domain,id').iterate()){
+  if(records.length>=16384)fail('domain_record_witness_limit');
+  if(!Number.isSafeInteger(r.revision)||r.revision<1)fail('domain_record_revision_invalid');
+  const envelope=JSON.parse(r.envelope_json);
+  if(envelope.id!==r.id||envelope.domain!==r.domain||envelope.revision!==r.revision||envelope.core_instance_id!==meta(db,'node_id')||!['present','recoverable','purged'].includes(envelope.body_state)
+    ||(envelope.body_state==='present'&&envelope.deleted_at!==null)||(envelope.body_state!=='present'&&!envelope.deleted_at)||(envelope.body_state==='purged'&&r.body_json!==null))fail('domain_record_envelope_invalid');
+  records.push({namespace:r.namespace,domain:r.domain,id:r.id,revision:r.revision,rowSha256:sha256(encode(r))});
+ }
+ return records;
+}
+function domainAcceptedTargets(db){
+ const targets=new Map();
+ if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='domain_records'").get())return targets;
+ const secret=meta(db,'cursor_secret'),nodeId=meta(db,'node_id');
+ const domainMac=value=>createHmac('sha256',secret).update(canonicalJSON(value)).digest('hex');
+ const receipts=new Map();
+ for(const row of db.prepare('SELECT * FROM domain_receipts').iterate()){
+  const {receipt_auth,...receipt}=JSON.parse(row.receipt_json);
+  if(receipt_auth!==domainMac(receipt)||receipt.receipt_id!==row.receipt_id||receipt.domain!==row.domain||receipt.core_instance_id!==nodeId)fail('domain_receipt_authentication_failed');
+  receipts.set(JSON.stringify([row.namespace,row.domain,receipt.principal_id,receipt.accepted_op_id]),receipt);
+ }
+ for(const row of db.prepare('SELECT * FROM domain_ops').iterate()){
+  const {recovery_auth,...metadata}=JSON.parse(row.op_meta_json),result=JSON.parse(row.result_json);
+  const authenticated=typeof recovery_auth==='string'&&recovery_auth===domainMac({format:'domain-operation-recovery-v1',namespace:row.namespace,principal_id:row.principal_id,domain:row.domain,op_id:row.op_id,request_digest:row.request_digest,result,metadata});
+  if(recovery_auth&&!authenticated)fail('domain_operation_authentication_failed');
+  const receipt=receipts.get(JSON.stringify([row.namespace,row.domain,row.principal_id,row.op_id]));
+  const accepted=row.namespace==='production'?!!receipt:metadata.outcome==='shadow_staged'||metadata.kind==='retention_purge'&&metadata.outcome==='accepted';
+  if(!accepted)continue;
+  const items=receipt?.targets??metadata.targets??[];
+  if(authenticated&&canonicalJSON(items)!==canonicalJSON(metadata.targets))fail('domain_accepted_target_invalid');
+  for(const item of items){
+   if(typeof item.id!=='string'||!Number.isSafeInteger(item.revision)||item.revision<1)fail('domain_accepted_target_invalid');
+   const commitment=metadata.recovery_rows?.find(r=>r.id===item.id&&r.revision===item.revision),key=recordKey({...row,id:item.id});
+   if(!targets.has(key)||targets.get(key).revision<item.revision)targets.set(key,{revision:item.revision,authenticated,rowAuth:commitment?.row_auth});
+  }
+ }
+ return {targets,domainMac};
+}
+function assertDomainRecords(db,prior,current){
+ if(!prior){if(current.length)fail('old_domain_witness_unverifiable');return;}
+ const before=new Map(prior.map(r=>[recordKey(r),r])),after=new Map(current.map(r=>[recordKey(r),r]));
+ const accepted=domainAcceptedTargets(db),latest=accepted.targets??accepted;
+ for(const [key,old] of before){const next=after.get(key);if(!next||next.revision<old.revision||(next.revision===old.revision&&next.rowSha256!==old.rowSha256))fail('domain_record_rollback_rejected');}
+ for(const [key,next] of after){const old=before.get(key),target=latest.get(key);
+  if(!old||next.revision>old.revision){
+   if(target?.revision!==next.revision||!target.authenticated)fail('domain_record_advance_unproven');
+   const row=db.prepare('SELECT * FROM domain_records WHERE namespace=? AND domain=? AND id=?').get(next.namespace,next.domain,next.id);
+   if(target.rowAuth!==accepted.domainMac({format:'domain-record-result-v1',...row}))fail('domain_record_result_mismatch');
+  }
+  if(target&&target.revision!==next.revision)fail('domain_record_materialization_mismatch');
+ }
+ for(const [key] of latest)if(!after.has(key))fail('domain_record_materialization_mismatch');
+}
 function captureProgressWitness(db){
  const has=name=>!!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
  return {format:'i-core-progress-witness-v1',
@@ -180,7 +235,7 @@ function captureProgressWitness(db){
   prefixes:['change_events','chat_messages','domain_ops','domain_receipts','domain_schema_migrations','activity_schema_migrations','activity_changes'].filter(has).map(t=>prefix(db,t)),
   sequences:has('sqlite_sequence')?db.prepare('SELECT name,seq FROM sqlite_sequence ORDER BY name').all():[],
   devices:db.prepare('SELECT device_id,paired_at_ms,last_ack_sequence FROM devices ORDER BY device_id').all(),
-  domainPrincipals:has('domain_principals')?db.prepare('SELECT principal_id,generation,status FROM domain_principals ORDER BY principal_id').all():[],
+  domainPrincipals:has('domain_principals')?db.prepare('SELECT principal_id,generation,status FROM domain_principals ORDER BY principal_id').all():[],domainRecords:domainRecordWitness(db),
   domainProgress:has('domain_registry')?db.prepare('SELECT domain,schema_json FROM domain_registry ORDER BY domain').all().map(r=>{
    const runtime=JSON.parse(r.schema_json).runtime??{};
    return {domain:r.domain,watermarks:runtime.watermarks??{},highwaters:runtime.highwaters??{}};
@@ -189,6 +244,7 @@ function captureProgressWitness(db){
 function assertProgressWitness(db,witness){
  if(witness?.format!=='i-core-progress-witness-v1'||!Array.isArray(witness.prefixes))fail('progress_witness_required');
  const current=captureProgressWitness(db);
+ assertDomainRecords(db,witness.domainRecords,current.domainRecords);
  if(current.identity!==witness.identity)fail('core_identity_rollback_rejected');
  for(const old of witness.prefixes){if(JSON.stringify(prefix(db,old.table,old.cut))!==JSON.stringify(old))fail('recovery_history_diverged');}
  const sequences=new Map(current.sequences.map(r=>[r.name,r.seq]));
@@ -423,7 +479,7 @@ export function recoverCanonicalState(input){
    // Before replacement even a failed migration leaves the original raw state
    // byte-for-byte intact. After replacement the external head/pending latch
    // prevent any blind restart or fallback to a stale floor.
-   const code=error.code??error.message;latch.failureCode=/^[a-z0-9_]{1,96}$/.test(code??'')?code:'recovery_check_failed';latch.failedAtMs=Date.now();
+   latch.failureCode=publicLifecycleErrorCode(error);latch.failedAtMs=Date.now();
    try{updateLatch();}catch{/* The original durable latch still prohibits restart. */}
    if(!committed&&!latch.commitStarted&&existsSync(stageDirectory)){plainPath(stageDirectory);for(const name of readdirSync(stageDirectory))plainPath(path.join(stageDirectory,name));rmSync(stageDirectory,{recursive:true});}
    throw error;

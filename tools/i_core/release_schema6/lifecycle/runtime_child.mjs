@@ -3,7 +3,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { cleanEnvironment, plainPath, sha256, verifyRelease } from '../package.mjs';
-import { assertNode, inspectExisting, stateDigest, validatePrevious, MARKER, separatePaths } from './common.mjs';
+import { assertNode, inspectExisting, stateDigest, validatePrevious, MARKER, separatePaths, readConfigurationDeclaration, publicLifecycleErrorCode } from './common.mjs';
 import { readConfiguration, protectedPath } from './configuration.mjs';
 import { createOfflineLease, recordClosedDatabase } from './offline_lease.mjs';
 import { sealClosedRecovery, verifyCanonicalRestart, migrateToSchema6, rollbackEmptySchema6 } from '../recovery_adapter.mjs';
@@ -47,7 +47,7 @@ async function shutdown(reason,failure=null) {
  writeControl('child.json',{token,mode,manifest_sha256:config.manifest_sha256,
   phase:clean?'clean_closed':started?'recovery_required':'rejected_before_store',reason,
   store_construction_attempted:started,store_close_confirmed:clean,listener_closed_confirmed:core?core.server.listening===false:true,
-  ...(failure?{error_code:failure.code??failure.message}:{})});
+  ...(failure?{error_code:publicLifecycleErrorCode(failure)}:{})});
  process.exitCode=clean?0:1;
 }
 try {
@@ -73,7 +73,7 @@ try {
  // Read only protected JSON here. Opening even immutable SQLite before raw
  // preservation would erase the guarantee for a dirty WAL/journal source.
  protectedPath(config.configuration_file);
- const declared=JSON.parse(readFileSync(config.configuration_file));
+ const declared=readConfigurationDeclaration(config.configuration_file);
  settings=readConfiguration(config.configuration_file,{manifest_sha256:config.manifest_sha256,database_path:filename,
   node_id:initial?'new':previous?.node_id??declared.node_id,owner_sid:config.owner_sid,release:config.release,provisioned_empty:initial||previous?.provisioned_empty===true});
  const recoveryNeeded=!initial&&needsStartupRecovery(filename,previous);

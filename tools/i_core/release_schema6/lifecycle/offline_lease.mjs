@@ -20,9 +20,18 @@ export function createOfflineLease({control,token,config,cleanCloseReceipt,origi
  verifyRelease(config.release,config.manifest_sha256);
  const onDisk=JSON.parse(readFileSync(plainPath(path.join(control,'launch.json'))));
  if(JSON.stringify(onDisk)!==JSON.stringify(config)) fail('offline_launch_unbound');
- const data={control,token,config,databasePath:path.join(config.state,'i-core.sqlite'),cleanCloseReceipt,origin};
+ let settings;try{settings=JSON.parse(readFileSync(plainPath(config.configuration_file)));}catch{fail('config_json_rejected');}
+ const custodyDirectory=plainPath(settings.recovery_custody_directory);
+ const data={control,token,config,databasePath:path.join(config.state,'i-core.sqlite'),custodyDirectory,cleanCloseReceipt,origin};
  probe(data,origin!=='empty_provision');
  const lease=Object.freeze({}); leases.set(lease,data); return lease;
+}
+// The fixed parent owns an actual FileShare.None handle throughout the child
+// lifetime. A leftover filename is harmless after kernel handle cleanup.
+export function withOfflineCustodyLock(lease,{databasePath,custodyDirectory},work){
+ const data=leases.get(lease);
+ if(!data||data.databasePath!==databasePath||data.custodyDirectory!==custodyDirectory)fail('trusted_custody_lease_required');
+ probe(data);return work();
 }
 export function assertOfflineLease(lease,{databasePath,phase}) {
  const data=leases.get(lease);

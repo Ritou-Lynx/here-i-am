@@ -13,6 +13,7 @@ import { createICoreServer } from '../i_core_server.mjs';
 import { rollbackActivitySchema } from '../activity_control_plane.mjs';
 import { syntheticLease } from '../test_fixtures/release_schema6/recovery/synthetic_lease.mjs';
 import { syntheticRoot } from '../test_fixtures/release_schema6/synthetic_paths.mjs';
+import { domainFlow } from '../test_fixtures/release_schema6/recovery/domain_flow.mjs';
 import { sha256, cleanEnvironment } from './package.mjs';
 
 // Substitute only the OS lease import in independent synthetic module instances.
@@ -138,12 +139,42 @@ test('backup role never becomes live through automatic recovery',t=>{
  const f=fixture(t);f.mutate(db=>db.prepare("UPDATE activity_metadata SET value='backup_read_only' WHERE key='database_role'").run());const before=sourceHashes(f);
  assert.throws(()=>adapter.recoverCanonicalState(f.o),/backup_activation_unsupported/);assert.deepEqual(sourceHashes(f),before);
 });
-test('mutable domain record edits may advance without rollback of immutable operation prefix',t=>{
- const f=fixture(t);f.mutate(db=>{db.prepare('INSERT INTO domain_records VALUES(?,?,?,?,?,?)').run('production','notes','item',1,'{}','first');db.prepare('INSERT INTO domain_ops VALUES(?,?,?,?,?,?,?)').run('production','p','notes','op1','digest1','{}','{}');});
+for(const mode of ['authoritative','shadow'])test('real DomainStore '+mode+' edit delete and retention remain valid recovery progress',t=>{
+ const f=fixture(t),flow=domainFlow(f.mutate,{mode});flow.submit('create');
+ f.setLease();let pin=adapter.sealClosedRecovery(f.o);f.o.previousCustodySha256=pin.custodySha256;
+ flow.submit('patch',1);flow.submit('delete',2);
+ let result=adapter.recoverCanonicalState(f.o);assert.equal(result.ok,true);pinRecovery(f,result);f.o.previousCustodySha256=result.custodySha256;
+ flow.retention();result=adapter.recoverCanonicalState(f.o);assert.equal(result.ok,true);
+ assert.equal(f.read(db=>db.prepare('SELECT revision FROM domain_records WHERE id=?').get(flow.id).revision),4);
+});
+test('sealed real DomainStore deletion cannot be resurrected by restoring only the old materialized record',t=>{
+ const f=fixture(t),flow=domainFlow(f.mutate);flow.submit('create');const old=f.read(db=>db.prepare('SELECT * FROM domain_records WHERE id=?').get(flow.id));flow.submit('delete',1);
  f.setLease();const pinned=adapter.sealClosedRecovery(f.o);f.o.previousCustodySha256=pinned.custodySha256;
- f.mutate(db=>{db.prepare("UPDATE domain_records SET revision=2,body_json='edited' WHERE id='item'").run();db.prepare('INSERT INTO domain_ops VALUES(?,?,?,?,?,?,?)').run('production','p','notes','op2','digest2','{}','{}');});
- const result=adapter.recoverCanonicalState(f.o);assert.equal(result.ok,true);
- assert.equal(f.read(db=>db.prepare("SELECT revision FROM domain_records WHERE id='item'").get().revision),2);
+ f.mutate(db=>db.prepare('UPDATE domain_records SET revision=?,envelope_json=?,body_json=? WHERE id=?').run(old.revision,old.envelope_json,old.body_json,flow.id));
+ assert.throws(()=>adapter.recoverCanonicalState(f.o),/domain_record_rollback_rejected/);
+});
+for(const [mutation,code] of [["revision=1",'domain_record_envelope_invalid'],["body_json='changed-at-same-revision'",'domain_record_rollback_rejected'],["envelope_json='{}'",'domain_record_envelope_invalid'],["revision=3",'domain_record_envelope_invalid']])test('signed domain materialization rejects '+mutation,t=>{
+ const f=fixture(t),flow=domainFlow(f.mutate);flow.submit('create');flow.submit('delete',1);
+ f.setLease();const pinned=adapter.sealClosedRecovery(f.o);f.o.previousCustodySha256=pinned.custodySha256;
+ f.mutate(db=>db.exec('UPDATE domain_records SET '+mutation));
+ assert.throws(()=>adapter.recoverCanonicalState(f.o),new RegExp(code));
+});
+for(const mode of ['authoritative','shadow'])test('real '+mode+' patch revision cannot conceal old body with authentic latest receipt',t=>{
+ const f=fixture(t),flow=domainFlow(f.mutate,{mode});flow.submit('create');const old=f.mutate(db=>db.prepare('SELECT body_json FROM domain_records WHERE id=?').get(flow.id).body_json);
+ f.setLease();const pinned=adapter.sealClosedRecovery(f.o);f.o.previousCustodySha256=pinned.custodySha256;
+ flow.submit('patch',1);f.mutate(db=>db.prepare('UPDATE domain_records SET body_json=? WHERE id=?').run(old,flow.id));
+ assert.throws(()=>adapter.recoverCanonicalState(f.o),/domain_record_result_mismatch/);
+});
+for(const mode of ['authoritative','shadow'])test('appended forged '+mode+' accepted metadata cannot authorize higher record revision',t=>{
+ const f=fixture(t),flow=domainFlow(f.mutate,{mode});flow.submit('create');
+ f.setLease();const pinned=adapter.sealClosedRecovery(f.o);f.o.previousCustodySha256=pinned.custodySha256;
+ f.mutate(db=>{
+  db.prepare("UPDATE domain_records SET revision=2,envelope_json=json_set(envelope_json,'$.revision',2)").run();
+  const ns=mode==='shadow'?'shadow':'production',targets=[{id:flow.id,revision:2}];
+  db.prepare('INSERT INTO domain_ops VALUES(?,?,?,?,?,?,?)').run(ns,'forged','example','forged-op','forged-digest','{}',JSON.stringify({outcome:mode==='shadow'?'shadow_staged':'accepted',targets}));
+  if(mode==='authoritative')db.prepare('INSERT INTO domain_receipts VALUES(?,?,?,?)').run('forged-receipt',ns,'example',JSON.stringify({receipt_id:'forged-receipt',domain:'example',core_instance_id:f.nodeId,principal_id:'forged',accepted_op_id:'forged-op',targets,receipt_auth:'0'.repeat(64)}));
+ });
+ assert.throws(()=>adapter.recoverCanonicalState(f.o),new RegExp(mode==='shadow'?'domain_record_advance_unproven':'domain_receipt_authentication_failed'));
 });
 test('larger new maximum cannot hide mutation of an old immutable operation',t=>{
  const f=fixture(t);f.mutate(db=>db.prepare('INSERT INTO domain_ops VALUES(?,?,?,?,?,?,?)').run('production','p','notes','op1','digest1','{}','{}'));

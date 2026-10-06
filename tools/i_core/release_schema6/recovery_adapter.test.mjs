@@ -18,6 +18,7 @@ import { createRuntimeBackup, BACKUP_ROLES } from './backup_bundle.mjs';
 import { digest, inspectInputs } from './preflight.mjs';
 import { assertDomainSchemaReady } from '../domain_schema.mjs';
 import { syntheticLease } from '../test_fixtures/release_schema6/recovery/synthetic_lease.mjs';
+import { domainFlow } from '../test_fixtures/release_schema6/recovery/domain_flow.mjs';
 
 // Real adapter and real migration/crypto code; only OS capability is substituted
 // in an unmistakably synthetic module instance. Production has no injection API.
@@ -153,7 +154,7 @@ test('authenticated old floor cannot authorize newer activity history',t=>{
 });
 test('empty domain rollback allowed only in place; any new domain write prevents destructive rollback',t=>{
  const f=fixture(t);f.pin(adapter.migrateToSchema6(f.options));const result=adapter.rollbackEmptySchema6(f.options);assert.equal(result.schemaVersion,5);
- const g=fixture(t);g.pin(adapter.migrateToSchema6(g.options));g.mutate("INSERT INTO domain_records VALUES('production','example','id',1,'{}','{}')");g.refreshReceipt();g.pin(adapter.sealClosedRecovery(g.options));
+ const g=fixture(t);g.pin(adapter.migrateToSchema6(g.options));domainFlow(work=>{const db=new DatabaseSync(g.options.databasePath);try{return work(db);}finally{db.close();}}).submit('create');g.refreshReceipt();g.pin(adapter.sealClosedRecovery(g.options));
  rejects(()=>adapter.rollbackEmptySchema6(g.options),'domain_rollback_not_empty');assert.equal(g.version(),6);
 });
 test('custody/key must be independent and unsupported backup activation remains rejected',t=>{
