@@ -45,6 +45,7 @@ CI-only 已推 head `45bcab16a98c147efe4f05669dd92f1cb4728772` 的其他 9 check
 
 第五轮 source `cfc8b011` 两次 Node 都到 restore，错误码摘要 `4881737c9b27e65fe2e8a2650af307d42887a48b93b5802358fffa11af0bb9fd` 对应 portable_authentication_failed。真实 PS5.1 纯合成进程实验证实 .NET Framework 的 StandardInput 文本流在 Start/AutoFlush 时可写入 BOM：48字节在UTF8/UTF16带BOM编码下变51/50。仅在启动期间临时设无BOM UTF8、finally立即恢复，实际两种编码均保持48字节，失败启动也恢复原编码；CI协议和回执现严格要求48。生产KDF/认证/还原API未改。该轮另有一次 seclogon 停止 native1052，实际发生状态未知，不忽略清理失败；正在补受限状态等待。真实跨SID成功仍以新CI为准。
 
+第七轮 source `d9f66775`：PR [job112160988489](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37430777811/job/112160988489) 59,639ms、push [job112160898262](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37430770899/job/112160898262) 61,295ms，均在 secondary_logon_query、创建 child 前失败；服务观察与计时为0、账号回收及清理确认。主窗与 worker 各自在全新 PS5.1 进程只解析类型，确定未加载 System.ServiceProcess 时为 RuntimeException / HResult -2146233087 / TypeNotFound；显式加载后成功且可重复加载，未构造或查询任何本机服务。CI-only adapter 现按 hosted guard → 显式加载 → 创建对象的顺序执行。主窗重新执行实际 loader 的失败→成功回归、入口顺序、两脚本语法/native编译、18/18状态模拟、GuardOnly退出2及diff检查，均通过。既有两次不同 SID 真实还原证据保留，不替代此修复后的精确 head 远端全绿。
 ## 六类最终合成演练
 
 | 情况 | 真实观测与下一启动要求 | 最终集成结果 |

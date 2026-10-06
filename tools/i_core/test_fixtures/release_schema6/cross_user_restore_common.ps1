@@ -206,8 +206,14 @@ function Invoke-CrossUserServiceTransition {
   if($Mode -eq 'Start'){$Evidence.startElapsedMilliseconds=$elapsedMs}else{$Evidence.restoreElapsedMilliseconds=$elapsedMs}
  }
 }
+# Fresh Windows PowerShell 5.1 does not resolve ServiceController until its
+# assembly is loaded. Keep this initialization service-free for regression tests.
+function Initialize-CrossUserServiceTypes {
+ Add-Type -AssemblyName System.ServiceProcess
+}
 function Invoke-CrossUserSecondaryLogon([ValidateSet('Start','Restore')][string]$Mode,[hashtable]$Evidence) {
  Assert-CrossUserCI -Parent
+ Initialize-CrossUserServiceTypes
  $controller=[ServiceProcess.ServiceController]::new('seclogon')
  $clock=[Diagnostics.Stopwatch]::StartNew()
  try {

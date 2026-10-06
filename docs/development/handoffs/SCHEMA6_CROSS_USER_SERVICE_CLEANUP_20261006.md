@@ -80,3 +80,42 @@ if(-not $guarded){throw 'local_native_adapter_guard_failed'}
 @{powershell=$PSVersionTable.PSVersion.ToString();syntaxFiles=2;nativeCompiled=$true;stateCases=$results;nativeAdapterGuardRejected=$guarded}|ConvertTo-Json -Depth 5 -Compress
 
 ```
+
+
+## Follow-up: fresh PS5.1 service type loading
+
+Parent reported candidate `d9f66775` failing both hosted runs `37430777811` / `37430770899`, jobs `112160988489` / `112160898262`, at `secondary_logon_query`: RuntimeException, HResult -2146233087, no native code, all service observations/elapsed values zero, no child created, account removed. The new adapter constructed ServiceController before starting its clock, but fresh PS5.1 had not loaded its assembly. The earlier pure callback scenarios and local guard rejection did not exercise this type-resolution boundary.
+
+Deterministic local reproduction in a fresh Windows PowerShell 5.1 process, after dot-sourcing common and compiling its native types, produced `System.Management.Automation.RuntimeException`, HResult `-2146233087`, FQID `TypeNotFound` from type resolution alone. The service-free `Initialize-CrossUserServiceTypes` now explicitly loads `System.ServiceProcess`; it runs after the hosted guard and before construction. The same type resolves afterward and repeated loading succeeds. No service instance was constructed and no live service was queried. This fixes the demonstrated initialization defect; hosted end-to-end remains for parent integration.
+
+Validation: fresh-process before/after regression and repeated load pass; adapter guard/load/construct order checked; both scripts parse; embedded native helper compiles; parent GuardOnly still exits 2 before action; diff check passes. Existing 18 simulated state-machine tests remain prior evidence, not new native service coverage. Follow-up commit again uses only the authorized per-commit SKIP_PROJECT_STATE exception with finally restoration.
+
+Exact fresh-process regression body (run with Windows PowerShell 5.1 `-NoProfile -NonInteractive -EncodedCommand`, UTF-16LE encoding of this body):
+
+```powershell
+
+$ErrorActionPreference='Stop'
+$ProgressPreference='SilentlyContinue'
+. ./tools/i_core/test_fixtures/release_schema6/cross_user_restore_common.ps1
+Initialize-CrossUserNative
+$before=$null
+try{$null=[ServiceProcess.ServiceController];throw 'expected_fresh_type_failure'}catch{
+ if($_.FullyQualifiedErrorId -ne 'TypeNotFound'){throw}
+ $before=@{type=$_.Exception.GetType().FullName;hresult=$_.Exception.HResult;id=$_.FullyQualifiedErrorId}
+}
+Initialize-CrossUserServiceTypes
+if([ServiceProcess.ServiceController].FullName -cne 'System.ServiceProcess.ServiceController'){throw 'type_load_failed'}
+Initialize-CrossUserServiceTypes
+$body=(Get-Command Invoke-CrossUserSecondaryLogon).Definition
+$guard=$body.IndexOf('Assert-CrossUserCI -Parent')
+$load=$body.IndexOf('Initialize-CrossUserServiceTypes')
+$construct=$body.IndexOf('$controller=[ServiceProcess.ServiceController]::new')
+if($guard -lt 0 -or $load -le $guard -or $construct -le $load){throw 'adapter_order_failed'}
+$tokens=$null;$errors=$null
+foreach($file in @('cross_user_restore_common.ps1','cross_user_restore.ps1')){
+ [void][Management.Automation.Language.Parser]::ParseFile((Join-Path (Join-Path (Get-Location) 'tools/i_core/test_fixtures/release_schema6') $file),[ref]$tokens,[ref]$errors)
+ if($errors.Count){throw 'syntax_failed'}
+}
+@{before=$before;after=[ServiceProcess.ServiceController].FullName;repeatedLoadPassed=$true;guardLoadConstructOrderPassed=$true;syntaxFiles=2;nativeCompiled=$true;serviceInstancesCreated=0}|ConvertTo-Json -Compress
+
+```
