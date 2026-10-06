@@ -1,6 +1,6 @@
 # 登录驻留与 Windows 关机会话候选（2026-10-06）
 
-拥有路径：新 `lifecycle/session_window.ps1`、`login_schema6.ps1`、`prepare_login_schema6.ps1`、`session_lifecycle.test.mjs`、两个 test-only 消息/进程故障 helper，固定库存新增三条。未改原 start/runtime 子进程契约或生产 ACL；恢复功能依赖独立恢复工作包。无现役 Task 注册、服务启动、配置切换或真实关机。
+拥有路径：新 `lifecycle/session_window.ps1`、`login_schema6.ps1`、`prepare_login_schema6.ps1`、`session_lifecycle.test.mjs`、test-only 消息/进程故障/共享发布 helper，固定库存新增三条。后续授权对 owned_job.ps1 做控制文件只读持柄共享兼容修复；未改原 start/runtime 认证契约或生产 ACL；恢复功能依赖独立恢复工作包。无现役 Task 注册、服务启动、配置切换或真实关机。
 
 ## 行为与边界
 
@@ -16,7 +16,27 @@
 - 新 C# 在目标 Windows PowerShell 5.1 编译通过。
 - 首轮真实隐藏 HWND 定向演练已通过取消关机→新control重启→关闭，以及 PrepareOnly XML/端口/hash/拒绝覆盖两组。最初并发HTTP版本接受0条不能作为写入关机证据，已废弃并替换。
 - 精确事务版两组通过（162358ms）：独立 synthetic Git 对 `i_core_store.mjs` 的 `#persistMessages` 仅加 `BEGIN IMMEDIATE` 后限时文件屏障，再由真实 prepareRelease 构建/校验固定包。实际事务屏障已进入时发送 query，观察真实 HMAC close 文件已发布且屏障未放行，再释放；必须HTTP接受1条。之后另一次真实 login 的 HTTP changes 读回同一sync id。该源差异仅为合成固定包 instrumentation，生产无开关，不是线上/真人 Gate。
-- 新增30秒真实deadline演练通过按拥有Job+exe身份暂停合成Core；期望拥有树终止、无clean并下一login真实恢复。新增同host内杀Node→新control→数据HTTP读回。目前这两组需与恢复工作包整合后执行，不能先报通过。
+- 与恢复功能 199f7d38 整合后原四组全过：`build/ci/session-final.tap` 4/4，0 fail/skip，370712ms。30秒真实deadline演练按拥有Job+exe身份暂停合成Core，确认拥有树退出、无clean，下一login实际恢复。相同host内杀Node后freshcontrol、HTTP changes读回同一数据通过（98169ms）。WM_CLOSE在forcedTimeout时必须让Form退出；该修正后timeout单项另过1/1（143987ms，`session-timeout-final.tap`）。
 - 共享 `test-fixture.mjs` 归恢复worker所有，本包不复制提交。完整8.3 CI修复验证见同目录 `SCHEMA6_CI_REPAIR_20261006.md`。
 
 worker单次提交使用既有 SKIP_PROJECT_STATE=1，finally恢复；主窗负责最终库存、DEVLOG/当前态、整合回归及PR更新。未push。
+
+## 新入口二审收口
+
+- login/prepare自包含plain path、祖先非reparse及现有owner/ACL门控；manifest及候选文件先打开FileShare.Read持柄，native确认单硬链接和最终规范路径，再核对SHA256。验证期间不允许写入/替换候选。未改原production protected_paths或Core门控。
+- login、Core配置、backup配置JSON解析异常只输出固定拒绝码；prepare同样收口。嵌套验证器stdout/stderr由ProcessStartInfo异步私下捕获，避免Windows PS 5.1把Node ExperimentalWarning当NativeCommandError，并不转发解析上下文。session close仅允许显式固定reason，其余内部错误固定码；保留startup Gate与retry耗尽原因。
+- backup启动异常单独处理并退避，构造中部分创建的进程/Job由持有者收口；worker真实退出且Job空后按ExitCode写backup_completed/backup_worker_failed。状态为独立原子JSON，只有固定status、success与next_attempt_utc；失败不关闭健康Core。磁盘不能写状态时不把失败状态伪称成功，也不为状态写失败关闭Core。
+- malformed随机secret（login/core/backup三种）ValidateOnly与PrepareOnly专项已通过；备份launch/worker故障保持Core health200且均真实cleanclose，最终专项4/4（含嵌套父测试计数），0 fail/skip，136643ms；见 session-backup-isolation-final.tap。
+
+验证命令：`D:\Nodejs\node.exe --test --test-reporter=tap --test-reporter-destination=build/ci/session-final.tap tools/i_core/release_schema6/lifecycle/session_lifecycle.test.mjs`；forcedTimeout后使用 `--test-name-pattern="shutdown timeout"`；二审后使用 `--test-name-pattern="login preparation|backup launch"` 生成 `session-review-fixes-final.tap`。C#目标Windows PowerShell5.1编译与Node语法检查通过。
+
+## 关闭发布共享冲突的确定性根因
+
+- 二审新备份worker失败演练先通过固定失败状态与Core health200，但随后的合法close触发 supervisor native_error32、child124；session正确不认clean。保存于 session-review-fixes-final.tap，未按重试掩盖。该轮仅malformed/Prepare与backup launch完成全通过，worker关闭失败保留。
+- RequestClose只写关闭后的pending再File.Move，本次并未读取既有close。Windows rename在目标名可见时仍可持有DELETE权限句柄；旧 File.ReadAllText 使用FileShare.Read，与该发布句柄冲突。依据 [Microsoft官方Windows文件重命名说明](https://devblogs.microsoft.com/oldnewthing/20211022-00/?p=105822) 和确定性native复现。
+- ReadOptionalControl改为单只读FileStream持柄并共享Read|Delete（仍拒写），核验单hardlink和最终canonical path，再读同一持柄字节供现有HMAC/token比较。不catch共享异常，不重试，不修改plainPath/ACL或认证条件。允许发布者完成rename，不接受伪造认证。
+- probe_control_read_sharing.ps1 使用native SetFileInformationByHandle发布后故意保留DELETE句柄；旧reader确定error32，新reader正确读取认证字节，伪造值不匹配，另一个只读句柄并发兼容。helper首轮PowerShell反射参数包装错误已改为C#类型化调用，独立最终证明1/1，12862ms，session-sharing-proof-final.tap。备份两个完整close回归最终均通过，见下方最终命令。
+
+- 后续fixture枚举曾只按backup-status前缀，误把原子写入的 .json.guid.pending 当正式回执读而出现EBUSY；修为同时要求 .json 后缀，只读取原子发布的目标。没有放宽pending独占写，也没有catch后重试来隐藏不完整文件。该失败保留在session-control-publish-final.tap（其中launch已完成cleanclose通过，reader helper首次反射包装失败另由专项修正通过）。
+
+最终低并发专项命令：`D:\Nodejs\node.exe --test --test-concurrency=1 --test-name-pattern="control reader|backup launch" --test-reporter=tap --test-reporter-destination=build/ci/session-backup-isolation-final.tap tools/i_core/release_schema6/lifecycle/session_lifecycle.test.mjs`。结果4/4，136643ms；launch 62129ms、worker 62260ms，均确认失败固定状态、未来retry时间、Core health200和真正cleanReceipt。该worker分支未集成portable scheduler，worker非零退出用缺少scheduler入口的真实PS失败；整合后同用例的空配置会被实际scheduler拒绝，需主窗完整库存复验。malformed/Prepare专项1/1（34945ms）包含login/core/backup三种随机secret不外泄。最终git diff --check通过。

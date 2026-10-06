@@ -83,9 +83,22 @@ public static class Schema6OwnedJob {
     File.Move(pending,target);
   }
   static string ReadOptionalControl(string target) {
-    try { return File.ReadAllText(target); }
+    // An atomic rename exposes the target name before its DELETE handle closes.
+    // Share that rename while denying writes, then authenticate the held bytes.
+    try {
+      using(var file=new FileStream(target,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete)) {
+        CONTROL_FILE_INFO info;var canonical=new StringBuilder(32768);
+        uint size=GetFinalPathNameByHandle(file.SafeFileHandle,canonical,32768,0);
+        if(!GetFileInformationByHandle(file.SafeFileHandle,out info)||info.links!=1||size==0||size>=32768||!canonical.ToString().Equals("\\\\?\\"+Path.GetFullPath(target),StringComparison.OrdinalIgnoreCase))throw new Exception("control_file_binding_rejected");
+        if(file.Length>1024)return "";
+        using(var reader=new StreamReader(file,Encoding.UTF8))return reader.ReadToEnd();
+      }
+    }
     catch (FileNotFoundException) { return null; }
   }
+  [StructLayout(LayoutKind.Sequential)] struct CONTROL_FILE_INFO {public uint attributes;public System.Runtime.InteropServices.ComTypes.FILETIME creation,access,write;public uint volume,high,low,links,indexHigh,indexLow;}
+  [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle handle,out CONTROL_FILE_INFO info);
+  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern uint GetFinalPathNameByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle handle,StringBuilder path,uint length,uint flags);
   public static Receipt Run(string node,string entry,string root,string token,string mode,int timeout) {
     return Run(node,entry,root,token,mode,timeout,null,IntPtr.Zero);
   }

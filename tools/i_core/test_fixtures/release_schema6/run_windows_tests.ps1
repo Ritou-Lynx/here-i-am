@@ -46,8 +46,10 @@ $owner = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $previousOwner = [Schema6SyntheticTokenOwner]::Set($owner)
 try {
   New-Item -ItemType Directory -Force build/ci | Out-Null
+  # The small hosted runner cannot service concurrent suites' native ACL/DPAPI
+  # subprocess trees within production deadlines. Serialize suites, not checks.
   # Every original test still runs once. Both reporters observe the same run.
-  & node --test --test-reporter=spec --test-reporter=tap --test-reporter-destination=stdout --test-reporter-destination=build/ci/schema6-windows.tap tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs
+  & node --test --test-concurrency=1 --test-reporter=spec --test-reporter=tap --test-reporter-destination=stdout --test-reporter-destination=build/ci/schema6-windows.tap tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs
   $testExitCode = $LASTEXITCODE
 } finally {
   [void][Schema6SyntheticTokenOwner]::Set($previousOwner)

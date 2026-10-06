@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import {spawn,execFileSync} from 'node:child_process';
+import {spawn,spawnSync,execFileSync} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
 import {existsSync,readFileSync,readdirSync,writeFileSync,copyFileSync,mkdirSync} from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -93,7 +94,44 @@ test('Windows login preparation is hash-bound, rejects dynamic production port a
  const xml=readFileSync(out,'utf8');for(const value of ['InteractiveToken','LeastPrivilege','IgnoreNew','PT0S',c.hash,l.manifestHash])assert.ok(xml.includes(value));assert.equal(xml.includes('RestartOnFailure'),false);assert.throws(prepare);
  const changed=path.join(path.dirname(c.file),'bad-login.json');writeFileSync(changed,readFileSync(c.file,'utf8')+' ');
  assert.throws(()=>execFileSync(ps,[...loginArgs(l,{...c,file:changed}),'-ValidateOnly'],{windowsHide:true,env:cleanEnvironment(),stdio:'pipe'}));
+ const coreOriginal=readFileSync(l.configPath),secret='synthetic-secret-'+randomUUID(),malformed='{"secret":"'+secret+'", broken';
+ for(const target of ['login','core','backup']) {
+  const configuration={...c.configuration};writeFileSync(l.configPath,coreOriginal);
+  if(target==='core'){writeFileSync(l.configPath,malformed);configuration.core_configuration_sha256=sha256(readFileSync(l.configPath));}
+  if(target==='backup'){
+   const backup=path.join(path.dirname(c.file),'malformed-backup.json');writeFileSync(backup,malformed);
+   configuration.backup_configuration_path=backup;configuration.backup_configuration_sha256=sha256(readFileSync(backup));configuration.backup_key_directory=l.dir('malformed-backup-key');
+  }
+  writeFileSync(c.file,target==='login'?malformed:JSON.stringify(configuration));
+  const rejected=spawnSync(ps,[...loginArgs(l,{...c,hash:sha256(readFileSync(c.file))}),'-ValidateOnly'],{windowsHide:true,env:cleanEnvironment(),encoding:'utf8'});
+  assert.equal(rejected.status,2);const output=rejected.stdout+rejected.stderr;
+  assert.equal(output.includes(secret),false);assert.equal(output.includes(c.file),false);assert.match(output,/schema6_login_rejected:configuration_or_release_rejected/);
+ }
+ writeFileSync(l.configPath,coreOriginal);
  l.completed=true;
+});
+
+test('Windows control reader authenticates held bytes during the publisher rename handle and concurrent reads',{skip:process.platform!=='win32',timeout:180000},async t=>{
+ const l=await createRuntimeLab(t),directory=l.dir('control-sharing');
+ const proof=JSON.parse(execFileSync(ps,['-NoProfile','-NonInteractive','-File',path.join(repository,'tools/i_core/test_fixtures/release_schema6/probe_control_read_sharing.ps1'),'-OwnedJobScript',path.join(l.lifecycle,'owned_job.ps1'),'-Directory',directory],{windowsHide:true,env:cleanEnvironment(),encoding:'utf8'}));
+ for(const key of ['old_reader_sharing_violation','authenticated_bytes_accepted','forged_bytes_rejected','concurrent_read_compatible'])assert.equal(proof[key],true,key);
+ l.completed=true;
+});
+
+test('Windows backup launch and worker failures leave Core online and publish fixed retry status',{skip:process.platform!=='win32',timeout:600000},async t=>{
+ for(const mode of ['launch','worker'])await t.test(mode,async t=>{
+  const l=await createRuntimeLab(t),c=loginConfig(l),keys=l.dir('backup-keys');
+  const backup=path.join(path.dirname(c.file),'backup-invalid-contract.json');writeFileSync(backup,'{}');
+  Object.assign(c.configuration,{backup_configuration_path:backup,backup_configuration_sha256:sha256(readFileSync(backup)),backup_key_directory:keys+(mode==='launch'?'\\':''),backup_interval_seconds:300});
+  writeFileSync(c.file,JSON.stringify(c.configuration));c.hash=sha256(readFileSync(c.file));
+  const run=await host(l,c),ready=await run.ready();
+  const statuses=()=>readdirSync(run.session).filter(n=>n.startsWith('backup-status-')&&n.endsWith('.json')).map(n=>json(path.join(run.session,n)));
+  await until(()=>statuses().length>0,30000);
+  const status=statuses()[0];assert.equal(status.status,mode==='launch'?'backup_launch_failed':'backup_worker_failed');assert.equal(status.success,false);
+  assert.deepEqual(Object.keys(status).sort(),['next_attempt_utc','status','success']);assert.ok(Date.parse(status.next_attempt_utc)>Date.now());
+  assert.equal(run.closed,false);assert.equal((await health(ready)).status,200);
+  run.stop();await run.wait();cleanReceipt(run);l.completed=true;
+ });
 });
 
 test('Windows shutdown timeout kills only the owned tree and the next login recovers without a forged clean receipt',{skip:process.platform!=='win32',timeout:600000},async t=>{

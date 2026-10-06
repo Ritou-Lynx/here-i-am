@@ -166,10 +166,27 @@ public sealed class Schema6SessionWindow : Form {
           else{reason=currentReady?"session_recovery_retry_exhausted":"session_start_gate_failed";exitRequested=true;}
           BeginClose();return;
         }
-        if(backup!=null && backup.Exited && backup.Empty){backup.Dispose();backup=null;nextBackup=DateTime.UtcNow.AddSeconds(backupSeconds);}
-        if(backup==null && backupArgs.Length>0 && DateTime.UtcNow>=nextBackup && File.Exists(Path.Combine(control,"ready.json")))backup=new Schema6SessionJob(ps,backupArgs,session);
+        if(backup!=null && backup.Exited && backup.Empty){
+          uint code=backup.ExitCode;backup.Dispose();backup=null;nextBackup=DateTime.UtcNow.AddSeconds(backupSeconds);
+          BackupStatus(code==0?"backup_completed":"backup_worker_failed",code==0);
+        }
+        if(backup==null && backupArgs.Length>0 && DateTime.UtcNow>=nextBackup && currentReady) {
+          try{backup=new Schema6SessionJob(ps,backupArgs,session);}
+          catch{if(backup!=null){backup.Dispose();backup=null;}nextBackup=DateTime.UtcNow.AddSeconds(backupSeconds);BackupStatus("backup_launch_failed",false);}
+        }
       }
     } catch {reason="session_start_or_worker_failed";exitRequested=true;BeginClose();}
+  }
+  void BackupStatus(string status,bool success) {
+    try{WriteNew(Path.Combine(session,"backup-status-"+Guid.NewGuid().ToString("N")+".json"),new {status=status,success=success,next_attempt_utc=nextBackup.ToString("o")});}catch{}
+  }
+  static string CloseFailure(Exception error) {
+    switch(error.Message) {
+      case "backup_job_empty_unconfirmed":case "core_close_timeout":case "core_close_failed":
+      case "session_clean_receipt_unconfirmed":case "session_clean_marker_unconfirmed":
+      case "session_launch_binding_mismatch":case "session_stop_binding_invalid":case "session_existing_close_mismatch":return error.Message;
+      default:return "session_close_internal_rejected";
+    }
   }
   void BeginClose() {
     if(Interlocked.Exchange(ref closing,1)!=0)return;
@@ -197,7 +214,7 @@ public sealed class Schema6SessionWindow : Form {
         Protected(Path.Combine(state,"shortcut-mail-relay.runtime.lock"),false);
         using(FileStream probe=new FileStream(Path.Combine(state,"shortcut-mail-relay.runtime.lock"),FileMode.Open,FileAccess.ReadWrite,FileShare.None)){}
         clean=!forcedTimeout;reason=forcedTimeout?"session_shutdown_timeout":"clean_closed";
-      } catch(Exception error) {reason=error.Message;clean=false;}
+      } catch(Exception error) {if(reason!="session_start_gate_failed"&&reason!="session_recovery_retry_exhausted")reason=forcedTimeout?"session_shutdown_timeout":CloseFailure(error);clean=false;}
       finally {
         try{WriteNew(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean});}
         catch{clean=false;reason="session_receipt_write_failed";}
@@ -225,7 +242,7 @@ public sealed class Schema6SessionWindow : Form {
       else if(shutdownRequested){shutdownCancelled=true;}
       message.Result=IntPtr.Zero;return;
     }
-    if(message.Msg==0x0010 && !finished.WaitOne(0)){exitRequested=true;BeginClose();message.Result=IntPtr.Zero;return;}
+    if(message.Msg==0x0010 && !finished.WaitOne(0) && !forcedTimeout){exitRequested=true;BeginClose();message.Result=IntPtr.Zero;return;}
     base.WndProc(ref message);
   }
   protected override void OnFormClosed(FormClosedEventArgs e) {

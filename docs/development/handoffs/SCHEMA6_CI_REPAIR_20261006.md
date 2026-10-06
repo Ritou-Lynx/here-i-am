@@ -26,3 +26,7 @@ job `112111647814` 唯一失败：`compact_card_editor_test.dart` 的“空标�
 - 未在本机运行 Linux；远端精确新提交的 Linux 和 Windows CI 仍是最终验证边界。无 Flutter build / 安装 / 真人 Gate。
 
 本包提交使用获准 worker 单次 `SKIP_PROJECT_STATE=1`，finally 恢复；全局 DEVLOG/当前态由主窗集成时更新。不 push。
+
+## 后续 hosted runner 原生探针并发（45bcab16）
+
+PR job 112117493850 与 push job 112117480674 均实际完成 99 tests / 92 pass / 2 fail / 5 cancelled（不是 workflow 时间耗尽）。原 alias、link、owner 失败已消除，86项release/backup/restore全通过。剩余两项 initialize-empty 在 store_construction_attempted=false 时 error_code=ETIMEDOUT；源码可收窄到未包装的 protectedPath 10s PowerShell ACL探针或 createOfflineLease 15s native探针，日志无调用栈不能再区分。DPAPI loadKey 自身会转为 protected_key_load_failed，因此不能把这次直接归为DPAPI读取失败。Hosted并发suite同时创建大量PowerShell/crypto进程，runner统一改 --test-concurrency=1；所有测试仍一次执行，生产timeout、ACL、链接和身份门控不变。60分钟workflow预算只覆盖完整串行演练，不宣称它修好了ETIMEDOUT。最终低并发全组由集成主窗复验；此worker未把旧99/99当新候选全验。
