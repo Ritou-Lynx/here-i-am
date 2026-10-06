@@ -1,6 +1,6 @@
 # PR14 自动运行、口令备份与 CI 续作｜主窗验收（2026-10-06）
 
-仅继续 `codex/core-deploy-readiness-20261006` 与同一草稿 [PR #14](https://github.com/Ritou-Lynx/here-i-am/pull/14)；base 为 `v3-lab@90f23ce1d38628901e25b421d8f0f21c084f093b`。**主窗最终整组、精确固定候选烟测和两次真实跨 Windows 用户合成恢复已通过。** 最终交付提交的全部远端检查以同一 PR Checks 与正文回执登记，确认全绿后暂停审核。 验收完成后只推此分支、更新同一 PR、暂停等审核，不合并、不部署。
+仅继续 `codex/core-deploy-readiness-20261006` 与同一草稿 [PR #14](https://github.com/Ritou-Lynx/here-i-am/pull/14)；base 为 `v3-lab@90f23ce1d38628901e25b421d8f0f21c084f093b`。**此前 beed 源主窗整组和精确固定候选烟测已通过，1060 源两次真实跨 Windows 用户合成恢复也通过；收口发现生产备份输入编码缺陷，当前最小修复后必须重建固定候选并重新整组验收。** 最终交付提交的全部远端检查以同一 PR Checks 与正文回执登记，确认全绿后暂停审核。 验收完成后只推此分支、更新同一 PR、暂停等审核，不合并、不部署。
 
 本轮所有运行证据来自合成环境。未读取/停启现役 Core、MCP、隧道，未打开原库，未改现役配置/计划任务，未操作手机；未实际关机/注销电脑，未注册登录任务、未在本机创建 Windows 用户。临时 CI 标准用户演练仅在一次性 hosted runner 上运行并清理。前轮九类 52 文件真实备份/恢复已由用户审核通过，本轮保留原证据，未重新访问或解密那些数据。
 
@@ -56,6 +56,12 @@ source 1cff9d08 的两轮预检实际失败并及时停止整套测试；[分段
 
 已集成[hosted CI模块搜索作用域](SCHEMA6_CI_MODULE_SCOPE_20261006.md)：先host guard，再保存两项registry raw值/类型/缺失状态，规范身份校验后暂移强制AllUsers根到所有搜索根之外，原位独占创建空根；finally只删身份匹配空目录并归位，各registry独立精确还原，任何清理失败CI失败。原环境/new PS/10s检查及全部151用例保持。本机只用纯callbacks、编译/AST和拒绝入口验证，14/14专项通过（2310.1204ms，含23种状态）；独立源码复核无阻断。本机未执行registry或全局目录适配器，真实scope和全套结果以本交付提交的PR Checks、安全module-scope/probe回执为准，尚未提前宣称全绿。
 
+## 生产备份二进制输入编码边界
+
+CI夹具此前修过BOM，主窗继续核实际生产Start-BackupChild，发现同一.NET Framework输入初始化行为。只从1060f192提取真实函数，未运行wrapper顶层：虚构88字节口令帧+18字节JSON，默认936收到106且所有偏移正确；UTF8带BOM收到109、Unicode带BOM收到108，固定帧头/长度/载荷偏移均错。没有读取DPAPI或真实口令/备份。
+
+最小修复限定Process.Start期间暂用无BOM UTF8，finally立即恢复；二进制帧、BaseStream写入、KDF/认证/清零/路径与manifest门槛不改。新增真实PS5.1回归在旧source先红（普通key帧53字节应50），修后单项绿，覆盖三种原编码×普通key/portable帧，精确字节哈希及头/载荷、三种启动失败后恢复。独立源码复核无阻断；[工作包交接](SCHEMA6_BACKUP_BINARY_FRAME_20261006.md)记录38/38备份相邻专项通过（90,920.6968ms、0skip），worker原提交1ee96d1d已整合。接下来按新已提交source重建43库存和重跑主窗整组，旧beed回执仅作历史证据，不冒称库存仍逐字未变。
+
 ## 六类最终合成演练
 
 | 情况 | 真实观测与下一启动要求 | 最终集成结果 |
@@ -83,14 +89,14 @@ Tailscale 机器私钥按用户决定排除，不是缺项；换机重新登录�
 
 旧 v4 首次接管与崩溃恢复同一机制：未来现场先冻结旧任务/结束绑定进程树，确认离线后首开前保全四文件，副本回放/迁移/检查，通过才替换。提交前原件不改；开始替换后留下中断锁存并向前检查。不存在另一个“不可重做阶段链”。MCP、手机、上传器与 captures 真机闭环仍有独立现场 Gate；47862 桥保持此前决定。
 
-## 主窗最终固定候选与回执
+## beed 历史固定候选与回执
 
 - 已提交 source/Core/wrapper 同一 SHA：`beed93a3657ab59fbe033a435f471814d8895736`。
 - 固定候选：`C:\HereIAm\schema6-automatic-final-owned-20261006`；43项库存，manifest SHA256 `45d00ecdb113957ffdc5c65e2b90454611c83eb90cf6879c8cccfd1df1ea787a`；Node24.14.1 SHA `58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f`。
 - 25个 Node 文件语法及16个 PowerShell 文件由目标 Windows PS5.1.26100.9444 parser通过。首次在已填充 build 目录调用 Protect-NewDirectory 被空目录门控正确拒绝；改走既有流程：先保护全新空目录，再逐项复制已验证库存、重新 verify，同一 manifest字节，不修改生产门控。
 - 最终整组：603 tests / 602 pass / 0 fail / 0 cancel / 1既有环境限定skip，3 suites，1,024,765.3329ms（约17分05秒）。唯一skip为本机大小写不敏感目录不能表示两个大小写不同的文件；不新增skip，不过滤红灯。完整TAP SHA256 `6b47c82caf449aa9aa4725aaf4e82c4d24eeb3d051245e999049291b9b11f332`。
 - 另一次对上述已组装固定候选的真实 loopback/认证停止/child+guardian+Job/锁烟测：通过，67,256ms；真实 loopback health、认证 stop、child/guardian 退出、Job 空、runtime lock 释放、发行字节未变。回执 `build/ci/pr14-final-candidate-smoke.json`，SHA256 `762ebe050d457db036fe9b9edf6890a23e9b95d3c863c1977c8eac8385384913`。
-- 最终交付登记：本轮后续只改 CI 夹具和交接；43项库存与固定 source 逐字比对通过。提交后再次比对并把 deliveryHead、manifest及结果写入忽略的 build/ci/pr14-delivery-inventory.json；最终精确 head 与全部 CI 回执在同一 PR 正文及 Checks 登记，历史 green 不替代本次。
+- 此前CI交付登记：截至1060仅CI夹具/交接变更，43库存与beed逐字一致；后发现生产输入边界，下一候选必须重新绑定新source。提交后再次比对并把 deliveryHead、manifest及结果写入忽略的 build/ci/pr14-delivery-inventory.json；最终精确 head 与全部 CI 回执在同一 PR 正文及 Checks 登记，历史 green 不替代本次。
 
 最终主窗整组入口：`node --test --test-concurrency=2 tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs tools/i_core/*.test.mjs tools/i_remote_mcp/writeback.test.mjs tools/i_remote_mcp/writeback_e2e.test.mjs`。真实本机执行使用解析后的文件数组与双 reporter，主窗24逻辑CPU，文件并发2；小型Windows CI仍串行文件并发1。最终完整 TAP 仅保留在忽略的 `build/ci/pr14-automatic-final-root-2.tap`，交付其计数和 SHA；无真实正文/密钥/口令进入报告。
 

@@ -36,7 +36,10 @@ function Start-BackupChild([string]$Node,[string[]]$Arguments,[byte[]]$Secret,[b
  $info.EnvironmentVariables.Clear();foreach($n in @('SYSTEMROOT','WINDIR','TEMP','TMP','COMSPEC')){if($before.ContainsKey($n)){$info.EnvironmentVariables[$n]=$before[$n]}elseif($before.ContainsKey($n.ToLowerInvariant())){$info.EnvironmentVariables[$n]=$before[$n.ToLowerInvariant()]}}
  $process=New-Object Diagnostics.Process;$process.StartInfo=$info
  try {
-  if(!$process.Start()){throw 'child_start_failed'}
+  # .NET Framework initializes redirected stdin from Console.InputEncoding;
+  # suppress its preamble before the first binary frame byte is written.
+  $previousInputEncoding=[Console]::InputEncoding
+  try{[Console]::InputEncoding=[Text.UTF8Encoding]::new($false);if(!$process.Start()){throw 'child_start_failed'}}finally{[Console]::InputEncoding=$previousInputEncoding}
   $outTask=$process.StandardOutput.ReadToEndAsync();$errorTask=$process.StandardError.ReadToEndAsync()
   if($Secret){$process.StandardInput.BaseStream.Write($Secret,0,$Secret.Length)}
   if($Payload){$process.StandardInput.BaseStream.Write($Payload,0,$Payload.Length)}

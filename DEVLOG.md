@@ -3,9 +3,9 @@
 - 首开前原始四文件流式加密、副本回放/迁移、独立custody及完整行/操作认证已整合。
 - 隐藏登录会话新control；正常关机认证清停、超时不造clean、异常后自动检查恢复。
 - 备份键DPAPI+scrypt/AES-GCM口令包，默认每天/30天，可配置电脑外密文镜像。
-- 主窗最终603tests/602pass/0fail/0cancel/1既有大小写环境skip，六类合成演练均过。
+- beed源603tests/602pass/0fail/0cancel/1既有环境skip及六类过；新发现生产输入BOM，修后重验。
 - 精确43库存候选Node25+PS16语法通过，真实启动/清停/Job/锁烟测67.256秒通过。
-- 失败历史保留：原生rename夹具清零及控制共享读取已修；生产plainPath/ACL逐字不变。
+- 失败历史保留：rename/共享读取已修；生产Frame真实PS5.1复现红→绿，plainPath/ACL/crypto不改。
 - 白板save屏障5/5与相邻195/195；Windows CI串行文件、不放宽生产检查或timeout。
 - CI口令BOM修复后两次真实不同SID恢复/只读Core/清理全过；固定服务状态机18/18。
 - PS5.1服务程序集修复后跨SID两轮再过；2c75另外11checks成功，两轮Windows生命周期141/151、未全绿。
