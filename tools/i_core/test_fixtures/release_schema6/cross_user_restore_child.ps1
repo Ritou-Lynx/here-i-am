@@ -55,6 +55,6 @@ try {
  $bytes=[Text.Encoding]::UTF8.GetBytes(($report|ConvertTo-Json -Compress))
  $writer=[IO.BinaryWriter]::new($pipe,[Text.Encoding]::UTF8,$true);$writer.Write([int]$bytes.Length);$writer.Write($bytes);$writer.Flush()
  $exitCode=0
-} catch { [Console]::Error.WriteLine((@{childRejected=$true;failurePhase=$phase;failureDiagnostic=(Get-CrossUserSafeError $_)}|ConvertTo-Json -Depth 4 -Compress)) }
+} catch { [Console]::Error.WriteLine((@{childRejected=$true;failurePhase=$phase;failureDiagnostic=(Get-CrossUserSafeError $_);nodeDiagnostic=$script:CrossUserNodeDiagnostic}|ConvertTo-Json -Depth 4 -Compress)) }
 finally {if($passwordBytes){[Array]::Clear($passwordBytes,0,$passwordBytes.Length)};if($pipe){$pipe.Dispose()}}
 exit $exitCode

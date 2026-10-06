@@ -64,3 +64,11 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/i_
 - 安全诊断保留 HResult，并新增始终存在的 `nativeErrorCode`（null 或 Int32）：只从最多 5 层异常链中的确切 Win32Exception 读取整数，不序列化 Message/Data/堆栈。CI 自有 Job 的 TerminateJobObject/CloseHandle 使用 SetLastError 并检查返回值，失败抛固定消息的 Win32Exception；Dispose 即使终止失败仍尝试 CloseHandle，两个都失败时保留第一个 Win32 错误。真实 Empty/Wait 回执要求不变，未修改生产 owned_job。
 - 本地验证：3 个 PS parser 0 错；C# helper 编译；3 个 marker 脱敏/后缀丢弃样例通过，3 个恶意 child JSON 被拒；嵌套 Win32Exception 仅保留数值 5，HResult 原值保持；新建空合成 Job Stop/Dispose 成功，已关闭合成 Job 的 Stop 实际拒绝并报告 Win32 6。未创建账号/操作服务/运行真实 Core。parent GuardOnly 仍退出2，diff 检查通过；没有重新跑生产整包或声称远端通过。
 - 仅提交 common 夹具和本文；单次 SKIP_PROJECT_STATE 后恢复，未 push。
+
+## 第四轮 Node 恢复失败诊断透传
+
+- PR run `37428320391` / job `112153073744` 实际失败在 `child_restore_inspection`，总计 118905 ms；全部需要的清理分项为 true，`cleanupConfirmed=true`。这证明 child 已通过复制及全部文件 owner 检查，尚不证明 inspection 成功；RuntimeException/redacted 本身不足以确定 Node 内部根因。
+- Invoke-CrossUserNode 每次入口清空仅用于诊断的 script 变量。非成功返回时，仅从 stderr 中接受 `fixtureRejected` 为布尔 true、固定 phase 枚举、64 位小写十六进制 errorCodeSha256、恰好这三个字段的 JSON，重建为 phase/hash 两字段；总长/行数/单行长度限制与 child parser 相同。不再依赖任意 Exception.Message 或 FQID 来携带该信息。
+- child 失败 JSON 新增始终存在的 `nodeDiagnostic`（null 或 phase/hash 两字段）。父 parser 只在 `child_restore_inspection` 上接受非 null 值，并再次验证精确字段、字符串类型、固定 phase 及完整 64hex；布尔 false/字符串伪 true、未知 phase、坏 hash、额外字段和超限内容都不透传。没有改变成功证据或生产检查。
+- 本地验证：3 个 PS parser 0 错；6 个恶意/错误 Node 诊断拒绝，错误 child 上下文拒绝；实际运行本 Node 夹具仅 8 字节合成 stdin，使其在 `input` 阶段按既有断言失败（不读取 productionRoot/workspace、不写文件），真实 Invoke/helper 捕获并经父 parser 往返保留 ERR_ASSERTION 的 SHA256 `bc3401c7b6b4bd7355ea1bbf002ec5b8db3166a4b55d7e9ed6aa6ed1bcc5187d`。未创建账号、操作服务或改生产模块；下一次真实 CI 的 phase/hash 才用于定位恢复错误。
+- 仅提交 common/child 两个自有 PS 与本文，单次 SKIP_PROJECT_STATE 后恢复，不 push。

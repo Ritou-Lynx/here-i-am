@@ -1,4 +1,5 @@
 $ErrorActionPreference='Stop'
+$script:CrossUserNodeDiagnostic=$null
 function Assert-CrossUserCI([switch]$Parent) {
  if($env:OS -ne 'Windows_NT' -or $env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:RUNNER_OS -cne 'Windows'){throw 'hosted_windows_ci_required'}
  $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
@@ -35,6 +36,26 @@ function Get-CrossUserSafeError([Management.Automation.ErrorRecord]$Record) {
  }
  return @{exceptionType=$type;hResult=[int]$Record.Exception.HResult;nativeErrorCode=$native;fullyQualifiedErrorId=(ConvertTo-CrossUserSafeErrorId ([string]$Record.FullyQualifiedErrorId))}
 }
+function ConvertTo-CrossUserSafeNodeDiagnostic($Value) {
+ if((@($Value.PSObject.Properties.Name|Sort-Object) -join ',') -cne 'errorCodeSha256,phase'){return $null}
+ if($Value.phase -isnot [string] -or $Value.phase -cnotin @('input','module_load','factory_runtime','factory_source','factory_archive','factory_copy','restore')){return $null}
+ if($Value.errorCodeSha256 -isnot [string] -or $Value.errorCodeSha256 -cnotmatch '\A[a-f0-9]{64}\z'){return $null}
+ return @{phase=[string]$Value.phase;errorCodeSha256=[string]$Value.errorCodeSha256}
+}
+function Read-CrossUserSafeNodeDiagnostic([string]$Text) {
+ if(-not $Text -or $Text.Length -gt 8192){return $null}
+ $lines=@($Text -split "`n");if($lines.Count -gt 16){return $null}
+ foreach($line in $lines){
+  if($line.Length -gt 2048){continue}
+  try{
+   $value=$line|ConvertFrom-Json -ErrorAction Stop
+   if((@($value.PSObject.Properties.Name|Sort-Object) -join ',') -cne 'errorCodeSha256,fixtureRejected,phase' -or $value.fixtureRejected -isnot [bool] -or $value.fixtureRejected -ne $true){continue}
+   $safe=ConvertTo-CrossUserSafeNodeDiagnostic ([pscustomobject]@{phase=$value.phase;errorCodeSha256=$value.errorCodeSha256})
+   if($safe){return $safe}
+  }catch{}
+ }
+ return $null
+}
 function Read-CrossUserSafeChildDiagnostic([string]$Text) {
  # No raw stderr survives this boundary, including JSON with extra fields.
  if(-not $Text -or $Text.Length -gt 8192){return $null}
@@ -44,14 +65,20 @@ function Read-CrossUserSafeChildDiagnostic([string]$Text) {
   if($line.Length -gt 2048){continue}
   try {
    $value=$line|ConvertFrom-Json -ErrorAction Stop
-   if((@($value.PSObject.Properties.Name|Sort-Object) -join ',') -cne 'childRejected,failureDiagnostic,failurePhase' -or $value.childRejected -isnot [bool] -or $value.childRejected -ne $true -or $value.failurePhase -cnotin $phases){continue}
+   if((@($value.PSObject.Properties.Name|Sort-Object) -join ',') -cne 'childRejected,failureDiagnostic,failurePhase,nodeDiagnostic' -or $value.childRejected -isnot [bool] -or $value.childRejected -ne $true -or $value.failurePhase -isnot [string] -or $value.failurePhase -cnotin $phases){continue}
    $d=$value.failureDiagnostic
    if((@($d.PSObject.Properties.Name|Sort-Object) -join ',') -cne 'exceptionType,fullyQualifiedErrorId,hResult,nativeErrorCode'){continue}
    if($d.exceptionType -isnot [string] -or (ConvertTo-CrossUserSafeExceptionType $d.exceptionType) -cne $d.exceptionType){continue}
    if($d.fullyQualifiedErrorId -isnot [string] -or (ConvertTo-CrossUserSafeErrorId $d.fullyQualifiedErrorId) -cne $d.fullyQualifiedErrorId){continue}
    if(($d.hResult -isnot [int] -and $d.hResult -isnot [long]) -or $d.hResult -lt [int]::MinValue -or $d.hResult -gt [int]::MaxValue){continue}
    if($null -ne $d.nativeErrorCode -and (($d.nativeErrorCode -isnot [int] -and $d.nativeErrorCode -isnot [long]) -or $d.nativeErrorCode -lt [int]::MinValue -or $d.nativeErrorCode -gt [int]::MaxValue)){continue}
-   return @{childRejected=$true;failurePhase=[string]$value.failurePhase;failureDiagnostic=@{exceptionType=[string]$d.exceptionType;hResult=[int]$d.hResult;nativeErrorCode=$d.nativeErrorCode;fullyQualifiedErrorId=[string]$d.fullyQualifiedErrorId}}
+   $node=$null
+   if($null -ne $value.nodeDiagnostic){
+    if($value.failurePhase -cne 'child_restore_inspection'){continue}
+    $node=ConvertTo-CrossUserSafeNodeDiagnostic $value.nodeDiagnostic
+    if(-not $node){continue}
+   }
+   return @{childRejected=$true;failurePhase=[string]$value.failurePhase;nodeDiagnostic=$node;failureDiagnostic=@{exceptionType=[string]$d.exceptionType;hResult=[int]$d.hResult;nativeErrorCode=$d.nativeErrorCode;fullyQualifiedErrorId=[string]$d.fullyQualifiedErrorId}}
   } catch { }
  }
  return $null
@@ -105,6 +132,7 @@ public sealed class CrossUserJob:IDisposable {
 '@
 }
 function Invoke-CrossUserNode([string]$Node,[string]$Script,[string]$Mode,[string]$ProductionRoot,[string]$Workspace,[byte[]]$Secret) {
+ $script:CrossUserNodeDiagnostic=$null
  $info=New-Object Diagnostics.ProcessStartInfo
  $info.FileName=$Node;$info.UseShellExecute=$false;$info.CreateNoWindow=$true
  $arguments=@($Script,$Mode,$ProductionRoot,$Workspace)
@@ -120,8 +148,8 @@ function Invoke-CrossUserNode([string]$Node,[string]$Script,[string]$Mode,[strin
   if(-not $p.WaitForExit(180000)){throw 'ci_node_timeout'}
   $text=$output.GetAwaiter().GetResult();$errorText=$errors.GetAwaiter().GetResult()
   if($p.ExitCode -ne 0 -or $text.Length -gt 65536 -or -not $job.Empty()){
-   $diagnostic='unknown';foreach($line in ($errorText -split "`n")){try{$item=$line|ConvertFrom-Json;if($item.phase -in @('input','module_load','factory_runtime','factory_source','factory_archive','factory_copy','restore')){$diagnostic=$item.phase;if($item.errorCodeSha256 -match '^[a-f0-9]{64}$'){$diagnostic+='_'+$item.errorCodeSha256}}}catch{}}
-   throw ('ci_node_rejected_'+$diagnostic)
+   $script:CrossUserNodeDiagnostic=Read-CrossUserSafeNodeDiagnostic $errorText
+   throw 'ci_node_rejected'
   }
   return ($text|ConvertFrom-Json)
  } finally {

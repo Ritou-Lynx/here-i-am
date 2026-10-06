@@ -41,6 +41,8 @@ CI-only 已推 head `45bcab16a98c147efe4f05669dd92f1cb4728772` 的其他 9 check
 
 第三轮 source `305e621d` 的两次执行已通过管道和 child 前置检查，但在 `cross_user_restore_report` 失败（106,183/109,344ms），且 cleanupConfirmed=false。原回执没有 child stderr 或分项清理结果，未确认具体原因，也未称真实恢复完成。现只在 CI 夹具添加异步 stderr 收集、长度/字段/确切错误类型白名单，以及 Job、child、账号、服务、token 的逐项清理回执。任意错误 Message、命令后缀与原 stderr 均不输出；native 失败只报整数 Win32 码。主窗复核补丁，生产库存/plainPath/ACL不变；实际跨 SID 恢复仍等待下一轮远端结果。
 
+第四轮 source `e557473d` 两次的受限诊断均明确 child_restore_inspection 失败，清理各项全部确认（118,905/106,562ms）。新夹具仅保留已产生的 Node 固定阶段与错误码 SHA256，通过严格父端 parser 重建；不输出 stdout/stderr/Message。真实 8 字节合成失败链验证成功，非法字段/阶段/摘要拒绝。实际根因等待该证据，不把诊断补丁当成恢复成功。
+
 ## 六类最终合成演练
 
 | 情况 | 真实观测与下一启动要求 | 最终集成结果 |
@@ -58,7 +60,7 @@ CI-only 已推 head `45bcab16a98c147efe4f05669dd92f1cb4728772` 的其他 9 check
 
 ## 电脑外恢复与仍有的现场限制
 
-合成口令、独立 Node 与 pinned Windows wrapper 在原 DPAPI 目录不可用时真实恢复并启动只读 Core：核 node/schema/devices/全部表指纹；5条受限业务路由拒绝（含一条GET；SQL拒写另有独立测试）；退出 DB 字节不变。只解密或比较哈希不算此验收。完整口令备份专项14/14通过，最终主窗整组也覆盖并通过这些用例。
+合成口令、独立 Node 与 pinned Windows wrapper 在原 DPAPI 目录不可用时真实恢复并启动只读 Core：核 node/schema/devices/全部用户表指纹与整库字节哈希；5条受限业务路由拒绝（含一条GET；SQL拒写另有独立测试）；退出 DB 字节不变。只解密或比较哈希不算此验收。完整口令备份专项14/14通过，最终主窗整组也覆盖并通过这些用例。
 
 没有已获准的第二 Windows 用户登录或第二台机器环境；本轮未创建账户，**未完成真实跨 Windows 用户/异机实测**。新机步骤、恢复口令保管、原 DPAPI 凭据与生产 recovery key 的重新绑定限制见[电脑外恢复](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)。检查恢复目录不能直接激活为现役库。
 
