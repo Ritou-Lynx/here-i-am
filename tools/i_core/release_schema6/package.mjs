@@ -14,6 +14,7 @@ export const WRAPPERS = Object.freeze([
   'package.mjs', 'preflight.mjs', 'cli.mjs', 'preflight_schema6.ps1', 'README.md',
   'recovery_adapter.mjs', 'backup_bundle.mjs', 'backup_bundle_schema6.ps1',
   'backup_key_child.mjs', 'key_custody.ps1', 'restore_inspection.mjs',
+  'portable_key_custody.mjs', 'automatic_backup.mjs', 'portable_backup_schema6.ps1', 'scheduler_once_schema6.ps1',
   'lifecycle/start_schema6.ps1', 'lifecycle/owned_job.ps1',
   'lifecycle/job_guardian.ps1', 'lifecycle/protected_paths.ps1',
   'lifecycle/request_stop.ps1', 'lifecycle/runtime_child.mjs',

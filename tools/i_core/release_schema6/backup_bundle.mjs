@@ -295,3 +295,6 @@ export function verifyInitialRuntimeBackup({artifactPath,artifactSha256,key,data
   if(JSON.stringify(before)!==JSON.stringify(readStable(databasePath))) fail('source_changed');
   return report;
 }
+
+// Shared strict file primitives; no change to offline source validation.
+export const backupFilePrimitives = Object.freeze({ safe, readStable, small, protect, validate, checkRelease, sidecars });
