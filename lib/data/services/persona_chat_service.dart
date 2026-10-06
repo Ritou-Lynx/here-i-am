@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/services/device_identity_service.dart';
+import 'package:memex/data/services/persona_chat_order.dart';
 import 'package:memex/data/services/event_bus_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:uuid/uuid.dart';
@@ -28,7 +29,8 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     return (_db.select(_db.personaChatMessages)
           ..where((t) => t.characterId.equals(characterId))
           ..orderBy([
-            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(chatCreatedAtMs(t)),
+            (t) => OrderingTerm.desc(chatSequence(t)),
             (t) => OrderingTerm.desc(t.id),
           ])
           ..limit(limit, offset: offset))
@@ -46,7 +48,8 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
           ..where((t) =>
               t.characterId.equals(characterId) & t.content.like('%$trimmed%'))
           ..orderBy([
-            (t) => OrderingTerm.desc(t.timestamp),
+            (t) => OrderingTerm.desc(chatCreatedAtMs(t)),
+            (t) => OrderingTerm.desc(chatSequence(t)),
             (t) => OrderingTerm.desc(t.id),
           ])
           ..limit(limit))
@@ -70,9 +73,34 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
   Future<List<SyncOutboxMessage>> pendingOutboxMessages(
     String originDeviceId, {
     int limit = 100,
+    String? sender,
+    String? characterId,
+    int? fromCreatedAtMs,
+    bool plainChatOnly = false,
   }) {
     return (_db.select(_db.syncOutboxMessages)
-          ..where((t) => t.originDeviceId.equals(originDeviceId))
+          ..where((t) =>
+              t.originDeviceId.equals(originDeviceId) &
+              (sender == null
+                  ? const Constant(true)
+                  : t.sender.equals(sender)) &
+              (characterId == null
+                  ? const Constant(true)
+                  : t.characterId.equals(characterId)) &
+              (fromCreatedAtMs == null
+                  ? const Constant(true)
+                  : t.createdAtMs.isBiggerOrEqualValue(fromCreatedAtMs)) &
+              (plainChatOnly
+                  ? t.messageType.equals('chat') &
+                      t.content.equals('').not() &
+                      (t.assetRefsJson.isNull() |
+                          t.assetRefsJson.equals('[]')) &
+                      existsQuery(_db.select(_db.personaChatMessages)
+                        ..where((chat) =>
+                            chat.syncId.equalsExp(t.syncId) &
+                            (chat.attachmentsJson.isNull() |
+                                chat.attachmentsJson.equals('[]'))))
+                  : const Constant(true)))
           ..orderBy([(t) => OrderingTerm.asc(t.originSequence)])
           ..limit(limit))
         .get();
@@ -81,27 +109,68 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
   /// Removes an outbox row once the core accepts its sync_id. No-op when the
   /// message was already retracted while pending.
   Future<void> markOutboxAccepted(String syncId) async {
-    await (_db.delete(_db.syncOutboxMessages)
-          ..where((t) => t.syncId.equals(syncId)))
-        .go();
+    await _db.transaction(() async {
+      final queued = await (_db.select(_db.syncOutboxMessages)
+            ..where((t) => t.syncId.equals(syncId)))
+          .getSingleOrNull();
+      if (queued?.sender == 'companion') {
+        await _markCompanionEnqueued(syncId);
+      }
+      await (_db.delete(_db.syncOutboxMessages)
+            ..where((t) => t.syncId.equals(syncId)))
+          .go();
+    });
+  }
+
+  /// Schema 62 defaults old PR10 outbox rows to user. PR10 actually sent
+  /// those rows using their local chat role, so persist that same role once.
+  /// Never regenerate identity, sequence, timestamp, content, or existing B3 sender.
+  Future<void> repairLegacyCompanionOutboxSenders(String deviceId) async {
+    await _db.transaction(() async {
+      final rows = await _db.customSelect(
+        "SELECT q.sync_id, q.origin_device_id, q.character_id, "
+        "c.origin_device_id AS chat_origin, c.character_id AS chat_character "
+        "FROM sync_outbox_messages q JOIN persona_chat_messages c ON c.sync_id=q.sync_id "
+        "WHERE q.origin_device_id=? AND q.sender='user' AND c.is_from_character=1",
+        variables: [Variable<String>(deviceId)],
+        readsFrom: {_db.syncOutboxMessages, _db.personaChatMessages},
+      ).get();
+      for (final row in rows) {
+        if (row.read<String>('origin_device_id') !=
+                row.readNullable<String>('chat_origin') ||
+            row.read<String>('character_id') !=
+                row.read<String>('chat_character')) {
+          throw StateError('Legacy outbox provenance mismatch');
+        }
+        final syncId = row.read<String>('sync_id');
+        await (_db.update(_db.syncOutboxMessages)
+              ..where((t) => t.syncId.equals(syncId) & t.sender.equals('user')))
+            .write(
+                const SyncOutboxMessagesCompanion(sender: Value('companion')));
+        await _markCompanionEnqueued(syncId);
+      }
+    });
   }
 
   Future<int> countMessagesNewerThan(
     String characterId,
     PersonaChatMessage message,
   ) async {
-    final countExp = _db.personaChatMessages.id.count();
-    final row = await (_db.selectOnly(_db.personaChatMessages)
+    final table = _db.personaChatMessages;
+    final time = chatCreatedAtMs(table);
+    final sequence = chatSequence(table);
+    final messageTime =
+        message.createdAtMs ?? message.timestamp.millisecondsSinceEpoch;
+    final messageSequence = message.serverSequence ?? message.id;
+    final countExp = table.id.count();
+    final row = await (_db.selectOnly(table)
           ..addColumns([countExp])
-          ..where(
-            _db.personaChatMessages.characterId.equals(characterId) &
-                (_db.personaChatMessages.timestamp
-                        .isBiggerThanValue(message.timestamp) |
-                    (_db.personaChatMessages.timestamp
-                            .equals(message.timestamp) &
-                        _db.personaChatMessages.id
-                            .isBiggerThanValue(message.id))),
-          ))
+          ..where(table.characterId.equals(characterId) &
+              (time.isBiggerThanValue(messageTime) |
+                  (time.equals(messageTime) &
+                      (sequence.isBiggerThanValue(messageSequence) |
+                          (sequence.equals(messageSequence) &
+                              table.id.isBiggerThanValue(message.id)))))))
         .getSingle();
     return row.read(countExp) ?? 0;
   }
@@ -135,6 +204,7 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
               content: content,
               isRead: const Value(true),
               timestamp: createdAt,
+              createdAtMs: Value(createdAt.millisecondsSinceEpoch),
               attachmentsJson: Value(attachmentsJson),
             ),
           );
@@ -168,11 +238,13 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     required String content,
     required DateTime createdAt,
     required String messageType,
+    String sender = 'user',
     String? assetRefsJson,
   }) async {
     final counterKey = 'outbox.max_sequence.$originDeviceId';
     final counterRow = await (_db.select(_db.kvStore)
-          ..where((t) => t.key.equals(counterKey) & t.bucket.equals(_outboxBucket)))
+          ..where(
+              (t) => t.key.equals(counterKey) & t.bucket.equals(_outboxBucket)))
         .getSingleOrNull();
     final nextSequence = (int.tryParse(counterRow?.value ?? '') ?? 0) + 1;
     await _db.into(_db.kvStore).insertOnConflictUpdate(
@@ -192,9 +264,82 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
             content: content,
             createdAtMs: createdAt.millisecondsSinceEpoch,
             messageType: Value(messageType),
+            sender: Value(sender),
             assetRefsJson: Value(assetRefsJson),
           ),
         );
+    if (sender == 'companion') await _markCompanionEnqueued(syncId);
+  }
+
+  // Kept after acceptance: deleting an outbox copy must never allocate a second
+  // origin sequence for this same immutable reply while awaiting its feed echo.
+  Future<void> _markCompanionEnqueued(String syncId) async {
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: 'companion.enqueued.$syncId',
+            value: const Value('1'),
+            bucket: const Value(_outboxBucket),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+  }
+
+  /// Backfill only this installation's authorized plain-chat replies.
+  /// Imported rows keep their original origin/server sequence and are excluded.
+  Future<int> enqueueLocalCompanionBacklog({
+    required String originDeviceId,
+    required String characterId,
+    required int fromCreatedAtMs,
+  }) async {
+    return _db.transaction(() async {
+      final rows = await (_db.select(_db.personaChatMessages)
+            ..where((t) =>
+                t.originDeviceId.equals(originDeviceId) &
+                t.characterId.equals(characterId) &
+                t.isFromCharacter.equals(true) &
+                t.messageType.equals('chat') &
+                t.content.equals('').not() &
+                t.syncId.isNotNull() &
+                t.syncId.equals('').not() &
+                t.serverSequence.isNull() &
+                (t.attachmentsJson.isNull() | t.attachmentsJson.equals('[]')) &
+                coalesce([
+                  t.createdAtMs,
+                  t.timestamp.unixepoch * const Constant(1000)
+                ]).isBiggerOrEqualValue(fromCreatedAtMs) &
+                notExistsQuery(_db.select(_db.kvStore)
+                  ..where((marker) =>
+                      marker.bucket.equals(_outboxBucket) &
+                      marker.key.equalsExp(
+                          const Constant('companion.enqueued.') + t.syncId))) &
+                notExistsQuery(_db.select(_db.syncOutboxMessages)
+                  ..where((queued) => queued.syncId.equalsExp(t.syncId))))
+            ..orderBy([
+              (t) => OrderingTerm.asc(coalesce([
+                    t.createdAtMs,
+                    t.timestamp.unixepoch * const Constant(1000)
+                  ])),
+              (t) => OrderingTerm.asc(t.id),
+            ])
+            ..limit(100))
+          .get();
+      var added = 0;
+      for (final row in rows) {
+        final syncId = row.syncId!;
+        await _enqueueOutbox(
+          syncId: syncId,
+          originDeviceId: originDeviceId,
+          characterId: characterId,
+          content: row.content,
+          createdAt: DateTime.fromMillisecondsSinceEpoch(
+              row.createdAtMs ?? row.timestamp.millisecondsSinceEpoch),
+          messageType: 'chat',
+          sender: 'companion',
+        );
+        added++;
+      }
+      return added;
+    });
   }
 
   Future<void> appendUserMessageTimeline(
@@ -253,12 +398,20 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     ));
   }
 
-  Future<bool> _companionOutboxEnabled(String deviceId, String characterId) async {
-    final row = await (_db.select(_db.kvStore)..where((t) =>
-      t.key.equals('phone_companion_outbox.$deviceId') & t.bucket.equals(_outboxBucket)))
-      .getSingleOrNull();
-    return characterId.isNotEmpty && row?.value == characterId;
+  Future<String?> configuredCompanionOutboxCharacter(String deviceId) async {
+    final row = await (_db.select(_db.kvStore)
+          ..where((t) =>
+              t.key.equals('phone_companion_outbox.$deviceId') &
+              t.bucket.equals(_outboxBucket)))
+        .getSingleOrNull();
+    final value = row?.value;
+    return value == null || value.isEmpty ? null : value;
   }
+
+  Future<bool> companionOutboxEnabled(
+          String deviceId, String characterId) async =>
+      characterId.isNotEmpty &&
+      await configuredCompanionOutboxCharacter(deviceId) == characterId;
 
   Future<int> addCharacterMessage(
     String characterId,
@@ -276,22 +429,30 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     late int id;
     await _db.transaction(() async {
       id = await _db.into(_db.personaChatMessages).insert(
-          PersonaChatMessagesCompanion.insert(
-            syncId: Value(syncId),
-            originDeviceId: Value(originDeviceId),
+            PersonaChatMessagesCompanion.insert(
+              syncId: Value(syncId),
+              originDeviceId: Value(originDeviceId),
+              characterId: characterId,
+              isFromCharacter: true,
+              content: content,
+              factId: Value(factId),
+              isRead: Value(isRead),
+              timestamp: createdAt,
+              createdAtMs: Value(createdAt.millisecondsSinceEpoch),
+              attachmentsJson: Value(attachmentsJson),
+            ),
+          );
+      if (attachmentsJson == null &&
+          content.isNotEmpty &&
+          await companionOutboxEnabled(originDeviceId, characterId)) {
+        await _enqueueOutbox(
+            syncId: syncId,
+            originDeviceId: originDeviceId,
             characterId: characterId,
-            isFromCharacter: true,
             content: content,
-            factId: Value(factId),
-            isRead: Value(isRead),
-            timestamp: createdAt,
-            attachmentsJson: Value(attachmentsJson),
-          ),
-        );
-      if (await _companionOutboxEnabled(originDeviceId, characterId)) {
-        await _enqueueOutbox(syncId: syncId, originDeviceId: originDeviceId,
-          characterId: characterId, content: content, createdAt: createdAt,
-          messageType: 'chat');
+            createdAt: createdAt,
+            messageType: 'chat',
+            sender: 'companion');
       }
     });
     _notifyMessageAdded(characterId);
@@ -538,7 +699,11 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
   Future<PersonaChatMessage?> getLastMessage(String characterId) async {
     final results = await (_db.select(_db.personaChatMessages)
           ..where((t) => t.characterId.equals(characterId))
-          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..orderBy([
+            (t) => OrderingTerm.desc(chatCreatedAtMs(t)),
+            (t) => OrderingTerm.desc(chatSequence(t)),
+            (t) => OrderingTerm.desc(t.id),
+          ])
           ..limit(1))
         .get();
     return results.isEmpty ? null : results.first;

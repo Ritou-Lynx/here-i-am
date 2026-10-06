@@ -400,7 +400,7 @@ export function createWebDomainOptions(config) {
   const domainTools=createDomainTools({client,scopes:config.scopes,surface:'web',captureSource:'claude_web'});
   if(config.plan_reads){
     const plan=config.plan_reads;
-    if(plan.token===config.token||!Array.isArray(plan.scopes)||plan.scopes.some(scope=>!['plan_weeks:read','plan_days:read'].includes(scope)))throw new Error('invalid_web_plan_configuration');
+    if(plan.token===config.token||!Array.isArray(plan.scopes)||plan.scopes.some(scope=>!['plan_items:read','plan_weeks:read','plan_days:read'].includes(scope)))throw new Error('invalid_web_plan_configuration');
     const planTools=createDomainTools({client:createDomainClient({coreUrl:config.core_url,coreInstanceId:config.core_instance_id,token:plan.token}),scopes:plan.scopes,surface:'web',captureSource:'claude_web'});
     domainTools.tools.push(...planTools.tools);Object.assign(domainTools.handlers,planTools.handlers);
   }

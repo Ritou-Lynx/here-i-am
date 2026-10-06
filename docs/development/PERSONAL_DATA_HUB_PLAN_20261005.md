@@ -287,7 +287,7 @@ W1 当前交付：[组合验收](handoffs/W1_COMBINED_MAIN_ACCEPTANCE_20261005.m
 
 **逐领域迁移前必须完成（2026-10-05 用户指定）**：
 
-- 手机同步状态按记录存储：领域副本、墓碑、用户修正按记录，outbox 按操作独立持久化；cursor、绑定等小型领域元数据可以单独存储。禁止把所有领域、记录与队列整体编码成一行 JSON。本批隔离候选已实现逐行格式与原子迁移，见[W7前置](handoffs/W7_ROW_STORAGE_20261005.md)；尚未合入/部署。保留旧状态语义、稳定 `op_id` 和回执，并验证单记录写入、事务性 feed/cursor 更新、迁移和崩溃恢复；生产逆向回滚另验。
+- 手机同步状态按记录存储：领域副本、墓碑、用户修正按记录，outbox 按操作独立持久化；cursor、绑定等小型领域元数据可以单独存储。禁止把所有领域、记录与队列整体编码成一行 JSON。逐行格式与原子迁移已随 [PR #12](https://github.com/Ritou-Lynx/here-i-am/pull/12) 合入 v3-lab@64aea693，见[W7前置](handoffs/W7_ROW_STORAGE_20261005.md)；未部署。含 PR12 的 App 在 B3 Drift61/62 与 Core transcript/replay 兼容修复完成前不得安装主力手机；审计后源码与候选证据见[主窗验收](handoffs/POST_AUDIT_SOURCE_ACCEPTANCE_20261006.md)。保留旧状态语义、稳定 `op_id` 和回执，并验证单记录写入、事务性 feed/cursor 更新、迁移和崩溃恢复；生产逆向回滚另验。
 - `plan_items.area` 允许“未归类”。Core 现有 schema 已允许字符串；手机显示、筛选、旧卡回填及导入必须保留该值，等 Codex 明确归类，不能强猜现有主线。
 - 切换某领域前就关闭该领域的启动去重和本地判重删除，切换后由 i_core 判重；覆盖冷启动和重启验证。尚未切换的领域按原路径运行。
 

@@ -1,3 +1,4 @@
+import { listenForFetch } from './fetch_test_listener.mjs';
 // 测试共用：合成数据的 fake readModel 与真实 HTTP 服务启动器。
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -88,7 +89,7 @@ export async function startTestServer({ readModel = createFakeReadModel(), oauth
     domainTools,
     ...extra,
   });
-  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  await listenForFetch(server);
   const base = `http://127.0.0.1:${server.address().port}`;
   return {
     base, server, oauth, clock, stateDir, readModel,

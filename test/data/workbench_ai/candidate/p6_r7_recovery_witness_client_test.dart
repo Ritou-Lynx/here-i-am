@@ -87,7 +87,7 @@ void main() {
               nativeSha256: _hash,
               canonicalDirectory: r'D:\fixture\run-candidate',
               datasetId: _dataset),
-          projection: P6R7ReadOnlyProjection(userVersion: 60, identityRows: [
+          projection: P6R7ReadOnlyProjection(userVersion: 62, identityRows: [
             {'identity_hash': identityHash, 'task_id': null}
           ], taskRows: []));
       final io = _FakeIo()..consumeBehavior = behavior;

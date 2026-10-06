@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'package:memex/data/memory_v3/notes/claude_web_note_feed_service.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/agents/record_organizer_agent/agent.dart';
 import 'dart:ui';
 import 'package:memex/data/personal_data_hub/personal_data_hub_runtime.dart';
 import 'package:memex/data/personal_data_hub/planning_models.dart';
@@ -31,6 +35,24 @@ import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 /// ViewModels are created in the place that builds the screen (route builder
 /// or parent widget), using context.read<MemexRouter>() etc.
 List<SingleChildWidget> get dependencyProviders => [
+      Provider<ClaudeWebNoteFeedService>(
+        create: (_) => ClaudeWebNoteFeedService(
+          storage: ClaudeWebNoteFeedStorage(),
+          importerFactory: () => ClaudeWebNoteImporter(
+            db: AppDatabase.instance,
+            organizer: RecordOrganizerServiceV3(AppDatabase.instance),
+            organize: (source) async {
+              final resources = await UserStorage.getAgentLLMResources(
+                AgentDefinitions.recordOrganizerAgent,
+                defaultClientKey: LLMConfig.defaultClientKey);
+              return const RecordOrganizerAgentV3().organize(
+                client: resources.client, modelConfig: resources.modelConfig,
+                rawInput: source.rawInput, now: source.recordedAt);
+            },
+          ),
+        ),
+        dispose: (_, service) => unawaited(service.dispose()),
+      ),
       ChangeNotifierProvider<PersonalDataHubRuntimeOwner>(
         lazy: false,
         create: (_) => PersonalDataHubRuntimeOwner(create: _createHubRuntime),
@@ -89,6 +111,8 @@ Future<PersonalDataHubRuntime> _createHubRuntime() async {
     hub: hub,
     alarms: const CheckinPlanningAlarmScheduler(),
     enablePlanningReminders:
+        PlatformDispatcher.instance.defaultRouteName != '/quick-capture',
+    ownsCaptureConnectionLifetime:
         PlatformDispatcher.instance.defaultRouteName != '/quick-capture',
     connection: () {
       final configured =

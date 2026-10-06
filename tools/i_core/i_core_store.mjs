@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { readSync, openSync, lstatSync, fstatSync, closeSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -52,6 +52,239 @@ export class CoreStoreError extends Error {
     this.status = status;
     this.retryable = retryable;
     this.details = details;
+  }
+}
+
+const HISTORICAL_REPLAY_APPROVALS_KEY = 'historical_replay_approvals_v1';
+const HISTORICAL_REPLAY_APPROVALS_MAX_BYTES = 512 * 1024;
+const HISTORICAL_REPLAY_APPROVALS_MAX_ENTRIES = 1000;
+
+function invalidHistoricalReplayApprovals() {
+  return new CoreStoreError(
+    'historical_replay_approvals_invalid',
+    'Historical replay approvals are invalid or conflict with durable bindings.',
+    { status: 503 },
+  );
+}
+
+function replaySequenceKey(deviceId, sequence) {
+  return JSON.stringify([deviceId, sequence]);
+}
+
+function parseHistoricalReplayApprovals(value) {
+  try {
+    const document = JSON.parse(value);
+    if (!document || Array.isArray(document) || document.version !== 1
+      || Object.keys(document).sort().join(',') !== 'approved_replays,version'
+      || !Array.isArray(document.approved_replays)
+      || document.approved_replays.length > HISTORICAL_REPLAY_APPROVALS_MAX_ENTRIES) {
+      throw invalidHistoricalReplayApprovals();
+    }
+    const ids = new Set();
+    const sequences = new Set();
+    return document.approved_replays.map((record) => {
+      if (!record || Array.isArray(record)
+        || Object.keys(record).sort().join(',') !== 'device_id,existing_digest,incoming_digest,origin_sequence,sync_id'
+        || ![record.sync_id, record.device_id].every((value) =>
+          typeof value === 'string' && value.length > 0 && value.trim() === value)
+        || !Number.isSafeInteger(record.origin_sequence) || record.origin_sequence < 0
+        || ![record.incoming_digest, record.existing_digest].every((value) =>
+          typeof value === 'string' && /^[a-fA-F0-9]{64}$/.test(value))) {
+        throw invalidHistoricalReplayApprovals();
+      }
+      const sequence = replaySequenceKey(record.device_id, record.origin_sequence);
+      if (ids.has(record.sync_id) || sequences.has(sequence)) throw invalidHistoricalReplayApprovals();
+      ids.add(record.sync_id);
+      sequences.add(sequence);
+      return Object.freeze({
+        sync_id: record.sync_id,
+        device_id: record.device_id,
+        origin_sequence: record.origin_sequence,
+        incoming_digest: record.incoming_digest.toLowerCase(),
+        existing_digest: record.existing_digest.toLowerCase(),
+      });
+    });
+  } catch {
+    throw invalidHistoricalReplayApprovals();
+  }
+}
+
+function readHistoricalReplayApprovalFile(filePath) {
+  let descriptor;
+  try {
+    // Reject symbolic links and Windows junctions anywhere in the approval path.
+    let current = path.resolve(filePath);
+    while (true) {
+      try {
+        if (lstatSync(current).isSymbolicLink()) throw invalidHistoricalReplayApprovals();
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    descriptor = openSync(filePath, 'r');
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw invalidHistoricalReplayApprovals();
+  }
+  try {
+    const opened = fstatSync(descriptor);
+    const named = lstatSync(filePath);
+    if (!opened.isFile() || named.isSymbolicLink()
+      || opened.dev !== named.dev || opened.ino !== named.ino) {
+      throw invalidHistoricalReplayApprovals();
+    }
+    const buffer = Buffer.alloc(HISTORICAL_REPLAY_APPROVALS_MAX_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const count = readSync(descriptor, buffer, length, buffer.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    if (length > HISTORICAL_REPLAY_APPROVALS_MAX_BYTES) throw invalidHistoricalReplayApprovals();
+    return parseHistoricalReplayApprovals(new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, length)));
+  } catch {
+    throw invalidHistoricalReplayApprovals();
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function readHistoricalReplayLedger(db) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='core_metadata'").get()) return [];
+  const stored = db.prepare('SELECT value FROM core_metadata WHERE key = ?').get(HISTORICAL_REPLAY_APPROVALS_KEY);
+  if (!stored) return [];
+  if (typeof stored.value !== 'string'
+    || Buffer.byteLength(stored.value, 'utf8') > HISTORICAL_REPLAY_APPROVALS_MAX_BYTES) {
+    throw invalidHistoricalReplayApprovals();
+  }
+  return parseHistoricalReplayApprovals(stored.value);
+}
+
+function mergeHistoricalReplayApprovals(persisted, incoming) {
+  const bySyncId = new Map(persisted.map((record) => [record.sync_id, record]));
+  const bySequence = new Map(persisted.map((record) =>
+    [replaySequenceKey(record.device_id, record.origin_sequence), record]));
+  for (const record of incoming) {
+    const existing = bySyncId.get(record.sync_id);
+    const sequence = replaySequenceKey(record.device_id, record.origin_sequence);
+    const occupied = bySequence.get(sequence);
+    if ((existing && canonicalDigest(existing) !== canonicalDigest(record))
+      || (occupied && occupied.sync_id !== record.sync_id)) {
+      throw invalidHistoricalReplayApprovals();
+    }
+    bySyncId.set(record.sync_id, record);
+    bySequence.set(sequence, record);
+  }
+  const records = [...bySyncId.values()].sort((left, right) =>
+    left.sync_id < right.sync_id ? -1 : left.sync_id > right.sync_id ? 1 : 0);
+  const serialized = JSON.stringify({ version: 1, approved_replays: records });
+  if (records.length > HISTORICAL_REPLAY_APPROVALS_MAX_ENTRIES
+    || Buffer.byteLength(serialized, 'utf8') > HISTORICAL_REPLAY_APPROVALS_MAX_BYTES) {
+    throw invalidHistoricalReplayApprovals();
+  }
+  return { bySyncId, bySequence, records, serialized };
+}
+
+function persistHistoricalReplayApprovals(db, incoming) {
+  const current = readHistoricalReplayLedger(db);
+  if (current.length === 0 && incoming.length === 0) return mergeHistoricalReplayApprovals([], []);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    // Re-read under the writer lock so concurrent starts cannot discard bindings.
+    const merged = mergeHistoricalReplayApprovals(readHistoricalReplayLedger(db), incoming);
+    const previous = db.prepare('SELECT value FROM core_metadata WHERE key = ?').get(HISTORICAL_REPLAY_APPROVALS_KEY);
+    if (previous?.value !== merged.serialized) {
+      db.prepare('INSERT INTO core_metadata(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+        .run(HISTORICAL_REPLAY_APPROVALS_KEY, merged.serialized);
+    }
+    db.exec('COMMIT');
+    return merged;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+
+const LOCAL_TRANSCRIPT_GRANTS_MAX_BYTES = 32 * 1024;
+const LOCAL_TRANSCRIPT_GRANTS_MAX_ENTRIES = 16;
+const RESERVED_TRANSCRIPT_ORIGIN = /^(frontend:|v3-history-|core-companion:|core:|worker:)/i;
+
+function invalidLocalTranscriptGrants() {
+  return new CoreStoreError('local_transcript_grants_invalid',
+    'Local transcript grants are invalid.', { status: 503 });
+}
+
+function parseLocalTranscriptGrants(text) {
+  try {
+    if (Buffer.byteLength(text, 'utf8') > LOCAL_TRANSCRIPT_GRANTS_MAX_BYTES) throw invalidLocalTranscriptGrants();
+    const document = JSON.parse(text);
+    if (!document || Array.isArray(document)
+      || Object.keys(document).sort().join(',') !== 'grants,version'
+      || document.version !== 1 || !Array.isArray(document.grants)
+      || document.grants.length > LOCAL_TRANSCRIPT_GRANTS_MAX_ENTRIES) throw invalidLocalTranscriptGrants();
+    const grants = new Map();
+    for (const grant of document.grants) {
+      if (!grant || Array.isArray(grant)
+        || Object.keys(grant).sort().join(',') !== 'character_id,credential_sha256,device_id,from_created_at_ms'
+        || ![grant.device_id, grant.character_id].every((value) =>
+          typeof value === 'string' && value.length > 0 && value.length <= 128 && value.trim() === value)
+        || RESERVED_TRANSCRIPT_ORIGIN.test(grant.device_id)
+        || typeof grant.credential_sha256 !== 'string' || !/^[a-fA-F0-9]{64}$/.test(grant.credential_sha256)
+        || !Number.isSafeInteger(grant.from_created_at_ms) || grant.from_created_at_ms <= 0
+        || grants.has(grant.device_id)) throw invalidLocalTranscriptGrants();
+      grants.set(grant.device_id, Object.freeze({
+        device_id: grant.device_id, character_id: grant.character_id,
+        credential_sha256: grant.credential_sha256.toLowerCase(),
+        from_created_at_ms: grant.from_created_at_ms,
+      }));
+    }
+    return grants;
+  } catch {
+    throw invalidLocalTranscriptGrants();
+  }
+}
+
+function readLocalTranscriptGrants(filePath) {
+  let descriptor;
+  try {
+    let current = path.resolve(filePath);
+    while (true) {
+      try {
+        if (lstatSync(current).isSymbolicLink()) throw invalidLocalTranscriptGrants();
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    descriptor = openSync(filePath, 'r');
+  } catch (error) {
+    if (error.code === 'ENOENT') return new Map();
+    throw invalidLocalTranscriptGrants();
+  }
+  try {
+    const opened = fstatSync(descriptor);
+    const named = lstatSync(filePath);
+    if (!opened.isFile() || named.isSymbolicLink()
+      || opened.dev !== named.dev || opened.ino !== named.ino) throw invalidLocalTranscriptGrants();
+    const buffer = Buffer.alloc(LOCAL_TRANSCRIPT_GRANTS_MAX_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const count = readSync(descriptor, buffer, length, buffer.length - length, null);
+      if (count === 0) break;
+      length += count;
+    }
+    if (length > LOCAL_TRANSCRIPT_GRANTS_MAX_BYTES) throw invalidLocalTranscriptGrants();
+    return parseLocalTranscriptGrants(new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, length)));
+  } catch {
+    throw invalidLocalTranscriptGrants();
+  } finally {
+    closeSync(descriptor);
   }
 }
 
@@ -479,8 +712,14 @@ function normalizeMessage(raw, authenticatedDeviceId, { allowCompanion = false }
 }
 
 export class ICoreStore {
+  #localTranscriptGrants;
+  #companionUploadMode;
   constructor(databasePath, {
     companionReplyJobsEnabled = false,
+    companionUploadMode = 'pr10',
+    localTranscriptGrants = undefined,
+    localTranscriptGrantsPath = path.join(path.dirname(databasePath), 'local-transcript-grants.json'),
+    historicalReplayApprovalsPath = path.join(path.dirname(databasePath), 'historical-replay-approvals.json'),
     clock = Date.now,
     activityRecoveryFloor = null,
     activityRuntimeId = undefined,
@@ -495,6 +734,17 @@ export class ICoreStore {
     domainHooks = undefined,
     domainVerifyLegacyAdoption = undefined,
   } = {}) {
+    if (!['pr10', 'legacy_b3', 'disabled'].includes(companionUploadMode)) {
+      throw new CoreStoreError('invalid_companion_upload_mode', 'Unknown companion upload mode.', { status: 503 });
+    }
+    this.#companionUploadMode = companionUploadMode;
+    this.#localTranscriptGrants = localTranscriptGrants === undefined
+      ? readLocalTranscriptGrants(localTranscriptGrantsPath)
+      : parseLocalTranscriptGrants(JSON.stringify(localTranscriptGrants));
+    if (new Set([...this.#localTranscriptGrants.values()].map(grant => grant.character_id)).size > 1) {
+      throw invalidLocalTranscriptGrants();
+    }
+    const replayApprovals = readHistoricalReplayApprovalFile(historicalReplayApprovalsPath);
     preflightActivityCommitmentVersion(databasePath);
     if (activityRecoveryFloor) {
       verifyActivityRecoveryCandidate(databasePath, activityRecoveryFloor);
@@ -515,6 +765,7 @@ export class ICoreStore {
     this.companionReplyJobsEnabled = companionReplyJobsEnabled;
     this.clock = clock;
     try {
+      mergeHistoricalReplayApprovals(readHistoricalReplayLedger(this.db), replayApprovals);
       this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
       this.#migrate();
       this.nodeId = coreIdentity.fresh
@@ -550,6 +801,18 @@ export class ICoreStore {
           throw new CoreStoreError('companion_executor_conflict', 'Phone ownership requires Core reply production to remain disabled.', { status: 409 });
         }
       }
+      const primary = this.#metadata('domain_primary_character_id');
+      if (primary && [...this.#localTranscriptGrants.values()].some(grant => grant.character_id !== primary)) {
+        throw invalidLocalTranscriptGrants();
+      }
+      if (this.#companionUploadMode === 'legacy_b3' && [...this.#localTranscriptGrants.values()].some(grant => {
+        const device = this.db.prepare('SELECT * FROM devices WHERE device_id=?').get(grant.device_id);
+        return device?.platform === 'android' && device.token_hash === grant.credential_sha256
+          && (this.companionReplyJobsEnabled || this.db.prepare(
+            "SELECT 1 FROM companion_reply_jobs WHERE character_id=? AND status IN ('pending','claimed') LIMIT 1",
+          ).get(grant.character_id));
+      })) throw new CoreStoreError('companion_executor_conflict', 'Legacy phone transcripts require Core replies disabled and drained.', { status: 409 });
+      persistHistoricalReplayApprovals(this.db, replayApprovals);
     } catch (error) {
       this.db.close();
       throw error;
@@ -1103,6 +1366,7 @@ export class ICoreStore {
     if (!this.domains || this.#metadata('schema_version') !== '6') {
       throw new CoreStoreError('schema_not_ready', 'Explicit domain migration is required.', { status: 503 });
     }
+    if (enabled && this.#companionUploadMode !== 'pr10') throw new CoreStoreError('companion_upload_mode_conflict', 'PR10 enrollment requires PR10 upload mode.', { status: 409 });
     const deviceId = requiredString(device_id, 'device_id');
     const characterId = requiredString(character_id, 'character_id');
     if (typeof enabled !== 'boolean') throw new CoreStoreError('invalid_request', 'enabled must be boolean.');
@@ -1114,6 +1378,7 @@ export class ICoreStore {
         throw new CoreStoreError('phone_device_required', 'Only an enrolled Android device may receive this capability.', { status: 403 });
       }
       const primary = this.#metadata('domain_primary_character_id');
+      if ([...this.#localTranscriptGrants.values()].some(grant => grant.character_id !== characterId)) throw invalidLocalTranscriptGrants();
       if (primary && primary !== characterId) {
         throw new CoreStoreError('primary_character_mismatch', 'The capability must name the registered primary character.', { status: 403 });
       }
@@ -1133,6 +1398,7 @@ export class ICoreStore {
   }
 
   #phoneCompanionCapability(device) {
+    if (this.#companionUploadMode !== 'pr10') return null;
     if (!this.domains || device?.platform !== 'android' || device.device_id.startsWith('frontend:')) return null;
     this.domains.ready();
     return this.db.prepare(`SELECT character_id FROM domain_phone_capabilities
@@ -1141,11 +1407,72 @@ export class ICoreStore {
   }
 
   #phoneOwnsCharacter(characterId) {
+    if (this.#companionUploadMode === 'legacy_b3' && [...this.#localTranscriptGrants.values()].some(grant => {
+      const device = this.db.prepare('SELECT * FROM devices WHERE device_id=?').get(grant.device_id);
+      return grant.character_id === characterId && device?.platform === 'android'
+        && device.token_hash === grant.credential_sha256;
+    })) return true;
     if (!this.domains || characterId !== this.#metadata('domain_primary_character_id')) return false;
     this.domains.ready();
     return Boolean(this.db.prepare(`SELECT 1 FROM domain_phone_capabilities p JOIN devices d ON d.device_id=p.device_id
       WHERE p.character_id=? AND p.enabled=1 AND p.token_hash=d.token_hash
       AND d.platform='android' AND d.device_id NOT LIKE 'frontend:%' LIMIT 1`).get(characterId));
+  }
+
+  #localTranscriptGrant(deviceToken) {
+    const device = typeof deviceToken === 'string' && deviceToken
+      ? this.db.prepare('SELECT device_id, platform, token_hash FROM devices WHERE token_hash = ?')
+        .get(tokenDigest(deviceToken))
+      : null;
+    if (!device) throw new CoreStoreError('unauthorized', 'A valid device token is required.', { status: 401 });
+    if (this.domains) this.domains.ready();
+    if (this.#companionUploadMode !== 'legacy_b3') return null;
+    const grant = this.#localTranscriptGrants.get(device.device_id);
+    if (device.platform !== 'android' || RESERVED_TRANSCRIPT_ORIGIN.test(device.device_id)
+      || !grant || grant.credential_sha256 !== device.token_hash) return null;
+    return grant;
+  }
+
+  localTranscriptCapabilities(deviceToken) {
+    const grant = this.#localTranscriptGrant(deviceToken);
+    return grant ? {
+      enabled: true, companion_upload_mode: this.#companionUploadMode, character_id: grant.character_id,
+      from_created_at_ms: grant.from_created_at_ms,
+    } : { enabled: false, companion_upload_mode: this.#companionUploadMode };
+  }
+
+  submitLocalTranscripts(deviceToken, raw) {
+    const grant = this.#localTranscriptGrant(deviceToken);
+    if (!grant) throw new CoreStoreError('local_transcript_forbidden',
+      'This device is not authorized to submit local transcripts.', { status: 403 });
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)
+      || Object.keys(raw).some((key) => !['device_id', 'messages', 'request_companion_reply'].includes(key))) {
+      throw new CoreStoreError('invalid_request', 'Local transcript body has unsupported fields.');
+    }
+    if (raw.device_id !== grant.device_id) {
+      throw new CoreStoreError('device_mismatch', 'device_id must match the authenticated device.', { status: 403 });
+    }
+    if (raw.request_companion_reply !== undefined && raw.request_companion_reply !== false) {
+      throw new CoreStoreError('invalid_request', 'Local transcripts cannot request a generated reply.');
+    }
+    if (!Array.isArray(raw.messages) || raw.messages.length === 0 || raw.messages.length > MAX_MESSAGE_BATCH) {
+      throw new CoreStoreError('invalid_request', 'Local transcripts require a bounded non-empty message batch.');
+    }
+    const messages = raw.messages.map((rawMessage) => {
+      const message = normalizeMessage(rawMessage, grant.device_id, { allowCompanion: true });
+      if (message.character_id !== grant.character_id || message.message_type !== 'chat'
+        || message.created_at_ms < grant.from_created_at_ms
+        || message.asset_refs.length !== 0 || message.addenda.length !== 0) {
+        throw new CoreStoreError('local_transcript_scope_mismatch',
+          'The message is outside this local transcript grant.', { status: 403 });
+      }
+      return message;
+    }).sort((left, right) => left.origin_sequence - right.origin_sequence);
+    return this.#persistMessages(messages, {
+      submitDeviceId: grant.device_id,
+      allowApprovedHistoricalReplay: false,
+      enqueueCompanionReplies: false,
+    });
   }
 
   submitMessages(authenticatedDeviceId, raw) {
@@ -1204,6 +1531,12 @@ export class ICoreStore {
       throw new CoreStoreError('primary_character_mismatch', 'Phone companion messages must name the registered primary character.', { status: 403 });
     }
     return this.#persistMessages(messages, {
+      submitDeviceId: authenticatedDeviceId,
+      allowApprovedHistoricalReplay: Boolean(device) && !frontend
+        && device.platform !== EXTERNAL_FRONTEND_PLATFORM
+        && !['local-import', 'core-worker', 'core-authority'].includes(device.platform)
+        && !/^(frontend:|v3-history-|core-companion:|core:|worker:)/i.test(device.device_id)
+        && raw?.request_companion_reply !== true,
       enqueueCompanionReplies:
         !phoneCapability && this.companionReplyJobsEnabled && raw?.request_companion_reply === true,
     });
@@ -1581,6 +1914,8 @@ export class ICoreStore {
     localDevice = null,
     allowSemanticExisting = false,
     enqueueCompanionReplies = false,
+    submitDeviceId = null,
+    allowApprovedHistoricalReplay = false,
   } = {}) {
     if (['core-worker', 'core-authority'].includes(localDevice?.platform)
       && messages.some((message) => this.#phoneOwnsCharacter(message.character_id))) {
@@ -1589,6 +1924,8 @@ export class ICoreStore {
     const results = [];
     this.db.exec('BEGIN IMMEDIATE');
     try {
+      // Read on every transaction: another process may have appended bindings.
+      const approvals = mergeHistoricalReplayApprovals(readHistoricalReplayLedger(this.db), []);
       if (localDevice) {
         const now = Date.now();
         this.db.prepare(`
@@ -1609,12 +1946,45 @@ export class ICoreStore {
       }
       for (const message of messages) {
         const digest = canonicalDigest(message);
+        const approval = approvals.bySyncId.get(message.sync_id);
+        const alias = approvals.bySequence.get(replaySequenceKey(message.origin_device_id, message.origin_sequence));
+        if (alias && (!submitDeviceId || alias.sync_id !== message.sync_id || alias.incoming_digest !== digest)) {
+          throw new CoreStoreError('origin_sequence_conflict', 'origin_sequence is reserved by a historical replay binding.', { status: 409 });
+        }
+        if (approval && submitDeviceId && (approval.device_id !== submitDeviceId
+          || approval.device_id !== message.origin_device_id
+          || approval.origin_sequence !== message.origin_sequence || approval.incoming_digest !== digest)) {
+          throw new CoreStoreError('immutable_message_conflict', 'Historical replay does not match its immutable approval.', { status: 409 });
+        }
+        const sequenceCollision = this.db.prepare(`
+          SELECT sync_id FROM chat_messages
+          WHERE origin_device_id = ? AND origin_sequence = ?
+        `).get(message.origin_device_id, message.origin_sequence);
+        if (sequenceCollision && sequenceCollision.sync_id !== message.sync_id) {
+          throw new CoreStoreError('origin_sequence_conflict', 'origin_sequence already points to another message.', { status: 409 });
+        }
         const existing = this.db.prepare(`
           SELECT canonical_digest, server_sequence, character_id, sender,
-                 content, created_at_ms, message_type
+                 content, created_at_ms, message_type, origin_device_id, origin_sequence,
+                 asset_refs_json, addenda_json
           FROM chat_messages WHERE sync_id = ?
         `).get(message.sync_id);
         if (existing) {
+          const approvedReplay = allowApprovedHistoricalReplay && approval
+            && approval.existing_digest === existing.canonical_digest
+            && approval.incoming_digest === digest
+            && /^v3-history-[a-f0-9]{20}$/.test(existing.origin_device_id)
+            && existing.sender === 'user' && message.sender === 'user'
+            && canonicalDigest({
+              sync_id: message.sync_id,
+              origin_device_id: existing.origin_device_id,
+              origin_sequence: Number(existing.origin_sequence),
+              character_id: existing.character_id, sender: existing.sender,
+              content: existing.content, created_at_ms: Number(existing.created_at_ms),
+              message_type: existing.message_type,
+              asset_refs: JSON.parse(existing.asset_refs_json),
+              addenda: JSON.parse(existing.addenda_json),
+            }) === approval.existing_digest;
           const sameSemanticMessage =
             existing.character_id === message.character_id &&
             existing.sender === message.sender &&
@@ -1623,7 +1993,7 @@ export class ICoreStore {
             existing.message_type === message.message_type;
           if (
             existing.canonical_digest !== digest &&
-            !(allowSemanticExisting && sameSemanticMessage)
+            !(allowSemanticExisting && sameSemanticMessage) && !approvedReplay
           ) {
             throw new CoreStoreError(
               'immutable_message_conflict',
@@ -1631,30 +2001,15 @@ export class ICoreStore {
               { status: 409, details: { sync_id: message.sync_id } },
             );
           }
-          const existingSequence = Number(existing.server_sequence);
           results.push({
             sync_id: message.sync_id,
             status: 'duplicate',
-            server_sequence: existingSequence,
+            server_sequence: Number(existing.server_sequence),
           });
           continue;
         }
-        const sequenceCollision = this.db.prepare(`
-          SELECT sync_id FROM chat_messages
-          WHERE origin_device_id = ? AND origin_sequence = ?
-        `).get(message.origin_device_id, message.origin_sequence);
-        if (sequenceCollision) {
-          throw new CoreStoreError(
-            'origin_sequence_conflict',
-            'origin_sequence already points to another message.',
-            {
-              status: 409,
-              details: {
-                origin_sequence: message.origin_sequence,
-                existing_sync_id: sequenceCollision.sync_id,
-              },
-            },
-          );
+        if (approval && submitDeviceId) {
+          throw new CoreStoreError('immutable_message_conflict', 'Historical replay approval cannot create a message.', { status: 409 });
         }
         const occurredAt = Date.now();
         const eventId = randomUUID();

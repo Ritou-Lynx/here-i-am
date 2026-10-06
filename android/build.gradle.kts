@@ -14,6 +14,9 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+    if (project.name == "jni") {
+        apply(from = rootProject.file("jni_build_staging.gradle"))
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")

@@ -1,5 +1,14 @@
 # 林埃的项目状态
 
+
+## PREDEPLOY 审计后兼容修复与源码集成（2026-10-06）
+
+用户已确认 D1–D4 推荐。B3 `codex/b3-writeback-local-20261003@3a9336b1` 与正式副本同根，和 D 私人旧谱系的可达提交交集为零；新增 blob 隐私路径/字面凭据筛查无命中，已推送 GitHub 同名分支，远端 SHA 一致。PR #12 五类精确 head 检查通过后普通合入 `v3-lab@64aea693`；现役服务与主力手机未变。
+
+主窗 `codex/post-audit-integrate-20261006` 整合 B3 Drift61/62 原文迁移、受限 transcript/grant/replay、单一上传器及 PR12 账本/day_get 跟进。隔离白板候选的重开/恢复只读门槛也同步62，旧60和未知63明确拒绝。真实主力手机 B3 schema62 一致副本两次打开，140 张表的数据/列指纹一致；Core 真实 schema4 副本 4→5→6 保留旧表、身份、grant 与完整72绑定。离线副本结果不能代替生产恢复 floor 或升级 Gate。候选包装仅准备固定源码/Node 库存和只读预检，明确未部署；生产 supervisor 与真实恢复证据仍待后续。
+
+47862 桥在 captures 真机新增/改版/删除闭环验收前继续保留；Core 网页消费切换需要独立 Gate 与来源 adoption，不能靠 UI 开关或同文匹配。白板夹具补滚动后layout与实际hitTestable断言后，最终本机受影响Flutter组合再次502/502、Node组合167/167，旧失败和精确复现留在交接；精确提交远端CI按PR Checks回执。Android候选重建与同B3签名校验成功，固定Core候选真实副本预检通过；[PR #13](https://github.com/Ritou-Lynx/here-i-am/pull/13)已推送供复核，未合入。最终组合验证、APK候选和本轮交付状态见[审计后主窗验收](handoffs/POST_AUDIT_SOURCE_ACCEPTANCE_20261006.md)。本节下方的并行候选说明为 PR12 合入前的历史快照。
+
 ## W3/W4/W5 并行候选与部署前只读调查（2026-10-06）
 
 用户已授权并行源码开发。本批从 v3-lab@8dde12b3 隔离：W3 codex/w3-domain-mcp-20261005，W4 codex/w4-quick-capture-20261005，W5 codex/w5-planning-views-20261005；主窗 codex/hub-parallel-20261005 实现 W7 按记录/操作存储、保留迁移状态与关闭本地去重，见[前置候选](handoffs/W7_ROW_STORAGE_20261005.md)。W3/W4/W5已普通合入该任务分支，主窗完成独立捕获/规划入口、页面外提醒、应用锁及账户DB生命周期返修；最终组合验收见[交接](handoffs/HUB_PARALLEL_SOURCE_ACCEPTANCE_20261005.md)。主窗最终Flutter235/235、Node172/172，新模块严格分析无问题，共享旧43条诊断增量0；新增实际双SQLite连接竞争修复与后台草稿保留。源码提交acb50dae；合成UI预览已目视复核，Android Kotlin任务成功，但完整APK在JNI/CMake环境阶段失败。完整CI按任务PR精确head回执，不等同部署及设备Gate；尚未合入 v3-lab。

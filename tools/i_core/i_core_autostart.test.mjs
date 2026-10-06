@@ -13,7 +13,7 @@ function inheritedEnvironment(overrides = {}) {
   return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('I_CORE_')).concat(Object.entries(overrides)));
 }
 
-function runLauncherWithSyntheticActivityOwner(t, launcherSource) {
+function runLauncherWithSyntheticActivityOwner(t, launcherSource, companionUploadMode = null) {
   const temporaryDirectory = mkdtempSync(path.join(tmpdir(), 'i-core-launcher-guard-'));
   t.after(() => rmSync(temporaryDirectory, { recursive: true, force: true }));
   const launcherPath = path.join(temporaryDirectory, 'start_i_core_service.ps1');
@@ -22,7 +22,7 @@ function runLauncherWithSyntheticActivityOwner(t, launcherSource) {
   writeFileSync(launcherPath, launcherSource, 'utf8');
   writeFileSync(serverPath, [
     "import { writeFileSync } from 'node:fs';",
-    "writeFileSync(process.env.LAUNCHER_GUARD_RESULT, JSON.stringify({ activity_admin_secret: process.env.I_CORE_ACTIVITY_ADMIN_SECRET }));",
+    "writeFileSync(process.env.LAUNCHER_GUARD_RESULT, JSON.stringify({ activity_admin_secret: process.env.I_CORE_ACTIVITY_ADMIN_SECRET, companion_upload_mode: process.env.I_CORE_COMPANION_UPLOAD_MODE, transcript_grants_path: process.env.I_CORE_LOCAL_TRANSCRIPT_GRANTS, replay_approvals_path: process.env.I_CORE_HISTORICAL_REPLAY_APPROVALS }));",
   ].join('\n'), 'utf8');
 
   const powershell = process.env.SystemRoot
@@ -36,9 +36,13 @@ function runLauncherWithSyntheticActivityOwner(t, launcherSource) {
     '-StateDirectory', path.join(temporaryDirectory, 'state'),
     '-RuntimeLockPath', path.join(temporaryDirectory, 'runtime.lock'),
     '-CorePort', '48123',
+    ...(companionUploadMode ? ['-CompanionUploadMode', companionUploadMode] : []),
   ], {
     env: inheritedEnvironment({
       I_CORE_ACTIVITY_ADMIN_SECRET: 'synthetic-owner-secret',
+      I_CORE_COMPANION_UPLOAD_MODE: 'legacy_b3',
+      I_CORE_LOCAL_TRANSCRIPT_GRANTS: 'synthetic-untrusted-grant-path',
+      I_CORE_HISTORICAL_REPLAY_APPROVALS: 'synthetic-untrusted-replay-path',
       LAUNCHER_GUARD_RESULT: resultPath,
     }),
     encoding: 'utf8',
@@ -119,4 +123,16 @@ test('uninstaller removes only the scheduled task and explicitly preserves data'
   assert.match(script, /Unregister-ScheduledTask/);
   assert.match(script, /data_removed\s*=\s*\$false/);
   assert.doesNotMatch(script, /Remove-Item|\.state\\/);
+});
+
+
+test('upload mode is a deliberate launch argument and inherited approval paths never reach child', t => {
+ if (process.platform !== 'win32') { t.skip('Windows launcher'); return; }
+ const script = read('start_i_core_service.ps1');
+ for (const [argument, expected] of [[null, 'pr10'], ['legacy_b3', 'legacy_b3'], ['disabled', 'disabled']]) {
+  const child = runLauncherWithSyntheticActivityOwner(t, script, argument);
+  assert.equal(child.companion_upload_mode, expected);
+  assert.equal(child.transcript_grants_path, undefined);
+  assert.equal(child.replay_approvals_path, undefined);
+ }
 });

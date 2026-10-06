@@ -199,3 +199,10 @@ const { server } = createApp({
 ```
 
 正式验收应分别看到 GET authorize 的 callback/resource/Origin、POST authorize / token 的成功 HTTP 状态，以及 `mcp_rpc` 中 `rpc_method: tools/call`、已知工具名和 `outcome: success`。这些日志没有改变 OAuth 元数据、MCP 工具定义或 JSON/SSE 行为；仍需实际 connector 完成授权与工具调用。
+
+
+## day_get 事项标题（2026-10-06）
+
+Core captures 模式的 `plan_reads` 继续使用独立只读凭据。除 `plan_weeks:read`、`plan_days:read` 外，可明确授予 `plan_items:read`；该凭据仍不能写规划或读取 captures/chat。`day_get` 单记录和分页结果会在原始 day/queues 外返回 `item_titles`（ID → title/revision）及 `item_title_issues`。缺事项权限、已删除或暂不可读的事项明确报问题，不猜标题。最多解析500个不同ID，保留原队列ID；事项标题是各自当前版本，不是跨领域原子快照。网页端不因此开放 `plan_list` 或规划写工具。
+
+仅提交/合入源码不会修改现役 MCP、启用 Core captures 或签发生产凭据。按部署前审计的 D3，真实增改删闭环验收前继续保留47862记事桥，移交时只启用一个消费者。

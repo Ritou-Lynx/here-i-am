@@ -7,12 +7,7 @@ import 'package:memex/data/personal_data_hub/domain_store.dart';
 import 'package:memex/data/personal_data_hub/domain_row_storage.dart';
 import 'crash_worker.dart' show CrashDatabase, fixtureBinding;
 import 'domain_sync_test.dart'
-    show
-        record,
-        fields,
-        resolveCrashDart,
-        terminateCrashProcess,
-        deleteCrashFixture;
+    show record, fields, runCrashProcess, deleteCrashFixture;
 
 Json oldState() => {
       'domains': {
@@ -385,31 +380,7 @@ void main() {
       }
       final before = migrating ? oldState() : await store.read();
       await db.close();
-      final process = await Process.start(resolveCrashDart(), [
-        '--disable-dart-dev',
-        'test/data/personal_data_hub/crash_worker.dart',
-        file.path,
-        point,
-        migrating ? 'migration' : 'feed'
-      ]);
-      final output = StringBuffer();
-      process.stdout.transform(utf8.decoder).listen(output.write);
-      process.stderr.transform(utf8.decoder).listen(output.write);
-      var exited = false;
-      process.exitCode.then((_) {
-        exited = true;
-      });
-      final ready = File('${file.path}.ready');
-      for (var i = 0; i < 300 && !ready.existsSync() && !exited; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      }
-      if (!ready.existsSync()) {
-        process.kill();
-        await process.exitCode;
-        db = CrashDatabase(file);
-        fail('Fixture did not reach $point: $output');
-      }
-      await terminateCrashProcess(process, ready, point);
+      await runCrashProcess(file, point, migrating ? 'migration' : 'feed');
       db = CrashDatabase(file);
       store = DomainStore(db, binding: fixtureBinding);
       final after = await store.read();

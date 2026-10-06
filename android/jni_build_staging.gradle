@@ -1,0 +1,6 @@
+// Keep JNI's generated CMake files in this checkout instead of the shared Pub cache.
+// Configure at plugin application: cmake.path is populated later by the JNI plugin.
+plugins.withId('com.android.library') {
+    project.extensions.getByName('android').externalNativeBuild.cmake.buildStagingDirectory =
+        project.layout.buildDirectory.dir('cmake-staging').get().asFile
+}

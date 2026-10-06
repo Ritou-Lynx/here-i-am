@@ -1168,6 +1168,7 @@ class RecordOrganizerServiceV3 {
     required OrganizedRecord organized,
     required List<String> cardIds,
     required RecordSource source,
+    bool captureProjection = false,
   }) async {
     final financeService = AiFinanceService(db: _db);
     for (var i = 0; i < organized.cards.length; i++) {
@@ -1177,11 +1178,16 @@ class RecordOrganizerServiceV3 {
       if (sfType != 'expense_entry' &&
           sfType != 'shopping_order' &&
           sfType != 'income_entry') {
+        if (captureProjection) {
+          await financeService.deleteCaptureEntry(
+              sourceRef: source.sourceRef!, cardId: cardId!);
+        }
         continue;
       }
 
       final fields = card.structuredFields;
       if (fields == null) {
+        if (captureProjection) throw StateError('capture finance fields missing');
         _logger.warning(
           '_bridgeToLedger: skipped card ${cardId ?? '?'} ($sfType) — '
           'no structuredFields extracted; card was saved to Memory Review '
@@ -1192,6 +1198,7 @@ class RecordOrganizerServiceV3 {
 
       final amountRaw = fields['amount_cny'];
       if (amountRaw == null) {
+        if (captureProjection) throw StateError('capture finance amount missing');
         _logger.warning(
           '_bridgeToLedger: skipped card ${cardId ?? '?'} ($sfType) — '
           'amount_cny missing from structuredFields; card was saved to '
@@ -1202,7 +1209,8 @@ class RecordOrganizerServiceV3 {
       final amount = (amountRaw is num)
           ? amountRaw.toDouble()
           : double.tryParse('$amountRaw');
-      if (amount == null || amount <= 0) {
+      if (amount == null || !amount.isFinite || amount <= 0) {
+        if (captureProjection) throw StateError('capture finance amount invalid');
         _logger.warning(
           '_bridgeToLedger: skipped card ${cardId ?? '?'} ($sfType) — '
           'amount_cny "$amountRaw" is not a valid positive number; card was '
@@ -1247,6 +1255,23 @@ class RecordOrganizerServiceV3 {
         }
       }
 
+      if (captureProjection) {
+        // Awaited inside CaptureConsumer's SQLite transaction. Failure aborts
+        // cards, ledger, processing receipt and ACK together.
+        await financeService.upsertCaptureEntry(
+          sourceRef: source.sourceRef!,
+          cardId: cardId!,
+          entryType: isIncome ? 'income' : 'expense',
+          totalAmount: amount,
+          aiAmount: aiAmount,
+          contributionRatio: contributionRatio,
+          myContributionDesc: myContributionDesc,
+          aiContributionDesc: aiContributionDesc,
+          purpose: purpose,
+          occurredAt: occurredAt,
+        );
+        continue;
+      }
       try {
         await financeService.recordEntry(
           characterId: 'system:card_bridge',

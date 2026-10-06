@@ -6,7 +6,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
-  test('v59 to v60 adds Codex controls and preserves Dev Room rows', () async {
+  test('v59 upgrade adds Codex controls and preserves Dev Room rows', () async {
     final tempDir = Directory.systemTemp.createTempSync('dev_room_v60_');
     final file = File('${tempDir.path}/test.db');
     final raw = sqlite3.open(file.path);
@@ -75,7 +75,7 @@ void main() {
 
     final db = AppDatabase.forTesting(NativeDatabase(file));
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 60);
+    expect(version.data['user_version'], db.schemaVersion);
 
     Future<Set<String>> columns(String table) async {
       final rows = await db.customSelect('PRAGMA table_info($table)').get();

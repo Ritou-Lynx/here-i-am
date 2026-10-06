@@ -222,7 +222,7 @@ class P6R7CandidateStore {
         try {
           candidateCheck(
               inspection.select('PRAGMA user_version').single.values.single ==
-                  60);
+                  62);
           final rows =
               inspection.select('SELECT identity_hash, task_id FROM $_table');
           candidateCheck(

@@ -179,6 +179,10 @@ class PersonaChatMessages extends Table {
   /// not the current device and does not change when the row is replicated.
   TextColumn get originDeviceId => text().nullable()();
 
+  /// Preserve the core millisecond time and its deterministic tie breaker.
+  IntColumn get createdAtMs => integer().nullable()();
+  IntColumn get serverSequence => integer().nullable()();
+
   TextColumn get characterId => text()();
   BoolColumn get isFromCharacter => boolean()();
   TextColumn get content => text()();
@@ -210,8 +214,10 @@ class PersonaChatMessages extends Table {
 /// Only `sender=user` messages are submitted by clients. Companion replies
 /// are core-owned and arrive via the change feed instead.
 class SyncOutboxMessages extends Table {
-  TextColumn get syncId => text()(); // == persona_chat_messages.sync_id (soft ref)
+  TextColumn get syncId =>
+      text()(); // == persona_chat_messages.sync_id (soft ref)
   TextColumn get originDeviceId => text()(); // installation id
+  TextColumn get sender => text().withDefault(const Constant('user'))();
   IntColumn get originSequence => integer()(); // strictly increasing per device
   TextColumn get characterId => text()();
   TextColumn get content => text()();

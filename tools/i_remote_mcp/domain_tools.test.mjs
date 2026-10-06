@@ -1,3 +1,4 @@
+import { listenForFetch } from './fetch_test_listener.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
@@ -42,7 +43,7 @@ async function fixture(t,{mode='authoritative'}={}) {
  const web=issue('web',webScopes,{actors:['user_via_agent'],origin_device_only:true});
  const other=issue('other',webScopes,{actors:['user_via_agent'],origin_device_only:true});
  const phone=issue('phone',['plan_items:read','plan_items:status'],{actors:['user_direct'],trusted_interactive:true});
- const address=await core.listen({port:0});const coreUrl='http://127.0.0.1:'+address.port;
+ const address=await listenForFetch(core.server,()=>core.listen({port:0}));const coreUrl='http://127.0.0.1:'+address.port;
  const client=(credential,options={})=>createDomainClient({coreUrl,coreInstanceId:core.store.nodeId,token:credential.token,...options});
  const plannerTools=createDomainTools({client:client(planner),scopes:PLANNER_SCOPES});
  const webTools=createDomainTools({client:client(web),scopes:webScopes,surface:'web',captureSource:'claude_web'});
@@ -186,4 +187,51 @@ test('web combines owner-only captures and separately scoped plan reader without
  const created=authorized({text:'scoped owner capture',recorded_at:now});assert.equal((await options.domainTools.handlers.capture_add(created)).outcome,'accepted');
  f.core.store.domains.configurePrincipal({principal_id:'web',device_id:'device-web',installation_id:'install-web',scopes:['captures:read'],actors:['user_via_agent'],origin_device_only:true});
  assert.equal((await options.domainTools.handlers.capture_add(authorized({text:'revoked credential',recorded_at:now}))).http_status,401);
+});
+
+
+test('day_get exposes current titles through separate read scope over actual web MCP',async t=>{
+ const f=await fixture(t);const plan=args({data:item({title:'synthetic visible title',note:'private item note'})});
+ assert.equal((await f.plannerTools.handlers.plan_upsert(plan)).outcome,'accepted');
+ const d=args({data:day()});d.data.queues.deep=[plan.id];
+ assert.equal((await f.plannerTools.handlers.day_set(d)).outcome,'accepted');
+ const scopes=['plan_items:read','plan_weeks:read','plan_days:read'];
+ const reader=f.core.store.domains.configurePrincipal({principal_id:'day-title-reader',device_id:'day-title-reader',installation_id:'day-title-reader',scopes,actors:['agent_inferred']});
+ const options=createWebDomainOptions({enabled:true,remember_backend:'core',core_url:f.coreUrl,core_instance_id:f.core.store.nodeId,token:f.web.token,scopes:f.webScopes.filter(x=>x.startsWith('captures:')),plan_reads:{token:reader.token,scopes}});
+ const app=await startTestServer(options);t.after(()=>app.close());
+ const token=await obtainTokens(app.base);const session=await initSession(app.base,token.access_token);
+ const response=await mcpPost(app.base,token.access_token,{jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'day_get',arguments:{id:d.id}}},{sessionId:session.sessionId});
+ const result=response.body.result.structuredContent;
+ assert.deepEqual(result.item_titles,{[plan.id]:{title:'synthetic visible title',revision:1}});
+ assert.deepEqual(result.record.data.queues,d.data.queues);
+ assert.ok(!JSON.stringify(result).includes('private item note'));
+ assert.deepEqual(result.item_title_issues,[]);
+ assert.equal((await f.client(reader).snapshot('captures',{})).http_status,403);
+ assert.equal((await f.client(reader).submit('plan_items',{...args({data:item()}),kind:'create',actor:'agent_inferred',provenance:{source:'codex',source_refs:[],import_batch_id:null}})).http_status,403);
+ assert.equal(options.domainTools.handlers.plan_list,undefined);
+ const updated=await f.plannerTools.handlers.plan_upsert(args({id:plan.id,base_revision:1,data:{title:'synthetic revised title'}}));assert.equal(updated.record.revision,2);
+ const page=await options.domainTools.handlers.day_get({limit:1});
+ assert.deepEqual(page.item_titles[plan.id],{title:'synthetic revised title',revision:2});
+});
+
+test('day_get title joins deduplicate IDs and report scoped, deleted and unavailable items without leaking errors',async()=>{
+ const records={a:{id:'a',revision:3,data:{title:'A',note:'not exposed'}},b:{id:'b',deleted_at:now}};
+ let reads=0;const canonical={http_status:200,record:{id:'day',data:{queues:{deep:['a','a','b','c'],extra:['a']}}}};
+ const client={record:async(domain,id)=>{if(domain==='plan_days')return canonical;reads++;return id==='c'?{http_status:503,error:{message:'hidden credential'}}:{http_status:200,record:records[id]};},snapshot:async()=>canonical};
+ const h=createDomainTools({client,scopes:['plan_days:read','plan_items:read'],surface:'web',captureSource:'claude_web'}).handlers;
+ const result=await h.day_get({id:'day'});assert.equal(reads,3);
+ assert.deepEqual(result.item_titles,{a:{title:'A',revision:3}});
+ assert.deepEqual(result.item_title_issues.sort((x,y)=>x.id.localeCompare(y.id)),[{id:'b',reason:'not_found'},{id:'c',reason:'unavailable'}]);
+ assert.ok(!JSON.stringify(result).includes('hidden credential'));assert.ok(!Object.hasOwn(canonical,'item_titles'));
+ reads=0;const limited=createDomainTools({client,scopes:['plan_days:read'],surface:'web',captureSource:'claude_web'}).handlers;
+ const blocked=await limited.day_get({id:'day'});assert.equal(reads,0);assert.deepEqual(blocked.item_titles,{});
+ assert.ok(blocked.item_title_issues.every(x=>x.reason==='scope_forbidden'));
+});
+
+test('day_get bounds item lookups and preserves snapshot acknowledgement',async()=>{
+ const ids=Array.from({length:505},(_,n)=>'item-'+n);let reads=0,acked=0;
+ const client={snapshot:async()=>({http_status:200,records:[{data:{queues:{deep:ids}}}],manifest:{base_cursor:'cursor'},snapshot_id:'snapshot'}),acknowledge:async()=>{acked++;},record:async(domain,id)=>{reads++;return {http_status:200,record:{revision:1,data:{title:id}}};}};
+ const result=await createDomainTools({client,scopes:['plan_days:read','plan_items:read'],surface:'web',captureSource:'claude_web'}).handlers.day_get({});
+ assert.equal(reads,500);assert.equal(acked,1);assert.equal(Object.keys(result.item_titles).length,500);
+ assert.equal(result.item_title_issues.length,5);assert.ok(result.item_title_issues.every(x=>x.reason==='lookup_limit'));
 });

@@ -12,9 +12,9 @@ String captureIssueMessage(String reason, {bool deleted = false}) {
   };
 }
 
-/// Capture-only persistence. No dedupe against unrelated cards, finance bridge,
-/// background jobs or user-actor impersonation. The caller's real DB transaction
-/// also contains the capture ledger and acknowledgement.
+/// Capture-only persistence with an owned local finance projection. No dedupe
+/// against unrelated cards, background jobs or user-actor impersonation. The
+/// caller's transaction also contains the capture receipt and acknowledgement.
 extension CaptureCardReconciler on RecordOrganizerServiceV3 {
   bool captureUsesDatabase(AppDatabase db) => identical(_db, db);
 
@@ -214,6 +214,11 @@ extension CaptureCardReconciler on RecordOrganizerServiceV3 {
         dropletLabel: card.dropletLabel,
         title: card.title,
         retrievalText: card.retrievalText);
+    await _bridgeToLedger(
+        organized: OrganizedRecord(cards: [card]),
+        cardIds: [id],
+        source: source,
+        captureProjection: true);
     return {
       'id': id,
       ..._identity(card),
@@ -245,6 +250,7 @@ extension CaptureCardReconciler on RecordOrganizerServiceV3 {
     required OrganizedRecord organized,
     required RecordSource source,
     bool deleted = false,
+    bool includePlanningCards = false,
   }) =>
       _db.transaction(() async {
         if (source.sourceKind != 'import' ||
@@ -252,7 +258,9 @@ extension CaptureCardReconciler on RecordOrganizerServiceV3 {
           throw ArgumentError('capture source required');
         }
         final cards = organized.cards
-            .where((c) => !const ['task', 'schedule', 'plan'].contains(c.type))
+            .where((c) =>
+                includePlanningCards ||
+                !const ['task', 'schedule', 'plan'].contains(c.type))
             .toList();
         final old = previous.map((s) => Map<String, dynamic>.from(s)).toList();
         final unmatched = cards.toList();
@@ -305,6 +313,10 @@ extension CaptureCardReconciler on RecordOrganizerServiceV3 {
         final removed = <String>[];
         for (var i = 0; i < old.length; i++) {
           final slot = old[i], id = slot['id'] as String;
+          if (deleted) {
+            await AiFinanceService(db: _db)
+                .deleteCaptureEntry(sourceRef: source.sourceRef!, cardId: id);
+          }
           final protection = await _captureProtection(slot, source.sourceRef!);
           if (protection != null) {
             // Missing cards may have been explicitly deleted by the user. Keep an
@@ -331,6 +343,8 @@ extension CaptureCardReconciler on RecordOrganizerServiceV3 {
             slots.add(
                 await _writeCaptureCard(replacement, source, existingId: id));
           } else {
+            await AiFinanceService(db: _db)
+                .deleteCaptureEntry(sourceRef: source.sourceRef!, cardId: id);
             await _removeCaptureProjection(id);
             await _captureAudit(id, 'delete', source.sourceRef!);
             removed.add(id);
