@@ -52,6 +52,10 @@ source `2c75e510` 的跨用户两轮继续通过（push85,574ms、PR127,420ms，
 
 已集成[CI-only native分段预检](SCHEMA6_CI_NATIVE_PROBE_20261006.md)：每阶段独立PS5.1，保留原清理环境，最后仅调用一次原protectedPath(root,true)/10000ms；失败不运行完整套件。主窗在集成目录8/8针对测试通过（543.3311ms、0skip），另执行实际PS5.1驱动：no-op376ms、准备545、默认GetAcl365、默认完整断言451、系统模块对照429、最终原门控424、清理1ms，全部通过；独立只读复核无阻断。报告只含阶段/时间/有限码/数量，上传JSON与TAP；不改缓存、注册表、模块目录或生产库存，未声称云端根因或修复已确认。远端下一轮以分段证据和全部151项结果为准。
 
+source 1cff9d08 的两轮预检实际失败并及时停止整套测试；[分段安全回执](SCHEMA6_CI_NATIVE_PROBE_VALIDATION_20261006.json)。push/PR no-op为208/233ms，默认GetAcl20,470/23,299ms、完整断言20,526/23,383ms，显式PSHOME对照296/313ms；原production门槛10,015/10,013ms超时。先前同环境准备和这轮多次独立调用均未把默认发现变快，不能称预热已修复。下一项限定一次性hosted CI的模块搜索作用域，保存/恢复Machine+User模块路径以及临时隔离强制AllUsers根，保持系统模块、原检查/门槛/全部用例不变；实际效果仍待下一精确head。1cff跨SID两次实际口令/只读Core恢复再过，push141,419ms、PR78,846ms，全部清理确认；本机现役和机器配置未触碰。
+
+已集成[hosted CI模块搜索作用域](SCHEMA6_CI_MODULE_SCOPE_20261006.md)：先host guard，再保存两项registry raw值/类型/缺失状态，规范身份校验后暂移强制AllUsers根到所有搜索根之外，原位独占创建空根；finally只删身份匹配空目录并归位，各registry独立精确还原，任何清理失败CI失败。原环境/new PS/10s检查及全部151用例保持。本机只用纯callbacks、编译/AST和拒绝入口验证，14/14专项通过（2310.1204ms，含23种状态）；独立源码复核无阻断。本机未执行registry或全局目录适配器，真实scope和全套结果以本交付提交的PR Checks、安全module-scope/probe回执为准，尚未提前宣称全绿。
+
 ## 六类最终合成演练
 
 | 情况 | 真实观测与下一启动要求 | 最终集成结果 |

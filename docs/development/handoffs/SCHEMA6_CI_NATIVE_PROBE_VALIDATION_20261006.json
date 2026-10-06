@@ -1,0 +1,176 @@
+{
+  "format": "schema6-ci-native-probe-validation-v1",
+  "interpretation": "Default module discovery is slow on both disposable hosted VMs; explicit PSHOME comparison is fast, but the unmodified original production gate timed out. Full suite was not launched. Module-scope remedy remains unverified.",
+  "runs": [
+    {
+      "event": "push",
+      "job": 112186109504,
+      "head": "1cff9d084f42b10b46655241830573511bf2ca2a",
+      "passed": false,
+      "stages": [
+        {
+          "stage": "no_op",
+          "elapsed_ms": 208,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 6,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 1
+          }
+        },
+        {
+          "stage": "prepare_root",
+          "elapsed_ms": 29726,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 6,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 29523
+          }
+        },
+        {
+          "stage": "default_acl",
+          "elapsed_ms": 20470,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 6,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 20258
+          }
+        },
+        {
+          "stage": "default_assert",
+          "elapsed_ms": 20526,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 6,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 20321
+          }
+        },
+        {
+          "stage": "system_module_assert",
+          "elapsed_ms": 296,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 1,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 105
+          }
+        },
+        {
+          "stage": "production_gate",
+          "elapsed_ms": 10015,
+          "exit_code": null,
+          "timed_out": true,
+          "error_code": "timeout",
+          "metrics": null
+        },
+        {
+          "stage": "cleanup",
+          "elapsed_ms": 1,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": null
+        }
+      ],
+      "log_sha256": "c590b8dd0da9bb7d0aea67aa22d3615dd5137a979f7b2fb84738cccd3a63db6f"
+    },
+    {
+      "event": "pr",
+      "job": 112186133949,
+      "head": "1cff9d084f42b10b46655241830573511bf2ca2a",
+      "passed": false,
+      "stages": [
+        {
+          "stage": "no_op",
+          "elapsed_ms": 233,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 6,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 1
+          }
+        },
+        {
+          "stage": "prepare_root",
+          "elapsed_ms": 34875,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 6,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 34633
+          }
+        },
+        {
+          "stage": "default_acl",
+          "elapsed_ms": 23299,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 6,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 23092
+          }
+        },
+        {
+          "stage": "default_assert",
+          "elapsed_ms": 23383,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 6,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 23168
+          }
+        },
+        {
+          "stage": "system_module_assert",
+          "elapsed_ms": 313,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": {
+            "module_path_count": 1,
+            "module_directory_count": 104,
+            "script_elapsed_ms": 110
+          }
+        },
+        {
+          "stage": "production_gate",
+          "elapsed_ms": 10013,
+          "exit_code": null,
+          "timed_out": true,
+          "error_code": "timeout",
+          "metrics": null
+        },
+        {
+          "stage": "cleanup",
+          "elapsed_ms": 1,
+          "exit_code": 0,
+          "timed_out": false,
+          "error_code": "none",
+          "metrics": null
+        }
+      ],
+      "log_sha256": "1901ffec7931c2e3c2793853e81895945479902ab7f27993a44ec736f5fc9dcd"
+    }
+  ]
+}

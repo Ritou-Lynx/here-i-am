@@ -184,6 +184,7 @@ jobs:
           path: |
             build/ci/schema6-windows.tap
             build/ci/schema6-native-probe.json
+            build/ci/schema6-module-scope.json
           if-no-files-found: error
 
   schema6-cross-user:

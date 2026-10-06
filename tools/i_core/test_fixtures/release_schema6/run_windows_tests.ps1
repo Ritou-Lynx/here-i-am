@@ -1,6 +1,9 @@
 [CmdletBinding()]
-param()
+param([switch]$GuardOnly)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'module_scope.ps1')
+try {Assert-Schema6ModuleScopeHost -GuardOnly:$GuardOnly}
+catch {[Console]::Out.WriteLine('{"format":"schema6-ci-module-scope-v1","phase":"host_guard","exit_code":2}');exit 2}
 
 
 # Pure gate, also exercised with fake callbacks: a failed probe never invokes suites.
@@ -118,9 +121,11 @@ try {
   # subprocess trees within production deadlines. Serialize suites, not checks.
   # Every original test still runs once. Both reporters observe the same run.
   $nodePath=(Get-Command node.exe -ErrorAction Stop).Source
-  $testExitCode = Invoke-Schema6GatedSuites -Probe {Invoke-Schema6NativeProbe $nodePath} -Suites {
+  $testExitCode = Invoke-Schema6HostedModuleScope -Body {
+   Invoke-Schema6GatedSuites -Probe {Invoke-Schema6NativeProbe $nodePath} -Suites {
     & $nodePath --test --test-concurrency=1 --test-reporter=spec --test-reporter=tap --test-reporter-destination=stdout --test-reporter-destination=build/ci/schema6-windows.tap tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs | ForEach-Object {Write-Host $_}
     return $LASTEXITCODE
+   }
   }
 } finally {
   [void][Schema6SyntheticTokenOwner]::Set($previousOwner)
