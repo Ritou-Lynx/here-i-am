@@ -1,5 +1,14 @@
 # 林埃的项目状态
 
+## PR14 自动运行候选整合（2026-10-06）
+
+继续用户指定 `codex/core-deploy-readiness-20261006` / 草稿 PR14，base仍 `v3-lab@90f23ce1`。自动恢复、口令备份、隐藏关机监听与登录新control候选已集成；当前仍在主窗最终验收，不合主线、不部署。原九类52文件真实只读还原和退回证据已被用户通过，本轮没有重新读取原库、现役服务、任务或手机。
+
+新增原DB/WAL/SHM/journal首开前流式加密、隔离副本回放/4→5→6迁移、独立custody head与记录完整结果认证；OS custody锁随进程退出释放，残留载体不再永久阻断。日常正常关机自动认证close，异常后下一登录自动检查；稳定Core死亡可在同会话有限恢复。备份键有DPAPI+scrypt/AES-GCM口令包，默认每天/30天及可配置电脑外密文镜像；Tailscale机器私钥按用户决定排除，换机重新登录同名。
+
+主窗CI修复Node89/89及Flutter精确5/5；worker路径含真实8.3全Win99/99。远端45bcab16两次Linux/Windows构建均过，但Schema6Win另暴露启动检查ETIMEDOUT（92/99，2fail+5cancel），正在限定测试进程并发，未改变生产timeout/plainPath。恢复专项51/51、DomainStore65/65，口令备份主窗14/14，会话原4组及timeout专项通过；最终整合完整回归和精确head CI仍待收口，见[本轮验收](handoffs/SCHEMA6_AUTOMATIC_MAIN_ACCEPTANCE_20261006.md)。交付后按用户要求暂停审核，现场/跨用户及真机Gate分开。
+
+
 ## PR14 复核续作：CI 与自动运行（2026-10-06）
 
 用户已通过此前九类备份、真实只读还原和退回说明，要求继续同一 PR #14，暂不合并/部署。CI 根因修复已集成：Windows 测试根先规范实际 8.3 TEMP、固定 Node 输入独立拷贝；CI 测试进程专用 default owner 修复，不放宽生产 plainPath/链接/ACL。白板保存测试使用明确异步完成屏障，阻塞保存时不得关闭；本机 Node86/86+路径3/3、Flutter精确5/5+canvas195/195。精确新提交远端检查待回执，见[CI修复交接](handoffs/SCHEMA6_CI_REPAIR_20261006.md)。
@@ -8,7 +17,7 @@
 
 
 
-## schema6 部署准备源码（2026-10-06）
+## schema6 部署准备源码（前轮历史快照，2026-10-06）
 
 本轮从已合入PR13的`v3-lab@90f23ce1`隔离为`codex/core-deploy-readiness-20261006`，推进D4源码准备。新增固定Windows Job/guardian与认证清停、真实离线租约、原canonical路径恢复验证，以及独立认证current-head/不可覆盖凭据链。完整运行备份按九类显式清单流式AES256GCM验证，密钥由backup/recovery分别绑定的CurrentUser DPAPI保管；库存工具不替用户证明生产依赖已列全或writer已停。
 

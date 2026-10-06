@@ -1,6 +1,6 @@
 # schema6 运行操作与故障边界（审核草案，2026-10-06）
 
-本页给执行者 i 使用；本人版见 [一页上线操作单](SCHEMA6_OWNER_DEPLOY_CHECKLIST_20261006.md)。本轮只读核验和文档准备造成的现役停机为 **0**，没有停启、冻结任务、修改配置/原库或操作手机。草稿 PR 不是部署批准。首次旧 v4 接管尚未实现，必须在任何现役停机之前阻断。
+本页给执行者 i 使用；本人版见 [一页上线操作单](SCHEMA6_OWNER_DEPLOY_CHECKLIST_20261006.md)。本轮只读核验和文档准备造成的现役停机为 **0**，没有停启、冻结任务、修改配置/原库或操作手机。草稿 PR 不是部署批准。本轮继续在 PR14 实现自动关机、登录恢复与旧 v4 副本接管；精确源码/演练结果以[本轮验收](SCHEMA6_AUTOMATIC_MAIN_ACCEPTANCE_20261006.md)为准，生产切换仍未获批准。
 
 ## 1. 当次现役清单
 
@@ -31,8 +31,8 @@ Core Node为旧包内`runtime/node.exe`。旧Core共享锁名为`shortcut-mail-r
 
 | 对象 | 冻结及停止 | 实际停止确认 | 启动与确认 |
 |---|---|---|---|
-| 旧v4 Core | 冻结`HereIAm-iCore`任务的后续启动/失败重试，排除手动启动者。没有认证清停入口；必须先完成另审的非优雅停止与原始日志保全/adoption工程，才可批准停止任务及精确进程树。不得将Stop-ScheduledTask或kill称为clean close。 | 当次持柄身份/开始时间绑定的wrapper、Node及相关后代均退出，47841无旧监听，持续锁可被监督者独占且无其他SQLite句柄；旧包没有新guardian，不应索取不存在的guardian回执。任务停止不保证孤儿Node退出。 | 仅仍为完整兼容schema4、原状态/身份/授权文件未受迁移改变时，才可恢复已保全旧任务设置并启动原任务。旧wrapper先持锁、查端口、运行`verify_v4_state.mjs`，后者核8表形状、schema4且无activity元数据。仍需实测健康与功能，不能越过拒绝。 |
-| 新schema6 Core | 先冻结其将来获准配置的启动任务；用固定包`lifecycle/request_stop.ps1`，绑定本次ControlDirectory、RunId、ManifestSha256，Action=close（stop同为认证动作）。密钥由脚本从受保护目录读取。 | `stop_requested`明确completion_confirmed=false。只有listener/store关闭、child真实exit0、guardian真实exit0、Job空、无强杀、最终marker=clean_closed、锁实际释放全部成立才完成。最长排空60秒；超时/强杀是recovery_required。 | 固定`start_schema6.ps1 -Start`，显式同包外锚、原址state、受保护配置和**每次新空control目录**；需固定生产端口（默认0只会随机分配）。正常重开只接受下节相同绑定，不用InitializeEmpty打开旧库。当前没有已部署schema6计划任务，也没有自动创建新control目录的生产启动接线。 |
+| 旧v4 Core | 冻结`HereIAm-iCore`任务的后续启动/失败重试，排除手动启动者。没有认证清停入口；须使用本轮副本接管机制并核精确进程/任务清单，获得现场批准后才停止任务及精确进程树。不得将Stop-ScheduledTask或kill称为clean close。 | 当次持柄身份/开始时间绑定的wrapper、Node及相关后代均退出，47841无旧监听，持续锁可被监督者独占且无其他SQLite句柄；旧包没有新guardian，不应索取不存在的guardian回执。任务停止不保证孤儿Node退出。 | 仅仍为完整兼容schema4、原状态/身份/授权文件未受迁移改变时，才可恢复已保全旧任务设置并启动原任务。旧wrapper先持锁、查端口、运行`verify_v4_state.mjs`，后者核8表形状、schema4且无activity元数据。仍需实测健康与功能，不能越过拒绝。 |
+| 新schema6 Core | 先冻结其将来获准配置的启动任务；用固定包`lifecycle/request_stop.ps1`，绑定本次ControlDirectory、RunId、ManifestSha256，Action=close（stop同为认证动作）。密钥由脚本从受保护目录读取。 | `stop_requested`明确completion_confirmed=false。只有listener/store关闭、child真实exit0、guardian真实exit0、Job空、无强杀、最终marker=clean_closed、锁实际释放全部成立才完成。最长排空60秒；超时/强杀是recovery_required。 | 固定`start_schema6.ps1 -Start`，显式同包外锚、原址state、受保护配置和**每次新空control目录**；需固定生产端口（默认0只会随机分配）。正常重开只接受下节相同绑定，不用InitializeEmpty打开旧库。本轮新增交互式登录任务准备模板与隐藏驻留 launcher，自动创建新空 control；只生成 XML，不注册或改动现役任务。 |
 | Remote MCP | 冻结`HereIAm-iRemoteMCP`，再停止任务及经当次绑定确认的子进程。源码server:516–518有SIGINT/SIGTERM关闭HTTP/phone feed/read model/ledger，但Windows任务终止不证明信号处理已完成，无同等认证clean receipt。迁移窗口须停它以释放Core读取句柄、暂停网页写回与remember消费者入口。 | wrapper/Node及后代退出，47860、47862均无该监听，相关DB句柄释放；保全writeback账本/日志侧文件。不能仅因47860关闭忽略47862。 | 恢复原动作与保护文件后启动原任务；核真实路径/哈希、两个端口、OAuth元数据/401边界。内存MCP session重建，旧session可收到404并需重新initialize；不应重配/吊销token作为普通重启步骤。 |
 | Cloudflared | 它是隧道，不是Core writer。若现场范围包含关闭公网入口，先核服务是否还承载其他站点，保全并临时冻结Auto及失败恢复，再Stop-Service精确服务。只禁用开机启动不等于处理全部恢复来源。 | SCM=Stopped且当次cloudflared进程实际退出、47864旧监听消失；公网不可达的页面不是唯一证据。 | 恢复原Auto及5/15/60秒失败恢复设置，Start-Service；SCM Running、正确进程/哈希、47864/ready成功，再由公网客户端验证。启动隧道不等于MCP或Core可用。 |
 
@@ -40,15 +40,23 @@ Core Node为旧包内`runtime/node.exe`。旧Core共享锁名为`shortcut-mail-r
 
 ## 3. 正常关机、睡眠和意外断电
 
-| 情况 | 真实边界与人工处理 |
-|---|---|
-| Windows正常关机/重启 | 新wrapper没有SessionEnding/关机事件接线。SIGINT/SIGTERM也被runtime_child视为未经认证停止并带失败，不能推断点“关机”会生成clean_closed。停机前由 i 认证清停并等全部回执；否则即使Windows正常退出也可能成为unclean。旧v4无该入口，不能追认优雅停止。 |
-| 睡眠后正常唤醒 | 纯睡眠通常暂停进程并保留Job/打开句柄，既不是清停也不是新启动；这是OS语义推断，本轮没有真实睡眠Gate。唤醒先核原父/child/guardian身份、锁、监听与健康。不能因网络短暂失联删除锁或再开第二实例。任何进程消失/异常状态转入恢复审查。 |
-| 假唤醒、系统时间前跳 | 通用activity lease可因时钟跨度过期，不得仅凭“醒了”清claim。此固定候选明确activity=false、reply jobs=false，不能把其他active部署的过期claim场景冒充本候选实测，也不能因关闭activity就忽略已有残留claim：preflight仍要求runtime_id为空且lease_expires_at_ms=0。 |
-| 没电、强制关机、蓝屏、父/guardian/child死亡 | 可能留下opening/running/recovery_required或sidecar，甚至来不及写失败marker。Job的kill-on-close能限制孤儿，不代表SQLite清停或回执必落盘。冻结重试，保留原DB与日志、control回执、当前独立custody/head；保持停机，待受审恢复流程。不能删marker/sidecar/claim、改role或伪造clean_closed。 |
-| 下一次登录自动启动 | 当前两个旧任务是**登录触发**，不能称开机即启动；Cloudflared为Auto。旧v4仅在原schema4/包/配置/锁/端口等预检成立时可启动。新6未来即使接登录任务，也仅在上次真实clean_closed、原canonical路径/node、同manifest/配置/完整state摘要、独立custody当前head、DPAPI用户/ACL都匹配，无sidecar/claim、锁与端口可用，并生成新空control目录时可成功。沿用上次非空control会直接拒绝。 |
+这是待审核候选的规则，**不表示现役旧 v4 已有这些能力**。Core 只在登录用户的交互式会话运行；每次登录创建新的 protected control，发行包、配置外锚与密钥绑定均先检查。
 
-同新包普通重启还有环境注入/目录链接/额外发行文件等拒绝项。改包、改配置或外置grant/replay、增添state文件不是“重启一下”能解决的情况，需要受审转换路径。不存在已交付的通用repair/reset/自动恢复命令；`-OfflineOperation verify|migrate|rollback`仍要求可信supervisor谱系，不能替代unclean修复或旧v4首接。
+| 情况 | 候选的下一步与阻断条件 |
+|---|---|
+| 正常关机/注销/重启 | 隐藏顶层窗口接收 WM_QUERYENDSESSION，登记 ShutdownBlockReason 并迅速返回；停止备份派发，关闭正在运行的备份 Job，然后发认证 request_stop close。WM_ENDSESSION 在有界预算内等实际 listener/store、child、guardian、Job、锁全部完成。超时不伪造 clean_closed，下次登录按异常恢复。 |
+| 关机时正在写入 | 相同的认证关闭，SQLite 事务与关闭流程负责完成已接受写入；验证写入后下次新 control 重开数据仍在。不能只看 stop_requested 就认为完成。 |
+| SIGINT/SIGTERM | 能真正关闭 listener/store 并封存独立 custody 时按正常关闭记账，不因信号本身一律记成 recovery_required。Win 强杀与可以处理的信号分开测试。 |
+| 睡眠/唤醒 | 没有注销时保留原会话进程/Job/锁，唤醒不额外启动。纯睡眠 OS 行为本轮未实际改变电脑状态；若进程异常退出，下次受监督启动按异常规则。 |
+| 没电、强杀 Node/guardian/父进程、蓝屏 | 可能无最后回执或留下 WAL/SHM/journal。下一次登录先持真实锁、排除 writer，再在任何 SQLite 打开前流式加密保全原始文件；副本正常打开回放 WAL，检查 integrity、独立 current-head、schema、身份与配置。通过则记录恢复事件、完成替换并启动，不要求每天人工解锁。 |
+| 自动检查失败 | 完整性/绑定失败、custody 回退、迁移或提交中断等停止并记录无正文原因；原件/原始密文/独立 head 保留。Lynx 只需保持文件原样，把原因和回执编号交给 i。未知错误不通过删除锁/sidecar或重新签 baseline 修复。 |
+| 关机被取消 | 若钩子已把 Core 关闭，会话仍有效时以新 control 重开；不沿用旧 token 或同时开两个实例。 |
+
+Windows 的关机预算并非承诺：系统可以强制结束进程，隐藏应用尤其不能靠长时间阻塞保证安全。ShutdownBlockReason 用于说明保存原因并争取正常关闭机会，强制终止仍由下一次自动恢复兜底。依据 [WM_QUERYENDSESSION](https://learn.microsoft.com/en-us/windows/win32/shutdown/wm-queryendsession) 和[微软关机行为说明](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/mpc/application-shutdown-changes-in-windows-vista)。本轮只对合成会话 HWND 发送关机消息，并未真正关机、注销、睡眠或测试当前服务。
+
+恢复在原 canonical 绑定下准备隔离副本，不给 backup_read_only 副本激活权限。验证 prefix 保护已封存的不可变操作历史及单调序号；正常领域编辑和同设备重新配对不能被误报为回退。它不能证明最后封存之后尚未留下独立证据的每一条客户端 ACK；仍须原 sync_id/op_id 幂等对账。
+
+正常重开仍严格校验 manifest、显式配置/外置 grant/replay、用户 DPAPI、ACL、路径和单一上传器，生产 plainPath/链接检查未放宽。改配置/包需要受审转换，不借 crash recovery 自动批准新配置。`OfflineOperation verify|migrate|rollback` 不作为绕过异常检查的手动捷径。
 
 ## 4. 用户会看到什么
 
@@ -61,25 +69,26 @@ Core Node为旧包内`runtime/node.exe`。旧Core共享锁名为`shortcut-mail-r
 | 现役旧`i_remember` | 写MCP自己的notes账本，不依赖Core提交；waiting_for_phone表示待手机消费。47862可用且手机配置/Organizer依赖可用才有可能继续成卡。apply成功后才ack、再前进cursor；旧账本不等于新Core captures。 | MCP停机则网页新记忆请求和手机feed都失败；只有隧道停机时手机的Tailscale feed是否仍可达依实际路由，不能一并断言。此前note/revision与投递状态保留，不凭active=0退役桥。 |
 | 新域`day_get` / Core版remember | 现役旧MCP源码未注册day_get。准备包中day_get读取Core域HTTP，无离线缓存/写回队列；传输异常返回transport_unknown/core_unavailable、retryable=true。读日条成功但标题读取失败会列item_title_issues。Core版remember写入失败/未知不能借旧notes账本宣称已记录，重试写操作必须保留同op_id。 | 工具不可达；没有已取得的成功回执就不声称获取了最新日单或写入成功。启用这些能力还需MCP配置/凭据/域权限与客户端Gate。 |
 
-## 5. 退回与剩余缺口
+## 5. 退回与剩余现场 Gate
 
-**“新Core没有聊天新增”不等于“库未变”。** 4→5→6迁移、genesis/custody写入、设备/序号/权限/游标变化本身都算改变。
+旧 v4 首接与异常恢复共用原始文件保全、隔离副本打开/迁移/校验、提交替换机制。获准现场操作时先冻结旧任务、结束绑定的进程树，不能将旧进程被终止伪装成 clean close；真实 offline lease 才能开始保全。
 
-- 尚未执行恢复/迁移/新Core写入：保全原始source DB及其WAL/SHM/journal、完整旧包、配置、任务、grant/replay、凭据、MCP账本和关闭状态；确认仍兼容schema4后，才讨论恢复原任务。保留失败候选和回执，不覆盖原source。旧v4的副本预检只是启动守卫，不是完整恢复与ACK保全证明。
-- 已进入原址恢复或任何迁移/新写入：保持受影响writer停机，保全新接受数据和各阶段证据，优先前向修复。新6空domain的6→5受限回退不等于退回v4；旧v4明确拒绝新增activity表/元数据。没有已实现的安全6→4操作。
-- 不把backup_read_only改live，不恢复整库抹去新数据，不回退库外current-head，不用旧DB+旧marker+旧floor套装重获资格。
-- 必须先补：旧v4非优雅首接adoption；SQLite打开前原始DB/所有实际sidecar流式加密保全；原址恢复/checkpoint证据；库外不可回退阶段链及各阶段中断恢复；完整运行inventory及恢复验证。普通backup bundle拒绝sidecar，不能拿它冒充原始日志恢复备份。
-- 还需生产任务封装（新空control/同用户DPAPI/配置绑定）、真实旧库副本/授权行为验证、精确候选测试/审核、Core停启迁移现场决定、MCP与手机各自切换Gate。手机schema62兼容和captures增改删/用户改卡保护未实机验收前，保留47862与单一消费者；legacy_b3和PR10不得双上传。
-- 用户允许先禁用Shortcut调试邮件；将此选择绑定候选配置与备份清单，仅暂停该调试邮件链。固定入口的发送与回执查询返回HTTP503/`shortcut_mail_disabled`；SMTP配置、DPAPI凭据与journal均已保全，不自动重发在途邮件。不能由relay=false推断一般通讯、手机聊天、MCP或所有通知已兼容。
+- **替换前**：原 DB/WAL/SHM/journal 未改，即使副本迁移中断也保留原件和加密保全。确认候选进程已停、原件仍是兼容 schema4 后可以重开旧 v4；不需要一条另行“不可重做”的 adoption 阶段链。
+- **替换已开始或新 Core 已写入**：不盲目切回旧 v4。保全新文件/原始密文/回执并向前修复；数据库单文件替换与 sidecar/独立 head 之间有提交间隙，留下 pending 时必须明确人工审查，不能删除 latch 后假装成功。
+- 库外 authenticated current-head 仍独立保持最新，不随旧 DB/marker/floor 一起倒退；既有5/6不能从目标自己再签一份 floor。只读还原目录不能启动为 live；无安全自动6→4。
+- 固定入口关闭 Shortcut 调试邮件，仅发送/调试回执链返回 `shortcut_mail_disabled`；保留 SMTP 配置/DPAPI凭据/journal，不自动重发在途邮件。一般聊天/MCP/手机能力另验，不需要为 debug 邮件兼容阻塞本轮源码。
+- 现场 Core 停启/迁移、登录任务注册、真实密码设置/外部复制目录、MCP切换、手机安装与客户端 Gate 仍各按确切授权执行。此次不操作其中任何一项。
+- captures 真实新增/改版/删除和用户改卡保护未过，继续保留47862；每次只一个消费者。legacy_b3与PR10仍只一个上传器。
+- Tailscale 机器私钥按 Lynx 决定不备份，不再列成待补缺口；换机重新登录同一 tailnet/机器名，服务与手机地址重配见[换机说明](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)。
 
-详细首接方案见[部署runbook](SCHEMA6_DEPLOYMENT_RUNBOOK_20261006.md)；本页不重复签发部署授权。
+详细源码与六类演练回执见[本轮验收](SCHEMA6_AUTOMATIC_MAIN_ACCEPTANCE_20261006.md)、[副本恢复](SCHEMA6_AUTOMATIC_RECOVERY_20261006.md)、[口令备份](SCHEMA6_PORTABLE_AUTOBACKUP_20261006.md)。没有第二账号/第二机器实测时明确记录，不用同用户子进程替代。
 
 ## 6. 可复核源码索引与worker交付
 
-新准备树：`tools/i_core/release_schema6/lifecycle/{start_schema6.ps1,request_stop.ps1,runtime_child.mjs,common.mjs,owned_job.ps1,job_guardian.ps1}`；恢复`recovery_adapter.mjs`，完整备份`backup_bundle.mjs`；新版`tools/i_remote_mcp/domain_tools.mjs:66–145`。对应[生命周期交接](SCHEMA6_LIFECYCLE_20261006.md)、[恢复交接](SCHEMA6_RECOVERY_ADAPTER_20261006.md)。
+新准备树：`tools/i_core/release_schema6/lifecycle/{start_schema6.ps1,request_stop.ps1,runtime_child.mjs,common.mjs,owned_job.ps1,job_guardian.ps1}`；恢复`recovery_adapter.mjs`，完整备份`backup_bundle.mjs`；新版`tools/i_remote_mcp/domain_tools.mjs:66–145`。新增 `login_schema6.ps1`、`session_window.ps1`、`prepare_login_schema6.ps1`，原始流式保全/自动副本恢复与口令/每天备份固定工具一并入 manifest。原[生命周期交接](SCHEMA6_LIFECYCLE_20261006.md)、[恢复交接](SCHEMA6_RECOVERY_ADAPTER_20261006.md)记录上一轮历史；本轮新结论以自动运行交接为准。
 
 现役源码：旧固定包`start_pinned_i_core.ps1:129–164`、`verify_v4_state.mjs`、`i_core_server.mjs:346–402`；MCP副本`writeback.mjs:293–317,468–604`、`mcp.mjs:306–346`、`server.mjs:249–273,484–518`。B3手机源码树`C:\HereIAm\b3-writeback-local-20261003`中`core_sync_engine.dart:72–145`、`core_sync_runtime_service.dart`、`main.dart:1880–1920`、`claude_web_note_feed_service.dart:91–175`；现装包绑定仅沿用`codex/predeploy-audit-20261005`的`PREDEPLOY_AUDIT_20261005.md`明确时间窗，不声称本轮重新查看手机。
 
-worker仅新增本页与本人操作单；复用recovery工作树，原有未跟踪backup/lifecycle依赖不暂存，不改全局状态/源代码。仅文档链接、事实对照与diff空白检查，无构建、生产动作或push。提交按已授权隔离worker例外临时设置SKIP_PROJECT_STATE=1并finally恢复；最终全局状态、精确提交测试及PR由主窗整合。
+本页保留上一轮现役只读取证时间窗；本轮不重新访问这些对象。主窗整合新源与文档、验证并更新同一PR，不合主线或部署。
 
 主窗本轮[52项真实保全与恢复](SCHEMA6_REAL_BACKUP_RESTORE_20261006.md)已闭合；它是在线分别一致副本的检查恢复，不替代原址unclean首接工程与生产停启演练。
