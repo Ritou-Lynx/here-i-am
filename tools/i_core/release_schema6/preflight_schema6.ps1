@@ -19,8 +19,11 @@ try {
   foreach($name in @([Environment]::GetEnvironmentVariables('Process').Keys)) {
     if($name.ToUpperInvariant() -notin @('SYSTEMROOT','WINDIR','TEMP','TMP','COMSPEC')) { [Environment]::SetEnvironmentVariable($name,$null,'Process') }
   }
+  $env:PATHEXT='.EXE'
   $command=if($CaptureBaseline) {'capture-baseline'} else {'preflight'}
+  $global:LASTEXITCODE=$null
   & $node (Join-Path $PSScriptRoot 'cli.mjs') $command $ReleaseDirectory $ManifestSha256 $ConfigurationPath
+  if($null -eq $LASTEXITCODE) { throw 'node_invocation_unconfirmed' }
   $result=$LASTEXITCODE
 } finally {
   foreach($name in @([Environment]::GetEnvironmentVariables('Process').Keys)) { [Environment]::SetEnvironmentVariable($name,$null,'Process') }

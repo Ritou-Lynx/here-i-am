@@ -111,7 +111,8 @@ jobs:
           tools/i_core/local_transcript_grants.test.mjs
           tools/i_core/historical_replay_approvals.test.mjs
           tools/i_core/transcript_compatibility.test.mjs
-          tools/i_core/release_schema6/release.test.mjs
+          tools/i_core/release_schema6/*.test.mjs
+          tools/i_core/release_schema6/lifecycle/*.test.mjs
       - name: chatgpt_android_bridge
         working-directory: tools/chatgpt_android_bridge
         run: node --test $(find . -name '*.test.mjs' | sort)
@@ -163,3 +164,16 @@ jobs:
           name: whiteboard-screenshots
           path: build/m5b2_screenshots/
           if-no-files-found: ignore
+
+  schema6-windows:
+    name: Schema6 Windows lifecycle and backup
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Fixed runtime, recovery and backup suites
+        shell: powershell
+        run: node --test tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs
