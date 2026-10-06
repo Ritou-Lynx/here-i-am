@@ -49,3 +49,18 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/i_
 - Job.Add 成功后才能发恢复口令，未分配 Job 的实际已启动子进程仍按持柄终止；新增 childStarted 区分 Process 对象已构造与进程真正启动，Start 失败不等待不存在的进程。失败不跳过；生产模块与测试断言未放宽。
 - 本地：3 个 PS parser 0 错；parent GuardOnly 和 child 实际 guard 均退出 2，child 安全 JSON 明确 `child_hosted_guard`，未发生目录/账号/服务动作；按源码实际构造 ProcessStartInfo 验证仅 8 个允许环境键、SecureString 保留、hidden/profile/UseShellExecute 标记正确，未调用 Start；`git diff --check` 通过。真实不同 SID 恢复仍待远端新回执。
 - 本次只提交 2 个自有 PS 及本文，单次 SKIP_PROJECT_STATE 例外后恢复；不 push。
+
+## 第三轮恢复报告/清理失败后的诊断修复
+
+- run `37426981866` / job `112148862115` 与 run `37426977466` / job `112148852517` 均在 `cross_user_restore_report` 失败，合计耗时 106183 / 109344 ms，`cleanupConfirmed=false`。管道连接已通过，child 的实际身份、标准令牌和 private workspace 前置检查因此已执行通过；没有恢复报告或成功清理证据，不能推断具体失败原因。
+- 父进程 PSI 设 `RedirectStandardError=true`，Start 成功后立即 ReadToEndAsync，Job/frame 顺序不变。进程退出/清理后最多等 5 秒 drain；只解析总长 ≤8192 字符、≤16 行、每行 ≤2048 字符的输入。仅接受 `childRejected=true`、固定 child 阶段、恰好指定字段和受限异常类型/HResult/FQID，重建安全对象；任意 stderr、超限内容、额外字段均不输出。有效对象纳入最终安全 JSON 的 `childDiagnostic`，不写 stderr 原文。
+- 安全报告新增 `cleanup` 各项（true=已确认，false=失败，null=本次不需要）：pipeClosed、unassignedChildStopped、jobEmpty、jobDisposed、childExited、childDisposed、stderrDrained、accountRemoved、secondaryLogonRestored、tokenOwnerRestored。`cleanupErrors` 仅用同一受限异常结构。不改变任何生产恢复或标准用户断言；清理未确认仍返回非零，不删除进程清理尚未确认的临时账号。
+- 本地证据：3 个 PS parser 0 错；1 个合规安全 JSON 接受、9 个非法/超限/夹带字段样例拒绝；同 SID 子进程真实重定向 stderr、异步读取和安全 parser 取得 `child_hosted_guard`，exit2；按实际 finally 源码运行 2 个纯模拟清理分支（成功、Job.Stop 抛错）均记录正确布尔和安全错误。没有创建/切换账号、调用账号或服务操作、接触真实数据。parent GuardOnly 仍退出2；diff 检查通过。
+- 本次只提交 parent/common 两个自有 PS 和本文，单次 SKIP_PROJECT_STATE 后恢复，不 push。远端不同 SID inspection 与完整清理仍未通过，等待新回执定位。
+
+## 安全诊断白名单及 CI Job 数值错误收窄
+
+- 复核确认旧异常类型正则和命令后缀正则允许任意 marker，已改为确切异常类型枚举；FQID 先丢弃首个逗号后的全部内容，再仅保留确定的错误前缀，其余 `redacted`。child stderr parser 只接受规范化后的精确字段和值，任意 `System.*` 类型或命令后缀都不能透传。
+- 安全诊断保留 HResult，并新增始终存在的 `nativeErrorCode`（null 或 Int32）：只从最多 5 层异常链中的确切 Win32Exception 读取整数，不序列化 Message/Data/堆栈。CI 自有 Job 的 TerminateJobObject/CloseHandle 使用 SetLastError 并检查返回值，失败抛固定消息的 Win32Exception；Dispose 即使终止失败仍尝试 CloseHandle，两个都失败时保留第一个 Win32 错误。真实 Empty/Wait 回执要求不变，未修改生产 owned_job。
+- 本地验证：3 个 PS parser 0 错；C# helper 编译；3 个 marker 脱敏/后缀丢弃样例通过，3 个恶意 child JSON 被拒；嵌套 Win32Exception 仅保留数值 5，HResult 原值保持；新建空合成 Job Stop/Dispose 成功，已关闭合成 Job 的 Stop 实际拒绝并报告 Win32 6。未创建账号/操作服务/运行真实 Core。parent GuardOnly 仍退出2，diff 检查通过；没有重新跑生产整包或声称远端通过。
+- 仅提交 common 夹具和本文；单次 SKIP_PROJECT_STATE 后恢复，未 push。

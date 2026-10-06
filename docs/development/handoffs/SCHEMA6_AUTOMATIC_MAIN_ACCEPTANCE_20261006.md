@@ -35,6 +35,12 @@ CI-only 已推 head `45bcab16a98c147efe4f05669dd92f1cb4728772` 的其他 9 check
 
 生产plainPath函数的SHA256为 `c347c0ced6e430f8819e3273bf88932e5f019f381edc91abc9e74aee5fbc3d7c`；与45bcab16逐字相同，protected_paths.ps1/ACL脚本也逐字相同。
 
+新增跨用户CI夹具首轮 source `c6897280` 的两次执行均在账号准备后失败，回执 accountCreated=true/cleanupConfirmed=true（58,673/58,802ms总时长，含factory），未执行真实恢复。主窗与独立只读worker用 Windows PS5.1 纯内存复现：Add-LocalGroupMember 的 Member 类型为 LocalPrincipal[]；SecurityIdentifier→该数组必为 PSInvalidCastException，New-LocalUser 返回的 LocalUser 可赋值/转换。夹具改直接传 LocalUser，并验证恢复子进程实际token不含Administrators（含deny-only）且非管理员，未删标准用户门槛。第一轮没有原异常文本，不把全部账号后步骤猜成另一种网络超时。
+
+修正后 source `1921b326` 两次已经通过账号准备/启动子进程，却在child连接pipe前拒绝；父回执 cross_user_pipe_connect，进程/账号清理确认。继续补child细阶段与受限异常诊断、显式非秘密环境传递；该轮未冒称跨用户成功。不打印原异常Message、口令或用户名称；本机仅元数据/纯内存转换，未调用账号动作。
+
+第三轮 source `305e621d` 的两次执行已通过管道和 child 前置检查，但在 `cross_user_restore_report` 失败（106,183/109,344ms），且 cleanupConfirmed=false。原回执没有 child stderr 或分项清理结果，未确认具体原因，也未称真实恢复完成。现只在 CI 夹具添加异步 stderr 收集、长度/字段/确切错误类型白名单，以及 Job、child、账号、服务、token 的逐项清理回执。任意错误 Message、命令后缀与原 stderr 均不输出；native 失败只报整数 Win32 码。主窗复核补丁，生产库存/plainPath/ACL不变；实际跨 SID 恢复仍等待下一轮远端结果。
+
 ## 六类最终合成演练
 
 | 情况 | 真实观测与下一启动要求 | 最终集成结果 |
@@ -52,7 +58,7 @@ CI-only 已推 head `45bcab16a98c147efe4f05669dd92f1cb4728772` 的其他 9 check
 
 ## 电脑外恢复与仍有的现场限制
 
-合成口令、独立 Node 与 pinned Windows wrapper 在原 DPAPI 目录不可用时真实恢复并启动只读 Core：核 node/schema/devices/全部表指纹；5类业务写/配对拒绝；退出 DB 字节不变。只解密或比较哈希不算此验收。完整口令备份专项14/14通过，最终主窗整组也覆盖并通过这些用例。
+合成口令、独立 Node 与 pinned Windows wrapper 在原 DPAPI 目录不可用时真实恢复并启动只读 Core：核 node/schema/devices/全部表指纹；5条受限业务路由拒绝（含一条GET；SQL拒写另有独立测试）；退出 DB 字节不变。只解密或比较哈希不算此验收。完整口令备份专项14/14通过，最终主窗整组也覆盖并通过这些用例。
 
 没有已获准的第二 Windows 用户登录或第二台机器环境；本轮未创建账户，**未完成真实跨 Windows 用户/异机实测**。新机步骤、恢复口令保管、原 DPAPI 凭据与生产 recovery key 的重新绑定限制见[电脑外恢复](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)。检查恢复目录不能直接激活为现役库。
 

@@ -16,14 +16,45 @@ function Set-CrossUserDirectoryAcl([string]$Path,[string]$Owner,[string]$ReadSid
 function Get-CrossUserHash([string]$Text) {
  $h=[Security.Cryptography.SHA256]::Create();try{([BitConverter]::ToString($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($Text)))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose()}
 }
+function ConvertTo-CrossUserSafeErrorId([string]$id) {
+ # Explicit error-token allowlist: PowerShell also uses thrown message as FQID.
+ $id=$id.Split(',')[0]
+ if($id -cnotin @('AccessDenied','PermissionDenied','MemberExists','MemberNotFound','PrincipalNotFound','UserNotFound','GroupNotFound','InvalidOperation','InvalidOperationException','System.InvalidOperationException','System.ArgumentException','System.UnauthorizedAccessException','System.Management.Automation.ParameterBindingException','ParameterArgumentTransformationError','ParameterBindingFailed','CouldNotStartService','CouldNotStopService','ServiceCommandException','SetAcl_AclObject','UnauthorizedAccessException')){$id='redacted'}
+ return $id
+}
+function ConvertTo-CrossUserSafeExceptionType([string]$Type) {
+ if($Type -cin @('System.Exception','System.ArgumentException','System.ArgumentNullException','System.InvalidOperationException','System.UnauthorizedAccessException','System.IO.IOException','System.IO.EndOfStreamException','System.IO.FileNotFoundException','System.IO.DirectoryNotFoundException','System.TimeoutException','System.AggregateException','System.ObjectDisposedException','System.ComponentModel.Win32Exception','System.Security.SecurityException','System.Management.Automation.RuntimeException','System.Management.Automation.MethodInvocationException','System.Management.Automation.ParameterBindingException','System.Management.Automation.ParameterBindingArgumentTransformationException','System.Management.Automation.CmdletInvocationException','System.Management.Automation.ActionPreferenceStopException','System.Management.Automation.PSInvalidCastException')){return $Type}
+ return 'redacted'
+}
 function Get-CrossUserSafeError([Management.Automation.ErrorRecord]$Record) {
  # Never serialize ErrorRecord, Message, TargetObject, stack, or arbitrary throw text.
- $type=$Record.Exception.GetType().FullName
- if($type -cnotmatch '\A(?:System|Microsoft\.PowerShell)\.[A-Za-z0-9.]{1,180}\z'){$type='redacted'}
- $id=[string]$Record.FullyQualifiedErrorId
- # Explicit error-token allowlist: PowerShell also uses thrown message as FQID.
- if($id -cnotmatch '\A(?:AccessDenied|PermissionDenied|MemberExists|MemberNotFound|PrincipalNotFound|UserNotFound|GroupNotFound|InvalidOperation|InvalidOperationException|System\.InvalidOperationException|System\.ArgumentException|System\.UnauthorizedAccessException|System\.Management\.Automation\.ParameterBindingException|ParameterArgumentTransformationError|ParameterBindingFailed|CouldNotStartService|CouldNotStopService|ServiceCommandException|SetAcl_AclObject|UnauthorizedAccessException)(?:,Microsoft\.PowerShell\.Commands\.[A-Za-z0-9]{1,80}Command)?\z'){$id='redacted'}
- return @{exceptionType=$type;hResult=[int]$Record.Exception.HResult;fullyQualifiedErrorId=$id}
+ $type=ConvertTo-CrossUserSafeExceptionType $Record.Exception.GetType().FullName
+ $native=$null;$inner=$Record.Exception
+ for($depth=0;$inner -and $depth -lt 5;$depth++){
+  if($inner.GetType() -eq [ComponentModel.Win32Exception]){$native=[int]$inner.NativeErrorCode;break};$inner=$inner.InnerException
+ }
+ return @{exceptionType=$type;hResult=[int]$Record.Exception.HResult;nativeErrorCode=$native;fullyQualifiedErrorId=(ConvertTo-CrossUserSafeErrorId ([string]$Record.FullyQualifiedErrorId))}
+}
+function Read-CrossUserSafeChildDiagnostic([string]$Text) {
+ # No raw stderr survives this boundary, including JSON with extra fields.
+ if(-not $Text -or $Text.Length -gt 8192){return $null}
+ $lines=@($Text -split "`n");if($lines.Count -gt 16){return $null}
+ $phases=@('child_hosted_guard','child_identity','child_standard_token','child_workspace_create','child_workspace_owner','child_workspace_acl','child_pipe_connect','child_secret_frame','child_native_initialize','child_pipe_server_identity','child_transport_anchor','child_copy','child_copied_owner','child_restore_inspection','child_report_frame')
+ foreach($line in $lines){
+  if($line.Length -gt 2048){continue}
+  try {
+   $value=$line|ConvertFrom-Json -ErrorAction Stop
+   if((@($value.PSObject.Properties.Name|Sort-Object) -join ',') -cne 'childRejected,failureDiagnostic,failurePhase' -or $value.childRejected -isnot [bool] -or $value.childRejected -ne $true -or $value.failurePhase -cnotin $phases){continue}
+   $d=$value.failureDiagnostic
+   if((@($d.PSObject.Properties.Name|Sort-Object) -join ',') -cne 'exceptionType,fullyQualifiedErrorId,hResult,nativeErrorCode'){continue}
+   if($d.exceptionType -isnot [string] -or (ConvertTo-CrossUserSafeExceptionType $d.exceptionType) -cne $d.exceptionType){continue}
+   if($d.fullyQualifiedErrorId -isnot [string] -or (ConvertTo-CrossUserSafeErrorId $d.fullyQualifiedErrorId) -cne $d.fullyQualifiedErrorId){continue}
+   if(($d.hResult -isnot [int] -and $d.hResult -isnot [long]) -or $d.hResult -lt [int]::MinValue -or $d.hResult -gt [int]::MaxValue){continue}
+   if($null -ne $d.nativeErrorCode -and (($d.nativeErrorCode -isnot [int] -and $d.nativeErrorCode -isnot [long]) -or $d.nativeErrorCode -lt [int]::MinValue -or $d.nativeErrorCode -gt [int]::MaxValue)){continue}
+   return @{childRejected=$true;failurePhase=[string]$value.failurePhase;failureDiagnostic=@{exceptionType=[string]$d.exceptionType;hResult=[int]$d.hResult;nativeErrorCode=$d.nativeErrorCode;fullyQualifiedErrorId=[string]$d.fullyQualifiedErrorId}}
+  } catch { }
+ }
+ return $null
 }
 function Initialize-CrossUserNative {
  Add-Type -TypeDefinition @'
@@ -58,9 +89,9 @@ public sealed class CrossUserJob:IDisposable {
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool SetInformationJobObject(IntPtr j,int c,ref Limits l,uint s);
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool AssignProcessToJobObject(IntPtr j,IntPtr p);
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool QueryInformationJobObject(IntPtr j,int c,out Accounting a,uint s,IntPtr r);
- [DllImport("kernel32.dll")] static extern bool TerminateJobObject(IntPtr j,uint c);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool TerminateJobObject(IntPtr j,uint c);
  [DllImport("kernel32.dll")] static extern bool TerminateProcess(IntPtr p,uint c);
- [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool CloseHandle(IntPtr h);
  [DllImport("kernel32.dll",SetLastError=true)] public static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle h,out uint id);
  [DllImport("kernel32.dll",SetLastError=true)] public static extern bool GetNamedPipeServerProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle h,out uint id);
  IntPtr job;
@@ -68,8 +99,8 @@ public sealed class CrossUserJob:IDisposable {
  public void Add(Process p){if(!AssignProcessToJobObject(job,p.Handle))throw new Exception("ci_job_assignment_failed");}
  public static bool StopUnassigned(Process p){if(!p.HasExited&&!TerminateProcess(p.Handle,125))return false;return p.WaitForExit(15000);}
  public bool Empty(){Accounting a;if(!QueryInformationJobObject(job,1,out a,(uint)Marshal.SizeOf(typeof(Accounting)),IntPtr.Zero))throw new Exception("ci_job_query_failed");return a.active==0;}
- public bool Stop(){TerminateJobObject(job,125);var clock=Stopwatch.StartNew();while(!Empty()&&clock.ElapsedMilliseconds<15000)System.Threading.Thread.Sleep(25);return Empty();}
- public void Dispose(){if(job!=IntPtr.Zero){TerminateJobObject(job,125);CloseHandle(job);job=IntPtr.Zero;}}
+ public bool Stop(){if(!TerminateJobObject(job,125))throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(),"ci_job_terminate_failed");var clock=Stopwatch.StartNew();while(!Empty()&&clock.ElapsedMilliseconds<15000)System.Threading.Thread.Sleep(25);return Empty();}
+ public void Dispose(){if(job!=IntPtr.Zero){bool terminated=TerminateJobObject(job,125);int error=terminated?0:Marshal.GetLastWin32Error();bool closed=CloseHandle(job);if(!closed&&terminated)error=Marshal.GetLastWin32Error();if(closed)job=IntPtr.Zero;if(!terminated||!closed)throw new System.ComponentModel.Win32Exception(error,"ci_job_dispose_failed");}}
 }
 '@
 }
@@ -95,7 +126,7 @@ function Invoke-CrossUserNode([string]$Node,[string]$Script,[string]$Mode,[strin
   return ($text|ConvertFrom-Json)
  } finally {
   $closed=$true
-  try{if($started -and -not $assigned){$closed=[CrossUserJob]::StopUnassigned($p)};if(-not $job.Stop()){$closed=$false}}finally{$job.Dispose();$p.Dispose()}
+  try{if($started -and -not $assigned){$closed=[CrossUserJob]::StopUnassigned($p)};if(-not $job.Stop()){$closed=$false}}finally{try{$job.Dispose()}finally{$p.Dispose()}}
   if(-not $closed){throw 'ci_node_cleanup_unconfirmed'}
  }
 }

@@ -8,6 +8,9 @@ if($GuardOnly){[Console]::Out.WriteLine('{"hostedGuardPassed":true}');exit 0}
 if(-not $ProductionRoot){$ProductionRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../..'))}
 $account=$null;$createdSid=$null;$child=$null;$job=$null;$pipe=$null;$secret=$null;$credentialSecret=$null;$previousTokenOwner=$null
 $serviceStarted=$false;$cleanupOk=$true;$passed=$false;$childStarted=$false;$childAssigned=$false;$phase='setup';$result=$null;$failureDiagnostic=$null;$clock=[Diagnostics.Stopwatch]::StartNew()
+$childErrors=$null;$childDiagnostic=$null
+$cleanup=@{pipeClosed=$null;unassignedChildStopped=$null;jobEmpty=$null;jobDisposed=$null;childExited=$null;childDisposed=$null;stderrDrained=$null;accountRemoved=$null;secondaryLogonRestored=$null;tokenOwnerRestored=$null}
+$cleanupErrors=@{}
 try {
  if(-not $OutputReport -or (Test-Path -LiteralPath $OutputReport)){throw 'fresh_report_required'}
  if(-not $NodePath){$NodePath=(Get-Command node.exe -ErrorAction Stop).Source}
@@ -86,6 +89,7 @@ try {
  $startInfo=[Diagnostics.ProcessStartInfo]::new()
  $startInfo.FileName=$ps;$startInfo.Arguments=$quoted;$startInfo.WorkingDirectory=$childParent
  $startInfo.UseShellExecute=$false;$startInfo.CreateNoWindow=$true;$startInfo.WindowStyle='Hidden'
+ $startInfo.RedirectStandardError=$true
  $startInfo.UserName=$account;$startInfo.Domain=$env:COMPUTERNAME;$startInfo.Password=$credentialSecret;$startInfo.LoadUserProfile=$true
  $startInfo.EnvironmentVariables.Clear()
  foreach($key in @('OS','GITHUB_ACTIONS','RUNNER_ENVIRONMENT','RUNNER_OS','SystemRoot','WINDIR')){$startInfo.EnvironmentVariables[$key]=[Environment]::GetEnvironmentVariable($key)}
@@ -93,6 +97,7 @@ try {
  $child=[Diagnostics.Process]::new();$child.StartInfo=$startInfo
  $phase='cross_user_process_start'
  if(-not $child.Start()){throw 'ci_process_start_failed'};$childStarted=$true
+ $childErrors=$child.StandardError.ReadToEndAsync()
  # The child waits for our frame. Assign before transmitting any password or
  # permitting it to start Node; all descendants inherit kill-on-close ownership.
  $phase='cross_user_job_assign'
@@ -120,24 +125,37 @@ try {
  $passed=$true
 } catch { $passed=$false;$failureDiagnostic=Get-CrossUserSafeError $_ }
 finally {
- if($pipe){$pipe.Dispose()}
- if($childStarted -and -not $childAssigned){try{if(-not [CrossUserJob]::StopUnassigned($child)){$cleanupOk=$false}}catch{$cleanupOk=$false}}
- if($job){try{if(-not $job.Stop()){$cleanupOk=$false}}catch{$cleanupOk=$false};$job.Dispose()}
- if($child){if($childStarted){try{if(-not $child.WaitForExit(15000)){$cleanupOk=$false}}catch{$cleanupOk=$false}};$child.Dispose()}
+ if($pipe){try{$pipe.Dispose();$cleanup.pipeClosed=$true}catch{$cleanupOk=$false;$cleanup.pipeClosed=$false;$cleanupErrors.pipeClosed=Get-CrossUserSafeError $_}}
+ if($childStarted -and -not $childAssigned){try{$cleanup.unassignedChildStopped=[CrossUserJob]::StopUnassigned($child);if(-not $cleanup.unassignedChildStopped){$cleanupOk=$false}}catch{$cleanupOk=$false;$cleanup.unassignedChildStopped=$false;$cleanupErrors.unassignedChildStopped=Get-CrossUserSafeError $_}}
+ if($job){
+  try{$cleanup.jobEmpty=$job.Stop();if(-not $cleanup.jobEmpty){$cleanupOk=$false}}catch{$cleanupOk=$false;$cleanup.jobEmpty=$false;$cleanupErrors.jobEmpty=Get-CrossUserSafeError $_}
+  try{$job.Dispose();$cleanup.jobDisposed=$true}catch{$cleanupOk=$false;$cleanup.jobDisposed=$false;$cleanupErrors.jobDisposed=Get-CrossUserSafeError $_}
+ }
+ if($childStarted){try{$cleanup.childExited=$child.WaitForExit(15000);if(-not $cleanup.childExited){$cleanupOk=$false}}catch{$cleanupOk=$false;$cleanup.childExited=$false;$cleanupErrors.childExited=Get-CrossUserSafeError $_}}
+ if($childErrors){
+  try {
+   $cleanup.stderrDrained=$childErrors.Wait(5000)
+   if($cleanup.stderrDrained){$childDiagnostic=Read-CrossUserSafeChildDiagnostic ($childErrors.GetAwaiter().GetResult())}else{$cleanupOk=$false}
+  }catch{$cleanupOk=$false;$cleanup.stderrDrained=$false;$cleanupErrors.stderrDrained=Get-CrossUserSafeError $_}
+ }
+ if($child){try{$child.Dispose();$cleanup.childDisposed=$true}catch{$cleanupOk=$false;$cleanup.childDisposed=$false;$cleanupErrors.childDisposed=Get-CrossUserSafeError $_}}
  if($createdSid){
   try {
    $current=Get-LocalUser -Name $account -ErrorAction Stop
    if($current.SID.Value -ne $createdSid -or $account -notmatch '^s6cu_[a-f0-9]{12}$' -or -not $cleanupOk){throw 'ci_cleanup_identity_or_process_unconfirmed'}
    Remove-LocalUser -SID ([Security.Principal.SecurityIdentifier]::new($createdSid))
    if(Get-LocalUser -SID ([Security.Principal.SecurityIdentifier]::new($createdSid)) -ErrorAction SilentlyContinue){throw 'ci_account_delete_unconfirmed'}
-  } catch {$cleanupOk=$false}
+   $cleanup.accountRemoved=$true
+  } catch {$cleanupOk=$false;$cleanup.accountRemoved=$false;$cleanupErrors.accountRemoved=Get-CrossUserSafeError $_}
  }
- if($serviceStarted){try{Stop-Service -Name seclogon -ErrorAction Stop}catch{$cleanupOk=$false}}
+ if($serviceStarted){try{Stop-Service -Name seclogon -ErrorAction Stop;if((Get-Service -Name seclogon).Status -ne 'Stopped'){throw 'ci_service_stop_unconfirmed'};$cleanup.secondaryLogonRestored=$true}catch{$cleanupOk=$false;$cleanup.secondaryLogonRestored=$false;$cleanupErrors.secondaryLogonRestored=Get-CrossUserSafeError $_}}
  if($secret){[Array]::Clear($secret,0,$secret.Length)};if($credentialSecret){$credentialSecret.Dispose()}
- if($previousTokenOwner){try{[void][CrossUserTokenOwner]::Set($previousTokenOwner)}catch{$cleanupOk=$false}}
+ if($previousTokenOwner){try{[void][CrossUserTokenOwner]::Set($previousTokenOwner);$cleanup.tokenOwnerRestored=$true}catch{$cleanupOk=$false;$cleanup.tokenOwnerRestored=$false;$cleanupErrors.tokenOwnerRestored=Get-CrossUserSafeError $_}}
 }
 $safe=@{passed=($passed -and $cleanupOk);cleanupConfirmed=$cleanupOk;accountCreated=($null -ne $createdSid);crossMachineTested=$false;elapsedMilliseconds=$clock.ElapsedMilliseconds;failurePhase=$(if($passed -and $cleanupOk){'none'}else{$phase})}
 if($failureDiagnostic){$safe.failureDiagnostic=$failureDiagnostic}
+$safe.cleanup=$cleanup;$safe.cleanupErrors=$cleanupErrors
+if($childDiagnostic){$safe.childDiagnostic=$childDiagnostic}
 if($passed){foreach($p in $result.PSObject.Properties){$safe[$p.Name]=$p.Value}}
 try {
  if(-not $OutputReport -or (Test-Path -LiteralPath $OutputReport)){throw 'fresh_report_required'}

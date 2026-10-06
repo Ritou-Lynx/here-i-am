@@ -8,6 +8,8 @@
 
 精确源 `beed93a3657ab59fbe033a435f471814d8895736`：主窗603tests/602pass/0fail/0cancel/1既有大小写环境skip，1,024,765.3329ms；六类原生/合成关机与中断演练均过。43项固定包manifest `45d00ecdb113957ffdc5c65e2b90454611c83eb90cf6879c8cccfd1df1ea787a`，Node25+PS16语法通过，独立真实启动/认证清停/Job/锁烟测67,256ms通过。此前Windows短TEMP/默认owner限定夹具/CI修复；保留plainPath与ACL逐字相同证据。白板空标题/H1用真实save屏障，精确5/5、相邻195/195；远端45bc曾有2项启动ETIMEDOUT，最终CI改串行文件但不改生产timeout，最终回执仍待，见[本轮验收](handoffs/SCHEMA6_AUTOMATIC_MAIN_ACCEPTANCE_20261006.md)。
 
+跨用户三轮失败均保留，最新已到 child 恢复报告但清理不全；当前只补 CI 安全诊断和逐项回执，真实跨 SID 恢复仍待远端，不冒称通过。
+
 本机未新增账号、未注册任务或实际关机；跨用户合成夹具只允许一次性hosted Windows VM，实际异机与生产网络/手机Gate另计。
 
 ## PR14 复核续作：CI 与自动运行（2026-10-06）
