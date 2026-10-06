@@ -52,7 +52,15 @@ domain_ops/domain_receipts 分别20,000/100,000；关闭后 DB 213,024,768 /1,06
 | pr14-mcp-main-final.tap | cfb25e60f912341c9bed70f7951a17af59265f125d44ed988eb2cdbf62a62493 |
 | pr14-mcp-native-scale-final.log | 6b61e0d1f4aa838faa0bd708a958b9f24469d9bc24bd37609fd3c4baa3f478ee |
 
-正式已提交固定候选待本次源码提交后构建并验证；CI以最终推送同PR精确head的新13项Checks及实际Windows/跨用户回执为准。没有拿8b的旧CI绿或本机合成manifest充当本次远端/上线证据。
+### 已提交固定候选与联合烟测
+
+固定源 `69e801536b738f39c1d8009f6d153597f3f75a9f`；真实Git已提交树重新打包47项，manifest外锚 `bd3f6c6d125faf1fde869554038cf5b83725125f8a49fa531fac3c0203d4bc80`。先保护空候选根，再逐字复制/复核库存，46源文本与本机已测SHA逐项一致，固定Node `58e74bf0…145d1f`。额外文档提交不改变这些运行字节；未来上线仍必须从获批合并提交重新构建。
+
+精确Core实际启动、schema6/loopback健康、认证停止、child/guardian exit0、Job空、锁释放烟测 **21,696ms**通过。进一步直接运行同一精确包的交互式launcher和同字节旧MCP：真实OAuth/initialize/i_recall读到合成消息，MCP以最大3秒grace停止 **3,037ms**，首次完整关闭 **4,815.501ms**；下次登录自动启新MCP并读回同一sync_id，再次完整关闭 **5,513.863ms**。全流程 **61,569.510ms**，真实clean_closed/各所属Job退出/DB独占重开/源码不变。所有state/key/custody/OAuth/memory/policy均全新合成，无任务注册。
+
+`smoke_candidate.mjs`是运行断言的独立烟测工具，使用node:test after清理会额外打印0 tests footer；不将该footer当新增用例数。回执 `pr14-mcp-fixed-candidate.json`、`pr14-mcp-core-smoke.log`、`pr14-mcp-managed-smoke.log`在忽略目录；实际输出中的manifest/source_commit均与上述锚一致。合成库清理只发生于所属树退出确认后，候选本身保留不变。
+
+CI以最终推送的精确head新Checks和原生/跨用户回执为准，登记同PR正文；全部绿后暂停，不把本机烟测代替CI或生产四Gate。
 
 ## 现场授权与未完成边界
 
