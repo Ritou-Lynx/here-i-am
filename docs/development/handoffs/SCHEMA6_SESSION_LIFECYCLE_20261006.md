@@ -40,3 +40,12 @@ worker单次提交使用既有 SKIP_PROJECT_STATE=1，finally恢复；主窗负�
 - 后续fixture枚举曾只按backup-status前缀，误把原子写入的 .json.guid.pending 当正式回执读而出现EBUSY；修为同时要求 .json 后缀，只读取原子发布的目标。没有放宽pending独占写，也没有catch后重试来隐藏不完整文件。该失败保留在session-control-publish-final.tap（其中launch已完成cleanclose通过，reader helper首次反射包装失败另由专项修正通过）。
 
 最终低并发专项命令：`D:\Nodejs\node.exe --test --test-concurrency=1 --test-name-pattern="control reader|backup launch" --test-reporter=tap --test-reporter-destination=build/ci/session-backup-isolation-final.tap tools/i_core/release_schema6/lifecycle/session_lifecycle.test.mjs`。结果4/4，136643ms；launch 62129ms、worker 62260ms，均确认失败固定状态、未来retry时间、Core health200和真正cleanReceipt。该worker分支未集成portable scheduler，worker非零退出用缺少scheduler入口的真实PS失败；整合后同用例的空配置会被实际scheduler拒绝，需主窗完整库存复验。malformed/Prepare专项1/1（34945ms）包含login/core/backup三种随机secret不外泄。最终git diff --check通过。
+
+## session ready / launch 原子发布同类竞争（最后窄验证）
+
+- 基线为本worker 28ae524b。只在隔离分支使用受保护合成目录，dot-source编译C#并调用私有ReadProtected；未启动Core、窗口、服务、Task或手机操作。
+- 复现日志 `build/ci/session-reader-sharing-repro.tap`：1项预期失败（13375ms），native rename已经使ready.json/launch.json可见且仍持DELETE句柄时，两项读取均false、session_sharing_violation=true；并发writer及hardlink原有拒绝均true。故Tick在File.Exists之后仍可能因发布者短暂DELETE句柄触发错误关闭。
+- 生产最小修改仅ReadProtected的FileStream共享标志 Read→Read|Delete，仍FileAccess.Read、仍拒写；Protected的plain/祖先非链接/ACL、持柄单hardlink/finalcanonical、大小限制及认证逻辑全不变。没有吞共享异常或重试。
+- test-only helper补充session私有reader类型化反射分支。最初fixture原生重命名结构未显式补UTF16终止零，出现launch.jsonl，已补分配并清零终止空间，再执行上述确定性红灯；初轮输出保存session-reader-sharing-before.tap，不当生产失败证据。
+- 修复后 `build/ci/session-reader-sharing-final.tap`：2/2，0 fail/skip，25290ms。session ready_read/launch_read=true、session_sharing_violation=false，同时old_reader_sharing_violation/writer_rejected/hardlink_rejected=true；原owned control reader并发证明亦通过。
+- 命令：`D:\Nodejs\node.exe --test --test-concurrency=1 --test-name-pattern="control reader|session protected reader" --test-reporter=tap --test-reporter-destination=build/ci/session-reader-sharing-final.tap tools/i_core/release_schema6/lifecycle/session_lifecycle.test.mjs`。git diff --check通过。未改主窗或shared其他文件，未push；此次提交仍仅用既有SKIP_PROJECT_STATE=1且finally恢复。

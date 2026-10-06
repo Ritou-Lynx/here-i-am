@@ -110,7 +110,8 @@ public sealed class Schema6SessionWindow : Form {
   }
   static string ReadProtected(string filename) {
     Protected(filename,false);
-    using(FileStream file=new FileStream(filename,FileMode.Open,FileAccess.Read,FileShare.Read)) {
+    // Atomic publication may still hold DELETE access after the name is visible.
+    using(FileStream file=new FileStream(filename,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete)) {
       FileInfo info;if(!GetFileInformationByHandle(file.SafeFileHandle,out info)||info.links!=1)throw new InvalidOperationException("session_file_link_rejected");
       StringBuilder canonical=new StringBuilder(32768);uint size=GetFinalPathNameByHandle(file.SafeFileHandle,canonical,32768,0);
       if(size==0||size>=32768||!canonical.ToString().Equals("\\\\?\\"+filename,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("session_file_alias_rejected");

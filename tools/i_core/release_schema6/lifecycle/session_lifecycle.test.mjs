@@ -118,6 +118,14 @@ test('Windows control reader authenticates held bytes during the publisher renam
  l.completed=true;
 });
 
+test('Windows session protected reader accepts atomically published ready and launch while rejecting writers and hardlinks',{skip:process.platform!=='win32',timeout:180000},async t=>{
+ const l=await createRuntimeLab(t),directory=l.dir('session-reader-sharing');
+ const proof=JSON.parse(execFileSync(ps,['-NoProfile','-NonInteractive','-File',path.join(repository,'tools/i_core/test_fixtures/release_schema6/probe_control_read_sharing.ps1'),'-OwnedJobScript',path.join(l.lifecycle,'owned_job.ps1'),'-SessionWindowScript',path.join(l.lifecycle,'session_window.ps1'),'-Directory',directory],{windowsHide:true,env:cleanEnvironment(),encoding:'utf8'}));
+ t.diagnostic(JSON.stringify(proof));
+ for(const key of ['ready_read','launch_read','old_reader_sharing_violation','writer_rejected','hardlink_rejected'])assert.equal(proof[key],true,key);
+ assert.equal(proof.session_sharing_violation,false);l.completed=true;
+});
+
 test('Windows backup launch and worker failures leave Core online and publish fixed retry status',{skip:process.platform!=='win32',timeout:600000},async t=>{
  for(const mode of ['launch','worker'])await t.test(mode,async t=>{
   const l=await createRuntimeLab(t),c=loginConfig(l),keys=l.dir('backup-keys');
