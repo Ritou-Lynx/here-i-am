@@ -43,6 +43,8 @@ CI-only 已推 head `45bcab16a98c147efe4f05669dd92f1cb4728772` 的其他 9 check
 
 第四轮 source `e557473d` 两次的受限诊断均明确 child_restore_inspection 失败，清理各项全部确认（118,905/106,562ms）。新夹具仅保留已产生的 Node 固定阶段与错误码 SHA256，通过严格父端 parser 重建；不输出 stdout/stderr/Message。真实 8 字节合成失败链验证成功，非法字段/阶段/摘要拒绝。实际根因等待该证据，不把诊断补丁当成恢复成功。
 
+第五轮 source `cfc8b011` 两次 Node 都到 restore，错误码摘要 `4881737c9b27e65fe2e8a2650af307d42887a48b93b5802358fffa11af0bb9fd` 对应 portable_authentication_failed。真实 PS5.1 纯合成进程实验证实 .NET Framework 的 StandardInput 文本流在 Start/AutoFlush 时可写入 BOM：48字节在UTF8/UTF16带BOM编码下变51/50。仅在启动期间临时设无BOM UTF8、finally立即恢复，实际两种编码均保持48字节，失败启动也恢复原编码；CI协议和回执现严格要求48。生产KDF/认证/还原API未改。该轮另有一次 seclogon 停止 native1052，实际发生状态未知，不忽略清理失败；正在补受限状态等待。真实跨SID成功仍以新CI为准。
+
 ## 六类最终合成演练
 
 | 情况 | 真实观测与下一启动要求 | 最终集成结果 |

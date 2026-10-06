@@ -15,9 +15,9 @@ try {
   assert.equal(process.argv.length, 5);
   assert.ok(['factory','restore'].includes(mode));
   const chunks=[];let length=0;
-  for await (const chunk of process.stdin) {length+=chunk.length;assert.ok(length<=1024);chunks.push(chunk);}
+  for await (const chunk of process.stdin) {length+=chunk.length;assert.ok(length<=48);chunks.push(chunk);}
   password=Buffer.concat(chunks);for(const c of chunks)c.fill(0);
-  assert.ok(password.length>=32);
+  assert.equal(password.length,48);
   const load = name => import(pathToFileURL(path.join(productionRoot,'tools/i_core',name)));
   if(mode==='restore') {
     const transport=json(path.join(workspace,'transport.json'));
@@ -88,6 +88,7 @@ try {
     assert.equal(report.databaseBytesUnchanged,true);assert.equal(report.sidecarsAbsent,true);
     summary={restored:true,passwordOnly:true,dpapiUsed:false,inspectionOnly:true,activationSupported:false,realCoreVerified:true,deniedRouteCount:5,databaseBytesUnchanged:true,sidecarsAbsent:true,nodeSha256:expected.nodeIdSha256,schemaVersion:expected.schemaVersion,deviceCount:expected.devices.count,devicesSha256:expected.devices.sha256,tableCount:expected.tables.length,rowCount:expected.tables.reduce((n,t)=>n+t.rows,0),allTablesSha256:sha(JSON.stringify(expected.tables)),databaseFingerprintSha256:expected.dataSha256};
   }
+  summary.inputByteCount=password.length;summary.binaryInputExact=password.length===48;
   process.stdout.write(JSON.stringify(summary)+'\n');
 } catch(error) {process.stderr.write(JSON.stringify({fixtureRejected:true,phase,errorCodeSha256:sha(String(error.code??error.name))})+'\n');process.exitCode=2;}
 finally {password?.fill(0);}

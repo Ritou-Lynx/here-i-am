@@ -28,6 +28,7 @@ try {
  $phase='factory'
  $factoryReport=Invoke-CrossUserNode $NodePath (Join-Path $PSScriptRoot 'cross_user_restore.mjs') 'factory' $ProductionRoot $factory $secret
  if($factoryReport.factoryVerified -ne $true){throw 'factory_unverified'}
+ if(($factoryReport.inputByteCount -isnot [int] -and $factoryReport.inputByteCount -isnot [long]) -or $factoryReport.inputByteCount -ne 48 -or $factoryReport.binaryInputExact -isnot [bool] -or $factoryReport.binaryInputExact -ne $true){throw 'factory_binary_input_unverified'}
  $transfer=Join-Path $factory 'transfer'
  $transport=Get-Content -LiteralPath (Join-Path $transfer 'transport.json') -Raw|ConvertFrom-Json
  foreach($name in @('cross_user_restore.mjs','cross_user_restore_common.ps1','cross_user_restore_child.ps1')) {
@@ -121,6 +122,7 @@ try {
  if(-not $child.WaitForExit(30000) -or $child.ExitCode -ne 0 -or -not $job.Empty()){throw 'ci_process_close_unconfirmed'}
  $phase='cross_user_evidence'
  if($result.standardUserToken -ne $true){throw 'standard_user_required'}
+ if(($result.inputByteCount -isnot [int] -and $result.inputByteCount -isnot [long]) -or $result.inputByteCount -ne 48 -or $result.binaryInputExact -isnot [bool] -or $result.binaryInputExact -ne $true){throw 'restore_binary_input_unverified'}
  if($result.distinctWindowsSid -ne $true -or $result.sourceSidSha256 -ne (Get-CrossUserHash $originSid) -or $result.restoreSidSha256 -ne (Get-CrossUserHash $createdSid) -or $result.sourceSidSha256 -eq $result.restoreSidSha256 -or $result.passwordOnly -ne $true -or $result.dpapiUsed -ne $false -or $result.realCoreVerified -ne $true -or $result.deniedRouteCount -ne 5 -or $result.databaseBytesUnchanged -ne $true -or $result.databaseFingerprintSha256 -ne $factoryReport.databaseFingerprintSha256){throw 'ci_evidence_rejected'}
  $passed=$true
 } catch { $passed=$false;$failureDiagnostic=Get-CrossUserSafeError $_ }

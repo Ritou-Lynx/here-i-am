@@ -142,7 +142,11 @@ function Invoke-CrossUserNode([string]$Node,[string]$Script,[string]$Mode,[strin
  foreach($name in @('SystemRoot','WINDIR','TEMP','TMP')){$info.EnvironmentVariables[$name]=[Environment]::GetEnvironmentVariable($name)}
  $p=New-Object Diagnostics.Process;$p.StartInfo=$info;$job=New-Object CrossUserJob;$started=$false;$assigned=$false
  try {
-  $null=$p.Start();$started=$true;$job.Add($p);$assigned=$true
+  # .NET Framework creates the redirected stdin StreamWriter during Start and
+  # AutoFlush can emit Console.InputEncoding's BOM before any BaseStream write.
+  $previousInputEncoding=[Console]::InputEncoding
+  try{[Console]::InputEncoding=[Text.UTF8Encoding]::new($false);$null=$p.Start();$started=$true}finally{[Console]::InputEncoding=$previousInputEncoding}
+  $job.Add($p);$assigned=$true
   $output=$p.StandardOutput.ReadToEndAsync();$errors=$p.StandardError.ReadToEndAsync()
   $p.StandardInput.BaseStream.Write($Secret,0,$Secret.Length);$p.StandardInput.Close()
   if(-not $p.WaitForExit(180000)){throw 'ci_node_timeout'}

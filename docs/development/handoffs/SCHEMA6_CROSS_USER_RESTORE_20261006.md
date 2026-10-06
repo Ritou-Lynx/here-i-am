@@ -72,3 +72,12 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/i_
 - child 失败 JSON 新增始终存在的 `nodeDiagnostic`（null 或 phase/hash 两字段）。父 parser 只在 `child_restore_inspection` 上接受非 null 值，并再次验证精确字段、字符串类型、固定 phase 及完整 64hex；布尔 false/字符串伪 true、未知 phase、坏 hash、额外字段和超限内容都不透传。没有改变成功证据或生产检查。
 - 本地验证：3 个 PS parser 0 错；6 个恶意/错误 Node 诊断拒绝，错误 child 上下文拒绝；实际运行本 Node 夹具仅 8 字节合成 stdin，使其在 `input` 阶段按既有断言失败（不读取 productionRoot/workspace、不写文件），真实 Invoke/helper 捕获并经父 parser 往返保留 ERR_ASSERTION 的 SHA256 `bc3401c7b6b4bd7355ea1bbf002ec5b8db3166a4b55d7e9ed6aa6ed1bcc5187d`。未创建账号、操作服务或改生产模块；下一次真实 CI 的 phase/hash 才用于定位恢复错误。
 - 仅提交 common/child 两个自有 PS 与本文，单次 SKIP_PROJECT_STATE 后恢复，不 push。
+
+## 第五轮认证失败及 stdin 二进制协议修复
+
+- 第五轮两次真实 Node 诊断均为 `restore`，错误码 SHA256 `4881737c9b27e65fe2e8a2650af307d42887a48b93b5802358fffa11af0bb9fd`，已对应固定码 `portable_authentication_failed`。这确认了认证失败；跨 SID 恢复通过仍待修复后新回执，不提前宣称完成。一次 SecondaryLogon 清理另报 1052，另一轮完整清理通过，本补丁不猜测或修改服务逻辑。
+- Windows PowerShell 5.1 实际反射确认没有 ProcessStartInfo.StandardInputEncoding；pwsh7.6 有该属性，不能据此替代 PS5.1 行为。未修复的实际进程测试中，48 字节载荷在 Console UTF-8 BOM 下变成 51、UTF-16 BOM 下变成 50，摘要均改变；无 BOM UTF-8 下为 48 且摘要相同。原因是 .NET Framework 在 Start 构造 redirected stdin StreamWriter，AutoFlush 会先写编码 preamble，之后 BaseStream.Write 并不能撤回。
+- CI helper 仅在 `$p.Start()` 期间临时设置 UTF8Encoding(false)，finally 立即恢复原 Console.InputEncoding，再执行原 Job.Add、原始字节写入及原清理流程。设置或启动失败仍经过既有未入 Job 持柄清理；不长期更改父进程编码或把口令转成字符串。
+- MJS stdin 从至少 32 字节收紧为恰好 48 字节且流累计不超过48；与 parent 随机口令和 BinaryReader frame 一致。factory/restore 成功安全报告新增 `inputByteCount=48`、`binaryInputExact=true`，父进程对两份报告检查整数类型、值48及确切布尔true，不能以字符串代替。生产 portable/inspection API 无改动。
+- 本地实际 PS5.1 调用修改后的 Invoke-CrossUserNode 和纯内存 Node byte receiver：原 UTF8 BOM / UTF16 BOM 两种编码均收到48、载荷 SHA256 相同、函数退出前原编码恢复；不存在的合成 exe 启动失败路径同样恢复。真实 MJS 输入 47/49/50/51 字节均在 input 阶段以 ERR_ASSERTION 拒绝，未访问 productionRoot/workspace。3 个 PS parser 0 错、Node --check 与 diff 检查通过。没有本机账号/服务/真实库操作，没有重新运行生产整包。
+- 仅提交 common/mjs/parent 三个自有 CI 夹具与本文，单次 SKIP_PROJECT_STATE 后恢复，不 push。
