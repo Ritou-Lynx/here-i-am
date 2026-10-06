@@ -57,12 +57,17 @@
 
 ## 2. 现状盘点（以代码为准）
 
+> **2026-10-06 更正。** 本节按 `codex/w0-integrate@842a3e9` 的仓库代码盘点，而你手机上实际运行的是另一份构建：本地分支 `codex/b3-writeback-local-20261003` 的提交 `8770aa60`（当时未推送，10/06 已推到 GitHub）。现役 Core 也不是仓库代码，而是固定 v4 包，多出 transcript 接口和 72 条 historical replay 保护。证据见 [部署前只读调查](https://github.com/Ritou-Lynx/here-i-am/blob/codex/predeploy-audit-20261005/docs/development/handoffs/PREDEPLOY_AUDIT_20261005.md) §2、§4、§5。所以：
+> - **F1、F7 对仓库代码成立，对实际运行的系统不成立。** 下面两行和两条发现已就地更正。
+> - **F2–F6 描述的是仓库主线代码**；手机上的 B3 构建在这些点上的行为没有逐项核对。
+> - **F10 已被调查确认并扩大**：不只是 MCP，Core 和手机也都在跑仓库之外的代码。
+
 ### 2.1 每类数据在哪、谁写、谁读、怎么同步
 
 | 数据 | 存在哪 | 谁写 | 谁读 | 怎么跨端 |
 |---|---|---|---|---|
 | 聊天·用户消息 | 手机 `persona_chat_messages` + `sync_outbox_messages`；i_core `chat_messages` | 手机：本地行和待发行同一事务写入（[persona_chat_service.dart:110-153](../../lib/data/services/persona_chat_service.dart#L110-L153)）；claude.ai 经 `frontend:claude_web` | 手机；i_memory 读取层 → claude.ai | 待发队列 → `POST /v1/core/chat/messages` → change feed 拉回（[core_sync_engine.dart:67-170](../../lib/data/services/sync/core_sync_engine.dart#L67-L170)）。只在前台、写入后和手动时同步，不跑后台（[core_sync_runtime_service.dart:38-41](../../lib/data/services/sync/core_sync_runtime_service.dart#L38-L41)） |
-| 聊天·手机上林埃的回复 | 只在手机 | 手机 `addCharacterMessage`，不进待发队列（[persona_chat_service.dart:245-274](../../lib/data/services/persona_chat_service.dart#L245-L274)） | 手机 | **不同步**。待发队列只交 `sender=user`（[core_sync_engine.dart:81](../../lib/data/services/sync/core_sync_engine.dart#L81)）；i_core 也拒绝普通设备提交 companion（[i_core_store.mjs:465](../../tools/i_core/i_core_store.mjs#L465)）。i_core 里已有的回复来自一次性导入（[i_core README 第 116 行](../../tools/i_core/README.md#L116)） |
+| 聊天·手机上林埃的回复 | **（10/06 更正）** 仓库代码：只在手机。实际运行：手机 B3 构建经 Core 固定包的受限 transcript 接口上传，i_core 里有 10 条手机来源的林埃回复，模式符合 B3 补交和随后的上传；当前是否仍在持续上传未核实（调查 §4） | 手机 `addCharacterMessage`，不进待发队列（[persona_chat_service.dart:245-274](../../lib/data/services/persona_chat_service.dart#L245-L274)） | 手机 | **不同步**。待发队列只交 `sender=user`（[core_sync_engine.dart:81](../../lib/data/services/sync/core_sync_engine.dart#L81)）；i_core 也拒绝普通设备提交 companion（[i_core_store.mjs:465](../../tools/i_core/i_core_store.mjs#L465)）。i_core 里已有的回复来自一次性导入（[i_core README 第 116 行](../../tools/i_core/README.md#L116)） |
 | 聊天·网页端双方轮次 | i_core；i_remote_mcp 账本 `turns` 表 | i_remote_mcp（`frontend:claude_web`） | 手机经 feed；claude.ai | 已实现。手机上"网页端"来源标注还没做（`lib/` 里没有 `claude_web` 的引用） |
 | 聊天附件 | 手机 `attachmentsJson` | 手机 | 手机 | 不同步。协议里有 `CoreAssetRef`，手机不发；导入器跳过附件（[i_core README 第 116 行](../../tools/i_core/README.md#L116)） |
 | 记忆卡（fact/event/task/schedule/plan + 结构化字段） | 手机 `memory_cards` 表族（[tables.dart:25-123](../../lib/data/memory_v3/db/tables.dart#L25-L123)） | `RecordOrganizerServiceV3` 的 persist / updateCard / deleteCard；启动时自动去重；白板 store 直接 upsert（[whiteboard_drift_store.dart:332](../../lib/data/whiteboard/whiteboard_drift_store.dart#L332)） | 手机林埃召回、Memory Review、日程面板、出门建议（[proactive_outing_service.dart:106](../../lib/data/services/proactive_outing_service.dart#L106)）；电脑上 i_memory 快照 → `i_recall` | 没有实时同步。i_memory 用 ADB 导出后整库替换（[i_memory README 第 39 行](../../tools/i_memory/README.md#L39)）；`.memexdata` 是整库快照、后写覆盖（[memory_data_sync_service.dart:21](../../lib/data/services/sync/memory_data_sync_service.dart#L21)） |
@@ -76,7 +81,7 @@
 | 提醒 | `system_message_queue`，`triggerType=reminder`（[reminder_service.dart:23-68](../../lib/data/services/reminder_service.dart#L23-L68)）+ 精确闹钟（[checkin_service.dart:268-296](../../lib/data/services/checkin_service.dart#L268-L296)） | 林埃 `reminder_create` / `system_checkin`（[checkin_tool.dart:225-306](../../lib/agent/built_in_tools/checkin_tool.dart#L225-L306)） | 手机闹钟回调 | 只在手机。普通提醒过时 15 分钟作废，来电提醒 2 小时（[checkin_service.dart:620-670](../../lib/data/services/checkin_service.dart#L620-L670)） |
 | check-in | 同表 `triggerType=checkin`；闹钟自续链（[checkin_service.dart:316-333](../../lib/data/services/checkin_service.dart#L316-L333)、[866 起](../../lib/data/services/checkin_service.dart#L866)） | 手机 | 手机后台跑林埃 | 只在手机。i_core 有 `checkin` 等 workload 名（[i_core_store.mjs:22-28](../../tools/i_core/i_core_store.mjs#L22-L28)），但只有 `companion_reply` 有任务接口 |
 | 日程面板 | 读 task / schedule / plan 卡（[memory_card_query_service.dart:409-439](../../lib/data/memory_v3/services/memory_card_query_service.dart#L409-L439)） | 勾选 = `updateCard(status)`（[schedule_view_model.dart:99-120](../../lib/ui/companion/view_models/schedule_view_model.dart#L99-L120)） | 手机 | 不同步 |
-| claude.ai"帮我记一下"（i_remember） | i_remote_mcp `.state/writeback.sqlite` 的 `notes` 表（[writeback.mjs:158-170](../../tools/i_remote_mcp/writeback.mjs#L158-L170)）；删除即清正文（[566 行](../../tools/i_remote_mcp/writeback.mjs#L566)） | claude.ai | claude.ai（`i_context`）；手机拉取的服务端已写（[server.mjs:258-270](../../tools/i_remote_mcp/server.mjs#L258-L270)） | **手机端拉取没实现**（`lib/` 里没有引用），记录目前到不了手机 |
+| claude.ai"帮我记一下"（i_remember） | i_remote_mcp `.state/writeback.sqlite` 的 `notes` 表（[writeback.mjs:158-170](../../tools/i_remote_mcp/writeback.mjs#L158-L170)）；删除即清正文（[566 行](../../tools/i_remote_mcp/writeback.mjs#L566)） | claude.ai | claude.ai（`i_context`）；手机拉取的服务端已写（[server.mjs:258-270](../../tools/i_remote_mcp/server.mjs#L258-L270)） | **（10/06 更正）** 仓库 `lib/` 里没有拉取端；但手机 B3 构建有（`claude_web_note_feed_service.dart`，前台 30 秒拉取 47862），账本里 1 条已删除记录的状态是 on_phone。当前拉取是否成功未核实（调查 §5.3） |
 | 规划 | WI 本机文件 `plan.json` / `week.md` / `today.md`（分支未推送，未核对） | Codex | dot、用户 | 无 |
 | 快速捕获 | 只有设计（[QUICK_CAPTURE_DESIGN](QUICK_CAPTURE_DESIGN_20261005.md)） | — | — | — |
 | 学习账本、招聘日历 | 思源数据库 | 学习导师（Codex） | 规划助手只读 | 思源自带同步 |
@@ -84,16 +89,16 @@
 
 ### 2.2 直接影响设计的发现
 
-- **F1 聊天只同步了一半。** "手机本地 + 待发队列 → i_core → 变更流拉回"只对用户消息成立。导入之后，手机上林埃的回复都不在 i_core 里：claude.ai 的 `i_context` 看到的是只有用户一侧的手机对话，电脑端 worker 也拿不到完整上下文。
+- **F1 聊天只同步了一半。（10/06 更正：只对仓库代码成立）** 仓库主线的待发队列只交用户消息，i_core 也拒收普通设备的林埃消息。但手机实际运行的 B3 构建另有一条受限 transcript 上传路径，配合 Core 固定包的授权，已把林埃回复传进 i_core（10 条）。所以问题不是"回复没有同步"，而是"同步依赖仓库之外的代码"：主线 PR #10 的上传方式和 B3 的 transcript 接口需要按调查报告 D1 迁移，同一时间只开一个上传器。
 - **F2 记忆卡没有版本，也没有墓碑。** `deleteCard` 物理删除卡和附属行，只留一条审计记录（[1405-1475](../../lib/data/memory_v3/services/record_organizer_service.dart#L1405-L1475)）；编辑时故意不更新 `updatedAt`（[1682 行](../../lib/data/memory_v3/services/record_organizer_service.dart#L1682)）。现在没有任何字段能用来做增量同步或判断冲突。
 - **F3 "用户修正优先"在手机上也没有字段级依据。** `user_corrections` 一直是空表，只有结构化字段整行的布尔标志。
 - **F4 手机会自己删卡。** 启动时跑 `dedupeExistingScheduleCards`（[272 行](../../lib/data/memory_v3/services/record_organizer_service.dart#L272)、[320 行起](../../lib/data/memory_v3/services/record_organizer_service.dart#L320)）；写入时按 ±2 小时窗口复用已有卡（[741-805](../../lib/data/memory_v3/services/record_organizer_service.dart#L741-L805)）。这条保护来自真实问题（AI 把同一顿饭重复记了三次，见同文件注释），迁移后要保留效果，但客户端直接删除要改成 i_core 判重。
 - **F5 收支有两个写入口、两份表示。** 卡和账本行各自存在，删除不联动。
 - **F6 同一张表里混着生活事实和白板普通卡。** 白板卡复用 `memory_cards`，`memoryScope=user_truth`、`type=note`（[tables.dart:962-965](../../lib/data/memory_v3/db/tables.dart#L962-L965)），Gate 1A-0 已标为迁移红灯。
-- **F7 i_remember 记录停在电脑上。** B3 决定 4 的闭环还没通。
+- **F7 i_remember 记录停在电脑上。（10/06 更正：只对仓库代码成立）** 仓库里没有手机拉取端；但手机 B3 构建有，曾把记录拉到手机成卡并在删除后同步删卡（账本显示 1 条 deleted / on_phone）。B3 决定 4 的闭环在实际系统里通过，只是代码不在主线。因此 47862 桥不能直接废弃，要等 captures 闭环验证后再切（调查 D3）。
 - **F8 读取层直接打开 i_core 数据库。** `i_memory_read.mjs` 以只读方式打开 i_core 的 SQLite（[201 行](../../tools/i_memory/i_memory_read.mjs#L201)）。i_core 加领域表后，这条路能读到所有领域，权限要在读取层另设白名单。
 - **F9 三个服务压在同一台电脑上。** i_core（[README 第 31–33 行](../../tools/i_core/README.md#L31-L33)）、i_remote_mcp 和 Cloudflare 隧道都在这台 Windows 电脑上。电脑一关，手机同步、claude.ai 连接器、规划助手同时停。
-- **F10 线上运行的代码和仓库不一致。** 本机运行的 i_remote_mcp 有 5 个源码文件和候选不同（[W0 交接"运行一致性"](handoffs/W0_INTEGRATION_20261005.md)）。本文对线上行为的判断都要再核。
+- **F10 线上运行的代码和仓库不一致。** 本机运行的 i_remote_mcp 有 5 个源码文件和候选不同（[W0 交接"运行一致性"](handoffs/W0_INTEGRATION_20261005.md)）。本文对线上行为的判断都要再核。**（10/06 补充）** 调查确认范围更大：Core 跑固定 v4 包（6 个共享文件不同，另有 3 个包专有文件），手机跑 B3 构建（数据库版本 62，主线 60）。见[调查](https://github.com/Ritou-Lynx/here-i-am/blob/codex/predeploy-audit-20261005/docs/development/handoffs/PREDEPLOY_AUDIT_20261005.md) §2、§5。
 
 ---
 
@@ -351,7 +356,7 @@
 |---|---|---|---|
 | 0 | 公共前置 | 旧卡先分类（采纳 W6 D01）：按"来源是否是显式记录 → 业务类型 → 通用类型"三步判断，每张卡都落进"迁移 / 明确排除 / 待核实"之一，白板卡、未知类型不迁；i_core 领域框架（W1）；手机端：字段级修正写入、按领域 outbox 与副本、领域开关、林埃回复入队（W7-0） | — |
 | 1 | 记一下 captures、规划 plan_* | 新领域，没有手机旧数据；WI 本机文件用导入脚本搬入 | W1 |
-| 2 | i_remember 记录 | 并入 captures（`source=claude_web`）；i_remote_mcp 改写 i_core；手机经 i_core feed 取，不再单独做 47862 拉取端（F7） | 1 |
+| 2 | i_remember 记录 | 并入 captures（`source=claude_web`）；i_remote_mcp 改写 i_core；手机经 i_core feed 取；手机 B3 构建现有的 47862 拉取端在 captures 闭环验证前保留，之后切为单一消费者（F7 更正、调查 D3） | 1 |
 | 3 | **收支 ledger（第一个搬家的手机数据）** | 账本行是金额的权威；收支记录卡改成由账本生成的展示；修掉"删卡不删账本行"（F5）。按 W6 D02a 收窄第一批：缺币种不默认人民币；未付款、取消、退款的订单不当支出；账本里的转账、奖励、罚款等林埃共同账户类型先列明、不并入本批 | 0、W6 映射表 |
 | 4 | 经期 cycle | 私密；起止日、进行中、症状保留原值，未结束留空、不补；节律由副本重新派生 | 3 进入观察期 |
 | 5 | 睡眠 sleep_days | 按 W6 D02c、D08：保存多段、多来源的原始观测，`sleep_days` 只是按规则生成的日视图；手记和 COROS 并存，不互相覆盖；时区、跨日、"大概"这类不确定性保留 | 4 进入观察期 |
@@ -420,7 +425,7 @@ dispositions: {
 | QUICK_CAPTURE §2、§9 第 1 条：捕获完全不让林埃看到 | 按 8.1 c：生活记录部分由手机 organizer 处理 | 一个入口，减少记错地方 |
 | QUICK_CAPTURE §4：手机新建 `quick_captures` 本地表做待发队列 | 用 W7-0 的通用领域 outbox | 避免第二套待发队列 |
 | QUICK_CAPTURE §7：今日单摘要单独推回手机 | 手机直接读 `plan_days` 副本 | 规划数据本身就在 i_core |
-| B3 §3、§7：记录存 i_remote_mcp 账本，手机走 47862 拉取 | 记录存 i_core captures；手机走 i_core 变更流；"删除立即清正文"保留 | 原则 1；47862 的手机端从没实现（F7），不必再做 |
+| B3 §3、§7：记录存 i_remote_mcp 账本，手机走 47862 拉取 | 记录存 i_core captures；手机走 i_core 变更流；"删除立即清正文"保留 | 原则 1。**10/06 更正**：47862 的手机端在 B3 构建里已实现并在用，不能直接废弃；过渡顺序按调查 D3 |
 | life_planner README：规划不放 Here I Am | 规划放 i_core | 10/05 已改，本文确认 |
 | W8：今日单写回 `plan_items` 的顺序 | 写 `plan_days` | 见 8.2 |
 
@@ -445,9 +450,9 @@ dispositions: {
 |---|---|---|
 | 笔记本带去公司时，公司网络是否拦 Tailscale / Cloudflare 隧道 | 没有实测 | 第一次在公司用时：手机"立即同步"；claude.ai 调一次 `i_context` |
 | 上海网络下 Tailscale、Cloudflare 隧道、claude.ai 的可达性 | 没有实测 | 到上海第一天：手机"立即同步"；claude.ai 调一次 `i_context` |
-| 线上 i_remote_mcp 的真实行为 | 运行副本有 5 个文件和仓库不同（F10） | Codex 在本机对比差异后再动 W3 和记录迁移 |
-| i_remember 记录是否真的都停在电脑上 | Flutter 拉取端在仓库里不存在，但本机可能有未推送的改动 | 在网页端调 `i_remember list`，看 `phone_status` 是否都是 `waiting_for_phone` |
-| 手机上林埃的回复是否真的不进 i_core | 按代码是不进；没有查过真实库 | Codex 在本机只读查 i_core：导入日期之后、`origin_device_id` 为手机、`sender=companion` 的消息条数（预期为 0） |
+| 线上 i_remote_mcp 的真实行为 | 运行副本有 5 个文件和仓库不同（F10） | **10/06 已查**：差异和运行入口见调查 §2 |
+| i_remember 记录是否真的都停在电脑上 | Flutter 拉取端在仓库里不存在，但本机可能有未推送的改动 | **10/06 已查：不是。** B3 构建有拉取端，1 条记录 on_phone；当前拉取是否成功仍未核实（调查 §5.3） |
+| 手机上林埃的回复是否真的不进 i_core | 按代码是不进；没有查过真实库 | **10/06 已查：进了。** 10 条，经 B3 transcript 路径（推断，无逐请求记录）；当前是否持续上传未核实（调查 §4） |
 | 各类记忆卡的数量（决定迁移规模） | 没读真实数据 | 用已有 i_memory 快照按 `type`、`structured_type` 计数，只报数字 |
 | 手机库里有没有白板普通卡（`type=note`） | 白板主要在桌面端写 | 同上，按 `type=note` 计数 |
 | WI 的 `plan.json` 字段 | 分支没推送 | 读 WI 交接，对照本文第 8.2 节 |

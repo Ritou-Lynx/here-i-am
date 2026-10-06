@@ -8,7 +8,7 @@
 > - **W3**：`i_remember` 改写进 i_core `captures`（不再用本机账本和 47862 拉取通道）；加读 `plan_days` 的工具；i_memory 读取层的 policy 加领域白名单（ADR F8）。
 > - **W4**：本地待发队列用 W7-0 的通用 outbox，不另建 `quick_captures` 表；捕获页底部显示两个处理者的结果。
 > - **W8**：今日队列写 `plan_days`；`capture_sync` 用 `captures:read`、`captures:ack` 范围令牌，不用 worker 密钥。
-> - **第 2 节现状表**有两处和代码不符：手机上林埃的回复不在 i_core；网页端"帮我记一下"的记录目前到不了手机。以 ADR 第 2 节为准。
+> - **第 2 节现状表**按仓库代码写成。10/06 调查发现手机实际运行 B3 构建：林埃回复经 transcript 接口进了 i_core，网页端记录经 47862 到过手机。已就地更正，以 ADR 第 2 节为准。
 > - **新增并行项**：W7-0（手机端前置）在 W1 约定定稿后即可开工。
 
 本文给 Codex 分窗口执行用。每个窗口开工前先读本文的第 1～4 节，再读自己的任务卡（第 5 节）。
@@ -29,10 +29,10 @@
 
 | 数据 | 现在在哪 | 以谁为准 |
 |---|---|---|
-| 聊天记录 | 用户消息和网页端双方轮次在 i_core `chat_messages`；**手机上林埃的回复只在手机**（不进待发队列），i_core 里只有一次性导入的旧回复 | 用户消息以 i_core 为准；手机林埃回复暂无跨端权威（W1 放宽后由 W7-0 补上） |
+| 聊天记录 | 用户消息和网页端双方轮次在 i_core `chat_messages`；手机林埃回复：仓库主线不上传，但手机实际运行的 B3 构建经 Core 固定包的 transcript 接口上传（i_core 里有 10 条，10/06 调查） | i_core；上传路径要从 B3 transcript 迁到主线（调查 D1） |
 | 手机活动（MDA） | i_core activity 域（默认关闭） | i_core |
 | 收支、待办、睡眠、计划等记忆卡 | 手机 Memory V3（Drift） | 手机。电脑上只有 `tools/i_memory` 用 ADB 导出的只读快照 |
-| "帮我记一下"的记录 | `tools/i_remote_mcp/.state/writeback.sqlite`；手机拉取端**没实现**，记录目前到不了手机 | i_remote_mcp（决定迁入 i_core `captures`） |
+| "帮我记一下"的记录 | `tools/i_remote_mcp/.state/writeback.sqlite`；仓库主线没有手机拉取端，但手机 B3 构建经 47862 拉取并成卡（1 条 on_phone） | i_remote_mcp（决定迁入 i_core `captures`，47862 桥在 captures 闭环验证前保留） |
 | 学习账本、招聘日历 | 思源数据库 | 思源 |
 | 规划 | WI 过渡期本机文件（`plan.json` / `week.md` / `today.md`） | 本机文件，W2 后迁入 i_core |
 | 教招档案 | `D:\教师招聘备考系统` | 只读档案 |
