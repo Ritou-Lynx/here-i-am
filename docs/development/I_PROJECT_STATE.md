@@ -1,6 +1,19 @@
 # 林埃的项目状态
 
-## PR14 自动运行候选验收（2026-10-06）
+## PR14 大容量防回退与现场清单（2026-10-06）
+
+继续同一codex/core-deploy-readiness-20261006 / 草稿PR14，base v3-lab@90f23ce1，不合并不部署。外置domain记录见证改固定摘要，完整认证操作历史重建物化结果；历史改写、revision/body回退、缺行、FK损坏仍拒绝。四只读线程与64MiB临时SQLite缓存没有省略深审计/旧历史；每phase原生证明仍使用新challenge/sequence/MAC和真实句柄。
+
+最终200k容量344.350秒通过，多revision/删除/purge和六种损坏全部验证；floor2213→2674字节，孤儿FK在seal/recover拒绝且head逐字不前进。真实Windows固定包两档完整关闭/异常恢复/每日备份：10倍3.118/25.729/11.865秒，50倍9.014/70.049/51.587秒；备份不含U盘镜像/调度等待，不把局部profile当总耗时。旧超标版明确保留。
+
+主窗650tests/649pass/0fail/0cancel/1既有大小写环境skip，885951.5865ms，相邻95/95；46库存、Node28/PS16语法通过。正式源码/固定manifest与烟测提交后绑定，新精确head CI回执登记同PR，旧a608绿不能代替本次结果。详见[本轮大容量验收](handoffs/SCHEMA6_SCALED_RECOVERY_20261006.md)。
+
+[现场④–⑥](handoffs/SCHEMA6_CUTOVER_FIELD_CHECKLIST_20261006.md)覆盖历史精确任务/进程/端口/路径、失败退回、NTFS U盘本人决定格式化（i不格式化）、恢复口令/任务本人批准、合并另授权→合并后重建→切换另授权和真关机四Gate。邮件debug关闭，47862保留、legacy_b3唯一上传器。ARSO实际行为不确定；新电脑新DPAPI/独立恢复key/current-head/配置绑定以建立现役Core列下一轮缺口，本轮只读检查还原。
+
+本轮现役Core/MCP/隧道、原库、真实任务和手机均未读取或操作；没有实际关机/注册任务/装手机。只推同PR，新CI全绿后暂停等审核。
+
+
+## PR14 自动运行候选验收（前轮已通过，2026-10-06）
 
 继续 `codex/core-deploy-readiness-20261006` / 草稿 PR14，base仍 `v3-lab@90f23ce1`。固定源 `9553cd2b2723cc389d7edf478dd33ff3ad478aa8`：主窗604tests/603pass/0fail/0cancel/1既有大小写环境skip，1,005,950.4859ms；六类原生/合成关机和中断演练全部通过。新43项固定包manifest `08cc28a2e694f66349ac8f2c772378cdd6da476cd08cdf5a009bfe837747095c`，Node25+PS16语法通过，真实启动/认证停止/Job/锁烟测68,500ms通过。最终文档提交库存逐字复核、远端全部检查以同PR正文/Checks精确head实际回执登记，全绿后暂停；不合主线、不部署。
 

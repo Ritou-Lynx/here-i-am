@@ -3,9 +3,9 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { cleanEnvironment, plainPath, sha256, verifyRelease } from '../package.mjs';
-import { assertNode, inspectExisting, stateDigest, validatePrevious, MARKER, separatePaths, readConfigurationDeclaration, publicLifecycleErrorCode } from './common.mjs';
+import { assertNode, inspectExisting, closedStateSnapshot, validatePrevious, MARKER, separatePaths, readConfigurationDeclaration, publicLifecycleErrorCode } from './common.mjs';
 import { readConfiguration, protectedPath } from './configuration.mjs';
-import { createOfflineLease, recordClosedDatabase } from './offline_lease.mjs';
+import { createOfflineLease, recordClosedDatabase, closeOfflineLease } from './offline_lease.mjs';
 import { sealClosedRecovery, verifyCanonicalRestart, migrateToSchema6, rollbackEmptySchema6 } from '../recovery_adapter.mjs';
 import { needsStartupRecovery, recoverAtStartup } from '../automatic_recovery.mjs';
 import { isInspectionDatabasePath } from '../../inspection_read_only.mjs';
@@ -33,16 +33,19 @@ async function shutdown(reason,failure=null) {
   if(core || offlineCompleted) {
    if(core) await core.close();
    if(core && (core.server.listening || core.store.db.isOpen)) throw new Error('resource_close_unconfirmed');
-   const final=inspectExisting(path.join(config.state,'i-core.sqlite'),['5','6']);
-   if(final.nodeId!==lifecycle.node_id) throw new Error('closed_identity_mismatch');
+   // The seal's immutable inspect verifies actual identity/schema/claim and full
+   // integrity against this exact closed hash; do not duplicate that scan here.
+   const snapshot=closedStateSnapshot(config.state);
+   const final={nodeId:lifecycle.node_id,database_sha256:snapshot.databaseSha256};
    recordClosedDatabase(lease,closedReceipt(final));
    const custody=await sealClosedRecovery({databasePath:path.join(config.state,'i-core.sqlite'),supervisorLease:lease,
      custodyDirectory:settings.value.recovery_custody_directory,custodyKey:settings.custodyKey});
    lifecycle={...lifecycle,phase:'close_prepared',database_sha256:final.database_sha256,
-    state_tree_sha256:stateDigest(config.state),custody_sha256:custody.custodySha256};
+    state_tree_sha256:snapshot.stateTreeSha256,custody_sha256:custody.custodySha256};
    saveMarker(lifecycle);clean=true;
   }
  } catch(error){failure??=error;clean=false;}
+ try{await closeOfflineLease(lease);}catch(error){failure??=error;clean=false;}
  if(failure)clean=false;
  writeControl('child.json',{token,mode,manifest_sha256:config.manifest_sha256,
   phase:clean?'clean_closed':started?'recovery_required':'rejected_before_store',reason,

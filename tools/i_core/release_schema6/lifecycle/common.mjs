@@ -1,12 +1,19 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 import { plainPath, sha256, fail, PINNED_NODE_SHA256 } from '../package.mjs';
 export const MARKER = 's6-lifecycle.json';
 export const LOCK = 'shortcut-mail-relay.runtime.lock';
+function fileSha256(filename) {
+ const digest=createHash('sha256'),buffer=Buffer.alloc(1024*1024),fd=openSync(plainPath(filename),'r');
+ try{let count;while((count=readSync(fd,buffer,0,buffer.length,null))>0)digest.update(buffer.subarray(0,count));return digest.digest('hex');}
+ finally{buffer.fill(0);closeSync(fd);}
+}
+
 export function assertNode() {
- if (process.version !== 'v24.14.1' || sha256(readFileSync(process.execPath)) !== PINNED_NODE_SHA256 || process.execArgv.length) fail('node_runtime_unbound');
+ if (process.version !== 'v24.14.1' || fileSha256(process.execPath) !== PINNED_NODE_SHA256 || process.execArgv.length) fail('node_runtime_unbound');
 }
 export function separatePaths(...paths) {
  for (let i=0;i<paths.length;i++) for(let j=i+1;j<paths.length;j++) {
@@ -14,7 +21,8 @@ export function separatePaths(...paths) {
   if(a===b || a.startsWith(b+path.sep) || b.startsWith(a+path.sep)) fail('paths_must_be_separate');
  }
 }
-export function stateDigest(root) {
+export function closedStateSnapshot(root) {
+ let databaseSha256=null;
  plainPath(root);
  const walk = (directory, prefix='') => readdirSync(directory,{withFileTypes:true}).sort((a,b)=>a.name<b.name?-1:1).flatMap(e=>{
   const relative=prefix+e.name;
@@ -22,14 +30,17 @@ export function stateDigest(root) {
   const filename=plainPath(path.join(directory,e.name));
   if(e.isDirectory()) return [[relative+'/',null],...walk(filename,relative+'/')];
   if(!e.isFile()) fail('state_inventory_invalid');
-  return [[relative,sha256(readFileSync(filename))]];
+  const digest=fileSha256(filename);if(relative==='i-core.sqlite')databaseSha256=digest;
+  return [[relative,digest]];
  });
- return sha256(JSON.stringify(walk(root)));
+ const stateTreeSha256=sha256(JSON.stringify(walk(root)));
+ return {stateTreeSha256,databaseSha256};
 }
+export function stateDigest(root) {return closedStateSnapshot(root).stateTreeSha256;}
 export function inspectExisting(filename, versions=['6']) {
  plainPath(filename);
  for(const suffix of ['-wal','-shm','-journal']) if(existsSync(filename+suffix)) fail('state_sidecars_require_review');
- const before=sha256(readFileSync(filename));
+ const before=fileSha256(filename);
  const db=new DatabaseSync(pathToFileURL(filename).href+'?mode=ro&immutable=1',{readOnly:true});
  try {
   const meta=new Map(db.prepare('SELECT key,value FROM core_metadata').all().map(r=>[r.key,r.value]));
@@ -43,7 +54,7 @@ export function inspectExisting(filename, versions=['6']) {
    if(!claim || claim.runtime_id!=='' || claim.lease_expires_at_ms!==0) fail('activity_recovery_required');
   }
   return {version,nodeId:meta.get('node_id'),database_sha256:before};
- } finally { db.close(); if(sha256(readFileSync(filename))!==before) fail('state_changed_during_preflight'); }
+ } finally { db.close(); if(fileSha256(filename)!==before) fail('state_changed_during_preflight'); }
 }
 export function validatePrevious(marker, config, before, configurationHash) {
  if(!marker || marker.format!=='schema6-lifecycle-v1' || marker.phase!=='clean_closed'
@@ -60,7 +71,7 @@ export function validatePrevious(marker, config, before, configurationHash) {
 
 const SAFE_STARTUP_CODES=new Set([
  'domain_receipt_authentication_failed','domain_operation_authentication_failed','domain_record_result_mismatch','domain_record_envelope_invalid',
- 'domain_accepted_target_invalid','domain_record_witness_limit','domain_record_revision_invalid','old_domain_witness_unverifiable',
+ 'domain_accepted_target_invalid','domain_record_witness_limit', 'recovery_witness_unavailable', 'offline_probe_failed', 'offline_probe_cleanup_failed','domain_record_revision_invalid','old_domain_witness_unverifiable',
  'domain_record_rollback_rejected','domain_record_advance_unproven','domain_record_materialization_mismatch',
  'active_runtime_claim','activity_authority_busy','activity_database_binding_invalid','activity_database_binding_mismatch','activity_database_role_changed',
  'activity_disabled','activity_floor_not_created','activity_floor_required','activity_integrity_upgrade_unsupported','activity_migration_incomplete',

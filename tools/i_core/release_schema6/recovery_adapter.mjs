@@ -13,11 +13,36 @@ import { assertOfflineLease, withOfflineCustodyLock } from './lifecycle/offline_
 import { verifyInitialRuntimeBackup } from './backup_bundle.mjs';
 import { preserveRawState, verifyRawState, assertRawUnchanged, rawFileHash, RAW_SUFFIXES } from './raw_state_backup.mjs';
 import { isInspectionDatabasePath } from '../inspection_read_only.mjs';
+import { startReadonlyWitness, collectReadonlyWitness, closeReadonlyWitness } from './readonly_witness.mjs';
 
 // No CLI, boolean proof, injectable verifier, ENV switch, or synthetic lease export.
 // Only the fixed supervisor module can recognize a live offline capability.
 const HEX = /^[a-f0-9]{64}$/;
 const encode = value => JSON.stringify(value, (_, v) => typeof v === 'bigint' ? { integer: String(v) } : v instanceof Uint8Array ? { bytes: Buffer.from(v).toString('base64') } : v);
+// SQLite rows are flat primitives. This preserves the v1 byte encoding while
+// avoiding a recursive JSON replacer for every field of every historical row.
+function encodeRecoveryRow(row){
+ const normalized=Object.create(null);
+ for(const key of Object.keys(row)){
+  const value=row[key];
+  normalized[key]=typeof value==='bigint'?{integer:String(value)}:value instanceof Uint8Array?{bytes:Buffer.from(value).toString('base64')}:value;
+ }
+ return JSON.stringify(normalized);
+}
+// Persisted DomainStore JSON is already canonical. Validate that fact rather
+// than allocating and sorting another complete nested copy on each MAC. The
+// original canonicalJSON remains the exact fallback for any other key order.
+function canonicalRecoveryJSON(value){
+ const ordered=v=>{
+  if(Array.isArray(v))return v.every(ordered);
+  if(v&&typeof v==='object'&&Object.getPrototypeOf(v)===Object.prototype){
+   const keys=Object.keys(v);
+   return keys.every((k,i)=>!i||keys[i-1]<=k)&&keys.every(k=>ordered(v[k]));
+  }
+  return true;
+ };
+ return ordered(value)?JSON.stringify(value):canonicalJSON(value);
+}
 const meta = (db, key) => db.prepare('SELECT value FROM core_metadata WHERE key=?').get(key)?.value;
 const quote = name => `"${name.replaceAll('"', '""')}"`;
 const mac = (body, key) => createHmac('sha256', key).update('i-core-floor-custody-v1\0').update(JSON.stringify(body)).digest('hex');
@@ -122,31 +147,57 @@ function emptyGenesis(db) {
  const claim=db.prepare('SELECT runtime_fence FROM activity_runtime_claim WHERE singleton=1').get();
  if(claim.runtime_fence!==0)fail('custody_genesis_not_empty');
 }
-function inspect(options, callback) {
+function inspect(options, callback, plan=null) {
  const physical=options.inspectionPath??options.databasePath;
  strictClosedPath(physical);
- const before = rawFileHash(physical);
+ const before = plan?.closedHash??rawFileHash(physical);
+ let readers,value,complete=false;
  const db = new DatabaseSync(`${pathToFileURL(physical).href}?mode=ro&immutable=1`, { readOnly: true });
  try {
-  if (db.prepare('PRAGMA integrity_check').all().some(row => Object.values(row)[0] !== 'ok') || db.prepare('PRAGMA foreign_key_check').all().length) fail('database_integrity_failed');
+  // A bounded per-inspection cache accelerates full SQLite b-tree/index
+  // verification. It is transient memory, not a saved proof or partial audit.
+  db.exec('PRAGMA cache_size=-65536');
+  if(plan?.witness&&Number(meta(db,'schema_version'))===6){
+   const rows=['change_events','chat_messages','domain_records'].reduce((n,t)=>n+Number(db.prepare('SELECT COALESCE(MAX(rowid),0) AS n FROM '+quote(t)).get().n),0);
+   if(rows>=100000)readers=startReadonlyWitness(physical,plan.priorWitness??null,plan.activity??{canonicalDatabasePath:options.databasePath,priorActivityFloor:null,floorMode:'none'});
+  }
+  if (db.prepare('PRAGMA integrity_check').all().some(row => Object.values(row)[0] !== 'ok')
+    // The activity worker performs the same full-database foreign-key check
+    // inside activitySchemaStatus(deepAudit=true). Never omit it without that
+    // actual private worker; every unsuccessful schema status is rejected.
+    || (!readers&&db.prepare('PRAGMA foreign_key_check').all().length)) fail('database_integrity_failed');
   const version = Number(meta(db,'schema_version')), nodeId = meta(db,'node_id'), cursorSecret = meta(db,'cursor_secret');
   if (![4,5,6].includes(version) || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(nodeId ?? '') || !/^[A-Za-z0-9_-]{43}$/.test(cursorSecret ?? '')) fail('core_identity_invalid');
   if (meta(db,'domain_backup_role')) fail('backup_activation_unsupported');
   if (Buffer.from(options.custodyKey).equals(Buffer.from(cursorSecret,'base64url'))) fail('custody_key_not_independent');
+  const parts=readers?collectReadonlyWitness(readers):null;
   if (version === 4) {
    if (db.prepare("SELECT 1 FROM sqlite_master WHERE name LIKE 'activity_%' OR name LIKE 'domain_%' LIMIT 1").get()
       || db.prepare("SELECT 1 FROM core_metadata WHERE key LIKE 'activity_%' OR key LIKE 'domain_%' LIMIT 1").get()) fail('schema4_genesis_not_empty');
   } else {
    const role = db.prepare("SELECT value FROM activity_metadata WHERE key='database_role'").get()?.value;
    if (role !== 'live') fail('backup_activation_unsupported');
-   const status = activitySchemaStatus(db, { expectedDatabaseBindingDigest: sha256(`activity-live-path:${path.normalize(realpathSync.native(options.databasePath))}`) });
-   if (!status.ready) fail(status.reason === 'database_binding_mismatch' ? 'activity_database_binding_mismatch' : 'activity_schema_not_ready');
+   const bindingDigest=sha256('activity-live-path:'+path.normalize(realpathSync.native(options.databasePath)));
+   if(parts?.activity){
+    if(parts.activity.schemaVersion!==6||parts.activity.nodeId!==nodeId||parts.activity.bindingDigest!==bindingDigest
+      ||parts.activity.floorMode!==(plan?.activity?.floorMode??'none'))fail('invalid_internal_arguments');
+   }else{
+    const status=activitySchemaStatus(db,{expectedDatabaseBindingDigest:bindingDigest});
+    if(!status.ready)fail(status.reason==='foreign_key_invariant_failed'?'database_integrity_failed':status.reason==='database_binding_invariant_failed'?'activity_database_binding_mismatch':'activity_schema_not_ready');
+   }
    const claim = db.prepare('SELECT runtime_id,lease_expires_at_ms FROM activity_runtime_claim WHERE singleton=1').get();
    if (!claim || claim.runtime_id !== '' || claim.lease_expires_at_ms !== 0) fail('active_runtime_claim');
    if (version === 6) assertDomainSchemaReady(db);
   }
-  return callback(db, { version, nodeId, cursorSecret, databaseSha256: before });
- } finally { db.close(); if (rawFileHash(physical) !== before) fail('database_changed_during_inspection'); strictClosedPath(physical); }
+  value=callback(db, { version, nodeId, cursorSecret, databaseSha256: before },parts);complete=true;return value;
+ } finally {
+  closeReadonlyWitness(readers);db.close();
+  // This private floor-only finalizer runs after all SQLite readers closed.
+  // The last complete SHA then covers inspection and floor persistence before
+  // head commit, replacing two scans around writes to the independent floor.
+  if(complete)plan?.afterClosed?.(value);
+  if (rawFileHash(physical) !== before) fail('database_changed_during_inspection'); strictClosedPath(physical);
+ }
 }
 function legacyDigest(db) {
  const objects = db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'activity_%' AND name NOT LIKE 'domain_%' AND tbl_name NOT LIKE 'activity_%' AND tbl_name NOT LIKE 'domain_%' ORDER BY type,name").all();
@@ -161,92 +212,156 @@ function legacyDigest(db) {
 function receiptMatches(receipt, info) {
  if (receipt.nodeId !== info.nodeId || receipt.databaseSha256 !== info.databaseSha256) fail('clean_close_identity_mismatch');
 }
-// Bounded prefix evidence for immutable operation histories. Mutable records
-// carry revision/hash witnesses; accepted higher revisions remain valid progress.
-function prefix(db,table,cut=null){
+// Fixed-size witnesses retain exact immutable prefix boundaries. Each pass
+// computes the current digest and checks the previously sealed cut together.
+function prefix(db,table,cut=null,prior=null,visit=null){
  const boundary=cut??Number(db.prepare('SELECT COALESCE(MAX(rowid),0) AS n FROM '+quote(table)).get().n);
  if(!Number.isSafeInteger(boundary)||boundary<0)fail('progress_sequence_invalid');
+ if(prior&&(!Number.isSafeInteger(prior.cut)||prior.cut<0||prior.cut>boundary))fail('recovery_history_diverged');
  const statement=db.prepare('SELECT rowid AS _rowid_,* FROM '+quote(table)+' WHERE rowid<=? ORDER BY rowid');statement.setReadBigInts(true);
- const digest=createHash('sha256');let count=0;
- for(const row of statement.iterate(boundary)){digest.update(encode(row)).update('\n');count++;}
+ const digest=createHash('sha256'),old=prior?createHash('sha256'):null;let count=0,oldCount=0;
+ for(const row of statement.iterate(boundary)){
+  const encoded=encodeRecoveryRow(row)+'\n';digest.update(encoded);count++;
+  if(prior&&row._rowid_<=BigInt(prior.cut)){old.update(encoded);oldCount++;}
+  visit?.(row);
+ }
+ if(prior&&(oldCount!==prior.count||old.digest('hex')!==prior.sha256))fail('recovery_history_diverged');
  return {table,cut:boundary,count,sha256:digest.digest('hex')};
 }
 const recordKey=r=>JSON.stringify([r.namespace,r.domain,r.id]);
-function domainRecordWitness(db){
- if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='domain_records'").get())return [];
- const records=[];
- for(const r of db.prepare('SELECT * FROM domain_records ORDER BY namespace,domain,id').iterate()){
-  if(records.length>=16384)fail('domain_record_witness_limit');
+function recordSummary(records){
+ const digest=createHash('sha256');let maxRevision=0;
+ // Sort identities rather than bodies. JSON identity encoding is identical for
+ // reconstructed commitments and current rows, including non-ASCII IDs.
+ for(const key of [...records.keys()].sort()){
+  const r=records.get(key);maxRevision=Math.max(maxRevision,r.revision);
+  digest.update(encode([key,r.revision,r.rowAuth??null])).update('\n');
+ }
+ return {format:'i-core-domain-record-witness-v2',count:records.size,maxRevision,sha256:digest.digest('hex')};
+}
+function domainRecordWitness(db,domainMac,legacy=false){
+ const records=new Map(),nodeId=meta(db,'node_id');
+ if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='domain_records'").get())return records;
+ const statement=db.prepare('SELECT * FROM domain_records');
+ for(const r of statement.iterate()){
   if(!Number.isSafeInteger(r.revision)||r.revision<1)fail('domain_record_revision_invalid');
-  const envelope=JSON.parse(r.envelope_json);
-  if(envelope.id!==r.id||envelope.domain!==r.domain||envelope.revision!==r.revision||envelope.core_instance_id!==meta(db,'node_id')||!['present','recoverable','purged'].includes(envelope.body_state)
+  let envelope;try{envelope=JSON.parse(r.envelope_json);}catch{fail('domain_record_envelope_invalid');}
+  if(envelope.id!==r.id||envelope.domain!==r.domain||envelope.revision!==r.revision||envelope.core_instance_id!==nodeId||!['present','recoverable','purged'].includes(envelope.body_state)
     ||(envelope.body_state==='present'&&envelope.deleted_at!==null)||(envelope.body_state!=='present'&&!envelope.deleted_at)||(envelope.body_state==='purged'&&r.body_json!==null))fail('domain_record_envelope_invalid');
-  records.push({namespace:r.namespace,domain:r.domain,id:r.id,revision:r.revision,rowSha256:sha256(encode(r))});
+  records.set(recordKey(r),{revision:r.revision,rowAuth:domainMac({body_json:r.body_json,domain:r.domain,envelope_json:r.envelope_json,format:'domain-record-result-v1',id:r.id,namespace:r.namespace,revision:r.revision}),...(legacy?{rowSha256:sha256(encode(r))}:{})});
  }
  return records;
 }
-function domainAcceptedTargets(db){
- const targets=new Map();
- if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='domain_records'").get())return targets;
- const secret=meta(db,'cursor_secret'),nodeId=meta(db,'node_id');
- const domainMac=value=>createHmac('sha256',secret).update(canonicalJSON(value)).digest('hex');
+function domainAcceptedTargets(db,cut=null,oldPrefixes=new Map()){
+ const targets=new Map(),secret=meta(db,'cursor_secret'),nodeId=meta(db,'node_id');
+ const domainMac=value=>createHmac('sha256',secret).update(canonicalRecoveryJSON(value)).digest('hex');
+ let priorTargets=null;
+ if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='domain_records'").get())return {targets,priorTargets:new Map(),domainMac,prefixes:[]};
  const receipts=new Map();
- for(const row of db.prepare('SELECT * FROM domain_receipts').iterate()){
-  const {receipt_auth,...receipt}=JSON.parse(row.receipt_json);
+ const receiptPrefix=prefix(db,'domain_receipts',null,oldPrefixes.get('domain_receipts'),row=>{
+  let parsed;try{parsed=JSON.parse(row.receipt_json);}catch{fail('domain_receipt_authentication_failed');}
+  const {receipt_auth,...receipt}=parsed;
   if(receipt_auth!==domainMac(receipt)||receipt.receipt_id!==row.receipt_id||receipt.domain!==row.domain||receipt.core_instance_id!==nodeId)fail('domain_receipt_authentication_failed');
   receipts.set(JSON.stringify([row.namespace,row.domain,receipt.principal_id,receipt.accepted_op_id]),receipt);
- }
- for(const row of db.prepare('SELECT * FROM domain_ops').iterate()){
-  const {recovery_auth,...metadata}=JSON.parse(row.op_meta_json),result=JSON.parse(row.result_json);
-  const authenticated=typeof recovery_auth==='string'&&recovery_auth===domainMac({format:'domain-operation-recovery-v1',namespace:row.namespace,principal_id:row.principal_id,domain:row.domain,op_id:row.op_id,request_digest:row.request_digest,result,metadata});
+ });
+ const operationPrefix=prefix(db,'domain_ops',null,oldPrefixes.get('domain_ops'),row=>{
+  if(cut!==null&&priorTargets===null&&row._rowid_>cut)priorTargets=new Map(targets);
+  let parsed,result;try{parsed=JSON.parse(row.op_meta_json);result=JSON.parse(row.result_json);}catch{fail('domain_operation_authentication_failed');}
+  const {recovery_auth,...metadata}=parsed;
+  const authenticated=typeof recovery_auth==='string'&&recovery_auth===domainMac({domain:row.domain,format:'domain-operation-recovery-v1',metadata,namespace:row.namespace,op_id:row.op_id,principal_id:row.principal_id,request_digest:row.request_digest,result});
   if(recovery_auth&&!authenticated)fail('domain_operation_authentication_failed');
   const receipt=receipts.get(JSON.stringify([row.namespace,row.domain,row.principal_id,row.op_id]));
   const accepted=row.namespace==='production'?!!receipt:metadata.outcome==='shadow_staged'||metadata.kind==='retention_purge'&&metadata.outcome==='accepted';
-  if(!accepted)continue;
+  if(!accepted)return;
   const items=receipt?.targets??metadata.targets??[];
   if(authenticated&&canonicalJSON(items)!==canonicalJSON(metadata.targets))fail('domain_accepted_target_invalid');
   for(const item of items){
    if(typeof item.id!=='string'||!Number.isSafeInteger(item.revision)||item.revision<1)fail('domain_accepted_target_invalid');
    const commitment=metadata.recovery_rows?.find(r=>r.id===item.id&&r.revision===item.revision),key=recordKey({...row,id:item.id});
-   if(!targets.has(key)||targets.get(key).revision<item.revision)targets.set(key,{revision:item.revision,authenticated,rowAuth:commitment?.row_auth});
+   const next={revision:item.revision,authenticated,rowAuth:commitment?.row_auth},old=targets.get(key);
+   if(old&&old.revision===next.revision&&old.authenticated&&next.authenticated&&old.rowAuth!==next.rowAuth)fail('domain_record_materialization_mismatch');
+   if(!old||old.revision<next.revision)targets.set(key,next);
   }
- }
- return {targets,domainMac};
+ });
+ if(cut!==null&&priorTargets===null)priorTargets=new Map(targets);
+ return {targets,priorTargets,domainMac,prefixes:[operationPrefix,receiptPrefix]};
 }
-function assertDomainRecords(db,prior,current){
- if(!prior){if(current.length)fail('old_domain_witness_unverifiable');return;}
- const before=new Map(prior.map(r=>[recordKey(r),r])),after=new Map(current.map(r=>[recordKey(r),r]));
- const accepted=domainAcceptedTargets(db),latest=accepted.targets??accepted;
- for(const [key,old] of before){const next=after.get(key);if(!next||next.revision<old.revision||(next.revision===old.revision&&next.rowSha256!==old.rowSha256))fail('domain_record_rollback_rejected');}
- for(const [key,next] of after){const old=before.get(key),target=latest.get(key);
-  if(!old||next.revision>old.revision){
-   if(target?.revision!==next.revision||!target.authenticated)fail('domain_record_advance_unproven');
-   const row=db.prepare('SELECT * FROM domain_records WHERE namespace=? AND domain=? AND id=?').get(next.namespace,next.domain,next.id);
-   if(target.rowAuth!==accepted.domainMac({format:'domain-record-result-v1',...row}))fail('domain_record_result_mismatch');
+function assertDomainRecords(prior,current,accepted){
+ const legacy=Array.isArray(prior),before=legacy?new Map(prior.map(r=>[recordKey(r),r])):accepted.priorTargets;
+ if(prior&&!legacy){
+  if(prior.format!=='i-core-domain-record-witness-v2'||JSON.stringify(recordSummary(before??new Map()))!==JSON.stringify(prior))fail('domain_record_rollback_rejected');
+ }
+ if(legacy)for(const [key,old] of before){
+  const next=current.get(key);if(!next||next.revision<old.revision||(next.revision===old.revision&&next.rowSha256!==old.rowSha256))fail('domain_record_rollback_rejected');
+ }
+ for(const [key,next] of current){
+  const old=before?.get(key),target=accepted.targets.get(key);
+  if(!target||!target.authenticated||!HEX.test(target.rowAuth??'')){
+   if(legacy&&old&&old.revision===next.revision&&old.rowSha256===next.rowSha256)fail('old_domain_witness_unverifiable');
+   fail('domain_record_advance_unproven');
   }
-  if(target&&target.revision!==next.revision)fail('domain_record_materialization_mismatch');
+  if(target.revision!==next.revision)fail(next.revision<target.revision?'domain_record_rollback_rejected':'domain_record_materialization_mismatch');
+  if(target.rowAuth!==next.rowAuth)fail(old?.revision===next.revision?'domain_record_rollback_rejected':'domain_record_result_mismatch');
  }
- for(const [key] of latest)if(!after.has(key))fail('domain_record_materialization_mismatch');
+ for(const [key] of accepted.targets)if(!current.has(key))fail('domain_record_materialization_mismatch');
 }
-function captureProgressWitness(db){
+// Pure read-only components used by the fixed worker entry. An already
+// authenticated activity manifest is data; no custody key, lease or authority
+// is accepted or returned here.
+export function readRecoveryWitnessComponent(db,component,priorWitness=null,context=null){
+ if(component==='activity'){
+  if(!context||Object.getPrototypeOf(context)!==Object.prototype
+    ||Object.keys(context).sort().join(',')!=='canonicalDatabasePath,floorMode,priorActivityFloor'
+    ||!['none','progress','exact'].includes(context.floorMode)
+    ||(context.floorMode==='none'?context.priorActivityFloor!==null:!context.priorActivityFloor||Object.getPrototypeOf(context.priorActivityFloor)!==Object.prototype))fail('invalid_internal_arguments');
+  const canonical=plainPath(context.canonicalDatabasePath),bindingDigest=sha256('activity-live-path:'+path.normalize(realpathSync.native(canonical)));
+  const info={version:Number(meta(db,'schema_version')),nodeId:meta(db,'node_id'),cursorSecret:meta(db,'cursor_secret')};
+  if(info.version!==6)fail('schema6_required');
+  if(db.prepare("SELECT value FROM activity_metadata WHERE key='database_role'").get()?.value!=='live')fail('backup_activation_unsupported');
+  const status=activitySchemaStatus(db,{expectedDatabaseBindingDigest:bindingDigest});
+  if(!status.ready)fail(status.reason==='foreign_key_invariant_failed'?'database_integrity_failed':status.reason==='database_binding_invariant_failed'?'activity_database_binding_mismatch':'activity_schema_not_ready');
+  const claim=db.prepare('SELECT runtime_id,lease_expires_at_ms FROM activity_runtime_claim WHERE singleton=1').get();
+  if(!claim||claim.runtime_id!==''||claim.lease_expires_at_ms!==0)fail('active_runtime_claim');
+  let activityFloor;
+  if(context.floorMode==='progress')activityFloor=assertActivityRecoveryProgressForDatabase(db,context.priorActivityFloor,info).manifest;
+  else{
+   if(context.floorMode==='exact')assertActivityRecoveryFloorForDatabase(db,context.priorActivityFloor,info);
+   activityFloor=activityRecoveryManifestForDatabase(db,info);
+  }
+  return {schemaVersion:6,nodeId:info.nodeId,bindingDigest,floorMode:context.floorMode,activityFloor};
+ }
+ if(context!==null)fail('invalid_internal_arguments');
+ const oldPrefixes=new Map((priorWitness?.prefixes??[]).map(p=>[p.table,p]));
+ if(component==='change_events'||component==='chat_messages')return prefix(db,component,null,oldPrefixes.get(component));
+ if(component!=='domain')fail('invalid_internal_arguments');
+ const accepted=domainAcceptedTargets(db,priorWitness?oldPrefixes.get('domain_ops')?.cut??0:null,oldPrefixes);
+ const records=domainRecordWitness(db,accepted.domainMac,Array.isArray(priorWitness?.domainRecords));
+ assertDomainRecords(priorWitness?.domainRecords,records,accepted);
+ return {prefixes:accepted.prefixes,domainRecords:recordSummary(records)};
+}
+function captureProgressWitness(db,prior=null,parts=null){
  const has=name=>!!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
- return {format:'i-core-progress-witness-v1',
-  identity:sha256(encode(db.prepare("SELECT key,value FROM core_metadata WHERE key IN ('node_id','cursor_secret') ORDER BY key").all())),
-  prefixes:['change_events','chat_messages','domain_ops','domain_receipts','domain_schema_migrations','activity_schema_migrations','activity_changes'].filter(has).map(t=>prefix(db,t)),
+ const tables=['change_events','chat_messages','domain_ops','domain_receipts','domain_schema_migrations','activity_schema_migrations','activity_changes'].filter(has);
+ const oldPrefixes=new Map((prior?.prefixes??[]).map(p=>[p.table,p]));
+ for(const table of oldPrefixes.keys())if(!tables.includes(table))fail('recovery_history_diverged');
+ const otherPrefixes=new Map(tables.filter(t=>!['domain_ops','domain_receipts'].includes(t)).map(t=>[t,parts?.[t]??prefix(db,t,null,oldPrefixes.get(t))]));
+ const domain=parts?.domain??readRecoveryWitnessComponent(db,'domain',prior);
+ for(const value of domain.prefixes)otherPrefixes.set(value.table,value);
+ const prefixes=tables.map(t=>otherPrefixes.get(t));
+ return {format:'i-core-progress-witness-v2',
+  identity:sha256(encode(db.prepare("SELECT key,value FROM core_metadata WHERE key IN ('node_id','cursor_secret') ORDER BY key").all())),prefixes,
   sequences:has('sqlite_sequence')?db.prepare('SELECT name,seq FROM sqlite_sequence ORDER BY name').all():[],
   devices:db.prepare('SELECT device_id,paired_at_ms,last_ack_sequence FROM devices ORDER BY device_id').all(),
-  domainPrincipals:has('domain_principals')?db.prepare('SELECT principal_id,generation,status FROM domain_principals ORDER BY principal_id').all():[],domainRecords:domainRecordWitness(db),
+  domainPrincipals:has('domain_principals')?db.prepare('SELECT principal_id,generation,status FROM domain_principals ORDER BY principal_id').all():[],domainRecords:domain.domainRecords,
   domainProgress:has('domain_registry')?db.prepare('SELECT domain,schema_json FROM domain_registry ORDER BY domain').all().map(r=>{
    const runtime=JSON.parse(r.schema_json).runtime??{};
    return {domain:r.domain,watermarks:runtime.watermarks??{},highwaters:runtime.highwaters??{}};
   }):[]};
 }
-function assertProgressWitness(db,witness){
- if(witness?.format!=='i-core-progress-witness-v1'||!Array.isArray(witness.prefixes))fail('progress_witness_required');
- const current=captureProgressWitness(db);
- assertDomainRecords(db,witness.domainRecords,current.domainRecords);
+function assertProgressWitness(db,witness,parts=null){
+ if(!['i-core-progress-witness-v1','i-core-progress-witness-v2'].includes(witness?.format)||!Array.isArray(witness.prefixes))fail('progress_witness_required');
+ const current=captureProgressWitness(db,witness,parts);
  if(current.identity!==witness.identity)fail('core_identity_rollback_rejected');
- for(const old of witness.prefixes){if(JSON.stringify(prefix(db,old.table,old.cut))!==JSON.stringify(old))fail('recovery_history_diverged');}
  const sequences=new Map(current.sequences.map(r=>[r.name,r.seq]));
  for(const old of witness.sequences)if(!sequences.has(old.name)||sequences.get(old.name)<old.seq)fail('core_sequence_rollback_rejected');
  const devices=new Map(current.devices.map(r=>[r.device_id,r]));
@@ -257,6 +372,7 @@ function assertProgressWitness(db,witness){
  for(const old of witness.domainProgress??[]){const next=domainProgress.get(old.domain);if(!next)fail('domain_progress_rollback_rejected');
   for(const key of ['watermarks','highwaters'])for(const [ns,value] of Object.entries(old[key]))if(!Number.isSafeInteger(value)||!Number.isSafeInteger(next[key][ns]??0)||(next[key][ns]??0)<value)fail('domain_progress_rollback_rejected');
  }
+ return current;
 }
 function floorAtHead(options,head){
  const raw=readFileSync(plainPath(path.join(options.custodyDirectory,head.custodySha256+'.floor.json')));
@@ -265,9 +381,9 @@ function floorAtHead(options,head){
  if(body.databasePath!==options.databasePath||body.nodeId!==head.nodeId||body.cleanCloseReceiptId!==head.receiptId)fail('custody_identity_mismatch');
  return body;
 }
-function assertProgress(db,body,info){
+function assertProgress(db,body,info,parts=null){
  if(body.schemaVersion!==info.version||body.nodeId!==info.nodeId)fail('custody_identity_mismatch');
- if(body.progressWitness){assertProgressWitness(db,body.progressWitness);assertActivityRecoveryProgressForDatabase(db,body.activityRecoveryFloor,info);}
+ if(body.progressWitness){const witness=assertProgressWitness(db,body.progressWitness,parts),activityFloor=parts?.activity?.floorMode==='progress'?parts.activity.activityFloor:assertActivityRecoveryProgressForDatabase(db,body.activityRecoveryFloor,info).manifest;return {witness,activityFloor};}
  else {
   // An old activity-only floor cannot prove that Core history advanced rather
   // than rolled back while the dormant activity tables stayed identical.
@@ -290,28 +406,33 @@ function readCustody(options, info, receipt) {
    || body.databaseSha256 !== info.databaseSha256 || body.schemaVersion !== info.version || body.cleanCloseReceiptId !== receipt.receiptId) fail('custody_identity_mismatch');
  return body;
 }
-function saveCustody(options, receipt, origin, expectedFloor = null) {
+function saveCustody(options, receipt, origin, expectedFloor = null, closedPrior = undefined) {
  proof(options, 'before_custody_capture');
  const previous = readHead(options,{allowMissing:origin==='verified_schema4_genesis'||origin==='empty_provision'});
  if (!previous && !['verified_schema4_genesis','empty_provision'].includes(origin)) fail('independent_custody_head_required');
- const body = inspect(options, (db, info) => {
+ const priorBody=closedPrior?floorAtHead(options,closedPrior):null;
+ let custodySha256,custodyPath;
+ const persist=body=>{
+  proof(options, 'before_custody_write');
+  mkdirSync(options.custodyDirectory,{recursive:true,mode:0o700}); plainPath(options.custodyDirectory);
+  const raw = Buffer.from(JSON.stringify({...body,authentication:mac(body,options.custodyKey)})+'\n');
+  if(raw.length>4*1024*1024)fail('custody_too_large');
+  custodySha256=sha256(raw);custodyPath=path.join(options.custodyDirectory,custodySha256+'.floor.json');
+  if (existsSync(custodyPath)) { if (!readFileSync(plainPath(custodyPath)).equals(raw)) fail('custody_collision'); }
+  else writeFileSync(custodyPath,raw,{flag:'wx',mode:0o600,flush:true});
+  proof(options, 'after_custody_write');
+  if (!readFileSync(plainPath(custodyPath)).equals(raw)) fail('custody_write_unverified');
+  strictClosedPath(options.databasePath);
+ };
+ const body = inspect(options, (db, info, parts) => {
   if (info.version === 4) fail('activity_floor_not_created');
-  if (expectedFloor) assertActivityRecoveryFloorForDatabase(db, expectedFloor, info);
+  if (expectedFloor&&parts?.activity?.floorMode!=='exact') assertActivityRecoveryFloorForDatabase(db, expectedFloor, info);
+  let progress;
+  if(closedPrior!==undefined){receiptMatches(receipt,info);if(closedPrior){headMatches(closedPrior,receipt,info,{newClose:true});progress=assertProgress(db,priorBody,info,parts);}else emptyGenesis(db);}
   return { format:'i-core-floor-custody-v1', databasePath:options.databasePath, nodeId:info.nodeId,
    schemaVersion:info.version, databaseSha256:info.databaseSha256, cleanCloseReceiptId:receipt.receiptId,
-   origin, activityRecoveryFloor:activityRecoveryManifestForDatabase(db, info),progressWitness:captureProgressWitness(db) };
- });
- proof(options, 'before_custody_write');
- mkdirSync(options.custodyDirectory,{recursive:true,mode:0o700}); plainPath(options.custodyDirectory);
- const raw = Buffer.from(JSON.stringify({...body,authentication:mac(body,options.custodyKey)})+'\n');
- if(raw.length>4*1024*1024)fail('custody_too_large');
- const custodySha256 = sha256(raw), custodyPath = path.join(options.custodyDirectory,`${custodySha256}.floor.json`);
- if (existsSync(custodyPath)) { if (!readFileSync(plainPath(custodyPath)).equals(raw)) fail('custody_collision'); }
- else writeFileSync(custodyPath,raw,{flag:'wx',mode:0o600,flush:true});
- proof(options, 'after_custody_write');
- if (!readFileSync(plainPath(custodyPath)).equals(raw)) fail('custody_write_unverified');
- strictClosedPath(options.databasePath);
- if(sha256(readFileSync(options.databasePath))!==body.databaseSha256)fail('database_changed_before_custody_commit');
+   origin, activityRecoveryFloor:progress?.activityFloor??parts?.activity?.activityFloor??activityRecoveryManifestForDatabase(db, info),progressWitness:progress?.witness??captureProgressWitness(db,null,parts) };
+ },{witness:true,priorWitness:priorBody?.progressWitness??null,afterClosed:persist,activity:{canonicalDatabasePath:options.databasePath,priorActivityFloor:priorBody?.progressWitness?priorBody.activityRecoveryFloor:expectedFloor,floorMode:priorBody?.progressWitness?'progress':expectedFloor?'exact':'none'},...(closedPrior!==undefined?{closedHash:receipt.databaseSha256}:{})});
  const head = writeHead(options,{custodySha256,receiptId:receipt.receiptId,nodeId:body.nodeId},previous);
  return { custodyPath,custodySha256,databaseSha256:body.databaseSha256,nodeId:body.nodeId,schemaVersion:body.schemaVersion,...head };
 }
@@ -321,8 +442,7 @@ export function sealClosedRecovery(input) {
  return withCustodyLock(input,options=>{
   const evidence=proof(options,'seal_clean_close'),receipt=evidence.cleanCloseReceipt;
   const prior=readHead(options,{allowMissing:evidence.origin==='empty_provision'});
-  inspect(options,(db,info)=>{receiptMatches(receipt,info);if(prior){headMatches(prior,receipt,info,{newClose:true});assertProgress(db,floorAtHead(options,prior),info);}else emptyGenesis(db);});
-  return saveCustody(options,receipt,prior?'supervisor_clean_close':'empty_provision');
+  return saveCustody(options,receipt,prior?'supervisor_clean_close':'empty_provision',null,prior);
  });
 }
 export function verifyCanonicalRestart(input) {
@@ -429,7 +549,7 @@ export function recoverCanonicalState(input){
      db.exec('PRAGMA wal_checkpoint(TRUNCATE)');info.databaseSha256=rawFileHash(stage);
      assertProgress(db,floorAtHead(options,previous),info);
     }
-    legacyBefore=legacyDigest(db);
+    legacyBefore=options.legacy?legacyDigest(db):null;
     if(options.legacy){
      proof(options,'copy_before_activity_migration');
      migrateActivitySchema(db,{databaseBindingDigest:sha256(`activity-live-path:${path.normalize(realpathSync.native(options.databasePath))}`),testOnlyMigrationHook:phase=>proof(options,'copy_activity_'+phase)});
@@ -453,9 +573,9 @@ export function recoverCanonicalState(input){
     configurationHash:options.configurationHash,manifestSha256:options.manifestSha256};
    const eventRaw=Buffer.from(JSON.stringify({...event,authentication:mac(event,options.custodyKey)})+'\n');
    const eventSha256=sha256(eventRaw);
-   const body=inspect({...options,inspectionPath:stage},(verifiedDb,verified)=>({format:'i-core-floor-custody-v1',databasePath:options.databasePath,nodeId:verified.nodeId,
+   const body=inspect({...options,inspectionPath:stage},(verifiedDb,verified,parts)=>({format:'i-core-floor-custody-v1',databasePath:options.databasePath,nodeId:verified.nodeId,
     schemaVersion:6,databaseSha256:verified.databaseSha256,cleanCloseReceiptId:receiptId,origin:event.kind,recoveryEventSha256:eventSha256,
-    activityRecoveryFloor:activityRecoveryManifestForDatabase(verifiedDb,verified),progressWitness:captureProgressWitness(verifiedDb)}));
+    activityRecoveryFloor:parts?.activity?.activityFloor??activityRecoveryManifestForDatabase(verifiedDb,verified),progressWitness:captureProgressWitness(verifiedDb,null,parts)}),{witness:true});
    const floorRaw=Buffer.from(JSON.stringify({...body,authentication:mac(body,options.custodyKey)})+'\n'),custodySha256=sha256(floorRaw);
    if(floorRaw.length>4*1024*1024)fail('custody_too_large');
    writeFileSync(path.join(options.custodyDirectory,eventSha256+'.recovery.json'),eventRaw,{flag:'wx',mode:0o600,flush:true});

@@ -12,7 +12,7 @@ export const SOURCES = Object.freeze([
 ].map(name => `tools/i_core/${name}`));
 export const WRAPPERS = Object.freeze([
   'package.mjs', 'preflight.mjs', 'cli.mjs', 'preflight_schema6.ps1', 'README.md',
-  'recovery_adapter.mjs', 'backup_bundle.mjs', 'backup_bundle_schema6.ps1',
+  'recovery_adapter.mjs', 'readonly_witness.mjs', 'recovery_witness_worker.mjs', 'backup_bundle.mjs', 'backup_bundle_schema6.ps1',
   'automatic_recovery.mjs', 'raw_state_backup.mjs',
   'backup_key_child.mjs', 'key_custody.ps1', 'restore_inspection.mjs',
   'portable_key_custody.mjs', 'automatic_backup.mjs', 'portable_backup_schema6.ps1', 'scheduler_once_schema6.ps1',
@@ -21,6 +21,7 @@ export const WRAPPERS = Object.freeze([
   'lifecycle/request_stop.ps1', 'lifecycle/runtime_child.mjs',
   'lifecycle/common.mjs', 'lifecycle/configuration.mjs',
   'lifecycle/offline_lease.mjs', 'lifecycle/probe_offline.ps1',
+  'lifecycle/offline_probe_client.mjs',
   'lifecycle/session_window.ps1', 'lifecycle/login_schema6.ps1',
   'lifecycle/prepare_login_schema6.ps1',
 ]);

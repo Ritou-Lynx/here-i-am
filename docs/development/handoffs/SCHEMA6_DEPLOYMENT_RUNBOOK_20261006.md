@@ -12,7 +12,7 @@ Core、wrapper、恢复、备份与登录/关机工具从同一已提交 Git 树
 | 非正常退出 | SQLite 首开前真实离线租约排除 writer，原DB/WAL/SHM/journal流式加密并验证；在同一canonical绑定的隔离副本回放、完整性与独立custody/配置/schema检查。通过后记恢复事件、替换、推进head并正常启动。检查失败或迁移/提交中断停机等处理。 |
 | 旧v4首次接管 | 未来现场获准冻结任务/结束绑定的进程树后，用相同保全/副本检查机制迁移4→5→6，全部通过才替换。旧进程终止不是clean close；获取真实offline lease与保全证据后才开始。无需单独不可重做adoption阶段链，独立最新custody仍不能回退。 |
 
-新的自动恢复不激活备份副本，不由目标自己的历史签发已有5/6恢复floor。签名prefix保护已封存不可变操作/回执历史及单调序号；领域记录逐条绑定revision和行hash：下降或同revision改正文拒绝，递增须匹配已接受操作/维护证据。设备token合法重新配对不被固定为不可变。最后封存之后没有独立见证的每条ACK不在可证明范围，恢复后仍按原sync_id/op_id对账。
+新的自动恢复不激活备份副本，不由目标自己的历史签发已有5/6恢复floor。签名prefix保护已封存不可变操作/回执历史及单调序号；领域记录通过固定大小汇总绑定每条身份、revision和完整行HMAC，按已认证操作重建旧cut与当前物化行；下降或同revision改正文拒绝，递增须匹配完整已接受结果，见[大数据验收](SCHEMA6_SCALED_RECOVERY_20261006.md)。设备token合法重新配对不被固定为不可变。最后封存之后没有独立见证的每条ACK不在可证明范围，恢复后仍按原sync_id/op_id对账。
 
 保持 `legacy_b3` 单一上传器、reply jobs/activity关闭、owner-managed领域策略；受限transcript/grant与exact72 replay保护保持。PR10开启另需源ID/队列与实际手机Gate，不能双开上传。captures真机增改删/用户改卡保护未过继续47862，切换时只一个消费者。
 
