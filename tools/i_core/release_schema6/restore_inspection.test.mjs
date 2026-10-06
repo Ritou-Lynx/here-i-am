@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,mkdirSync,readFileSync,writeFileSync,rmSync,existsSync,linkSync,symlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync,readFileSync,writeFileSync,rmSync,existsSync,linkSync,symlinkSync } from 'node:fs';
+import { syntheticRoot } from '../test_fixtures/release_schema6/synthetic_paths.mjs';
 import path from 'node:path';
 import { createHash,createCipheriv,randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -13,7 +13,7 @@ import { databaseInspectionFingerprint,openInspectionDatabase } from '../inspect
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 function fixture(t) {
-  const root=mkdtempSync(path.join(tmpdir(),'core-restore-synthetic-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const root=syntheticRoot('core-restore-synthetic-');t.after(()=>rmSync(root,{recursive:true,force:true}));
   const sources=path.join(root,'sources'),release=path.join(sources,'release');mkdirSync(release,{recursive:true});
   const database=path.join(sources,'core.sqlite'),key=randomBytes(32),db=new DatabaseSync(database);
   db.exec('CREATE TABLE core_metadata(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE devices(device_id TEXT PRIMARY KEY,token_hash TEXT,last_seen INTEGER); CREATE TABLE no_pk(payload BLOB,body TEXT,n INTEGER,optional TEXT);');

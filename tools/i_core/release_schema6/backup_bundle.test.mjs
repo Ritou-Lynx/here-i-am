@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, linkSync, renameSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, linkSync, renameSync } from 'node:fs';
+import { syntheticRoot, syntheticFixedNode } from '../test_fixtures/release_schema6/synthetic_paths.mjs';
 import path from 'node:path';
 import { createHash, randomBytes, createCipheriv } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { BACKUP_ROLES, BACKUP_LIMITS, createRuntimeBackup, verifyRuntimeBackup, verifyInitialRuntimeBackup } from './backup_bundle.mjs';
 const sha=b=>createHash('sha256').update(b).digest('hex');
 function fixture(t) {
- const root=mkdtempSync(path.join(tmpdir(),'runtime-backup-synthetic-')); t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const root=syntheticRoot('runtime-backup-synthetic-'); t.after(()=>rmSync(root,{recursive:true,force:true}));
  const sources=path.join(root,'sources'); mkdirSync(sources); const release=path.join(sources,'release'); mkdirSync(release);
  const database=path.join(sources,'core.sqlite'), cursor=randomBytes(32), key=randomBytes(32);
  const db=new DatabaseSync(database); db.exec('CREATE TABLE core_metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);');
@@ -127,7 +127,7 @@ test('Windows fixed release wrapper Create/Verify, environment isolation, mismat
  runGit(['-C',sourceRepository,'-c','core.autocrlf=false','add','.']);
  runGit(['-C',sourceRepository,'-c','user.name=Synthetic','-c','user.email=synthetic@example.invalid','-c','commit.gpgsign=false','-c','core.hooksPath='+path.join(f.root,'no-hooks'),'commit','-qm','synthetic full runtime sources']);
  const sourceCommit=runGit(['-C',sourceRepository,'rev-parse','HEAD']);
- const packaged=prepareRelease({repository:sourceRepository,output:release,nodePath:process.execPath,gitPath,sourceCommit});
+ const packaged=prepareRelease({repository:sourceRepository,output:release,nodePath:syntheticFixedNode(f.root),gitPath,sourceCommit});
  const manifestHash=packaged.manifest_sha256;assert.equal(packaged.source_commit,sourceCommit);assert.equal(verifyRelease(release,manifestHash).source_commit,sourceCommit);
  const specPath=path.join(f.root,'spec.json'),specBytes=Buffer.from(JSON.stringify(f.spec));writeFileSync(specPath,specBytes);const keys=path.join(f.root,'keys');
  const ps=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');

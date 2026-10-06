@@ -176,4 +176,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - name: Fixed runtime, recovery and backup suites
         shell: powershell
-        run: node --test tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs
+        run: ./tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema6-windows-results
+          path: build/ci/schema6-windows.tap
+          if-no-files-found: error

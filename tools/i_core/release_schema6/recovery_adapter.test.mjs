@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { randomBytes, createHmac } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { syntheticRoot } from '../test_fixtures/release_schema6/synthetic_paths.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -27,8 +29,8 @@ source += '\n//# sourceURL=schema6-recovery-adapter-synthetic.mjs\n';
 const adapter = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 function closedHash(databasePath) { return sha256(readFileSync(databasePath)); }
 function fixture(t,{version=5,history=false}={}) {
- const root=mkdtempSync(path.join(tmpdir(),'recovery-adapter-synthetic-'));
- t.after(() => { assert.equal(path.dirname(root),path.resolve(tmpdir())); assert.ok(path.basename(root).startsWith('recovery-adapter-synthetic-')); rmSync(root,{recursive:true,force:true}); });
+ const root=syntheticRoot('recovery-adapter-synthetic-');
+ t.after(() => { assert.equal(path.dirname(root),realpathSync.native(tmpdir())); assert.ok(path.basename(root).startsWith('recovery-adapter-synthetic-')); rmSync(root,{recursive:true,force:true}); });
  const state=path.join(root,'state'); mkdirSync(state);
  const databasePath=path.join(state,'i-core.sqlite');
  const options={databasePath,custodyDirectory:path.join(root,'custody'),custodyKey:randomBytes(32),backupKey:randomBytes(32),backupDirectory:path.join(root,'backups')};

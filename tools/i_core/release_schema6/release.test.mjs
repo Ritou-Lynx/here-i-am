@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { syntheticRoot, syntheticFixedNode } from '../test_fixtures/release_schema6/synthetic_paths.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -13,7 +15,7 @@ import { digest, inspectInputs, preflight } from './preflight.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repository = path.resolve(here, '../../..');
-const node = process.execPath;
+let node;
 const gitExecPath = spawnSync('git', ['--exec-path'], { encoding: 'utf8', windowsHide: true }).stdout?.trim();
 const git = process.platform === 'win32' ? path.resolve(gitExecPath, '../../../bin/git.exe') : '/usr/bin/git';
 let root, release, manifestHash, sourceRepository, sourceCommit, inventoryRelease, inventoryHash;
@@ -27,7 +29,8 @@ function runGit(args) {
   return result.stdout.trim();
 }
 before(() => {
-  root = mkdtempSync(path.join(tmpdir(), 'schema6-release-synthetic-'));
+  root = syntheticRoot('schema6-release-synthetic-');
+  node = syntheticFixedNode(root);
   sourceRepository = path.join(root, 'fresh-git'); mkdirSync(sourceRepository);
   runGit(['init', '-q', sourceRepository]);
   for (const name of INVENTORY.filter(name => name !== 'runtime/node.exe')) {
@@ -56,7 +59,7 @@ before(() => {
   }
 });
 after(() => {
-  assert.equal(path.dirname(root), path.resolve(tmpdir()));
+  assert.equal(path.dirname(root), realpathSync.native(tmpdir()));
   assert.ok(path.basename(root).startsWith('schema6-release-synthetic-'));
   rmSync(root, { recursive: true, force: true });
 });
