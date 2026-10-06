@@ -62,6 +62,24 @@ domain_ops/domain_receipts 分别20,000/100,000；关闭后 DB 213,024,768 /1,06
 
 CI以最终推送的精确head新Checks和原生/跨用户回执为准，登记同PR正文；全部绿后暂停，不把本机烟测代替CI或生产四Gate。
 
+## 新提交 CI 的线程结果竞态与修复
+
+提交 `0ddb7a1ae90546fd63d8d200f945db038a57e3a6` 的 PR 事件 Linux Bridge [job112327474982](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37480622917/job/112327474982) 出现1失败；同head push事件通过。失败用例为 `activity worker preserves full floor checks and canonical binding for an immutable copy`，在wrongBinding拒绝分支报 `worker_exited_without_result`。第一组532tests/524pass/0fail/8skip，第二组418tests/387pass/1fail/30skip；保留失败日志，未重跑掩盖。
+
+原因在测试本地的 `resultOf`：独立transfer的resultPort与Worker exit事件没有所假设的先后保证，Promise.race把“退出先交付”误当成无结果。生产worker本来通过私有端口发布有界拒绝结果；旧日志没有退出码，不能由旧错误断言实际没发消息。生产collector本来同步读取私有端口，本次不修改worker/readonly_witness或任何47库存运行字节。
+
+测试launch立即绑定退出/Worker错误/端口解码错误；resultOf等真实退出，合并监听与同步drain队列，要求没有错误、exit0、恰好一条实际结果。非零退出、零结果、重复结果仍拒绝，false消息也计数。新增4个真实线程确定性回归：生产线程先退出再消费仍读到真实结果且DB哈希不变；零退出无结果拒绝；排队成功但exit7拒绝；含false的两条结果拒绝。无需随机等待或跳过。
+
+修复后本机线程/readonly/encoding/compat四文件实际 **30tests/30pass/0fail/0cancel/0skip**，5,593.8797ms；独立只读复核通过。前述662整组、两档耗时及固定包烟测是生产字节证据，30项为之后测试辅助修复的相邻回归，不冒充已跑666整组。再次逐项核对46源文本与Git HEAD/已测固定候选完全一致，固定Node与47库存哈希匹配。
+
+| 保留回执 | SHA256 |
+|---|---|
+| pr14-bridge-mcp-first-pr-failed.log | 6208e35c2dac3fd04510bb9ebe616bb803bf5f6f77f6ec37567b8fe83138cb15 |
+| pr14-mcp-worker-collector-fix.spec.log | 08e7238b4541fe04c43c2bc434bdaaec8da66c0a0fa3eb0a5c9767dcea7d4a27 |
+| pr14-mcp-worker-collector-fix.tap | d0f56371f5327425ac4878faf2334bbc8af03e96c131976de11bfea94f7d305d |
+
+仅推同PR的新提交；CI验收必须绑定新head，旧0ddb成功项不能替代。最终新head的原生关机/跨SID真实还原及全部Checks回执登记PR正文，全部绿后暂停。
+
 ## 现场授权与未完成边界
 
 [现场清单](SCHEMA6_CUTOVER_FIELD_CHECKLIST_20261006.md)、[本人操作单](SCHEMA6_OWNER_DEPLOY_CHECKLIST_20261006.md)、[部署手册](SCHEMA6_DEPLOYMENT_RUNBOOK_20261006.md)已补：另行授权停用旧 `\HereIAm-iRemoteMCP` 任务触发/失败重试，MCP改由会话启动器管理，同字节固定源码与现有mutable `.state`分离；⑥.4必须在关机前让MCP真实处理请求而已打开read model，正常关机→开机→登录后核新MCP再次服务及四Gate。

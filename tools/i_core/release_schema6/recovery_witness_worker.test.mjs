@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Worker, MessageChannel } from 'node:worker_threads';
+import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
 import { once } from 'node:events';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, linkSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
@@ -16,15 +16,57 @@ function priorWitness(f){return sealedFloor(f).progressWitness;}
 function launch(filename,component,prior=null,extra={},workerEntry=entry){
  const {port1,port2}=new MessageChannel(),signalBuffer=new SharedArrayBuffer(4);
  const worker=new Worker(workerEntry,{workerData:{kind:'schema6-readonly-witness-v1',component,databasePath:filename,priorWitness:prior,context:null,resultPort:port2,signalBuffer,...extra},transferList:[port2]});
- return {worker,port:port1,signal:new Int32Array(signalBuffer)};
+ const errors=[];
+ worker.on('error',()=>errors.push('worker_error_before_result'));
+ port1.on('messageerror',()=>errors.push('worker_result_decode_failed'));
+ // Bind immediately and never reject an unconsumed promise if the worker
+ // finishes before resultOf is called.
+ const exit=new Promise(resolve=>worker.once('exit',code=>resolve(code)));
+ return {worker,port:port1,signal:new Int32Array(signalBuffer),exit,errors};
 }
 async function resultOf(run){
- const exit=once(run.worker,'exit');
+ const messages=[],collect=message=>messages.push(message);
+ run.port.on('message',collect);
  try{
-  const [message]=await Promise.race([once(run.port,'message'),exit.then(()=>{throw new Error('worker_exited_without_result');})]);
-  await exit;return message;
- }finally{run.port.close();await run.worker.terminate();}
+  const code=await run.exit;
+  // This transferred resultPort is distinct from the Worker's parentPort.
+  // Exit does not prove its queued message event has already been delivered.
+  for(let packet;(packet=receiveMessageOnPort(run.port))!==undefined;)messages.push(packet.message);
+  if(run.errors.length)throw new Error(run.errors[0]);
+  if(code!==0)throw new Error('worker_nonzero_exit');
+  if(messages.length===0)throw new Error('worker_exited_without_result');
+  if(messages.length!==1)throw new Error('worker_multiple_results');
+  return messages[0];
+ }finally{run.port.off('message',collect);run.port.close();await run.worker.terminate();}
 }
+function testWorker(source){return new URL('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));}
+
+test('result collector reads a real private result even when called after worker exit',{timeout:120000},async t=>{
+ const f=scaleFixture(t);seedScale(f,{messages:20,records:20});f.seal();const prior=priorWitness(f),before=raw.rawFileHash(f.o.databasePath);
+ const expected=f.mutate(db=>readRecoveryWitnessComponent(db,'domain',prior)),run=launch(f.o.databasePath,'domain',prior);
+ assert.equal(await run.exit,0);
+ const message=await resultOf(run);
+ assert.equal(message.ok,true);assert.deepEqual(message.result,expected);assert.equal(Atomics.load(run.signal,0),1);
+ assert.equal(raw.rawFileHash(f.o.databasePath),before);
+});
+
+test('result collector rejects a zero exit without any private result',{timeout:30000},async()=>{
+ const run=launch('never-opened.sqlite','domain',null,{},testWorker("import {workerData} from 'node:worker_threads'; workerData.resultPort.close();"));
+ assert.equal(await run.exit,0);
+ await assert.rejects(resultOf(run),{message:'worker_exited_without_result'});
+});
+
+test('result collector rejects nonzero exit even with a queued success',{timeout:30000},async()=>{
+ const run=launch('never-opened.sqlite','domain',null,{},testWorker("import {workerData} from 'node:worker_threads'; workerData.resultPort.postMessage({ok:true}); workerData.resultPort.close(); process.exitCode=7;"));
+ assert.equal(await run.exit,7);
+ await assert.rejects(resultOf(run),{message:'worker_nonzero_exit'});
+});
+
+test('result collector rejects two private results after zero exit',{timeout:30000},async()=>{
+ const run=launch('never-opened.sqlite','domain',null,{},testWorker("import {workerData} from 'node:worker_threads'; workerData.resultPort.postMessage({ok:true}); workerData.resultPort.postMessage(false); workerData.resultPort.close();"));
+ assert.equal(await run.exit,0);
+ await assert.rejects(resultOf(run),{message:'worker_multiple_results'});
+});
 
 test('read-only worker transports the three full component witnesses without row bodies or secrets',{timeout:120000},async t=>{
  const f=scaleFixture(t);seedScale(f,{messages:20,records:20});f.seal();const prior=priorWitness(f),before=raw.rawFileHash(f.o.databasePath);
