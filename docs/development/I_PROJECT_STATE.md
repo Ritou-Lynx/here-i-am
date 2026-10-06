@@ -2,21 +2,15 @@
 
 ## PR14 自动运行候选验收（2026-10-06）
 
-继续用户指定 `codex/core-deploy-readiness-20261006` / 草稿 PR14，base仍 `v3-lab@90f23ce1`。此前beed整组/固定烟测与1060两次不同Windows SID口令只读恢复通过；生产备份Frame BOM已合成确认，最小修复后重建固定候选/重跑整组，最终状态以本交付的PR回执为准。最终交付提交的全部远端检查以同一PR正文/Checks登记，确认全绿后暂停审核。只更新同 PR，交付后暂停等审核，不合主线、不部署。原九类52文件真实只读还原和退回证据已被用户通过，本轮没有重新读取原库、现役服务、任务或手机。
+继续 `codex/core-deploy-readiness-20261006` / 草稿 PR14，base仍 `v3-lab@90f23ce1`。固定源 `9553cd2b2723cc389d7edf478dd33ff3ad478aa8`：主窗604tests/603pass/0fail/0cancel/1既有大小写环境skip，1,005,950.4859ms；六类原生/合成关机和中断演练全部通过。新43项固定包manifest `08cc28a2e694f66349ac8f2c772378cdd6da476cd08cdf5a009bfe837747095c`，Node25+PS16语法通过，真实启动/认证停止/Job/锁烟测68,500ms通过。最终文档提交库存逐字复核、远端全部检查以同PR正文/Checks精确head实际回执登记，全绿后暂停；不合主线、不部署。
 
-候选实现原DB/WAL/SHM/journal首开前流式加密、隔离副本回放/4→5→6、独立custody head与记录完整结果认证；native锁随进程退出释放。正常关机隐藏会话自动认证close，异常后下一登录自动检查；稳定Core死亡可在同会话有限恢复。备份键DPAPI+scrypt/AES-GCM口令包，默认每天/30天及可配置电脑外密文镜像；Tailscale机器私钥按决定排除，换机重新登录同名。
+首开前DB/WAL/SHM/journal流式加密，隔离副本回放/4→5→6、独立custody与完整结果认证；隐藏会话正常关机清停、异常后下一登录自动核验恢复，稳定Core死亡可同会话有限恢复。备份键DPAPI+scrypt/AES-GCM口令包，默认每天/30天，可配置外部密文镜像。Tailscale不备机器私钥，换机重新登录同名。
 
-精确源 `beed93a3657ab59fbe033a435f471814d8895736`：主窗603tests/602pass/0fail/0cancel/1既有大小写环境skip，1,024,765.3329ms；六类原生/合成关机与中断演练均过。43项固定包manifest `45d00ecdb113957ffdc5c65e2b90454611c83eb90cf6879c8cccfd1df1ea787a`，Node25+PS16语法通过，独立真实启动/认证清停/Job/锁烟测67,256ms通过。此前Windows短TEMP/默认owner限定夹具/CI修复；保留plainPath与ACL逐字相同证据。白板空标题/H1用真实save屏障，精确5/5、相邻195/195；远端45bc曾有2项启动ETIMEDOUT，最终CI改串行文件但不改生产timeout，最终回执以同一PR正文和Checks登记，见[本轮验收](handoffs/SCHEMA6_AUTOMATIC_MAIN_ACCEPTANCE_20261006.md)。
+CI失败历史保留：短TEMP/owner夹具修复，白板save屏障5/5与相邻195/195；module发现原10秒门槛超时，hosted-only作用域14/14含23恢复情形通过。1060两次Windows151/151与13checks全部成功，原production gate843/1040ms、目录和两registry完整还原；新交付含生产Frame修复，需要152项与13checks新回执，不能套用前一提交。生产plainPath/ACL逐字不变、timeout未改。
 
-跨用户失败历史均保留；PS5.1真实字节实验修复CI BOM输入后，e1116f5e两次不同标准Windows SID实际仅口令还原成功：真实只读Core、3用户表/7行/1设备、5条路由拒绝、字节未变及清理全部确认，135225/133300ms。一次CI seclogon1052补固定服务受限状态等待，主窗18/18模拟/编译通过，最终精确head的CI仍须覆盖。另一实体电脑未实测，检查目录不可生产激活。
+真实PS5.1生产输入BOM修复：旧源码先红、新回归三编码×两帧及失败编码恢复绿，备份相邻38/38；此次604整组含新回归。独立只读源码/范围复核通过，详情见[本轮验收](handoffs/SCHEMA6_AUTOMATIC_MAIN_ACCEPTANCE_20261006.md)。不同标准SID口令真实只读Core恢复在一次性hosted VM已多次通过，最终head还需同一CI；实体异机未实测，检查目录不可直接激活。
 
-最终CI新增适配器的PS5.1程序集缺失已独立复现并限定夹具修复；全新进程类型加载回归、18/18状态模拟及本机GuardOnly拒绝均通过。最终精确head的全部检查以PR正文/Checks实际结果为准，未用前一提交成功替代。
-
-2c75e510实际CI：11项成功（含两次跨SID恢复），两次Windows生命周期均151/141pass，分别8fail+2cancel、7fail+3cancel。首发原10s fresh PS完整ACL检查超时，后续首次ready前失败；CI-only阶段诊断/严格预检已集成，本机8/8及原10s门控通过，独立复核通过；生产检查/timeout未改，1cff两轮预检确定默认模块发现20–23秒/系统对照约0.3秒，原门槛均超时且整套未启动；hosted CI暂时搜索作用域已集成，原配置/目录finally还原，14/14纯测试含23情形通过；真实scope、原10s门控与全部151用例待本交付提交PR回执，尚未全绿、未进入暂停验收。
-
-生产二进制输入：真实PS5.1旧函数在UTF8/Unicode带BOM时帧错位，默认编码正常；最小启动期UTF8无BOM+立即恢复及新回归已由worker复现红→绿，未改crypto/路径门槛，整合/新候选与整组待完成。
-
-本机未新增账号、未注册任务或实际关机；跨用户合成夹具只允许一次性hosted Windows VM，实际异机与生产网络/手机Gate另计。
+此前九类52真实文件还原/退回已获用户通过，本轮未重读。未读取/停启现役Core/MCP/隧道、原库、实际计划任务或手机；未实际关机、注册任务或本机创建账号。captures真机闭环未过保留47862桥，切换单消费者/单上传器；邮件debug可先关闭。只推同PR、全绿后暂停等审核。
 
 ## PR14 复核续作：CI 与自动运行（2026-10-06）
 

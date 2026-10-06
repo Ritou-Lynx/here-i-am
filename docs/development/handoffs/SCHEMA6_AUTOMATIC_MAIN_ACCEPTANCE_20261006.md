@@ -1,6 +1,6 @@
 # PR14 自动运行、口令备份与 CI 续作｜主窗验收（2026-10-06）
 
-仅继续 `codex/core-deploy-readiness-20261006` 与同一草稿 [PR #14](https://github.com/Ritou-Lynx/here-i-am/pull/14)；base 为 `v3-lab@90f23ce1d38628901e25b421d8f0f21c084f093b`。**此前 beed 源主窗整组和精确固定候选烟测已通过，1060 源两次真实跨 Windows 用户合成恢复也通过；收口发现生产备份输入编码缺陷，当前最小修复后必须重建固定候选并重新整组验收。** 最终交付提交的全部远端检查以同一 PR Checks 与正文回执登记，确认全绿后暂停审核。 验收完成后只推此分支、更新同一 PR、暂停等审核，不合并、不部署。
+仅继续 `codex/core-deploy-readiness-20261006` 与同一草稿 [PR #14](https://github.com/Ritou-Lynx/here-i-am/pull/14)；base 为 `v3-lab@90f23ce1d38628901e25b421d8f0f21c084f093b`。**固定源 9553cd2b 的主窗整组604项（603通过、0失败/取消、1既有环境限定skip）与新43项候选真实烟测通过。1060源13项远端检查全部成功；最终交付提交的CI仍以本PR Checks及正文实际回执为准，全绿后才暂停。** 验收完成后只推此分支、更新同一 PR、暂停等审核，不合并、不部署。
 
 本轮所有运行证据来自合成环境。未读取/停启现役 Core、MCP、隧道，未打开原库，未改现役配置/计划任务，未操作手机；未实际关机/注销电脑，未注册登录任务、未在本机创建 Windows 用户。临时 CI 标准用户演练仅在一次性 hosted runner 上运行并清理。前轮九类 52 文件真实备份/恢复已由用户审核通过，本轮保留原证据，未重新访问或解密那些数据。
 
@@ -12,7 +12,7 @@
 | 自动恢复与旧 v4 | 首次 SQLite 打开前四文件流式加密；副本回放/4→5→6；真实 native lease；独立 custody 与完整领域结果认证 | [恢复](SCHEMA6_AUTOMATIC_RECOVERY_20261006.md) |
 | 电脑外备份 | scrypt/AES-GCM 口令包，原 DPAPI 不可用时真实只读恢复；每天/30天，可配置密文镜像，断开后补复制 | [备份](SCHEMA6_PORTABLE_AUTOBACKUP_20261006.md) |
 
-工作包原提交：CI `99147eb11051e819ccd0cf6e21fe8b5f14416a74`；portable `50b891c0762bac2b03f2a85b59f7620e73aceb52`；恢复 `199f7d38`、`06a6a6c3aa9ba09658fce3a90177407404c2e86f`；会话 `ebff9556`、`28ae524b2b5f8e5de1064c0ed56719379a16459c`、`4b0e95824038fa40bbedf10d11fff3c348a17e01`。主窗固定已提交源码为 `beed93a3657ab59fbe033a435f471814d8895736`，后续文档收口不改该固定库存的字节。
+工作包原提交：CI `99147eb11051e819ccd0cf6e21fe8b5f14416a74`；portable `50b891c0762bac2b03f2a85b59f7620e73aceb52`；恢复 `199f7d38`、`06a6a6c3aa9ba09658fce3a90177407404c2e86f`；会话 `ebff9556`、`28ae524b2b5f8e5de1064c0ed56719379a16459c`、`4b0e95824038fa40bbedf10d11fff3c348a17e01`。beed为修复前历史固定源码；生产备份输入修复后，当前固定源为 `9553cd2b2723cc389d7edf478dd33ff3ad478aa8`，已重新建包、验收。后续文档收口保持本轮新43项库存字节不变。
 
 主窗及独立只读复核发现并要求修复：残留 wx custody 锁会阻断后续启动；坏 JSON 异常可带出秘密；合法 re-pair 不应误报回退；仅 MAX/revision/裸 accepted metadata 不能证明正文前进；副本检查上下文不能取代生产 head；备份启动/worker 故障不应关闭健康 Core；hash 前必须持有拒写/拒删除句柄；原子 rename 发布者仍持 DELETE 句柄时旧控制读取会 error32。最后限定源码复核未发现新的明确缺陷，最终运行结果仍由主窗下表负责。
 
@@ -56,22 +56,24 @@ source 1cff9d08 的两轮预检实际失败并及时停止整套测试；[分段
 
 已集成[hosted CI模块搜索作用域](SCHEMA6_CI_MODULE_SCOPE_20261006.md)：先host guard，再保存两项registry raw值/类型/缺失状态，规范身份校验后暂移强制AllUsers根到所有搜索根之外，原位独占创建空根；finally只删身份匹配空目录并归位，各registry独立精确还原，任何清理失败CI失败。原环境/new PS/10s检查及全部151用例保持。本机只用纯callbacks、编译/AST和拒绝入口验证，14/14专项通过（2310.1204ms，含23种状态）；独立源码复核无阻断。本机未执行registry或全局目录适配器，真实scope和全套结果以本交付提交的PR Checks、安全module-scope/probe回执为准，尚未提前宣称全绿。
 
+source `1060f192` 两次完整CI均成功，13 checks全绿；Windows push151/151、1,114,664.2685ms，PR151/151、1,255,618.5538ms，均0失败/取消/skip。原production_gate分别843/1040ms，仍使用原10秒门槛；module scope目录、Machine/User registry精确还原、body_exit/exit_code均0。[push](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37439908788/job/112190874188)、[PR](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37439915727/job/112190905389)。这证明CI环境修复，但其库存未含随后生产Frame修复，不用它代替新交付提交的152项Windows与13 checks。
+
 ## 生产备份二进制输入编码边界
 
 CI夹具此前修过BOM，主窗继续核实际生产Start-BackupChild，发现同一.NET Framework输入初始化行为。只从1060f192提取真实函数，未运行wrapper顶层：虚构88字节口令帧+18字节JSON，默认936收到106且所有偏移正确；UTF8带BOM收到109、Unicode带BOM收到108，固定帧头/长度/载荷偏移均错。没有读取DPAPI或真实口令/备份。
 
-最小修复限定Process.Start期间暂用无BOM UTF8，finally立即恢复；二进制帧、BaseStream写入、KDF/认证/清零/路径与manifest门槛不改。新增真实PS5.1回归在旧source先红（普通key帧53字节应50），修后单项绿，覆盖三种原编码×普通key/portable帧，精确字节哈希及头/载荷、三种启动失败后恢复。独立源码复核无阻断；[工作包交接](SCHEMA6_BACKUP_BINARY_FRAME_20261006.md)记录38/38备份相邻专项通过（90,920.6968ms、0skip），worker原提交1ee96d1d已整合。接下来按新已提交source重建43库存和重跑主窗整组，旧beed回执仅作历史证据，不冒称库存仍逐字未变。
+最小修复限定Process.Start期间暂用无BOM UTF8，finally立即恢复；二进制帧、BaseStream写入、KDF/认证/清零/路径与manifest门槛不改。新增真实PS5.1回归在旧source先红（普通key帧53字节应50），修后单项绿，覆盖三种原编码×普通key/portable帧，精确字节哈希及头/载荷、三种启动失败后恢复。独立源码复核无阻断；[工作包交接](SCHEMA6_BACKUP_BINARY_FRAME_20261006.md)记录38/38备份相邻专项通过（90,920.6968ms、0skip），worker原提交1ee96d1d已整合。按新固定source `9553cd2b2723cc389d7edf478dd33ff3ad478aa8` 重建43库存与主窗整组604项均通过；新回归实际3,215.7327ms，旧beed回执仅作历史证据。
 
-## 六类最终合成演练
+## 六类最终合成演练（固定源 9553cd2b）
 
 | 情况 | 真实观测与下一启动要求 | 最终集成结果 |
 |---|---|---|
-| 正常关机消息/取消关机 | Query 立即答 TRUE，认证 close 后真父/child/guardian 退出、Job 空、锁可重开；取消关机或下次登录均使用新 control | 通过；原生 session case 149,152.5619ms，真实 clean/新 control/下一启动读回均断言 |
+| 正常关机消息/取消关机 | Query 立即答 TRUE，认证 close 后真父/child/guardian 退出、Job 空、锁可重开；取消关机或下次登录均使用新 control | 通过；原生 session case 144,101.8732ms，真实 clean/新 control/下一启动读回均断言 |
 | 关机时 Core 正在写入 | 合成固定包在 BEGIN IMMEDIATE 后加限时测试屏障；Query 与真实 HMAC close 在事务未放行时已到达；放行后 HTTP 接受1条，下一真实 login 的 changes 读回同一 sync_id | 通过；同一 session case；query_during_open_core_transaction=true，accepted=1，next_start_http_readback=1 |
-| hook 超时 | 按拥有 Job/exe 身份暂停合成 Core，30秒超时不造 clean；拥有树退出；下一 login 先加密保全并恢复 schema6 | 通过；141,672.1281ms；30秒超时后下一 login 自动保全并恢复 |
-| 强杀 Node | 原生固定入口强杀 child 后 marker 非 clean，custody.lock 载体保留但系统锁释放；下次固定入口自动恢复。另有真实 Node 强杀 WAL：已提交回放、未提交回滚；同会话 resident 新 control 与 HTTP 读回 | 通过；原生 child 103,460.7224ms；同会话新 control/HTTP读回 109,673.3552ms；WAL已提交/未提交专项也通过 |
-| 强杀 guardian | 原生 guardian death 后拥有树结束，没有伪 clean；下次固定入口 raw 保全/检查通过后正常运行 | 通过；109,651.5346ms；下一真实固定启动恢复；另 parent death 101,408.4671ms |
-| 迁移中断 | adapter 故障注入在副本中断，原 DB/WAL/SHM/journal 摘要不变；下一原生固定入口对 precommit/commitStarted latch 均明确拒启，原件不改。前者可回旧 v4；开始替换后只做向前核验 | 通过；原生 next-start 39,083.6325ms；副本 fault injection/原件摘要未变，precommit/commitStarted明确阻断 |
+| hook 超时 | 按拥有 Job/exe 身份暂停合成 Core，30秒超时不造 clean；拥有树退出；下一 login 先加密保全并恢复 schema6 | 通过；142,922.6671ms；30秒超时后下一 login 自动保全并恢复 |
+| 强杀 Node | 原生固定入口强杀 child 后 marker 非 clean，custody.lock 载体保留但系统锁释放；下次固定入口自动恢复。另有真实 Node 强杀 WAL：已提交回放、未提交回滚；同会话 resident 新 control 与 HTTP 读回 | 通过；原生 child 104,272.5395ms；同会话新 control/HTTP读回 109,443.2323ms；WAL已提交/未提交专项也通过 |
+| 强杀 guardian | 原生 guardian death 后拥有树结束，没有伪 clean；下次固定入口 raw 保全/检查通过后正常运行 | 通过；115,157.3331ms；下一真实固定启动恢复；另 parent death 101,855.8467ms |
+| 迁移中断 | adapter 故障注入在副本中断，原 DB/WAL/SHM/journal 摘要不变；下一原生固定入口对 precommit/commitStarted latch 均明确拒启，原件不改。前者可回旧 v4；开始替换后只做向前核验 | 通过；原生 next-start 38,842.8678ms；副本 fault injection/原件摘要未变，precommit/commitStarted明确阻断 |
 
 “正在写入”的事务屏障只存在于独立 synthetic Git 的测试包，生产没有故障/暂停开关；不是实际 OS 关机或现役 Gate。原生迁移 next-start 部分模拟便携 fault injection 留下的 latch，不声称在真实迁移指令中强杀 OS。所有测试只给自建隐藏 HWND 发定向消息，不广播系统关机。
 
@@ -79,7 +81,7 @@ CI夹具此前修过BOM，主窗继续核实际生产Start-BackupChild，发现�
 
 ## 电脑外恢复与仍有的现场限制
 
-合成口令、独立 Node 与 pinned Windows wrapper 在原 DPAPI 目录不可用时真实恢复并启动只读 Core：核 node/schema/devices/全部用户表指纹与整库字节哈希；5条受限业务路由拒绝（含一条GET；SQL拒写另有独立测试）；退出 DB 字节不变。只解密或比较哈希不算此验收。完整口令备份专项14/14通过，最终主窗整组也覆盖并通过这些用例。
+合成口令、独立 Node 与 pinned Windows wrapper 在原 DPAPI 目录不可用时真实恢复并启动只读 Core：核 node/schema/devices/全部用户表指纹与整库字节哈希；5条受限业务路由拒绝（含一条GET；SQL拒写另有独立测试）；退出 DB 字节不变。只解密或比较哈希不算此验收。完整口令备份专项14/14通过，当前固定源9553cd2b的604项主窗整组覆盖并通过这些用例。
 
 另一标准 Windows 用户的实际合成恢复已在一次性 hosted VM 完成两次：source `e1116f5e`；push [job112157590807](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37429716715/job/112157590807) 135,225ms，PR [job112157585768](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37429722424/job/112157585768) 133,300ms。仅口令、DPAPI未使用、SID确实不同且token非管理员；真实Core只读启动、5条受限路由拒绝、字节不变、无sidecar、清理全部确认。合成schema4为3张用户表/7行/1设备，全部用户表指纹与factory一致；不是现役schema4全量库或九类52真实文件的跨用户重验。[结构化回执](SCHEMA6_CROSS_USER_VALIDATION_20261006.json)只含计数、哈希、布尔与CI来源。
 
@@ -89,15 +91,14 @@ Tailscale 机器私钥按用户决定排除，不是缺项；换机重新登录�
 
 旧 v4 首次接管与崩溃恢复同一机制：未来现场先冻结旧任务/结束绑定进程树，确认离线后首开前保全四文件，副本回放/迁移/检查，通过才替换。提交前原件不改；开始替换后留下中断锁存并向前检查。不存在另一个“不可重做阶段链”。MCP、手机、上传器与 captures 真机闭环仍有独立现场 Gate；47862 桥保持此前决定。
 
-## beed 历史固定候选与回执
+## 当前固定候选与主窗回执
 
-- 已提交 source/Core/wrapper 同一 SHA：`beed93a3657ab59fbe033a435f471814d8895736`。
-- 固定候选：`C:\HereIAm\schema6-automatic-final-owned-20261006`；43项库存，manifest SHA256 `45d00ecdb113957ffdc5c65e2b90454611c83eb90cf6879c8cccfd1df1ea787a`；Node24.14.1 SHA `58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f`。
-- 25个 Node 文件语法及16个 PowerShell 文件由目标 Windows PS5.1.26100.9444 parser通过。首次在已填充 build 目录调用 Protect-NewDirectory 被空目录门控正确拒绝；改走既有流程：先保护全新空目录，再逐项复制已验证库存、重新 verify，同一 manifest字节，不修改生产门控。
-- 最终整组：603 tests / 602 pass / 0 fail / 0 cancel / 1既有环境限定skip，3 suites，1,024,765.3329ms（约17分05秒）。唯一skip为本机大小写不敏感目录不能表示两个大小写不同的文件；不新增skip，不过滤红灯。完整TAP SHA256 `6b47c82caf449aa9aa4725aaf4e82c4d24eeb3d051245e999049291b9b11f332`。
-- 另一次对上述已组装固定候选的真实 loopback/认证停止/child+guardian+Job/锁烟测：通过，67,256ms；真实 loopback health、认证 stop、child/guardian 退出、Job 空、runtime lock 释放、发行字节未变。回执 `build/ci/pr14-final-candidate-smoke.json`，SHA256 `762ebe050d457db036fe9b9edf6890a23e9b95d3c863c1977c8eac8385384913`。
-- 此前CI交付登记：截至1060仅CI夹具/交接变更，43库存与beed逐字一致；后发现生产输入边界，下一候选必须重新绑定新source。提交后再次比对并把 deliveryHead、manifest及结果写入忽略的 build/ci/pr14-delivery-inventory.json；最终精确 head 与全部 CI 回执在同一 PR 正文及 Checks 登记，历史 green 不替代本次。
-
-最终主窗整组入口：`node --test --test-concurrency=2 tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs tools/i_core/*.test.mjs tools/i_remote_mcp/writeback.test.mjs tools/i_remote_mcp/writeback_e2e.test.mjs`。真实本机执行使用解析后的文件数组与双 reporter，主窗24逻辑CPU，文件并发2；小型Windows CI仍串行文件并发1。最终完整 TAP 仅保留在忽略的 `build/ci/pr14-automatic-final-root-2.tap`，交付其计数和 SHA；无真实正文/密钥/口令进入报告。
+- 同一已提交 source/Core/wrapper：`9553cd2b2723cc389d7edf478dd33ff3ad478aa8`；候选 `C:\HereIAm\schema6-automatic-frame-owned-20261006`，43项库存，manifest SHA256 `08cc28a2e694f66349ac8f2c772378cdd6da476cd08cdf5a009bfe837747095c`。
+- Node24.14.1 SHA256 `58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f`；25个Node文件语法、16个PS文件由Windows PS5.1.26100.9444 parser通过。先保护新空目录再复制已验证库存，重新verify；生产路径/owner/ACL门槛不改。
+- 当前整组：604 tests / 603 pass / 0 fail / 0 cancel / 1既有环境限定skip，3 suites，1,005,950.4859ms。唯一skip为本机大小写不敏感目录不能表示两种大小写同名文件；没有新增skip、过滤或靠rerun接受红灯。TAP SHA256 `355fb933e9f52ea6bbefda1971c68aefbe3a0da081e70d6f306636e9b6f47870`；忽略文件 `build/ci/pr14-automatic-final-root-3.tap`。
+- 该新组装候选另跑实际 loopback health、认证stop、child/guardian退出、Job空、runtime锁释放及发行字节不变烟测，通过，68,500ms；回执 `build/ci/pr14-frame-candidate-smoke.json`，SHA256 `9d4292f4660927d01010eeb85bfec90f5f3c22d5d740ebeae352e7560de21802`。
+- 最终文档提交再次逐字比对43项库存，deliveryHead与source分别绑定。remote最终全部checks及两次152/152 Windows、不同标准SID口令实际还原证据，以同PR正文/Checks当前提交的真实回执登记；完成前不称最终CI全绿。只保持草稿，所有回执成功后暂停审核。
+- beed旧候选仅作历史：603/602pass/0fail/0cancel/1skip、1,024,765.3329ms；旧manifest `45d00ecdb113957ffdc5c65e2b90454611c83eb90cf6879c8cccfd1df1ea787a`，TAP SHA256 `6b47c82caf449aa9aa4725aaf4e82c4d24eeb3d051245e999049291b9b11f332`、旧烟测67,256ms。不用旧回执证明新生产字节。
+- 本机24逻辑CPU/文件并发2，hosted Windows仍文件并发1。原stdout/TAP只留忽略目录，报告无真实正文、密钥或口令。
 
 上线步骤与估算停机时间见[一页操作单](SCHEMA6_OWNER_DEPLOY_CHECKLIST_20261006.md)，细节见[部署方案](SCHEMA6_DEPLOYMENT_RUNBOOK_20261006.md)、[运行说明](SCHEMA6_RUNTIME_OPERATIONS_20261006.md)。本轮完成后暂停，等待审核，不继续生产切换。
