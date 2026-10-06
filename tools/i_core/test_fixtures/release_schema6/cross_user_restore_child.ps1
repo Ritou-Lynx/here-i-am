@@ -4,8 +4,11 @@ $ErrorActionPreference='Stop'
 $pipe=$null;$passwordBytes=$null;$exitCode=2
 try {
  Assert-CrossUserCI
- $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+ $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+ $sid=$identity.User.Value
  if($sid -ne $ExpectedSid -or $sid -eq $OriginalSid){throw 'ci_identity_mismatch'}
+ # Check actual token groups, including deny-only Administrators membership.
+ if(@($identity.Groups|ForEach-Object{$_.Value}) -contains 'S-1-5-32-544' -or ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'standard_user_required'}
  # Set compiler TEMP before Add-Type; credentials may inherit runneradmin TEMP.
  if(Test-Path -LiteralPath $Workspace){throw 'ci_fresh_output_required'}
  [IO.Directory]::CreateDirectory($Workspace)|Out-Null
@@ -32,6 +35,7 @@ try {
  foreach($item in Get-ChildItem -LiteralPath $Workspace -Recurse -Force){if((Get-Acl -LiteralPath $item.FullName).GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid){throw 'ci_copied_owner_mismatch'}}
  $report=Invoke-CrossUserNode (Join-Path $Workspace 'runtime/runtime/node.exe') (Join-Path $Workspace 'cross_user_restore.mjs') 'restore' (Join-Path $Workspace 'runtime') $Workspace $passwordBytes
  $report|Add-Member -NotePropertyName distinctWindowsSid -NotePropertyValue $true
+ $report|Add-Member -NotePropertyName standardUserToken -NotePropertyValue $true
  $report|Add-Member -NotePropertyName sourceSidSha256 -NotePropertyValue (Get-CrossUserHash $OriginalSid)
  $report|Add-Member -NotePropertyName restoreSidSha256 -NotePropertyValue (Get-CrossUserHash $sid)
  $bytes=[Text.Encoding]::UTF8.GetBytes(($report|ConvertTo-Json -Compress))

@@ -30,3 +30,12 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/i_
 - 同一 Windows SID 的合成 factory → 纯口令 restore 已用主窗最新生产模块实际通过：`factoryVerified=true`、`restored=true`、`realCoreVerified=true`、5 条拒绝、`databaseBytesUnchanged=true`。该次数据库指纹 SHA256 为 `c62c631efdb4e34368075327d083c31e2c94cfcbc92c441bb2a0093e658293eb`（合成随机密钥导致下次不同）。首次沙箱运行在 NTFS 原子发布遇到 EPERM；在已授权的私有 TEMP 合成范围执行通过，未改生产 API。
 - **真实不同 SID 的恢复尚未在本机运行；必须以新远端 CI job 的 JSON/退出码确认。** 本地通过不冒称跨用户通过。最终主窗整体 Core/Windows 602 pass 等证据不替代本新增 job。
 - 独立 worker 只提交自有四夹具和本文，使用一次 `SKIP_PROJECT_STATE=1` 并 finally 恢复；主窗统一集成状态。
+
+## 首轮远端失败后的窄修复
+
+- 远端 run `37425475844` 的 job `112144024474`、另一个 job `112144041393` 均实际失败：`temporary_account`、`accountCreated=true`、`cleanupConfirmed=true`，耗时分别 58802 / 58673 ms。尚未得到不同 SID 恢复通过证据；两次失败不跳过，也不归因于已经证实的网络问题。
+- 账号创建后分开记录 Users 组加入、root/factory/source/archive/transfer ACL、空 child 目录及委托、SecondaryLogon 查询/启动、pipe、进程启动/Job 分配、身份、口令 frame、恢复报告、退出和断言阶段。失败安全 JSON 增加 `failureDiagnostic`，只含受限异常类型、数值 HResult、固定允许的 FQErrorId；其他 FQErrorId 一律 `redacted`。不输出 Exception.Message、TargetObject、堆栈、账号或口令。PowerShell 会把任意 throw 正文作为 FQErrorId，因此此处使用明确允许的错误 token 集合。
+- `Add-LocalGroupMember` 直接接收刚创建的 LocalUser / LocalPrincipal，避免 SecurityIdentifier 转换后再次解析目标。移除宿主 Administrators 全组枚举，改由 child 检查自身真实 WindowsIdentity.Groups 不含 Administrators SID（包括 deny-only 成员），且 WindowsPrincipal 非管理员；成功报告增加 `standardUserToken=true`，父进程必须核验。该断言没有放宽标准用户要求。
+- 原实现的对象转换、宿主组成员名称解析是源码可见的潜在失败点，目前只是待验证假设。ACL 或 SecondaryLogon 也仍可能失败；本补丁保留失败和清理语义，不通过更改宿主组/服务启动类型绕过失败。
+- 本地窄验证：3 个 PowerShell 文件 parser 0 错；合成含账号/口令/路径的 ErrorRecord 未泄漏，已知固定错误 token/HResult 保留；Windows PowerShell 5.1 `-GuardOnly` 仍返回 2，在任何账号或服务操作前拒绝；`git diff --check` 通过。没有在本机创建/切换账号、启动服务或重新跑生产整组。下一次 hosted Windows 实跑才能确认跨 SID 与本轮修复效果。
+- 本次只提交 3 个自有 PS 夹具和本文，使用单次 `SKIP_PROJECT_STATE=1` 并 finally 恢复；未 push，Node/生产模块/workflow 没有改动。

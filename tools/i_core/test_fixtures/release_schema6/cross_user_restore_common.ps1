@@ -16,6 +16,15 @@ function Set-CrossUserDirectoryAcl([string]$Path,[string]$Owner,[string]$ReadSid
 function Get-CrossUserHash([string]$Text) {
  $h=[Security.Cryptography.SHA256]::Create();try{([BitConverter]::ToString($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($Text)))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose()}
 }
+function Get-CrossUserSafeError([Management.Automation.ErrorRecord]$Record) {
+ # Never serialize ErrorRecord, Message, TargetObject, stack, or arbitrary throw text.
+ $type=$Record.Exception.GetType().FullName
+ if($type -cnotmatch '\A(?:System|Microsoft\.PowerShell)\.[A-Za-z0-9.]{1,180}\z'){$type='redacted'}
+ $id=[string]$Record.FullyQualifiedErrorId
+ # Explicit error-token allowlist: PowerShell also uses thrown message as FQID.
+ if($id -cnotmatch '\A(?:AccessDenied|PermissionDenied|MemberExists|MemberNotFound|PrincipalNotFound|UserNotFound|GroupNotFound|InvalidOperation|InvalidOperationException|System\.InvalidOperationException|System\.ArgumentException|System\.UnauthorizedAccessException|System\.Management\.Automation\.ParameterBindingException|ParameterArgumentTransformationError|ParameterBindingFailed|CouldNotStartService|CouldNotStopService|ServiceCommandException|SetAcl_AclObject|UnauthorizedAccessException)(?:,Microsoft\.PowerShell\.Commands\.[A-Za-z0-9]{1,80}Command)?\z'){$id='redacted'}
+ return @{exceptionType=$type;hResult=[int]$Record.Exception.HResult;fullyQualifiedErrorId=$id}
+}
 function Initialize-CrossUserNative {
  Add-Type -TypeDefinition @'
 using System;
