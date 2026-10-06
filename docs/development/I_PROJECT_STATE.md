@@ -5,7 +5,7 @@
 
 本轮从已合入PR13的`v3-lab@90f23ce1`隔离为`codex/core-deploy-readiness-20261006`，推进D4源码准备。新增固定Windows Job/guardian与认证清停、真实离线租约、原canonical路径恢复验证，以及独立认证current-head/不可覆盖凭据链。完整运行备份按九类显式清单流式AES256GCM验证，密钥由backup/recovery分别绑定的CurrentUser DPAPI保管；库存工具不替用户证明生产依赖已列全或writer已停。
 
-固定候选包括34项库存，Core、生命周期/恢复/备份wrapper与Node来自同一真实提交，默认`legacy_b3`单上传器、reply jobs/activity关闭。新增Linux便携与Windows生命周期/DPAPI专项CI；精确验证及失败历史见[主窗验收](handoffs/SCHEMA6_READINESS_SOURCE_ACCEPTANCE_20261006.md)。旧v4没有可验证外部清停入口，新监督入口仍拒绝旧库无凭据首接；非优雅停止后的原始日志保全/SQLite恢复/adoption方案见[部署方案](handoffs/SCHEMA6_DEPLOYMENT_RUNBOOK_20261006.md)，尚未实现该例外。新增认证后隔离提取与真实Core只读检查入口，本轮授权制作九类保全与真实恢复演练。用户要求整包复验、推远端草稿PR后暂停审核；确切回执见主窗验收。现役原库、任务/配置、MCP、47862桥和手机没有因本轮源码改变；D4生产切换未完成。
+固定候选包括34项库存，Core、生命周期/恢复/备份wrapper与Node来自同一真实提交，默认`legacy_b3`单上传器、reply jobs/activity关闭。主窗最终211/211、0失败/跳过，精确候选烟测50.534秒通过；新增Linux便携与Windows生命周期/DPAPI专项CI，远端结果待草稿PR当次检查；精确验证及失败历史见[主窗验收](handoffs/SCHEMA6_READINESS_SOURCE_ACCEPTANCE_20261006.md)。旧v4没有可验证外部清停入口，新监督入口仍拒绝旧库无凭据首接；非优雅停止后的原始日志保全/SQLite恢复/adoption方案见[部署方案](handoffs/SCHEMA6_DEPLOYMENT_RUNBOOK_20261006.md)，尚未实现该例外。新增认证后隔离提取与真实Core只读检查入口，本轮授权制作九类52文件密文并实际还原，真实Core只读启动/拒写/关闭通过，6库全部表及52项字节一致；Tailscale系统身份权限拒读仍缺，手机使用前轮保留schema62副本。用户要求整包复验、推远端草稿PR后暂停审核；确切回执见主窗验收。现役原库、任务/配置、MCP、47862桥和手机没有因本轮源码改变；D4生产切换未完成。
 
 ## PREDEPLOY 审计后兼容修复与源码集成（2026-10-06）
 

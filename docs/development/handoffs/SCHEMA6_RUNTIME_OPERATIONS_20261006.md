@@ -70,7 +70,7 @@ Core Node为旧包内`runtime/node.exe`。旧Core共享锁名为`shortcut-mail-r
 - 不把backup_read_only改live，不恢复整库抹去新数据，不回退库外current-head，不用旧DB+旧marker+旧floor套装重获资格。
 - 必须先补：旧v4非优雅首接adoption；SQLite打开前原始DB/所有实际sidecar流式加密保全；原址恢复/checkpoint证据；库外不可回退阶段链及各阶段中断恢复；完整运行inventory及恢复验证。普通backup bundle拒绝sidecar，不能拿它冒充原始日志恢复备份。
 - 还需生产任务封装（新空control/同用户DPAPI/配置绑定）、真实旧库副本/授权行为验证、精确候选测试/审核、Core停启迁移现场决定、MCP与手机各自切换Gate。手机schema62兼容和captures增改删/用户改卡保护未实机验收前，保留47862与单一消费者；legacy_b3和PR10不得双上传。
-- 用户允许先禁用Shortcut调试邮件；将此选择绑定候选配置与备份清单，仅暂停该调试邮件链。不能由relay=false推断一般通讯、手机聊天、MCP或所有通知已兼容。
+- 用户允许先禁用Shortcut调试邮件；将此选择绑定候选配置与备份清单，仅暂停该调试邮件链。固定入口的发送与回执查询返回HTTP503/`shortcut_mail_disabled`；SMTP配置、DPAPI凭据与journal均已保全，不自动重发在途邮件。不能由relay=false推断一般通讯、手机聊天、MCP或所有通知已兼容。
 
 详细首接方案见[部署runbook](SCHEMA6_DEPLOYMENT_RUNBOOK_20261006.md)；本页不重复签发部署授权。
 
@@ -81,3 +81,5 @@ Core Node为旧包内`runtime/node.exe`。旧Core共享锁名为`shortcut-mail-r
 现役源码：旧固定包`start_pinned_i_core.ps1:129–164`、`verify_v4_state.mjs`、`i_core_server.mjs:346–402`；MCP副本`writeback.mjs:293–317,468–604`、`mcp.mjs:306–346`、`server.mjs:249–273,484–518`。B3手机源码树`C:\HereIAm\b3-writeback-local-20261003`中`core_sync_engine.dart:72–145`、`core_sync_runtime_service.dart`、`main.dart:1880–1920`、`claude_web_note_feed_service.dart:91–175`；现装包绑定仅沿用`codex/predeploy-audit-20261005`的`PREDEPLOY_AUDIT_20261005.md`明确时间窗，不声称本轮重新查看手机。
 
 worker仅新增本页与本人操作单；复用recovery工作树，原有未跟踪backup/lifecycle依赖不暂存，不改全局状态/源代码。仅文档链接、事实对照与diff空白检查，无构建、生产动作或push。提交按已授权隔离worker例外临时设置SKIP_PROJECT_STATE=1并finally恢复；最终全局状态、精确提交测试及PR由主窗整合。
+
+主窗本轮[52项真实保全与恢复](SCHEMA6_REAL_BACKUP_RESTORE_20261006.md)已闭合；它是在线分别一致副本的检查恢复，不替代原址unclean首接工程与生产停启演练。
