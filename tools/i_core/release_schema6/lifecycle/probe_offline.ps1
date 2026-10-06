@@ -17,7 +17,15 @@ $busy=$false
 try { $handle=[IO.File]::Open((Join-Path $launch.state 'shortcut-mail-relay.runtime.lock'),'Open','ReadWrite','None'); $handle.Dispose() } catch [IO.IOException] { $busy=$true }
 if(-not $busy) { throw 'offline_lock_not_held' }
 if($CheckDatabase) {
- $handle=[IO.File]::Open((Join-Path $launch.state 'i-core.sqlite'),'Open','ReadWrite','None')
- $handle.Dispose()
+ $databaseHandles=@()
+ try {
+  foreach($suffix in @('','-wal','-shm','-journal')) {
+   $file=Join-Path $launch.state ('i-core.sqlite'+$suffix)
+   if($suffix -eq '' -or [IO.File]::Exists($file)) {
+    Assert-ProtectedPath $file
+    $databaseHandles += [IO.File]::Open($file,'Open','ReadWrite','None')
+   }
+  }
+ } finally { foreach($handle in $databaseHandles) { $handle.Dispose() } }
 }
 @{parent_pid=$parent.Id;guardian_pid=$guardian.Id;child_pid=$ChildPid;checked=$true} | ConvertTo-Json -Compress

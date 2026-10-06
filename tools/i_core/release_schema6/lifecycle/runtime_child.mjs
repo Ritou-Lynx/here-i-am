@@ -7,6 +7,8 @@ import { assertNode, inspectExisting, stateDigest, validatePrevious, MARKER, sep
 import { readConfiguration, protectedPath } from './configuration.mjs';
 import { createOfflineLease, recordClosedDatabase } from './offline_lease.mjs';
 import { sealClosedRecovery, verifyCanonicalRestart, migrateToSchema6, rollbackEmptySchema6 } from '../recovery_adapter.mjs';
+import { needsStartupRecovery, recoverAtStartup } from '../automatic_recovery.mjs';
+import { isInspectionDatabasePath } from '../../inspection_read_only.mjs';
 
 const [control,token,mode,...extra]=process.argv.slice(2);
 let config,core,lifecycle,settings,lease,poll,started=false,closed=false,offlineCompleted=false;
@@ -59,24 +61,37 @@ try {
  const cleanEnv=cleanEnvironment();for(const name of Object.keys(process.env))if(!(name in cleanEnv))delete process.env[name];
  protectedPath(control,true);protectedPath(path.join(control,'launch.json'));protectedPath(path.join(control,'stop.key'));
  const filename=path.join(config.state,'i-core.sqlite'),markerPath=path.join(config.state,MARKER);
+ if(isInspectionDatabasePath(filename))throw new Error('inspection_activation_unsupported');
  const initial=mode==='initialize-empty';
- let previous=null,before=null;
+ let previous=null,before=null,recovered=null;
  if(initial) {
   if(existsSync(filename) || existsSync(markerPath))throw new Error('initialize_requires_empty_state');
  } else {
-  before=inspectExisting(filename,mode.startsWith('offline-')?['5','6']:['6']);
-  if(!existsSync(markerPath))throw new Error('legacy_cutover_adapter_required');
-  previous=JSON.parse(readFileSync(plainPath(markerPath)));
+  plainPath(filename);
+  if(existsSync(markerPath))previous=JSON.parse(readFileSync(plainPath(markerPath)));
  }
+ // Read only protected JSON here. Opening even immutable SQLite before raw
+ // preservation would erase the guarantee for a dirty WAL/journal source.
+ protectedPath(config.configuration_file);
+ const declared=JSON.parse(readFileSync(config.configuration_file));
  settings=readConfiguration(config.configuration_file,{manifest_sha256:config.manifest_sha256,database_path:filename,
-  node_id:before?.nodeId??'new',owner_sid:config.owner_sid,release:config.release,provisioned_empty:initial||previous?.provisioned_empty===true});
- if(previous)validatePrevious(previous,config,before,settings.configurationHash);
+  node_id:initial?'new':previous?.node_id??declared.node_id,owner_sid:config.owner_sid,release:config.release,provisioned_empty:initial||previous?.provisioned_empty===true});
+ const recoveryNeeded=!initial&&needsStartupRecovery(filename,previous);
+ lease=createOfflineLease({control,token,config,origin:initial?'empty_provision':recoveryNeeded?'canonical_recovery':'canonical_restart',cleanCloseReceipt:null});
+ if(recoveryNeeded){
+  if(mode!=='start')throw new Error('recovery_requires_normal_start');
+  recovered=recoverAtStartup({config,settings,previous,supervisorLease:lease});
+  before=inspectExisting(filename,['6']);
+  recordClosedDatabase(lease,{receiptId:token,databasePath:filename,nodeId:before.nodeId,databaseSha256:before.database_sha256,custodySha256:recovered.custodySha256});
+ }else if(!initial){
+  before=inspectExisting(filename,mode.startsWith('offline-')?['5','6']:['6']);
+  validatePrevious(previous,config,before,settings.configurationHash);
+  recordClosedDatabase(lease,{receiptId:previous.token,databasePath:filename,nodeId:before.nodeId,databaseSha256:before.database_sha256,custodySha256:previous.custody_sha256});
+ }
  const secretValues=[settings.value.pairing_secret,settings.custodyKey.toString('hex'),readFileSync(path.join(control,'stop.key'),'utf8')].filter(Boolean);
  if(secretValues.some(secret=>process.argv.some(arg=>arg.includes(secret))))throw new Error('secret_in_argument_path_rejected');
  lifecycle={format:'schema6-lifecycle-v1',token,database_path:filename,node_id:before?.nodeId??null,manifest_sha256:config.manifest_sha256,
-  configuration_sha256:settings.configurationHash,phase:'opening',provisioned_empty:initial||previous?.provisioned_empty===true,custody_sha256:previous?.custody_sha256??null};
- lease=createOfflineLease({control,token,config,origin:initial?'empty_provision':'canonical_restart',
-   cleanCloseReceipt:previous?{receiptId:previous.token,databasePath:filename,nodeId:before.nodeId,databaseSha256:before.database_sha256,custodySha256:previous.custody_sha256}:null});
+  configuration_sha256:settings.configurationHash,phase:'opening',provisioned_empty:initial||previous?.provisioned_empty===true,custody_sha256:recovered?.custodySha256??previous?.custody_sha256??null};
  if(!initial && !['offline-migrate','offline-rollback'].includes(mode))await verifyCanonicalRestart({databasePath:filename,supervisorLease:lease,custodyDirectory:settings.value.recovery_custody_directory,custodyKey:settings.custodyKey});
  if(existsSync(path.join(control,'stop')))throw new Error('cancelled_before_store');
  saveMarker(lifecycle);
@@ -131,7 +146,7 @@ try {
    }
   }catch(error){void shutdown('control_failed',error);}
  },25);
- process.once('SIGINT',()=>{void shutdown('signal',new Error('authenticated_stop_required'));});
- process.once('SIGTERM',()=>{void shutdown('signal',new Error('authenticated_stop_required'));});
+ process.once('SIGINT',()=>{void shutdown('signal');});
+ process.once('SIGTERM',()=>{void shutdown('signal');});
  }
 }catch(error){if(config)await shutdown('startup_failed',error);else{process.stderr.write('fixed_child_rejected\n');process.exitCode=2;}}
