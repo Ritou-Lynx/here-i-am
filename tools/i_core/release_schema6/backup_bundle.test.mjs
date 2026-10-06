@@ -115,12 +115,20 @@ test('multiple recovery custody files require explicit one context and retain ev
 });
 
 test('Windows fixed release wrapper Create/Verify, environment isolation, mismatch and no-overwrite',{skip:process.platform!=='win32'},async t=> {
- const {execFileSync}=await import('node:child_process'); const {INVENTORY,PINNED_NODE_SHA256,verifyRelease}=await import('./package.mjs');
- const f=fixture(t),release=path.join(f.root,'candidate');mkdirSync(release);
- const files=[];
- for(const name of INVENTORY){const bytes=readFileSync(name==='runtime/node.exe'?process.execPath:path.resolve(name));const target=path.join(release,name);mkdirSync(path.dirname(target),{recursive:true});writeFileSync(target,bytes);files.push({path:name,bytes:bytes.length,sha256:sha(bytes)});}
- const commit='1'.repeat(40),manifest=Buffer.from(JSON.stringify({format:'i-core-schema6-preflight-candidate-v1',source_commit:commit,core_commit:commit,wrapper_commit:commit,core_schema_version:6,runtime_profile:'schema6-owned-lifecycle-v1',pinned_node_sha256:PINNED_NODE_SHA256,node_version:'v24.14.1',files}));
- writeFileSync(path.join(release,'manifest.json'),manifest);const manifestHash=sha(manifest);verifyRelease(release,manifestHash);
+ const {execFileSync}=await import('node:child_process'); const {INVENTORY,cleanEnvironment,prepareRelease,verifyRelease}=await import('./package.mjs');
+ const f=fixture(t),release=path.join(f.root,'candidate'),sourceRepository=path.join(f.root,'synthetic-git');mkdirSync(sourceRepository);
+ const gitExecPath=execFileSync('git',['--exec-path'],{encoding:'utf8',windowsHide:true}).trim();
+ const gitPath=path.resolve(gitExecPath,'../../../bin/git.exe');
+ const runGit=args=>execFileSync(gitPath,args,{encoding:'utf8',windowsHide:true,env:cleanEnvironment()}).trim();
+ runGit(['init','-q',sourceRepository]);
+ for(const name of INVENTORY.filter(name=>name!=='runtime/node.exe')) {
+  const target=path.join(sourceRepository,name);mkdirSync(path.dirname(target),{recursive:true});writeFileSync(target,readFileSync(path.resolve(name)));
+ }
+ runGit(['-C',sourceRepository,'-c','core.autocrlf=false','add','.']);
+ runGit(['-C',sourceRepository,'-c','user.name=Synthetic','-c','user.email=synthetic@example.invalid','-c','commit.gpgsign=false','-c','core.hooksPath='+path.join(f.root,'no-hooks'),'commit','-qm','synthetic full runtime sources']);
+ const sourceCommit=runGit(['-C',sourceRepository,'rev-parse','HEAD']);
+ const packaged=prepareRelease({repository:sourceRepository,output:release,nodePath:process.execPath,gitPath,sourceCommit});
+ const manifestHash=packaged.manifest_sha256;assert.equal(packaged.source_commit,sourceCommit);assert.equal(verifyRelease(release,manifestHash).source_commit,sourceCommit);
  const specPath=path.join(f.root,'spec.json'),specBytes=Buffer.from(JSON.stringify(f.spec));writeFileSync(specPath,specBytes);const keys=path.join(f.root,'keys');
  const ps=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
  const wrapper=path.join(release,'tools/i_core/release_schema6/backup_bundle_schema6.ps1');
