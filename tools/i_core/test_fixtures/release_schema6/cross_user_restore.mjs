@@ -86,7 +86,7 @@ try {
     assert.equal(report.coreHealth.mode,'inspection_read_only');assert.equal(report.coreHealth.immutable,true);
     assert.equal(report.deniedRoutes.length,5);assert.ok(report.deniedRoutes.every(r=>r.status===403));
     assert.equal(report.databaseBytesUnchanged,true);assert.equal(report.sidecarsAbsent,true);
-    summary={restored:true,passwordOnly:true,dpapiUsed:false,inspectionOnly:true,activationSupported:false,realCoreVerified:true,deniedRouteCount:5,databaseBytesUnchanged:true,sidecarsAbsent:true,nodeSha256:expected.nodeIdSha256,schemaVersion:expected.schemaVersion,deviceCount:expected.devices.count,devicesSha256:expected.devices.sha256,tableCount:expected.tables.length,rowCount:expected.tables.reduce((n,t)=>n+t.rows,0),allTablesSha256:sha(JSON.stringify(expected.tables)),databaseFingerprintSha256:expected.dataSha256};
+    summary={restored:true,passwordOnly:true,dpapiUsed:false,inspectionOnly:true,activationSupported:false,realCoreVerified:true,deniedRouteCount:5,databaseBytesUnchanged:true,sidecarsAbsent:true,nodeIdSha256:expected.nodeIdSha256,runtimeNodeSha256:sha(readFileSync(process.execPath)),schemaVersion:expected.schemaVersion,deviceCount:expected.devices.count,devicesSha256:expected.devices.sha256,tableCount:expected.tables.length,rowCount:expected.tables.reduce((n,t)=>n+t.rows,0),allTablesSha256:sha(JSON.stringify(expected.tables)),databaseFingerprintSha256:expected.dataSha256};
   }
   summary.inputByteCount=password.length;summary.binaryInputExact=password.length===48;
   process.stdout.write(JSON.stringify(summary)+'\n');

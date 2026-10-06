@@ -7,7 +7,7 @@ try { Assert-CrossUserCI -Parent } catch { [Console]::Error.WriteLine('cross_use
 if($GuardOnly){[Console]::Out.WriteLine('{"hostedGuardPassed":true}');exit 0}
 if(-not $ProductionRoot){$ProductionRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../..'))}
 $account=$null;$createdSid=$null;$child=$null;$job=$null;$pipe=$null;$secret=$null;$credentialSecret=$null;$previousTokenOwner=$null
-$serviceStarted=$false;$cleanupOk=$true;$passed=$false;$childStarted=$false;$childAssigned=$false;$phase='setup';$result=$null;$failureDiagnostic=$null;$clock=[Diagnostics.Stopwatch]::StartNew()
+$serviceEvidence=New-CrossUserServiceEvidence;$cleanupOk=$true;$passed=$false;$childStarted=$false;$childAssigned=$false;$phase='setup';$result=$null;$failureDiagnostic=$null;$clock=[Diagnostics.Stopwatch]::StartNew()
 $childErrors=$null;$childDiagnostic=$null
 $cleanup=@{pipeClosed=$null;unassignedChildStopped=$null;jobEmpty=$null;jobDisposed=$null;childExited=$null;childDisposed=$null;stderrDrained=$null;accountRemoved=$null;secondaryLogonRestored=$null;tokenOwnerRestored=$null}
 $cleanupErrors=@{}
@@ -74,8 +74,7 @@ try {
  Set-Acl -LiteralPath $childParent -AclObject $childAcl
  $workspace=Join-Path $childParent 'private'
  $phase='secondary_logon_query'
- $service=Get-Service -Name seclogon
- if($service.Status -ne 'Running'){$phase='secondary_logon_start';Start-Service -Name seclogon;$serviceStarted=$true}
+ Invoke-CrossUserSecondaryLogon -Mode Start -Evidence $serviceEvidence
  $phase='cross_user_pipe_setup'
  $pipeName='s6-cross-user-'+[Guid]::NewGuid().ToString('N')
  $security=New-Object IO.Pipes.PipeSecurity;$security.SetAccessRuleProtection($true,$false)
@@ -150,13 +149,13 @@ finally {
    $cleanup.accountRemoved=$true
   } catch {$cleanupOk=$false;$cleanup.accountRemoved=$false;$cleanupErrors.accountRemoved=Get-CrossUserSafeError $_}
  }
- if($serviceStarted){try{Stop-Service -Name seclogon -ErrorAction Stop;if((Get-Service -Name seclogon).Status -ne 'Stopped'){throw 'ci_service_stop_unconfirmed'};$cleanup.secondaryLogonRestored=$true}catch{$cleanupOk=$false;$cleanup.secondaryLogonRestored=$false;$cleanupErrors.secondaryLogonRestored=Get-CrossUserSafeError $_}}
+ if($serviceEvidence.startedByFixture){try{Invoke-CrossUserSecondaryLogon -Mode Restore -Evidence $serviceEvidence;$cleanup.secondaryLogonRestored=$true}catch{$cleanupOk=$false;$cleanup.secondaryLogonRestored=$false;$cleanupErrors.secondaryLogonRestored=Get-CrossUserSafeError $_}}
  if($secret){[Array]::Clear($secret,0,$secret.Length)};if($credentialSecret){$credentialSecret.Dispose()}
  if($previousTokenOwner){try{[void][CrossUserTokenOwner]::Set($previousTokenOwner);$cleanup.tokenOwnerRestored=$true}catch{$cleanupOk=$false;$cleanup.tokenOwnerRestored=$false;$cleanupErrors.tokenOwnerRestored=Get-CrossUserSafeError $_}}
 }
 $safe=@{passed=($passed -and $cleanupOk);cleanupConfirmed=$cleanupOk;accountCreated=($null -ne $createdSid);crossMachineTested=$false;elapsedMilliseconds=$clock.ElapsedMilliseconds;failurePhase=$(if($passed -and $cleanupOk){'none'}else{$phase})}
 if($failureDiagnostic){$safe.failureDiagnostic=$failureDiagnostic}
-$safe.cleanup=$cleanup;$safe.cleanupErrors=$cleanupErrors
+$safe.secondaryLogon=$serviceEvidence;$safe.cleanup=$cleanup;$safe.cleanupErrors=$cleanupErrors
 if($childDiagnostic){$safe.childDiagnostic=$childDiagnostic}
 if($passed){foreach($p in $result.PSObject.Properties){$safe[$p.Name]=$p.Value}}
 try {

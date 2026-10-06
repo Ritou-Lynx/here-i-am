@@ -39,7 +39,7 @@ Core、wrapper、恢复、备份与登录/关机工具从同一已提交 Git 树
 
 backup/recovery键独立，CurrentUser DPAPI便利本机自启；backup键另有scrypt/AES-GCM口令包。口令-only入口完整认证后提取新检查目录、实际启动不可变只读Core，核node/schema/devices/全部用户表数量和指纹、整库字节哈希、业务403、关闭无sidecar/字节改变。备份里的launcher不运行，source_path不覆盖。不同用户/机器无法解开的其他组件DPAPI凭据需重新绑定/认证，不承诺复制密文即恢复所有服务。
 
-[电脑外恢复](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)写口令、保留与镜像、新用户检查恢复、Tailscale重新登录/同名、47862/Serve/手机配置步骤。本轮无第二用户/机器环境时明确记录条件未实测，不创建账号或用子进程冒充跨账号证明。
+[电脑外恢复](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)写口令、保留与镜像、新用户检查恢复、Tailscale重新登录/同名、47862/Serve/手机配置步骤。不同标准Windows SID的合成口令恢复已在一次性hosted CI实际通过两次，见结构化回执；本机未创建账号，另一实体电脑和生产激活未验，不用同用户子进程冒充跨账号证明。
 
 ## 退回
 

@@ -1,6 +1,6 @@
 # PR14 自动运行、口令备份与 CI 续作｜主窗验收（2026-10-06）
 
-仅继续 `codex/core-deploy-readiness-20261006` 与同一草稿 [PR #14](https://github.com/Ritou-Lynx/here-i-am/pull/14)；base 为 `v3-lab@90f23ce1d38628901e25b421d8f0f21c084f093b`。**主窗最终整组与精确固定候选烟测已通过；真实跨用户 CI 与最终远端提交检查尚待回执。** 验收完成后只推此分支、更新同一 PR、暂停等审核，不合并、不部署。
+仅继续 `codex/core-deploy-readiness-20261006` 与同一草稿 [PR #14](https://github.com/Ritou-Lynx/here-i-am/pull/14)；base 为 `v3-lab@90f23ce1d38628901e25b421d8f0f21c084f093b`。**主窗最终整组、精确固定候选烟测和两次真实跨 Windows 用户合成恢复已通过。** 最终交付提交的全部远端检查以同一 PR Checks 与正文回执登记，确认全绿后暂停审核。 验收完成后只推此分支、更新同一 PR、暂停等审核，不合并、不部署。
 
 本轮所有运行证据来自合成环境。未读取/停启现役 Core、MCP、隧道，未打开原库，未改现役配置/计划任务，未操作手机；未实际关机/注销电脑，未注册登录任务、未在本机创建 Windows 用户。临时 CI 标准用户演练仅在一次性 hosted runner 上运行并清理。前轮九类 52 文件真实备份/恢复已由用户审核通过，本轮保留原证据，未重新访问或解密那些数据。
 
@@ -64,7 +64,9 @@ CI-only 已推 head `45bcab16a98c147efe4f05669dd92f1cb4728772` 的其他 9 check
 
 合成口令、独立 Node 与 pinned Windows wrapper 在原 DPAPI 目录不可用时真实恢复并启动只读 Core：核 node/schema/devices/全部用户表指纹与整库字节哈希；5条受限业务路由拒绝（含一条GET；SQL拒写另有独立测试）；退出 DB 字节不变。只解密或比较哈希不算此验收。完整口令备份专项14/14通过，最终主窗整组也覆盖并通过这些用例。
 
-没有已获准的第二 Windows 用户登录或第二台机器环境；本轮未创建账户，**未完成真实跨 Windows 用户/异机实测**。新机步骤、恢复口令保管、原 DPAPI 凭据与生产 recovery key 的重新绑定限制见[电脑外恢复](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)。检查恢复目录不能直接激活为现役库。
+另一标准 Windows 用户的实际合成恢复已在一次性 hosted VM 完成两次：source `e1116f5e`；push [job112157590807](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37429716715/job/112157590807) 135,225ms，PR [job112157585768](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37429722424/job/112157585768) 133,300ms。仅口令、DPAPI未使用、SID确实不同且token非管理员；真实Core只读启动、5条受限路由拒绝、字节不变、无sidecar、清理全部确认。合成schema4为3张用户表/7行/1设备，全部用户表指纹与factory一致；不是现役schema4全量库或九类52真实文件的跨用户重验。[结构化回执](SCHEMA6_CROSS_USER_VALIDATION_20261006.json)只含计数、哈希、布尔与CI来源。
+
+本机未创建账号，也未在另一台实体电脑实测；`crossMachineTested=false`。这两项与已经通过的不同Windows SID恢复分别报告。新机口令保管、原DPAPI凭据与生产recovery key的重新绑定限制见[电脑外恢复](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)；检查恢复目录不能直接激活。CI临时服务清理补丁另见[状态机交接](SCHEMA6_CROSS_USER_SERVICE_CLEANUP_20261006.md)：主窗PS5.1独立编译/18种纯模拟全部通过，固定服务/不force/不级联，只有实测Stopped才成功；新的最终CI还必须覆盖该夹具。
 
 Tailscale 机器私钥按用户决定排除，不是缺项；换机重新登录同 tailnet、释放/沿用原机器名，按原 Serve 协议/路径/端口恢复；手机用数字 IP 时更新 Core/47862 地址并重新核认证、cursor、单消费者。当前未执行重配。调试邮件允许先关闭，保全旧配置/凭据/journal，不自动重发。
 
@@ -77,7 +79,7 @@ Tailscale 机器私钥按用户决定排除，不是缺项；换机重新登录�
 - 25个 Node 文件语法及16个 PowerShell 文件由目标 Windows PS5.1.26100.9444 parser通过。首次在已填充 build 目录调用 Protect-NewDirectory 被空目录门控正确拒绝；改走既有流程：先保护全新空目录，再逐项复制已验证库存、重新 verify，同一 manifest字节，不修改生产门控。
 - 最终整组：603 tests / 602 pass / 0 fail / 0 cancel / 1既有环境限定skip，3 suites，1,024,765.3329ms（约17分05秒）。唯一skip为本机大小写不敏感目录不能表示两个大小写不同的文件；不新增skip，不过滤红灯。完整TAP SHA256 `6b47c82caf449aa9aa4725aaf4e82c4d24eeb3d051245e999049291b9b11f332`。
 - 另一次对上述已组装固定候选的真实 loopback/认证停止/child+guardian+Job/锁烟测：通过，67,256ms；真实 loopback health、认证 stop、child/guardian 退出、Job 空、runtime lock 释放、发行字节未变。回执 `build/ci/pr14-final-candidate-smoke.json`，SHA256 `762ebe050d457db036fe9b9edf6890a23e9b95d3c863c1977c8eac8385384913`。
-- 最终交付 head 与库存字节比对：FINAL_DELIVERY_PENDING；最终精确 head 的 CI 回执以同一 PR Checks 和 PR 正文登记，历史 green 不替代本次。
+- 最终交付登记：本轮后续只改 CI 夹具和交接；43项库存与固定 source 逐字比对通过。提交后再次比对并把 deliveryHead、manifest及结果写入忽略的 build/ci/pr14-delivery-inventory.json；最终精确 head 与全部 CI 回执在同一 PR 正文及 Checks 登记，历史 green 不替代本次。
 
 最终主窗整组入口：`node --test --test-concurrency=2 tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs tools/i_core/*.test.mjs tools/i_remote_mcp/writeback.test.mjs tools/i_remote_mcp/writeback_e2e.test.mjs`。真实本机执行使用解析后的文件数组与双 reporter，主窗24逻辑CPU，文件并发2；小型Windows CI仍串行文件并发1。最终完整 TAP 仅保留在忽略的 `build/ci/pr14-automatic-final-root-2.tap`，交付其计数和 SHA；无真实正文/密钥/口令进入报告。
 
