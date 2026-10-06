@@ -7,7 +7,7 @@ try { Assert-CrossUserCI -Parent } catch { [Console]::Error.WriteLine('cross_use
 if($GuardOnly){[Console]::Out.WriteLine('{"hostedGuardPassed":true}');exit 0}
 if(-not $ProductionRoot){$ProductionRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../..'))}
 $account=$null;$createdSid=$null;$child=$null;$job=$null;$pipe=$null;$secret=$null;$credentialSecret=$null;$previousTokenOwner=$null
-$serviceStarted=$false;$cleanupOk=$true;$passed=$false;$childAssigned=$false;$phase='setup';$result=$null;$failureDiagnostic=$null;$clock=[Diagnostics.Stopwatch]::StartNew()
+$serviceStarted=$false;$cleanupOk=$true;$passed=$false;$childStarted=$false;$childAssigned=$false;$phase='setup';$result=$null;$failureDiagnostic=$null;$clock=[Diagnostics.Stopwatch]::StartNew()
 try {
  if(-not $OutputReport -or (Test-Path -LiteralPath $OutputReport)){throw 'fresh_report_required'}
  if(-not $NodePath){$NodePath=(Get-Command node.exe -ErrorAction Stop).Source}
@@ -81,9 +81,18 @@ try {
  $ps=Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
  $launchArgs=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $transfer 'cross_user_restore_child.ps1'),'-Transfer',$transfer,'-Workspace',$workspace,'-PipeName',$pipeName,'-ServerPid',"$PID",'-OriginalSid',$originSid,'-ExpectedSid',$createdSid,'-TransportSha256',$transportHash)
  $quoted=($launchArgs|ForEach-Object{if($_.Contains('"') -or $_.EndsWith('\')){throw 'ci_argument_rejected'};'"'+$_+'"'}) -join ' '
- $credential=[Management.Automation.PSCredential]::new(($env:COMPUTERNAME+'\'+$account),$credentialSecret)
+ # Explicit environment block for the alternate-credential process. Do not
+ # inherit runner tokens or rely on the credential logon environment defaults.
+ $startInfo=[Diagnostics.ProcessStartInfo]::new()
+ $startInfo.FileName=$ps;$startInfo.Arguments=$quoted;$startInfo.WorkingDirectory=$childParent
+ $startInfo.UseShellExecute=$false;$startInfo.CreateNoWindow=$true;$startInfo.WindowStyle='Hidden'
+ $startInfo.UserName=$account;$startInfo.Domain=$env:COMPUTERNAME;$startInfo.Password=$credentialSecret;$startInfo.LoadUserProfile=$true
+ $startInfo.EnvironmentVariables.Clear()
+ foreach($key in @('OS','GITHUB_ACTIONS','RUNNER_ENVIRONMENT','RUNNER_OS','SystemRoot','WINDIR')){$startInfo.EnvironmentVariables[$key]=[Environment]::GetEnvironmentVariable($key)}
+ $startInfo.EnvironmentVariables['TEMP']=$childParent;$startInfo.EnvironmentVariables['TMP']=$childParent
+ $child=[Diagnostics.Process]::new();$child.StartInfo=$startInfo
  $phase='cross_user_process_start'
- $child=Start-Process -FilePath $ps -ArgumentList $quoted -Credential $credential -LoadUserProfile -WindowStyle Hidden -WorkingDirectory $childParent -PassThru
+ if(-not $child.Start()){throw 'ci_process_start_failed'};$childStarted=$true
  # The child waits for our frame. Assign before transmitting any password or
  # permitting it to start Node; all descendants inherit kill-on-close ownership.
  $phase='cross_user_job_assign'
@@ -112,9 +121,9 @@ try {
 } catch { $passed=$false;$failureDiagnostic=Get-CrossUserSafeError $_ }
 finally {
  if($pipe){$pipe.Dispose()}
- if($child -and -not $childAssigned){try{if(-not [CrossUserJob]::StopUnassigned($child)){$cleanupOk=$false}}catch{$cleanupOk=$false}}
+ if($childStarted -and -not $childAssigned){try{if(-not [CrossUserJob]::StopUnassigned($child)){$cleanupOk=$false}}catch{$cleanupOk=$false}}
  if($job){try{if(-not $job.Stop()){$cleanupOk=$false}}catch{$cleanupOk=$false};$job.Dispose()}
- if($child){try{if(-not $child.WaitForExit(15000)){$cleanupOk=$false}}catch{$cleanupOk=$false};$child.Dispose()}
+ if($child){if($childStarted){try{if(-not $child.WaitForExit(15000)){$cleanupOk=$false}}catch{$cleanupOk=$false}};$child.Dispose()}
  if($createdSid){
   try {
    $current=Get-LocalUser -Name $account -ErrorAction Stop

@@ -39,3 +39,13 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/i_
 - 原实现的对象转换、宿主组成员名称解析是源码可见的潜在失败点，目前只是待验证假设。ACL 或 SecondaryLogon 也仍可能失败；本补丁保留失败和清理语义，不通过更改宿主组/服务启动类型绕过失败。
 - 本地窄验证：3 个 PowerShell 文件 parser 0 错；合成含账号/口令/路径的 ErrorRecord 未泄漏，已知固定错误 token/HResult 保留；Windows PowerShell 5.1 `-GuardOnly` 仍返回 2，在任何账号或服务操作前拒绝；`git diff --check` 通过。没有在本机创建/切换账号、启动服务或重新跑生产整组。下一次 hosted Windows 实跑才能确认跨 SID 与本轮修复效果。
 - 本次只提交 3 个自有 PS 夹具和本文，使用单次 `SKIP_PROJECT_STATE=1` 并 finally 恢复；未 push，Node/生产模块/workflow 没有改动。
+
+## 第二轮子进程提前退出后的诊断修复
+
+- 第二轮两个 hosted job 已越过账号创建/组/ACL/SecondaryLogon，child 立即输出旧固定拒绝，父进程之后在 `cross_user_pipe_connect` 等待 60 秒失败；`cleanupConfirmed=true`。141/150 秒是包含 factory 的总时长，不能当成 restore 时长。第一轮 58 秒同样包含 factory，并非已证实的网络或 pipe timeout。
+- 主窗独立纯内存验证已证实：旧 SecurityIdentifier 转 LocalPrincipal[] 发生 PSInvalidCastException，LocalUser 可转换；上一轮改传 `$created` 有此补充证据。第二轮 child 失败的具体原因仍未证实，可能为 credential 环境标记或 pre-pipe 身份/目录检查，不能混同两个阶段。
+- child catch 现在输出受限 JSON：固定 `failurePhase`、`childRejected=true` 与已有安全异常诊断。阶段覆盖 hosted guard、身份、标准令牌、workspace 创建/owner/ACL、pipe、口令 frame、native helper、server PID、transport、copy、inspection、report；不输出原始异常文本/账号/口令。
+- credential 启动改用 .NET ProcessStartInfo：SecureString Password、UserName/Domain、LoadUserProfile、UseShellExecute=false、CreateNoWindow 与 Hidden。EnvironmentVariables 先清空，仅显式加入 OS/GITHUB_ACTIONS/RUNNER_ENVIRONMENT/RUNNER_OS/SystemRoot/WINDIR/TEMP/TMP；没有继承 token 或其余环境。TEMP/TMP 初始指向新账号被委托的空父目录，child 创建并验证 private 后再切换。显式环境块与 UseShellExecute=false 的契约参见 [Microsoft .NET 文档](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.environmentvariables?view=netframework-4.8.1)。这消除对 credential 默认环境的依赖，但不声称已确定旧失败根因。
+- Job.Add 成功后才能发恢复口令，未分配 Job 的实际已启动子进程仍按持柄终止；新增 childStarted 区分 Process 对象已构造与进程真正启动，Start 失败不等待不存在的进程。失败不跳过；生产模块与测试断言未放宽。
+- 本地：3 个 PS parser 0 错；parent GuardOnly 和 child 实际 guard 均退出 2，child 安全 JSON 明确 `child_hosted_guard`，未发生目录/账号/服务动作；按源码实际构造 ProcessStartInfo 验证仅 8 个允许环境键、SecureString 保留、hidden/profile/UseShellExecute 标记正确，未调用 Start；`git diff --check` 通过。真实不同 SID 恢复仍待远端新回执。
+- 本次只提交 2 个自有 PS 及本文，单次 SKIP_PROJECT_STATE 例外后恢复；不 push。
