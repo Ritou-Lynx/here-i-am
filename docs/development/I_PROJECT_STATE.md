@@ -6,7 +6,7 @@
 
 最终200k容量344.350秒通过，多revision/删除/purge和六种损坏全部验证；floor2213→2674字节，孤儿FK在seal/recover拒绝且head逐字不前进。真实Windows固定包两档完整关闭/异常恢复/每日备份：10倍3.118/25.729/11.865秒，50倍9.014/70.049/51.587秒；备份不含U盘镜像/调度等待，不把局部profile当总耗时。旧超标版明确保留。
 
-主窗650tests/649pass/0fail/0cancel/1既有大小写环境skip，885951.5865ms，相邻95/95；46库存、Node28/PS16语法通过。正式源码/固定manifest与烟测提交后绑定，新精确head CI回执登记同PR，旧a608绿不能代替本次结果。详见[本轮大容量验收](handoffs/SCHEMA6_SCALED_RECOVERY_20261006.md)。
+主窗650tests/649pass/0fail/0cancel/1既有大小写环境skip，885951.5865ms，相邻95/95；46库存、Node28/PS16语法通过。固定源aa42e93a74830e6b928bd63d822537235de064e7、manifest a04432cf038e4d30fea3ff1bd4029ef4af3b47bc27a37fb86dff9d7cda571842，已与本机已测45源文本/固定Node逐字核对；精确固定包本机合成真实启动/认证停止/child和guardian exit0/Job空/锁释放烟测23,526ms通过。新精确head CI回执登记同PR，旧a608绿不能代替本次结果。详见[本轮大容量验收](handoffs/SCHEMA6_SCALED_RECOVERY_20261006.md)。
 
 [现场④–⑥](handoffs/SCHEMA6_CUTOVER_FIELD_CHECKLIST_20261006.md)覆盖历史精确任务/进程/端口/路径、失败退回、NTFS U盘本人决定格式化（i不格式化）、恢复口令/任务本人批准、合并另授权→合并后重建→切换另授权和真关机四Gate。邮件debug关闭，47862保留、legacy_b3唯一上传器。ARSO实际行为不确定；新电脑新DPAPI/独立恢复key/current-head/配置绑定以建立现役Core列下一轮缺口，本轮只读检查还原。
 

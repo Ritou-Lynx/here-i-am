@@ -76,4 +76,6 @@ Windows更新后需有用户交互式登录会话；ARSO可能在手工解锁前
 
 整组spec SHA256 5ea47d657752ef4000148c63c74bdc56a00d0971ac63597150ff59f84dfd90ab；TAP SHA256 b0794551c450671635b3235a829586e7e34435b969309fe9933eff15c2d22371。日志位于忽略的build/ci/pr14-scaled-main.spec.log/.tap；只有合成诊断，未加入真实资料。
 
-正式源码提交与固定manifest在正常提交后绑定，精确远端head与新13项CI回执随同PR登记；旧a608绿色不能作为本轮新提交证据。完成后只推同一PR并暂停，不合并、不部署；真实关机与客户端Gate仍未执行。
+正式固定源aa42e93a74830e6b928bd63d822537235de064e7；manifest a04432cf038e4d30fea3ff1bd4029ef4af3b47bc27a37fb86dff9d7cda571842；库存46项，45源文本与本机已测字节逐字相同，Node仍为58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f。受保护候选在本机隔离真实Core启动、loopback健康、认证停止、child/guardian exit0、Job空和锁释放烟测通过23,526ms，库存未改。候选路径为C:\\Users\\Lynx-DB\\AppData\\Local\\Temp\\schema6-pr14-final-vo61QT\\candidate，仅供本轮复核，未来合并后必须重新构建。首次只保护父目录的准备尝试被protected_root_required在启动前拒绝；未打开原库，未改门控。按原有流程先保护新空候选根，再逐字复制核验库存，复测通过；非空目录初始化也按原门控拒绝，未绕过。
+
+随后只有文档回执变动，最终远端head的库存仍需逐字核对本固定包；新13项CI实际回执登记在同PR的精确Checks与正文，旧a608绿色不能作为本轮新提交证据。完成后只推同一PR并暂停，不合并、不部署；真实关机与客户端Gate仍未执行。
