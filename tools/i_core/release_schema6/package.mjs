@@ -23,7 +23,7 @@ export const WRAPPERS = Object.freeze([
   'lifecycle/offline_lease.mjs', 'lifecycle/probe_offline.ps1',
   'lifecycle/offline_probe_client.mjs',
   'lifecycle/session_window.ps1', 'lifecycle/login_schema6.ps1',
-  'lifecycle/prepare_login_schema6.ps1',
+  'lifecycle/prepare_login_schema6.ps1', 'lifecycle/mcp_configuration.ps1',
 ]);
 export const INVENTORY = Object.freeze([
   ...SOURCES, ...WRAPPERS.map(name => `tools/i_core/release_schema6/${name}`), 'runtime/node.exe',

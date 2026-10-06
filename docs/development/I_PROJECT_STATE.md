@@ -1,6 +1,20 @@
 # 林埃的项目状态
 
-## PR14 大容量防回退与现场清单（2026-10-06）
+## PR14 MCP读库持柄与会话管理（2026-10-06）
+
+继续 `codex/core-deploy-readiness-20261006` / 草稿PR14；用户要求解决旧MCP缓存Core只读句柄导致清停/恢复阻断。指定旧入口 `adfc8812…5554d6` 的六模块源码原字节在合成真实CLI中复现：实际OAuth/initialize/i_recall开库后，未托管进程仍活着时原生门控 `offline_probe_failed`、sidecars残留；停止该合成读者后恢复通过。没有查询现役进程或原库。
+
+同一交互式会话现在拥有独立MCP Job：Core真实ready后启MCP；停止派发→MCP等待/必要时强停所属树并确认真实退出/句柄释放→活动备份排空→Core认证清停，共用30秒。Core异常恢复前同样先停MCP。未放宽strictClosedPath/路径/ACL或使用在线immutable；源码/可变状态分离、独立配置hash及持锁绑定，生产PrepareOnly拒绝缺少managed MCP。自然退出失败粘滞，0/7/9与owner force124区分，不冒称MCP优雅关闭。
+
+主窗最终662tests/661pass/0fail/0cancel/1既有大小写文件系统skip，1,077,611.5668ms；没有新增skip/屏蔽。 新增8项组合及4项协议夹具均列入；无Tick四真实持柄例、源码/环境拒绝和实际CLI端口冲突通过。Node28/PS17运行源码语法通过。正式已提交候选的47库存/逐字绑定和联合烟测待本次源码提交后执行，未把合成manifest当部署包。
+
+本轮真实Windows完整WM/Job实测，最大3秒MCP宽限：10倍完整关闭6.215872秒（Core2.524）、恢复到Core+MCP请求28.819973秒；50倍完整关闭12.084255秒（Core8.343）、恢复82.936273秒；恢复后分别6.224536/13.782012秒关闭，均真实clean_closed/无Core强杀/独占成功。每档一次、无在途备份，不称三组件最坏负载保证。详见[本轮组合验收](handoffs/SCHEMA6_MCP_SESSION_ACCEPTANCE_20261006.md)、[源码审计](handoffs/SCHEMA6_MCP_READER_AUDIT_20261006.md)。
+
+[现场清单](handoffs/SCHEMA6_CUTOVER_FIELD_CHECKLIST_20261006.md)新增独立授权停用旧MCP任务触发/失败重试并纳会话；⑥.4关机前须MCP真实服务已开库，开机登录后新MCP再服务及四Gate。未管理读者仍待授权现场核排，NTFS U盘/不格式化、邮件off、47862桥/legacy_b3保持，先另授权合并→合并提交重建→再另授权切换；新机激活绑定仍下一轮。
+
+本轮只读指定源码与已有报告，现役Core/MCP/隧道、原库、实际任务和手机未查询或操作。只推同PR、精确新head CI全绿后暂停审核；没有合并、部署、注册任务或实际关机。最终远端CI回执登记同PR正文/Checks；此前8b绿不作本轮证明。
+
+## PR14 大容量防回退与现场清单（前轮已通过，2026-10-06）
 
 继续同一codex/core-deploy-readiness-20261006 / 草稿PR14，base v3-lab@90f23ce1，不合并不部署。外置domain记录见证改固定摘要，完整认证操作历史重建物化结果；历史改写、revision/body回退、缺行、FK损坏仍拒绝。四只读线程与64MiB临时SQLite缓存没有省略深审计/旧历史；每phase原生证明仍使用新challenge/sequence/MAC和真实句柄。
 

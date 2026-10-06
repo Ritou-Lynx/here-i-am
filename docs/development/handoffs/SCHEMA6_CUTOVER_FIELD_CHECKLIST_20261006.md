@@ -12,8 +12,8 @@
 2. 核九类保全清单、原包/配置/任务恢复资料及恢复工具；历史 52 项和 6 库检查已通过只是既有证据，不能代替切换窗口的原始 DB/WAL/SHM/journal 保全。
 3. **Lynx 本人安全输入恢复口令**，使用固定工具的 SecureString 提示和一次性内存管道；不经聊天、参数、环境变量、明文文件或日志。口令由本人独立保管在电脑外；密文、口令包、认证绑定回执配套保管并验证。
 4. **Lynx 插入所选 U 盘后，先核目标卷文件系统和确切卷身份，只接受 NTFS。** FAT32、exFAT 或无法确认时停止镜像准备并明确提示：“该目标不是已确认的 NTFS，当前方案不能使用；格式化会清除盘内数据，请由你决定是否格式化或改用其他 NTFS 介质。”**i 不自行格式化，也不自动转换文件系统。** 本人决定不等于已授权格式化执行；只在明确的 NTFS 镜像准备授权后建立受保护目标目录，再配置/验证镜像。仅复制认证密文、口令包和绑定回执，拒绝裸库/正文；外盘缺席保留本机成功备份并报告镜像失败，不删未知文件。
-5. 准备生产配置、独立 recovery key/current-head、backup key、control 根和登录任务 XML；release/state/control/config/custody/backup 各有明确 canonical 路径与保护权限。生产端口固定 `47841`，不沿用默认随机端口 `0`。保持 `legacy_b3` 单上传器、reply jobs/activity 关闭、owner-managed 域策略。邮件 debug 关闭，保留 SMTP 配置/DPAPI/journal，不自动重发。
-6. 将新候选 source/manifest、现场路径、停启对象、回退界限、停机窗口和真人关机验收交 Lynx 审核，**另获现场切换授权后才执行④**。MCP 更换、手机安装/配置及任务注册各按精确范围授权；本页本身不授权任何动作。本人须明确批准安装交互式登录任务；生成 XML 不等于注册。
+5. 准备生产配置、独立 recovery key/current-head、backup key、control 根、MCP 会话配置和登录任务 XML；生产 prepare 必须提供 MCP 配置，缺失不得生成可上线候选。MCP 使用固定同字节源码快照和现有可变 `.state`，source/state 分离；核源码依赖与 Node 的完整 inventory/hash，保护源码快照和配置外锚，不能把可变账本/token 当成固定源码重建或覆盖。release/state/control/config/custody/backup 各有明确 canonical 路径与保护权限。生产端口固定 `47841`，不沿用默认随机端口 `0`。保持 `legacy_b3` 单上传器、reply jobs/activity 关闭、owner-managed 域策略。邮件 debug 关闭，保留 SMTP 配置/DPAPI/journal，不自动重发。
+6. 将新候选 source/manifest、现场路径、停启对象、回退界限、停机窗口和真人关机验收交 Lynx 审核，**另获现场切换授权后才执行④**。将旧 `\HereIAm-iRemoteMCP` 任务停用、禁用登录触发及失败重试、由新 Core 交互式会话统一管理 MCP，须列入另行现场授权；手机安装/配置及新任务注册仍各按精确范围授权；本页本身不授权任何动作。本人须明确批准安装交互式登录任务；生成 XML 不等于注册。
 
 镜像介质已确定为 **U 盘**，具体卷身份/目标目录待现场填写。第4项 NTFS 人读提示属于执行者的**现场预检流程**，不是已实现的文件系统专属错误码。源码 `tools/i_core/release_schema6/automatic_backup.mjs` 的 mirror catch 实际返回 `mirrored:false`、`mirrorPending:true`、`mirrorError:'mirror_copy_unavailable_or_rejected'`；ACL/路径保护仍严格。该通用错误本身不能分辨 FAT32/exFAT、外盘断开或权限拒绝；先根据预检证据解释再处理，不能把仅有 ACL gate 宣称为生产代码明确只允许 NTFS。
 
@@ -43,8 +43,8 @@
 
 | 顺序 | 执行动作 | 完成判据／失败退回 |
 |---|---|---|
-| ④.1 | 在获准窗口记录开始时间、授权范围和当次 inventory；保存旧任务 XML、Enabled/失败重试、受影响服务设置及客户端队列基线。核所有实际 writer/reader、旁路启动者和消费者。 | 精确进程/端口/路径均有当前绑定。发现不在清单中的依赖或无法排除 writer：停止切换，保持原服务，先补范围。 |
-| ④.2 | 先暂停客户端写入口/消费者；冻结 MCP 的触发/重试并停当次绑定任务和进程树。若批准停隧道，先冻结其 Auto/失败恢复再停精确服务。 | MCP wrapper/Node/后代退出，47860/47862 不再由旧进程监听，read model/账本句柄释放。Cloudflare 若在范围内须 SCM Stopped、进程退出、47864 旧监听消失。任务“停止”或网页离线不足以通过。 |
+| ④.1 | 在获准窗口记录开始时间、授权范围和当次 inventory；保存旧任务 XML、Enabled/失败重试、受影响服务设置及客户端队列基线。核所有实际 writer/reader、旁路启动者和消费者；暂停并排空不归会话管理的工具/脚本。源码审计不能证明全机没有其他 reader。 | 精确进程/端口/路径均有当前绑定。发现不在清单中的依赖或无法排除 writer/reader：停止切换，保持原服务，先补范围。 |
+| ④.2 | 先暂停客户端写入口/消费者；在另获授权后停用旧 `\HereIAm-iRemoteMCP`，禁用其登录触发和失败重试，并停当次绑定任务和进程树。保存原 XML/Enabled/重试设置；新会话接管后旧任务继续禁用，不作为旁路自动重启。若批准停隧道，先冻结其 Auto/失败恢复再停精确服务。 | MCP wrapper/Node/后代退出，47860/47862 不再由旧进程监听，read model/账本句柄释放。Cloudflare 若在范围内须 SCM Stopped、进程退出、47864 旧监听消失。任务“停止”或网页离线不足以通过。 |
 | ④.3 | 冻结旧 Core 任务触发和失败重试、排除手动启动来源，再停止当次绑定旧 Core 任务及进程树。 | wrapper/Node/后代真实退出，47841 旧监听消失；观察覆盖历史 1 分钟重试周期并复核冻结设置。旧 v4 没有认证清停，不写 clean-close 成功，不索取不存在的 guardian 回执。 |
 | ④.4 | 由固定候选监督者/离线租约取得真实独占锁，确认无其他 SQLite 句柄；在任何 SQLite 打开前流式加密保存原 DB/WAL/SHM/journal，认证归档并记录原文件集合摘要。 | 有真实 OS 离线证明和认证 raw 保全回执；原件保留，原始 sidecar 不删。持锁/保全失败：不打开/迁移 SQLite；保全失败回执。若所有候选 writer 已停且原状态仍完整兼容 schema4，可按原设置重启旧 Core→MCP→必要隧道并验证。 |
 
@@ -61,15 +61,15 @@
 
 | 顺序 | 执行动作 | 完成判据／失败退回 |
 |---|---|---|
-| ⑥.1 | 恢复已批准的 MCP、必要隧道（Core→MCP→隧道）；核新 Core 只有 `legacy_b3` 上传器，reply jobs/activity 关闭，邮件 debug 返回 `shortcut_mail_disabled`，不重发在途邮件。 | MCP 47860/47862、OAuth/401 边界和 Cloudflare `/ready` 按范围恢复。旧 MCP session 404 时重新 initialize，不据此重签凭据。captures 未通过仍用47862单消费者。 |
+| ⑥.1 | 若⑤.4仍是直接 supervisor 启动，先完成⑥.2–⑥.3交互式会话接管，再执行本项；由新交互式会话在 Core ready 后启动已批准的 MCP 固定同字节源码快照，显式绑定现有 `.state`；必要隧道按范围恢复（Core→MCP→隧道），不恢复旧独立 MCP 任务；核新 Core 只有 `legacy_b3` 上传器，reply jobs/activity 关闭，邮件 debug 返回 `shortcut_mail_disabled`，不重发在途邮件。 | MCP 47860/47862、OAuth/401 边界和 Cloudflare `/ready` 按范围恢复。旧 MCP session 404 时重新 initialize，不据此重签凭据。captures 未通过仍用47862单消费者。 |
 | ⑥.2 | 准备并审阅 `prepare_login_schema6.ps1 -PrepareOnly` 的 XML；核 owner SID、AtLogon、InteractiveToken、LeastPrivilege、IgnoreNew、隐藏窗口、固定 manifest 与 launcher config 外锚、47841。**Lynx 批准后才注册**精确任务名，旧启动来源继续冻结，避免双任务。 | 回读注册内容匹配已审 XML，任务不存用户密码、不设 SYSTEM/开机无人登录启动。新任务名、最终 XML/配置 hash 写现场回执。准备工具仅 `registered:false/started:false` 不代表任务已装。 |
-| ⑥.3 | 若⑤.4为直接 supervisor 启动，先走认证 close 并等完整清停，再从获批任务进入交互式 launcher，确保真正挂上关机窗口和每日备份。每次启动使用新空 control。 | 候选由实际登录 launcher/任务接管且仅一实例，backup 配置已绑定、默认24小时/保留30天、NTFS镜像结果单列。不得直接对一个没有 launcher 的进程做关机 Gate 后宣称任务链通过。 |
-| ⑥.4 | **切换后立即由 Lynx 正常关机 → 开机 → 登录。** i 不替本人点击关机，不通过合成 WM 消息替代真人动作。保留本次前后 RunId/control/时间线和精确候选哈希。 | 下列四项全部通过才写“切换完成”。任一失败保留候选/现场回执并写“未完成”；原件已替换则向前处理，不自动降回旧 v4。 |
+| ⑥.3 | 若⑤.4为直接 supervisor 启动，先走认证 close 并等完整清停，再从获批任务进入交互式 launcher，确保真正挂上关机窗口和每日备份。每次启动使用新空 control。 | 候选由实际登录 launcher/任务接管且仅一实例，backup/MCP 配置及源码库存已绑定，MCP 由同一会话拥有的 Job/进程树管理；备份默认24小时/保留30天、NTFS镜像结果单列。不得直接对一个没有 launcher 的进程做关机 Gate 后宣称任务链通过。 |
+| ⑥.4 | **先从 MCP 成功执行一次已授权的 `i_recall` 或 `i_chat_turn`，确认真实 read model 已打开 Core，再立即由 Lynx 正常关机 → 开机 → 登录。** 只访问 metadata/health 不满足已开库前提；保留成功调用的无正文回执。 i 不替本人点击关机，不通过合成 WM 消息替代真人动作。保留本次前后 RunId/control/时间线和精确候选哈希。 | 下列四项全部通过才写“切换完成”。任一失败保留候选/现场回执并写“未完成”；原件已替换则向前处理，不自动降回旧 v4。 |
 
 四项必须全部签收：
 
-- [ ] **正常关机 clean-close 回执**：旧会话 listener/store 关闭、child exit0、guardian exit0、Job 空、无强杀、marker `clean_closed`、锁实际释放全部成立。`stop_requested` 或端口消失不是完成；认证排空上限与 Windows 会话关机总预算不同，候选 README 记总预算30秒，系统仍可能强终止。若超时进入 recovery_required，即使下次恢复成功也不能把本项改称 clean-close 通过。
-- [ ] **自动启动**：本人开机登录后，获批交互式任务自动创建新 control/RunId，固定包/manifest/配置正确、schema6 ready、单一47841 listener；有 backup 调度回执。未手工启动来冒充自动启动。若出现自动恢复，核原始保全和独立 head 检查；失败保持文件原样。
+- [ ] **正常关机阶段回执与 Core clean-close**：在同一个 **30 秒总预算**内停止备份派发，先确认会话拥有的 MCP Job/完整进程树退出和 owned tree 句柄释放，再结束活动备份 Job，最后请求 Core close。MCP 阶段须保留等待、退出方式、Job 空和句柄释放回执；Windows `CREATE_NO_WINDOW` 下不能依赖可靠投递 SIGTERM，当前方案只给不超过3000毫秒的有限 grace，必要时 force owned MCP Job。发生 force 必须明确记为 MCP 强制退出，不能写成 MCP graceful。随后 Core listener/store 关闭、Core child exit0、guardian exit0、Core Job 空、Core 无强杀、marker `clean_closed`、锁实际释放全部成立；MCP 的允许 force 不放宽这些 Core 清停判据。三个阶段共用30秒，不各领30秒。`stop_requested`、端口消失或仅任务停止不是完成；系统仍可能强终止。Core 超时进入 recovery_required，即使下次恢复成功也不能把本项改称 Core clean-close 通过。
+- [ ] **自动启动**：本人开机登录后，获批交互式任务自动创建新 control/RunId，固定包/manifest/配置正确、schema6 ready、单一47841 listener；有 backup 调度回执；Core ready 后会话自动启动 MCP，47860/47862 绑定正确，并从 MCP 再成功执行一次已授权的 `i_recall` 或 `i_chat_turn`，证明新登录后的 read model/客户端链路可用。未手工启动来冒充自动启动。若出现自动恢复，核原始保全和独立 head 检查；失败先关闭会话拥有的 MCP 树并确认句柄释放，再按恢复门禁处理，文件原样保留；未管理的工具/脚本仍须排空/暂停。
 - [ ] **手机同步**：本人使用正常聊天链路，核新消息及已保留 outbox 以原 sync_id/op_id 获 accepted 并去重，只有一个上传器；断续不能丢弃队列/跳 cursor。47862 原 remember 消费保持单一消费者；手机安装或换配置另需授权。既有手机快照不是本次设备证据。
 - [ ] **claude.ai 写入**：本人从真实公网客户端作一次已授权写入，保留无正文回执和对应耐久接受证据；`waiting_for_retry`/unavailable 不算写入完成。必要重试沿用原身份/操作 ID，检查 writeback pending 完成，不能拿隧道 `/ready` 或 MCP metadata 成功代替端到端。
 
@@ -89,5 +89,7 @@
 - 当前 PID/开始时间/句柄、当前 DB/sidecar 集合与摘要、实际任务/服务设置、全部 writer/reader/消费者、当前手机队列/配置、真实客户端结果须在授权窗口重新核验。当前已有报告未证明这些值仍有效。
 - 已补读主窗提供的 `PREDEPLOY_AUDIT_20261005.md`；所需旧包、原库、任务与端口均有历史定位。未取得的是**当前**现场值与合并后候选值，而非“未发现原库”或“旧包不存在”；历史手机绑定仍不替代本次真人 Gate。
 - [口令备份恢复](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)当前只提供 **inspection-only 只读还原**。从口令备份在新用户/新电脑新建现役 Core，仍缺新用户 DPAPI、新的独立 recovery key/current-head、canonical路径/配置绑定和网络/客户端 Gate 的受审转换；本轮不实现、不激活检查目录、不翻 backup 角色、不回退独立 head。Tailscale 机器私钥按本人决定不备份，换机重新登录和重配，不列作未获准读取的任务。
+
+MCP 同字节快照的 server 必须保持 `adfc88126c6d7ee047fd7fed7eda6b3b536c9e1fe0baffafbedc290b6c5554d6`；不改旧 CLI 程序字节。生命周期依据见[只读源码审计](SCHEMA6_MCP_READER_AUDIT_20261006.md)，候选实测与精确回执统一由主窗填写[本轮 MCP 会话验收](SCHEMA6_MCP_SESSION_ACCEPTANCE_20261006.md)。本页的新增顺序是部署计划，不能当作现场已执行或新 CI 已通过的证据。
 
 参考依据：[运行操作](SCHEMA6_RUNTIME_OPERATIONS_20261006.md)、[部署手册](SCHEMA6_DEPLOYMENT_RUNBOOK_20261006.md)、[电脑外恢复](SCHEMA6_OFF_MACHINE_RECOVERY_20261006.md)、[历史真实恢复](SCHEMA6_REAL_BACKUP_RESTORE_20261006.md)。本清单是待授权现场步骤；所有勾选项仍未执行。

@@ -8,6 +8,7 @@ import test from 'node:test';
 import {DatabaseSync} from 'node:sqlite';
 import {cleanEnvironment,sha256,INVENTORY,prepareRelease} from '../package.mjs';
 import {syntheticFixedNode} from '../../test_fixtures/release_schema6/synthetic_paths.mjs';
+import {configureManagedMcp} from './mcp-session-test-fixture.mjs';
 import {createRuntimeLab,until,api,health,cleanReceipt,ps,repository} from './test-fixture.mjs';
 
 function json(file){return existsSync(file)?JSON.parse(readFileSync(file,'utf8')):null;}
@@ -90,6 +91,8 @@ test('Windows login preparation is hash-bound, rejects dynamic production port a
  const prepare=()=>execFileSync(ps,['-NoProfile','-NonInteractive','-File',path.join(l.lifecycle,'prepare_login_schema6.ps1'),'-ReleaseDirectory',l.release,'-ManifestSha256',l.manifestHash,'-LoginConfigurationPath',c.file,'-LoginConfigurationSha256',c.hash,'-OutputXml',out,'-PrepareOnly'],{windowsHide:true,env:cleanEnvironment(),encoding:'utf8'});
  assert.throws(prepare);assert.equal(existsSync(out),false);
  c.configuration.core_port=47841;writeFileSync(c.file,JSON.stringify(c.configuration));c.hash=sha256(readFileSync(c.file));
+ assert.throws(prepare);assert.equal(existsSync(out),false,'production task requires managed MCP');
+ await configureManagedMcp(l,c);
  const result=JSON.parse(prepare());assert.equal(result.registered,false);assert.equal(result.started,false);
  const xml=readFileSync(out,'utf8');for(const value of ['InteractiveToken','LeastPrivilege','IgnoreNew','PT0S',c.hash,l.manifestHash])assert.ok(xml.includes(value));assert.equal(xml.includes('RestartOnFailure'),false);assert.throws(prepare);
  const changed=path.join(path.dirname(c.file),'bad-login.json');writeFileSync(changed,readFileSync(c.file,'utf8')+' ');

@@ -88,6 +88,7 @@ $locks += Open-BootstrapFile $login
 if($entry.Count -ne 1 -or (Get-FileHash -LiteralPath $login -Algorithm SHA256).Hash -ne $entry[0].sha256){throw 'prepare_login_hash_mismatch'}
 $raw=Invoke-BootstrapValidation $ps @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$login,'-ReleaseDirectory',$ReleaseDirectory,'-ManifestSha256',$ManifestSha256,'-LoginConfigurationPath',$LoginConfigurationPath,'-LoginConfigurationSha256',$LoginConfigurationSha256,'-ValidateOnly')
 $verified=$raw|ConvertFrom-Json
+if($verified.mcp_managed -ne $true){throw 'managed_mcp_required_for_login_task'}
 if($verified.validated -ne $true -or $verified.core_port -le 0){throw 'fixed_nonzero_production_port_required'}
 function Quote-Argument([string]$value){if($value.Contains('"') -or $value.EndsWith('\') -or $value.Contains("`n") -or $value.Contains("`r")){throw 'task_argument_rejected'};'"'+$value+'"'}
 $arguments=@('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',$login,'-ReleaseDirectory',$ReleaseDirectory,'-ManifestSha256',$ManifestSha256,'-LoginConfigurationPath',$LoginConfigurationPath,'-LoginConfigurationSha256',$LoginConfigurationSha256)

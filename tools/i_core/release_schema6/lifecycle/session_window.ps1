@@ -39,7 +39,9 @@ public sealed class Schema6SessionJob : IDisposable {
     if(value == null || value.IndexOf('"') >= 0 || value.IndexOf('\r') >= 0 || value.IndexOf('\n') >= 0 || value.EndsWith("\\")) throw new InvalidOperationException("session_argument_rejected");
     return "\""+value+"\"";
   }
-  public Schema6SessionJob(string executable,string[] args,string cwd) {
+  public Schema6SessionJob(string executable,string[] args,string cwd) : this(executable,args,cwd,null) {}
+  public Schema6SessionJob(string executable,string[] args,string cwd,IDictionary<string,string> environment) {
+    IntPtr environmentBlock=IntPtr.Zero;
     ProcessInfo info=new ProcessInfo(); bool assigned=false;
     try {
       job=CreateJobObject(IntPtr.Zero,null); if(job==IntPtr.Zero)throw new InvalidOperationException("session_job_create_failed");
@@ -47,7 +49,12 @@ public sealed class Schema6SessionJob : IDisposable {
       if(!SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf(typeof(Limits))))throw new InvalidOperationException("session_job_limit_failed");
       StringBuilder command=new StringBuilder(Quote(executable));foreach(string arg in args)command.Append(" "+Quote(arg));
       Startup startup=new Startup();startup.cb=(uint)Marshal.SizeOf(typeof(Startup));
-      if(!CreateProcess(executable,command,IntPtr.Zero,IntPtr.Zero,false,0x08000004,IntPtr.Zero,cwd,ref startup,out info))throw new InvalidOperationException("session_child_create_failed");
+      if(environment!=null) {
+        var entries=new SortedDictionary<string,string>(environment,StringComparer.OrdinalIgnoreCase);
+        StringBuilder block=new StringBuilder();foreach(var entry in entries)block.Append(entry.Key+"="+entry.Value+"\0");block.Append("\0");
+        environmentBlock=Marshal.StringToHGlobalUni(block.ToString());
+      }
+      if(!CreateProcess(executable,command,IntPtr.Zero,IntPtr.Zero,false,0x08000404,environmentBlock,cwd,ref startup,out info))throw new InvalidOperationException("session_child_create_failed");
       process=info.process;Pid=info.pid;
       long created,exited,kernel,user;
       if(!GetProcessTimes(process,out created,out exited,out kernel,out user))throw new InvalidOperationException("session_child_identity_failed");
@@ -58,16 +65,16 @@ public sealed class Schema6SessionJob : IDisposable {
     } catch {
       if(info.process!=IntPtr.Zero && !assigned)TerminateProcess(info.process,125);
       Dispose();throw;
-    } finally {if(info.thread!=IntPtr.Zero)CloseHandle(info.thread);}
+    } finally {if(environmentBlock!=IntPtr.Zero)Marshal.FreeHGlobal(environmentBlock);if(info.thread!=IntPtr.Zero)CloseHandle(info.thread);}
   }
   public bool Exited {get {return process!=IntPtr.Zero && WaitForSingleObject(process,0)==0;}}
   public bool Empty {get {Accounting a;if(job==IntPtr.Zero || !QueryInformationJobObject(job,1,out a,(uint)Marshal.SizeOf(typeof(Accounting)),IntPtr.Zero))throw new InvalidOperationException("session_job_query_failed");return a.active==0;}}
   public uint ExitCode {get {uint value;if(!Exited || !GetExitCodeProcess(process,out value))throw new InvalidOperationException("session_exit_unconfirmed");return value;}}
-  public bool WaitEmpty(int milliseconds) {Stopwatch watch=Stopwatch.StartNew();do{if(Exited&&Empty)return true;Thread.Sleep(25);}while(watch.ElapsedMilliseconds<milliseconds);return Exited&&Empty;}
+  public bool WaitEmpty(int milliseconds) {Stopwatch watch=Stopwatch.StartNew();while(true){if(Exited&&Empty)return true;int left=milliseconds-(int)watch.ElapsedMilliseconds;if(left<=0)return false;Thread.Sleep(Math.Min(25,left));}}
   public bool TerminateAndWait(int milliseconds) {if(job==IntPtr.Zero)return false;if(!TerminateJobObject(job,124))throw new InvalidOperationException("session_job_terminate_failed");return WaitEmpty(milliseconds);}
   public void Dispose() {
     if(job!=IntPtr.Zero){TerminateJobObject(job,124);CloseHandle(job);job=IntPtr.Zero;}
-    if(process!=IntPtr.Zero){WaitForSingleObject(process,5000);CloseHandle(process);process=IntPtr.Zero;}
+    if(process!=IntPtr.Zero){CloseHandle(process);process=IntPtr.Zero;}
   }
 }
 
@@ -82,7 +89,15 @@ public sealed class Schema6SessionWindow : Form {
   readonly int corePort;
   readonly ManualResetEvent finished=new ManualResetEvent(false);
   readonly object gate=new object();
-  Schema6SessionJob core,backup;
+  Schema6SessionJob core,backup,mcp;
+  readonly Dictionary<string,object> mcpConfiguration;
+  Stopwatch closeBudget;
+  bool mcpFailure,mcpForced,mcpEmpty=true,mcpHandlesReleased=true,backupForced,coreForced,databaseExclusive;
+  long mcpStopElapsed,backupStopElapsed,coreCloseElapsed;
+  uint? mcpExitCode;
+  bool mcpNaturalExit;
+  const int CloseLimitMs=30000;
+  const int ForceReserveMs=1500;
   System.Windows.Forms.Timer timer;
   DateTime nextBackup=DateTime.MinValue;
   int closing; bool started,clean,shutdownRequested,shutdownCancelled,exitRequested,forcedTimeout;
@@ -90,7 +105,8 @@ public sealed class Schema6SessionWindow : Form {
   DateTime readySince,restartAfter;
   string reason="running";
   static readonly JavaScriptSerializer json=new JavaScriptSerializer();
-  public Schema6SessionWindow(string powerShell,string releaseRoot,string manifestHash,string stateRoot,string controlRoot,string sessionRoot,string config,bool initializeEmpty,string[] schedulerArgs,int interval,int port) {
+  public Schema6SessionWindow(string powerShell,string releaseRoot,string manifestHash,string stateRoot,string controlRoot,string sessionRoot,string config,bool initializeEmpty,string[] schedulerArgs,int interval,int port,string mcpJson) {
+    if(!String.IsNullOrEmpty(mcpJson)){lock(json)mcpConfiguration=json.Deserialize<Dictionary<string,object>>(mcpJson);}
     ps=powerShell;release=releaseRoot;manifest=manifestHash;state=stateRoot;control=controlRoot;session=sessionRoot;configuration=config;initialize=initializeEmpty;backupArgs=schedulerArgs;backupSeconds=interval;corePort=port;
     ShowInTaskbar=false;FormBorderStyle=FormBorderStyle.None;Text="Here I am session lifecycle";
   }
@@ -141,7 +157,10 @@ public sealed class Schema6SessionWindow : Form {
         if(finished.WaitOne(0)) {
           if((shutdownCancelled || recoveryPending) && !exitRequested) {
             if(DateTime.UtcNow<restartAfter)return;
-            if(core!=null){core.Dispose();core=null;}if(backup!=null){backup.Dispose();backup=null;}
+            // Recovery is forbidden until every prior MCP descendant has exited.
+            if(!mcpEmpty||!mcpHandlesReleased){exitRequested=true;Close();return;}
+            if(core!=null){core.Dispose();core=null;}if(backup!=null){backup.Dispose();backup=null;}if(mcp!=null){mcp.Dispose();mcp=null;}
+            closeBudget=null;mcpForced=false;mcpExitCode=null;mcpNaturalExit=false;backupForced=false;coreForced=false;databaseExclusive=false;forcedTimeout=false;
             control=Path.Combine(session,"control-"+Guid.NewGuid().ToString("N"));
             var acl=Directory.GetAccessControl(session);acl.SetAccessRuleProtection(true,true);
             Directory.CreateDirectory(control,acl);
@@ -159,14 +178,15 @@ public sealed class Schema6SessionWindow : Form {
           Dictionary<string,object> ready=Read(Path.Combine(control,"ready.json")),launch=Read(Path.Combine(control,"launch.json"));
           if(!LaunchBound(launch,core)||!Equal(ready,"token",Convert.ToString(launch["token"]))||!Equal(ready,"manifest_sha256",manifest))throw new InvalidOperationException("session_ready_binding_mismatch");
           currentReady=true;readySince=DateTime.UtcNow;
+          if(mcpConfiguration!=null){try{StartMcp(ready,launch);}catch{mcpFailure=true;throw;}}
         }
         if(currentReady && !core.Exited && DateTime.UtcNow-readySince>TimeSpan.FromSeconds(30))recoveryAttempted=false;
         if(core.Exited){
-          if(!core.Empty)return;
           if(currentReady&&!recoveryAttempted&&!shutdownRequested){recoveryAttempted=true;recoveryPending=true;restartAfter=DateTime.UtcNow.AddSeconds(1);reason="owned_core_exit_recovery_pending";}
           else{reason=currentReady?"session_recovery_retry_exhausted":"session_start_gate_failed";exitRequested=true;}
           BeginClose();return;
         }
+        if(mcp!=null && mcp.Exited){mcpFailure=true;reason="mcp_owned_process_exited";exitRequested=true;BeginClose();return;}
         if(backup!=null && backup.Exited && backup.Empty){
           uint code=backup.ExitCode;backup.Dispose();backup=null;nextBackup=DateTime.UtcNow.AddSeconds(backupSeconds);
           BackupStatus(code==0?"backup_completed":"backup_worker_failed",code==0);
@@ -178,12 +198,72 @@ public sealed class Schema6SessionWindow : Form {
       }
     } catch {reason="session_start_or_worker_failed";exitRequested=true;BeginClose();}
   }
+  void StartMcp(Dictionary<string,object> ready,Dictionary<string,object> launch) {
+    if(core==null||core.Exited||!currentReady||!LaunchBound(launch,core))throw new InvalidOperationException("mcp_core_ready_required");
+    var address=(Dictionary<string,object>)ready["address"];
+    int port=Convert.ToInt32(address["port"]);
+    if(port<1||port>65535||port==Convert.ToInt32(mcpConfiguration["listen_port"]))throw new InvalidOperationException("mcp_port_binding_invalid");
+    var environment=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+    foreach(string name in new string[]{"SystemRoot","WINDIR","TEMP","TMP","COMSPEC"}) {
+      string value=Environment.GetEnvironmentVariable(name);if(value!=null)environment[name]=value;
+    }
+    environment["PATHEXT"]=".EXE";
+    foreach(var item in (Dictionary<string,object>)mcpConfiguration["environment"])environment.Add(item.Key,(string)item.Value);
+    environment["I_CORE_DB"]=(string)mcpConfiguration["database_path"];
+    environment["I_CORE_URL"]="http://127.0.0.1:"+port;
+    environment["I_REMOTE_MCP_HOST"]="127.0.0.1";
+    environment["I_REMOTE_MCP_PORT"]=Convert.ToString(mcpConfiguration["listen_port"]);
+    string source=(string)mcpConfiguration["working_directory"];
+    var arguments=new List<string>();arguments.Add(Path.Combine(source,((string)mcpConfiguration["entrypoint"]).Replace('/',Path.DirectorySeparatorChar)));
+    foreach(object argument in (System.Collections.IEnumerable)mcpConfiguration["arguments"])arguments.Add((string)argument);
+    mcpEmpty=false;mcpHandlesReleased=false;
+    mcp=new Schema6SessionJob((string)mcpConfiguration["executable_path"],arguments.ToArray(),source,environment);
+    WriteNew(Path.Combine(control,"mcp-start.json"),new {pid=mcp.Pid,started_ticks=mcp.StartedTicks,core_token=Convert.ToString(launch["token"]),core_pid=ready["pid"],core_ready_bound=true,listen_host="127.0.0.1",listen_port=mcpConfiguration["listen_port"],manifest_sha256=manifest});
+  }
+  void ObserveMcpExit(bool forceWasRequested) {
+    if(mcp==null||!mcp.Exited)return;
+    mcpExitCode=mcp.ExitCode;
+    // A long-running serve process has no spontaneous successful completion.
+    // Code 124 is expected only after this owner requested TerminateJobObject.
+    if(!forceWasRequested||mcpExitCode.Value!=124){mcpNaturalExit=true;mcpFailure=true;}
+  }
+  void StopMcp(Stopwatch budget) {
+    Stopwatch elapsed=Stopwatch.StartNew();
+    try {
+      if(mcp==null){mcpEmpty=true;mcpHandlesReleased=true;return;}
+      ObserveMcpExit(false);
+      int grace=Convert.ToInt32(mcpConfiguration["grace_ms"]);
+      // CREATE_NO_WINDOW provides no attached console. Node SIGINT/SIGTERM
+      // handlers exist, but Windows has no safe POSIX-signal delivery here.
+      // Wait only the configured finite grace, then force the owned Job tree.
+      bool done=mcp.WaitEmpty(Math.Min(grace,WorkRemaining(budget)));
+      ObserveMcpExit(false);
+      if(!done){mcpForced=true;done=mcp.TerminateAndWait(Math.Min(1000,Remaining(budget)));ObserveMcpExit(true);}
+      mcpEmpty=done&&mcp.Empty;mcpHandlesReleased=mcpEmpty&&mcp.Exited;
+      if(!mcpHandlesReleased)throw new InvalidOperationException("mcp_job_empty_unconfirmed");
+    } finally {
+      ObserveMcpExit(mcpForced);
+      mcpStopElapsed=elapsed.ElapsedMilliseconds;
+      if(mcp!=null)WriteNew(Path.Combine(control,"mcp-stop.json"),new {pid=mcp.Pid,started_ticks=mcp.StartedTicks,forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,natural_exit_observed=mcpNaturalExit,job_empty_confirmed=mcpEmpty,process_exit_confirmed=mcp.Exited,owned_tree_handles_released_confirmed=mcpHandlesReleased,scope="owned_mcp_job_only",database_path=(string)mcpConfiguration["database_path"],elapsed_ms=mcpStopElapsed,grace_ms=mcpConfiguration["grace_ms"],stop_method=mcpForced?"no_console_signal_bounded_wait_then_job":"natural_exit_without_stop_signal",application_graceful_exit_confirmed=false,core_authenticated_close_requested=false});
+    }
+  }
+  void ProbeClosedDatabase() {
+    string filename=Path.Combine(state,"i-core.sqlite");
+    if(!File.Exists(filename))return;
+    Protected(filename,false);
+    using(FileStream probe=new FileStream(filename,FileMode.Open,FileAccess.ReadWrite,FileShare.None)){
+      FileInfo info;if(!GetFileInformationByHandle(probe.SafeFileHandle,out info)||info.links!=1)throw new InvalidOperationException("session_database_link_rejected");
+      StringBuilder canonical=new StringBuilder(32768);uint size=GetFinalPathNameByHandle(probe.SafeFileHandle,canonical,32768,0);
+      if(size==0||size>=32768||!canonical.ToString().Equals("\\\\?\\"+filename,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("session_database_alias_rejected");
+    }
+    databaseExclusive=true;
+  }
   void BackupStatus(string status,bool success) {
     try{WriteNew(Path.Combine(session,"backup-status-"+Guid.NewGuid().ToString("N")+".json"),new {status=status,success=success,next_attempt_utc=nextBackup.ToString("o")});}catch{}
   }
   static string CloseFailure(Exception error) {
     switch(error.Message) {
-      case "backup_job_empty_unconfirmed":case "core_close_timeout":case "core_close_failed":
+      case "mcp_job_empty_unconfirmed":case "backup_job_empty_unconfirmed":case "core_close_timeout":case "core_close_failed":
       case "session_clean_receipt_unconfirmed":case "session_clean_marker_unconfirmed":
       case "session_launch_binding_mismatch":case "session_stop_binding_invalid":case "session_existing_close_mismatch":return error.Message;
       default:return "session_close_internal_rejected";
@@ -191,21 +271,31 @@ public sealed class Schema6SessionWindow : Form {
   }
   void BeginClose() {
     if(Interlocked.Exchange(ref closing,1)!=0)return;
+    closeBudget=Stopwatch.StartNew();
     ThreadPool.QueueUserWorkItem(delegate {
-      Stopwatch budget=Stopwatch.StartNew();
+      Stopwatch budget=closeBudget;
       try {
         Schema6SessionJob currentCore,currentBackup;
         lock(gate){currentCore=core;currentBackup=backup;}
-        // Stop dispatch first; any backup descendants must finish before Core close.
-        if(currentBackup!=null && !currentBackup.WaitEmpty(5000) && !currentBackup.TerminateAndWait(1000))throw new InvalidOperationException("backup_job_empty_unconfirmed");
+        // One monotonic budget covers MCP, backup, authenticated Core close and cleanup.
+        StopMcp(budget);
+        Stopwatch backupWatch=Stopwatch.StartNew();
+        if(currentBackup!=null && !currentBackup.WaitEmpty(Math.Min(5000,WorkRemaining(budget)))) {
+          backupForced=true;if(!currentBackup.TerminateAndWait(Math.Min(1000,Remaining(budget))))throw new InvalidOperationException("backup_job_empty_unconfirmed");
+        }
+        backupStopElapsed=backupWatch.ElapsedMilliseconds;
+        Stopwatch coreWatch=Stopwatch.StartNew();
         if(currentCore==null){clean=true;reason="closed_before_start";return;}
         Dictionary<string,object> launch=null;
-        while(budget.ElapsedMilliseconds<30000) {
+        while(WorkRemaining(budget)>0) {
           try {launch=Read(Path.Combine(control,"launch.json"));break;}catch(IOException){Thread.Sleep(25);}
           if(currentCore.Exited)break;
         }
-        if(launch!=null && !currentCore.Exited)RequestClose(launch,currentCore);
-        if(!currentCore.WaitEmpty(Remaining(budget)))throw new InvalidOperationException("core_close_timeout");
+        if(launch!=null && !currentCore.Exited && WorkRemaining(budget)>0)RequestClose(launch,currentCore);
+        if(!currentCore.WaitEmpty(WorkRemaining(budget))) {
+          forcedTimeout=true;coreForced=true;currentCore.TerminateAndWait(Remaining(budget));coreCloseElapsed=coreWatch.ElapsedMilliseconds;throw new InvalidOperationException("core_close_timeout");
+        }
+        coreCloseElapsed=coreWatch.ElapsedMilliseconds;
         if(currentCore.ExitCode!=0)throw new InvalidOperationException("core_close_failed");
         Dictionary<string,object> receipt=Read(Path.Combine(control,"supervisor.json"));
         Dictionary<string,object> result=(Dictionary<string,object>)receipt["result"];
@@ -214,16 +304,27 @@ public sealed class Schema6SessionWindow : Form {
         if(!Equal(marker,"phase","clean_closed")||!Equal(marker,"token",Convert.ToString(launch["token"]))||!Equal(marker,"manifest_sha256",manifest))throw new InvalidOperationException("session_clean_marker_unconfirmed");
         Protected(Path.Combine(state,"shortcut-mail-relay.runtime.lock"),false);
         using(FileStream probe=new FileStream(Path.Combine(state,"shortcut-mail-relay.runtime.lock"),FileMode.Open,FileAccess.ReadWrite,FileShare.None)){}
-        clean=!forcedTimeout;reason=forcedTimeout?"session_shutdown_timeout":"clean_closed";
+        ProbeClosedDatabase();
+        clean=!forcedTimeout&&!mcpFailure;reason=forcedTimeout?"session_shutdown_timeout":mcpFailure?"mcp_start_or_process_failed":"clean_closed";
       } catch(Exception error) {if(reason!="session_start_gate_failed"&&reason!="session_recovery_retry_exhausted")reason=forcedTimeout?"session_shutdown_timeout":CloseFailure(error);clean=false;}
       finally {
-        try{WriteNew(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean});}
+        // Fail closed: recovery must never race surviving readers or writers.
+        try {
+          if(mcp!=null && !(mcp.Exited&&mcp.Empty)){ObserveMcpExit(mcpForced);mcpForced=true;mcpEmpty=mcp.TerminateAndWait(Math.Min(500,Remaining(budget)));mcpHandlesReleased=mcpEmpty&&mcp.Exited;ObserveMcpExit(true);}
+          if(backup!=null && !(backup.Exited&&backup.Empty)){backupForced=true;backup.TerminateAndWait(Math.Min(500,Remaining(budget)));}
+          if(core!=null && !(core.Exited&&core.Empty)){coreForced=true;core.TerminateAndWait(Remaining(budget));}
+          if(core!=null && core.Exited&&core.Empty && mcpHandlesReleased)ProbeClosedDatabase();
+          if(!mcpHandlesReleased || (core!=null&&!(core.Exited&&core.Empty)) || (backup!=null&&!(backup.Exited&&backup.Empty))){clean=false;recoveryPending=false;exitRequested=true;}
+        } catch{clean=false;recoveryPending=false;exitRequested=true;}
+        if(mcpFailure){clean=false;recoveryPending=false;exitRequested=true;if(!forcedTimeout)reason="mcp_start_or_process_failed";}
+        try{WriteNew(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_stop_elapsed_ms=mcpStopElapsed,backup_forced=backupForced,backup_stop_elapsed_ms=backupStopElapsed,core_forced=coreForced,core_close_elapsed_ms=coreCloseElapsed,database_exclusive_open_confirmed=databaseExclusive});}
         catch{clean=false;reason="session_receipt_write_failed";}
         finally{finished.Set();}
       }
     });
   }
-  static int Remaining(Stopwatch budget){return Math.Max(0,30000-(int)budget.ElapsedMilliseconds);}
+  static int Remaining(Stopwatch budget){return Math.Max(0,CloseLimitMs-(int)budget.ElapsedMilliseconds);}
+  static int WorkRemaining(Stopwatch budget){return Math.Max(0,Remaining(budget)-ForceReserveMs);}
   bool LaunchBound(Dictionary<string,object> launch,Schema6SessionJob currentCore){return Equal(launch,"manifest_sha256",manifest)&&Equal(launch,"state",state)&&Equal(launch,"release",release)&&Equal(launch,"parent_pid",currentCore.Pid.ToString())&&Equal(launch,"parent_started_ticks",currentCore.StartedTicks);}
   void RequestClose(Dictionary<string,object> launch,Schema6SessionJob currentCore) {
     Protected(control,true);
@@ -239,7 +340,7 @@ public sealed class Schema6SessionWindow : Form {
   protected override void WndProc(ref Message message) {
     if(message.Msg==0x0011){shutdownRequested=true;BeginClose();message.Result=new IntPtr(1);return;}
     if(message.Msg==0x0016){
-      if(message.WParam!=IntPtr.Zero){exitRequested=true;BeginClose();if(!finished.WaitOne(30000)){forcedTimeout=true;clean=false;reason="session_shutdown_timeout";}BeginInvoke((Action)delegate{Close();});}
+      if(message.WParam!=IntPtr.Zero){exitRequested=true;BeginClose();if(!finished.WaitOne(closeBudget==null?CloseLimitMs:Remaining(closeBudget))){forcedTimeout=true;clean=false;reason="session_shutdown_timeout";}BeginInvoke((Action)delegate{Close();});}
       else if(shutdownRequested){shutdownCancelled=true;}
       message.Result=IntPtr.Zero;return;
     }
@@ -249,15 +350,20 @@ public sealed class Schema6SessionWindow : Form {
   protected override void OnFormClosed(FormClosedEventArgs e) {
     if(timer!=null)timer.Dispose();
     bool coreEmpty=core==null,backupEmpty=backup==null;
+    Stopwatch budget=closeBudget??Stopwatch.StartNew();
     lock(gate){
-      if(backup!=null){try{backupEmpty=backup.TerminateAndWait(5000);}finally{backup.Dispose();}}
-      if(core!=null){try{coreEmpty=core.TerminateAndWait(5000);}finally{core.Dispose();}}
+      if(mcp!=null){try{ObserveMcpExit(mcpForced);if(!(mcp.Exited&&mcp.Empty))mcpForced=true;mcpEmpty=mcp.TerminateAndWait(Math.Min(500,Remaining(budget)));mcpHandlesReleased=mcpEmpty&&mcp.Exited;ObserveMcpExit(mcpForced);if(mcpFailure)clean=false;}finally{mcp.Dispose();}}
+      if(backup!=null){try{backupEmpty=backup.TerminateAndWait(Math.Min(500,Remaining(budget)));}finally{backup.Dispose();}}
+      if(core!=null){try{coreEmpty=core.TerminateAndWait(Remaining(budget));}finally{core.Dispose();}}
     }
-    try{WriteNew(Path.Combine(session,"session-exit.json"),new {clean_closed=clean&&!forcedTimeout,core_job_empty_confirmed=coreEmpty,backup_job_empty_confirmed=backupEmpty,forced_timeout=forcedTimeout,termination_requested=!clean,reason=reason});}catch{clean=false;}
+    try{WriteNew(Path.Combine(session,"session-exit.json"),new {clean_closed=clean&&!forcedTimeout,core_job_empty_confirmed=coreEmpty,backup_job_empty_confirmed=backupEmpty,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,forced_timeout=forcedTimeout,termination_requested=!clean,reason=reason});}catch{clean=false;}
     ShutdownBlockReasonDestroy(Handle);base.OnFormClosed(e);
   }
   public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port) {
-    using(Schema6SessionWindow window=new Schema6SessionWindow(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port)) {Application.Run(window);return window.clean?0:1;}
+    return Run(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,"");
+  }
+  public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port,string mcpJson) {
+    using(Schema6SessionWindow window=new Schema6SessionWindow(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,mcpJson)) {Application.Run(window);return window.clean?0:1;}
   }
 }
 '@

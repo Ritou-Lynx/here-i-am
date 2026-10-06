@@ -96,6 +96,8 @@ function Open-BootstrapFile([string]$Target) {
   if((Get-FileHash -LiteralPath $LoginConfigurationPath -Algorithm SHA256).Hash -ne $LoginConfigurationSha256){throw 'login_configuration_hash_mismatch'}
   $configuration=Get-Content -LiteralPath $LoginConfigurationPath -Raw | ConvertFrom-Json
   $expected=@('format','owner_sid','release_directory','manifest_sha256','state_directory','control_root','core_configuration_path','core_configuration_sha256','core_port','backup_configuration_path','backup_configuration_sha256','backup_key_directory','backup_interval_seconds')
+  $mcpFields=@($configuration.PSObject.Properties.Name|Where-Object{$_ -in @('mcp_configuration_path','mcp_configuration_sha256')})
+  if($mcpFields.Count -eq 2){$expected += @('mcp_configuration_path','mcp_configuration_sha256')}
   if(@(Compare-Object ($expected|Sort-Object) ($configuration.PSObject.Properties.Name|Sort-Object)).Count -ne 0 -or $configuration.format -ne 'schema6-login-v1'){throw 'login_configuration_contract_invalid'}
   $owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
   if($configuration.owner_sid -ne $owner -or $configuration.release_directory -cne $ReleaseDirectory -or $configuration.manifest_sha256 -ne $ManifestSha256){throw 'login_configuration_binding_mismatch'}
@@ -114,13 +116,15 @@ function Open-BootstrapFile([string]$Target) {
     $null=Get-Content -LiteralPath $configuration.backup_configuration_path -Raw | ConvertFrom-Json
     $backupArgs=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $ReleaseDirectory 'tools/i_core/release_schema6/scheduler_once_schema6.ps1'),'-ReleaseDirectory',$ReleaseDirectory,'-ManifestSha256',$ManifestSha256,'-KeyDirectory',$configuration.backup_key_directory,'-ConfigPath',$configuration.backup_configuration_path,'-ConfigSha256',$configuration.backup_configuration_sha256)
   } elseif($null -ne $configuration.backup_configuration_sha256 -or $null -ne $configuration.backup_key_directory){throw 'login_partial_backup_configuration'}
-  if($ValidateOnly){@{validated=$true;core_port=$configuration.core_port;owner_sid=$owner}|ConvertTo-Json -Compress;exit 0}
+  . (Join-Path $PSScriptRoot 'mcp_configuration.ps1')
+  $mcpConfiguration=Read-Schema6McpConfiguration $configuration ([ref]$locks)
+  if($ValidateOnly){@{validated=$true;mcp_managed=([bool]$mcpConfiguration);core_port=$configuration.core_port;owner_sid=$owner}|ConvertTo-Json -Compress;exit 0}
   $session=Join-Path $configuration.control_root ('session-'+[Guid]::NewGuid().ToString('N'))
   [IO.Directory]::CreateDirectory($session)|Out-Null;Protect-NewDirectory $session
   $control=Join-Path $session ('control-'+[Guid]::NewGuid().ToString('N'))
   [IO.Directory]::CreateDirectory($control)|Out-Null;Protect-NewDirectory $control
   . (Join-Path $PSScriptRoot 'session_window.ps1')
-  $result=[Schema6SessionWindow]::Run($ps,$ReleaseDirectory,$ManifestSha256,$configuration.state_directory,$control,$session,$configuration.core_configuration_path,$InitializeEmpty.IsPresent,$backupArgs,$configuration.backup_interval_seconds,$configuration.core_port)
+  $result=[Schema6SessionWindow]::Run($ps,$ReleaseDirectory,$ManifestSha256,$configuration.state_directory,$control,$session,$configuration.core_configuration_path,$InitializeEmpty.IsPresent,$backupArgs,$configuration.backup_interval_seconds,$configuration.core_port,$mcpConfiguration)
   exit $result
 } catch {
   [Console]::Error.WriteLine('schema6_login_rejected:configuration_or_release_rejected')
