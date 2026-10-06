@@ -1,10 +1,11 @@
 import { createHash, createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { closeSync, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, linkSync, writeSync, unlinkSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, linkSync, writeSync, unlinkSync, rmdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { assertActivityRecoveryFloorForDatabase } from '../activity_control_plane.mjs';
+import { databaseInspectionFingerprint, INSPECTION_MARKER } from '../inspection_read_only.mjs';
 
 export const BACKUP_ROLES = Object.freeze(['database', 'release', 'configuration', 'task', 'credentials', 'domain_policy', 'transcript_grants', 'replay_approvals', 'recovery_custody']);
 export const BACKUP_LIMITS = Object.freeze({ files: 10000, manifest: 8 * 1024 * 1024, file: 2 * 1024 ** 3, total: 4 * 1024 ** 3, chunk: 64 * 1024, custody: 1024 * 1024 });
@@ -68,7 +69,7 @@ function small(p,limit = BACKUP_LIMITS.custody) {
   const result = Buffer.concat(chunks); for (const c of chunks) c.fill(0); return result;
 }
 function validName(name) {
-  if (typeof name !== 'string' || name.length > 1024 || !name || name.includes('\\') || name.includes(':') || name.startsWith('/') || name.split('/').some(s=>!s || s === '.' || s === '..' || /[\x00-\x1f]/.test(s))) fail('logical_name_invalid');
+  if (typeof name !== 'string' || name.length > 1024 || !name || name.includes('\\') || name.includes(':') || name.startsWith('/') || name.split('/').some(s=>!s || s === '.' || s === '..' || /[\x00-\x1f<>"|?*]/.test(s) || /[. ]$/.test(s) || /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)/i.test(s))) fail('logical_name_invalid');
 }
 function validate(spec, stored = false) {
   if (!exact(spec,['format','source_schema','node_id','canonical_database_path','old_release_root','old_release_manifest_sha256','entries']) || spec.format !== 'i-core-runtime-backup-spec-v1'
@@ -152,6 +153,7 @@ export function createRuntimeBackup({spec,outputDirectory,key}) {
     const custodyBytes=small(spec.entries.find(e=>e.role==='recovery_custody' && (e.custody_context===true || spec.entries.filter(c=>c.role==='recovery_custody').length===1)).source_path); let custody;
     try { custody=parseJson(custodyBytes); } finally { custodyBytes.fill(0); }
     checkMetadata(spec,secret,custody);
+    const databaseInspection=databaseInspectionFingerprint(spec.canonical_database_path);
     const manifest=Buffer.from(JSON.stringify({format:FORMAT,scope:'inventory_only',production_completeness_not_attested:true,activation_supported:false,spec}));
     if (manifest.length > BACKUP_LIMITS.manifest) fail('manifest_size_exceeded');
     mkdirSync(outputDirectory,{mode:0o700}); protect(outputDirectory); safe(outputDirectory,true);
@@ -171,12 +173,16 @@ export function createRuntimeBackup({spec,outputDirectory,key}) {
     if (process.platform!=='win32') { const d=openSync(outputDirectory,'r'); try { fsyncSync(d); } finally { closeSync(d); } }
     const artifactSha256=readStable(artifactPath,undefined,BACKUP_LIMITS.total+BACKUP_LIMITS.manifest+40).sha256;
     const report=verifyRuntimeBackup({artifactPath,artifactSha256,key:secret});
-    return {...report,artifactPath,artifactSha256};
+    return {...report,artifactPath,artifactSha256,databaseInspection};
   } finally { if(fd!==undefined) closeSync(fd); if(temp && existsSync(temp)) unlinkSync(temp); secret.fill(0); }
 }
 
 // No compression, extraction, database overwrite or activation: bounded streaming verification only.
 export function verifyRuntimeBackup({artifactPath,artifactSha256,key}) {
+  return readRuntimeBackup({artifactPath,artifactSha256,key});
+}
+
+function readRuntimeBackup({artifactPath,artifactSha256,key}, sink = null) {
   if (!HASH.test(artifactSha256 ?? '')) fail('artifact_anchor_required'); const secret=keyCopy(key);
   let pending=Buffer.alloc(0), manifest, remaining=0, index=0, entryHash, length, manifestSha256;
   try {
@@ -188,7 +194,7 @@ export function verifyRuntimeBackup({artifactPath,artifactSha256,key}) {
     } finally { closeSync(fd); }
     const decipher=createDecipheriv('aes-256-gcm',secret,header.subarray(8)); decipher.setAAD(MAGIC); decipher.setAuthTag(tag);
     const beginEntry=()=> {
-      while(index<manifest.spec.entries.length) { remaining=manifest.spec.entries[index].bytes;entryHash=createHash('sha256');if(remaining) return;if(entryHash.digest('hex')!==manifest.spec.entries[index].sha256) fail('backup_entry_hash_mismatch');index++; }
+      while(index<manifest.spec.entries.length) { remaining=manifest.spec.entries[index].bytes;entryHash=createHash('sha256');sink?.begin(manifest.spec.entries[index]);if(remaining) return;if(entryHash.digest('hex')!==manifest.spec.entries[index].sha256) fail('backup_entry_hash_mismatch');sink?.end();index++; }
       remaining=0;
     };
     const accept=chunk=> {
@@ -198,14 +204,14 @@ export function verifyRuntimeBackup({artifactPath,artifactSha256,key}) {
         if(length===undefined || pending.length<length+4) return;
         const body=pending.subarray(4,length+4); manifestSha256=sha(body); manifest=parseJson(body.toString('utf8'));
         if(!exact(manifest,['format','scope','production_completeness_not_attested','activation_supported','spec']) || manifest.format!==FORMAT || manifest.scope!=='inventory_only' || manifest.production_completeness_not_attested!==true || manifest.activation_supported!==false) fail('backup_manifest_invalid');
-        validate(manifest.spec,true); const rest=Buffer.from(pending.subarray(length+4)); pending.fill(0); pending=Buffer.alloc(0); chunk=rest;
+        validate(manifest.spec,true); sink?.manifest(manifest.spec); const rest=Buffer.from(pending.subarray(length+4)); pending.fill(0); pending=Buffer.alloc(0); chunk=rest;
         beginEntry();
       }
       let offset=0;
       while(offset<chunk.length) {
         if(index>=manifest.spec.entries.length) fail('backup_trailing_data');
-        const n=Math.min(remaining,chunk.length-offset); entryHash.update(chunk.subarray(offset,offset+n)); remaining-=n; offset+=n;
-        if(!remaining) { if(entryHash.digest('hex')!==manifest.spec.entries[index].sha256) fail('backup_entry_hash_mismatch'); index++;
+        const n=Math.min(remaining,chunk.length-offset); entryHash.update(chunk.subarray(offset,offset+n)); sink?.chunk(chunk.subarray(offset,offset+n)); remaining-=n; offset+=n;
+        if(!remaining) { if(entryHash.digest('hex')!==manifest.spec.entries[index].sha256) fail('backup_entry_hash_mismatch'); sink?.end(); index++;
           beginEntry();
         }
       }
@@ -225,6 +231,57 @@ export function verifyRuntimeBackup({artifactPath,artifactSha256,key}) {
       databasePath:manifest.spec.canonical_database_path,databaseSha256:manifest.spec.entries.find(e=>e.role==='database').sha256,
       files:manifest.spec.entries.length};
   } finally { secret.fill(0); pending.fill(0); }
+}
+
+// This only extracts an authenticated inventory into a new private inspection
+// root. The caller must run the read-only Core probe before publishing a receipt.
+export function extractRuntimeBackupForInspection({artifactPath,artifactSha256,key,outputDirectory}) {
+  const verified=verifyRuntimeBackup({artifactPath,artifactSha256,key});
+  absolute(outputDirectory); safe(path.dirname(outputDirectory),true);
+  if(existsSync(outputDirectory)) fail('fresh_output_required');
+  const files=[],directories=[],extracted=[]; let fd, databasePath, created=false,activeEntry;
+  const clean=()=> {
+    if(fd!==undefined) { closeSync(fd);fd=undefined; }
+    // Delete only exact files and empty directories created by this operation;
+    // never recursively traverse a destination that may have been replaced.
+    for(const file of [...files].reverse()) { safe(path.dirname(file),true); if(existsSync(file)) unlinkSync(file); }
+    for(const dir of [...directories].reverse()) { safe(dir,true);rmdirSync(dir); }
+  };
+  try {
+    const report=readRuntimeBackup({artifactPath,artifactSha256,key},{
+      manifest(spec) {
+        if(inside(spec.old_release_root,outputDirectory) || inside(path.dirname(spec.canonical_database_path),outputDirectory)
+            || inside(outputDirectory,artifactPath) || spec.entries.some(e=>inside(outputDirectory,e.source_path))) fail('independent_output_required');
+        const targets=spec.entries.map(e=>path.join(outputDirectory,e.role,...e.name.split('/')));
+        for(let i=0;i<targets.length;i++) {
+          if(!inside(outputDirectory,targets[i]) || eqPath(outputDirectory,targets[i])) fail('inspection_path_escape');
+          for(let j=0;j<i;j++) if(inside(targets[i],targets[j]) || inside(targets[j],targets[i])) fail('inspection_path_collision');
+        }
+        mkdirSync(outputDirectory,{mode:0o700}); created=true;directories.push(outputDirectory);protect(outputDirectory);safe(outputDirectory,true);
+        const marker=path.join(outputDirectory,INSPECTION_MARKER);fd=openSync(marker,'wx',0o600);files.push(marker);
+        writeAll(fd,Buffer.from(JSON.stringify({format:'i-core-inspection-root-v1',mode:'inspection_read_only',activation_supported:false,artifactSha256})));fsyncSync(fd);closeSync(fd);fd=undefined;
+      },
+      begin(entry) {
+        activeEntry=entry;
+        const target=path.join(outputDirectory,entry.role,...entry.name.split('/'));
+        let current=outputDirectory;
+        for(const segment of path.relative(outputDirectory,path.dirname(target)).split(path.sep).filter(Boolean)) {
+          current=path.join(current,segment);if(!existsSync(current)){mkdirSync(current,{mode:0o700});directories.push(current);} safe(current,true);
+        }
+        safe(outputDirectory,true);fd=openSync(target,'wx',0o600);files.push(target);
+        if(entry.role==='database') databasePath=target;
+      },
+      chunk(bytes) { writeAll(fd,bytes); },
+      end() { fsyncSync(fd);closeSync(fd);fd=undefined;const target=files.at(-1);if(readStable(target).sha256!==activeEntry.sha256) fail('inspection_file_changed');extracted.push({target,sha256:activeEntry.sha256}); },
+    });
+    if(report.inventorySha256!==verified.inventorySha256) fail('artifact_changed');
+    // An independent last digest catches replacement between authentication
+    // and extraction even when the replacement's GCM tag is otherwise valid.
+    if(readStable(artifactPath,undefined,BACKUP_LIMITS.total+BACKUP_LIMITS.manifest+40).sha256!==artifactSha256) fail('artifact_changed');
+    for(const file of files) safe(file);
+    for(const file of extracted) if(readStable(file.target).sha256!==file.sha256) fail('inspection_file_changed');
+    return { ...report, databasePath, outputDirectory, cleanup:clean };
+  } catch(error) { if(created) { try { clean(); } catch { error.cleanupIncomplete=true; } } throw error; }
 }
 
 export function verifyInitialRuntimeBackup({artifactPath,artifactSha256,key,databasePath,nodeId}) {

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyRelease, plainPath, sha256, PINNED_NODE_SHA256 } from './package.mjs';
 import { createRuntimeBackup, verifyRuntimeBackup } from './backup_bundle.mjs';
+import { restoreRuntimeBackupForInspection } from './restore_inspection.mjs';
 const reject = () => { throw new Error('backup_child_rejected'); };
 const here = path.dirname(fileURLToPath(import.meta.url));
 export async function runBackupChild(args, input) {
@@ -21,10 +22,14 @@ export async function runBackupChild(args, input) {
       if(sha256(readFileSync(plainPath(operation.specPath)))!==operation.specSha256) reject();
     } else if(operation.operation==='verify' && Object.keys(operation).sort().join()===['operation','artifactPath','artifactSha256'].sort().join()) {
       report=verifyRuntimeBackup({artifactPath:operation.artifactPath,artifactSha256:operation.artifactSha256,key});
+    } else if(operation.operation==='restore_inspection' && Object.keys(operation).sort().join()===['operation','artifactPath','artifactSha256','outputDirectory','expectedDatabaseFingerprintSha256'].sort().join()) {
+      report=await restoreRuntimeBackupForInspection({...operation,key,beforePublish:()=>verifyRelease(release,manifestHash)});
     } else reject();
-    verifyRelease(release,manifestHash);
+    if(!report.inspectionOnly) verifyRelease(release,manifestHash);
     return {verified:report.verified,artifactSha256:report.artifactSha256,inventorySha256:report.inventorySha256,files:report.files,
-      scope:'inventory_only',production_completeness_not_attested:true,activation_supported:false};
+      scope:'inventory_only',production_completeness_not_attested:true,activation_supported:false,
+      ...(report.databaseInspection?{databaseInspection:report.databaseInspection}:{}),
+      ...(report.inspectionOnly?{restored:true,inspectionOnly:true,coreHealth:report.coreHealth,deniedRoutes:report.deniedRoutes,databaseBytesUnchanged:report.databaseBytesUnchanged,sidecarsAbsent:report.sidecarsAbsent}: {})};
   } finally { key.fill(0); input.fill(0); }
 }
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {

@@ -1,15 +1,16 @@
 [CmdletBinding(DefaultParameterSetName='Verify')]
 param(
- [Parameter(Mandatory=$true)][ValidateSet('Create','Verify')][string]$Operation,
+ [Parameter(Mandatory=$true)][ValidateSet('Create','Verify','RestoreInspection')][string]$Operation,
  [Parameter(Mandatory=$true)][string]$ReleaseDirectory,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ManifestSha256,
  [Parameter(Mandatory=$true)][string]$KeyDirectory,
  [Parameter(ParameterSetName='Create',Mandatory=$true)][string]$SpecPath,
  [Parameter(ParameterSetName='Create',Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$SpecSha256,
- [Parameter(ParameterSetName='Create',Mandatory=$true)][string]$OutputDirectory,
+ [Parameter(ParameterSetName='Create',Mandatory=$true)][Parameter(ParameterSetName='RestoreInspection',Mandatory=$true)][string]$OutputDirectory,
  [Parameter(ParameterSetName='Create')][switch]$CreateKey,
- [Parameter(ParameterSetName='Verify',Mandatory=$true)][string]$ArtifactPath,
- [Parameter(ParameterSetName='Verify',Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ArtifactSha256
+ [Parameter(ParameterSetName='Verify',Mandatory=$true)][Parameter(ParameterSetName='RestoreInspection',Mandatory=$true)][string]$ArtifactPath,
+ [Parameter(ParameterSetName='Verify',Mandatory=$true)][Parameter(ParameterSetName='RestoreInspection',Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ArtifactSha256,
+ [Parameter(ParameterSetName='RestoreInspection',Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedDatabaseFingerprintSha256
 )
 $ErrorActionPreference='Stop';$key=$null;$keyLock=$null;$reloaded=$null;$exitCode=2;$before=@{}
 foreach($entry in [Environment]::GetEnvironmentVariables('Process').GetEnumerator()){$before[$entry.Key]=$entry.Value}
@@ -67,6 +68,9 @@ try {
  if($Operation -eq 'Create'){
   if([IO.Path]::GetFullPath($KeyDirectory).StartsWith([IO.Path]::GetFullPath($OutputDirectory).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or [String]::Equals($KeyDirectory,$OutputDirectory,[StringComparison]::OrdinalIgnoreCase)){throw 'key_output_separation_required'}
   $operationBody=@{operation='create';specPath=$SpecPath;specSha256=$SpecSha256;outputDirectory=$OutputDirectory}
+ }elseif($Operation -eq 'RestoreInspection'){
+  if([IO.Path]::GetFullPath($KeyDirectory).StartsWith([IO.Path]::GetFullPath($OutputDirectory).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or [String]::Equals($KeyDirectory,$OutputDirectory,[StringComparison]::OrdinalIgnoreCase)){throw 'key_output_separation_required'}
+  $operationBody=@{operation='restore_inspection';artifactPath=$ArtifactPath;artifactSha256=$ArtifactSha256;outputDirectory=$OutputDirectory;expectedDatabaseFingerprintSha256=$ExpectedDatabaseFingerprintSha256}
  }else{$operationBody=@{operation='verify';artifactPath=$ArtifactPath;artifactSha256=$ArtifactSha256}}
   $key=Get-RuntimeBackupKey -KeyDirectory $KeyDirectory -Purpose backup -Create:$CreateKey
  # Preserve the DPAPI blob actually used for this operation until its child finishes.

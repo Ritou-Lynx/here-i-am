@@ -138,6 +138,11 @@ test('Windows fixed release wrapper Create/Verify, environment isolation, mismat
  const result=JSON.parse(execFileSync(ps,[...common,...createArgs],opts));assert.equal(result.verified,true);assert.equal(result.files,11);assert.equal(result.scope,'inventory_only');assert.equal(JSON.stringify(result).includes(f.root),false);assert.equal(JSON.stringify(result).includes('synthetic-environment-marker'),false);
  const artifact=path.join(f.outputDirectory,'runtime.aes256gcm');
  const verified=JSON.parse(execFileSync(ps,[...common,'-Operation','Verify','-ArtifactPath',artifact,'-ArtifactSha256',result.artifactSha256],opts));assert.equal(verified.artifactSha256,result.artifactSha256);
+ const restoreArgs=['-Operation','RestoreInspection','-ArtifactPath',artifact,'-ArtifactSha256',result.artifactSha256,'-OutputDirectory',path.join(f.root,'restored-inspection'),'-ExpectedDatabaseFingerprintSha256',result.databaseInspection.dataSha256];
+ const restored=JSON.parse(execFileSync(ps,[...common,...restoreArgs],opts));
+ assert.equal(restored.restored,true);assert.equal(restored.inspectionOnly,true);assert.equal(restored.coreHealth.mode,'inspection_read_only');assert.equal(restored.databaseBytesUnchanged,true);assert.equal(restored.sidecarsAbsent,true);
+ assert.equal(restored.databaseInspection.dataSha256,result.databaseInspection.dataSha256);assert.equal(restored.deniedRoutes.length,5);assert.equal(JSON.stringify(restored).includes(f.root),false);
+ rejected(()=>execFileSync(ps,[...common,...restoreArgs],opts));
  rejected(()=>execFileSync(ps,[...common,...createArgs],opts));
  const badArgs=[...createArgs];badArgs[badArgs.indexOf('-SpecSha256')+1]='0'.repeat(64);badArgs[badArgs.indexOf('-OutputDirectory')+1]=path.join(f.root,'backup-wrong');badArgs.splice(badArgs.indexOf('-CreateKey'),1);
  rejected(()=>execFileSync(ps,[...common,...badArgs],opts));
