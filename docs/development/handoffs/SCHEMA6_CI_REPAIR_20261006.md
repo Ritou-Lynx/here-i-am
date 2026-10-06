@@ -22,7 +22,7 @@ job `112111647814` 唯一失败：`compact_card_editor_test.dart` 的“空标�
 - `flutter pub get --enforce-lockfile` 成功；精确 `flutter test --no-pub test/whiteboard_canvas/compact_card_editor_test.dart --reporter expanded`：5/5。
 - `flutter test --no-pub test/whiteboard_canvas --reporter failures-only --file-reporter json:build/ci/flutter-canvas.json`：195/195。
 - CI token helper 已在独立 PowerShell 进程编译，并验证 current-user setter / 原 owner 恢复成功；本机 token 原本为用户 owner，Hosted elevated group-owner 分支仍需远端 CI 实证。
-- 另以实际8.3 TEMP/TMP启动完整 `release_schema6/*.test.mjs` 和 `lifecycle/*.test.mjs` 回归正在完成，不能提前计为通过；主窗收到后续计数再收口。测试 TAP 保存于工作树忽略目录 `build/ci/schema6-short-temp.tap`。
+- 另以实际8.3 TEMP/TMP启动完整 `release_schema6/*.test.mjs` 和 `lifecycle/*.test.mjs` 回归：99/99，0 fail / 0 skip，756566ms，包含125秒持续存活、三类死亡、真实6→5→6及所有backup/restore/preflight负例。测试 TAP 保存于工作树忽略目录 `build/ci/schema6-short-temp.tap`。
 - 未在本机运行 Linux；远端精确新提交的 Linux 和 Windows CI 仍是最终验证边界。无 Flutter build / 安装 / 真人 Gate。
 
 本包提交使用获准 worker 单次 `SKIP_PROJECT_STATE=1`，finally 恢复；全局 DEVLOG/当前态由主窗集成时更新。不 push。
