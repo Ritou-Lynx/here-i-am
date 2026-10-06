@@ -181,7 +181,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: schema6-windows-results
-          path: build/ci/schema6-windows.tap
+          path: |
+            build/ci/schema6-windows.tap
+            build/ci/schema6-native-probe.json
           if-no-files-found: error
 
   schema6-cross-user:

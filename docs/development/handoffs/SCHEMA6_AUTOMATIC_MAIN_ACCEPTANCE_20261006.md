@@ -46,6 +46,12 @@ CI-only 已推 head `45bcab16a98c147efe4f05669dd92f1cb4728772` 的其他 9 check
 第五轮 source `cfc8b011` 两次 Node 都到 restore，错误码摘要 `4881737c9b27e65fe2e8a2650af307d42887a48b93b5802358fffa11af0bb9fd` 对应 portable_authentication_failed。真实 PS5.1 纯合成进程实验证实 .NET Framework 的 StandardInput 文本流在 Start/AutoFlush 时可写入 BOM：48字节在UTF8/UTF16带BOM编码下变51/50。仅在启动期间临时设无BOM UTF8、finally立即恢复，实际两种编码均保持48字节，失败启动也恢复原编码；CI协议和回执现严格要求48。生产KDF/认证/还原API未改。该轮另有一次 seclogon 停止 native1052，实际发生状态未知，不忽略清理失败；正在补受限状态等待。真实跨SID成功仍以新CI为准。
 
 第七轮 source `d9f66775`：PR [job112160988489](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37430777811/job/112160988489) 59,639ms、push [job112160898262](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37430770899/job/112160898262) 61,295ms，均在 secondary_logon_query、创建 child 前失败；服务观察与计时为0、账号回收及清理确认。主窗与 worker 各自在全新 PS5.1 进程只解析类型，确定未加载 System.ServiceProcess 时为 RuntimeException / HResult -2146233087 / TypeNotFound；显式加载后成功且可重复加载，未构造或查询任何本机服务。CI-only adapter 现按 hosted guard → 显式加载 → 创建对象的顺序执行。主窗重新执行实际 loader 的失败→成功回归、入口顺序、两脚本语法/native编译、18/18状态模拟、GuardOnly退出2及diff检查，均通过。既有两次不同 SID 真实还原证据保留，不替代此修复后的精确 head 远端全绿。
+source `2c75e510` 的跨用户两轮继续通过（push85,574ms、PR127,420ms，原生服务回收实测Stopped），但Windows生命周期两轮失败：push [job112163883579](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37431689258/job/112163883579) 151tests/141pass/8fail/2cancel/0skip、2,637,425.9188ms；PR [job112163980608](https://github.com/Ritou-Lynx/here-i-am/actions/runs/37431696243/job/112163980608) 151/141pass/7fail/3cancel/0skip、2,936,447.3172ms。其余11 checks全部成功。两轮相同10个标红用例；取消项是用例180s预算耗尽，未过滤或改成skip。
+
+已确定首发在 raw inspection restore 的 `configuration.mjs protectedPath(parent,true)`：原10秒fresh PowerShell完整ACL断言超时、stdout/stderr空。随后六个lifecycle项在首次ready、构造Store前退出，尚未执行death或迁移；session首项也是第一次ready前失败，有限公开错误只表明runtime_operation_failed，不能统一冒称全部根因已定位。该用例前置Protect-NewDirectory已经以同cleanEnvironment执行过GetAcl/SetAcl，不能把单次预热当作既定修复。正在限定CI夹具补fresh进程分段计时与原10s实际protectedPath严格预检，失败则CI照常失败；生产检查/timeout/cleanEnvironment不改，未知启动时延仍等待精确证据。纯合成失败日志留在忽略目录，SHA：push `32a8221cbdeaaa6e57b7c11b725704b5969bfb3becc16d309e3fbc984bc9c31b`、PR `88206c9dae919cdef5fc2929eb935bc1200a7927eaebddd09258180cdd77cc8b`；不提交原输出、base64源码帧或控制nonce。
+
+已集成[CI-only native分段预检](SCHEMA6_CI_NATIVE_PROBE_20261006.md)：每阶段独立PS5.1，保留原清理环境，最后仅调用一次原protectedPath(root,true)/10000ms；失败不运行完整套件。主窗在集成目录8/8针对测试通过（543.3311ms、0skip），另执行实际PS5.1驱动：no-op376ms、准备545、默认GetAcl365、默认完整断言451、系统模块对照429、最终原门控424、清理1ms，全部通过；独立只读复核无阻断。报告只含阶段/时间/有限码/数量，上传JSON与TAP；不改缓存、注册表、模块目录或生产库存，未声称云端根因或修复已确认。远端下一轮以分段证据和全部151项结果为准。
+
 ## 六类最终合成演练
 
 | 情况 | 真实观测与下一启动要求 | 最终集成结果 |
