@@ -1,13 +1,14 @@
 # 林埃的项目状态
 
-## PR14 自动运行候选整合（2026-10-06）
+## PR14 自动运行候选验收（2026-10-06）
 
-继续用户指定 `codex/core-deploy-readiness-20261006` / 草稿 PR14，base仍 `v3-lab@90f23ce1`。自动恢复、口令备份、隐藏关机监听与登录新control候选已集成；当前仍在主窗最终验收，不合主线、不部署。原九类52文件真实只读还原和退回证据已被用户通过，本轮没有重新读取原库、现役服务、任务或手机。
+继续用户指定 `codex/core-deploy-readiness-20261006` / 草稿 PR14，base仍 `v3-lab@90f23ce1`。主窗最终整组及精确固定候选烟测通过；跨 Windows 用户 CI 和最终精确提交远端检查正在收口。只更新同 PR，交付后暂停等审核，不合主线、不部署。原九类52文件真实只读还原和退回证据已被用户通过，本轮没有重新读取原库、现役服务、任务或手机。
 
-新增原DB/WAL/SHM/journal首开前流式加密、隔离副本回放/4→5→6迁移、独立custody head与记录完整结果认证；OS custody锁随进程退出释放，残留载体不再永久阻断。日常正常关机自动认证close，异常后下一登录自动检查；稳定Core死亡可在同会话有限恢复。备份键有DPAPI+scrypt/AES-GCM口令包，默认每天/30天及可配置电脑外密文镜像；Tailscale机器私钥按用户决定排除，换机重新登录同名。
+候选实现原DB/WAL/SHM/journal首开前流式加密、隔离副本回放/4→5→6、独立custody head与记录完整结果认证；native锁随进程退出释放。正常关机隐藏会话自动认证close，异常后下一登录自动检查；稳定Core死亡可在同会话有限恢复。备份键DPAPI+scrypt/AES-GCM口令包，默认每天/30天及可配置电脑外密文镜像；Tailscale机器私钥按决定排除，换机重新登录同名。
 
-主窗CI修复Node89/89及Flutter精确5/5；worker路径含真实8.3全Win99/99。远端45bcab16两次Linux/Windows构建均过，但Schema6Win另暴露启动检查ETIMEDOUT（92/99，2fail+5cancel），正在限定测试进程并发，未改变生产timeout/plainPath。恢复专项51/51、DomainStore65/65，口令备份主窗14/14，会话原4组及timeout专项通过；最终整合完整回归和精确head CI仍待收口，见[本轮验收](handoffs/SCHEMA6_AUTOMATIC_MAIN_ACCEPTANCE_20261006.md)。交付后按用户要求暂停审核，现场/跨用户及真机Gate分开。
+精确源 `beed93a3657ab59fbe033a435f471814d8895736`：主窗603tests/602pass/0fail/0cancel/1既有大小写环境skip，1,024,765.3329ms；六类原生/合成关机与中断演练均过。43项固定包manifest `45d00ecdb113957ffdc5c65e2b90454611c83eb90cf6879c8cccfd1df1ea787a`，Node25+PS16语法通过，独立真实启动/认证清停/Job/锁烟测67,256ms通过。此前Windows短TEMP/默认owner限定夹具/CI修复；保留plainPath与ACL逐字相同证据。白板空标题/H1用真实save屏障，精确5/5、相邻195/195；远端45bc曾有2项启动ETIMEDOUT，最终CI改串行文件但不改生产timeout，最终回执仍待，见[本轮验收](handoffs/SCHEMA6_AUTOMATIC_MAIN_ACCEPTANCE_20261006.md)。
 
+本机未新增账号、未注册任务或实际关机；跨用户合成夹具只允许一次性hosted Windows VM，实际异机与生产网络/手机Gate另计。
 
 ## PR14 复核续作：CI 与自动运行（2026-10-06）
 
