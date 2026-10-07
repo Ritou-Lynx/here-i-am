@@ -52,3 +52,5 @@ COM 规范化方式：把已注册 XML 再送入 `NewTask.XmlText`，由同一�
 - PowerShell 解析通过。最终 CI 结果由主控整合记录。本包未执行真实生产 PrepareOnly，未证明已有批准 XML在当前 Scheduler 上可注册通过；如果实际系统改变显式或默认 false，必须停下重新审阅。
 
 最终独审修正：Register父进程先pin候选manifest外锚，再pin其全部候选文件（路径、hash、size），持有至finally；验证子进程后续按路径加载protected_paths.ps1时字节不可替换。合成夹具提取实际生产pin函数，另一进程改写/替换manifest与候选PS均须sharing violation，释放后可写；hash、size和相对路径错配继续拒绝。没有改固定runtime或放宽生产校验。
+
+Hosted Windows CI补充：首次272各271过/1 COM SDDL差异（0 skip），合成任务均删除。快速匿名诊断证明差异来自父目录的三条继承ACE；不是owner/group变化。合成expected现由CREATE前父folder SD独立推导（OI→ID、CO/CG、文件generic映射），registrationSddl仍原三条explicit，actual只用于严格断言/匿名诊断，parent再次读取必须原样相同。不支持的继承ACE失败；生产Compare没有归一掉Inherited flags或丢P位。纯测试已验证关键组合；最终真实COM以精确head CI回执为准，不能由此宣称生产批准XML/SDDL兼容性通过。

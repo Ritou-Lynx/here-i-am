@@ -45,3 +45,7 @@ ACL合成覆盖Owner/DACL/继承全项往返、父级中断后全清单恢复、
 主线PR15后续已合入v3-lab@0a24cac2b7db812f34fb845325e27b77d16139dd，导致PR16仅DEVLOG与项目状态冲突。本轮把该精确主线提交整合进隔离分支，保留双方新增记录；维护源码及固定runtime未因此改变，未运行Relay脚本或任务。PR16仍为草稿且未合入主线；最终CI以整合后精确head为准。
 
 最终d07be5b2两组Windows整组均272项271过/1失败/0跳过；唯一失败真实COM的registered_sddl_changed，foreign-owner往返实际通过，合成任务已安全删除。没有把失败改跳过或重跑掩盖。新增快速Windows维护job和匿名SD形状诊断（OWNER/SYSTEM/ADMIN/OTHER、flags/mask；无真实SID/SDDL），定位差异；生产安全描述符比较不改，不用actual覆盖expected。最终完整CI仍以修正后的精确head为准。
+
+快速诊断83bc6758两组41各40过/1 COM失败/0跳过；匿名证据owner/group和原三条explicit FA全匹配，实际多ADMIN/SYSTEM的ID(16) 0x001F019F、OWNER的ID FA及同flags OWNER FR。根因是夹具漏算父目录继承，并非group/defaultDACL猜测。修正仅夹具：CREATE前读取父folder SD，按文件继承规则独立预算expected；注册仍传原三条explicit SD，actual绝不回填期望，父SD变化即拒绝。OI/CO/CG及GR/GW/GX/GA映射、CI-only忽略和不支持deny拒绝已纯测试覆盖（7项6过0失败1 COM本机不重复）。PS5.1枚举位运算首跑夹具错误已显式int修复；生产安全比较及固定runtime未改，独审无阻断，最终远端真实CI仍须通过。
+
+官方依据：[任务/文件夹安全信息](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/4a6cd85c-50f4-4486-b52b-a9a90278d8b8)、[ACE继承规则](https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance-rules)、[文件generic权限映射](https://learn.microsoft.com/en-us/windows/win32/fileio/file-security-and-access-rights)。新快速维护job在另一全新hosted VM提前验证41项，原整组272项完整保留，不跳过/屏蔽；每个VM只CREATE一次自己的nonce任务并清理。

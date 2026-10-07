@@ -20,7 +20,7 @@ test('real COM: create once, semantic/SDDL readback, existing/difference rejecti
  const ps=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
  const extra=process.env.SCHEMA6_SYNTHETIC_TASK_REPORT?['-OutputReport',path.resolve(process.env.SCHEMA6_SYNTHETIC_TASK_REPORT)]:[];
  const stdout=execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'tools/i_core/test_fixtures/release_schema6/maintenance_register_com.ps1'),'-PrimitivesPath',path.join(root,'tools/i_core/maintenance/register_task_primitives.ps1'),...extra],{windowsHide:true,encoding:'utf8',timeout:30000});
- const result=JSON.parse(stdout);for(const k of ['created','readback','existingRejected','xmlDifferenceRejected','deleted','noInstances','disabled'])assert.equal(result[k],true,k);assert.equal(result.triggers,0);
+ const result=JSON.parse(stdout);for(const k of ['created','readback','existingRejected','xmlDifferenceRejected','deleted','noInstances','disabled','parentStable'])assert.equal(result[k],true,k);assert.equal(result.triggers,0);
 });
 const H='a'.repeat(64),C='b'.repeat(40);
 const digest=b=>createHash('sha256').update(b).digest('hex');
@@ -73,6 +73,6 @@ test('Windows registration pins reject invalid anchors and hold the candidate in
  try{
   const ps=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
   const result=JSON.parse(execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'tools/i_core/test_fixtures/release_schema6/maintenance_register_pins.ps1'),'-SourcePath',path.join(root,'tools/i_core/maintenance/register-approved-login.ps1'),'-FixtureParent',dir],{windowsHide:true,encoding:'utf8',timeout:30000}));
-  for(const key of ['passed','emptyAndMalformedRejected','correctHashPinned','wrongHashRejected','receiptExceptionExplicit','candidateInventoryPinned','crossProcessWriteRejected','crossProcessReplaceRejected','candidateBytesPreserved','releaseAllowsWrites','candidateHashMismatchRejected','candidateSizeMismatchRejected','candidateShapeRejected'])assert.equal(result[key],true);
+  for(const key of ['passed','emptyAndMalformedRejected','correctHashPinned','wrongHashRejected','receiptExceptionExplicit','candidateInventoryPinned','crossProcessWriteRejected','crossProcessReplaceRejected','candidateBytesPreserved','releaseAllowsWrites','candidateHashMismatchRejected','candidateSizeMismatchRejected','candidateShapeRejected','independentInheritanceOracleVerified'])assert.equal(result[key],true);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

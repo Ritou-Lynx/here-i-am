@@ -25,6 +25,18 @@ Add-Type -TypeDefinition $command.CommandElements[2].Value
 foreach($name in @('Pin-File','Assert-Private','Pin-ReleaseInventory')){
  $f=@($ast.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-ceq $name},$true));if($f.Count-ne 1){throw 'fixture_function_not_unique'};Invoke-Expression $f[0].Extent.Text
 }
+# Extract the actual oracle without executing the fixture's COM entry.
+$tokens=$null;$errors=$null;$oracleAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'maintenance_register_com.ps1'),[ref]$tokens,[ref]$errors);if($errors.Count){throw 'oracle_parse_rejected'}
+$oracle=@($oracleAst.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-ceq 'Get-SyntheticInheritedSecurity'},$true));if($oracle.Count-ne 1){throw 'oracle_function_missing'};Invoke-Expression $oracle[0].Extent.Text
+$testOwner='S-1-5-21-111-222-333-1001'
+$base='O:'+$testOwner+'G:'+$testOwner+'D:(A;;FA;;;'+$testOwner+')(A;;FA;;;SY)(A;;FA;;;BA)'
+$parent='O:SYG:BAD:(A;OICI;0x001F019F;;;BA)(A;OICI;0x001F019F;;;SY)(A;OICIIONP;GA;;;CO)(A;CI;FR;;;AU)'
+$computed=[Security.AccessControl.RawSecurityDescriptor]::new((Get-SyntheticInheritedSecurity $base $parent $testOwner $testOwner))
+$inherited=@($computed.DiscretionaryAcl|Where-Object {[int]$_.AceFlags-eq 16})
+if($computed.DiscretionaryAcl.Count-ne 6 -or $inherited.Count-ne 3){throw 'oracle_inheritance_count_rejected'}
+foreach($pair in @(@('S-1-5-18',0x001F019F),@('S-1-5-32-544',0x001F019F),@($testOwner,0x001F01FF))){$a=@($inherited|Where-Object {$_.SecurityIdentifier.Value-ceq $pair[0]});if($a.Count-ne 1 -or $a[0].AccessMask-ne $pair[1]){throw 'oracle_permissions_rejected'}}
+foreach($pair in @(@('GR',0x00120089),@('GW',0x00120116),@('GX',0x001200a0))){$g=[Security.AccessControl.RawSecurityDescriptor]::new((Get-SyntheticInheritedSecurity $base ('O:SYG:BAD:(A;OI;'+$pair[0]+';;;CG)') $testOwner $testOwner));$a=@($g.DiscretionaryAcl|Where-Object {[int]$_.AceFlags-eq 16});if($a.Count-ne 1 -or $a[0].AccessMask-ne $pair[1] -or $a[0].SecurityIdentifier.Value-cne $testOwner){throw 'oracle_generic_mapping_rejected'}}
+try{$null=Get-SyntheticInheritedSecurity $base 'O:SYG:BAD:(D;OI;FR;;;BA)' $testOwner $testOwner;throw 'oracle_deny_accepted'}catch{if($_.Exception.Message-cne 'synthetic_parent_ace_unsupported'){throw}}
 $locks=New-Object 'System.Collections.Generic.List[System.IDisposable]'
 $file=Join-Path $FixtureParent 'synthetic-pin.txt';[IO.File]::WriteAllText($file,'synthetic-pin',[Text.UTF8Encoding]::new($false))
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
@@ -82,5 +94,5 @@ try{
  foreach($bad in @(-1,'1')){$entries[0].bytes=$bad;Reject-SyntheticInventory 'candidate_size_rejected'};$entries[0].bytes=$goodSize
  foreach($bad in @('../outside.ps1','/rooted.ps1','dir//file.ps1','dir/./file.ps1','C:\absolute.ps1',$entries[1].path.ToUpperInvariant())){$entries[0].path=$bad;Reject-SyntheticInventory 'candidate_relative_path_rejected'};$entries[0].path=$goodPath
  $null=Write-SyntheticManifest
- [Console]::WriteLine('{"passed":true,"emptyAndMalformedRejected":true,"correctHashPinned":true,"wrongHashRejected":true,"receiptExceptionExplicit":true,"candidateInventoryPinned":true,"crossProcessWriteRejected":true,"crossProcessReplaceRejected":true,"candidateBytesPreserved":true,"releaseAllowsWrites":true,"candidateHashMismatchRejected":true,"candidateSizeMismatchRejected":true,"candidateShapeRejected":true}')
+ [Console]::WriteLine('{"passed":true,"emptyAndMalformedRejected":true,"correctHashPinned":true,"wrongHashRejected":true,"receiptExceptionExplicit":true,"candidateInventoryPinned":true,"crossProcessWriteRejected":true,"crossProcessReplaceRejected":true,"candidateBytesPreserved":true,"releaseAllowsWrites":true,"candidateHashMismatchRejected":true,"candidateSizeMismatchRejected":true,"candidateShapeRejected":true,"independentInheritanceOracleVerified":true}')
 }finally{foreach($h in $locks){$h.Dispose()}}
