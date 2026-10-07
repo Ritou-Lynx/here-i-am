@@ -32,12 +32,14 @@ try{
  if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  $configuration=Open-BootstrapPin $ConfigPath $ExpectedConfigSha256
  $reader=[IO.StreamReader]::new($configuration,[Text.UTF8Encoding]::new($false),$true,1024,$true);try{$config=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}
- if($config.format-cne 'schema6-maintenance-login-config-v1' -or $config.ownerSid-cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $config.windowId-cnotmatch '^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$'){throw 'prepare_configuration_rejected'}
- $required=@('prepare-production-login.ps1','prepare-production-login.mjs','prepare_live_guard.ps1','maintenance_window.ps1','maintenance_outputs.mjs','acl_receipt.mjs','register-approved-login.ps1','register_task_primitives.ps1')|ForEach-Object{Join-Path $PSScriptRoot $_}
+ if($config.format-cne 'schema6-maintenance-login-config-v2' -or $config.ownerSid-cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $config.windowId-cnotmatch '^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$'){throw 'prepare_configuration_rejected'}
+ $required=@('prepare-production-login.ps1','prepare-production-login.mjs','prepare_live_guard.ps1','maintenance_window.ps1','maintenance_outputs.mjs','acl_receipt.mjs','register-approved-login.ps1','register_task_primitives.ps1','task_security_policy.ps1')|ForEach-Object{Join-Path $PSScriptRoot $_}
  $required+= [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\release_schema6\package.mjs'))
  foreach($p in $required){$entry=@($config.maintenanceFiles|Where-Object{$_.path-ceq $p});if($entry.Count-ne 1){throw 'prepare_closure_pin_required'};$null=Open-BootstrapPin $p $entry[0].sha256}
  . (Join-Path $PSScriptRoot 'prepare_live_guard.ps1')
  . (Join-Path $PSScriptRoot 'maintenance_window.ps1')
+ . (Join-Path $PSScriptRoot 'register_task_primitives.ps1')
+ . (Join-Path $PSScriptRoot 'task_security_policy.ps1')
  Assert-PreparePrivate $config.maintenanceRoot
  if(!(Test-Path -LiteralPath (Join-Path $config.maintenanceRoot 'active-window.guard') -PathType Leaf)){throw 'prepare_existing_guard_required'}
  $leases.Add((Acquire-MaintenanceGuard $config.maintenanceRoot))
@@ -54,10 +56,12 @@ try{
  $valid=(Invoke-PrepareNode $precheck)|ConvertFrom-Json;if($valid.validated-ne $true){throw 'prepare_precheck_rejected'}
  $service=New-Object -ComObject 'Schedule.Service';$service.Connect()
  Assert-PrepareLiveFrozen $config $frozen $service $leases
+ $null=Assert-TaskSecurityPolicy $config ($service.GetFolder('\').GetSecurityDescriptor(7))
  $prepare="import {readFileSync} from 'node:fs';import {pathToFileURL} from 'node:url';const m=await import(pathToFileURL(process.argv[2]).href);const c=JSON.parse(readFileSync(process.argv[1],'utf8'));const r=await m.prepareProductionLogin(c,{configurationPath:process.argv[1]});process.stdout.write(JSON.stringify(r));"
  $report=(Invoke-PrepareNode $prepare)|ConvertFrom-Json
  if($report.passed-ne $true -or $report.registered-ne $false -or $report.started-ne $false){throw 'prepare_result_rejected'}
  Assert-PrepareLiveFrozen $config $frozen $service $leases
+ $null=Assert-TaskSecurityPolicy $config ($service.GetFolder('\').GetSecurityDescriptor(7))
  $leases.Add((Open-PreparePin $config.outputXmlPath $config.approvedXmlSha256))
  Assert-PreparePrivate ([IO.Path]::GetDirectoryName($config.preparedReceiptPath))
  $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($report|ConvertTo-Json -Depth 15)+"`n")

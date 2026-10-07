@@ -1,3 +1,7 @@
+# 2026-10-07 当前修订
+
+任务配置/审批已升v2，准备回执v3；注册输入/继承预期分开锁定，父SD及只读明细全绑定，模板Unified=true。新候选和最终本人批准见[任务权限修订](SCHEMA6_TASK_SECURITY_REVISION_20261007.md)。下文v1/approvedSddl/旧模板及原CI记载均为历史，不可用于本轮生产配置。
+
 # Schema 6 维护注册与固定准备入口
 
 ## 独立 Prepare 串行门控补强

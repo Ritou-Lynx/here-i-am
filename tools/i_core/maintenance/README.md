@@ -12,7 +12,7 @@
 | owner-apply-runtime-permissions.ps1 | 同owner提升会话的显式wrapper，pin后加载ACL实现并复核回执；绿色UI不代替验收。 |
 | owner_elevation_probe.ps1 | 仅新合成根的foreign-owner往返，不操作现场目标。 |
 | prepare-production-login.mjs / .ps1 / prepare_live_guard.ps1 | 绑定本窗口冻结和全项ACL回执；固定PrepareOnly生成XML，逐字等于本人批准版本。 |
-| register-approved-login.ps1 / register_task_primitives.ps1 | RegisterOnly，TASK_CREATE=2，真实COM回读，没有任务启动入口。 |
+| register-approved-login.ps1 / register_task_primitives.ps1 / task_security_policy.ps1 | RegisterOnly，TASK_CREATE=2，真实COM回读，没有任务启动入口。 |
 | precutover_validate_copy.mjs / online_preflight_input_guard.mjs | PR16只读在线复制和唯一的在线SHM例外。 |
 
 使用Windows PowerShell 5.1和固定Node24.14.1。先从批准提交固定维护源码的完整依赖闭包，再在受保护私有根中pin源码/配置外锚；不能只复制入口或执行可变checkout。各入口的准确参数和字段见三个工作包交接。
@@ -38,3 +38,7 @@ RegisterOnly先核任务不存在，再CREATE；竞态不会覆盖已有任务�
 Windows CI的schema6-windows job串行纳入maintenance_acl/window/register测试，显式必跑真实COM生命周期和foreign-owner特权探针，COM回执上传artifact。本机普通token未执行foreign-owner探针不能当通过；由临时hosted Windows VM实际执行。不改本机策略或现役ACL。Linux仅承担当平台可用的纯验证。
 
 主窗验收及现场清单位于docs/development/handoffs；合并PR16与再次进场均需另行授权。
+
+## 2026-10-07 任务安全修订
+
+当前配置/审批采用v2、准备回执v3，registrationSddl与expectedRegisteredSddl分别锁定，parentSddlSha256及windows-file-oi-v1独立推导并前后重核。外SID只允许00120089纯读子集，所有其他权限包括执行均拒绝；只读主体逐项披露绑定本人批准。旧approvedSddl不再接受。固定Prepare模板显式Unified=true，须新包和本人最终XML/SDDL审批后再进场。详见docs/development/handoffs/SCHEMA6_TASK_SECURITY_REVISION_20261007.md。

@@ -1,3 +1,13 @@
+## 2026-10-07 当前任务模板与批准门槛（优先于下文历史锚）
+
+本轮用户已接受显式Unified=true和非保护任务DACL方案，仅授权源码/CI/新候选；最终精确XML/SDDL尚须本人批准，未进场。旧XML SHA 7de2a122…和旧manifest不能放行新模板。新分支源码/候选及最终审批见[任务权限修订](SCHEMA6_TASK_SECURITY_REVISION_20261007.md)。新PR不得自动合并。
+
+在④.1之前：核新候选47项、最终XML逐字hash、注册input/继承expected两份SDDL、父SD hash/算法及其他只读主体逐项明细；本人批准这些精确字节。当前本机预览没有其他主体，不可跳过重核。任何外SID写/执行/删除/WRITE_DAC/WRITE_OWNER权限均拒绝；父SD漂移即停止，不用actual反填expected。
+
+④.8：维护配置/owner审批v2，准备回执v3；同guard及完整pin下准备前后核父SD，实际XML必须等于新批准XML，Unified明确true。④.9：仅CREATE input SDDL，COM严格比对expected SDDL及全部定义、最终权限；注册前后再核父SD，零实例、旧任务/raw/external门槛全部保留。ACL pending仍依下文保全再审，不删除锁或编造回执。
+
+本机四次任务创建额度已用完；本轮仅COM NewTask内存，Hosted隔离VM真实往返不构成现场注册。此前r02窗口仍未使用，旧证据原样保留。获本人最终批准并满足新合并门槛后才可进入④–⑥；没有自动停服步骤。
+
 # schema6 候选切换现场清单（下次窗口顺序，2026-10-07复核）
 
 ## 2026-10-07 最新增补：维护源码闭合，仍未进场

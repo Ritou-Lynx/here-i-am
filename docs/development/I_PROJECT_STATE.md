@@ -1,5 +1,23 @@
 # 林埃的项目状态
 
+## 任务权限方案已接受，源码/新候选准备（2026-10-07）
+
+本轮改显式Unified=true及input/expected两份任务SDDL、父SD/算法/纯读披露分别锁定，配置/审批v2、准备回执v3。其他主体仅00120089纯读，含执行在内任何非读权限拒绝；严格Compare及冻结/ACL/lease门槛不放宽。固定47项只Prepare模板变化，会话启动器/Core/MCP字节不变，须新包；最终精确XML/SDDL本人批准前不进场，新PR也不自动合并。详见[任务权限修订](handoffs/SCHEMA6_TASK_SECURITY_REVISION_20261007.md)。A保持零停机，B源码已到远端CI/Windows构建，尚未由主窗验收。下文待接受/原候选复用均为前阶段历史。
+
+## 本机四组兼容探针已清理，待修订方向审批（2026-10-07）
+
+用户授权的4组真实CREATE→回读→删除已完成：缺省/显式Unified=false均注册成true；protected均丢P并拒绝，unprotected与CREATE前父SD独立期望相同。4次CREATE全部禁用、无触发、安全cmd动作，从未Run，最终枚举0遗留；约1.121秒，旧任务及父SD完全稳定，Core/MCP仍各1实例、三端口原PID，零人为停机。独立源码/回执复核通过安全边界，不能解释为兼容性通过。
+
+已准备私有review-only XML/SDDL提案：显式Unified=true；分别审批registration/expected SDDL、父SD哈希及算法版本，严格比较不放宽。提案尚未实现到生产源码；预览仍指旧候选，不能注册，接受方向后须新包/配置/XML和CI再审批。固定47项未改、本机四次额度已用完，不继续创建任务。A仍停在冻结前；详见[现场实测与提案](handoffs/SCHEMA6_CUTOVER_REENTRY_20261007_R02.md)。B继续，监视器正补不可见pending、互斥与超时回收，未由主窗宣称源码整组完成。
+
+## Core再次授权首关停止，B源码继续（2026-10-07）
+
+PR16已按用户授权普通合并至v3-lab@72905f6f（受审head09ea2914，15项检查全绿）。固定候选47项实际hash/size及合并源码全部相同，可以沿用1552e251候选与原manifest；没有重建或改包。
+
+本机只读核批准XML/hash、NewTask定义及任务目录安全描述：原XML缺省Unified，内存false稳定；原审批记录没有SDDL绑定。已有真实注册规范化反例未排除，不能据内存解析通过冻结旧任务。A停在首关；未使用r02窗口、冻结、停服务、Apply ACL、生产Prepare/注册、原库替换/head推进或手机操作。原Core/MCP任务仍Enabled/Running各1实例，三端口在。下一步受限合成兼容演练及必要生产XML/SDDL审批方案见[本轮现场记录](handoffs/SCHEMA6_CUTOVER_REENTRY_20261007_R02.md)，未执行。
+
+B独立窗口“记一下与规划上线前源码准备”已启动，分支codex/hub-golive-src-20261007基于当时origin/v3-lab@0a24cac2，notes/领域36项合成复验通过，继续P1手机正式连接及授权接线和其他工作包。A首关停止不阻塞B；不合并、不部署，P1完成后再进P2/P3整合。下方待审核/待合并表述保留为前轮历史。
+
 ## PR16 维护源码闭合（2026-10-07，待本轮复核）
 
 用户已通过前轮SHM复现/窄修复和7项CI；本轮继续同分支，把实际会改现役的指定私有维护脚本参数化纳入tools/i_core/maintenance。仅源码与新合成环境，未查询/操作现役、原库、真实任务、隧道或手机。现场配置/快照/正文/凭据未读取或提交，固定runtime47项未改。
