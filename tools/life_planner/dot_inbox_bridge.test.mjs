@@ -38,7 +38,8 @@ function verifyDot({principal,request,domain,authorizationRef}){
     ||request.actor!=='user_direct'||request.data?.source!=='dot'||request.provenance?.source!=='dot')return false;
   const match=/^dotv1\.([A-Za-z0-9_-]{43})$/.exec(authorizationRef??'');if(!match)return false;
   const expected=createHmac('sha256',secret).update(canonicalJSON(signingPayload(principal,request))).digest();
-  const supplied=Buffer.from(match[1],'base64url');return supplied.length===expected.length&&timingSafeEqual(supplied,expected);
+  const supplied=Buffer.from(match[1],'base64url');return supplied.length===expected.length
+    && supplied.toString('base64url')===match[1]&&timingSafeEqual(supplied,expected);
 }
 
 function fixture(t){
@@ -97,12 +98,27 @@ test('a separately signed exact dot intent is accepted by real DomainStore and r
 
 test('proposal, binding, source and authorization changes fail closed',async t=>{
   const f=fixture(t);
-  const refLast=f.intent.authorization_ref.at(-1),changedRef=f.intent.authorization_ref.slice(0,-1)+(refLast==='A'?'B':'A');
+  const ref=/^(dotv1)\.([A-Za-z0-9_-]{43})$/.exec(f.intent.authorization_ref);assert.ok(ref);
+  const changedSignature=Buffer.from(ref[2],'base64url');changedSignature[0]^=1;
+  const changedRef=`${ref[1]}.${changedSignature.toString('base64url')}`;
+  assert.notEqual(changedRef,f.intent.authorization_ref);
   const changes=[{...f.transfer,proposal:{...f.proposal,receipt_digest:'0'.repeat(64)}},
     {...f.transfer,binding:{...binding,credential_generation:2}},
     {...f.transfer,intent:{...f.intent,data:{...f.intent.data,source:'phone_quick'}}},
     {...f.transfer,intent:{...f.intent,authorization_ref:changedRef}}];
   for(const value of changes)await assert.rejects((await f.bridge()).apply(value));
+  assert.equal(f.db.prepare("SELECT COUNT(*) n FROM domain_records WHERE domain='captures'").get().n,0);
+});
+
+test('a non-canonical base64url padding alias never authenticates as the same HMAC',async t=>{
+  const f=fixture(t),match=/^(dotv1)\.([A-Za-z0-9_-]{43})$/.exec(f.intent.authorization_ref);assert.ok(match);
+  const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const lastIndex=alphabet.indexOf(match[2].at(-1));assert.equal(lastIndex%4,0);
+  const aliasSignature=match[2].slice(0,-1)+alphabet[lastIndex+1];
+  assert.deepEqual(Buffer.from(aliasSignature,'base64url'),Buffer.from(match[2],'base64url'));
+  const aliasRef=`${match[1]}.${aliasSignature}`;assert.notEqual(aliasRef,f.intent.authorization_ref);
+  const changed={...f.transfer,intent:{...f.intent,authorization_ref:aliasRef}};
+  await assert.rejects((await f.bridge()).apply(changed),error=>error?.code==='invalid_core_capture_result');
   assert.equal(f.db.prepare("SELECT COUNT(*) n FROM domain_records WHERE domain='captures'").get().n,0);
 });
 

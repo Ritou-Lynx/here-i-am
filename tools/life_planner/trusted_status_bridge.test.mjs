@@ -235,8 +235,11 @@ test('same op cannot be rebound to another capture and concurrent ledgers use ex
   const visible=createTrustedPlanCoreTransport({getCapture:async id=>({id,revision:1,core_instance_id:coreId,deleted_at:null}),
     getOperation:id=>f.transport.getOperation(id),submitOperation:value=>f.transport.submitOperation(value)});
   await assert.rejects((await f.bridge({transport:visible})).apply(changed),error=>error?.code==='transfer_idempotency_conflict');
-  const last=intent.authorization_ref.at(-1), changedRef={...transfer,intent:{...intent,
-    authorization_ref:intent.authorization_ref.slice(0,-1)+(last==='A'?'B':'A')}};
+  const auth=/^(uia1\.[A-Za-z0-9_-]{1,40})\.([A-Za-z0-9_-]{43})$/.exec(intent.authorization_ref);assert.ok(auth);
+  const changedSignature=Buffer.from(auth[2],'base64url');changedSignature[0]^=1;
+  const changedAuthorization=`${auth[1]}.${changedSignature.toString('base64url')}`;
+  assert.notEqual(changedAuthorization,intent.authorization_ref);
+  const changedRef={...transfer,intent:{...intent,authorization_ref:changedAuthorization}};
   await assert.rejects((await f.bridge()).apply(changedRef),error=>error?.code==='transfer_idempotency_conflict');
 });
 
