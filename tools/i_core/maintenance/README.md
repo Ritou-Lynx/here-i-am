@@ -8,6 +8,7 @@
 |---|---|
 | enter-maintenance-window.ps1 / freeze-legacy-runtime.ps1 | 新窗口固定入口；保存/冻结旧任务、触发及重试 → 停MCP → PR16在线副本预检 → 停旧Core → 全件证明及至少65秒观察。内置退回仅覆盖冻结阶段。 |
 | maintenance_window.ps1 | 每窗口CreateNew目录/entry.lock/回执；active-window.guard独占句柄串行化动作，不删除或截断旧证据。 |
+| protect-approved-settings.ps1 | 独立获批单目录前置；方案SHA锚、3配置单链接/hash、原DACL耐久保存后只保护继承保留ACE，失败精确恢复；不处理144项、不碰任务/服务/库。 |
 | acl-cutover-maintenance.ps1 | import-safe Audit/Apply/Rollback，仅owner/DACL/继承，精确库存、全项恢复及readback。 |
 | owner-apply-runtime-permissions.ps1 | 同owner提升会话的显式wrapper，pin后加载ACL实现并复核回执；绿色UI不代替验收。 |
 | owner_elevation_probe.ps1 | 仅新合成根的foreign-owner往返，不操作现场目标。 |
@@ -54,3 +55,9 @@ Windows CI的schema6-windows job串行纳入maintenance_acl/window/register测�
 仅进程映像使用 `process_image_binding.ps1`：PID、OS创建时间、实际完整路径、SHA256持柄绑定；系统路径由Windows API取得且必须TrustedInstaller owner，可有servicing硬链接。数据/配置/密钥/状态/回执/发行包（含候选Node）仍单硬链接。没有通用豁免标记。
 
 演练CLI与正式入口相同参数，末尾使用 `-PreflightOnly`。演练全过后仍须本人另行授权正式进场。
+
+## 单目录 settings 前置的最新授权
+
+单目录入口先随 PR20 合成/CI 通过，执行时必须固定完整维护快照，参数 `-ProposalPath … -ExpectedProposalSha256 … -ReceiptDirectory … -Execute`；全新受保护回执目录不能在目标内，旧输出不复用。真实方案和 SDDL/SID 只在私有文件，源码无现场默认路径。此入口仅目录 DACL，不能代替正式冻结后的144项 owner/ACL Apply。
+
+执行成功后新ID完整 PreflightOnly；用户当前已明确有条件预授权：全套零失败且全部原批准外锚不变才直接用 r02。任何现场失败或偏差停审；原先“演练后另请授权”是此前阶段历史。固定47运行文件/Core/MCP/会话启动器不随新增维护入口变化。详见 `docs/development/handoffs/SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md`。
