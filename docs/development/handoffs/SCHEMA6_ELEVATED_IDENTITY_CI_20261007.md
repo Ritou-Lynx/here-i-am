@@ -1,5 +1,15 @@
 # schema6 提升 writer → 普通 owner 合成 CI
 
+## 2026-10-07 第四轮：修正 PS5 披露数组的重复包装
+
+`34582e233b57643ceed4aa2da6dbde6fc6f0ebd1` 的维护两个 Hosted job 已通过，真实身份链继续失败。`build/ci/34582e23-identity-hosted.json` 的 `consumerReport.nodePrecheck` 与真实 Prepare `precheck` 两处给出同一明确断言：`taskSecurityBindings` 要求披露项具有 `flags/mask/sid` 三键，实际为零键。真实执行字节/身份/ACL回执并未因此通过后续 Prepare。
+
+根因在合成配置赋值：生产纯函数 `Get-TaskInheritedReadOnlyPrincipals` 用 `return ,$items` 返回单一数组对象；fixture 再用 `@(Get-TaskInheritedReadOnlyPrincipals ...)` 收集这一个对象，导致空列表 `[]` 被包成 `[[]]`，非空同样变为嵌套数组。修复只移除此字段多余的 `@`，直接保留纯函数返回的完整数组；未置空披露、未过滤外 SID，也未改 oracle/生产检查/固定47字节。
+
+新增 `identity_disclosure_roundtrip.ps1` 和 `maintenance_identity_disclosure.test.mjs`：实际 Windows PowerShell5.1 从当前 pipeline AST 提取**该字段的真实表达式**，只执行这个纯表达式，分别以零、一个BU、两个AU/BU外部只读主体走独立oracle、生产policy对照、JSON序列化与反序列化，再过生产 `Assert-TaskSecurityPolicy`。Node核精确SID、排序、flags16、mask00120089，并调用真实 `taskSecurityBindings`；三种旧嵌套形状均继续被拒绝。它不执行pipeline任务/写入口，不访问现役对象。
+
+回归先在原表达式上实际失败 `roundtrip_array_shape_rejected`，移除一个 `@` 后实际通过。新原生往返与原4项identity静态契约合跑 **5/5通过**（852.2ms），diff-check通过。Hosted完整身份链仍需新候选重跑，本机纯序列化回归不等于真实Prepare或RegisterOnly通过；`productionRegisterOuterExecuted=false`保持不变。
+
 ## 2026-10-07 第三轮启动差异已定位，保留真实 Prepare Node 失败证据
 
 `cf9b121e` 的 Hosted 18项矩阵形成明确对照：继承桌面/仅私有桌面/私有桌面+进程线程SD三组的 cmd、Node、PowerShell 全为 `0xC0000142`（9失败）；加入 TokenDefaultDacl 的后三组全部 exit0（9成功），额外修改新 token 对象DACL未增加通过范围。故**启动差异已定位到新 token 的 DefaultDacl**，不进一步推断具体 CSRSS/DLL 内部失败机制。push 与 PR 两个 runner 的 fixed-candidate 三程序均 exit0，实际 pipeline 均已到普通 consumer：同SID、本人TokenOwner、非提升、非管理员、Medium，以及真实 `aclReceiptRead=true`；随后都报 `consumer_prepare_rejected / prepare_node_rejected`，fixedPrepare 与完整串联仍未通过。

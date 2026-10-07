@@ -1,3 +1,11 @@
+## 2026-10-07 — 修正Hosted合成权限披露数组
+- 34582e23两个Hosted维护验收通过；真实身份链准确拒绝inheritedReadOnlyPrincipals嵌套空项。
+- 根因为fixture对return ,$items再次@包装；仅移除多余@，保留完整外SID披露与严格生产检查。
+- 新回归从实际pipeline AST取表达式，PS5→JSON→生产policy/JS核0/1/2外SID，原嵌套形状继续拒绝。
+- 主窗身份数组/观察器/静态专项6/6通过、0跳过；真实全链仍等新HEAD的Hosted结果。
+- 新入口独审26文件闭包/六锚/全套演练/owner/新锁/回退门未见阻断；必须从正式C工作树生成。
+- 固定47与批准XML/SDDL无修改；未新演练/冻结/注册/进场。
+---
 ## 2026-10-07 — 真实普通身份已读回ACL，保留Prepare断点证据
 - cf9b121e双Hosted矩阵定位DefaultDacl差异：不加本人允许项9次失败，加入后9次启动成功。
 - 真实提升Apply144/16→sameSID普通身份→ACL回执读取均通过；Prepare仍拒绝prepare_node_rejected。

@@ -1,3 +1,8 @@
+## 2026-10-07：Hosted夹具披露数组窄修，未进场
+
+34582e23的两个维护job已通过；真实身份链在taskSecurityBindings明确发现合成配置的披露项为嵌套数组。生产纯函数return ,$items已返回数组，fixture重复@包装造成[[]]；仅去掉该@，保留零/非零外SID完整披露。新增实际pipeline AST表达式的PS5→JSON→生产policy/JS 0/1/2主体回归，旧嵌套继续拒绝；主窗数组/观察器/static6/6、0跳过。下一HEAD真实提升→普通固定Prepare→安全COM串联仍待CI，不把局部通过当完整链成功。
+
+独审确认现场生成器26项源码闭包、九种必需CI及全部结果成功门、六锚、PR16在线/模板字节/结束复核、新r03锁、144库存/pending停点无遗漏；生成器必须从本C正式工作树执行。固定47/批准内容无改动，现役未动；全绿和新全套只读通过才继续条件预授权。
 ## 2026-10-07：启动原因有实证，Prepare拒绝仍在定位
 
 cf9b121e的push/PR两Hosted runner一致：原DefaultDacl缺本人允许项，baseline/private-only/kernel三组合9次0xC0000142；只改变新token DefaultDacl后另9次cmd/Node/PS全exit0。实际普通consumer sameSID/owner/非提升/Medium成立且aclReceiptRead=true，144/16真实提升Apply已交接到普通读取；fixedPrepare仍false，prepare_node_rejected尚未取得内部错误。不能把启动成功提升为完整链成功。
