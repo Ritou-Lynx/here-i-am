@@ -1,5 +1,21 @@
 # schema6 提升 writer → 普通 owner 合成 CI
 
+## 2026-10-07 第二轮仍失败：启动矩阵与固定权限候选
+
+`6647d041` 的 Hosted artifact 再次得到 `consumerExit=-1073741502 / 0xC0000142`，没有 consumer identity/result。私有窗口站和桌面的安全描述符验证、父站/线程桌面恢复、对象关闭全部为 true。因此“仅桌面权限导致失败”的解释不足；实际 Apply 144/16 成功仍仅为部分证据，完整串联与 fixed Prepare 尚未通过。
+
+第三轮仅改夹具。`identity_startup_diagnostics.ps1` 在同一必跑 job 先做 **6 个变量组合 × cmd/node/PowerShell =18 次**即时退出启动：继承桌面基线、仅私有桌面、私有桌面+进程/线程 SD、私有桌面+TokenDefaultDacl、固定候选（私有桌面+两者）、最后额外改变新 restricted token 内核对象 DACL。最后一个变量仅操作 `CreateRestrictedToken` 新返回的 `limited` 句柄；不修改父 token 或任何原有宿主对象。每个诊断子进程限15秒，超时只按自己创建的准确句柄终止并等退出；清理不确定立即停止矩阵。即时退出程序不创建任务、访问应用状态或派生子树。
+
+矩阵与正式候选均用 `CREATE_SUSPENDED`，在 `ResumeThread` 前读取真实子 token，严格要求同 SID、本人 TokenOwner、Elevation=0、非管理员和 Medium。验身份或读取安全描述符失败时，finally 终止尚未恢复执行的确切子进程并确认退出。记录父/原限制/修改后的 TokenDefaultDacl、限制 token 自身与实际子 token 的内核 SD、实际进程/线程 owner+DACL+label、启用/deny-only groups、restricted SIDs 和失败阶段。TokenDefaultDacl 与 token 对象 SD 明确分开。
+
+正式 `RunLimited` 固定采用“私有桌面+明确进程/线程 SD+子 token 私有 DefaultDacl”，**不读取矩阵结果、不动态挑选、不修改 token 对象 SD**。本人/SYSTEM/Administrators 三主体、protected DACL、owner 均原生回读；进程/线程 label 按实际 Windows 语义接受无 label 的 implicit Medium 或精确 Medium NW，显式 High/Low 等均拒绝。原生产 ordinary guard 和固定47文件无改动。此候选针对默认对象权限的假设仍待真实 Hosted 证实，不把本机成功当根因已定。
+
+依据：[CreateProcessAsUserW](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw) 说明未提供进程/线程 SD 时由 token 推导，创建成功可随后 DLL 初始化失败；[Mandatory Integrity Control](https://learn.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control) 说明没有 integrity SID 的对象按 Medium 处理。
+
+本机已实际通过：Windows PowerShell5.1 C# 编译；普通父 token、继承本机桌面下 **15/15** 原生启动（3程序×5种kernel/defaultDacl/tokenObject组合）全部 exit0，全部预恢复真实身份断言通过，明确私有 DACL 的各组合读回通过。另一个只睡眠的合成 PowerShell 在 **15158ms** 超时；独审要求统一异常清理后再次实测为 **15110ms**，`timedOut=true`、`terminatedAfterTimeout=true`、`childExitConfirmed=true`，正常 cmd 退出也核 `childExitConfirmed=true`。该清理保证仅针对准确句柄对应的直接子进程，不声称通用子孙树终止。本机回执为忽略目录 `build/ci/identity-startup-local.json`；`privateDesktopTested=false`、`elevatedWriterTested=false`。未发起 UAC。静态契约 **4/4**、三份受影响 PowerShell 解析及 diff-check 通过。
+
+新 artifact 增 `build/ci/schema6-identity-startup.json`；其 `diagnosticOnly=true`、`pipelinePassed=false`，completed 只表示观测完成，非启动/串联通过。矩阵普通启动失败是观测并继续；清理不确定会失败并阻止后续真实 pipeline，artifact 上传仍执行。正常观测完成后真实 pipeline 使用固定候选，自己的失败使 job 失败。正式 pipeline 即使 native launcher 抛错也保存 `consumerLaunch` 和 privateDesktop 证据；旧 ordinary fixtures 出错时打印同份启动证据。安全派生 COM 仍不能称完整生产 RegisterOnly，`productionRegisterOuterExecuted=false` 保持不变。
+
 ## 2026-10-07 Hosted 首轮失败与桌面隔离修订
 
 首轮候选 `befcad08` 的真实 artifact `11487836939` 已证明 writer Elevated/Admin/默认 owner BA/High 四项成立；实际 Apply **144 项、16 项原 foreign owner** 通过，ACL 回执 owner 断言通过，原合成 frozen task 已绑定删除。`fixedPrepare=false`，完整串联未通过。旧两项普通身份夹具的子进程均在约0.57秒退出，状态 `3221225794 / 0xC0000142`，无 stdout/stderr；原 identity 串联只报缺少 consumer 回执。

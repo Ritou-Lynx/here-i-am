@@ -1,3 +1,8 @@
+## 2026-10-07：Hosted启动证据补齐，仍在源码准备
+
+6647d041真实私有station/desktop安全、父状态恢复与关闭均通过，但child仍0xC0000142、没有consumer身份结果；144项提升Apply和回执本人owner已过，fixedPrepare仍未进入。新夹具增加18组cmd/Node/PS启动观测，记录父/limited DefaultDacl、token及process/thread内核SD和组；CREATE_SUSPENDED先核实际sameSID/ownerSID、非提升/非管理员/Medium再Resume。固定RunLimited候选不按观测动态选择，只变新受限token默认DACL及新对象SD，生产严格检查和父token不变；完整Hosted结果仍待新CI。
+
+本机普通cmd定向启动实际成功，不冒充提升→普通整链。22:35再次只读重核批准manifest/47项库存和六hash全部一致、settings受保护，运行47字节无变化。旧现役未动，未新全套只读/进入r03；只有准确源码全部CI绿、新只读全套零失败且六锚/实时父SD未变才按已有条件预授权进场。本人已确认今晚可完成真人节点，无需重复申请切换授权。
 ## 2026-10-07 22:19：Hosted普通进程初始化修订，未进场
 
 befcad08新强制job实际管理员BA默认owner/High及144/16 Apply成功、回执本人owner验证通过，但普通子进程初始化0xC0000142，fixedPrepare仍false；快维护两例同根因失败，整链未通过。当前只改测试夹具：每次新建私有Medium窗口站/桌面，真实SD/名称/父状态恢复/关闭验证，原宿主对象ACL不改、身份断言不放宽。补在线副本三case普通身份包装，本机最终3/3实跑通过、static3/编译/解析通过；私有命名窗口站本机普通token被拒，未请求UAC，完整提升→普通修订仍待Hosted。固定运行47/六批准hash未变；未新只读/停服/进入r03。当前结果覆盖下方“Hosted尚未运行”的早期交接，准确CI全绿后才继续。

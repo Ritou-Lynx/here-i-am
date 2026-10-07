@@ -1,3 +1,12 @@
+## 2026-10-07 — Hosted受限token启动证据与夹具窄修
+- 6647私有桌面安全/恢复/关闭全部真实通过，但普通child仍0xC0000142，未通过完整串联。
+- 新增18组只退出的cmd/Node/PS诊断，逐项记录default DACL、token内核SD与真实child身份。
+- CREATE_SUSPENDED先核sameSID/owner/非提升/Medium再恢复；超时和异常须确认退出，不动态选通过变体。
+- 固定测试候选只设置新受限token默认DACL及新process/thread SD，不改父token/既有桌面ACL。
+- 本机普通cmd最小启动真实通过；Hosted提升→普通仍待新CI，不继承有限证据。
+- 22:35只读重核固定47项与六批准hash全一致，settings仍protected；运行包无需重建。
+- 未新演练/冻结/正式进场，CI全绿后才按已有条件授权继续。
+---
 ## 2026-10-07 — Hosted真实普通子进程初始化修订
 - befcad08实际管理员BA默认owner/High通过144项Apply及本人owner读回；普通子进程0xC0000142退出，整链未通过。
 - 仅测试夹具新增随机私有Medium窗口站/桌面，核安全描述与父状态恢复，不改宿主桌面ACL或生产检查。

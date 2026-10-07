@@ -96,7 +96,7 @@ try {
  Json (Join-Path $root 'consumer-plan.json') @{ownerSid=$owner;maintenance=$maintenance;release=$release;aclReceiptPath=$aclPath;configPath=$configPath;configSha256=(Hash $configPath)}
  $consumer=Join-Path $PSScriptRoot 'identity_consumer.ps1';$token=Join-Path $PSScriptRoot 'identity_token.cs'
  $arguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$consumer+'" -FixtureRoot "'+$root+'" -TokenSource "'+$token+'"'
- $consumerExit=[Schema6IdentityToken]::RunLimited($ps,$arguments,$root)
+ try{$consumerExit=[Schema6IdentityToken]::RunLimited($ps,$arguments,$root)}finally{$report.consumerLaunch=[Schema6IdentityToken]::LastLaunch;$report.privateDesktop=[Schema6IdentityToken]::LastDesktop}
  $report.consumerExit=$consumerExit;$report.privateDesktop=[Schema6IdentityToken]::LastDesktop
  $report.consumerResultExists=Test-Path -LiteralPath (Join-Path $root 'consumer-result.json') -PathType Leaf
  if(!$report.consumerResultExists){throw ('limited_consumer_result_missing_exit_'+$consumerExit)}

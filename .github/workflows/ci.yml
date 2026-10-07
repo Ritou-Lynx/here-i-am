@@ -232,6 +232,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       # Required independent job: do not inherit run_windows_tests' TokenOwner
       # workaround. Real BA-default elevated writer and same-SID medium consumer.
+      - name: Measure restricted token startup variants
+        shell: powershell
+        run: ./tools/i_core/test_fixtures/release_schema6/identity_startup_diagnostics.ps1
       - name: Real Apply 144, ordinary fixed Prepare, safe COM registration and deletion
         shell: powershell
         run: ./tools/i_core/test_fixtures/release_schema6/run_identity_pipeline.ps1
@@ -241,6 +244,7 @@ jobs:
           name: schema6-identity-pipeline-results
           path: |
             build/ci/schema6-identity-pipeline.json
+            build/ci/schema6-identity-startup.json
             build/ci/schema6-module-scope.json
           if-no-files-found: error
 

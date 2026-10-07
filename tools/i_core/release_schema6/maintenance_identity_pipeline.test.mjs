@@ -25,7 +25,7 @@ test('identity fixture uses real Apply and Prepare, checks both actual tokens an
 test('ordinary child gets a fresh private Medium desktop without changing an existing desktop ACL',()=>{
  const native=fixture('identity_token.cs'),pipeline=fixture('identity_pipeline.ps1');
  assert.match(native,/CreateWindowStationW\(evidence.windowStation,1,/);
- assert.match(native,/desktop=privateDesktop.Path/);
+ assert.match(native,/desktop=privateDesktop==null\?null:privateDesktop.Path/);
  assert.match(native,/S:\(ML;;NW;;;ME\)/);
  assert.match(native,/CheckPrivateObject\(station/);assert.match(native,/CheckPrivateObject\(desktop/);
  assert.match(native,/SetProcessWindowStation\(original\)/);
@@ -34,4 +34,19 @@ test('ordinary child gets a fresh private Medium desktop without changing an exi
  assert.match(native,/SetThreadDesktop\(originalThreadDesktop\)/);
  assert.match(pipeline,/limited_consumer_result_missing_exit_/);
  assert.match(pipeline,/consumerExit=\$consumerExit/);
+});
+test('startup matrix preserves actual identity, bounds diagnostics and never selects the fixed candidate',()=>{
+ const native=fixture('identity_token.cs'),diagnostic=fixture('identity_startup_diagnostics.ps1');
+ assert.match(native,/RunCore\(application,arguments,cwd,true,true,true,false,0xffffffff\)/);
+ assert.match(native,/privateTokenObjectDacl,15000\)/);
+ assert.match(native,/0x08000004/); // CREATE_NO_WINDOW | CREATE_SUSPENDED
+ assert.match(native,/actual\.sid!=Sid\(token,1\).*actual\.owner!=actual\.sid.*actual\.elevated.*actual\.administrator/);
+ assert.ok(native.indexOf('actual_child_token_rejected')<native.indexOf('if(ResumeThread'));
+ assert.match(native,/TerminateProcess\(pi.process,2\)/);
+ assert.match(native,/SetKernelObjectSecurity\(limited,0x80000004,descriptor\)/);
+ assert.doesNotMatch(native,/SetKernelObjectSecurity\(token,/);
+ for(const key of ['parentTokenDefaultDacl','inheritedTokenDefaultDacl','limitedTokenSecurity','childTokenSecurity','processSecurity','threadSecurity','restrictedSids','terminatedBeforeResume'])assert.ok(native.includes(key),key);
+ assert.match(native,/new_kernel_dacl_unprotected/);assert.match(native,/AssertMediumKernelLabel/);
+ assert.match(diagnostic,/pipelinePassed=\$false/);assert.match(diagnostic,/cases.Count-eq 18/);
+ assert.doesNotMatch(diagnostic,/RunLimited|Invoke-AclMaintenance|prepare-production-login|Set-Acl/);
 });

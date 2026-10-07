@@ -22,6 +22,9 @@ function Invoke-OrdinaryFixtureIfElevated([string]$ScriptPath,$Parameters) {
   if(Test-Path -LiteralPath $output){[Console]::Out.Write([IO.File]::ReadAllText($output))}
   if(Test-Path -LiteralPath $errorsPath){[Console]::Error.Write([IO.File]::ReadAllText($errorsPath))}
   exit $code
+ }catch{
+  [Console]::Error.WriteLine(('ordinary_fixture_launch_evidence='+([Schema6IdentityToken]::LastLaunch|ConvertTo-Json -Depth 9 -Compress)))
+  throw
  }finally{
   $resolved=(Resolve-Path -LiteralPath $folder).Path
   if([IO.Path]::GetFileName($resolved)-cnotmatch '^schema6-ordinary-[a-f0-9]{32}$'){throw 'fixture_cleanup_scope_rejected'}
