@@ -1,3 +1,8 @@
+## 2026-10-07：启动原因有实证，Prepare拒绝仍在定位
+
+cf9b121e的push/PR两Hosted runner一致：原DefaultDacl缺本人允许项，baseline/private-only/kernel三组合9次0xC0000142；只改变新token DefaultDacl后另9次cmd/Node/PS全exit0。实际普通consumer sameSID/owner/非提升/Medium成立且aclReceiptRead=true，144/16真实提升Apply已交接到普通读取；fixedPrepare仍false，prepare_node_rejected尚未取得内部错误。不能把启动成功提升为完整链成功。
+
+维护58/59通过，唯一失败是合成Console.WriteLine绕过successstream造成空JSON；fixture改Write-Output、原断言不变。新合成观察器在原PS Invoke-PrepareNode唯一WaitForExit行记录既有子进程任务，源hash/控制流/返回码/guard不变，保存实际argv/OSenv/exit/stdout/stderr；独立只读probe不调用写API。主窗专项5/5、worker预检2/2通过。生产47及maintenance逻辑无新增diff；新CI仍待实际结果，未新演练/冻结/进场。现有条件授权与本人今晚就位答复保持，CI全绿和完整新演练仍为前置。
 ## 2026-10-07：Hosted启动证据补齐，仍在源码准备
 
 6647d041真实私有station/desktop安全、父状态恢复与关闭均通过，但child仍0xC0000142、没有consumer身份结果；144项提升Apply和回执本人owner已过，fixedPrepare仍未进入。新夹具增加18组cmd/Node/PS启动观测，记录父/limited DefaultDacl、token及process/thread内核SD和组；CREATE_SUSPENDED先核实际sameSID/ownerSID、非提升/非管理员/Medium再Resume。固定RunLimited候选不按观测动态选择，只变新受限token默认DACL及新对象SD，生产严格检查和父token不变；完整Hosted结果仍待新CI。

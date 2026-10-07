@@ -1,3 +1,11 @@
+## 2026-10-07 — 真实普通身份已读回ACL，保留Prepare断点证据
+- cf9b121e双Hosted矩阵定位DefaultDacl差异：不加本人允许项9次失败，加入后9次启动成功。
+- 真实提升Apply144/16→sameSID普通身份→ACL回执读取均通过；Prepare仍拒绝prepare_node_rejected。
+- 维护58/59通过，唯一空JSON源于fixture Console绕过PS successstream，已改Write-Output，保留原断言。
+- 仅合成fixture新增只读Node probe及原PS AST断点观察，保留两个真实Node阶段exit/stdout/stderr，不改source/pins。
+- 主窗观察传输+身份契约5/5；worker预检定向2/2，源码hash/断点移除/原返回值验证通过。
+- 完整真实Prepare链仍待新CI，固定47/生产维护逻辑无新增diff；未进场或改现役。
+---
 ## 2026-10-07 — Hosted受限token启动证据与夹具窄修
 - 6647私有桌面安全/恢复/关闭全部真实通过，但普通child仍0xC0000142，未通过完整串联。
 - 新增18组只退出的cmd/Node/PS诊断，逐项记录default DACL、token内核SD与真实child身份。

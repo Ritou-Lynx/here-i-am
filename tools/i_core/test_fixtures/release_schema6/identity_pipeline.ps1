@@ -100,7 +100,7 @@ try {
  $report.consumerExit=$consumerExit;$report.privateDesktop=[Schema6IdentityToken]::LastDesktop
  $report.consumerResultExists=Test-Path -LiteralPath (Join-Path $root 'consumer-result.json') -PathType Leaf
  if(!$report.consumerResultExists){throw ('limited_consumer_result_missing_exit_'+$consumerExit)}
- $answer=Get-Content -LiteralPath (Join-Path $root 'consumer-result.json') -Raw|ConvertFrom-Json;$report.consumer=$answer.identity
+ $answer=Get-Content -LiteralPath (Join-Path $root 'consumer-result.json') -Raw|ConvertFrom-Json;$report.consumer=$answer.identity;$report.consumerReport=$answer
  $desktop=$report.privateDesktop
  if(!$desktop.parentStationRestored -or !$desktop.parentThreadDesktopRestored -or !$desktop.desktopClosed -or !$desktop.stationClosed -or !$desktop.stationSecurityVerified -or !$desktop.desktopSecurityVerified -or $answer.identity.windowStation-cne $desktop.windowStation -or $answer.identity.desktop-cne $desktop.desktop -or $desktop.owner-cne $owner){throw 'limited_consumer_private_desktop_rejected'}
  if($consumerExit-ne 0 -or !$answer.passed){throw ('limited_consumer_failed:'+($answer|ConvertTo-Json -Depth 5 -Compress))}

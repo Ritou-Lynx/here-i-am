@@ -75,4 +75,6 @@ $local=Join-Path $FixtureRoot 'synthetic-encrypted-local.bin';$usb=Join-Path $Fi
 $pairs=@([pscustomobject]@{localPath=$local;usbPath=$usb;sha256=(Hash $local)})
 $b=Invoke-PreflightBackupArtifacts $pairs;Check ($b.passed -and $b.filesVerified-eq 2 -and $b.bytesVerified-eq 4194304 -and !$b.volumeIdentityVerified) 'backup_stream_pair_failed'
 [IO.File]::AppendAllText($usb,'drift');Reject {Invoke-PreflightBackupArtifacts $pairs} 'backup_drift_accepted'
-[Console]::WriteLine((@{passed=$true;checks=$checks;aclCount=144;syntheticOnly=$true;comMemoryRoundtrip=$true;productionPrepareInvoked=$false;registered=$false;started=$false}|ConvertTo-Json -Compress))
+# The ordinary dispatcher captures PowerShell's success stream. Console.WriteLine
+# bypasses that stream in the detached limited process and loses the report.
+Write-Output (@{passed=$true;checks=$checks;aclCount=144;syntheticOnly=$true;comMemoryRoundtrip=$true;productionPrepareInvoked=$false;registered=$false;started=$false}|ConvertTo-Json -Compress)

@@ -1,5 +1,15 @@
 # schema6 提升 writer → 普通 owner 合成 CI
 
+## 2026-10-07 第三轮启动差异已定位，保留真实 Prepare Node 失败证据
+
+`cf9b121e` 的 Hosted 18项矩阵形成明确对照：继承桌面/仅私有桌面/私有桌面+进程线程SD三组的 cmd、Node、PowerShell 全为 `0xC0000142`（9失败）；加入 TokenDefaultDacl 的后三组全部 exit0（9成功），额外修改新 token 对象DACL未增加通过范围。故**启动差异已定位到新 token 的 DefaultDacl**，不进一步推断具体 CSRSS/DLL 内部失败机制。push 与 PR 两个 runner 的 fixed-candidate 三程序均 exit0，实际 pipeline 均已到普通 consumer：同SID、本人TokenOwner、非提升、非管理员、Medium，以及真实 `aclReceiptRead=true`；随后都报 `consumer_prepare_rejected / prepare_node_rejected`，fixedPrepare 与完整串联仍未通过。
+
+生产 Prepare 把其 Node stderr 收敛为统一错误码。本轮不改生产源码/固定47文件/配置pins，增加夹具诊断：先用实际 pinned Node、相同OS-only清理环境调用仅只读的 `validatePreparationInputs`，保留实际argv、native argument字符串、6个允许环境变量、stdout/stderr/status；然后由 `identity_prepare_observer.ps1` 执行原始真实 Prepare 完整路径。观察器按原文件AST精确定位唯一 `Invoke-PrepareNode` 内的唯一 `child.WaitForExit`，设置本夹具自动继续断点；仅等待和读取该函数已有进程/异步输出任务，记录两个阶段序号、Code hash、argv/env/退出码/输出。它不重定义函数、不改代码/配置/guard/返回值，不重跑任何写API；finally只移除自己创建的断点，并核源hash未变。两个Node阶段仍由真实Prepare调用。诊断仅写本次 `schema6-identity-*` 根下固定报告，父pipeline完整保存consumerReport。
+
+同轮维护59项为58通过1失败。唯一失败 `maintenance_preflight_approval` 是合成fixture最后直接 `Console.WriteLine` 绕过 ordinary dispatcher 的PowerShell成功流重定向，退出0但stdout为空；改成 `Write-Output`，保留原业务断言并新增非空输出断言。本机真实ordinary定向 **2/2通过**（69993.9ms）。新增观察器transport-only回归执行真实PS断点与两个既有Node（0/7退出），确认原合成源码仍按原行为exit2，两个阶段Code hash/stdout/stderr、源hash不变和移除断点均通过；这不冒充生产Prepare。与原4项静态契约合跑 **5/5通过**（866.8ms），受影响PS解析与diff-check通过。
+
+本轮新增fixture观察只为获得下一次真实失败的完整原因；尚未给 `prepare_node_rejected` 指定未经证实的根因。完整现场 RegisterOnly 仍未执行，`productionRegisterOuterExecuted=false` 不变。证据在忽略目录 `build/ci/cf9b121e-schema6-identity-{pipeline,startup}.json`、`cf9b121e-identity-hosted.log`、`cf9b121e-identity-pr-hosted.log` 和维护日志；不包含现役资料或操作。
+
 ## 2026-10-07 第二轮仍失败：启动矩阵与固定权限候选
 
 `6647d041` 的 Hosted artifact 再次得到 `consumerExit=-1073741502 / 0xC0000142`，没有 consumer identity/result。私有窗口站和桌面的安全描述符验证、父站/线程桌面恢复、对象关闭全部为 true。因此“仅桌面权限导致失败”的解释不足；实际 Apply 144/16 成功仍仅为部分证据，完整串联与 fixed Prepare 尚未通过。

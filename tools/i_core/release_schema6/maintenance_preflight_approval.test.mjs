@@ -10,6 +10,7 @@ test('online approval: synthetic ACL144 exact inventory, strict source template,
  const root=realpathSync.native(mkdtempSync(path.join(realpathSync.native(tmpdir()),'schema6-preflight-approval-synthetic-')));
  try {
   const output=execFileSync(path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(repository,'tools/i_core/test_fixtures/release_schema6/maintenance_preflight_approval.ps1'),'-Repository',repository,'-FixtureRoot',root],{windowsHide:true,encoding:'utf8',timeout:110000});
+  assert.ok(output.trim(),'ordinary fixture must emit its JSON through the captured success stream');
   const r=JSON.parse(output);assert.equal(r.passed,true);assert.equal(r.aclCount,144);assert.ok(r.checks>=14);assert.equal(r.comMemoryRoundtrip,true);
   for(const k of ['productionPrepareInvoked','registered','started']) assert.equal(r[k],false,k);
  } finally {assert.ok(path.basename(root).startsWith('schema6-preflight-approval-synthetic-'));rmSync(root,{recursive:true,force:true});}
