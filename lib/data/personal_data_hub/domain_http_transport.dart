@@ -29,7 +29,7 @@ class DomainHttpTransport implements DomainTransport {
   final Dio dio;
   final Future<void> Function()? verifyCredential;
   Future<Json> _call(String method, String domain, String path,
-      {Json? data, Json? query}) async {
+      {Json? data, Json? query, bool acceptDeleted = false}) async {
     if (!RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(domain)) {
       throw const DomainFailure('invalid_domain');
     }
@@ -62,6 +62,16 @@ class DomainHttpTransport implements DomainTransport {
         return body;
       }
       final error = jsonObject(body['error']);
+      if (acceptDeleted &&
+          response.statusCode == 410 &&
+          error['code'] == 'deleted_target' &&
+          body['tombstone'] is Map) {
+        return {
+          'record': jsonObject(body['tombstone']),
+          'policy_version': body['tombstone']['policy_version'],
+          'deleted': true,
+        };
+      }
       final retryHeader = response.headers.value('retry-after');
       final seconds = int.tryParse(retryHeader ?? '');
       final retryAt =
@@ -88,6 +98,13 @@ class DomainHttpTransport implements DomainTransport {
   @override
   Future<Json> operation(String domain, String opId) =>
       _call('GET', domain, 'ops/${Uri.encodeComponent(opId)}', query: _query);
+  Future<Json> currentRecord(String domain, String id) async {
+    final result = await _call(
+        'GET', domain, 'records/${Uri.encodeComponent(id)}',
+        query: _query, acceptDeleted: true);
+    return result['deleted'] == true ? result : {...result, 'deleted': false};
+  }
+
   @override
   Future<Json> changes(String domain, String? cursor) => _call(
       'GET', domain, 'changes',

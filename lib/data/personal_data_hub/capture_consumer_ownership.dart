@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import 'package:memex/db/app_database.dart';
+import 'capture_owner_migration.dart';
 import 'domain_protocol.dart';
+import 'domain_store.dart';
 
 /// The Gate owner supplies verified origin/adoption evidence. A UI toggle,
 /// equal text, or equal note/capture ID is not proof. No production verifier is
 /// registered until the real create/revise/delete Gate has passed.
+@Deprecated('Use the signed CaptureMigrationManifest adoption workflow')
 class CoreCaptureTakeover {
   const CoreCaptureTakeover(
       {required this.gateRef,
@@ -34,15 +37,20 @@ class CaptureConsumerOwnership {
       {DateTime Function()? clock,
       this.leaseDuration = const Duration(seconds: 60),
       this.heartbeatInterval = const Duration(seconds: 15),
-      this.verifyCoreGate})
-      : clock = clock ?? DateTime.now;
+      CaptureAdoptionProofVerifier? adoptionVerifier})
+      : _adoptionVerifier = adoptionVerifier,
+        clock = clock ?? DateTime.now;
   static final _instances = Expando<CaptureConsumerOwnership>();
   static CaptureConsumerOwnership forDatabase(AppDatabase db) =>
       _instances[db] ??= CaptureConsumerOwnership(db);
   final AppDatabase db;
   final DateTime Function() clock;
   final Duration leaseDuration, heartbeatInterval;
-  final Future<bool> Function(Json proof)? verifyCoreGate;
+  CaptureAdoptionProofVerifier? _adoptionVerifier;
+  void configureAdoptionVerifier(CaptureAdoptionProofVerifier? verifier) {
+    _adoptionVerifier = verifier;
+  }
+
   static const _key = 'capture_consumer_ownership.v1';
   static const _bucket = 'capture_consumer_ownership';
   Future<void> _queue = Future.value();
@@ -89,6 +97,9 @@ class CaptureConsumerOwnership {
         if (requiredOwner != null && state['owner'] != requiredOwner) {
           throw const DomainFailure('capture_owner_mismatch');
         }
+        if (requiredOwner == 'legacy' && state['migration'] != null) {
+          throw const DomainFailure('capture_migration_frozen');
+        }
         if (_active(state)) throw const DomainFailure('capture_consumer_busy');
         final token = const Uuid().v4();
         final generation = (state['generation'] as int) + 1;
@@ -127,13 +138,25 @@ class CaptureConsumerOwnership {
           {required String bindingFingerprint}) =>
       _run('core', (lease) async {
         final state = await _read();
-        if (state['proof']?['binding_fingerprint'] != bindingFingerprint) {
-          throw const DomainFailure('binding_changed');
-        }
-        if (verifyCoreGate == null ||
-            !await verifyCoreGate!(jsonObject(state['proof']))) {
+        final manifestRaw = state['manifest'];
+        final proofRaw = state['proof'];
+        final verifier = _adoptionVerifier;
+        if (manifestRaw is! Map || proofRaw is! Map || verifier == null) {
           throw const DomainFailure('capture_core_gate_required');
         }
+        final manifest = CaptureMigrationManifest(jsonObject(manifestRaw));
+        if (state['binding_fingerprint'] != bindingFingerprint ||
+            state['binding_fingerprint'] !=
+                canonicalJson(verifier.consumerBinding)) {
+          throw const DomainFailure('binding_changed');
+        }
+        final verifiedAt =
+            DateTime.tryParse(state['verified_at'] as String? ?? '');
+        if (verifiedAt == null) {
+          throw const DomainFailure('capture_core_gate_required');
+        }
+        await verifier.verifyCommitted(
+            jsonObject(proofRaw), manifest, verifiedAt);
         await lease.verify();
         return action(lease);
       });
@@ -143,76 +166,170 @@ class CaptureConsumerOwnership {
   Future<T> configure<T>(Future<T> Function() action) =>
       _run(null, (lease) => lease.fenced(action));
 
-  Future<void> selectCore(CoreCaptureTakeover proof) =>
-      _run(null, (lease) async {
-        if (verifyCoreGate == null ||
-            proof.gateRef.isEmpty ||
-            proof.coreInstanceId.isEmpty ||
-            proof.bindingFingerprint.isEmpty ||
-            proof.adoptionProof.isEmpty ||
-            !await verifyCoreGate!(proof.toJson())) {
+  /// The old free-form bool/string takeover path is deliberately closed.
+  Future<void> selectCore(CoreCaptureTakeover _) async {
+    throw const DomainFailure('capture_core_gate_required');
+  }
+
+  Future<CaptureMigrationManifest> freezeCaptureMigration({
+    required DomainStore store,
+    required String migrationId,
+    required String sourceInstanceId,
+    required int sourceCursor,
+  }) =>
+      _run('legacy', (lease) async {
+        if (!identical(store.db, db)) {
+          throw const DomainFailure('database_mismatch');
+        }
+        final verifier = _adoptionVerifier;
+        if (verifier == null) {
           throw const DomainFailure('capture_core_gate_required');
         }
+        final first = await buildCaptureMigrationManifest(
+            db: db,
+            migrationId: migrationId,
+            binding: verifier.binding,
+            sourceInstanceId: sourceInstanceId,
+            sourceCursor: sourceCursor);
         await lease.fenced(() async {
-          // Every already imported note needs explicit accepted origin mapping and
-          // matching durable capture ownership. A cutover cannot mint a second card.
-          final receipts = await (db.select(db.memoryCardOperations)
-                ..where((t) =>
-                    t.sourceKind.equals('claude_web_note') &
-                    t.operationType.equals('external_note_import')))
-              .get();
-          final latest = <String, Json>{};
-          for (final row in receipts) {
-            final value = jsonObject(jsonDecode(row.payload));
-            final note = value['note_id'] as String;
-            if (latest[note] == null ||
-                value['revision'] > latest[note]!['revision']) {
-              latest[note] = value;
-            }
+          final current = await buildCaptureMigrationManifest(
+              db: db,
+              migrationId: migrationId,
+              binding: verifier.binding,
+              sourceInstanceId: sourceInstanceId,
+              sourceCursor: sourceCursor);
+          if (current.digest != first.digest) {
+            throw const DomainFailure('capture_migration_changed');
           }
-          if (proof.noteToCapture.values.toSet().length !=
-              proof.noteToCapture.length) {
-            throw const DomainFailure('capture_adoption_required');
+          final storeState = await store.read();
+          final domain = store.domain(storeState, 'captures');
+          store.checkBinding(domain, 'captures');
+          if (domain['route'] != 'phone') {
+            throw const DomainFailure('migration_route_changed');
           }
-          for (final entry in latest.entries) {
-            final capture = proof.noteToCapture[entry.key];
-            if (capture == null || capture.isEmpty) {
-              throw const DomainFailure('capture_adoption_required');
-            }
-            final rows = await db.customSelect(
-                'SELECT value FROM kv_store WHERE key=? AND bucket=?',
-                variables: [
-                  Variable(
-                      'capture_lifecycle.${proof.coreInstanceId}.$capture'),
-                  const Variable('capture_consumer')
-                ]).get();
-            if (rows.length != 1) {
-              throw const DomainFailure('capture_adoption_required');
-            }
-            final receipt =
-                jsonObject(jsonDecode(rows.single.read<String>('value')));
-            final candidateIds = (entry.value['slots'] as List?)
-                    ?.map((s) => s['id'] as String)
-                    .toList() ??
-                (entry.value['card_ids'] as List).cast<String>();
-            final existingCards = await (db.select(db.memoryCards)
-                  ..where((t) => t.id.isIn(candidateIds)))
-                .get();
-            final oldIds = existingCards.map((c) => c.id).toSet();
-            final newIds =
-                (receipt['slots'] as List? ?? []).map((s) => s['id']).toSet();
-            if (receipt['legacy_note_id'] != entry.key ||
-                receipt['origin_proof'] != proof.adoptionProof ||
-                newIds.length != oldIds.length ||
-                !newIds.containsAll(oldIds) ||
-                (entry.value['op'] == 'delete' && receipt['deleted'] != true)) {
-              throw const DomainFailure('capture_adoption_required');
-            }
+          if ((storeState['outbox'] as List).any((operation) =>
+              operation['domain'] == 'captures' &&
+              !['accepted', 'duplicate'].contains(operation['state']))) {
+            throw const DomainFailure('outbox_not_drained');
           }
           final state = await _read();
-          await _save({...state, 'owner': 'core', 'proof': proof.toJson()});
+          await _save({...state, 'migration': copyJson(first.value)});
+        });
+        return first;
+      });
+
+  Future<void> abortCaptureMigration(String migrationId) => _run(
+      null,
+      (lease) => lease.fenced(() async {
+            final state = await _read();
+            final migration = state['migration'];
+            if (state['owner'] != 'legacy' ||
+                migration is! Map ||
+                migration['migration_id'] != migrationId) {
+              throw const DomainFailure('capture_migration_mismatch');
+            }
+            state.remove('migration');
+            await _save(state);
+          }));
+
+  Future<void> commitCaptureMigration({
+    required DomainStore store,
+    required Json adoptionProof,
+    required CaptureAdoptionReceiptRefetch refetchCurrentReceipt,
+  }) =>
+      _run(null, (lease) async {
+        if (!identical(store.db, db)) {
+          throw const DomainFailure('database_mismatch');
+        }
+        final state = await _read();
+        final frozenRaw = state['migration'];
+        final verifier = _adoptionVerifier;
+        if (state['owner'] != 'legacy' ||
+            frozenRaw is! Map ||
+            verifier == null) {
+          throw const DomainFailure('capture_migration_mismatch');
+        }
+        final frozen = CaptureMigrationManifest(jsonObject(frozenRaw));
+        final verified = await verifier.verify(adoptionProof, frozen);
+        for (final raw in verified.details['entries'] as List) {
+          final entry = jsonObject(raw);
+          final receipt = await refetchCurrentReceipt(copyJson(entry));
+          verifier.verifyCurrentReceipt(entry, receipt);
+        }
+        verifier.checkFreshWindow(adoptionProof);
+        await store.commitCoreMigration('captures', () async {
+          await lease.verify();
+          final current = await buildCaptureMigrationManifest(
+              db: db,
+              migrationId: frozen.migrationId,
+              binding: verifier.binding,
+              sourceInstanceId: frozen.source['source_instance_id'] as String,
+              sourceCursor:
+                  int.parse(frozen.source['source_cursor'] as String));
+          if (current.digest != frozen.digest) {
+            throw const DomainFailure('capture_migration_changed');
+          }
+          final latest = await _read();
+          if (latest['owner'] != 'legacy' ||
+              canonicalJson(latest['migration']) !=
+                  canonicalJson(frozen.value)) {
+            throw const DomainFailure('capture_migration_changed');
+          }
+          verifier.checkFreshWindow(adoptionProof);
+          await _seedAdoptedLedgers(frozen, verified);
+          final verifiedAt =
+              verifier.checkFreshWindow(adoptionProof).toIso8601String();
+          await _save({
+            ...latest,
+            'owner': 'core',
+            'manifest': copyJson(frozen.value),
+            'proof': copyJson(verified.value),
+            'binding_fingerprint': canonicalJson(verifier.consumerBinding),
+            'verified_at': verifiedAt,
+          }..remove('migration'));
         });
       });
+
+  Future<void> _seedAdoptedLedgers(CaptureMigrationManifest manifest,
+      VerifiedCaptureAdoptionProof proof) async {
+    final records = {
+      for (final record in manifest.records) record['source_id']: record
+    };
+    for (final raw in proof.details['entries'] as List) {
+      final entry = jsonObject(raw);
+      final record = records[entry['source_id']]!;
+      final key =
+          'capture_lifecycle.${proof.binding['core_instance_id']}.${entry['target_id']}';
+      final existing = await db.customSelect(
+          'SELECT value FROM kv_store WHERE key=? AND bucket=?',
+          variables: [Variable(key), const Variable('capture_consumer')]).get();
+      if (existing.isNotEmpty) {
+        throw const DomainFailure('capture_adoption_ledger_conflict');
+      }
+      await db.customStatement(
+          'INSERT INTO kv_store(key,value,bucket,updated_at) VALUES(?,?,?,?)', [
+        key,
+        jsonEncode({
+          'schema': 1,
+          'capture_id': entry['target_id'],
+          'input_version': entry['target_revision'],
+          'deleted': entry['is_tombstone'],
+          'source': 'i_remember',
+          'slots': record['slots'],
+          'removed_ids': <String>[],
+          'issues': record['issues'],
+          'adopted': true,
+          'legacy_note_id': entry['source_id'],
+          'projection_source_ref': record['projection_source_ref'],
+          'adoption_proof': proof.proofRef,
+          'adopted_op_id': entry['adopted_op_id'],
+          'receipt_id': entry['receipt_id'],
+        }),
+        'capture_consumer',
+        clock().millisecondsSinceEpoch,
+      ]);
+    }
+  }
   // A reverse transition also needs proof; do not silently fall back to legacy
   // after core has consumed new sources. Reversal is deliberately not exposed.
 }

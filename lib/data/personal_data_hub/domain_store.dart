@@ -116,6 +116,29 @@ class DomainStore {
         }
       });
 
+  /// Atomically commits an owner record and the first phone -> Core route
+  /// transition. The callback must only write through this same database
+  /// transaction. It must not perform network work or start another transaction.
+  Future<void> commitCoreMigration(
+          String name, Future<void> Function() commitOwner) =>
+      transaction((s) async {
+        final d = domain(s, name);
+        checkBinding(d, name);
+        if (d['route'] != 'phone') {
+          throw const DomainFailure('migration_route_changed');
+        }
+        if ((s['outbox'] as List).any((o) =>
+            o['domain'] == name &&
+            !['accepted', 'duplicate'].contains(o['state']))) {
+          throw const DomainFailure('outbox_not_drained');
+        }
+        await commitOwner();
+        d['local_dedupe_disabled'] = true;
+        d['route'] = DomainRoute.core.name;
+        d['cursor'] = null;
+        d['records'] = <String, dynamic>{};
+      });
+
   /// No wire request is changed after its first submission. A dependent edit
   /// gets its predecessor's receipt revision when sealed for the FIRST send.
   Future<String> enqueue(String name,

@@ -266,6 +266,8 @@ class CoreDomainAccessGrant {
       'captures:patch',
       'captures:delete',
       'captures:ack',
+      'captures:adopt',
+      'captures:owner',
       'plan_items:read',
       'plan_items:status',
       'plan_items:ack',

@@ -9,6 +9,7 @@ import 'package:memex/data/services/sync/core_sync_protocol.dart';
 import 'domain_http_transport.dart';
 import 'domain_protocol.dart';
 import 'domain_store.dart';
+import 'capture_owner_migration.dart';
 import 'personal_data_hub.dart';
 import 'planning_service.dart';
 
@@ -18,12 +19,16 @@ class ConfiguredDomainAccess {
   const ConfiguredDomainAccess(
       {required this.stores,
       required this.authorizeCapture,
-      required this.authorizePlanning});
+      required this.authorizePlanning,
+      required this.captureAdoptionVerifier,
+      required this.captureAdoptionReceiptRefetch});
 
   final Map<String, DomainStore> stores;
   DomainStore? get captureStore => stores['captures'];
   final Future<String> Function(Json request)? authorizeCapture;
   final PlanningAuthorize? authorizePlanning;
+  final CaptureAdoptionProofVerifier? captureAdoptionVerifier;
+  final CaptureAdoptionReceiptRefetch? captureAdoptionReceiptRefetch;
 }
 
 /// Optional startup boundary. Local Hub startup must not depend on a platform
@@ -213,6 +218,7 @@ Future<ConfiguredDomainAccess?> attachConfiguredDomainAccess({
     'plan_weeks': {'plan_weeks:read', 'plan_weeks:ack'},
   };
   final stores = <String, DomainStore>{};
+  DomainHttpTransport? captureTransport;
   for (final entry in readRequirements.entries) {
     if (!entry.value.every(grant.scopes.contains)) continue;
     final name = entry.key;
@@ -225,17 +231,19 @@ Future<ConfiguredDomainAccess?> attachConfiguredDomainAccess({
       if (existing['route'] != 'phone') continue;
       await store.resetCredentialView(name);
     }
+    final transport = DomainHttpTransport(
+      baseUrl: connection.baseUrl,
+      token: grant.token,
+      binding: binding,
+      verifyCredential: verifyCredential,
+    );
     hub.attach(
       name,
       store,
-      DomainHttpTransport(
-        baseUrl: connection.baseUrl,
-        token: grant.token,
-        binding: binding,
-        verifyCredential: verifyCredential,
-      ),
+      transport,
       allowLocalRecall: name == 'captures',
     );
+    if (name == 'captures') captureTransport = transport;
     stores[name] = store;
   }
   if (stores.isEmpty) return null;
@@ -243,6 +251,15 @@ Future<ConfiguredDomainAccess?> attachConfiguredDomainAccess({
     grant,
     verifyCredential: verifyCredential,
   );
+  final captureAdoptionVerifier = stores.containsKey('captures') &&
+          grant.scopes.contains('captures:adopt') &&
+          grant.scopes.contains('captures:owner')
+      ? CaptureAdoptionProofVerifier(grant, verifyCredential: verifyCredential)
+      : null;
+  final captureAdoptionReceiptRefetch =
+      captureAdoptionVerifier != null && captureTransport != null
+          ? createCaptureAdoptionReceiptRefetch(captureTransport, grant)
+          : null;
   final authorizeCapture = stores.containsKey('captures') &&
           const {
             'captures:create',
@@ -274,6 +291,8 @@ Future<ConfiguredDomainAccess?> attachConfiguredDomainAccess({
     stores: Map.unmodifiable(stores),
     authorizeCapture: authorizeCapture,
     authorizePlanning: authorizePlanning,
+    captureAdoptionVerifier: captureAdoptionVerifier,
+    captureAdoptionReceiptRefetch: captureAdoptionReceiptRefetch,
   );
 }
 

@@ -1,4 +1,5 @@
 import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
+import 'package:memex/data/personal_data_hub/personal_data_hub_runtime_owner.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -161,14 +162,30 @@ class CoreSyncRuntimeService extends ChangeNotifier {
       coreNodeId: connection.coreNodeId,
       initialCursor: connection.initialCursor,
     ).saveCursor(connection.initialCursor);
+    await rebuildDomainRuntime();
     await syncNow(reason: 'paired');
   }
 
   Future<void> disconnect() async {
+    final running = _activeSync;
+    if (running != null) {
+      try {
+        await running;
+      } catch (_) {
+        // Revocation still proceeds after a failed pass.
+      }
+    }
     await _connectionStore.clear();
+    await rebuildDomainRuntime();
     _setStatus(const CoreSyncRuntimeStatus(
       phase: CoreSyncRuntimePhase.notConfigured,
     ));
+  }
+
+  /// Explicitly rebuilds the Hub after a separately authorized grant rotation
+  /// or revocation. It never retargets an existing route by itself.
+  Future<void> rebuildDomainRuntime() async {
+    await PersonalDataHubRuntimeOwner.current?.reload();
   }
 
   Future<void> syncNow({String reason = 'manual'}) {

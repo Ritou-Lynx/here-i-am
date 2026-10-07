@@ -28,10 +28,16 @@ class CaptureConsumer {
   String get _oldPrefix => 'capture_consumed.${store.binding.coreInstanceId}.';
   static String _digest(String text) =>
       sha256.convert(utf8.encode(text)).toString();
-  static bool _supported(Json record) => const {
-        'claude_web',
-        'phone_quick',
-      }.contains(record['provenance']?['source'] ?? record['data']?['source']);
+  static bool _supported(Json record, {Json? ledger}) {
+    final source = record['provenance']?['source'] ?? record['data']?['source'];
+    return const {'claude_web', 'phone_quick'}.contains(source) ||
+        (source == 'i_remember' && ledger?['adopted'] == true);
+  }
+
+  static String _projectionSourceRef(String id, Json? ledger) =>
+      ledger?['adopted'] == true && ledger?['projection_source_ref'] is String
+          ? ledger!['projection_source_ref'] as String
+          : 'captures:$id';
 
   /// Processing receipt only; contains no source body or private model trace.
   Future<Json?> processingResult(String id, {String? expectedText}) async {
@@ -362,7 +368,7 @@ class CaptureConsumer {
             source: RecordSource(
               sourceKind: 'import',
               rawInput: '',
-              sourceRef: 'captures:$id',
+              sourceRef: _projectionSourceRef(id, before),
             ),
             deleted: true,
           );
@@ -382,7 +388,7 @@ class CaptureConsumer {
       }
       if (d['cursor'] == null || d['records'][id] == null) continue;
       final record = jsonObject(d['records'][id]);
-      if (!_supported(record)) continue;
+      if (!_supported(record, ledger: ledger)) continue;
       final version = inputVersion(record);
       if (version == null ||
           version < 1 ||
@@ -436,15 +442,15 @@ class CaptureConsumer {
         final latest = store.domain(latestState, 'captures');
         store.checkBinding(latest, 'captures');
         final current = latest['records'][id];
+        final before = await _ledger(id);
         if (latest['route'] != 'core' ||
             latest['cursor'] == null ||
             current == null ||
             _deleted(latestState, latest, id) ||
-            !_supported(jsonObject(current)) ||
+            !_supported(jsonObject(current), ledger: before) ||
             inputVersion(jsonObject(current)) != version) {
           return;
         }
-        final before = await _ledger(id);
         if (before?['local_pending'] != true &&
             before?['input_version'] == version) {
           return;
@@ -501,7 +507,7 @@ class CaptureConsumer {
                 source: RecordSource(
                   sourceKind: 'import',
                   rawInput: text,
-                  sourceRef: 'captures:$id',
+                  sourceRef: _projectionSourceRef(id, before),
                 ),
               );
         final issues = reconciled['issues'] as List;

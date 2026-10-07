@@ -227,6 +227,26 @@ void main() {
     expect(hub.storeFor('captures'), isNull);
   });
 
+  test('owner scopes expose concrete adoption verifier and refetch adapter',
+      () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    final configured = await attachConfiguredDomainAccess(
+      hub: PersonalDataHub.forDatabase(db),
+      connection: connection(grant(scopes: const [
+        'captures:read',
+        'captures:ack',
+        'captures:adopt',
+        'captures:owner',
+      ])),
+      installationId: 'phone-install',
+    );
+    expect(configured, isNotNull);
+    expect(configured!.captureAdoptionVerifier, isNotNull);
+    expect(configured.captureAdoptionReceiptRefetch, isNotNull);
+    expect(configured.authorizeCapture, isNull);
+  });
+
   test('planning read scopes attach without opening status writes', () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);

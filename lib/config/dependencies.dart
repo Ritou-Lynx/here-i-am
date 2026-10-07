@@ -5,6 +5,7 @@ import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/agents/record_organizer_agent/agent.dart';
 import 'package:memex/data/personal_data_hub/personal_data_hub_runtime.dart';
 import 'package:memex/data/personal_data_hub/domain_access.dart';
+import 'package:memex/data/personal_data_hub/capture_consumer_ownership.dart';
 import 'package:memex/data/personal_data_hub/planning_models.dart';
 import 'package:memex/data/personal_data_hub/planning_reminders.dart';
 import 'package:memex/data/personal_data_hub/quick_capture_organizer_adapter.dart';
@@ -113,6 +114,8 @@ Future<PersonalDataHubRuntime> _createHubRuntime() async {
     hub: hub,
     reportError: debugPrint,
   );
+  CaptureConsumerOwnership.forDatabase(db)
+      .configureAdoptionVerifier(domainAccess?.captureAdoptionVerifier);
   return PersonalDataHubRuntime.create(
     db: db,
     hub: hub,
