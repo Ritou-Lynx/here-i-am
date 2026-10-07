@@ -1,3 +1,7 @@
+## 只读演练阻断，当前不得进场（2026-10-07）
+
+维护源码62104abd/PR20 CI15绿，但最新只读演练因获批login父task-approval…\\settings仍继承ACL拒绝，固定生产Prepare同样要求protected；该目录不在原144项计划。本轮禁止改生产ACL，补齐方案未执行。精确目录/方案hash/回退及三次回执见[演练交接](SCHEMA6_READONLY_PREFLIGHT_20261007.md)。正式r02未用，旧Core/MCP schema4、零停机。先另审此目录前置处理并完整重演通过，才可另请正式进场授权；下文为历史阶段记录。
+
 # 当前进展：方案已接受，源码修订中
 
 用户已接受显式Unified=true、input/expected分开绑定的非保护DACL及外主体仅纯读条件。本轮已进入源码/CI/新候选阶段；下面“待用户接受/未改固定包”等为当时历史快照。新模板使旧包不可复用，最终精确审批待新候选完成。A继续冻结前暂停，B独立继续。详见[任务权限修订](SCHEMA6_TASK_SECURITY_REVISION_20261007.md)。

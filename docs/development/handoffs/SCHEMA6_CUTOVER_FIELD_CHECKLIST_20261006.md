@@ -1,3 +1,7 @@
+## 只读演练阻断，当前不得进场（2026-10-07）
+
+维护源码62104abd/PR20 CI15绿，但最新只读演练因获批login父task-approval…\\settings仍继承ACL拒绝，固定生产Prepare同样要求protected；该目录不在原144项计划。本轮禁止改生产ACL，补齐方案未执行。精确目录/方案hash/回退及三次回执见[演练交接](SCHEMA6_READONLY_PREFLIGHT_20261007.md)。正式r02未用，旧Core/MCP schema4、零停机。先另审此目录前置处理并完整重演通过，才可另请正式进场授权；下文为历史阶段记录。
+
 ## R02 后更新：只读演练先行（2026-10-07）
 
 正式r02仍未使用。新维护v3入口支持独立ID的PreflightOnly；先源码/CI全绿、固定维护闭包，再完整只读演练，全部通过后另请本人授权进场。候选47项及精确XML/双SDDL无变化时沿用。在线预检继续PR16判据：DB/WAL字节/大小/身份及journal存在性不变，SHM仅存在性/大小；离线raw保全和strictClosedPath等不变。详细检查和Prepare纯模板/生产Prepare区别见[本轮交接](SCHEMA6_READONLY_PREFLIGHT_20261007.md)。生产task-approval…\settings仍不可清理。

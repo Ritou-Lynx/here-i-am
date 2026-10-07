@@ -2,7 +2,7 @@
 
 ## 2026-10-07 R02后修订：只读演练优先
 
-新增映像专用绑定与PreflightOnly完整预检，固定Core/MCP/会话运行47项不改；正式r02保持未使用。本轮先CI/固定维护闭包，再现役只读演练，全过后另请进场授权；本机维护/在线copy55项53过0失败2opt-in，PR20草稿已推，CI及现役演练仍待。源码27069c31 CI15绿后首个只读ID在非空artifact父目录安全拒绝，现役两任务仍Running/schema4；修正为空子目录并补回归，新CI/新ID后重试。独立复核补上正式ACL Apply对新窗口protected DACL的要求，仅在窗口新建且为空时初始化，旧根/证据不改。当前未声明演练通过。详见[演练交接](handoffs/SCHEMA6_READONLY_PREFLIGHT_20261007.md)。
+源码62104abd/PR20完成，CI15全绿，维护52/52及Windows283/283均0跳过；固定47及获批XML/SDDL/login不改。三轮只读演练安全拒绝，最新发现生产login父settings继承ACL且不在144计划，固定Prepare同样拒绝。本轮禁止改现场ACL，精确单目录补齐/回退方案已备但未执行。正式r02未用，旧Core/MCP Running/schema4，人为停机0；未到在线副本，不声明完整预演通过，不申请进场。详见[演练交接](handoffs/SCHEMA6_READONLY_PREFLIGHT_20261007.md)。B PR19最终cf2f6d57三套CI已核绿并暂停，16项运行变化留未来包/入口评估，未上线。
 
 ## 2026-10-07 PR18已合并，r02冻结前停止
 
