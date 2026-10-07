@@ -135,6 +135,24 @@ void main() {
     expect(find.text('待同步'), findsNothing);
   });
 
+  testWidgets(
+      'offline abandon shows the local choice then restores canonical status on conflict',
+      (tester) async {
+    await show(tester);
+    final button = find.byKey(const ValueKey('plan-abandon-b'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(reader.actions, [PlanningStatusAction.abandon]);
+    expect(find.text('学习 · 放弃 · 深块 1 块'), findsOneWidget);
+    expect(find.text('待同步'), findsOneWidget);
+
+    reader.reject('b', 'needs_resolution');
+    await tester.pumpAndSettle();
+    expect(find.text('学习 · 待办 · 深块 1 块'), findsOneWidget);
+    expect(find.text('需要拍板，请在电脑端处理'), findsOneWidget);
+  });
+
   for (final state in ['rejected', 'needs_resolution']) {
     testWidgets(
         '$state feedback restores canonical status and disables repeat action',
