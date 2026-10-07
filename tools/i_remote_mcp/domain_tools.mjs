@@ -6,7 +6,7 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 const fail = code => { throw new DomainToolInputError(code); };
 const idSchema = { type: 'string', minLength: 1, maxLength: 200 };
 const authorizationRefSchema = { type: 'string', minLength: 1, maxLength: 4096,
-  description: 'Opaque proof issued by a trusted user entry and bound to this exact intent. Text, OAuth tokens and chat IDs are not authorization.' };
+  description: 'For Web captures, use only the triggering user_message_anchor.sync_id returned by i_chat_turn after Core accepts that exact user message. Omit when unavailable; Core records agent_inferred. Other surfaces require their trusted entry proof.' };
 const timeSchema = { type: 'string', description: 'UTC RFC3339 milliseconds. Keep identical on retry.' };
 const common = {
   op_id: { ...idSchema, description: 'A new UUID for a new intent; retry the identical intent with this same UUID.' },
@@ -139,9 +139,9 @@ async function withDayItemTitles(result, client, scopes) {
 export function createDomainTools({client, scopes, surface = 'planner', captureSource = 'codex'}) {
   if(!client || !Array.isArray(scopes) || scopes.some(s=>typeof s!=='string') || !['planner','web'].includes(surface)) throw new Error('invalid_domain_configuration');
   if(!['codex','dot','claude_web'].includes(captureSource) || surface==='web'&&captureSource!=='claude_web')throw new Error('invalid_capture_source');
-  const permitted = DOMAIN_TOOLS.filter(tool=>available(tool,scopes)
+  const permitted = DOMAIN_TOOLS.map(tool=>surface==='web'&&tool.name==='capture_add'?{...tool,inputSchema:{...tool.inputSchema,required:tool.inputSchema.required.filter(k=>k!=='authorization_ref')}}:tool).filter(tool=>available(tool,scopes)
     && (surface==='web'?WEB_DOMAIN_TOOLS.includes(tool.name):tool.name!=='capture_operation'));
-  const handlers = Object.fromEntries(permitted.map(tool=>[tool.name, async(args={})=>{
+  const handlers = Object.fromEntries(permitted.map(tool=>[tool.name, async(args={},context={})=>{
     checkArgs(args,Object.keys(tool.inputSchema.properties),tool.inputSchema.required);
     if(!scopes.includes(scopeFor(tool,args)))return {error:{code:'scope_forbidden',retryable:false},http_status:403};
     if(tool.name==='capture_operation') {
@@ -163,6 +163,8 @@ export function createDomainTools({client, scopes, surface = 'planner', captureS
     if(args.authorization_ref!==undefined)safeAuthorizationRef(args.authorization_ref);
     const intent=Object.fromEntries(writeRequired.map(key=>[key,args[key]]));
     Object.assign(intent,{kind,actor},args.authorization_ref===undefined?{}:{authorization_ref:args.authorization_ref});
+    if(surface==='web'&&context.triggerThreadId)intent.trigger_thread_id=context.triggerThreadId;
+    if(surface==='web'&&context.triggerSyncId)intent.trigger_sync_id=context.triggerSyncId;
     if(tool.name==='capture_add')Object.assign(intent,{data:{text:args.text,source:captureSource,recorded_at:args.recorded_at},provenance:{source:captureSource,source_refs:[],import_batch_id:null}});
     else if(kind==='ack_capture')Object.assign(intent,{processor:'planner',disposition:{planner:args.disposition}});
     else if(kind==='status')intent.patch={status:args.status};
@@ -175,7 +177,7 @@ export function createDomainTools({client, scopes, surface = 'planner', captureS
 
 export const CORE_REMEMBER_TOOL = {
   name:'i_remember', title:'林埃：Core 显式记录',requiredScope:'i.write',
-  description:'用户明确要求记录时调用。add/update/delete 写入 Core captures；list 只列本端记录；operation 只查询同一 principal 已有 op_id 的权威结果，用于未知提交恢复。新记录由 organizer 和 planner 分工处理。删除立即清除 Core 在线正文；下游用户改过的卡会保留待确认。写操作必须携带稳定 op_id、id（update/delete 可用 note_id）、base_revision、created_at、expires_at 和受信入口发出的 authorization_ref。提交结果未知时先用 operation 查询原 op_id；404、403 或 transport_unknown 都不证明未执行，不得自动创建新 op。没有授权引用时说明缺少授权，不能读取聊天来猜测或构造。',
+  description:'用户明确要求记录时调用。add/update/delete 写入 Core captures；list 只列本端记录；operation 只查询同一 principal 已有 op_id 的权威结果，用于未知提交恢复。新记录由 organizer 和 planner 分工处理。删除立即清除 Core 在线正文；下游用户改过的卡会保留待确认。写操作必须携带稳定 op_id、id（update/delete 可用 note_id）、base_revision、created_at、expires_at 和可选 authorization_ref（本次触发操作的用户原话经 i_chat_turn 写入 Core 后返回的 user_message_anchor.sync_id）。提交结果未知时先用 operation 查询原 op_id；404、403 或 transport_unknown 都不证明未执行，不得自动创建新 op。只使用本次触发消息的锚点，不搜索最近聊天补授权。没有或无法验证锚点时 Core 降为 agent_inferred，仍可提交；既有用户字段锁继续生效。网页删除只允许本来源 claude_web 且用户未修改过的记录。',
   inputSchema:{type:'object',properties:{...common,action:{type:'string',enum:['add','update','delete','list','operation']},note_id:idSchema,text:{type:'string',minLength:1,maxLength:2000}},additionalProperties:false},
   annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:true,openWorldHint:false},
 };
@@ -198,7 +200,7 @@ export function createCoreRemember({client,scopes}) {
     fail('capture_list_too_large');
   }
   return {
-    async remember(args={}) {
+    async remember(args={},context={}) {
       checkArgs(args,Object.keys(CORE_REMEMBER_TOOL.inputSchema.properties));
       const action=args.action??'add';
       if(!['add','update','delete','list','operation'].includes(action))fail('invalid_action');
@@ -210,13 +212,15 @@ export function createCoreRemember({client,scopes}) {
       }
       const id=args.id??args.note_id;
       if(args.id&&args.note_id&&args.id!==args.note_id)fail('invalid_id');
-      for(const key of ['op_id','base_revision','created_at','expires_at','authorization_ref'])if(args[key]===undefined)fail(`missing_${key}`);
-      safeAuthorizationRef(args.authorization_ref);
+      for(const key of ['op_id','base_revision','created_at','expires_at'])if(args[key]===undefined)fail(`missing_${key}`);
+      if(args.authorization_ref!==undefined)safeAuthorizationRef(args.authorization_ref);
       safeId(id);
       const kind={add:'create',update:'patch',delete:'delete'}[action];requireScope(kind);
       if(kind!=='delete'&&(typeof args.text!=='string'||!args.text.trim()||[...args.text].length>2000))fail('invalid_text');
       if(kind==='delete'&&args.text!==undefined)fail('invalid_request');
       const intent={...Object.fromEntries(['op_id','base_revision','created_at','expires_at','authorization_ref'].map(k=>[k,args[k]])),id,kind,actor:'user_via_agent'};
+      if(context.triggerThreadId)intent.trigger_thread_id=context.triggerThreadId;
+      if(context.triggerSyncId)intent.trigger_sync_id=context.triggerSyncId;
       if(kind==='create')Object.assign(intent,{data:{text:args.text,source:'claude_web',recorded_at:args.created_at},provenance:{source:'claude_web',source_refs:[],import_batch_id:null}});
       else if(kind==='patch')intent.patch={text:args.text};
       else intent.permanent=true;

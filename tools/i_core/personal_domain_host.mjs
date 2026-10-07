@@ -82,7 +82,7 @@ export function transitionPersonalDomainMode(store, { domain, expectedMode, next
 
 export function createPersonalDomainHost({ enabled = false, mode, domainModes, coreInstanceId, authorityRegistry,
   verifyWebAuthorization = () => false, plannerPrincipalIds = [], processorPrincipals = {},
-  captureSourcesByPrincipal = {}, resolveDerivedReferences = null } = {}) {
+  captureSourcesByPrincipal = {}, webPrincipalIds = [], resolveDerivedReferences = null } = {}) {
   if (enabled !== true) return Object.freeze({ enabled: false, serverOptions: Object.freeze({}) });
   const configuredModes = resolvedModes({ mode, domainModes });
   if (!identifier(coreInstanceId) || !object(authorityRegistry)
@@ -91,6 +91,8 @@ export function createPersonalDomainHost({ enabled = false, mode, domainModes, c
     || typeof authorityRegistry.verifyLegacyAdoption !== 'function'
     || typeof authorityRegistry.captureSourcesForPrincipal !== 'function'
     || typeof verifyWebAuthorization !== 'function' || !Array.isArray(plannerPrincipalIds)
+    || !Array.isArray(webPrincipalIds) || webPrincipalIds.some(value => !identifier(value))
+    || new Set(webPrincipalIds).size !== webPrincipalIds.length
     || !object(processorPrincipals) || !object(captureSourcesByPrincipal)) {
     fail('invalid_personal_domain_configuration');
   }
@@ -100,7 +102,9 @@ export function createPersonalDomainHost({ enabled = false, mode, domainModes, c
     return authorityRegistry.captureSourcesForPrincipal(principalId) ?? Reflect.get(target, principalId, receiver);
   } });
   const hooks = createPersonalDataHooks({ captureSourcesByPrincipal: dynamicCaptureSources,
-    plannerPrincipalIds: [...plannerPrincipalIds], processorPrincipals: structuredClone(processorPrincipals),
+    webPrincipalIds: [...webPrincipalIds], verifyWebAuthorization,
+    plannerPrincipalIds: [...plannerPrincipalIds],
+    processorPrincipals: structuredClone(processorPrincipals),
     resolveDerivedReferences });
   const verifyAuthorization = context => {
     try {

@@ -171,6 +171,14 @@ class CoreDevicePairResponse {
       domainAccess: domainAccess,
     );
   }
+
+  /// Chat pairing deliberately ignores any domain credential offered by the
+  /// response. Domain authority is installed only from the owner CLI export.
+  /// The general decoder remains available for protocol compatibility tests.
+  factory CoreDevicePairResponse.fromChatPairJson(Map<String, dynamic> json) {
+    final chatOnly = Map<String, dynamic>.from(json)..remove('domain_access');
+    return CoreDevicePairResponse.fromJson(chatOnly);
+  }
 }
 
 class CoreDomainAuthorizationGrant {

@@ -533,7 +533,13 @@ export function createWriteback({
       if (typeof characterId !== 'string' || !characterId) throw new Error('character id unavailable');
       rateLimiter.take('i_chat_turn');
       const plan = planTurns(threadId, turns, characterId, phase);
+      // Capture this call's exact tail before another call can append during I/O.
+      const candidate = phase === 'start' ? db.prepare('SELECT sync_id,turn_key,role,character_id FROM turns WHERE thread_id=? ORDER BY seq DESC LIMIT 1').get(threadId) : null;
+      const trigger = candidate?.role === 'user' && candidate.character_id === characterId
+        && candidate.turn_key === turnKey('user', turns.at(-1).content) ? candidate.sync_id : null;
       const result = await flush();
+      const userMessageAnchor = trigger && db.prepare('SELECT status FROM turns WHERE sync_id=?').get(trigger)?.status === 'committed'
+        ? {sync_id:trigger,origin_device_id:FRONTEND_DEVICE_ID,character_id:characterId} : null;
       const pending = Number(db.prepare("SELECT COUNT(*) AS n FROM turns WHERE status = 'pending'").get().n);
       return {
         thread_id: threadId,
@@ -543,6 +549,7 @@ export function createWriteback({
           duplicate_turns_skipped: plan.skipped,
           waiting_for_retry: pending,
         },
+        user_message_anchor: userMessageAnchor,
         last_recorded: lastRecorded(threadId),
         core_status: result.status,
         excludeSyncIds: threadSyncIds(threadId),

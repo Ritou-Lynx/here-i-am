@@ -10,9 +10,13 @@ import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/personal_data_hub/capture_consumer_ownership.dart';
 import 'package:memex/data/personal_data_hub/capture_consumer.dart';
 import 'package:memex/data/personal_data_hub/capture_owner_migration.dart';
+import 'package:memex/data/personal_data_hub/core_domain_workflow.dart';
+import 'package:memex/data/personal_data_hub/domain_access.dart';
 import 'package:memex/data/personal_data_hub/domain_protocol.dart';
 import 'package:memex/data/personal_data_hub/domain_store.dart';
 import 'package:memex/data/personal_data_hub/domain_http_transport.dart';
+import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
+import 'package:memex/data/services/sync/core_sync_connection_store.dart';
 import 'package:memex/data/services/sync/core_sync_protocol.dart';
 import 'package:memex/db/app_database.dart';
 
@@ -292,6 +296,70 @@ void main() {
     expect(await consumer.consume(), 1);
     expect((await db.select(db.memoryCards).getSingle()).title,
         'user preserved after adoption');
+  });
+
+  test('product workflow exports manifest and accepts only proof envelope',
+      () async {
+    await importActualReceipt();
+    var reloads = 0;
+    final connection = CoreSyncConnection(
+      baseUrl: 'https://core.example.invalid',
+      deviceToken: 'chat-only-token',
+      initialCursor: 'chat-cursor',
+      coreNodeId: grant.coreInstanceId,
+      domainAccess: grant,
+    );
+    late Json proof;
+    final workflow = CoreDomainWorkflowService(
+      db: db,
+      hub: PersonalDataHub.forDatabase(db),
+      ownership: ownership,
+      readConnection: () async => connection,
+      replaceDomainAccess: (_, __) async {},
+      readInstallationId: () async => grant.installationId,
+      reloadRuntime: () async => reloads++,
+      readLegacyFeedConfig: () async => const ClaudeWebNoteFeedConfig(
+        baseUrl: 'https://legacy.example.invalid',
+        token: 'not-exported',
+        cursor: 1,
+      ),
+      createMigrationId: () => 'migration-product-entry',
+      loadAccess: () async => ConfiguredDomainAccess(
+        stores: {'captures': store},
+        authorizeCapture: null,
+        authorizePlanning: null,
+        captureAdoptionVerifier: verifier,
+        captureAdoptionReceiptRefetch: (entry) => _refetch(proof, grant)(entry),
+      ),
+    );
+
+    final exported =
+        jsonObject(jsonDecode(await workflow.freezeCaptureMigration()));
+    expect(exported.keys.toSet(), {'format', 'manifest'});
+    expect(exported['format'], 'i-core-capture-migration-manifest-export-v1');
+    final manifest = CaptureMigrationManifest(jsonObject(exported['manifest']));
+    expect(manifest.migrationId, 'migration-product-entry');
+    expect(manifest.source['source_instance_id'], startsWith('claude-web-'));
+    expect(
+        canonicalJson(jsonDecode(await workflow.exportFrozenCaptureManifest())),
+        canonicalJson(exported));
+
+    proof = _signedProof(manifest);
+    await expectLater(
+      workflow.commitCaptureMigration(jsonEncode(proof)),
+      throwsA(isA<CoreDomainWorkflowFailure>()
+          .having((e) => e.code, 'code', 'proof_file_invalid')),
+    );
+    expect((await ownership.workflowState()).frozenManifest,
+        isA<CaptureMigrationManifest>());
+
+    await workflow.commitCaptureMigration(jsonEncode({
+      'format': 'i-core-capture-migration-proof-v1',
+      'proof': proof,
+    }));
+    expect(await ownership.coreSelected(), isTrue);
+    expect(reloads, 1);
+    expect(store.domain(await store.read(), 'captures')['route'], 'core');
   });
 
   test('post-freeze user mutation leaves migration frozen and phone-owned',

@@ -11,8 +11,11 @@ paths were retained and re-run rather than reimplemented.
 This change closes the App-side authorization gap that previously made the
 real Core adapters impossible to configure safely:
 
-- pairing may carry an optional, separately scoped `domain_access` candidate
-  block; the chat device token is never accepted as its bearer;
+- the wire parser remains backward-compatible with an optional scoped
+  `domain_access` block, but chat pairing neither advertises that capability nor
+  persists the block. Domain authority is imported only through the separate
+  owner-controlled workflow, and the chat device token is never accepted as
+  its bearer;
 - the block is parsed strictly (binding IDs, generation, schema, scope
   whitelist and uniqueness, 32-byte canonical base64url HMAC secret) and is
   persisted separately in secure storage;
@@ -70,6 +73,42 @@ workflow. It does not run at startup or from pairing:
   sync pass drains. A public rebuild entry exists for an owner-controlled
   credential rotation/revocation path; it does not switch routes itself.
 
+The product settings page now exposes that inert source workflow explicitly:
+
+- domain authorization is imported only from the exact protected Core CLI
+  envelope `i-core-domain-access-export-v1`; raw grants and unknown fields are
+  rejected, the input is masked, and token/HMAC material is never rendered or
+  logged. A successful paste import makes a best-effort clipboard clear;
+- before the first grant, the page copies a credential-free
+  `i-core-phone-installation-binding-v1` containing the paired Core and the
+  current App installation/device ID for the owner CLI. After authorization it
+  copies `i-core-domain-access-binding-v1` with the principal for explicit
+  rotate/revoke. The App uses one installation identity for pair `device_id`
+  and domain `installation_id`, and now rejects a pair response that returns a
+  different device ID;
+- import requires the current chat-paired Core and current installation ID,
+  keeps the domain bearer separate from the chat token, permits rotation only
+  for the same Core/principal/installation with a higher generation, and
+  rebuilds the Hub runtime immediately;
+- revoke deletes only the independent domain grant, rebuilds the runtime, and
+  leaves chat pairing, records, owner and route unchanged. It never falls back
+  from an already selected Core owner to the legacy consumer;
+- the settings workflow derives the legacy source instance from a stable hash
+  of the configured Web-note root and takes its cursor from secure storage. A
+  user cannot type source identity, cursor, record eligibility or a Gate bool;
+- freeze returns the exact
+  `i-core-capture-migration-manifest-export-v1` envelope and copies only the
+  credential-free manifest. A frozen manifest can be exported again after an
+  App restart;
+- commit accepts only `i-core-capture-migration-proof-v1`, then runs the real
+  HMAC verification, authenticated operation/current-record refetch, fenced
+  manifest rebuild, lifecycle seeding and atomic owner+route commit. Abort is
+  a separate explicit action and preserves legacy/phone ownership;
+- a grant rotation never silently rewrites an existing Core route. If a route
+  or committed capture owner is bound to an older generation, import stores
+  the new credential, revokes old runtime use, reports the blocked route, and
+  waits for a separately defined binding-rotation proof.
+
 ## Audit matrix
 
 | Requirement | Source behavior | Synthetic evidence |
@@ -88,6 +127,8 @@ workflow. It does not run at startup or from pairing:
 | unverifiable history is not promoted | legacy slots, current mutations, duplicate receipts, and finance without immutable witness block | `capture_owner_migration_test.dart` |
 | adopted captures remain one consumer | first Core revision is not re-extracted; later revise/delete reuse slots and preserve user edits | `capture_owner_migration_test.dart`, `capture_lifecycle_test.dart` |
 | App/Core proof bytes agree | literal Core vector produces the same final `mig1` HMAC in Dart | `capture_owner_migration_test.dart`, Core `personal_domain_host.test.mjs` |
+| protected grant lifecycle has a product caller | exact wrapper import, same-binding generation rotation, revoke, runtime reload and chat/domain credential separation | `core_domain_workflow_test.dart` |
+| migration has a product caller | settings freeze/export, strict proof envelope, fresh refetch commit and explicit abort use the production workflow service | `capture_owner_migration_test.dart`, `core_sync_settings_page.dart` |
 
 ## Verification
 
@@ -106,6 +147,10 @@ or consumer takeover was used.
   protocol regression set after the follow-up: **91/91 passed**.
 - final migration boundary/fault set after the size guard, rollback fixture,
   and slow-refetch expiry check: **8/8 passed**; bounded analysis: **no issues**.
+- product workflow grant/rotation/revoke and migration-envelope set:
+  **13/13 passed**, including same-grant retry after a runtime rebuild failure.
+- adjacent domain authorization, secure connection store and sync protocol set
+  together with the product workflow: **36/36 passed**.
 
 `pub get` was performed once by the parallel P2 worker. `pubspec.lock` stayed
 unchanged, and the three generated Windows plugin files were restored to HEAD.
@@ -116,42 +161,54 @@ Root independently reran the final eight-file App regression group after all
 size, rollback and expiry fixes: **94/94 passed**. Analysis of the twelve final
 source/test files reported **no issues**. Earlier groups above overlap.
 
-The Core source now includes `freezePhoneCaptureMigration` and
-`applyPhoneCaptureMigration` to join this exact App manifest to explicitly
-supplied historical records. The adapter is inert; product UI, secure transfer
-and production orchestration still require integration.
+The Core source now includes the owner CLI and the phone migration bridge that
+join the exact App manifest to explicitly supplied historical records. The App
+settings page now supplies the matching import/export/commit/abort caller. No
+production grant, manifest, proof or route transition was used.
+
+The cross-end wrappers are aligned: Core `grant-phone --binding` accepts the
+App's installation binding and verifies its device in the durable registry;
+Core rotate/revoke accept the App's principal-bearing domain binding. Owner
+policy still selects principal/scopes separately, so the phone cannot grant
+itself authority.
 
 This is App support for a candidate pairing field, not a production closure.
 The following remain required before any Core route or ownership switch:
 
-1. Core source now has an owner-controlled grant/provision entry that binds an
+1. Core source has an owner-controlled grant/provision CLI that binds an
    independent domain principal, generation, exact installation, scopes,
-   bearer, and HMAC key. Production still needs explicit owner configuration,
-   secure grant delivery, rotation/revocation wiring, and operational approval;
-   pairing must not grant domains automatically.
-2. The production launcher/pair response does not yet issue the optional block.
-   An invalid block rejects that pairing attempt; a malformed block already in
-   secure storage is discarded while the chat connection remains usable.
-3. The capture migration workflow has no product/UI caller. The configured
-   domain access exposes a real authenticated refetch adapter that queries the
-   owner principal's durable operation and then the current record/tombstone;
-   any 401/403/404/unknown or changed revision blocks commit. Production owner
-   provisioning must make that same migration-capable phone principal perform
-   adoption so its token may query the op. No default-true callback or implicit
-   takeover exists.
+   bearer, and HMAC key. Production still needs an operator-approved run,
+   protected transfer of its output file to this App import page, and verified
+   deletion/retention handling for that file. Pairing must not grant domains
+   automatically.
+2. No production grant should be imported and no migration should begin before
+   the planned post-2026-10-17 deployment window, the fixed package is
+   installed, the Core URL/TLS reachability is verified, and the owner confirms
+   the displayed Core/principal/installation binding. These are human/device
+   Gates, not properties of synthetic tests.
+3. The configured App caller refetches the migration-capable phone principal's
+   durable operation and current record/tombstone. Production owner tooling
+   must use that same phone principal for adopt/apply and preserve the explicit
+   legacy-origin allowlist; any 401/403/404/410 mismatch/unknown or changed
+   revision must be treated as a blocked commit, never an instruction to retry
+   with weaker evidence.
 4. No production manifest has been created and no owner/route was switched.
    Existing pre-baseline or finance rows may correctly block with aggregate
    `capture_migration_unresolved` / `finance_origin_unverified`; resolving them
    needs a separate evidence-preserving product decision, not weaker checks.
-5. Runtime rebuild is invoked by current pair/disconnect and is callable by a
-   future owner lifecycle. The production owner provision/rotation/revocation
-   path still must call it and Core must reject already in-flight use after
-   generation revocation. The method never performs migration or takeover.
-6. The executable migration currently covers captures. Planning-domain source
+5. Import/revoke now invoke runtime rebuild and subsequent operations recheck
+   the secure binding. A generation rotation while a Core route/owner is already
+   committed deliberately pauses that route: a signed old-to-new binding
+   rotation attestation and atomic owner/route rebinding contract are still
+   required before continuity across such a rotation can be claimed. The new
+   grant is never used to silently rewrite historical ownership proof.
+6. The executable source migration currently covers captures. Planning-domain
+   source
    migrations, real fixed-package compatibility, rollback/recovery UX,
-   production workflow invocation, build/install, and human/device Gates remain
+   build/install, production Core CLI execution, and human/device Gates remain
    unverified. The 47862 bridge stays the sole legacy consumer until an
-   explicitly authorized, successful commit.
+   explicitly authorized, successful commit; after commit the seeded lifecycle
+   and owner fence keep exactly one consumer.
 
 No PR10 uploader, lifecycle launcher, schema/generated file, maintenance path,
 or production state was enabled or changed.

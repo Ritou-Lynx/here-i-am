@@ -111,6 +111,9 @@ jobs:
           tools/i_core/phone_ui_authorization.test.mjs
           tools/i_core/web_action_authorization.test.mjs
           tools/i_core/personal_domain_host.test.mjs
+          tools/i_core/personal_domain_private_state.test.mjs
+          tools/i_core/personal_domain_runtime.test.mjs
+          tools/i_core/web_user_message_authorization.test.mjs
           tools/i_core/phone_capture_migration.test.mjs
           tools/i_core/domain_adoption.test.mjs
           tools/i_core/domain_store.test.mjs
@@ -189,6 +192,9 @@ jobs:
       - name: Fixed runtime, recovery and backup suites
         shell: powershell
         run: ./tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1
+      - name: Personal domain protected owner state and formal host
+        shell: powershell
+        run: node --test tools/i_core/personal_domain_private_state.test.mjs tools/i_core/personal_domain_runtime.test.mjs tools/i_core/web_user_message_authorization.test.mjs
       - if: always()
         uses: actions/upload-artifact@v4
         with:

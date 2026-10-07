@@ -90,6 +90,23 @@ class CaptureConsumerOwnership {
 
   Future<bool> coreSelected() async => (await _read())['owner'] == 'core';
 
+  /// Safe product-facing view. Proofs and authorization material remain
+  /// private; only the manifest that is explicitly exportable is returned.
+  Future<CaptureOwnershipWorkflowState> workflowState() => _serial(() async {
+        final state = await _read();
+        final migration = state['migration'];
+        final manifest = state['manifest'];
+        return CaptureOwnershipWorkflowState(
+          owner: state['owner'] == 'core' ? 'core' : 'legacy',
+          frozenManifest: migration is Map
+              ? CaptureMigrationManifest(jsonObject(migration))
+              : null,
+          committedManifest: manifest is Map
+              ? CaptureMigrationManifest(jsonObject(manifest))
+              : null,
+        );
+      });
+
   Future<CaptureConsumerLease> _claim(String? requiredOwner) =>
       db.transaction(() async {
         await _lock();
@@ -332,6 +349,18 @@ class CaptureConsumerOwnership {
   }
   // A reverse transition also needs proof; do not silently fall back to legacy
   // after core has consumed new sources. Reversal is deliberately not exposed.
+}
+
+class CaptureOwnershipWorkflowState {
+  const CaptureOwnershipWorkflowState({
+    required this.owner,
+    this.frozenManifest,
+    this.committedManifest,
+  });
+
+  final String owner;
+  final CaptureMigrationManifest? frozenManifest;
+  final CaptureMigrationManifest? committedManifest;
 }
 
 class CaptureConsumerLease {

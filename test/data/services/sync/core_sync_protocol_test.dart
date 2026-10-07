@@ -81,6 +81,19 @@ void main() {
     expect(decoded.domainAccess!.authorization.keyId, 'phone-ui-key');
   });
 
+  test('chat pair decoder ignores even malformed domain access material', () {
+    final response = CoreDevicePairResponse.fromChatPairJson({
+      'device_id': 'device-a',
+      'device_token': 'chat-secret',
+      'initial_cursor': 'opaque:zero',
+      'core_node_id': 'home-core',
+      'protocol_version': CoreSyncProtocol.version,
+      'domain_access': {'secret': 'must-not-be-consumed'},
+    });
+    expect(response.deviceId, 'device-a');
+    expect(response.domainAccess, isNull);
+  });
+
   test('malformed or cross-installation domain grants fail closed', () {
     Map<String, dynamic> pair(Map<String, dynamic> access) => {
           'device_id': 'device-a',

@@ -169,7 +169,7 @@ class CoreSyncClient {
         responseType: ResponseType.json,
       ),
     );
-    return CoreDevicePairResponse.fromJson(response.data!);
+    return CoreDevicePairResponse.fromChatPairJson(response.data!);
   }
 }
 

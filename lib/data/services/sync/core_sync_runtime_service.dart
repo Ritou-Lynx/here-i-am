@@ -144,15 +144,20 @@ class CoreSyncRuntimeService extends ChangeNotifier {
         platform: _platformName,
         clientVersion: '${package.version}+${package.buildNumber}',
         pairingCode: code,
-        capabilities: const ['chat', 'share', 'domain_access_v1'],
+        capabilities: const ['chat', 'share'],
       ),
     );
+    if (response.deviceId != deviceId) {
+      throw const FormatException('核心返回了不同的设备绑定');
+    }
     final connection = CoreSyncConnection(
       baseUrl: normalizedUrl,
       deviceToken: response.deviceToken,
       initialCursor: response.initialCursor,
       coreNodeId: response.coreNodeId,
-      domainAccess: response.domainAccess,
+      // Chat pairing never provisions domain authority. The owner-controlled
+      // CLI export must be imported through CoreDomainWorkflowService.
+      domainAccess: null,
     );
     await _connectionStore.save(connection);
     await CoreSyncEngine(

@@ -122,6 +122,29 @@ class CoreSyncConnectionStore {
     }
   }
 
+  /// Replaces only the separately provisioned domain credential.
+  ///
+  /// The expected chat connection is checked immediately before the secure
+  /// storage write so an authorization import cannot attach to a concurrent
+  /// re-pair. Domain credential rotation never changes chat credentials.
+  Future<void> replaceDomainAccess({
+    required CoreSyncConnection expected,
+    required CoreDomainAccessGrant? domainAccess,
+  }) async {
+    final current = await read();
+    if (current == null || !_sameConnection(current, expected)) {
+      throw StateError('核心连接已改变，请重新导入授权');
+    }
+    if (domainAccess == null) {
+      await _storage.delete(key: _domainAccessKey);
+    } else {
+      await _storage.write(
+        key: _domainAccessKey,
+        value: jsonEncode(domainAccess.toJson()),
+      );
+    }
+  }
+
   Future<void> clear() async {
     await _storage.delete(key: _baseUrlKey);
     await _storage.delete(key: _deviceTokenKey);
@@ -129,4 +152,15 @@ class CoreSyncConnectionStore {
     await _storage.delete(key: _coreNodeIdKey);
     await _storage.delete(key: _domainAccessKey);
   }
+
+  static bool _sameConnection(
+    CoreSyncConnection left,
+    CoreSyncConnection right,
+  ) =>
+      left.baseUrl == right.baseUrl &&
+      left.deviceToken == right.deviceToken &&
+      left.initialCursor == right.initialCursor &&
+      left.coreNodeId == right.coreNodeId &&
+      jsonEncode(left.domainAccess?.toJson()) ==
+          jsonEncode(right.domainAccess?.toJson());
 }

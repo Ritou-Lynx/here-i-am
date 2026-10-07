@@ -24,6 +24,16 @@ Implemented source:
   - strict adapter from the App's frozen `i-domain-migration-manifest-v1`
     projection plus caller-supplied closed-snapshot records
   - separate freeze and apply calls; no file discovery, grant, or automatic apply
+- `tools/i_core/personal_domain_private_state.mjs`
+  - Windows CurrentUser DPAPI private-state adapter with Core/path-bound entropy
+  - fail-closed lifetime lock shared by the server and owner CLI
+- `tools/i_core/personal_domain_runtime.mjs`
+  - strict explicit configuration loader and real host/owner/Web-verifier assembly
+- `tools/i_core/personal_domain_server.mjs`
+  - static, opt-in formal server entry; `I_CORE_PERSONAL_DOMAIN_CONFIG` is required
+- `tools/i_core/personal_domain_owner_cli.mjs`
+  - explicit offline Web/phone grant, rotate, revoke, freeze, and apply commands
+  - protected no-overwrite JSON exports; secrets and proofs are never printed
 - `tools/i_core/i_core_store.mjs` and `tools/i_core/i_core_server.mjs`
   - synchronous `domainConfigure` injection after schema-6 `DomainStore` construction
 - `tools/i_core/domain_store.mjs`
@@ -60,7 +70,54 @@ const core = createICoreServer({
 
 `enabled` defaults to false. An enabled host requires schema 6, the exact Core identity, an authority registry, and either one unambiguous common `mode` or an exact four-domain `domainModes` map. Existing registration is validated and never overwritten. A persisted frozen mode remains frozen unless a trusted local caller explicitly invokes `transitionPersonalDomainMode` and then updates the next startup configuration to match.
 
-Web actions default to denial. The host only composes an injected synchronous verifier. The current trusted implementation is `createTrustedWebAuthorizationVerifier(...)` from `tools/i_core/web_action_authorization.mjs`; key selection and trusted-UI private-key deployment remain outside this module.
+Web actions default to denial. The formal runtime composes
+`createWebUserMessageAuthorizationVerifier(...)` from
+`tools/i_core/web_user_message_authorization.mjs`. It accepts only a configured
+Web principal and an exact Core-persisted user chat message for the same origin,
+character, thread and current trigger. Missing, stale, cross-thread, assistant,
+or otherwise invalid anchors resolve to `agent_inferred`. The Ed25519 Web action
+verifier remains a separate disabled capability and is not enabled by this host.
+
+## Formal opt-in runtime
+
+The formal server entry is `tools/i_core/personal_domain_server.mjs`. It uses
+static imports so the existing fixed-package `i_core_server.mjs` inventory stays
+unchanged. It starts only when `I_CORE_PERSONAL_DOMAIN_CONFIG` names an absolute,
+plain, single-link configuration file with this exact shape:
+
+The entry preserves the installed schema-6 upload boundary: companion reply
+jobs default off and companion upload defaults to `legacy_b3`. `pr10` remains an
+explicit environment choice and is not enabled by personal-domain activation.
+
+```json
+{
+  "format": "i-core-personal-domain-runtime-v1",
+  "enabled": true,
+  "core_instance_id": "...",
+  "private_state_path": "C:\\...\\owner.dpapi.json",
+  "domain_modes": {
+    "captures": "authoritative",
+    "plan_items": "off",
+    "plan_weeks": "off",
+    "plan_days": "off"
+  },
+  "web_user_message_principals": [
+    {
+      "principal_id": "...",
+      "installation_id": "...",
+      "origin_device_id": "frontend:claude_web",
+      "character_id": "i"
+    }
+  ]
+}
+```
+
+Unknown fields, duplicate JSON members, ambiguous domain modes, identity
+mismatch, schema 5, missing configured Web grants, and malformed paths fail
+closed. Owner commands use the same DPAPI state lock as the running server. A
+running Core therefore blocks grant/rotate/revoke/freeze/apply, concurrent owner
+commands cannot lose updates, and a crash lock is never automatically taken
+over. Owner work is an explicit offline operation followed by server restart.
 
 ## Phone owner boundary
 
@@ -73,6 +130,16 @@ authorization { scheme, key_id, secret }
 ```
 
 The domain token and 32-byte HMAC signing secret are independently generated. The signing secret is held only by the injected private state adapter and returned by explicit grant or rotation. It is not stored in Core domain tables. Rotation increments the durable principal generation, replaces both secrets, removes manifests signed by the old key, and makes the old token and authorization references unusable. Revocation removes the private grant and revokes the durable principal.
+
+`grant-phone` consumes the App's non-secret
+`i-core-phone-installation-binding-v1` export and a separate owner policy. Core
+requires `installation_id == device_id`, verifies the Core identity, and checks
+that the device already exists in the durable paired-device registry. Rotate
+and revoke consume `i-core-domain-access-binding-v1`, including the Core,
+principal, and installation IDs. Grant and rotation write only
+`i-core-domain-access-export-v1` to a newly created protected file. Existing
+outputs and publish races are rejected without deleting or replacing the
+competing file.
 
 The default phone grant covers existing capture and planning UI scopes. Migration authority is never automatic. The owner must explicitly add `captures:owner` and `captures:adopt`, list every allowed adoption source, and provide the allowed historical origin principals. Only that explicit grant gains the `import` actor, `import_sources`, and bounded `origins`; ordinary grants remain `origin_device_only`.
 
@@ -171,16 +238,27 @@ current-record refetch. Invalid ID, revision, mapping version, and aggregate
 digest cases are rejected, and the App output digest remains distinct from the
 Core record digest.
 
+The formal runtime additions passed 8/8 focused tests: 6 runtime/owner/HTTP
+tests and 2 private-state tests. They cover explicit opt-in, schema-5 no-write,
+real schema-6 loopback assembly through `personal_domain_server.mjs`, durable
+paired-installation grant, freeze without apply side effects, apply plus current
+receipt refetch, rotation/revocation, the real persisted-chat Web verifier,
+missing and stale anchor downgrade, same-state concurrent runtime rejection,
+lock release on close, real Windows DPAPI round trip, a schema-6 formal-entry
+startup through the default DPAPI factory, protected output, and a no-overwrite
+publish race.
+
 Coverage includes default-disabled/schema-5 fail-closed behavior, mixed-mode reopen, durable frozen mismatch, real schema-6 HTTP phone create, rotation and revocation, default Web denial, injected real Ed25519 Web approval, rejected async verifier containment, principal collision, preserved historical Web origin, phone-owner operation refetch, full-record manifest binding, forged/non-adoption receipt rejection, post-adoption edit rejection, stale generation, fixed cross-language HMAC vector, old no-projection request digest compatibility, and lost-response reopen replay.
 
 ## Remaining deployment and human Gates
 
 The source modules are executable, but production activation remains incomplete until the main window supplies all of the following:
 
-- a protected synchronous private-state adapter and its backup/recovery policy;
-- a fixed-package or installed-host configuration path that explicitly constructs this host;
+- a reviewed DPAPI state backup/recovery policy and manual stale-lock recovery procedure;
+- a fixed-package inventory that selects `personal_domain_server.mjs` and includes its new static dependencies;
+- an installed-host configuration path that explicitly supplies the strict runtime document;
 - the exact four-domain startup modes and migration transition runbook;
-- trusted Web UI key ownership and private-key deployment;
+- reviewed Web frontend principal/device/character bindings;
 - owner-authorized phone migration scopes, source kinds, and historical-origin allowlist for the intended installation;
 - App/Core cross-language fixture pass in the integrated tree;
 - a reviewed local migration manifest and human acceptance of the final report before local commit.
