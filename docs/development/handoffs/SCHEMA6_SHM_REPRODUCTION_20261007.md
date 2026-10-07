@@ -32,7 +32,7 @@
 - `tools/i_core/release_schema6/online_shm_reproduction.test.mjs`：Node test 入口；默认四场景各一次。
 - `tools/i_core/test_fixtures/release_schema6/online_shm_probe.mjs`：采样、精确 diff、固定发布可选验证、复制正确性和独立 writer 状态断言。
 - `tools/i_core/test_fixtures/release_schema6/online_shm_worker.mjs`：独立 writer 与只 SELECT 一次的 reader；只能使用明确新建合成根。
-- `tools/i_core/test_fixtures/release_schema6/online_shm_result_20261007.json`：最终固定发布的 12 场景纯合成结果，SHA-256 `acfbdc7ec53f1bf3ea449f3683d72861eef8a43a2c566fae98f58fcc9e6111e1`。
+- `tools/i_core/test_fixtures/release_schema6/online_shm_result_20261007.json`：最终固定发布的 12 场景纯合成结果。Git blob（LF）SHA-256 `6deec83f5707d8f6d07947d193e8f678ca7ec94a3f576d6996f63936e8570b55`；原Windows实验输出（CRLF）SHA-256 `acfbdc7ec53f1bf3ea449f3683d72861eef8a43a2c566fae98f58fcc9e6111e1`。已逐字验证只差CRLF→LF，JSON结构与值完全相同；复核仓库证据请用Git blob摘要。
 
 默认：`node --test tools/i_core/release_schema6/online_shm_reproduction.test.mjs`。
 固定发布：在相同命令前将 `ONLINE_SHM_OPTIONS` 设置为 JSON，字段为 `captureModule`、`releaseRoot`、`manifestSha256`、`nodeSha256`、`repeats:3`；两个路径由执行者显式指定已授权 release。runner 将参数经 CLI 传给净化环境子进程，不传入 Core、代理、模型或账户配置。Windows 创建进程可能自动补入 OS 账户/PATH 字段，probe/worker 在任何数据库工作前将非 allowlist 字段删除；不输出环境值。所有合成根清理前验证绝对路径、前缀和原始目录身份。

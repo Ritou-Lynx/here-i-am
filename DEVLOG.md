@@ -8,7 +8,7 @@
 - strictClosedPath/NativeLease/ACL/离线raw原样SHM保存及冻结原件全字节证明均保留，rawStable只表示在线policy。
 - ACL清单补144项含16旧owner的parent→child加固、全项恢复与readback；pending库存漂移不得盲退。
 - 新私有一次性现场入口/依赖锚尚待受审构建，不重用旧CLI/锁；草稿PR精确CI全绿后暂停审核，不合并部署。
-- 证据见SCHEMA6_SHM_REPRODUCTION_20261007、SCHEMA6_CUTOVER_EXECUTION_20261007与ACL_SEQUENCE_REVIEW。
+- 证据见SHM_REPRODUCTION、CUTOVER_EXECUTION与ACL_SEQUENCE_REVIEW；JSON登记Git LF及Windows原CRLF两摘要，值逐项相同。
 ---
 ## 2026-10-07 — 现场副本预检拒绝，按清单安全退回
 - 本人批准最终XML及管理员预检；合成临时文件SeRestore/外SID owner往返和readback通过，生产ACL未Apply。

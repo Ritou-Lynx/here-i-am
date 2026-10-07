@@ -2,7 +2,7 @@
 
 ## SHM合成证实与在线预检修复（2026-10-07，源码待审核）
 
-从v3-lab@1552e251隔离codex/schema6-online-shm-preflight-20261007。固定Node/SQLite与固定release的四组各三次合成复现通过：独立空闲writer捕获及只读SELECT都只改SHM offset104的aReadMark[1]2→3，DB/WAL字节、大小、身份稳定；正常关闭/强杀后无writer对照另列。原现场没有before字节，不追认真实原因。[合成证据](handoffs/SCHEMA6_SHM_REPRODUCTION_20261007.md)。
+从v3-lab@1552e251隔离codex/schema6-online-shm-preflight-20261007。固定Node/SQLite与固定release的四组各三次合成复现通过：独立空闲writer捕获及只读SELECT都只改SHM offset104的aReadMark[1]2→3，DB/WAL字节、大小、身份稳定；正常关闭/强杀后无writer对照另列。原现场没有before字节，不追认真实原因。公开合成JSON分别登记Git LF摘要与Windows原CRLF摘要，已核只差换行、结构和值完全一致。[合成证据](handoffs/SCHEMA6_SHM_REPRODUCTION_20261007.md)。
 
 在线预检比较仅要求DB/WAL全字节、大小及身份不变，journal存在不变，SHM存在/大小不变；四件诊断SHA仍保留，rawStable只表示该online policy通过。17项guard和固定release真实3项适配器通过，Git新包3场景亦过，主窗最终67/67、0失败/跳过（103.954秒）；schema4合成原库不动，副本4→5、exact72/1 grant及缺grant拒绝均核。系统PowerShell nlink=2导致新适配器首跑误拒已沿固定lifecycle入口模式修正，没有改plainPath函数或固定47项runtime。[执行交接增补](handoffs/SCHEMA6_CUTOVER_EXECUTION_20261007.md)登记最终汇总与远端精确CI。
 
