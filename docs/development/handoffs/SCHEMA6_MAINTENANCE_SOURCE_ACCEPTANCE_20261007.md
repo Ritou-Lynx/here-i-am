@@ -39,3 +39,5 @@ ACL合成覆盖Owner/DACL/继承全项往返、父级中断后全清单恢复、
 微软依据：[TASK_CREATION](https://learn.microsoft.com/en-us/windows/win32/api/taskschd/ne-taskschd-task_creation)、[UseUnifiedSchedulingEngine默认值](https://learn.microsoft.com/en-us/windows/win32/taskschd/taskschedulerschema-useunifiedschedulingengine-settingstype-element)。实际规范化差异仅据本机合成证据，不能推断目标生产XML已通过。
 
 最终静态检查：10个维护PowerShell文件PS5.1解析通过，维护Node模块语法通过；版本化源码无现场路径/真实SID/现场凭据，Git差异与文档链接检查通过。新固定47项runtime源码没有变化。远端结果按精确head登记在同PR正文/Checks，全部绿后才结束。
+
+主线PR15后续已合入v3-lab@0a24cac2b7db812f34fb845325e27b77d16139dd，导致PR16仅DEVLOG与项目状态冲突。本轮把该精确主线提交整合进隔离分支，保留双方新增记录；维护源码及固定runtime未因此改变，未运行Relay脚本或任务。PR16仍为草稿且未合入主线；最终CI以整合后精确head为准。

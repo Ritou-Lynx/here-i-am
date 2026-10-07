@@ -1,5 +1,5 @@
 ## 2026-10-07 — 现场维护源码入库与单次窗口闭合
-- 继续PR16同分支；仅指定私有脚本源码、合成演练及文档，不进场、不合并。
+- 继续PR16同分支；仅指定私有脚本源码、合成演练及文档，不进场、不把PR16合入主线。
 - 参数化freeze/新窗口/ACL/owner wrapper/Prepare/RegisterOnly，现场路径、SID和批准锚不入库。
 - 新窗口CreateNew锁/回执，旧证据字节保留；独占guard串行化，WindowId统一8–80。
 - 执行前持柄验源；v2冻结证明、全项ACL回执、taskPath及候选/配置外锚完整衔接。
@@ -10,7 +10,8 @@
 - foreign-owner特权及COM往返设Windows CI必跑，普通本机token未执行不算通过。
 - 清单补本次入口/r02预留ID、PR16在线判据、ACL后pending保全再审与向前修界限。
 - 批准XML的Unified/SDDL兼容性须停服务前核，不因安全合成任务通过宣称生产已注册。
-- 精确提交远端全部CI登记同PR正文/Checks，绿后暂停；合并与进场另行授权。
+- 为消解主线PR15的两份文档冲突，将v3-lab@0a24cac2合入隔离分支，两边历史保留；未操作Relay。
+- 精确提交远端全部CI登记同PR正文/Checks，绿后暂停；PR16合入主线与进场另行授权。
 ---
 ## 2026-10-07 — SHM原因合成证实，在线预检窄修复
 - 从v3-lab@1552e251开codex/schema6-online-shm-preflight-20261007，仅源码/合成验证/文档，不重进现场。
@@ -48,6 +49,50 @@
 - 目前0停机，原库未迁移，任务/线上配置/手机未改；16项旧owner需可回退的管理员维护，最终XML/真人Gate待本人。
 - 现场执行状态见SCHEMA6_CUTOVER_EXECUTION_20261007；真人四Gate未完成，不宣称切换成功。
 ---
+
+## 2026-10-07 — Agent Relay 真实 PR 冒烟通过（PR #15）
+
+**结果**：Claude 云端发指令 → 本机 watcher 3 分钟内接单 → Codex 执行 → watcher 提交推送回帖 → 回帖唤醒云端 Claude 审阅，全程无人工搬运。作者白名单（Ritou-Lynx）与脱敏生效。
+**轮次**：第 1 轮 failed（运行 watcher 的 relay worktree 占用了 PR 分支，已改 detached）；第 2 轮 done（6fe7efb，只新增 SMOKE.md）；第 3 轮返修 done（422790d：脱敏不再误隐藏 URL，done/blocked 回帖不附 stderr；50/50 测试，云端复核通过）。
+**已知**：Codex 启动时连不上本机未运行的 MCP 服务会打印 rmcp 报错，不影响执行；运行 watcher 的目录不得检出任何 PR 分支。
+**未完**：合入 v3-lab 待用户决定；合入后 watcher 改从停在 v3-lab 的主仓库运行。纯 Node/文档，未构建 App。
+
+---
+
+## 2026-10-07 — Agent Relay 本机安装验证完成
+
+**安装**：校验后的 gh 2.102.0 已放固定用户程序目录；当前用户的 GitHub/Codex 登录有效，Node spawn(shell:false) 实际直启两个 exe 均退出 0；三个标签已创建。
+**配置**：主仓库保持干净 v3-lab；运行脚本与忽略配置保留在专用 relay worktree，PR worktree 根在主仓库外。
+**任务**：显式传入 GhPath/CodexPath，当前用户 Interactive/Limited、PT3M、IgnoreNew；实际启动后回到 Ready，LastTaskResult=0，日志“无待处理”。修正 Windows PowerShell 外部程序中文解码后再次真实通过。
+**证据**：本机忽略目录保留安装回执、脚本/执行器哈希与任务日志；公开交接只记录结论。真实 PR 接力尚未触发，现在可由用户通知 Claude 冒烟。
+
+---
+
+## 2026-10-07 — Agent Relay 按 COMMIT 行提交
+
+**实现**：按 8877a50 新规格由 watcher 提交工作区改动，双段提交信息与 SKIP_PROJECT_STATE；COMMIT 缺失/空白/“无”使用本轮默认值，删除 dirty 状态，暂存/提交失败停止推送。
+**验证**：48 项假 run 测试通过，覆盖提交职责与原有保护；计划任务准确传递失败退出码并保留本机日志。
+**后续**：先正常推送本轮实现，再执行用户授权的固定 gh、本机配置与任务安装；真实 PR 冒烟由用户通知 Claude 发起。
+
+---
+
+## 2026-10-07 — Agent Relay watcher 实现与离线验证
+
+**交付**：`tools/agent_relay/` 零依赖 watcher、纯函数、配置示例、目录测试入口及当前普通用户的 3 分钟计划任务脚本。
+**保护**：白名单/PR 条件、串行锁与崩溃防重放、仓库与历史归属、脏工作区、无 force 的推送冲突处理、通知补送、超时清理阻断及完整内容脱敏。
+**验证**：12 项清单扩展为 39 项假 run 测试，Node 24.14.1 / 22.23.3 均通过；Codex 0.160.0 help 已对齐；官方临时便携 gh 2.102.0 的只读 dry-run 返回“无待处理”；PowerShell 语法通过。
+**边界**：同一 `claude/wonderful-carson-a26i9d` 分支提交推送；未注册计划任务或运行真实接力，未改 App/生产数据。本机持久配置、标签及真实 PR 冒烟留待第二、三步。
+
+---
+
+## 2026-10-07 — Agent Relay：Claude 云端规划审阅 × Codex 本机执行
+
+**决定**：Claude 仅能用网页端，故不建工作台前端、不以 Slack 为总线；以 GitHub PR 评论为交接通道，Claude 云端会话订阅 PR 被唤醒，本机 watcher 轮询指令并调用 `codex exec`。
+**交付**：`tools/agent_relay/` 协议（标签、评论标记、4 轮上限、公开边界）、watcher 实现规格与 12 项测试清单、每轮 Codex 提示词模板、README（预期效果与交给 Codex 的安装提示词）；`.claude/skills/agent-relay/SKILL.md` 为云端 Claude 操作手册。
+**未完**：watcher 由 Codex 按 BUILD_BRIEF 实现并本机安装；标签创建、计划任务与真实冒烟待执行。纯文档，未构建。
+
+---
+
 ## 2026-10-06 — PR14 CI私有端口结果竞态收尾
 - 同一分支/草稿PR14，未查询或操作现役/原库/任务/手机，不合主线不部署。
 - 保留0ddb PR事件Linux Bridge失败，activity wrongBinding的测试race误判无结果。

@@ -1,0 +1,14 @@
+{
+  "repo": "Ritou-Lynx/here-i-am",
+  "baseBranch": "v3-lab",
+  "headPrefixes": ["claude/", "codex/"],
+  "allowedAuthors": ["Ritou-Lynx"],
+  "repoPath": "C:\\source\\here-i-am",
+  "worktreeRoot": "C:\\relay-worktrees",
+  "maxRounds": 4,
+  "codexTimeoutMinutes": 60,
+  "codexArgs": ["--sandbox", "workspace-write"],
+  "summaryMaxChars": 6000,
+  "mention": "@Ritou-Lynx",
+  "pollSeconds": 180
+}

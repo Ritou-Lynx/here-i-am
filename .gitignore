@@ -181,3 +181,4 @@ tools/comic_server/data/
 /tools/i_continuity_gateway/.state/
 tools/i_memory/.state/
 /tools/i_remote_mcp/.state/
+/tools/agent_relay/.state/
