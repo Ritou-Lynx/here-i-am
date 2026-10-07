@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$GuardOnly)
+param([switch]$GuardOnly,[switch]$MaintenanceOnly)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'module_scope.ps1')
 try {Assert-Schema6ModuleScopeHost -GuardOnly:$GuardOnly}
@@ -123,7 +123,9 @@ try {
   $nodePath=(Get-Command node.exe -ErrorAction Stop).Source
   $testExitCode = Invoke-Schema6HostedModuleScope -Body {
    Invoke-Schema6GatedSuites -Probe {Invoke-Schema6NativeProbe $nodePath} -Suites {
-    & $nodePath --test --test-concurrency=1 --test-reporter=spec --test-reporter=tap --test-reporter-destination=stdout --test-reporter-destination=build/ci/schema6-windows.tap tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs | ForEach-Object {Write-Host $_}
+    $suiteFiles=if($MaintenanceOnly){@(Get-ChildItem -LiteralPath tools/i_core/release_schema6 -Filter 'maintenance_*.test.mjs' -File|Sort-Object Name|ForEach-Object {$_.FullName})}else{@('tools/i_core/release_schema6/*.test.mjs','tools/i_core/release_schema6/lifecycle/*.test.mjs')}
+    if($suiteFiles.Count-eq 0){throw 'ci_suite_missing'}
+    & $nodePath --test --test-concurrency=1 --test-reporter=spec --test-reporter=tap --test-reporter-destination=stdout --test-reporter-destination=build/ci/schema6-windows.tap @suiteFiles | ForEach-Object {Write-Host $_}
     return $LASTEXITCODE
    }
   }

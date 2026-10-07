@@ -1,0 +1,2048 @@
+{
+  "format": "schema6-online-shm-synthetic-v1",
+  "nodeVersion": "v24.14.1",
+  "sqliteVersion": "3.51.2",
+  "platform": "win32",
+  "nativeEndian": "LE",
+  "nodeSha256": "58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f",
+  "captureModuleSha256": "bff29b4a0e28c8ab84b0ba353889d435c03d15966395c2d06fd14c21de850d7f",
+  "release": {
+    "manifest_sha256": "6ae8f970a08ee8f21f8c78ba8846273144101cbdd8d3a2cb0530d5a3daf6b1ff",
+    "source_commit": "1552e251c18c4554d425a0051ea7452e4904bb40",
+    "files": 47,
+    "candidate_only": true,
+    "deployed": false,
+    "activation_supported": false
+  },
+  "repeats": 3,
+  "scenarios": [
+    {
+      "scenario": "idle-writer-capture",
+      "iteration": 1,
+      "ready": {
+        "type": "ready",
+        "pid": 50428,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": true,
+      "beforeStatus": {
+        "type": "status",
+        "pid": 50428,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "afterStatus": {
+        "type": "status",
+        "pid": 50428,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "36591746973881509"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "7f6d9e55dfa709b8799d16039d6b5b041ca779ca49f232e13938af66418a8649",
+          "dev": "2620686178",
+          "ino": "29273397579404454"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "cb5ac13338a820d5e26a03ff75c2ea22c5853b47d5be1245e22439a1282b7dfc",
+          "dev": "2620686178",
+          "ino": "26177172835587240",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b8818e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b88000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b8818e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b88",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "36591746973881509"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "7f6d9e55dfa709b8799d16039d6b5b041ca779ca49f232e13938af66418a8649",
+          "dev": "2620686178",
+          "ino": "29273397579404454"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "cb5ac13338a820d5e26a03ff75c2ea22c5853b47d5be1245e22439a1282b7dfc",
+          "dev": "2620686178",
+          "ino": "26177172835587240",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b8818e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b88000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b8818e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b88",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "36591746973881509"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "7f6d9e55dfa709b8799d16039d6b5b041ca779ca49f232e13938af66418a8649",
+          "dev": "2620686178",
+          "ino": "29273397579404454"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "2de744ca4f5093cacee84033a08a9c89a0eee3ab168f9b7a17728fce76ba074f",
+          "dev": "2620686178",
+          "ino": "26177172835587240",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b8818e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b88000000000000000003000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b8818e22d000000000002000000010000100300000002000000e12984ed82c841ae3ad42782fc091807e5f789915e802b88",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 1,
+          "changedBytes": [
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341758557,
+        "completedAt": 1791341758573,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "closed-writer-capture",
+      "iteration": 1,
+      "ready": {
+        "type": "ready",
+        "pid": 54308,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": false,
+      "beforeStatus": null,
+      "afterStatus": null,
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "36873221950592165"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "ad00befaad911815a9f126e467d92168404f8da09e478db6ee4459b850b6c1c9",
+          "dev": "2620686178",
+          "ino": "29836347532825766"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "0b8470b4f031362ecb99a64a37f1d6c16e37daf6b9cfc8ce0ba673397f901628",
+          "dev": "2620686178",
+          "ino": "26458647812297896",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d0000000000020000000100001003000000020000008cc16753756d2b1e51e83ea84c894ded45e051f3ac24f6a518e22d0000000000020000000100001003000000020000008cc16753756d2b1e51e83ea84c894ded45e051f3ac24f6a5000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d0000000000020000000100001003000000020000008cc16753756d2b1e51e83ea84c894ded45e051f3ac24f6a518e22d0000000000020000000100001003000000020000008cc16753756d2b1e51e83ea84c894ded45e051f3ac24f6a5",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 8192,
+          "sha256": "fdf8b7356f001a59ee5915571519593e593c5997c140df527874786a89d21f78",
+          "dev": "2620686178",
+          "ino": "36873221950592165"
+        },
+        "wal": {
+          "exists": false
+        },
+        "shm": {
+          "exists": false
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 8192,
+          "sha256": "fdf8b7356f001a59ee5915571519593e593c5997c140df527874786a89d21f78",
+          "dev": "2620686178",
+          "ino": "36873221950592165"
+        },
+        "wal": {
+          "exists": true,
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "dev": "2620686178",
+          "ino": "30117822509536422"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+          "dev": "2620686178",
+          "ino": "26740122789008552",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db0918e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db090000000000000000ffffffffffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db0918e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db09",
+          "mxFrame": 0,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            4294967295,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": true,
+          "identityChanged": null,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": true,
+          "identityChanged": null,
+          "bytesChanged": 0,
+          "changedBytes": []
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341758697,
+        "completedAt": 1791341758716,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "killed-writer-capture",
+      "iteration": 1,
+      "ready": {
+        "type": "ready",
+        "pid": 15712,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": false,
+      "beforeStatus": null,
+      "afterStatus": null,
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37154696927302821"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "02c2865eece2b387b147a6779a43490b6ea6954d9c5fba1b4177ecb7e608d8d4",
+          "dev": "2620686178",
+          "ino": "30680772462957734"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "a9ec284e87859081633e3aee4ec3681d2522c6f42d957c3db89948a0f55bdb83",
+          "dev": "2620686178",
+          "ino": "27021597765719208",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d0000000000020000000100001003000000020000007c8041b1256d9a47011d90438cdb72e18592c573cce7d7a118e22d0000000000020000000100001003000000020000007c8041b1256d9a47011d90438cdb72e18592c573cce7d7a1000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d0000000000020000000100001003000000020000007c8041b1256d9a47011d90438cdb72e18592c573cce7d7a118e22d0000000000020000000100001003000000020000007c8041b1256d9a47011d90438cdb72e18592c573cce7d7a1",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37154696927302821"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "02c2865eece2b387b147a6779a43490b6ea6954d9c5fba1b4177ecb7e608d8d4",
+          "dev": "2620686178",
+          "ino": "30680772462957734"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "a9ec284e87859081633e3aee4ec3681d2522c6f42d957c3db89948a0f55bdb83",
+          "dev": "2620686178",
+          "ino": "27021597765719208",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d0000000000020000000100001003000000020000007c8041b1256d9a47011d90438cdb72e18592c573cce7d7a118e22d0000000000020000000100001003000000020000007c8041b1256d9a47011d90438cdb72e18592c573cce7d7a1000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d0000000000020000000100001003000000020000007c8041b1256d9a47011d90438cdb72e18592c573cce7d7a118e22d0000000000020000000100001003000000020000007c8041b1256d9a47011d90438cdb72e18592c573cce7d7a1",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37154696927302821"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "02c2865eece2b387b147a6779a43490b6ea6954d9c5fba1b4177ecb7e608d8d4",
+          "dev": "2620686178",
+          "ino": "30680772462957734"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "4c795421e64adf44abc01f76c01bc7f7f55cf9a679917596c6477f4035f45a20",
+          "dev": "2620686178",
+          "ino": "27021597765719208",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d0000000000000000000100001003000000020000007c8041b1256d9a47011d90438cdb72e16b92c573a2e7d7a118e22d0000000000000000000100001003000000020000007c8041b1256d9a47011d90438cdb72e16b92c573a2e7d7a1000000000000000003000000ffffffffffffffffffffffff00000000000000000300000000000000",
+          "headerHex": "18e22d0000000000000000000100001003000000020000007c8041b1256d9a47011d90438cdb72e16b92c573a2e7d7a118e22d0000000000000000000100001003000000020000007c8041b1256d9a47011d90438cdb72e16b92c573a2e7d7a1",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 3
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 8,
+          "changedBytes": [
+            {
+              "offset": 8,
+              "before": 2,
+              "after": 0
+            },
+            {
+              "offset": 40,
+              "before": 133,
+              "after": 107
+            },
+            {
+              "offset": 44,
+              "before": 204,
+              "after": 162
+            },
+            {
+              "offset": 56,
+              "before": 2,
+              "after": 0
+            },
+            {
+              "offset": 88,
+              "before": 133,
+              "after": 107
+            },
+            {
+              "offset": 92,
+              "before": 204,
+              "after": 162
+            },
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            },
+            {
+              "offset": 128,
+              "before": 0,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341758876,
+        "completedAt": 1791341758892,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "idle-writer-select",
+      "iteration": 1,
+      "ready": {
+        "type": "ready",
+        "pid": 48104,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": true,
+      "beforeStatus": {
+        "type": "status",
+        "pid": 48104,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "afterStatus": {
+        "type": "status",
+        "pid": 48104,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37436171904013477"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "6a3855dc40b5e2486583e3a1060bbc2f63795e16a287bf1a82dae1bc726338df",
+          "dev": "2620686178",
+          "ino": "31243722416379046"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "477cdad4a145ca48e405a70d5e15f49b9fb4434b33fde5aa78cc187b28499c61",
+          "dev": "2620686178",
+          "ino": "27303072742429864",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37436171904013477"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "6a3855dc40b5e2486583e3a1060bbc2f63795e16a287bf1a82dae1bc726338df",
+          "dev": "2620686178",
+          "ino": "31243722416379046"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "477cdad4a145ca48e405a70d5e15f49b9fb4434b33fde5aa78cc187b28499c61",
+          "dev": "2620686178",
+          "ino": "27303072742429864",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37436171904013477"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "6a3855dc40b5e2486583e3a1060bbc2f63795e16a287bf1a82dae1bc726338df",
+          "dev": "2620686178",
+          "ino": "31243722416379046"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "77d9f3f7ef088baad928fc50225da19363afd4cbfa589875e335418d4cb37bec",
+          "dev": "2620686178",
+          "ino": "27303072742429864",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc000000000000000003000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc18e22d000000000002000000010000100300000002000000513581a61107981c7204e7ca0f1f58fb8c7d99ba1765cecc",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 1,
+          "changedBytes": [
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": null,
+      "action": {
+        "rows": [
+          {
+            "id": 1,
+            "value": "synthetic-one"
+          },
+          {
+            "id": 2,
+            "value": "synthetic-two"
+          }
+        ],
+        "selectCalls": 1,
+        "pid": 25232
+      }
+    },
+    {
+      "scenario": "idle-writer-capture",
+      "iteration": 2,
+      "ready": {
+        "type": "ready",
+        "pid": 34520,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": true,
+      "beforeStatus": {
+        "type": "status",
+        "pid": 34520,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "afterStatus": {
+        "type": "status",
+        "pid": 34520,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37717646880724133"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "b784c543e0438490e3586386141a135c867dc5e9d709184354edcfbd31dff3be",
+          "dev": "2620686178",
+          "ino": "31806672369800358"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "041c5afeceb90a90ce65cec0fc5d3ab145677d50c82fc86e63a6bf458e150727",
+          "dev": "2620686178",
+          "ino": "27584547719140520",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37717646880724133"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "b784c543e0438490e3586386141a135c867dc5e9d709184354edcfbd31dff3be",
+          "dev": "2620686178",
+          "ino": "31806672369800358"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "041c5afeceb90a90ce65cec0fc5d3ab145677d50c82fc86e63a6bf458e150727",
+          "dev": "2620686178",
+          "ino": "27584547719140520",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37717646880724133"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "b784c543e0438490e3586386141a135c867dc5e9d709184354edcfbd31dff3be",
+          "dev": "2620686178",
+          "ino": "31806672369800358"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "6d39036bd53b91d24b529e71ab80b04f1967329299706bdf124f57c2717b5e5c",
+          "dev": "2620686178",
+          "ino": "27584547719140520",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da000000000000000003000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da18e22d000000000002000000010000100300000002000000f5df16c3756fc410a6cbb89eaf2cd2f66c02c3bb9f0a34da",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 1,
+          "changedBytes": [
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341759199,
+        "completedAt": 1791341759214,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "closed-writer-capture",
+      "iteration": 2,
+      "ready": {
+        "type": "ready",
+        "pid": 22656,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": false,
+      "beforeStatus": null,
+      "afterStatus": null,
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "37999121857434789"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "34c30ad6e744d0b9e83c3ce748ffd210d313704ee420de8ec7c9a3dbf997cb7d",
+          "dev": "2620686178",
+          "ino": "32369622323221670"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "0faf8a2bc1df763a9d24dddec4119a265e46d2a0e23debc9d198a646d9711193",
+          "dev": "2620686178",
+          "ino": "27866022695851176",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d0000000000020000000100001003000000020000000cf0f057846760d05984b80b8fc3bec95cd31212957ae65718e22d0000000000020000000100001003000000020000000cf0f057846760d05984b80b8fc3bec95cd31212957ae657000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d0000000000020000000100001003000000020000000cf0f057846760d05984b80b8fc3bec95cd31212957ae65718e22d0000000000020000000100001003000000020000000cf0f057846760d05984b80b8fc3bec95cd31212957ae657",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 8192,
+          "sha256": "fdf8b7356f001a59ee5915571519593e593c5997c140df527874786a89d21f78",
+          "dev": "2620686178",
+          "ino": "37999121857434789"
+        },
+        "wal": {
+          "exists": false
+        },
+        "shm": {
+          "exists": false
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 8192,
+          "sha256": "fdf8b7356f001a59ee5915571519593e593c5997c140df527874786a89d21f78",
+          "dev": "2620686178",
+          "ino": "37999121857434789"
+        },
+        "wal": {
+          "exists": true,
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "dev": "2620686178",
+          "ino": "32651097299932326"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+          "dev": "2620686178",
+          "ino": "28147497672561832",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db0918e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db090000000000000000ffffffffffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db0918e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db09",
+          "mxFrame": 0,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            4294967295,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": true,
+          "identityChanged": null,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": true,
+          "identityChanged": null,
+          "bytesChanged": 0,
+          "changedBytes": []
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341759330,
+        "completedAt": 1791341759345,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "killed-writer-capture",
+      "iteration": 2,
+      "ready": {
+        "type": "ready",
+        "pid": 28768,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": false,
+      "beforeStatus": null,
+      "afterStatus": null,
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38280596834145445"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "f1eb7cd66e0ced0c017d0e6bbd49ac00fcd4ff9eeb39a3f1bd1503b8e9c188e1",
+          "dev": "2620686178",
+          "ino": "33214047253353638"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "c3fe80b5b22b8061754d56ff84ac33e768479d6c89253e390bd1ad4e486983bd",
+          "dev": "2620686178",
+          "ino": "28428972649272488",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d00000000000200000001000010030000000200000053b68b5c77c215015ca6f396138eb364e0dc38d7d76f51ed18e22d00000000000200000001000010030000000200000053b68b5c77c215015ca6f396138eb364e0dc38d7d76f51ed000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d00000000000200000001000010030000000200000053b68b5c77c215015ca6f396138eb364e0dc38d7d76f51ed18e22d00000000000200000001000010030000000200000053b68b5c77c215015ca6f396138eb364e0dc38d7d76f51ed",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38280596834145445"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "f1eb7cd66e0ced0c017d0e6bbd49ac00fcd4ff9eeb39a3f1bd1503b8e9c188e1",
+          "dev": "2620686178",
+          "ino": "33214047253353638"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "c3fe80b5b22b8061754d56ff84ac33e768479d6c89253e390bd1ad4e486983bd",
+          "dev": "2620686178",
+          "ino": "28428972649272488",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d00000000000200000001000010030000000200000053b68b5c77c215015ca6f396138eb364e0dc38d7d76f51ed18e22d00000000000200000001000010030000000200000053b68b5c77c215015ca6f396138eb364e0dc38d7d76f51ed000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d00000000000200000001000010030000000200000053b68b5c77c215015ca6f396138eb364e0dc38d7d76f51ed18e22d00000000000200000001000010030000000200000053b68b5c77c215015ca6f396138eb364e0dc38d7d76f51ed",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38280596834145445"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "f1eb7cd66e0ced0c017d0e6bbd49ac00fcd4ff9eeb39a3f1bd1503b8e9c188e1",
+          "dev": "2620686178",
+          "ino": "33214047253353638"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "de8f36f32ada356380920edfd16acd0ef650c41ead113764f0dad291be695e18",
+          "dev": "2620686178",
+          "ino": "28428972649272488",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d00000000000000000001000010030000000200000053b68b5c77c215015ca6f396138eb364c6dc38d7ad6f51ed18e22d00000000000000000001000010030000000200000053b68b5c77c215015ca6f396138eb364c6dc38d7ad6f51ed000000000000000003000000ffffffffffffffffffffffff00000000000000000300000000000000",
+          "headerHex": "18e22d00000000000000000001000010030000000200000053b68b5c77c215015ca6f396138eb364c6dc38d7ad6f51ed18e22d00000000000000000001000010030000000200000053b68b5c77c215015ca6f396138eb364c6dc38d7ad6f51ed",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 3
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 8,
+          "changedBytes": [
+            {
+              "offset": 8,
+              "before": 2,
+              "after": 0
+            },
+            {
+              "offset": 40,
+              "before": 224,
+              "after": 198
+            },
+            {
+              "offset": 44,
+              "before": 215,
+              "after": 173
+            },
+            {
+              "offset": 56,
+              "before": 2,
+              "after": 0
+            },
+            {
+              "offset": 88,
+              "before": 224,
+              "after": 198
+            },
+            {
+              "offset": 92,
+              "before": 215,
+              "after": 173
+            },
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            },
+            {
+              "offset": 128,
+              "before": 0,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341759457,
+        "completedAt": 1791341759472,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "idle-writer-select",
+      "iteration": 2,
+      "ready": {
+        "type": "ready",
+        "pid": 38036,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": true,
+      "beforeStatus": {
+        "type": "status",
+        "pid": 38036,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "afterStatus": {
+        "type": "status",
+        "pid": 38036,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38562071810856101"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "7e391899b8d4803a00efa5d058bba2a3bb3ebfaf698978c9cc95266e131cf1c9",
+          "dev": "2620686178",
+          "ino": "33776997206774950"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "04242ee7716f91d972d6a2113e641dc5ddf37ccdf9385d104bd146fd7c152895",
+          "dev": "2620686178",
+          "ino": "28710447625983144",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c418e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c4000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c418e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c4",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38562071810856101"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "7e391899b8d4803a00efa5d058bba2a3bb3ebfaf698978c9cc95266e131cf1c9",
+          "dev": "2620686178",
+          "ino": "33776997206774950"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "04242ee7716f91d972d6a2113e641dc5ddf37ccdf9385d104bd146fd7c152895",
+          "dev": "2620686178",
+          "ino": "28710447625983144",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c418e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c4000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c418e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c4",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38562071810856101"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "7e391899b8d4803a00efa5d058bba2a3bb3ebfaf698978c9cc95266e131cf1c9",
+          "dev": "2620686178",
+          "ino": "33776997206774950"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "f6e31e7e857d3e3cb91391711346c0a7f6db69d4b227a93b0871a5f453976a79",
+          "dev": "2620686178",
+          "ino": "28710447625983144",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c418e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c4000000000000000003000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c418e22d0000000000020000000100001003000000020000005f4c61412390266298f764ddd3f0e484e02766484f8196c4",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 1,
+          "changedBytes": [
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": null,
+      "action": {
+        "rows": [
+          {
+            "id": 1,
+            "value": "synthetic-one"
+          },
+          {
+            "id": 2,
+            "value": "synthetic-two"
+          }
+        ],
+        "selectCalls": 1,
+        "pid": 46092
+      }
+    },
+    {
+      "scenario": "idle-writer-capture",
+      "iteration": 3,
+      "ready": {
+        "type": "ready",
+        "pid": 41464,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": true,
+      "beforeStatus": {
+        "type": "status",
+        "pid": 41464,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "afterStatus": {
+        "type": "status",
+        "pid": 41464,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38843546787566757"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "42b378f852a4b3469b5473a848d78f5789a3e103a82def3acabb30fe9c4057e4",
+          "dev": "2620686178",
+          "ino": "34339947160196262"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "4b1b4f412451b441ae392c2bf5e7c3e9cf9af89d87cbae1ed6c399ff6ccefe74",
+          "dev": "2620686178",
+          "ino": "28991922602693800",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a099518e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a0995000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a099518e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a0995",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38843546787566757"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "42b378f852a4b3469b5473a848d78f5789a3e103a82def3acabb30fe9c4057e4",
+          "dev": "2620686178",
+          "ino": "34339947160196262"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "4b1b4f412451b441ae392c2bf5e7c3e9cf9af89d87cbae1ed6c399ff6ccefe74",
+          "dev": "2620686178",
+          "ino": "28991922602693800",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a099518e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a0995000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a099518e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a0995",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "38843546787566757"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "42b378f852a4b3469b5473a848d78f5789a3e103a82def3acabb30fe9c4057e4",
+          "dev": "2620686178",
+          "ino": "34339947160196262"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "1e888104de385315188130da3c8c54d97c6b1d64791c3a05f2e28e09d789c4db",
+          "dev": "2620686178",
+          "ino": "28991922602693800",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a099518e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a0995000000000000000003000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a099518e22d000000000002000000010000100300000002000000cedfe224c632f2f62387b1a3ff4aefbaec80816a996a0995",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 1,
+          "changedBytes": [
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341759777,
+        "completedAt": 1791341759792,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "closed-writer-capture",
+      "iteration": 3,
+      "ready": {
+        "type": "ready",
+        "pid": 49508,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": false,
+      "beforeStatus": null,
+      "afterStatus": null,
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "39125021764277413"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "713e1395b41c3f4b5a99e83f9e075376da5fd3a7a171d6178b88e26439750d90",
+          "dev": "2620686178",
+          "ino": "34902897113617574"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "c2f1c858b7aab34adb57a25dba615a735d6d7c9af1cbec98d2d7f1b4bb5f1c74",
+          "dev": "2620686178",
+          "ino": "29273397579404456",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000400fc47ac35e6a01059008b87e3ad8c7af1413354a49ddcc18e22d000000000002000000010000100300000002000000400fc47ac35e6a01059008b87e3ad8c7af1413354a49ddcc000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000400fc47ac35e6a01059008b87e3ad8c7af1413354a49ddcc18e22d000000000002000000010000100300000002000000400fc47ac35e6a01059008b87e3ad8c7af1413354a49ddcc",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 8192,
+          "sha256": "fdf8b7356f001a59ee5915571519593e593c5997c140df527874786a89d21f78",
+          "dev": "2620686178",
+          "ino": "39125021764277413"
+        },
+        "wal": {
+          "exists": false
+        },
+        "shm": {
+          "exists": false
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 8192,
+          "sha256": "fdf8b7356f001a59ee5915571519593e593c5997c140df527874786a89d21f78",
+          "dev": "2620686178",
+          "ino": "39125021764277413"
+        },
+        "wal": {
+          "exists": true,
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "dev": "2620686178",
+          "ino": "35184372090328230"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+          "dev": "2620686178",
+          "ino": "29554872556115112",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db0918e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db090000000000000000ffffffffffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db0918e22d00000000000000000001000000000000000000000000000000000000000000000000000000380718063593db09",
+          "mxFrame": 0,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            4294967295,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": true,
+          "identityChanged": null,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": true,
+          "identityChanged": null,
+          "bytesChanged": 0,
+          "changedBytes": []
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341759908,
+        "completedAt": 1791341759926,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "killed-writer-capture",
+      "iteration": 3,
+      "ready": {
+        "type": "ready",
+        "pid": 51784,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": false,
+      "beforeStatus": null,
+      "afterStatus": null,
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "39406496740988069"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "3d87963f0a175ce66747af09287c6d09b39211d41e9c61488ab3a175c6d8de60",
+          "dev": "2620686178",
+          "ino": "35747322043749542"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "d462af06cd8944551abf3c82fcd136e76b9830fcda175b7dce2d02b1db1f4891",
+          "dev": "2620686178",
+          "ino": "29836347532825768",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce55faf211d40b655d18e22d000000000002000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce55faf211d40b655d000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce55faf211d40b655d18e22d000000000002000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce55faf211d40b655d",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "39406496740988069"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "3d87963f0a175ce66747af09287c6d09b39211d41e9c61488ab3a175c6d8de60",
+          "dev": "2620686178",
+          "ino": "35747322043749542"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "d462af06cd8944551abf3c82fcd136e76b9830fcda175b7dce2d02b1db1f4891",
+          "dev": "2620686178",
+          "ino": "29836347532825768",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce55faf211d40b655d18e22d000000000002000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce55faf211d40b655d000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce55faf211d40b655d18e22d000000000002000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce55faf211d40b655d",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "39406496740988069"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "3d87963f0a175ce66747af09287c6d09b39211d41e9c61488ab3a175c6d8de60",
+          "dev": "2620686178",
+          "ino": "35747322043749542"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "ca8b170a25e9cf986c6f25917300424737220b735811949f8db6f7b953773822",
+          "dev": "2620686178",
+          "ino": "29836347532825768",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000000000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce3bfaf211aa0b655d18e22d000000000000000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce3bfaf211aa0b655d000000000000000003000000ffffffffffffffffffffffff00000000000000000300000000000000",
+          "headerHex": "18e22d000000000000000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce3bfaf211aa0b655d18e22d000000000000000000010000100300000002000000780ee5e591ee3d436de7d27c5c888bce3bfaf211aa0b655d",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 3
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 8,
+          "changedBytes": [
+            {
+              "offset": 8,
+              "before": 2,
+              "after": 0
+            },
+            {
+              "offset": 40,
+              "before": 85,
+              "after": 59
+            },
+            {
+              "offset": 44,
+              "before": 212,
+              "after": 170
+            },
+            {
+              "offset": 56,
+              "before": 2,
+              "after": 0
+            },
+            {
+              "offset": 88,
+              "before": 85,
+              "after": 59
+            },
+            {
+              "offset": 92,
+              "before": 212,
+              "after": 170
+            },
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            },
+            {
+              "offset": 128,
+              "before": 0,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": true,
+      "action": {
+        "startedAt": 1791341760048,
+        "completedAt": 1791341760076,
+        "sha256": "46b2830500a7c26543b38a9c31b5b433d1eb942db28202a45a5744a92b30b66c"
+      }
+    },
+    {
+      "scenario": "idle-writer-select",
+      "iteration": 3,
+      "ready": {
+        "type": "ready",
+        "pid": 52652,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "writerAliveAfter": true,
+      "beforeStatus": {
+        "type": "status",
+        "pid": 52652,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "afterStatus": {
+        "type": "status",
+        "pid": 52652,
+        "sealed": true,
+        "sqlCalls": 3,
+        "sqlCallsAfterReady": 0,
+        "backgroundSql": false
+      },
+      "readySnapshot": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "39687971717698725"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "2fc12a62c28208cdd10b7650e3483ae0a9c245337e4023f4039739a9c276bbdc",
+          "dev": "2620686178",
+          "ino": "36310271997170854"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "c152b17a4eb9f468089719e26fef6030c5394b5557001d0e603d81d965bb3c6d",
+          "dev": "2620686178",
+          "ino": "30117822509536424",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "before": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "39687971717698725"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "2fc12a62c28208cdd10b7650e3483ae0a9c245337e4023f4039739a9c276bbdc",
+          "dev": "2620686178",
+          "ino": "36310271997170854"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "c152b17a4eb9f468089719e26fef6030c5394b5557001d0e603d81d965bb3c6d",
+          "dev": "2620686178",
+          "ino": "30117822509536424",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a000000000000000002000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            2,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "after": {
+        "db": {
+          "exists": true,
+          "size": 4096,
+          "sha256": "2fb9e76bc8b8bb820a77e21342abe7b079f687749503315e13c0cf95106675e0",
+          "dev": "2620686178",
+          "ino": "39687971717698725"
+        },
+        "wal": {
+          "exists": true,
+          "size": 12392,
+          "sha256": "2fc12a62c28208cdd10b7650e3483ae0a9c245337e4023f4039739a9c276bbdc",
+          "dev": "2620686178",
+          "ino": "36310271997170854"
+        },
+        "shm": {
+          "exists": true,
+          "size": 32768,
+          "sha256": "130e0ca861250fae24b9bf93d5304803f636b3b2d73ef7fecb6d890428f9b2b1",
+          "dev": "2620686178",
+          "ino": "30117822509536424",
+          "nativeEndian": "LE",
+          "prefix136Hex": "18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a000000000000000003000000ffffffffffffffffffffffff00000000000000000000000000000000",
+          "headerHex": "18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a18e22d000000000002000000010000100300000002000000a54825077a07914d6e8c07d38096aacc992cfbb4529f1f2a",
+          "mxFrame": 3,
+          "nBackfill": 0,
+          "aReadMark": [
+            0,
+            3,
+            4294967295,
+            4294967295,
+            4294967295
+          ],
+          "lockRegionHex": "0000000000000000",
+          "nBackfillAttempted": 0
+        }
+      },
+      "diff": {
+        "db": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "wal": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 0,
+          "changedBytes": []
+        },
+        "shm": {
+          "existenceChanged": false,
+          "identityChanged": false,
+          "bytesChanged": 1,
+          "changedBytes": [
+            {
+              "offset": 104,
+              "before": 2,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "copyCorrect": null,
+      "action": {
+        "rows": [
+          {
+            "id": 1,
+            "value": "synthetic-one"
+          },
+          {
+            "id": 2,
+            "value": "synthetic-two"
+          }
+        ],
+        "selectCalls": 1,
+        "pid": 12044
+      }
+    }
+  ]
+}
