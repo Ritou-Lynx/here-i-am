@@ -118,7 +118,10 @@ jobs:
           tools/i_core/release_schema6/*.test.mjs
           tools/i_core/release_schema6/lifecycle/*.test.mjs
       - name: Planner capture monitor
-        run: node --test tools/life_planner/capture_sync.test.mjs
+        run: >-
+          node --test tools/life_planner/capture_sync.test.mjs
+          tools/life_planner/trusted_status_bridge.test.mjs
+          tools/life_planner/dot_inbox_bridge.test.mjs
       - name: chatgpt_android_bridge
         working-directory: tools/chatgpt_android_bridge
         run: node --test $(find . -name '*.test.mjs' | sort)

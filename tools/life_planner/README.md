@@ -24,6 +24,10 @@ Here I Am / 受信入口
 | `PLANNER_AGENTS.md` | Codex 的分诊、配额、队列、重排和 MCP 写入规则 |
 | `capture_sync.mjs` | captures feed 监视器，默认未启用 |
 | `capture_sync.test.mjs` | 假 Core 与假 Codex 进程的离线专项测试 |
+| `trusted_status_bridge.mjs` | 已由受信本机 UI 完整签名的计划状态 intent 转交库；不监听 inbox、不签字 |
+| `trusted_status_bridge.test.mjs` | 真实合成 DomainStore、手机 UI proof 与故障恢复测试 |
+| `dot_inbox_bridge.mjs` | 严格解析调用方提供的 dot 回执并形成待批准 capture proposal；只转交另行签好的完整 dot intent |
+| `dot_inbox_bridge.test.mjs` | dot proposal、独立合成签名、真实 DomainStore 与既有 phone proof 拒绝测试 |
 | `DOT_PLAN_RULES.md` | dot 过单、记事、收工的交互规则 |
 | `areas.md` | 首次建立 Core 周记录时使用的模板，不是权威存储 |
 
@@ -107,12 +111,54 @@ D:\Nodejs\node.exe tools/life_planner/capture_sync.mjs --config C:\path\capture-
 
 加 `--once` 只执行一轮，适合人工点验；本轮进入 retry / backoff / rebind_required / reap_required 时返回非零退出码。
 
+## dot 状态回执的受信转交（默认未接线）
+
+`trusted_status_bridge.mjs` 是惰性库，不读取 `inbox/`、不启动服务、不查找凭据，也不提供生产 CLI。调用方只能在受控组合层用 `createTrustedPlanCoreTransport` 注入三项操作：读取当前 capture、按 op id 查询计划操作、提交原样计划操作；回执 JSON 不能选择 transport、URL、令牌或 principal。`getOperation` 只能把已认证 Core 的明确 `op_not_found` 映射为 `not_found`；401/403、不可见、协议错误和网络未知必须抛错并保留待处置。
+
+桥接 envelope 必须严格包含：
+
+```text
+{
+  schema_version: 1,
+  transfer_id: <与 intent.op_id 相同>,
+  source: { capture_id, capture_revision },
+  binding: { core_instance_id, principal_id, credential_generation, installation_id },
+  intent: <完整 plan_items/status user_direct intent，含原样 uia1 authorization_ref>
+}
+```
+
+桥只接受 `patch={status:"完成"|"放弃"}`，核当前 binding 和当前可见 capture revision，再把冻结的完整 intent 原样交给 Core。它不验证或签发 `uia1`；签名真实性、计划目标 revision、scope 和 actor 始终由 Core 校验。capture 的授权、文字、ID 或 revision 都不能转换成计划状态授权。没有完整 proof 时只生成 `pending_decisions` 的三字段建议，事项保持原状态。
+
+每个 op 使用两个 exclusive-create 文件记录 prepared digest 与成功 receipt，跨进程不做无锁覆盖。同 op 只能绑定同一 envelope/capture revision；提交未知或进程崩溃后先查询同 op，不能换 op、改 ref 或重签。即使 intent 已过期，只要 Core 已接受，仍可按同 op 查询恢复；Core 没有成功 receipt 时保持待处置。已完成的本机 receipt 每次也要与当前 Core 查询结果核对，不单独作为权威。只有 receipt 的 `accepted_op_id` 等于转交 op 才完成；新 op 的语义 no-op 若绑定历史 receipt 会保守拒绝，不伪造新接受。capture 不可见、读取错误、revision/binding 改变都 fail closed，不推断删除。
+
+独立测试：
+
+```powershell
+D:\Nodejs\node.exe --check tools/life_planner/trusted_status_bridge.mjs
+D:\Nodejs\node.exe --test tools/life_planner/trusted_status_bridge.test.mjs
+```
+
+## dot inbox 到 capture 的严格提案边界（默认未接线）
+
+`dot_inbox_bridge.mjs` 不扫描或读取真实 `inbox/`。调用方只能把已取得的文件名和完整文本显式传给 `createDotInboxProposal`。解析器要求文件名、标题时间和 `DOT_PLAN_RULES.md` 规定的六个章节严格一致，保留完整文本且拒绝超过 Core capture `text` 上限的输入；它不截断内容。输出始终是 `approval_required`，capture 的 `source` 固定为 Core 已声明的 `dot`，唯一 `source_ref` 是由完整回执摘要生成的 proposal id。它不会把 dot 冒充成 `phone_quick` 或 `claude_web`，也不会生成 op、授权或 Core receipt。
+
+`DotInboxCaptureBridge` 只接受另一个受信 UI 已完整签好的 `captures/create`、`actor=user_direct` intent。intent 的 data、provenance、proposal id、当前 Core/principal/credential generation/installation binding 必须逐字段等于冻结 proposal；桥自身不签名，也不把 proposal 当批准。提交和恢复只经 `createTrustedDotCoreTransport` 注入的受信 Core transport，并使用与状态桥相同的 immutable exclusive-create ledger。未知提交结果只能按原 op 查询；没有同 op 的有效 Core receipt 就保持待处置。
+
+当前没有 production dot signer。现有手机 `uia1` verifier 只批准 `phone_quick`，网页授权只批准既有网页来源；两者都不能给 `source=dot` 的 intent 背书。生产接线仍需 owner 明确选择 dot principal/grant/确认 UI，并由 Core 信任配置完成验签。这里没有文件 watcher、服务、CLI、真实凭据读取或自动提交。
+
+独立测试：
+
+```powershell
+D:\Nodejs\node.exe --check tools/life_planner/dot_inbox_bridge.mjs
+D:\Nodejs\node.exe --test tools/life_planner/dot_inbox_bridge.test.mjs
+```
+
 ## 已知限制
 
 陈旧锁若仍登记 `child_pid`，即使该直接进程已退出也不会自动接管，因为这不能证明后代进程退出。须按受控流程核对后再处理；不要把删除锁文件当作正常重试。
 
-- 捕获表达“完成/放弃”时，`plan_set_status` 需要受信入口签发的 `authorization_ref`。当前 `capture_list` 不返回可转交引用；在共享接口补齐前，规划助手只能把该动作写进 `plan_days.pending_decisions`，不能伪造授权或静默改状态。
-- `today.md` 仍是 dot 的兼容投影。dot 回执若继续写本机 `inbox/`，必须由另一个受信桥接层先提交为 Core capture；本规划助手不会把本机文件直接提升为权威输入。
+- 捕获表达“完成/放弃”时，`plan_set_status` 需要受信入口对完整计划 status intent 签发的 `authorization_ref`。普通 capture 和网页 capture 授权都不可转交；没有 owner 签发的手机 UI `uia1` proof 时，规划助手只能写 `plan_days.pending_decisions`，不能伪造授权或静默改状态。
+- `today.md` 仍是 dot 的兼容投影。dot 回执若继续写本机 `inbox/`，必须由部署者提供受信 reader、确认 UI 和生产 signer，再经严格 proposal/transfer 库提交为 Core capture；本规划助手不会把本机文件直接提升为权威输入。
 - 锁恢复 guard 若因监视器在恢复中再次异常退出而残留，新实例会保守拒绝启动。部署者必须先核对监视器与记录的 Codex 子进程均不在，再按受控运维步骤处理 guard；源码不自动删除无法证明安全的 guard。
 - `codex_tree_reap_unverified` 同时保存在 state 和实例锁中。部署者必须用 Windows 进程工具核对记录的 Codex PID 及其后代均已退出，再按受控运维步骤归档阻断锁并显式重建监视器 state；不能只因父 PID 已消失就自动恢复。Unix/macOS 上的直接子进程终止仅供合成测试，不能作为生产进程树回收保证。
 - P3 依赖 W2/W3 已提供的领域与 scoped planner MCP。P1 的上线、运行和验收不依赖本目录，也不应因 P3 未启用而改变。
