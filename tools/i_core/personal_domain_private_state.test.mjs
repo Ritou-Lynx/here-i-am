@@ -12,6 +12,9 @@ function directory(t, prefix) {
 }
 
 function syntheticDpapi(_command, _args, options) {
+  assert.equal(options.env.PSModulePath,
+    path.join(options.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'Modules'));
+  assert.equal(Object.keys(options.env).filter(key => key.toUpperCase() === 'PSMODULEPATH').length, 1);
   const entropy = Buffer.from(options.env.I_CORE_PERSONAL_STATE_ENTROPY, 'base64');
   const output = Buffer.alloc(options.input.length);
   for (let index = 0; index < options.input.length; index++) {
@@ -24,6 +27,7 @@ test('private owner state writes bound ciphertext and its exclusive lock rejects
   const root = directory(t, 'personal-domain-private-state-'), statePath = path.join(root, 'owner.dpapi.json');
   const make = coreInstanceId => createWindowsDpapiPersonalDomainStateAdapter({ statePath, coreInstanceId,
     platform: 'win32', powershellPath: process.execPath, spawnProvider: syntheticDpapi,
+    environment: { SystemRoot: root, PSModulePath: 'poisoned', psmodulepath: 'also-poisoned' },
     clock: () => Date.parse('2026-10-07T08:00:00.000Z') });
   const first = { version: 1, phone_grants: [{ principal_id: 'phone', secret: 'PRIVATE-FIRST' }],
     adoption_manifests: [] };

@@ -285,12 +285,16 @@ test('owner export rejects a publish race without deleting the competing file', 
   const root = mkdtempSync(path.join(tmpdir(), 'personal-owner-output-race-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const output = path.join(root, 'access.json'), competing = '{"owned_by":"other"}\n';
-  const spawnProvider = () => {
+  const spawnProvider = (_command, _args, options) => {
+    assert.equal(options.env.PSModulePath,
+      path.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'Modules'));
+    assert.equal(Object.keys(options.env).filter(key => key.toUpperCase() === 'PSMODULEPATH').length, 1);
     writeFileSync(output, competing);
     return { status: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
   };
   assert.throws(() => writeProtectedOwnerJson(output, { secret: 'MUST-NOT-REPLACE' }, {
     platform: 'win32', powershellPath: process.execPath, spawnProvider,
+    environment: { SystemRoot: root, PSModulePath: 'poisoned', psmodulepath: 'also-poisoned' },
   }), { code: 'protected_owner_output_rejected' });
   assert.equal(readFileSync(output, 'utf8'), competing);
 });
