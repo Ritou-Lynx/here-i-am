@@ -14,7 +14,7 @@ description: 用户说“用接力做…”“交给 Codex 执行”“接力冒
 3. 开 **draft** PR，base `v3-lab`。描述按 `.github/PULL_REQUEST_TEMPLATE.md` 的标题填写，并在最前面放 `<!-- relay:contract v1 -->` 合同块。加标签 `agent-relay`。
 4. `subscribe_pr_activity` 订阅该 PR。
 5. 发第 1 轮 `<!-- relay:to-codex round=1 -->` 评论：把合同拆成具体步骤，写清本轮验证命令。
-6. 告诉用户 PR 链接，说明之后会在 GitHub 通知里见。
+6. 告诉用户 PR 链接。用户收不到 GitHub 通知（评论都以用户本人账号发出），需要用户处理的提醒由 watcher 推到微信：只在 `relay:done`、`relay:to-human` 和执行失败时推送，所以这三类评论的第一句话要能单独看懂。
 
 **接力冒烟**：合同为“新建 `tools/agent_relay/SMOKE.md`，一行内容 `relay smoke ok <日期>`”，验证命令 `git status --short`（Codex 不提交，改动留在工作区）。PR 只为冒烟而开时，走通后在 [done] 里请用户关闭；PR 还带着其他改动时按正常 PR 收尾。
 
