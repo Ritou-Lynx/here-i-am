@@ -1,8 +1,8 @@
 # Hub Go-Live Core runtime change inventory
 
-Date: 2026-10-07  
-Earlier review baseline: `b19cd3dd4ac74b8f3a2c2d973e4d42b724b998f7`  
-Comparison base: `0a24cac2b7db812f34fb845325e27b77d16139dd`  
+Date: 2026-10-07
+Earlier review baseline: `b19cd3dd4ac74b8f3a2c2d973e4d42b724b998f7`
+Comparison base: `0a24cac2b7db812f34fb845325e27b77d16139dd`
 Branch: `codex/hub-golive-src-20261007`
 
 ## Status and evidence boundary

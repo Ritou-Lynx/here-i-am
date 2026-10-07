@@ -184,4 +184,3 @@ export function grantConfiguredWebPrincipal({ runtime, principalId } = {}) {
     device_id: configured.origin_device_id, token: issued.token, scopes: [...WEB_DOMAIN_SCOPES],
     actors: [...WEB_DOMAIN_ACTORS] } };
 }
-

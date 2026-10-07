@@ -56,4 +56,3 @@ test('real Windows CurrentUser DPAPI round trips owner state without plaintext o
     coreInstanceId: 'core-dpapi-real' }).load(), state);
   assert.equal(readFileSync(statePath, 'utf8').includes('PRIVATE-REAL-DPAPI'), false);
 });
-

@@ -345,4 +345,3 @@ test('formal server entry starts schema 6 with the default Windows DPAPI adapter
   }
   assert.equal(existsSync(`${f.statePath}.lock`), false);
 });
-
