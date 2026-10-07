@@ -11,7 +11,7 @@ test('maintenance windows: real exclusive handles, fresh IDs and append-only leg
  const result=spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',fixture,'-ModulePath',modulePath],{windowsHide:true,encoding:'utf8',timeout:25000});
  assert.equal(result.error,undefined);assert.equal(result.status,0,result.stderr);
  const report=JSON.parse(result.stdout.trim());
- for(const field of ['passed','parallelRejected','sameWindowRejected','freshWindowAccepted','oldBytesPreserved','guardBytesPreserved','interruptedWindowRejected','traversalRejected','stageGuardRejected','hardlinkGuardRejected'])assert.equal(report[field],true,field);
+ for(const field of ['passed','parallelRejected','sameWindowRejected','freshWindowAccepted','oldBytesPreserved','guardBytesPreserved','interruptedWindowRejected','traversalRejected','stageGuardRejected','hardlinkGuardRejected','formalAclConsumerPassed','existingAclsPreserved','nonemptyProtectionRejected'])assert.equal(report[field],true,field);
 });
 test('production freeze entry contains no callback, test flag or private deployment constants',()=>{
  const entry=readFileSync(new URL('../maintenance/enter-maintenance-window.ps1',import.meta.url),'utf8');

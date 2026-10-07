@@ -6,6 +6,25 @@ function Assert-MaintenancePlainDirectory([string]$Path) {
   if(-not $item.PSIsContainer -or ($item.Attributes-band [IO.FileAttributes]::ReparsePoint)){throw 'window_path_not_plain'}
  }
 }
+function Protect-NewMaintenanceWindow([string]$Path) {
+ # Only this just-created EMPTY window is initialized. Existing roots, windows,
+ # locks and receipts are never changed; reserve a failed ID rather than reuse it.
+ Assert-MaintenancePlainDirectory $Path
+ if(@(Get-ChildItem -LiteralPath $Path -Force).Count-ne 0){throw 'new_empty_window_required'}
+ $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
+ if((Get-Acl -LiteralPath $Path).GetOwner([Security.Principal.SecurityIdentifier]).Value-cne $sid.Value){throw 'new_window_owner_mismatch'}
+ $acl=New-Object Security.AccessControl.DirectorySecurity
+ $acl.SetOwner($sid);$acl.SetAccessRuleProtection($true,$false)
+ foreach($id in @($sid,[Security.Principal.SecurityIdentifier]::new('S-1-5-18'),[Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))){
+  $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($id,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))
+ }
+ Set-Acl -LiteralPath $Path -AclObject $acl
+ $actual=Get-Acl -LiteralPath $Path
+ if(!$actual.AreAccessRulesProtected-or $actual.GetOwner([Security.Principal.SecurityIdentifier]).Value-cne $sid.Value){throw 'new_window_private_acl_required'}
+ foreach($rule in $actual.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])){
+  if($rule.AccessControlType-eq 'Allow'-and $rule.IdentityReference.Value-cnotin @($sid.Value,'S-1-5-18','S-1-5-32-544')){throw 'new_window_private_acl_required'}
+ }
+}
 function Acquire-MaintenanceGuard([string]$MaintenanceRoot) {
  Assert-MaintenancePlainDirectory $MaintenanceRoot
  $guardPath=Join-Path $MaintenanceRoot 'active-window.guard'
@@ -41,6 +60,7 @@ function Open-MaintenanceWindow {
   $directory=Join-Path $windows $WindowId
   if(Test-Path -LiteralPath $directory){throw 'window_id_already_used'}
   $null=[IO.Directory]::CreateDirectory($directory);Assert-MaintenancePlainDirectory $directory
+  Protect-NewMaintenanceWindow $directory
   $entry=[IO.File]::Open((Join-Path $directory 'entry.lock'),[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
   $bytes=[Text.UTF8Encoding]::new($false).GetBytes($WindowId+"`n")
   $entry.Write($bytes,0,$bytes.Length);$entry.Flush($true)
