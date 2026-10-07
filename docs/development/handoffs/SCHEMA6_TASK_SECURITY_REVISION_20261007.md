@@ -49,3 +49,26 @@ Hosted Windows原有真实COM夹具维持一次nonce绑定CREATE→readback→de
 最终专项15项14通过/0失败/1本机未执行；唯一未执行为已用完额度的真实任务注册，Hosted必跑。内存权限69项内部断言通过。主窗完整合成回归继续，精确结果和CI以新PR最终验证段/Checks登记；此前旧head绿色不能替代。原有收紧后的新增源码已被主窗diff复核；独审除已修FILE_EXECUTE问题外未发现绑定放宽。
 
 approval包明确productionApproved=false/registrationAllowed=false、fixedPrepareExecuted=false；没有伪造freeze/ACL成功回执。现场实际Prepare必须在ACL放行后逐字等于此最终XML才继续。本人仍须批准最终完整XML/两份SDDL及父hash/零外SID披露；新PR合并还需明确授权。本轮交付后暂停，A没有进入现场，B独立源码不受影响。
+
+## CI 单项关闭失败的合成诊断与测试修正
+
+精确head eb59f700：push CI 37585920431 全7job通过，Windows整组278/278通过、0未执行；PR CI 37585988946 仅Windows整组失败，278项中277通过。失败用例为125秒存活后的认证幂等关闭，child回执reason=control_failed/error_code=runtime_operation_failed。该脱敏回执不能反推出那次系统errno，不能断言历史失败唯一原因或用重跑覆盖。
+
+主窗本机整组实际退出0：278项、276通过、0失败、2未执行（真实COM注册和privileged-owner opt-in，Hosted已各实跑）。独立合成诊断使用Node24.14.1/libuv1.51.0/PS5.1，调用真实plainPath+readFileSync，跨worker每组4000次：
+
+| 操作 | controlFailures（不在现有忽略范围） |
+|---|---:|
+| unlink后重建 | 149：realpath EPERM 114、EBADF 19；open EPERM 16 |
+| unlink后rename | 255：realpath EPERM 201、EBADF 32；open EPERM 22 |
+| 只向新目标publish，不删除已发布文件 | 0（405次input_missing_or_aliased仍按原协议忽略） |
+| 稳定文件并发读 | 0 |
+
+各组writer错误0。持普通读、Read|Delete及rename DELETE句柄的确定性对照中，exists/lstat/realpath/read/plainPath/productionRead六阶段全通过；此前“仅持句柄使Node读取失败”的猜想被实测否定，不据此修改生产。
+
+生产request_stop只发布新目标或验证既有相同MAC，从不删除已发布请求。旧测试自行删除伪造close、马上再发布close，增加了生产协议不执行的live控制文件删除交错；上述诊断能重复触发原control_failed入口。纯测试修正保留伪造stop原字节、不删除，先断言健康200及child结束回执不存在，再连续两次真实request_stop发布合法close；完整cleanReceipt、child.reason=close_requested、伪造stop仍为forged、关闭后不可达、全125秒存活及新control重启/消息保留全部保留。失败清理优先合法close，避免伪造stop妨碍测试自己的清理。没有跳过断言、容忍失败、增加生产重试或放宽plainPath/strictClosedPath。
+
+该修正仅lifecycle.test.mjs和test-fixture.mjs，二者都不在47项库存。新固定候选仍使用c9662439；最终head与候选的46份Git源码逐字及Node摘要/大小再次比对后绑定，XML/SDDL外锚不改。修正后的聚焦实测与最终精确head所有CI结果登记在PR18 Validation，未全绿前不交进场批准。
+
+可复核诊断源为 tools/i_core/test_fixtures/release_schema6/probe_control_path_churn.mjs（默认1000、上限5000，手动运行，不把调度相关的异常数量当CI通过断言）。主窗复跑4000次/组：unlink-recreate 113、unlink-rename 110个controlFailures；publish-only/stable-read均0，各writer错误0、预算均未超时。匿名原始报告保留在忽略的build/ci/control-path-churn-review.json，SHA256 e24d71a3556a6a38404f9b825c488b2f850df739c445a07d9d52ef7549759766。前表worker首轮报告只在工具输出，无落盘原件，不以此新文件冒充旧证据。计数不同是调度差异，两轮都只在live删除交错产生非忽略异常。
+
+修正后的原125秒用例主窗聚焦实跑1/1通过、0未执行、真实退出0；continuous_loopback_ms=125013，总216589ms，完整认证关闭与重启断言通过，Job-empty后合成根已清理。最终全套CI以随后推送head的PR18 Checks为准，当前不提前登记全绿。

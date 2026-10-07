@@ -77,7 +77,7 @@ async function createRuntimeLab(t){
 
  const result={root,dir,state,release,lifecycle,configuration,configPath,manifestHash,launch,registerRun:run=>runs.push(run),completed:false};runtimeLabs.push(result);
  t.after(async()=>{
-  for(const run of runs)if(!run.closed){try{run.stop('stop');await run.wait();}catch{run.child.kill();await until(()=>run.closed,20000);}}
+  for(const run of runs)if(!run.closed){try{run.stop(run.cleanupAction??'stop');await run.wait();}catch{run.child.kill();await until(()=>run.closed,20000);}}
   const stopped=runs.every(run=>run.closed && (!run.read('launch.json') || run.read('supervisor.json')?.result?.job_empty_confirmed===true || run.read('guardian.json')?.result?.job_empty_confirmed===true));
   if(result.completed && stopped) {removeOwned(root,'schema6-runtime-');t.diagnostic('synthetic_root_cleaned_after_job_empty');}
   else t.diagnostic('synthetic_artifacts_retained='+root);

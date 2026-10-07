@@ -6,7 +6,9 @@
 - 保留原strict比较、CREATE-only、持柄pin、冻结与ACL门槛；新增独立继承及模板真实AST/COM内存测试。
 - 本机专项14过/0失败/1不执行的真实任务CREATE；69内存断言通过；Hosted单次安全COM往返接入新policy。
 - 新候选c9662439/manifest3b7e210b核47项仅模板变化；精确XML4bc64357/双SDDL审批包准备，外SID只读继承0。
-- 未冻结/停启现役、Apply现役ACL、生产Prepare/注册/替换/head或操作手机；B独立CI继续。
+- 本机整组278项276过0失败2项opt-in未执行，Hosted已实跑；PR单项关闭失败补合成诊断，只修测试live删除竞态。
+- 伪造stop保留、合法close重复和完整回执/125秒/重启断言仍在，47项运行字节不增加变化；最终CI见PR18。
+- 未冻结/停启现役、Apply现役ACL、生产Prepare/注册/替换/head或操作手机；B在PR19继续。
 - 交接：docs/development/handoffs/SCHEMA6_TASK_SECURITY_REVISION_20261007.md。
 ---
 ## 2026-10-07 — 四组本机任务兼容实测闭合，切换仍未放行
