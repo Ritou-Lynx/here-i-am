@@ -1,3 +1,6 @@
+## 2026-10-08 01:40主窗补充：唯一FAIL已按已批方案修复
+精确a8d1源码两轮完整CI及Policy全绿后，daily单文件DACL已改为protected本人/SYSTEM，真实exit0、固定Assert、内容/owner/六锚及父DACL不变均通过。随后130文件本机/T9备份及从T9实际隔离只读还原通过。其余599条原采集结果保持原时点证据，不伪称全部重扫；生产定时下一轮尚未观察。[实际签收](SCHEMA6_R03_FIRST_POSTWRITE_BACKUP_20261008.md)。下方“当前未修”为00:46历史；第7节后续范围仍未实施。
+
 # Schema 6 runtime 路径与 ACL 只读审计（2026-10-08）
 
 审计时点：2026-10-08 00:46:19 +08:00。基线 codex/core-preflight-readonly-20261007 / a1f5f70394e11f23d4f231e3483af2f7057c6b16。
@@ -705,3 +708,12 @@ B违例有两点：自身未protected、存在Admin。它通过login的G，却�
 |597|t9-top-level|本机收据 row-597|Observe|本人|True|SYSTEM:Allow:FullControl:inherited=False; 本人:Allow:FullControl:inherited=False|1|OBSERVED|
 |598|automatic-mirror|$T9\daily|P|本人|True|SYSTEM:Allow:FullControl:inherited=False; 本人:Allow:FullControl:inherited=False|1|PASS|
 |599|t9-top-level|本机收据 row-599|Observe|本人|True|SYSTEM:Allow:FullControl:inherited=False; 本人:Allow:FullControl:inherited=False|1|OBSERVED|
+
+
+## 7. 追加：静态 daily 与首份 manual128 的精确边界（仅源码分析）
+
+固定实现 `automatic_backup.mjs:30–59,100` 逐次克隆批准的 `specTemplate.entries`，仅复制这些显式来源，再派生归档检查用 context/capture-window；它不会因读到了 current-head 而自动发现当前不可变 head、副本的直接前任、floor、recovery event 或 raw archive。因此，将这些文件补进首份 **manual128 独立输入清单**，以及加入主窗取得的任务 XML，只扩充这次手动备份输入；不修改生产 daily 内容、login 绑定或现役47文件。manual128 的实际执行、工件及还原证据由主窗负责，本追加未生产读取或写入。
+
+最小后续单独审批范围是“每次备份安全解析当前恢复链的有界来源解析器”：在既定 recovery-custody 根内稳定读取并认证 current-head，按它的内容哈希选取当前不可变 `<hash>.head.json`；仅当 generation>1 时选其 `previousHeadSha256` 指定的**直接前任**；按 `custodySha256` 选对应 floor（`recovery_adapter.mjs:94–115,377–407`）。限定名称格式、单链接、canonical路径、祖先无reparse、大小和hash/MAC；读前后核对head身份与字节摘要，遇并发变化拒绝该轮或有界重试。不得递归扩展目录或猜测历史链。若明确需要完整事故追溯，再单列批准 floor 中 recoveryEventSha256 所绑定的event及event关联的raw manifest/加密文件范围；event/raw属于恢复历史证据，不能误称普通启动必读链。任务XML也属于备份输入，不授予注册或修改任务权限。实现若改动现役47个固定文件，必须另审新候选及manifest/批准绑定；只补一次静态daily条目不能解决未来head变化后的覆盖问题。
+
+归档实现明确标记 `crossComponentAtomic:false`、`activationAuthority:false` / `activation_supported:false`。能够解密并inspection还原，不能表述为可完整激活新的现役实例；独立恢复链与实际激活仍按其专门契约验证。这是后续日常备份覆盖改进项，**没有由此新增“今晚必须先完成解析器或新候选才能关机”的阻断条件**；今晚判断沿用主窗已授权的备份/真实还原证据与既有关机检查。
