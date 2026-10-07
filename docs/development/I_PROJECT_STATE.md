@@ -2,7 +2,7 @@
 
 ## 任务权限方案已接受，源码/新候选准备（2026-10-07）
 
-本轮改显式Unified=true及input/expected两份任务SDDL、父SD/算法/纯读披露分别锁定，配置/审批v2、准备回执v3。其他主体仅00120089纯读，含执行在内任何非读权限拒绝；严格Compare及冻结/ACL/lease门槛不放宽。固定47项只Prepare模板变化，会话启动器/Core/MCP字节不变，须新包；最终精确XML/SDDL本人批准前不进场，新PR也不自动合并。详见[任务权限修订](handoffs/SCHEMA6_TASK_SECURITY_REVISION_20261007.md)。A保持零停机，B源码已到远端CI/Windows构建，尚未由主窗验收。下文待接受/原候选复用均为前阶段历史。
+本轮改显式Unified=true及input/expected两份任务SDDL、父SD/算法/纯读披露分别锁定，配置/审批v2、准备回执v3。其他主体仅00120089纯读，含执行在内任何非读权限拒绝；严格Compare及冻结/ACL/lease门槛不放宽。固定47项只Prepare模板变化，会话启动器/Core/MCP字节不变，须新包；最终精确XML/SDDL本人批准前不进场，新PR也不自动合并。详见[任务权限修订](handoffs/SCHEMA6_TASK_SECURITY_REVISION_20261007.md)。新固定候选c9662439/manifest3b7e210b逐47项签收，仅模板变化；精确审阅XML4bc64357及两份SDDL已准备，其他只读主体0，仍未批准/注册。A保持零停机，本机专项14过0失败1未执行、69权限断言通过，整组/CI继续；B源码已到远端CI/Windows构建，尚未由主窗验收。下文待接受/原候选复用均为前阶段历史。
 
 ## 本机四组兼容探针已清理，待修订方向审批（2026-10-07）
 

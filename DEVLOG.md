@@ -4,7 +4,8 @@
 - 配置/审批v2、准备回执v3，分别锁input/expected/父SD/算法/只读明细，各入口前后核父SD。
 - 独审将外SID读与执行收紧为00120089纯读，执行/写/删除/改权限与未知位全部拒绝。
 - 保留原strict比较、CREATE-only、持柄pin、冻结与ACL门槛；新增独立继承及模板真实AST/COM内存测试。
-- 本机不新增真实任务CREATE；Hosted原单次安全COM往返接入新policy；本机整组与CI收尾中。
+- 本机专项14过/0失败/1不执行的真实任务CREATE；69内存断言通过；Hosted单次安全COM往返接入新policy。
+- 新候选c9662439/manifest3b7e210b核47项仅模板变化；精确XML4bc64357/双SDDL审批包准备，外SID只读继承0。
 - 未冻结/停启现役、Apply现役ACL、生产Prepare/注册/替换/head或操作手机；B独立CI继续。
 - 交接：docs/development/handoffs/SCHEMA6_TASK_SECURITY_REVISION_20261007.md。
 ---
