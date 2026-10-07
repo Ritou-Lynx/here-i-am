@@ -46,7 +46,9 @@ COM 规范化方式：把已注册 XML 再送入 `NewTask.XmlText`，由同一�
 
 ## 测试与剩余边界
 
-- `node --test tools/i_core/release_schema6/maintenance_register.test.mjs`：5 passed，1 个真实 COM 测试按默认 opt-in 跳过。本机真实 COM 生命周期已单独闭合，不重复创建。
+- `node --test tools/i_core/release_schema6/maintenance_register.test.mjs`：真实COM默认opt-in不重复执行；最终主窗结果见维护源码验收。本机真实 COM 生命周期已单独闭合，不重复创建。
 - 纯验证测试覆盖过期/错误窗口/错误候选、冻结清单缺项、观察期不足、prepared 各锚/字节差异，以及完整 ACL 输入通过、缺逐项 readback/旧候选拒绝。
 - Windows CI 设置 `SCHEMA6_SYNTHETIC_TASK_TEST=1`，每个 ephemeral runner 实际执行一次。可设置 `SCHEMA6_SYNTHETIC_TASK_REPORT`，夹具使用 CreateNew 写不含 SID/真实路径的计数与判据回执。
 - PowerShell 解析通过。最终 CI 结果由主控整合记录。本包未执行真实生产 PrepareOnly，未证明已有批准 XML在当前 Scheduler 上可注册通过；如果实际系统改变显式或默认 false，必须停下重新审阅。
+
+最终独审修正：Register父进程先pin候选manifest外锚，再pin其全部候选文件（路径、hash、size），持有至finally；验证子进程后续按路径加载protected_paths.ps1时字节不可替换。合成夹具提取实际生产pin函数，另一进程改写/替换manifest与候选PS均须sharing violation，释放后可写；hash、size和相对路径错配继续拒绝。没有改固定runtime或放宽生产校验。

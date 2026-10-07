@@ -33,6 +33,20 @@ function Pin-File([string]$P,[string]$Hash,[long]$Size=-1,[switch]$ReceiptWithou
   $h.Position=0;$locks.Add($h)
  }catch{$h.Dispose();throw}
 }
+function Pin-ReleaseInventory([string]$ReleaseDirectory,[string]$ManifestSha256){
+ $manifestPath=Join-Path $ReleaseDirectory 'manifest.json'
+ Pin-File $manifestPath $ManifestSha256
+ $manifest=Get-Content -LiteralPath $manifestPath -Raw|ConvertFrom-Json
+ if($manifest.files -isnot [array] -or $manifest.files.Count-eq 0){throw 'candidate_inventory_rejected'}
+ $seen=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+ foreach($entry in $manifest.files){
+  if($entry.path -isnot [string] -or $entry.path-cnotmatch '^[A-Za-z0-9_./-]+$' -or [IO.Path]::IsPathRooted($entry.path) -or @($entry.path.Split('/')|Where-Object{$_-in @('','.','..')}).Count -or !$seen.Add($entry.path)){throw 'candidate_relative_path_rejected'}
+  if(($entry.bytes -isnot [int] -and $entry.bytes -isnot [long]) -or $entry.bytes-lt 0){throw 'candidate_size_rejected'}
+ }
+ foreach($entry in $manifest.files){
+  Pin-File (Join-Path $ReleaseDirectory $entry.path) $entry.sha256 ([long]$entry.bytes)
+ }
+}
 function Assert-FrozenLive($F,$Folder){
  Assert-PrepareLiveFrozen $config $F $service $locks
 }
@@ -80,6 +94,8 @@ try{
  if(!(Test-Path -LiteralPath (Join-Path $config.maintenanceRoot 'active-window.guard') -PathType Leaf)){throw 'maintenance_guard_missing'}
  $locks.Add((Acquire-MaintenanceGuard $config.maintenanceRoot))
  $node=Join-Path $config.releaseDirectory 'runtime\node.exe';Pin-File $node $config.nodeSha256
+ # Retain the manifest and every candidate file until registration's finally.
+ Pin-ReleaseInventory $config.releaseDirectory $config.candidateManifestSha256
  $gate=Invoke-VerifiedPrepare $node $prepare
  $validated=$gate|ConvertFrom-Json;if($validated.validated-ne $true -or $validated.registered-ne $false -or $validated.started-ne $false){throw 'preparation_validation_rejected'}
  $outputScopeValidated=$true

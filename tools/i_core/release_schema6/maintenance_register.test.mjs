@@ -13,6 +13,8 @@ test('RegisterOnly has no update/start entry and requires proof validation',()=>
  const helper=readFileSync(path.join(root,'tools/i_core/maintenance/register_task_primitives.ps1'),'utf8');
  assert.match(helper,/RegisterTask\(\$Name,\$Xml,2,/);assert.doesNotMatch(source+helper,/\.Run(?:Ex)?\(/);
  assert.match(source,/--validate-registration/);assert.match(helper,/GetSecurityDescriptor\(7\)/);
+ assert.match(source,/Pin-ReleaseInventory \$config\.releaseDirectory \$config\.candidateManifestSha256\s+\$gate=Invoke-VerifiedPrepare/);
+ assert.match(source,/finally\{foreach\(\$h in \$locks\)\{\$h\.Dispose\(\)\}\}/);
 });
 test('real COM: create once, semantic/SDDL readback, existing/difference rejection, bound deletion', {skip:process.platform!=='win32'||process.env.SCHEMA6_SYNTHETIC_TASK_TEST!=='1'},()=>{
  const ps=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
@@ -66,11 +68,11 @@ test('preparation consumes complete ACL evidence and refuses omitted readback or
 });
 
 
-test('Windows registration pins reject empty or malformed source anchors before execution',{skip:process.platform!=='win32'},()=>{
+test('Windows registration pins reject invalid anchors and hold the candidate inventory across processes',{skip:process.platform!=='win32'},()=>{
  const dir=syntheticRoot('maintenance-register-pin-');
  try{
   const ps=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
   const result=JSON.parse(execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'tools/i_core/test_fixtures/release_schema6/maintenance_register_pins.ps1'),'-SourcePath',path.join(root,'tools/i_core/maintenance/register-approved-login.ps1'),'-FixtureParent',dir],{windowsHide:true,encoding:'utf8',timeout:30000}));
-  for(const key of ['passed','emptyAndMalformedRejected','correctHashPinned','wrongHashRejected','receiptExceptionExplicit'])assert.equal(result[key],true);
+  for(const key of ['passed','emptyAndMalformedRejected','correctHashPinned','wrongHashRejected','receiptExceptionExplicit','candidateInventoryPinned','crossProcessWriteRejected','crossProcessReplaceRejected','candidateBytesPreserved','releaseAllowsWrites','candidateHashMismatchRejected','candidateSizeMismatchRejected','candidateShapeRejected'])assert.equal(result[key],true);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

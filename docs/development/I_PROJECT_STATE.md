@@ -4,9 +4,9 @@
 
 用户已通过前轮SHM复现/窄修复和7项CI；本轮继续同分支，把实际会改现役的指定私有维护脚本参数化纳入tools/i_core/maintenance。仅源码与新合成环境，未查询/操作现役、原库、真实任务、隧道或手机。现场配置/快照/正文/凭据未读取或提交，固定runtime47项未改。
 
-新入口enter-maintenance-window.ps1，预留cutover-retry-20261007-r02（未创建现场窗口）；旧锁/回执/guard保留，新ID可进入、同ID拒绝。执行前源/配置持柄pin，v2冻结与全项ACL回执跨阶段绑定；独立Prepare持guard前后核冻结和文件身份，Register仅CREATE并真实COM回读。主窗修复空hash验源、taskPath错配、输出误写journal及错误回执问题；PR16在线例外不扩大到离线SHM/raw/NativeLease/ACL。
+新入口enter-maintenance-window.ps1，预留cutover-retry-20261007-r02（未创建现场窗口）；旧锁/回执/guard保留，新ID可进入、同ID拒绝。执行前源/配置持柄pin，v2冻结与全项ACL回执跨阶段绑定；独立Prepare持guard前后核冻结和文件身份，Register仅CREATE并真实COM回读。主窗修复空hash验源、taskPath错配、输出误写journal及错误回执问题；最终独审补Register候选manifest/全库存持柄至finally，关闭验源后按路径执行时隙，跨进程改写/替换及释放后可写回归补齐；PR16在线例外不扩大到离线SHM/raw/NativeLease/ACL。
 
-本机真实COM只创建一个禁用无触发、零实例合成任务，首次默认设置/SDDL严格拒绝后对同一对象完成回读及删除，最终无遗留，从未运行。Windows CI强制foreign-owner特权及COM往返，本机普通token未执行不当完成。主窗最终108项106过/0失败/2未执行（168.206秒），Windows特殊两项CI必跑；精确远端CI回执见[本轮验收](handoffs/SCHEMA6_MAINTENANCE_SOURCE_ACCEPTANCE_20261007.md)与同PR Checks/正文；前一head绿色不替代本轮。
+本机真实COM只创建一个禁用无触发、零实例合成任务，首次默认设置/SDDL严格拒绝后对同一对象完成回读及删除，最终无遗留，从未运行。Windows CI强制foreign-owner特权及COM往返，本机普通token未执行不当完成。主窗最终108项106过/0失败/2未执行（168.206秒），最终Register持柄修正后主窗重跑维护41项39过/0失败/2未执行（11.530秒），相邻67项源码未变、未重复整组；Windows特殊两项CI必跑；精确远端CI回执见[本轮验收](handoffs/SCHEMA6_MAINTENANCE_SOURCE_ACCEPTANCE_20261007.md)与同PR Checks/正文；前一head绿色不替代本轮。
 
 [现场清单](handoffs/SCHEMA6_CUTOVER_FIELD_CHECKLIST_20261006.md)补新入口、在线判据、ACL后pending库存漂移停止/保全/再审和接管后只向前修。固定Prepare模版省略Unified，本机合成曾注册为true；检查保持严格拒绝，进场前须核批准XML兼容性或审阅必要变更，未执行生产Prepare/注册。主线已合入PR15；本轮只将v3-lab@0a24cac2整合到隔离PR16分支，保留两份冲突文档双方记录，未操作Relay。下方Relay待合并文字保留为历史快照。合并PR16及重新进场仍须分别授权；推送、全部检查绿后暂停。
 

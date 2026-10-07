@@ -4,10 +4,10 @@
 - 新窗口CreateNew锁/回执，旧证据字节保留；独占guard串行化，WindowId统一8–80。
 - 执行前持柄验源；v2冻结证明、全项ACL回执、taskPath及候选/配置外锚完整衔接。
 - 独立Prepare持锁前后核任务/raw身份和内容，最后才发布成功回执；Register仅CREATE并真实COM回读。
-- 主窗修空hash验源绕过、journal误配输出和错误回执边界；未改固定47项runtime或生产门槛。
+- 主窗修空hash验源绕过、journal误配输出/错误回执、Register候选验源后执行时隙；全库存持柄至finally，未改固定47项runtime或生产门槛。
 - 本机真实COM仅一次CREATE、回读、删除，始终禁用/无触发/零实例；首轮默认值差异拒绝如实保留。
 - 首轮108项104过/2夹具失败/2未执行；修ID夹具及PS5.1模块路径后最终108项106过/0失败/2未执行，168.206秒。
-- foreign-owner特权及COM往返设Windows CI必跑，普通本机token未执行不算通过。
+- 最终Register持柄修正后维护41项39过/0失败/2未执行（11.530秒）；foreign-owner与COM设Windows CI必跑，本机未执行不算通过。
 - 清单补本次入口/r02预留ID、PR16在线判据、ACL后pending保全再审与向前修界限。
 - 批准XML的Unified/SDDL兼容性须停服务前核，不因安全合成任务通过宣称生产已注册。
 - 为消解主线PR15的两份文档冲突，将v3-lab@0a24cac2合入隔离分支，两边历史保留；未操作Relay。
