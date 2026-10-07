@@ -106,8 +106,8 @@ node tools/agent_relay/relay_watcher.mjs --loop --config tools/agent_relay/.stat
 
 | 工具 | 实际版本与验证 |
 |---|---|
-| Node（原终端 PATH） | `v24.14.1`，全部 39 项通过 |
-| Node 22（临时官方便携版） | `v22.23.3`，全部 39 项通过；未替换本机 Node |
+| Node（原终端 PATH） | `v24.14.1`，全部 48 项通过 |
+| Node 22（临时官方便携版） | `v22.23.3`，全部 48 项通过；未替换本机 Node |
 | Codex | `codex-cli 0.160.0`，已先运行 `codex exec --help` 对齐参数 |
 | GitHub CLI | `gh 2.102.0 (2026-09-30)`，官方便携包经 SHA-256 校验；原终端 PATH 找不到 gh，本轮仅临时加入进程 PATH 验证，未全局安装 |
 
@@ -123,7 +123,7 @@ codex exec --cd <PR-worktree> --sandbox workspace-write --json --output-last-mes
 
 - 所有进程调用经可注入 `run(cmd, args, opts)`；业务操作只调用 `gh`、`git`、`codex`。为满足 Windows 超时终止整棵进程树，另使用系统清理辅助 `taskkill.exe /PID <本轮子进程PID> /T /F`，也经过同一 `run`，有独立超时，不使用进程名或通配符。清理无法确认时写入 `.state/cleanup-blocked.json`，只允许补送已有通知，阻止新任务；核验进程树已退出后才能人工移除标记。
 - 仅使用已确认仓库的 origin，并核对 fetch/push 目标、既有 worktree 的 Git common-dir、分支和仓库根。创建 worktree 不使用会重置已有分支的 `-B`；已有脏改动或领先提交均保留并报告失败。
-- 推送被拒时只尝试一次普通合并和重推，冲突执行 `merge --abort`；永不 force。Codex 非零退出、缺少最后消息、未提交改动均不推送。
+- 推送被拒时只尝试一次普通合并和重推，冲突执行 `merge --abort`；永不 force。Codex 非零退出或缺少最后消息不推送；成功轮次的工作区改动由 watcher 提交，暂存或提交失败不推送。
 - 接单先保存 `in_progress`。崩溃或通知失败都不重跑同一评论；执行结果先持久化，失败的回帖/反应在下次轮询补送，不把通知故障当作执行失败。网络中断时已发出的评论可能重复投递，执行仍不会重复。
 - `.state/` 已被忽略；配置、原始 JSONL、最后消息、stderr 和结果详情只留本机。公开回帖先对完整内容脱敏，再限制摘要长度和诊断行数，避免截断私钥后漏扫。请勿提交本机日志。
 - 活锁直接退出；旧锁恢复由单独保护文件串行处理。如果恢复时崩溃遗留 `lock.recover`，脚本明确报错；先核验没有 watcher/Codex 在工作，再移除残留恢复文件。不要直接删存活进程的锁。
@@ -136,3 +136,9 @@ codex exec --cd <PR-worktree> --sandbox workspace-write --json --output-last-mes
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/agent_relay/install_relay_task.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/agent_relay/install_relay_task.ps1 -Remove
 ```
+
+### 新提交职责（2026-10-07，8877a50 规格）
+
+Codex 只实现和验证，不提交；最后消息增加 `COMMIT: 一行中文提交信息`。watcher 在确认原分支与起始历史、且 Codex 成功并给出最后消息后，执行 `git add -A`，然后用 COMMIT 内容及 `relay: PR #<n> 第 N 轮` 两段信息提交，设置 `SKIP_PROJECT_STATE=1`。COMMIT 缺失、空白或为“无”时默认 `relay: 第 N 轮`。提交失败返回 failed、附工作区状态且不推送；移除 dirty 结果状态。Codex 已自行提交的兼容路径仍保留。原本就存在的脏工作区继续拒绝执行，避免提交其他人的改动。
+
+48 项离线测试覆盖提交信息与默认值、blocked 的部分改动、暂存/提交 hook 失败、无改动、Codex 自行提交及既有恢复保护。`--once` 的 failed / cleanup-blocked 返回非零，计划任务 action 对程序启动错误也返回非零，输出保存在忽略目录 `.state/logs/task-last.log`，不以注册时的默认 LastTaskResult 当作执行证据。

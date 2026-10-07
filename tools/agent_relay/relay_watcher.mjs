@@ -253,31 +253,47 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         if (result.code !== 0) throw new Error(`Codex 退出码 ${result.code}\n${result.stderr}`);
         try { summary = await readFile(last, 'utf8'); } catch (error) { if (error.code === 'ENOENT') throw new Error('Codex 未输出最后消息'); throw error; }
         if (!summary.trim()) throw new Error('Codex 最后消息为空');
-        const dirty = (await git(['status', '--porcelain'])).trim();
-        if (dirty) { status = 'dirty'; reason = 'Codex 留下未提交改动，不代为提交或推送'; details = await git(['status', '--short']); }
-        else {
-          if ((await git(['branch', '--show-current'])).trim() !== pr.headRefName) throw new Error('Codex 改变了 worktree 分支，拒绝推送');
-          await git(['merge-base', '--is-ancestor', startSha, 'HEAD']);
-          status = /^STATUS: blocked\s*$/m.test(summary.split(/\r?\n/, 1)[0]) ? 'blocked' : 'done';
-          commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
-          if (!Number.isSafeInteger(commitCount) || commitCount < 0) throw new Error('提交计数无效');
-          if (commitCount > 0) {
-            const pushArgs = ['push', 'origin', `HEAD:refs/heads/${pr.headRefName}`];
-            const firstPush = await invoke('git', pushArgs, { cwd: worktree });
-            if (firstPush.code !== 0) {
-              await checked('git', fetchArgs, { cwd: config.repoPath });
-              const merged = await invoke('git', ['merge', '--no-edit', remote], { cwd: worktree });
-              if (merged.code !== 0) {
-                const aborted = await invoke('git', ['merge', '--abort'], { cwd: worktree });
-                throw new Error(`推送被拒且合并冲突\n${merged.stderr || merged.stdout}\n${aborted.code ? 'merge --abort 失败，请人工检查' : '已 merge --abort'}`);
-              }
-              await git(pushArgs);
-            }
+        if ((await git(['branch', '--show-current'])).trim() !== pr.headRefName) throw new Error('Codex 改变了 worktree 分支，拒绝提交或推送');
+        await git(['merge-base', '--is-ancestor', startSha, 'HEAD']);
+        status = /^STATUS: blocked\s*$/.test(summary.split(/\r?\n/, 1)[0]) ? 'blocked' : 'done';
+        const hasChanges = (await git(['status', '--porcelain'])).trim();
+        if (hasChanges) {
+          const proposedMessage = /^COMMIT:[ \t]*([^\r\n]*)/m.exec(summary)?.[1].trim();
+          const commitMessage = proposedMessage && proposedMessage !== '无' ? proposedMessage : `relay: 第 ${round} 轮`;
+          const commitOpts = { cwd: worktree, env: { SKIP_PROJECT_STATE: '1' } };
+          const staged = await invoke('git', ['add', '-A'], commitOpts);
+          const committed = staged.code === 0 && !staged.timedOut
+            ? await invoke('git', ['commit', '-m', commitMessage, '-m', `relay: PR #${pr.number} 第 ${round} 轮`], commitOpts)
+            : staged;
+          if (committed.code !== 0 || committed.timedOut) {
+            details = [committed.stderr, committed.stdout, await git(['status', '--short'])].filter(Boolean).join('\n');
+            throw new Error(`watcher ${staged.code === 0 ? '提交' : '暂存'}失败（退出码 ${committed.code}），不推送`);
           }
-          sha = (await git(['rev-parse', 'HEAD'])).trim().slice(0, 12);
-          commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
-          files = (await git(['diff', '--name-only', `${startSha}..HEAD`])).trim().split(/\r?\n/).filter(Boolean);
+          if ((await git(['status', '--porcelain'])).trim()) {
+            details = await git(['status', '--short']);
+            throw new Error('watcher 提交后仍有未提交改动，不推送');
+          }
+          if ((await git(['branch', '--show-current'])).trim() !== pr.headRefName) throw new Error('提交后 worktree 分支改变，拒绝推送');
+          await git(['merge-base', '--is-ancestor', startSha, 'HEAD']);
         }
+        commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
+        if (!Number.isSafeInteger(commitCount) || commitCount < 0) throw new Error('提交计数无效');
+        if (commitCount > 0) {
+          const pushArgs = ['push', 'origin', `HEAD:refs/heads/${pr.headRefName}`];
+          const firstPush = await invoke('git', pushArgs, { cwd: worktree });
+          if (firstPush.code !== 0) {
+            await checked('git', fetchArgs, { cwd: config.repoPath });
+            const merged = await invoke('git', ['merge', '--no-edit', remote], { cwd: worktree, env: { SKIP_PROJECT_STATE: '1' } });
+            if (merged.code !== 0) {
+              const aborted = await invoke('git', ['merge', '--abort'], { cwd: worktree });
+              throw new Error(`推送被拒且合并冲突\n${merged.stderr || merged.stdout}\n${aborted.code ? 'merge --abort 失败，请人工检查' : '已 merge --abort'}`);
+            }
+            await git(pushArgs);
+          }
+        }
+        sha = (await git(['rev-parse', 'HEAD'])).trim().slice(0, 12);
+        commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
+        files = (await git(['diff', '--name-only', `${startSha}..HEAD`])).trim().split(/\r?\n/).filter(Boolean);
       } catch (error) {
         status = 'failed'; reason = error.message.split(/\r?\n/, 1)[0]; sha = 'none';
         if (!details) details = error.message.split(/\r?\n/).slice(1).join('\n');
@@ -295,7 +311,7 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
   } finally { await release?.(); }
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), { executeOnce = runOnce, log = console.log } = {}) {
   let loop = false, dryRun = false, configFile = path.join(here, '.state', 'config.json');
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--loop') loop = true;
@@ -313,11 +329,13 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const config = validateConfig(input);
   do {
-    await runOnce({ config, stateDir: path.dirname(configFile), dryRun });
+    const result = await executeOnce({ config, stateDir: path.dirname(configFile), dryRun, log });
+    if (!['idle', 'locked', 'dry-run'].includes(result.status)) log(redact(`PR #${result.pr ?? '-'}: ${result.status}${result.reason ? ` - ${result.reason}` : ''}`).text);
+    if (!loop || dryRun) return ['failed', 'cleanup-blocked'].includes(result.status) ? 1 : 0;
     if (loop && !dryRun) await new Promise(resolve => setTimeout(resolve, config.pollSeconds * 1000));
   } while (loop && !dryRun);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  main().catch(error => { console.error(redact(error.message).text); process.exitCode = 1; });
+  main().then(code => { process.exitCode = code; }).catch(error => { console.error(redact(error.message).text); process.exitCode = 1; });
 }

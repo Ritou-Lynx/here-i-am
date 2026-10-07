@@ -32,7 +32,9 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
 $commandDirs = @((Split-Path $NodePath), (Split-Path $GhPath), (Split-Path $CodexPath), (Split-Path (Get-Command git -ErrorAction Stop).Source))
 $taskPath = (($commandDirs + @($env:PATH)) -join ';')
 function Quote-PsLiteral([string]$Value) { return "'" + $Value.Replace("'", "''") + "'" }
-$command = '$env:PATH=' + (Quote-PsLiteral $taskPath) + '; & ' + (Quote-PsLiteral $NodePath) + ' ' + (Quote-PsLiteral $watcher) + ' --once --config ' + (Quote-PsLiteral $ConfigPath) + '; exit $LASTEXITCODE'
+$logDir = Join-Path (Split-Path $ConfigPath) 'logs'
+$logFile = Join-Path $logDir 'task-last.log'
+$command = '$ErrorActionPreference=''Stop''; $relayExit=1; try { $env:PATH=' + (Quote-PsLiteral $taskPath) + '; New-Item -ItemType Directory -Path ' + (Quote-PsLiteral $logDir) + ' -Force | Out-Null; & ' + (Quote-PsLiteral $NodePath) + ' ' + (Quote-PsLiteral $watcher) + ' --once --config ' + (Quote-PsLiteral $ConfigPath) + ' *> ' + (Quote-PsLiteral $logFile) + '; if ($null -eq $LASTEXITCODE) { throw ''Node exit code unavailable'' }; $relayExit=$LASTEXITCODE } catch { $_ | Out-File -LiteralPath ' + (Quote-PsLiteral $logFile) + ' -Append -Encoding utf8; $relayExit=1 }; exit $relayExit'
 $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
 $action = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand $encoded" -WorkingDirectory (Split-Path $watcher)
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 3)

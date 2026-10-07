@@ -3,14 +3,14 @@ import { mkdtemp, mkdir, readFile, writeFile, rm, access } from 'node:fs/promise
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { runOnce } from './relay_watcher.mjs';
+import { main, runOnce } from './relay_watcher.mjs';
 
 const START = 'a'.repeat(40);
 const END = 'b'.repeat(40);
 const NOW = Date.parse('2026-10-07T02:00:00.000Z');
 const template = '# Test template\n---\nPR {{pr_number}} branch {{branch}} round {{round}}\nCONTRACT\n{{contract}}\nINSTRUCTION\n{{instruction}}\n---\n';
 const contract = '<!-- relay:contract v1 -->\nOnly change tools/agent_relay/.';
-const instruction = 'Run the requested tests and commit the scoped change.';
+const instruction = 'Run the requested tests and leave the scoped change for the watcher to commit.';
 const basePr = { number: 71, headRefName: 'claude/relay-test', baseRefName: 'v3-lab', headRefOid: START, isCrossRepository: false, labels: [{ name: 'agent-relay' }] };
 const baseComment = { id: 101, user: { login: 'Ritou-Lynx' }, body: `<!-- relay:to-codex round=1 -->\n${instruction}`, created_at: '2026-10-07T01:00:00Z' };
 
@@ -45,6 +45,10 @@ async function fixture(t, scenario = {}) {
   const posts = [];
   const output = [];
   let executed = false;
+  let dirtyAfter = Boolean(scenario.dirtyAfter);
+  let hasNewCommit = false;
+  let head = START;
+  let staged = false;
   let pushes = 0;
   let commentAttempts = 0;
   const run = async (cmd, args, opts = {}) => {
@@ -75,9 +79,24 @@ async function fixture(t, scenario = {}) {
       if (args[0] === 'show-ref') return { code: 1, stdout: '', stderr: '' };
       if (args[0] === 'worktree' && args[1] === 'add') { await mkdir(worktree, { recursive: true }); return ok(); }
       if (args[0] === 'branch' && args.includes('--show-current')) return ok(`${basePr.headRefName}\n`);
-      if (args[0] === 'rev-parse') return ok(`${args.at(-1).startsWith('origin/') ? START : (executed && scenario.newCommit !== false ? END : START)}\n`);
-      if (args[0] === 'status') return ok(executed ? (scenario.dirtyAfter ? ' M tools/agent_relay/example.mjs\n' : '') : (scenario.dirtyBefore ? ' M local-work.txt\n' : ''));
-      if (args[0] === 'rev-list' && args.includes('--count')) return ok(`${args.some(arg => arg.includes('origin/')) ? (scenario.ahead ? 1 : 0) : (scenario.newCommit === false ? 0 : 1)}\n`);
+      if (args[0] === 'rev-parse') return ok(`${args.at(-1).startsWith('origin/') ? START : head}\n`);
+      if (args[0] === 'status') return ok(executed ? (dirtyAfter ? `${staged ? 'M ' : ' M'} tools/agent_relay/example.mjs\n` : '') : (scenario.dirtyBefore ? ' M local-work.txt\n' : ''));
+      if (args[0] === 'rev-list' && args.includes('--count')) return ok(`${args.some(arg => arg.includes('origin/')) ? (scenario.ahead ? 1 : 0) : (hasNewCommit ? 1 : 0)}\n`);
+      if (args[0] === 'add') {
+        assert.deepEqual(args, ['add', '-A']);
+        if (scenario.addFailure) return { code: 1, stdout: '', stderr: 'cannot stage changes' };
+        staged = true;
+        return ok();
+      }
+      if (args[0] === 'commit') {
+        assert.equal(staged, true, 'watcher must stage changes before committing');
+        if (scenario.commitFailure) return { code: 1, stdout: '', stderr: 'pre-commit hook rejected changes' };
+        dirtyAfter = false;
+        staged = false;
+        hasNewCommit = true;
+        head = END;
+        return ok(`[claude/relay-test ${END.slice(0, 7)}] watcher commit\n`);
+      }
       if (args[0] === 'diff' && args.includes('--name-only')) return ok('tools/agent_relay/example.mjs\n');
       if (args[0] === 'log') return ok(`${END} scoped relay change\n`);
       if (args[0] === 'merge') {
@@ -91,6 +110,8 @@ async function fixture(t, scenario = {}) {
     }
     if (cmd === 'codex') {
       executed = true;
+      hasNewCommit = scenario.newCommit !== false;
+      head = hasNewCommit ? END : START;
       const state = JSON.parse(await readFile(path.join(stateDir, 'state.json'), 'utf8'));
       assert.equal(state.comments['101'].status, 'in_progress', 'receipt must persist before Codex starts');
       if (scenario.checkCodex) await scenario.checkCodex(call, state);
@@ -113,6 +134,8 @@ async function fixture(t, scenario = {}) {
 }
 const isCodex = call => call.cmd === 'codex';
 const isPush = call => call.cmd === 'git' && call.args[0] === 'push';
+const isCommit = call => call.cmd === 'git' && call.args[0] === 'commit';
+const isAdd = call => call.cmd === 'git' && call.args[0] === 'add';
 const isReaction = (call, name) => call.cmd === 'gh' && call.args.includes(`content=${name}`);
 const index = (calls, predicate) => calls.findIndex(predicate);
 
@@ -203,35 +226,91 @@ test('6: one pass selects the earliest unprocessed instruction and executes once
 });
 
 test('7: Codex nonzero exit fails without push', async t => {
-  const f = await fixture(t, { codexCode: 1, codexError: 'execution failed' });
+  const f = await fixture(t, { codexCode: 1, codexError: 'execution failed', dirtyAfter: true, newCommit: false });
   assert.equal((await f.once()).status, 'failed');
   assert.equal(f.calls.some(isPush), false);
+  assert.equal(f.calls.some(isAdd), false);
+  assert.equal(f.calls.some(isCommit), false);
   assert.ok(f.calls.some(call => isReaction(call, 'confused')));
   assert.equal((await f.state()).comments['101'].status, 'failed');
   assert.equal(await exists(path.join(f.stateDir, 'lock')), false);
 });
 
 test('7: Codex timeout fails without push even if a final message was written', async t => {
-  const f = await fixture(t, { timedOut: true, codexCode: 0 });
+  const f = await fixture(t, { timedOut: true, codexCode: 0, dirtyAfter: true, newCommit: false });
   assert.equal((await f.once()).status, 'failed');
   assert.equal(f.calls.some(isPush), false);
+  assert.equal(f.calls.some(isAdd), false);
+  assert.equal(f.calls.some(isCommit), false);
   assert.ok(f.posts.length === 1);
 });
 
 test('7: missing final message fails without push', async t => {
-  const f = await fixture(t, { noLastMessage: true });
+  const f = await fixture(t, { noLastMessage: true, dirtyAfter: true, newCommit: false });
   assert.equal((await f.once()).status, 'failed');
   assert.equal(f.calls.some(isPush), false);
+  assert.equal(f.calls.some(isAdd), false);
+  assert.equal(f.calls.some(isCommit), false);
 });
 
-test('8: uncommitted output is dirty and never auto-committed or pushed', async t => {
-  const f = await fixture(t, { dirtyAfter: true });
-  assert.equal((await f.once()).status, 'dirty');
-  assert.equal(f.calls.some(isPush), false);
-  assert.equal(f.calls.some(call => call.cmd === 'git' && call.args[0] === 'commit'), false);
+test('8: watcher stages remaining changes, uses COMMIT and commits before pushing', async t => {
+  const f = await fixture(t, { dirtyAfter: true, newCommit: false, lastMessage: 'STATUS: done\nCOMMIT: 修复 relay 自动提交\nSUMMARY:\n- Updated relay.' });
+  assert.equal((await f.once()).status, 'done');
+  const add = index(f.calls, isAdd);
+  const commit = index(f.calls, isCommit);
+  const push = index(f.calls, isPush);
+  assert.ok(index(f.calls, isCodex) < add && add < commit && commit < push);
+  assert.deepEqual(f.calls[commit].args, ['commit', '-m', '修复 relay 自动提交', '-m', 'relay: PR #71 第 1 轮']);
+  assert.equal(f.calls[add].opts.cwd, f.worktree);
+  assert.equal(f.calls[commit].opts.cwd, f.worktree);
+  assert.equal(f.calls[commit].opts.env.SKIP_PROJECT_STATE, '1');
+  assert.equal(f.calls.filter(isCommit).length, 1);
+  assert.equal(f.calls.filter(isPush).length, 1);
+  assert.equal(f.calls.some(call => call.args.some(arg => arg.includes('--force'))), false);
+  assert.match(f.posts[0], /^<!-- relay:to-claude round=1 status=done sha=b{7,40} -->/);
   assert.ok(f.posts[0].includes('tools/agent_relay/example.mjs'));
-  assert.ok(f.calls.some(call => isReaction(call, 'confused')));
+  assert.ok(f.calls.some(call => isReaction(call, 'rocket')));
+  assert.equal((await f.state()).comments['101'].sha, END.slice(0, 12));
 });
+
+for (const [label, commitLine, expected] of [
+  ['missing COMMIT', '', 'relay: 第 2 轮'],
+  ['COMMIT 无', 'COMMIT: 无\n', 'relay: 第 2 轮'],
+  ['padded 无', 'COMMIT:  无  \n', 'relay: 第 2 轮'],
+  ['empty COMMIT', 'COMMIT:   \n', 'relay: 第 2 轮'],
+  ['trimmed COMMIT', 'COMMIT:   修复空白处理  \n', '修复空白处理'],
+]) {
+  test(`8: watcher handles ${label} without consuming the following line`, async t => {
+    const f = await fixture(t, { dirtyAfter: true, newCommit: false,
+      comments: [{ ...baseComment, body: '<!-- relay:to-codex round=2 -->\nContinue the scoped change.' }],
+      lastMessage: `STATUS: done\r\n${commitLine.replace(/\n/g, '\r\n')}SUMMARY:\r\n- Updated relay.`,
+    });
+    assert.equal((await f.once()).status, 'done');
+    const commit = f.calls.find(isCommit);
+    assert.deepEqual(commit.args, ['commit', '-m', expected, '-m', 'relay: PR #71 第 2 轮']);
+    assert.equal(commit.opts.env.SKIP_PROJECT_STATE, '1');
+    assert.equal(f.calls.filter(isPush).length, 1);
+  });
+}
+
+for (const [label, failure, statusLine] of [
+  ['commit hook rejection', { commitFailure: true }, 'M  tools/agent_relay/example.mjs'],
+  ['staging failure', { addFailure: true }, ' M tools/agent_relay/example.mjs'],
+]) {
+  test(`8: ${label} fails with short status and never pushes`, async t => {
+    const f = await fixture(t, { dirtyAfter: true, newCommit: false, ...failure });
+    assert.equal((await f.once()).status, 'failed');
+    assert.equal(f.calls.some(isPush), false);
+    assert.equal(f.calls.filter(isAdd).length, 1);
+    assert.equal(f.calls.filter(isCommit).length, failure.commitFailure ? 1 : 0);
+    assert.ok(f.calls.some(call => call.cmd === 'git' && call.args[0] === 'status' && call.args.includes('--short')));
+    assert.ok(f.posts[0].includes(statusLine));
+    assert.ok(f.posts[0].includes(failure.commitFailure ? 'pre-commit hook rejected changes' : 'cannot stage changes'));
+    assert.match(f.posts[0], /^<!-- relay:to-claude round=1 status=failed sha=none -->/);
+    assert.ok(f.calls.some(call => isReaction(call, 'confused')));
+    assert.equal((await f.state()).comments['101'].status, 'failed');
+  });
+}
 
 test('9: rejected push fetches, merges and retries without force', async t => {
   const f = await fixture(t, { rejectPush: true });
@@ -292,18 +371,22 @@ test('existing clean worktree is fast-forwarded before Codex', async t => {
   assert.equal(f.calls.some(call => call.cmd === 'git' && call.args[0] === 'worktree'), false);
 });
 
-test('blocked result with a new commit is pushed, reported blocked and gets rocket', async t => {
+test('blocked result with Codex own commit is accepted, pushed and gets rocket', async t => {
   const f = await fixture(t, { lastMessage: 'STATUS: blocked\nSUMMARY:\n- Partial change committed.\nQUESTIONS:\n- Need a product decision.' });
   assert.equal((await f.once()).status, 'blocked');
   assert.equal(f.calls.filter(isPush).length, 1);
+  assert.equal(f.calls.some(isAdd), false);
+  assert.equal(f.calls.some(isCommit), false);
   assert.match(f.posts[0], /^<!-- relay:to-claude round=1 status=blocked sha=b{7,40} -->/);
   assert.ok(f.calls.some(call => isReaction(call, 'rocket')));
 });
 
-test('done with no new commits does not push', async t => {
+test('done with no changes does not stage, commit or push', async t => {
   const f = await fixture(t, { newCommit: false });
   assert.equal((await f.once()).status, 'done');
   assert.equal(f.calls.some(isPush), false);
+  assert.equal(f.calls.some(isAdd), false);
+  assert.equal(f.calls.some(isCommit), false);
 });
 
 
@@ -417,4 +500,45 @@ test('timeout cleanup: latched run still retries pending failure notification wi
   assert.match(f.posts[0], /^<!-- relay:to-claude round=1 status=failed sha=none -->/);
   assert.equal(f.calls.filter(call => isReaction(call, 'confused')).length, 1);
   assert.equal((await f.state()).comments['101'].notification.pending, false);
+});
+
+test('blocked result with remaining changes is committed and pushed before reporting blocked', async t => {
+  const f = await fixture(t, { dirtyAfter: true, newCommit: false, lastMessage: 'STATUS: blocked\nCOMMIT: 保存本轮部分实现\nSUMMARY:\n- Partial implementation.\nQUESTIONS:\n- Need a product decision.' });
+  assert.equal((await f.once()).status, 'blocked');
+  assert.deepEqual(f.calls.find(isCommit).args, ['commit', '-m', '保存本轮部分实现', '-m', 'relay: PR #71 第 1 轮']);
+  assert.ok(index(f.calls, isAdd) < index(f.calls, isCommit));
+  assert.ok(index(f.calls, isCommit) < index(f.calls, isPush));
+  assert.equal(f.calls.filter(isPush).length, 1);
+  assert.match(f.posts[0], /^<!-- relay:to-claude round=1 status=blocked sha=b{7,40} -->/);
+  assert.ok(f.calls.some(call => isReaction(call, 'rocket')));
+  assert.equal((await f.state()).comments['101'].status, 'blocked');
+});
+
+test('CLI maps failed and cleanup-blocked to exit 1 and other terminal states to exit 0', async t => {
+  const f = await fixture(t);
+  const configFile = path.join(f.config.repoPath, 'cli-config.json');
+  await writeFile(configFile, JSON.stringify(f.config));
+  const previousExitCode = process.exitCode;
+  for (const [status, expected] of [
+    ['failed', 1], ['cleanup-blocked', 1], ['idle', 0], ['done', 0],
+    ['blocked', 0], ['locked', 0], ['dry-run', 0], ['human', 0],
+  ]) {
+    let executions = 0;
+    const messages = [];
+    const code = await main(['--config', configFile, status === 'dry-run' ? '--dry-run' : '--once'], {
+      executeOnce: async ({ config, stateDir, dryRun }) => {
+        executions += 1;
+        assert.equal(config.repo, f.config.repo);
+        assert.equal(config.repoPath, f.config.repoPath);
+        assert.equal(stateDir, path.dirname(configFile));
+        assert.equal(dryRun, status === 'dry-run');
+        return { status, pr: 71 };
+      },
+      log: message => messages.push(message),
+    });
+    assert.equal(code, expected, `exit code for ${status}`);
+    assert.equal(executions, 1, `single execution for ${status}`);
+    assert.equal(process.exitCode, previousExitCode, 'imported CLI wrapper must not mutate global exitCode');
+  }
+  assert.deepEqual(f.calls, [], 'CLI tests must not invoke any subprocess');
 });
