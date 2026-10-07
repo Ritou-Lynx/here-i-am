@@ -1,12 +1,24 @@
 # schema6 提升 writer → 普通 owner 合成 CI
 
+## 2026-10-07 Hosted 首轮失败与桌面隔离修订
+
+首轮候选 `befcad08` 的真实 artifact `11487836939` 已证明 writer Elevated/Admin/默认 owner BA/High 四项成立；实际 Apply **144 项、16 项原 foreign owner** 通过，ACL 回执 owner 断言通过，原合成 frozen task 已绑定删除。`fixedPrepare=false`，完整串联未通过。旧两项普通身份夹具的子进程均在约0.57秒退出，状态 `3221225794 / 0xC0000142`，无 stdout/stderr；原 identity 串联只报缺少 consumer 回执。
+
+本次仅修测试环境：每次限制子 token 启动前用 `CWF_CREATE_ONLY` 新建随机窗口站及其私有桌面，创建时提供同 SID/SYSTEM/Administrators 明确 DACL 和 Medium mandatory label。通过原生安全描述符读回逐项核 owner、三个允许主体/完整权限、protected DACL、单个 Medium NW label；`STARTUPINFO.lpDesktop` 显式指定该对象。创建后在 finally 恢复夹具进程原窗口站；读取原 thread desktop，只有实际变化时调用 `SetThreadDesktop(original)` 恢复，并验证两项恢复。没有 `SwitchDesktop`、输入操作或原桌面/窗口站 ACL 修改。子进程退出后检查 `CloseDesktop`/`CloseWindowStation` 成功，consumer 实际读出的窗口站/桌面名必须等于父端创建名。
+
+桌面访问导致 DLL 初始化失败目前仍是待新 Hosted 验证的推断；[Microsoft CreateProcessAsUserW](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw) 明确说明空 lpDesktop 会继承父对象，目标用户须有窗口站和桌面的完整访问，进程创建成功也可能随后 DLL 初始化失败。本次不降低 token 身份要求；并先记录 `consumerExit` 与 `consumerResultExists`，缺少结果时用带退出码的固定错误，避免掩盖原失败。
+
+本机修订验证：C# 编译、当前普通 token 及当前桌面只读查询成功；静态契约 **3/3**、相关 PowerShell 解析与 diff-check 通过。获准的普通身份私有对象微测在创建命名窗口站时得到 **Access is denied**，父窗口站恢复验证成立，没有创建可报告为成功的私有对象、没有执行子进程、没有请求 UAC。因此私有对象创建/读回/关闭和完整高低 token 链仍待新 Hosted 真正执行。下面的56项结果及装配结果为首版本机历史证据，不代替新 Hosted 通过。
+
+同时将真实 online preflight 三用例通过 `online_preflight_ordinary.ps1` 进入同一普通身份派发器：外层只保留三项 hosted proof 环境供授权范围断言，真正 Node/production adapter 继续 OS-only clean environment；Git core 路径仍经原装配器严格验证。初次本机普通身份 **direct / missing-grant / cli 全部通过**：原库 schema4、合成迁移 schema5、DB/WAL稳定、ready后SQL调用0；missing-grant明确拒绝 nonempty_grants_required。派发器成功JSON和stderr分开捕获，避免 Node 诊断污染JSON。没有降低生产普通身份 guard。
+
 ## 范围与当前证据
 
 本工作包仅修改测试、合成夹具和 `.github/workflows/ci.yml`。未改固定 runtime 47 项，未访问现役库、凭据、服务、手机或现役任务，未发起本机 UAC。生产 `owned_artifacts.ps1` 及各 writer 修复由独立工作包负责。
 
 新增必跑 job：`schema6-identity-pipeline`，显示名 **Schema6 elevated writer to ordinary owner pipeline**；沿原 workflow 的 push、pull_request、workflow_dispatch 触发规则执行，无 opt-in 环境变量和失败忽略。独立 runner 使用既有 hosted module scope，**不调用**旧 `run_windows_tests.ps1`，不继承其修改 TokenOwner 的 workaround。旧 suite 的 workaround 保留。
 
-截至本交接，Hosted 新 job **尚未运行**。本机当前普通 token 无法代替管理员 writer → 普通 consumer 证据，C# 编译成功也不代表实际跨 token 启动通过。
+首版交接时 Hosted 新 job 尚未运行；后续实际失败及修订状态见上节。本机当前普通 token 无法代替管理员 writer → 普通 consumer 证据，C# 编译成功也不代表实际跨 token 启动通过。
 
 ## 串联与身份断言
 

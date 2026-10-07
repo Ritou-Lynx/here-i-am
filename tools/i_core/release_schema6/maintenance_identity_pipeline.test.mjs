@@ -22,3 +22,16 @@ test('identity fixture uses real Apply and Prepare, checks both actual tokens an
  const oracle=fixture('identity_task_oracle.ps1');assert.match(oracle,/cleanup_binding_rejected/);assert.match(oracle,/DeleteTask\(\$Name,0\);Assert-TaskAbsent/);
  assert.match(oracle,/safe_derivation_extra_change/);
 });
+test('ordinary child gets a fresh private Medium desktop without changing an existing desktop ACL',()=>{
+ const native=fixture('identity_token.cs'),pipeline=fixture('identity_pipeline.ps1');
+ assert.match(native,/CreateWindowStationW\(evidence.windowStation,1,/);
+ assert.match(native,/desktop=privateDesktop.Path/);
+ assert.match(native,/S:\(ML;;NW;;;ME\)/);
+ assert.match(native,/CheckPrivateObject\(station/);assert.match(native,/CheckPrivateObject\(desktop/);
+ assert.match(native,/SetProcessWindowStation\(original\)/);
+ assert.match(native,/CloseDesktop\(desktop\)/);assert.match(native,/CloseWindowStation\(station\)/);
+ assert.doesNotMatch(native,/extern bool SwitchDesktop|SetUserObjectSecurity/);
+ assert.match(native,/SetThreadDesktop\(originalThreadDesktop\)/);
+ assert.match(pipeline,/limited_consumer_result_missing_exit_/);
+ assert.match(pipeline,/consumerExit=\$consumerExit/);
+});

@@ -6,6 +6,7 @@ $report=[ordered]@{passed=$false;identity=[Schema6IdentityToken]::Current();fixe
 try {
  $plan=Get-Content -LiteralPath (Join-Path $FixtureRoot 'consumer-plan.json') -Raw|ConvertFrom-Json
  if($report.identity.sid-cne $plan.ownerSid -or $report.identity.elevated -or $report.identity.administrator -or $report.identity.integritySid-cne 'S-1-16-8192'){throw 'consumer_identity_rejected'}
+ if($report.identity.windowStation-cnotmatch '^Schema6Identity-[a-f0-9]{32}$' -or $report.identity.desktop-cnotmatch '^Consumer-[a-f0-9]{32}$'){throw 'consumer_private_desktop_required'}
  . (Join-Path $plan.maintenance 'owned_artifacts.ps1')
  foreach($p in @($plan.aclReceiptPath,$plan.configPath)){Assert-OwnedArtifact $p $plan.ownerSid}
  $acl=Get-Content -LiteralPath $plan.aclReceiptPath -Raw|ConvertFrom-Json
