@@ -70,6 +70,9 @@ class WhiteboardDriftStore {
           ..orderBy([
             (b) => OrderingTerm.desc(b.updatedAt),
             (b) => OrderingTerm.desc(b.createdAt),
+            // Boards created within the same millisecond tie on both
+            // timestamps; insertion order keeps "newest first" deterministic.
+            (b) => OrderingTerm.desc(b.rowId),
           ]))
         .get();
     return rows

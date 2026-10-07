@@ -14,6 +14,8 @@ import {
   isExternalFrontendDevice,
 } from './i_core_store.mjs';
 import { ACTIVITY_MAX_REQUEST_BYTES } from './activity_control_plane.mjs';
+import { createDomainRequestHandler } from './domain_http.mjs';
+import { createInspectionReadOnlyCore, isInspectionDatabasePath } from './inspection_read_only.mjs';
 import {
   SHORTCUT_WORKFLOW,
   ShortcutMailRelayError,
@@ -237,11 +239,16 @@ function idempotencyKey(request) {
 
 export function createICoreServer({
   databasePath,
+  mode = 'live',
   pairingCode = null,
   certPath = null,
   keyPath = null,
   workerSecret = null,
   companionReplyJobsEnabled = false,
+  companionUploadMode = 'pr10',
+  localTranscriptGrants = undefined,
+  localTranscriptGrantsPath = undefined,
+  historicalReplayApprovalsPath = undefined,
   shortcutMailRelay = null,
   ownsShortcutMailRelay = shortcutMailRelay !== null,
   activityAdminSecret = null,
@@ -250,9 +257,24 @@ export function createICoreServer({
   activityRuntimeId = undefined,
   activityRuntimeLeaseMs = undefined,
   activityRetentionIntervalMs = 60_000,
+  domainVerifyAuthorization = undefined,
+  domainTestOnlyFault = undefined,
+  domainDedupHooks = undefined,
+  domainHooks = undefined,
+  domainVerifyLegacyAdoption = undefined,
   clock = Date.now,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
+  if (mode === 'inspection_read_only') {
+    if (pairingCode || certPath || keyPath || workerSecret || companionReplyJobsEnabled || shortcutMailRelay || activityAdminSecret
+        || activityRecoveryFloor || requireActivityRecoveryFloor || localTranscriptGrants || localTranscriptGrantsPath || historicalReplayApprovalsPath) {
+      throw new CoreStoreError('inspection_configuration_rejected', 'Inspection does not accept runtime authority or jobs.');
+    }
+    return createInspectionReadOnlyCore({ databasePath });
+  }
+  if (mode !== 'live' || isInspectionDatabasePath(databasePath)) {
+    throw new CoreStoreError('backup_activation_unsupported', 'Inspection restore cannot be activated as a live Core.');
+  }
   // This must precede secret separation and recovery verification: read-only
   // SQLite opens can themselves create or alter source WAL/SHM files.
   preflightActivityCommitmentVersion(databasePath);
@@ -285,12 +307,25 @@ export function createICoreServer({
   });
   const store = new ICoreStore(databasePath, {
     companionReplyJobsEnabled,
+    companionUploadMode,
+    localTranscriptGrants,
+    localTranscriptGrantsPath,
+    historicalReplayApprovalsPath,
     clock,
     activityRecoveryFloor,
     activityRuntimeId,
     activityRuntimeLeaseMs,
     activityEnabled: Boolean(activityAdminSecret),
     activityAutoActivate: false,
+    domainVerifyAuthorization,
+    domainTestOnlyFault,
+    domainDedupHooks,
+    domainHooks,
+    domainVerifyLegacyAdoption,
+  });
+  const handleDomainRequest = createDomainRequestHandler({
+    getStore: () => store.domains,
+    authenticateDevice: (token) => store.authenticate(token),
   });
   let pairingEndpointEnabled = pairingCode !== null;
   let activePairingCode = pairingEndpointEnabled && !store.isPairingCodeConsumed(pairingCode)
@@ -305,6 +340,12 @@ export function createICoreServer({
           workerLeasesEnabled: Boolean(workerSecret),
           activityOwnerConfigured: Boolean(activityAdminSecret),
         }));
+        return;
+      }
+      // Preserve synchronous legacy body listener setup, including read-only wire observers.
+      const domainPath = (request.url ?? '').split('?')[0];
+      if (domainPath === '/v1/core/domains' || domainPath.startsWith('/v1/core/domains/')) {
+        await handleDomainRequest(request, response);
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/activity/probes/pair') {
@@ -420,6 +461,16 @@ export function createICoreServer({
         const paired = store.pairDevice(body, activePairingCode);
         activePairingCode = null;
         json(response, 200, paired);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/core/chat/transcript-capabilities') {
+        requireDevice(request, store);
+        json(response, 200, store.localTranscriptCapabilities(bearerToken(request)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/chat/transcripts') {
+        requireDevice(request, store);
+        json(response, 200, store.submitLocalTranscripts(bearerToken(request), await readJson(request)));
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/chat/messages') {
@@ -567,6 +618,7 @@ export function createICoreServer({
   let closed = false;
   let ownedRelayClosed = false;
   let activityRetentionTimer = null;
+  let domainRetentionTimer = null;
   function closeOwnedRelay() {
     if (!ownsShortcutMailRelay || ownedRelayClosed) return;
     try {
@@ -580,6 +632,10 @@ export function createICoreServer({
     if (activityRetentionTimer !== null) {
       clearInterval(activityRetentionTimer);
       activityRetentionTimer = null;
+    }
+    if (domainRetentionTimer !== null) {
+      clearInterval(domainRetentionTimer);
+      domainRetentionTimer = null;
     }
     if (server.listening) {
       try {
@@ -605,6 +661,18 @@ export function createICoreServer({
     if (closed) return;
     closed = true;
     await closeResources();
+  }
+  if (store.domains) {
+    domainRetentionTimer = setInterval(() => {
+      if (closed) return;
+      try {
+        const result = store.domains.runRetention();
+        store.domainRetentionError = result.status === 200 ? null : 'domain_retention_failed';
+      } catch {
+        store.domainRetentionError = 'domain_retention_failed';
+      }
+    }, activityRetentionIntervalMs);
+    domainRetentionTimer.unref();
   }
   return {
     server,
@@ -741,6 +809,9 @@ async function main() {
     keyPath: process.env.I_CORE_KEY ?? null,
     workerSecret: process.env.I_CORE_WORKER_SECRET ?? null,
     companionReplyJobsEnabled: process.env.I_CORE_COMPANION_REPLY_JOBS === '1',
+    companionUploadMode: process.env.I_CORE_COMPANION_UPLOAD_MODE ?? 'pr10',
+    localTranscriptGrantsPath: process.env.I_CORE_LOCAL_TRANSCRIPT_GRANTS,
+    historicalReplayApprovalsPath: process.env.I_CORE_HISTORICAL_REPLAY_APPROVALS,
     shortcutMailRelay,
     ownsShortcutMailRelay: Boolean(shortcutMailRelay),
     activityAdminSecret: process.env.I_CORE_ACTIVITY_ADMIN_SECRET ?? null,

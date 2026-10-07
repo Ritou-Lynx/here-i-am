@@ -6,6 +6,8 @@ import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { OAuthServer, revokeAll, setPassphrase } from './oauth.mjs';
+import { readFileSync } from 'node:fs';
+import { createDomainClient, createDomainTools, createCoreRemember, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
 import { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';
 import {
   SUPPORTED_PROTOCOL_VERSIONS,
@@ -73,13 +75,16 @@ export function createApp({
   log = () => {},
   diagnostic = () => {},
   writeback = null,
+  coreRemember = null,
+  domainTools = null,
 }) {
   if (!publicUrl) throw new Error('publicUrl is required');
   if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');
-  const writeEnabled = Boolean(writeback);
+  const writeEnabled = Boolean(writeback || coreRemember);
   const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled });
-  const handlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback });
-  const tools = listTools({ writeEnabled });
+  if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');
+  const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};
+  const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];
   const origins = new Set([...allowedOrigins, oauth.issuer]);
   const sessions = new Map();
 
@@ -383,6 +388,25 @@ function errorPage(message) {
 
 // ---------- CLI ----------
 
+// Explicit owner configuration only. No grant issuance or automatic legacy migration.
+export function loadWebDomainOptions(configPath) {
+  if(!configPath)return {};
+  return createWebDomainOptions(JSON.parse(readFileSync(configPath,'utf8')));
+}
+export function createWebDomainOptions(config) {
+  const allowed=['captures:read','captures:create','captures:patch','captures:delete'];
+  if(config.enabled!==true||config.remember_backend!=='core'||!Array.isArray(config.scopes)||config.scopes.some(scope=>!allowed.includes(scope)))throw new Error('invalid_web_domain_configuration');
+  const client=createDomainClient({coreUrl:config.core_url,token:config.token,coreInstanceId:config.core_instance_id});
+  const domainTools=createDomainTools({client,scopes:config.scopes,surface:'web',captureSource:'claude_web'});
+  if(config.plan_reads){
+    const plan=config.plan_reads;
+    if(plan.token===config.token||!Array.isArray(plan.scopes)||plan.scopes.some(scope=>!['plan_items:read','plan_weeks:read','plan_days:read'].includes(scope)))throw new Error('invalid_web_plan_configuration');
+    const planTools=createDomainTools({client:createDomainClient({coreUrl:config.core_url,coreInstanceId:config.core_instance_id,token:plan.token}),scopes:plan.scopes,surface:'web',captureSource:'claude_web'});
+    domainTools.tools.push(...planTools.tools);Object.assign(domainTools.handlers,planTools.handlers);
+  }
+  return {coreRemember:createCoreRemember({client,scopes:config.scopes}),domainTools};
+}
+
 function parseArgs(argv) {
   const out = { _: [] };
   for (let i = 0; i < argv.length; i += 1) {
@@ -498,9 +522,10 @@ async function main(argv) {
     getReadModel,
     diagnostic,
     writeback,
+    ...loadWebDomainOptions(args['domain-config']),
   });
   let phoneServer = null;
-  const phoneTokenHash = writeback ? loadPhoneTokenHash(stateDir) : null;
+  const phoneTokenHash = writeback && !args['domain-config'] ? loadPhoneTokenHash(stateDir) : null;
   if (phoneTokenHash) {
     const phoneHost = args['phone-host'] ?? process.env.I_REMOTE_MCP_PHONE_HOST ?? DEFAULTS.phoneHost;
     const phonePort = Number(args['phone-port'] ?? process.env.I_REMOTE_MCP_PHONE_PORT ?? DEFAULTS.phonePort);

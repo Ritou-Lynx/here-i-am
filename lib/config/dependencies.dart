@@ -1,3 +1,18 @@
+import 'dart:async';
+import 'package:memex/data/memory_v3/notes/claude_web_note_feed_service.dart';
+import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
+import 'package:memex/data/memory_v3/agents/record_organizer_agent/agent.dart';
+import 'dart:ui';
+import 'package:memex/data/personal_data_hub/personal_data_hub_runtime.dart';
+import 'package:memex/data/personal_data_hub/planning_models.dart';
+import 'package:memex/data/personal_data_hub/planning_reminders.dart';
+import 'package:memex/data/personal_data_hub/quick_capture_organizer_adapter.dart';
+import 'package:memex/domain/models/agent_definitions.dart';
+import 'package:memex/domain/models/llm_config.dart';
+import 'package:memex/ui/companion/widgets/personal_data_hub_runtime_scope.dart';
+import 'package:memex/data/personal_data_hub/personal_data_hub_runtime_owner.dart';
+import 'package:memex/utils/user_storage.dart';
+import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
 // Copyright 2024 The Memex team. All rights reserved.
 // Aligned with Flutter Compass app: config registers only Repository/Service,
 // not ViewModels. ViewModels are created where the screen is built.
@@ -20,6 +35,31 @@ import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 /// ViewModels are created in the place that builds the screen (route builder
 /// or parent widget), using context.read<MemexRouter>() etc.
 List<SingleChildWidget> get dependencyProviders => [
+      Provider<ClaudeWebNoteFeedService>(
+        create: (_) => ClaudeWebNoteFeedService(
+          storage: ClaudeWebNoteFeedStorage(),
+          importerFactory: () => ClaudeWebNoteImporter(
+            db: AppDatabase.instance,
+            organizer: RecordOrganizerServiceV3(AppDatabase.instance),
+            organize: (source) async {
+              final resources = await UserStorage.getAgentLLMResources(
+                AgentDefinitions.recordOrganizerAgent,
+                defaultClientKey: LLMConfig.defaultClientKey);
+              return const RecordOrganizerAgentV3().organize(
+                client: resources.client, modelConfig: resources.modelConfig,
+                rawInput: source.rawInput, now: source.recordedAt);
+            },
+          ),
+        ),
+        dispose: (_, service) => unawaited(service.dispose()),
+      ),
+      ChangeNotifierProvider<PersonalDataHubRuntimeOwner>(
+        lazy: false,
+        create: (_) => PersonalDataHubRuntimeOwner(create: _createHubRuntime),
+        builder: (_, child) => PersonalDataHubRuntimeScope(child: child!),
+      ),
+      Provider<PersonalDataHub>(
+          create: (_) => PersonalDataHub.forDatabase(AppDatabase.instance)),
       Provider<MemexRouter>(
         create: (_) => MemexRouter(),
       ),
@@ -53,3 +93,45 @@ List<SingleChildWidget> get dependencyProviders => [
         create: (_) => ChatViewModeController()..load(),
       ),
     ];
+
+/// Domain credentials and trusted authorization remain owner-configured.
+/// The default only records explicitly requested captures on this installation.
+Future<PersonalDataHubRuntime> _createHubRuntime() async {
+  var userId = await UserStorage.getUserId();
+  if (userId == null) {
+    await UserStorage.saveUser('Lynx');
+    userId = await UserStorage.getUserId();
+  }
+  if (userId == null) throw StateError('No local account');
+  await AppDatabase.init(userId);
+  final db = AppDatabase.instance;
+  final hub = PersonalDataHub.forDatabase(db);
+  return PersonalDataHubRuntime.create(
+    db: db,
+    hub: hub,
+    alarms: const CheckinPlanningAlarmScheduler(),
+    enablePlanningReminders:
+        PlatformDispatcher.instance.defaultRouteName != '/quick-capture',
+    ownsCaptureConnectionLifetime:
+        PlatformDispatcher.instance.defaultRouteName != '/quick-capture',
+    connection: () {
+      final configured =
+          planningDomains.where((name) => hub.storeFor(name) != null);
+      if (configured.isEmpty) return PlanningConnection.unknown;
+      if (configured.any(hub.lastSyncErrors.containsKey)) {
+        return PlanningConnection.offline;
+      }
+      return configured.every(hub.syncedDomains.contains)
+          ? PlanningConnection.online
+          : PlanningConnection.unknown;
+    },
+    extract: (text) async {
+      final resources = await UserStorage.getAgentLLMResources(
+          AgentDefinitions.recordOrganizerAgent,
+          defaultClientKey: LLMConfig.defaultClientKey);
+      return QuickCaptureOrganizerAdapter(
+              client: resources.client, modelConfig: resources.modelConfig)
+          .extract(text);
+    },
+  );
+}

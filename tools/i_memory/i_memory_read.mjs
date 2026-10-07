@@ -55,6 +55,53 @@ function autoShareOrigins(value) {
   return [...new Set(names)].map((name) => `${FRONTEND_ORIGIN_PREFIX}${name}`);
 }
 
+// Exact approved Android sources; receive-sequence boundaries keep prior core
+// history under its original review lists. Private exclusions still apply.
+function autoShareDevices(value) {
+  if (value === undefined) return [];
+  const label = 'messages.auto_share_devices';
+  if (!Array.isArray(value)) fail(label + ' must be an array of device rules');
+  const seen = new Set();
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)
+      || Object.keys(rule).some(key => !['device_id', 'from_server_sequence', 'senders', 'history_window'].includes(key))
+      || !Object.hasOwn(rule, 'device_id') || !Object.hasOwn(rule, 'from_server_sequence')) {
+      fail(label + ' rules require device_id and from_server_sequence, with only optional senders and history_window');
+    }
+    const id = rule.device_id;
+    if (typeof id !== 'string' || !id.trim() || id !== id.trim()
+      || id.startsWith(FRONTEND_ORIGIN_PREFIX) || seen.has(id)) {
+      fail(label + '.device_id must be an exact, unique non-frontend device ID');
+    }
+    if (!Number.isSafeInteger(rule.from_server_sequence) || rule.from_server_sequence < 1) {
+      fail(label + '.from_server_sequence must be a positive safe integer');
+    }
+    seen.add(id);
+    const result = { device_id: id, from_server_sequence: rule.from_server_sequence };
+    if (Object.hasOwn(rule, 'senders')) {
+      if (!Array.isArray(rule.senders) || rule.senders.length < 1 || rule.senders.length > 2
+        || rule.senders.some(sender => !['user', 'companion'].includes(sender))
+        || new Set(rule.senders).size !== rule.senders.length) {
+        fail(label + '.senders must explicitly select unique user or companion values');
+      }
+      result.senders = [...rule.senders];
+    }
+    if (Object.hasOwn(rule, 'history_window')) {
+      const history = rule.history_window;
+      if (!history || typeof history !== 'object' || Array.isArray(history)
+        || Object.keys(history).length !== 2
+        || !Object.hasOwn(history, 'from_created_at_ms') || !Object.hasOwn(history, 'to_created_at_ms')
+        || !Number.isSafeInteger(history.from_created_at_ms) || history.from_created_at_ms < 1
+        || !Number.isSafeInteger(history.to_created_at_ms)
+        || history.to_created_at_ms <= history.from_created_at_ms) {
+        fail(label + '.history_window must be an explicit positive half-open creation-time range');
+      }
+      result.history_window = { ...history };
+    }
+    return result;
+  });
+}
+
 function exposure(value, label) {
   if (value !== 'private' && value !== 'shareable') fail(`${label} must be "private" or "shareable"`);
   return value;
@@ -72,7 +119,12 @@ export function loadPolicy(policyPath) {
     fail(`cannot parse JSON (${error.message})`);
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('root must be an object');
-  if (raw.schema_version !== 1) fail('schema_version must be 1');
+  if (![1,2].includes(raw.schema_version)) fail('schema_version must be 1 or 2');
+  // v1 compatibility is permanently restricted to its two original domains.
+  // New Core domains always use scoped HTTP; database visibility never grants access.
+  const domains = raw.schema_version === 1 && raw.domains === undefined
+    ? ['chat','memory_v3'] : stringArray(raw.domains, 'domains');
+  if(new Set(domains).size!==domains.length || domains.some(domain=>!['chat','memory_v3'].includes(domain)))fail('unsupported domain');
   if (typeof raw.primary_character_id !== 'string' || !raw.primary_character_id.trim()) {
     fail('primary_character_id must be a non-empty string');
   }
@@ -80,6 +132,7 @@ export function loadPolicy(policyPath) {
   if (!messages || typeof messages !== 'object' || Array.isArray(messages)) fail('messages must be an object');
   if (!memory || typeof memory !== 'object' || Array.isArray(memory)) fail('memory must be an object');
   return {
+    domains: new Set(domains),
     primaryCharacterId: raw.primary_character_id.trim(),
     messages: {
       default: exposure(messages.default, 'messages.default'),
@@ -94,6 +147,7 @@ export function loadPolicy(policyPath) {
       // External frontends whose written-back messages skip the ID/hash allowlists
       // (never the private rules). Omitted keeps legacy behavior.
       autoShareOriginDeviceIds: autoShareOrigins(messages.auto_share_origins),
+      autoShareDevices: autoShareDevices(messages.auto_share_devices),
       // Optional for backward compatibility; when present it must be valid.
       privateKeywords: (messages.private_keywords === undefined
         ? []
@@ -210,11 +264,13 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
   // ID lists use one JSON parameter each, avoiding SQLite's bound-variable limit.
   // Bound parameters for typeFilter, in placeholder order.
   const autoShareOriginIds = policy.messages.autoShareOriginDeviceIds;
+  const autoShareDeviceRules = policy.messages.autoShareDevices;
   const allowlistActive = shareableMessageIds !== null || shareableMessageHashes !== null;
   const filterParams = [
     ...privateTypeList, ...privateMessageKeywords,
     JSON.stringify(privateMessageIds),
     ...(allowlistActive && autoShareOriginIds.length ? [JSON.stringify(autoShareOriginIds)] : []),
+    ...(allowlistActive && autoShareDeviceRules.length ? [JSON.stringify(autoShareDeviceRules)] : []),
     ...(shareableMessageIds === null ? [] : [JSON.stringify(shareableMessageIds)]),
     ...(shareableMessageHashes === null ? [] : [JSON.stringify(Object.fromEntries(shareableMessageHashes))]),
   ];
@@ -226,10 +282,32 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
   ].filter(Boolean);
   let allowlistFilter = '';
   if (allowlistActive) {
-    const reviewed = allowlistClauses.join(' AND ');
-    allowlistFilter = autoShareOriginIds.length
-      ? `AND (origin_device_id IN (SELECT value FROM json_each(?)) OR (${reviewed}))`
-      : `AND ${reviewed}`;
+    const automatic = [];
+    if (autoShareOriginIds.length) {
+      automatic.push('origin_device_id IN (SELECT value FROM json_each(?))');
+    }
+    if (autoShareDeviceRules.length) {
+      // Registration/platform narrow the approved ID; they are not independent
+      // attestation. Authenticated submit and local maintenance remain core trust boundaries.
+      automatic.push(`(message_type = 'chat' AND EXISTS (
+        SELECT 1 FROM json_each(?) AS approved
+        JOIN devices AS d ON d.device_id = json_extract(approved.value, '$.device_id')
+        WHERE d.platform = 'android'
+          AND d.device_id = chat_messages.origin_device_id
+          AND chat_messages.sender IN (
+            SELECT value FROM json_each(COALESCE(json_extract(approved.value, '$.senders'), '["user"]'))
+          )
+          AND (
+            chat_messages.server_sequence >= json_extract(approved.value, '$.from_server_sequence')
+            OR (
+              chat_messages.server_sequence < json_extract(approved.value, '$.from_server_sequence')
+              AND chat_messages.created_at_ms >= json_extract(approved.value, '$.history_window.from_created_at_ms')
+              AND chat_messages.created_at_ms < json_extract(approved.value, '$.history_window.to_created_at_ms')
+            )
+          )
+      ))`);
+    }
+    allowlistFilter = `AND (${[...automatic, '(' + allowlistClauses.join(' AND ') + ')'].join(' OR ')})`;
   }
   // Private exclusions always apply, including to auto-shared origins.
   const typeFilter = [
@@ -288,7 +366,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
 
   return {
     policySummary() {
-      const snapshot = memoryMeta('snapshot_at_ms');
+      const snapshot = policy.domains.has('memory_v3') ? memoryMeta('snapshot_at_ms') : null;
       return {
         primaryCharacterId: policy.primaryCharacterId,
         memorySnapshotAtMs: snapshot == null ? null : Number(snapshot),
@@ -296,6 +374,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     recentMessages({ limit = 20, characterId } = {}) {
+      if(!policy.domains.has('chat'))return [];
       const id = messageCharacter(characterId);
       if (!id) return [];
       const rows = core.prepare(`
@@ -309,6 +388,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     searchMessages({ query, limit = 10, characterId } = {}) {
+      if(!policy.domains.has('chat'))return [];
       const id = messageCharacter(characterId);
       const terms = queryTerms(query);
       if (!id || terms.length === 0) return [];
@@ -335,6 +415,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     searchMemory({ query, limit = 8 } = {}) {
+      if(!policy.domains.has('memory_v3'))return [];
       const db = memoryDb();
       const terms = queryTerms(query);
       if (!db || terms.length === 0) return [];
@@ -372,6 +453,7 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     getMemoryCards({ ids } = {}) {
+      if(!policy.domains.has('memory_v3'))return [];
       const db = memoryDb();
       if (!db || !Array.isArray(ids) || ids.length === 0) return [];
       const unique = [...new Set(ids.filter((id) => typeof id === 'string'))].slice(0, MAX_IDS);
@@ -384,22 +466,22 @@ export function openReadModel({ coreDbPath, memoryDbPath, policyPath }) {
     },
 
     stats() {
-      const shareableIds = [...policy.messages.shareableCharacterIds];
-      const total = Number(core.prepare('SELECT COUNT(*) AS n FROM chat_messages').get().n);
+      const shareableIds = policy.domains.has('chat') ? [...policy.messages.shareableCharacterIds] : [];
+      const total = policy.domains.has('chat') ? Number(core.prepare('SELECT COUNT(*) AS n FROM chat_messages').get().n) : 0;
       const shareable = shareableIds.length
         ? Number(core.prepare(`
             SELECT COUNT(*) AS n FROM chat_messages
             WHERE character_id IN (${shareableIds.map(() => '?').join(', ')}) ${typeFilter}
           `).get(...shareableIds, ...filterParams).n)
         : 0;
-      const db = memoryDb();
+      const db = policy.domains.has('memory_v3') ? memoryDb() : null;
       let memoryStats = { shareable: 0, private: 0 };
       if (db) {
         const rows = db.prepare(`SELECT ${CARD_COLUMNS} FROM memory_cards`).all();
         const privateCount = rows.filter(isPrivateCard).length;
         memoryStats = { shareable: rows.length - privateCount, private: privateCount };
       }
-      const snapshot = memoryMeta('snapshot_at_ms');
+      const snapshot = policy.domains.has('memory_v3') ? memoryMeta('snapshot_at_ms') : null;
       return {
         messages: { shareable, private: total - shareable },
         memory: memoryStats,

@@ -1,6 +1,8 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
+import 'package:memex/data/services/device_identity_service.dart';
 import 'package:memex/db/app_database.dart';
 
 void main() {
@@ -9,6 +11,8 @@ void main() {
   late AppDatabase db;
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    DeviceIdentityService.resetForTesting();
     db = AppDatabase.forTesting(NativeDatabase.memory());
     AppDatabase.setTestInstance(db);
   });

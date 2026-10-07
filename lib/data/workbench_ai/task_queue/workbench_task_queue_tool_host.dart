@@ -43,6 +43,7 @@ const _knownExecutionErrorCodes = {
   'task_queue_request_conflict',
   'runtime_execution_failed',
   'text_only_isolation_unverified',
+  'text_task_model_unconfigured',
 };
 
 class _ExecutionResult {
@@ -650,6 +651,9 @@ class WorkbenchTaskQueueToolHost {
         'error_code': errorCode,
         if (errorCode == 'text_only_isolation_unverified')
           'message': '无法验证独立文字执行隔离，任务未启动。',
+        if (errorCode == 'text_task_model_unconfigured')
+          'message': '长任务模型未配置，任务保持等待。设置 HIA_TASK_OLLAMA_MODEL '
+              '（直连 ollama.com 时再设置 OLLAMA_API_KEY）并重启应用后再开始。',
         if (task != null) 'task': _snapshotJson(task),
       };
 

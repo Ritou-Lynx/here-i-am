@@ -1,3 +1,4 @@
+import { listenForFetch } from './fetch_test_listener.mjs';
 // 测试共用：合成数据的 fake readModel 与真实 HTTP 服务启动器。
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -69,7 +70,7 @@ export function createFakeReadModel({ fail = false } = {}) {
   };
 }
 
-export async function startTestServer({ readModel = createFakeReadModel(), oauthOptions, passphrase = PASSPHRASE, identityLoader, timeZone = 'Asia/Shanghai', diagnostic, log, writeback = null, stateDir: givenStateDir } = {}) {
+export async function startTestServer({ readModel = createFakeReadModel(), oauthOptions, passphrase = PASSPHRASE, identityLoader, timeZone = 'Asia/Shanghai', diagnostic, log, writeback = null, coreRemember = null, domainTools = null, stateDir: givenStateDir } = {}) {
   const stateDir = givenStateDir ?? mkdtempSync(join(tmpdir(), 'i-remote-mcp-'));
   if (passphrase) setPassphrase(stateDir, passphrase);
   const clock = { t: Date.UTC(2026, 9, 2, 4, 0, 0) };
@@ -84,9 +85,11 @@ export async function startTestServer({ readModel = createFakeReadModel(), oauth
     log,
     timeZone,
     writeback,
+    coreRemember,
+    domainTools,
     ...extra,
   });
-  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  await listenForFetch(server);
   const base = `http://127.0.0.1:${server.address().port}`;
   return {
     base, server, oauth, clock, stateDir, readModel,

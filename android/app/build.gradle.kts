@@ -56,10 +56,8 @@ android {
     }
 
     signingConfigs {
-        // Shared debug keystore committed to the repo so debug APKs built on
-        // any developer machine carry the same signature. Without this, AGP
-        // falls back to ~/.android/debug.keystore which is unique per machine,
-        // forcing uninstall+reinstall (and data loss) when switching machines.
+        // Retain the existing local B3 debug signing material for upgrade builds.
+        // It stays ignored; do not generate another key or uninstall to change it.
         // Standard AOSP debug credentials — never use for release.
         getByName("debug") {
             storeFile = file("debug.keystore")

@@ -6,7 +6,12 @@ import 'package:memex/db/app_database.dart';
 
 /// Builds the tool that lets the companion update fields of an existing
 /// Memory V3 card.
-Tool buildMemoryV3UpdateCardTool() {
+/// The host supplies the exact message that triggered this tool instance.
+/// These values must never be accepted from the model's tool arguments.
+Tool buildMemoryV3UpdateCardTool({
+  int? currentUserMessageId,
+  String? characterId,
+}) {
   return Tool(
     name: 'memory_v3_update_card',
     description: '''Update one or more fields of an existing memory card.
@@ -48,6 +53,8 @@ Rules:
 - If unsure what to change, ask the user which field is wrong before calling.
 - For most "wrong wording" corrections, only `title` / `retrieval_text` are
   needed; leave everything else alone.
+- If the tool fails, explain the returned reason to the user. Never claim the
+  card changed or retry with agent_inferred when user authorization is missing.
 - After the tool succeeds, briefly confirm to the user what was changed.''',
     parameters: {
       'type': 'object',
@@ -84,8 +91,7 @@ Rules:
         },
         'structured_fields': {
           'type': 'string',
-          'description':
-              'JSON object string of business data fields, '
+          'description': 'JSON object string of business data fields, '
               'e.g. \'{"amount_cny":128,"merchant":"麦当劳"}\'. '
               'MERGES with existing — omitted fields are kept. '
               'Time fields are stripped; use time_overrides for those.',
@@ -94,40 +100,63 @@ Rules:
           'type': 'string',
           'description':
               'Optional full PresentationModule JSON to REPLACE the visible '
-              'summary card layout. JSON object string, '
-              'e.g. \'{"title":"午饭","blocks":[{"type":"text","text":"..."}]}\'. '
-              'Omit unless you need to add/reorder non-text blocks (number, '
-              'quote, table, media, etc.). For plain wording fixes, prefer '
-              '`retrieval_text` which auto-syncs text blocks.',
+                  'summary card layout. JSON object string, '
+                  'e.g. \'{"title":"午饭","blocks":[{"type":"text","text":"..."}]}\'. '
+                  'Omit unless you need to add/reorder non-text blocks (number, '
+                  'quote, table, media, etc.). For plain wording fixes, prefer '
+                  '`retrieval_text` which auto-syncs text blocks.',
         },
         'time_overrides': {
           'type': 'string',
           'description':
               'JSON object string of time fields to explicitly change, '
-              'e.g. \'{"receivedAt": "2026-07-15T14:00:00"}\'. '
-              'ONLY pass this when the user says the event time is wrong. '
-              'Non-time keys are silently ignored.',
+                  'e.g. \'{"receivedAt": "2026-07-15T14:00:00"}\'. '
+                  'ONLY pass this when the user says the event time is wrong. '
+                  'Non-time keys are silently ignored.',
         },
       },
       'required': ['card_id'],
+      'additionalProperties': false,
     },
-    executable: (
-      String cardId, [
-      String? title,
-      String? retrievalText,
-      String? dropletLabel,
-      String? type,
-      String? status,
-      String? structuredFieldsType,
-      String? structuredFieldsJson,
-      String? timeOverridesJson,
-      String? presentationModuleJson,
-    ]) async {
+    parameterMode: ToolParameterMode.object,
+    executable: (Map<String, dynamic> args) async {
+      const allowedArguments = {
+        'card_id',
+        'title',
+        'retrieval_text',
+        'droplet_label',
+        'type',
+        'status',
+        'structured_fields_type',
+        'structured_fields',
+        'time_overrides',
+        'presentation_module',
+      };
+      if (args.keys.any((key) => !allowedArguments.contains(key))) {
+        return jsonEncode({'success': false, 'error': 'unsupported_argument'});
+      }
+      if (args['card_id'] is! String ||
+          (args['card_id'] as String).trim().isEmpty ||
+          args.values.any((value) => value != null && value is! String)) {
+        return jsonEncode({'success': false, 'error': 'invalid_argument'});
+      }
+      final cardId = args['card_id'] as String;
+      final title = args['title'] as String?;
+      final retrievalText = args['retrieval_text'] as String?;
+      final dropletLabel = args['droplet_label'] as String?;
+      final type = args['type'] as String?;
+      final status = args['status'] as String?;
+      final structuredFieldsType = args['structured_fields_type'] as String?;
+      final structuredFieldsJson = args['structured_fields'] as String?;
+      final timeOverridesJson = args['time_overrides'] as String?;
+      final presentationModuleJson = args['presentation_module'] as String?;
       if (!AppDatabase.isInitialized) {
-        return jsonEncode({'success': false, 'error': 'Database not available.'});
+        return jsonEncode(
+            {'success': false, 'error': 'Database not available.'});
       }
       if (!RecordOrganizerServiceV3.isInitialized) {
-        return jsonEncode({'success': false, 'error': 'Record service not available.'});
+        return jsonEncode(
+            {'success': false, 'error': 'Record service not available.'});
       }
 
       Map<String, dynamic>? parseJsonObject(String? raw, String paramName) {
@@ -139,8 +168,10 @@ Rules:
         return <String, dynamic>{};
       }
 
-      final structuredFields = parseJsonObject(structuredFieldsJson, 'structured_fields');
-      final timeOverrides = parseJsonObject(timeOverridesJson, 'time_overrides');
+      final structuredFields =
+          parseJsonObject(structuredFieldsJson, 'structured_fields');
+      final timeOverrides =
+          parseJsonObject(timeOverridesJson, 'time_overrides');
 
       Map<String, dynamic>? presentationModule;
       if (presentationModuleJson != null && presentationModuleJson.isNotEmpty) {
@@ -180,8 +211,49 @@ Rules:
       }
 
       try {
+        // Companion chat creates a new tool closure for each incoming turn.
+        // Never fall back to a recent message, shared mutable agent metadata,
+        // or model-provided authorization. Background/workbench calls fail
+        // closed when no real user turn has been supplied by the host.
+        if (currentUserMessageId == null || characterId == null) {
+          return jsonEncode({
+            'success': false,
+            'error': 'missing_user_turn_context',
+          });
+        }
+        final db = AppDatabase.instance;
+        final message = await (db.select(db.personaChatMessages)
+              ..where((t) => t.id.equals(currentUserMessageId)))
+            .getSingleOrNull();
+        if (message == null) {
+          return jsonEncode({
+            'success': false,
+            'error': 'trigger_message_not_found',
+          });
+        }
+        if (message.characterId != characterId || message.taskRoomId != null) {
+          return jsonEncode({
+            'success': false,
+            'error': 'trigger_message_wrong_conversation',
+          });
+        }
+        if (message.isFromCharacter || message.messageType != 'chat') {
+          return jsonEncode({
+            'success': false,
+            'error': 'trigger_message_not_user_chat',
+          });
+        }
+        final authorizationRef = message.syncId;
+        if (authorizationRef == null || authorizationRef.trim().isEmpty) {
+          return jsonEncode({
+            'success': false,
+            'error': 'trigger_message_missing_sync_id',
+          });
+        }
         final updated = await RecordOrganizerServiceV3.instance.updateCard(
           cardId,
+          actor: 'user_via_agent',
+          authorizationRef: authorizationRef,
           title: title,
           retrievalText: retrievalText,
           dropletLabel: dropletLabel,

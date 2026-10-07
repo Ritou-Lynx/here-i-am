@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:memex/data/memory_v3/services/task_room_service.dart';
 
 import '../workbench_runtime_client.dart';
+import 'ollama_text_task_gateway.dart';
 import 'workbench_task_queue_execution.dart';
 import 'workbench_task_queue_execution_controller.dart';
 import 'workbench_task_queue_lifecycle_owner.dart';
@@ -37,8 +38,10 @@ class WorkbenchRuntimeTaskQueueTool {
         _loadExecutionController = loadExecutionController,
         _authorizationFactory = authorizationFactory;
 
+  /// Without an explicit [runtime], long tasks run on the Ollama model named
+  /// by `HIA_TASK_OLLAMA_MODEL`, or stay fail-closed when none is configured.
   factory WorkbenchRuntimeTaskQueueTool.production({
-    WorkbenchTextTaskRuntimeClient? runtime,
+    WorkbenchTextTaskBackend? runtime,
     WorkbenchTaskQueueLifecycleOwner? lifecycleOwner,
   }) =>
       WorkbenchRuntimeTaskQueueTool(
@@ -57,7 +60,7 @@ class WorkbenchRuntimeTaskQueueTool {
 
   static Future<WorkbenchTaskQueueExecutionController> _productionExecution(
     TaskRoomService service, {
-    WorkbenchTextTaskRuntimeClient? runtime,
+    WorkbenchTextTaskBackend? runtime,
     required WorkbenchTaskQueueLifecycleOwner lifecycleOwner,
   }) async {
     final existing = _executions[service];
@@ -65,10 +68,11 @@ class WorkbenchRuntimeTaskQueueTool {
       lifecycleOwner.register(existing);
       return existing;
     }
-    final textRuntime = runtime ?? WorkbenchTextTaskRuntimeClient();
+    final textRuntime = runtime ?? defaultWorkbenchTextTaskBackend();
     final execution = WorkbenchTaskQueueExecution(
         service: service,
         runtime: textRuntime,
+        ensureAvailable: textRuntime.ensureAvailable,
         startTextSession: (manifest) =>
             textRuntime.startTextTaskSession(contextManifest: manifest));
     _executions[service] = execution;

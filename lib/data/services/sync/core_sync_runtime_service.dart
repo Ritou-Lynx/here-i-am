@@ -1,3 +1,4 @@
+import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -65,7 +66,9 @@ class CoreSyncRuntimeService extends ChangeNotifier {
       _onChatMessageAdded,
     );
     await refreshStatus();
-    if (_status.isConfigured) unawaited(syncNow(reason: 'startup'));
+    if (_status.isConfigured || PersonalDataHub.forDatabase(AppDatabase.instance).hasConnections) {
+      unawaited(syncNow(reason: 'startup'));
+    }
   }
 
   void _onChatMessageAdded(EventBusMessage _) {
@@ -179,6 +182,7 @@ class CoreSyncRuntimeService extends ChangeNotifier {
 
   Future<void> _performSync(String reason) async {
     if (!AppDatabase.isInitialized) return;
+    await PersonalDataHub.forDatabase(AppDatabase.instance).syncConfiguredOnce();
     CoreSyncConnection? connection;
     try {
       connection = await _connectionStore.read();

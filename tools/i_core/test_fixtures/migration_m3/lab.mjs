@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { activitySchemaStatus } from '../../activity_control_plane.mjs';
 import { activityDatabaseBindingDigest } from '../../i_core_store.mjs';
 
-export const LEGACY_COMMIT = 'bbb8025d99fc0acaa846d58b4e5a94cef90f8756';
+import { seedSchema4, Schema4Reader } from '../schema4/synthetic_schema4.mjs';
+export const schema4Fixture = new URL('../schema4/synthetic_schema4.mjs', import.meta.url);
 export const repository = fileURLToPath(new URL('../../../../', import.meta.url));
 export const guard = fileURLToPath(new URL('../../runtime_pin/verify_v4_state.mjs', import.meta.url));
 export const oldTables = ['core_metadata', 'devices', 'consumed_pairing_codes', 'change_events',
@@ -123,40 +124,24 @@ export async function createLab(t) {
     rmSync(root, { recursive: true });
     assert.equal(existsSync(root), false);
   });
-  const oldSource = execFileSync('git', ['-C', repository, 'show', `${LEGACY_COMMIT}:tools/i_core/i_core_store.mjs`],
-    { windowsHide: true, timeout: 10000, env: cleanEnv() });
-  const oldPath = path.join(root, 'old-store.mjs');
-  writeFileSync(oldPath, oldSource, { flag: 'wx' });
-  const { ICoreStore: OldStore } = await import(pathToFileURL(oldPath));
-  const legacy = new OldStore(filename, { companionReplyJobsEnabled: true });
-  try {
-    legacy.pairDevice({ device_id: 'm3-synthetic', display_name: 'M3 synthetic', platform: 'test', client_version: '1', capabilities: ['chat'] }, 'm3-synthetic-pairing-code');
-    legacy.submitMessages('m3-synthetic', { device_id: 'm3-synthetic', request_companion_reply: true, messages: [{
-      sync_id: 'm3-message', origin_device_id: 'm3-synthetic', origin_sequence: 1, character_id: 'm3-character',
-      sender: 'user', content: 'M3 synthetic migration fixture', created_at_ms: 1000000,
-      message_type: 'chat', asset_refs: [], addenda: [],
-    }] });
-    const lease = legacy.acquireWorkerLease({ workload: 'companion_reply', holder_id: 'm3-worker', ttl_ms: 30000 }, 1000000);
-    const { job } = legacy.claimCompanionReplyJob(lease, 1000001);
-    legacy.completeCompanionReplyShadow({ ...lease, job_id: job.job_id, model: 'synthetic-no-provider', duration_ms: 1, reply_characters: 3 }, 1000002);
-  } finally { legacy.close(); }
+  seedSchema4(filename);
   const baseline = inspect(filename);
   assert.equal(baseline.metadata.schema_version, '4');
   assert.deepEqual(baseline.foreignKeys, []);
   for (const name of oldTables) assert.ok(baseline.rows[name].length > 0, `representative data in ${name}`);
   assert.equal(runV4Guard(filename).passed, true);
-  return { root, filename, baseline, OldStore, old_source_sha256: sha(oldSource) };
+  return { root, filename, baseline, fixture_source_sha256: sha(readFileSync(schema4Fixture)) };
 }
 
 export function verifyLegacyEntry(lab) {
   assert.equal(classify(lab.filename, lab.baseline).state, 'uncommitted_v4_verified');
   assert.equal(runV4Guard(lab.filename).passed, true);
-  const legacy = new lab.OldStore(lab.filename);
+  const legacy = new Schema4Reader(lab.filename);
   try {
     assert.equal(legacy.nodeId, lab.baseline.metadata.node_id);
     assert.match(JSON.stringify(legacy.getChanges(legacy.encodeCursor(0))), /M3 synthetic migration fixture/);
     assert.equal(legacy.decodeCursor(legacy.encodeCursor(1)), 1);
   } finally { legacy.close(); }
   assert.deepEqual(logicalView(inspect(lab.filename)), logicalView(lab.baseline));
-  return { guard_passed: true, old_constructor_called: true, chat_read: true, cursor_roundtrip: true, logical_view_unchanged: true };
+  return { guard_passed: true, old_constructor_called: false, synthetic_reader_called: true, chat_read: true, cursor_roundtrip: true, logical_view_unchanged: true };
 }

@@ -1,0 +1,209 @@
+name: CI
+
+# Unattended verification on GitHub-hosted runners:
+# - L1 Linux: whiteboard/workbench Flutter suites, scripted-model acceptance scenarios and
+#   platform-neutral Bridge tests, blocking.
+# - L1 Linux full: every Flutter test, blocking.
+# - L2 Windows: critical-fix check, Windows debug build, hermetic whiteboard integration tests
+#   and unit tests that need Windows file-lock semantics.
+# Every job runs all of its checks before failing, so one run reports every problem.
+
+on:
+  push:
+    branches: [v3-lab, 'codex/**', 'claude/**']
+    paths-ignore: ['**/*.md', 'docs/**']
+  pull_request:
+    branches: [v3-lab]
+    paths-ignore: ['**/*.md', 'docs/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.44.0'
+  NODE_VERSION: '24.14.1'
+
+jobs:
+  flutter-linux:
+    name: Flutter whiteboard + workbench (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install SQLite
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - name: Critical fixes check
+        shell: pwsh
+        run: ./scripts/verify_critical_fixes.ps1
+      - run: flutter pub get --enforce-lockfile
+      - name: Whiteboard and workbench suites
+        run: |
+          mkdir -p build/ci
+          flutter test \
+            test/ui/whiteboard test/data/whiteboard test/domain/whiteboard \
+            test/whiteboard_canvas test/data/workbench_ai test/domain/workbench_ai \
+            test/ui/desktop test/acceptance \
+            --file-reporter json:build/ci/flutter-whiteboard.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-whiteboard-results
+          path: build/ci/
+          if-no-files-found: ignore
+
+  flutter-linux-full:
+    name: Flutter full suite (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install SQLite
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - run: flutter pub get --enforce-lockfile
+      - name: Full suite
+        run: |
+          mkdir -p build/ci
+          flutter test --reporter failures-only --file-reporter json:build/ci/flutter-full.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-full-results
+          path: build/ci/
+          if-no-files-found: ignore
+
+  bridge-node:
+    name: Bridge Node tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: dev_agent_bridge (platform-neutral)
+        working-directory: tools/dev_agent_bridge
+        # windows_text_gate_* compile Windows-only C# helpers, and the product host
+        # test needs machine-local pins; both stay with the Windows acceptance flow.
+        run: |
+          files=$(ls *.test.mjs | grep -v '^windows_text_gate_' | grep -v '^workbench_text_task_product_host.test.mjs$')
+          node --test $files
+      - name: Personal data domains and MCP
+        run: >-
+          node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs
+          tools/i_core/personal_data_domains.test.mjs
+          tools/i_core/personal_data_http.test.mjs
+          tools/i_core/import_personal_notes.test.mjs
+          tools/i_core/local_transcript_grants.test.mjs
+          tools/i_core/historical_replay_approvals.test.mjs
+          tools/i_core/transcript_compatibility.test.mjs
+          tools/i_core/release_schema6/*.test.mjs
+          tools/i_core/release_schema6/lifecycle/*.test.mjs
+      - name: chatgpt_android_bridge
+        working-directory: tools/chatgpt_android_bridge
+        run: node --test $(find . -name '*.test.mjs' | sort)
+
+  windows:
+    name: Windows build + whiteboard integration
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Critical fixes check (required before flutter build)
+        shell: pwsh
+        run: .\scripts\verify_critical_fixes.ps1
+      - run: flutter pub get --enforce-lockfile
+      - name: Windows debug build
+        run: flutter build windows --debug
+      - name: Whiteboard integration tests
+        shell: pwsh
+        run: |
+          $tests = @(
+            'integration_test/whiteboard_desktop_loop_test.dart',
+            'integration_test/whiteboard_interactions_loop_test.dart',
+            'integration_test/whiteboard_rich_text_loop_test.dart',
+            'integration_test/whiteboard_ui0_fixed_viewport_windows_test.dart'
+          )
+          $failed = @()
+          foreach ($test in $tests) {
+            Write-Host "::group::$test"
+            flutter test $test -d windows
+            if ($LASTEXITCODE -ne 0) { $failed += $test }
+            Write-Host "::endgroup::"
+          }
+          if ($failed.Count -gt 0) {
+            Write-Host "Failed integration tests: $($failed -join ', ')"
+            exit 1
+          }
+          exit 0
+      - name: Unit tests that need Windows file locks
+        if: ${{ !cancelled() }}
+        run: flutter test test/data/services/activity/mda2_android/file_activity_outbox_store_test.dart
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whiteboard-screenshots
+          path: build/m5b2_screenshots/
+          if-no-files-found: ignore
+
+  schema6-windows:
+    name: Schema6 Windows lifecycle and backup
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Fixed runtime, recovery and backup suites
+        shell: powershell
+        run: ./tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema6-windows-results
+          path: |
+            build/ci/schema6-windows.tap
+            build/ci/schema6-native-probe.json
+            build/ci/schema6-module-scope.json
+          if-no-files-found: error
+
+  schema6-cross-user:
+    name: Schema6 password-only restore under another Windows user
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Synthetic restore with a disposable standard Windows user
+        shell: powershell
+        # This guard and all account changes are confined to an ephemeral hosted VM.
+        # A second SID must run the real immutable Core, not just decrypt or hash files.
+        run: ./tools/i_core/test_fixtures/release_schema6/cross_user_restore.ps1 -OutputReport build/ci/schema6-cross-user.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema6-cross-user-results
+          path: build/ci/schema6-cross-user.json
+          if-no-files-found: error

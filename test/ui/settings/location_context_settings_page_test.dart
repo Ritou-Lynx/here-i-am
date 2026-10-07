@@ -278,7 +278,7 @@ void main() {
     expect(find.textContaining('GPS: fresh'), findsOneWidget);
     expect(find.textContaining('Provider: Amap'), findsOneWidget);
     expect(find.textContaining('Reverse geocode: unavailable'), findsOneWidget);
-    expect(find.textContaining('Agent context: not injected'), findsOneWidget);
+    expect(find.textContaining('Agent context: injected'), findsOneWidget);
     expect(
       find.textContaining('Coordinates: 31.230416, 121.473701'),
       findsOneWidget,

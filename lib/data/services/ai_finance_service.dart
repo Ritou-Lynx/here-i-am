@@ -3,6 +3,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/db/daos/ai_finance_dao.dart';
 import 'package:drift/drift.dart';
 import 'package:synchronized/synchronized.dart';
+import 'package:memex/data/personal_data_hub/domain_row_storage.dart';
 
 class AiFinanceRecordResult {
   const AiFinanceRecordResult({
@@ -72,7 +73,7 @@ class AiFinanceService {
     String? transferDirection,
     DateTime? occurredAt,
   }) async {
-    return _recordLock.synchronized(() async {
+    return _recordLock.synchronized(() => _db.transaction(() async {
       final id = _uuid.v4();
       final now = (occurredAt ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
       final normalizedEntryType = entryType.trim().toLowerCase();
@@ -114,7 +115,74 @@ class AiFinanceService {
         notes: Value(_cleanNullableText(notes)),
       ));
       return AiFinanceRecordResult(id: id, created: true);
-    });
+    }));
+  }
+
+  // Capture projections have explicit ownership and a stable key. They must
+  // never borrow a heuristically similar row created through another path.
+  static const _captureOwnerPrefix = 'system:capture_bridge:';
+  static String _captureEntryId(String sourceRef, String cardId) => _uuid.v5(
+      Namespace.url.value, 'hereiam:capture-ledger:$sourceRef:$cardId');
+
+  Future<void> upsertCaptureEntry({
+    required String sourceRef,
+    required String cardId,
+    required String entryType,
+    required double totalAmount,
+    required double aiAmount,
+    required DateTime occurredAt,
+    double? contributionRatio,
+    String? myContributionDesc,
+    String? aiContributionDesc,
+    String? purpose,
+  }) =>
+      _db.transaction(() async {
+        if (!sourceRef.startsWith('captures:') ||
+            cardId.isEmpty ||
+            !totalAmount.isFinite ||
+            totalAmount <= 0 ||
+            !aiAmount.isFinite) {
+          throw ArgumentError('valid capture finance projection required');
+        }
+        final id = _captureEntryId(sourceRef, cardId);
+        final owner = '$_captureOwnerPrefix$sourceRef';
+        final existing = await _dao.getEntryById(id);
+        if (existing != null && existing.characterId != owner) {
+          throw StateError('capture ledger ownership conflict');
+        }
+        await _db.into(_db.aiFinanceLedger).insertOnConflictUpdate(
+              AiFinanceLedgerCompanion.insert(
+                id: id,
+                characterId: owner,
+                entryType: entryType,
+                totalAmount: totalAmount,
+                aiAmount: aiAmount,
+                contributionRatio: Value(contributionRatio),
+                myContributionDesc:
+                    Value(_cleanNullableText(myContributionDesc)),
+                aiContributionDesc:
+                    Value(_cleanNullableText(aiContributionDesc)),
+                purpose: Value(_cleanNullableText(purpose)),
+                linkedFactId: Value(cardId),
+                transferDirection: const Value(null),
+                notes: const Value(null),
+                recordedAt: occurredAt.millisecondsSinceEpoch ~/ 1000,
+              ),
+            );
+      });
+
+  /// Delete only this generated projection, including when its card is protected.
+  /// Ownership uses the immutable ID and writer marker; linkedFactId is user-
+  /// editable. A generic row linked to the card is not capture ownership.
+  Future<void> deleteCaptureEntry({
+    required String sourceRef,
+    required String cardId,
+  }) async {
+    await (_db.delete(_db.aiFinanceLedger)
+          ..where((t) =>
+              t.id.equals(_captureEntryId(sourceRef, cardId)) &
+              t.characterId.equals('$_captureOwnerPrefix$sourceRef')))
+        .go();
   }
 
   /// Returns the user-facing real ledger alongside the derived AI position.
@@ -413,6 +481,10 @@ class AiFinanceService {
     required String? transferDirection,
     required int nowEpoch,
   }) async {
+    if ((await DomainRowStorage.suppressedDedupeDomains(_db))
+        .contains('ledger')) {
+      return null;
+    }
     final normalizedFactId = _normalizeText(linkedFactId);
     if (normalizedFactId != null) {
       final linkedRows = await _dao.getSharedEntries(
@@ -420,6 +492,7 @@ class AiFinanceService {
         limit: 200,
       );
       for (final row in linkedRows) {
+        if (row.characterId.startsWith(_captureOwnerPrefix)) continue;
         if (_normalizeText(row.linkedFactId) == normalizedFactId) {
           return row;
         }
@@ -441,6 +514,7 @@ class AiFinanceService {
     // 收入很常见，绝不能合并。
     final moneyDedupe = entryType == 'expense' || entryType == 'penalty';
     for (final row in recentRows) {
+      if (row.characterId.startsWith(_captureOwnerPrefix)) continue;
       if (!_sameMoney(row.totalAmount, totalAmount) ||
           !_sameMoney(row.aiAmount, aiAmount) ||
           !_sameRatio(row.contributionRatio, contributionRatio)) {
@@ -577,6 +651,10 @@ bool _isDuplicateLedgerRow(
   AiFinanceLedgerData existing,
   AiFinanceLedgerData candidate,
 ) {
+  if (existing.characterId.startsWith(AiFinanceService._captureOwnerPrefix) ||
+      candidate.characterId.startsWith(AiFinanceService._captureOwnerPrefix)) {
+    return existing.id == candidate.id;
+  }
   if (existing.entryType != candidate.entryType) return false;
   if (existing.transferDirection != candidate.transferDirection) return false;
 

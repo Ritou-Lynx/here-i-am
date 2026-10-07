@@ -1,0 +1,129 @@
+{
+  "candidate": "W7-0 phone foundation source only",
+  "base": "6895e86b25f6bfdd9a53e1a0155a2893da0158f3",
+  "branch": "codex/w7-phone-foundation-20261005",
+  "hash_kind": "sha256 raw file bytes, not git normalized blobs",
+  "verification": {
+    "tests": 114,
+    "passed": 114,
+    "failed": 0,
+    "skipped": 0,
+    "analyze": "No issues found",
+    "new_directory_tests": 71,
+    "adjacent_tests": 43
+  },
+  "source_files": [
+    {
+      "path": "lib/agent/built_in_tools/memory_v3_query_tool.dart",
+      "sha256": "f17209c5c81e04f0e0ea67ef44a47d236333bbe9f3f12a8702c350052e4e2f75"
+    },
+    {
+      "path": "lib/agent/built_in_tools/memory_v3_update_card_tool.dart",
+      "sha256": "8da57e6db72279c18f709dcd218e91184c345d2b44ff1f64e1e48b92b1febb6a"
+    },
+    {
+      "path": "lib/config/dependencies.dart",
+      "sha256": "f79de6608db1845cc23cc8fe628fca53a9e3a8b723b13ed56255d5842155c007"
+    },
+    {
+      "path": "lib/data/memory_v3/services/record_organizer_service.dart",
+      "sha256": "eb052a7e5f4734a65c0ddf04109c7e32c4fdf56f5e90ddfd0ca685c0419491c6"
+    },
+    {
+      "path": "lib/data/personal_data_hub/capture_consumer.dart",
+      "sha256": "c1bd580b17c56bec5ea534b9f2c86b5843a413ab03ff5b20c461b01121b3b601"
+    },
+    {
+      "path": "lib/data/personal_data_hub/domain_http_transport.dart",
+      "sha256": "49cca551f572231b8430f8b0c51e424aa0627cf0277d64cea8e448aa894be687"
+    },
+    {
+      "path": "lib/data/personal_data_hub/domain_protocol.dart",
+      "sha256": "4c3e825ff4c78caa5caa9f780bd9583c58bfaeb2e27174af2538baeedf053741"
+    },
+    {
+      "path": "lib/data/personal_data_hub/domain_store.dart",
+      "sha256": "c02d6b9f48a661b8b811f5cfa810806f6c68f5ba10b94b1a1525318be8db3330"
+    },
+    {
+      "path": "lib/data/personal_data_hub/domain_sync_engine.dart",
+      "sha256": "c9bdba280fe270c1da88f921316576d6200e8ae485abf120ec04800c1a915ccd"
+    },
+    {
+      "path": "lib/data/personal_data_hub/personal_data_hub.dart",
+      "sha256": "b3d83d2943c5fbefcbe9a14c3a92aa59b15fbee2e867796458ff747979516516"
+    },
+    {
+      "path": "lib/data/services/persona_chat_service.dart",
+      "sha256": "e3b788b6e1b4ccd3a8d5af5b867f4397efac46b938d5f61392a0a00b452443cf"
+    },
+    {
+      "path": "lib/data/services/sync/core_sync_engine.dart",
+      "sha256": "0973b8315f42e406ffd83f9fe7561cc939fc2ec5a4dda8e762c9c1c2f80872f4"
+    },
+    {
+      "path": "lib/data/services/sync/core_sync_runtime_service.dart",
+      "sha256": "2d6b139e77ca5a19e79ec120777cc8716628006a7c6f0467fb70b725d8678b78"
+    },
+    {
+      "path": "lib/ui/companion/view_models/schedule_view_model.dart",
+      "sha256": "d08359471717421ceeedd62893f509be1f4a4590ccb64fc4c7fa279e0a5d34a6"
+    },
+    {
+      "path": "test/data/memory_v3/services/record_organizer_service_test.dart",
+      "sha256": "1354b349226717d43acddbd88dc3a87ebec556275cc634e3e61e27207de652fc"
+    },
+    {
+      "path": "test/data/personal_data_hub/app_integration_test.dart",
+      "sha256": "8667e68a6d72bc46a2c0fc250ced0175662cdfd3870813f3790bc4b71ab0dd71"
+    },
+    {
+      "path": "test/data/personal_data_hub/crash_worker.dart",
+      "sha256": "a5bb21727df5ef49eddf76b8a1fe76948240be1c3a8d61577ebe6edcaac96a30"
+    },
+    {
+      "path": "test/data/personal_data_hub/domain_protocol_test.dart",
+      "sha256": "5705465b8dc4d41633d3b28990e5fd1c218b1e21095dd9dc5cc343e72619ef18"
+    },
+    {
+      "path": "test/data/personal_data_hub/domain_sync_test.dart",
+      "sha256": "6b52c5e0dd29702b1e6206fa969310c3efecc397043f52059cb80d5da0e45ce8"
+    }
+  ],
+  "local_ignored_logs": [
+    {
+      "path": ".dart_tool/w7-final-tests.log",
+      "sha256": "d6b5c621f8a76c4894d7643c1de39d0468fed5c2fb6168a71b057fd6370b867d"
+    },
+    {
+      "path": ".dart_tool/w7-final-analyze.log",
+      "sha256": "f8f6c3b424dc5c9a90699db25b580164b238061ebea618d6f6b2855a2273f2ee"
+    }
+  ],
+  "root_owned_interop": "tools/personal_data_hub Node fixture and test/integration/personal_data_hub/client_core_interop.dart excluded; root must bind its independent final evidence",
+  "gates_not_run": [
+    "business domain migration",
+    "production domain activation",
+    "Android build/install",
+    "widget UI acceptance",
+    "device/human gate",
+    "shadow reconciliation",
+    "rollback rehearsal"
+  ],
+  "review_fixes": [
+    "sparse merge receipt and checked predecessor base",
+    "provenance payload scrubbing",
+    "deleted semantic duplicate cache invalidation before unavailable snapshot",
+    "hidden tombstone prevents overlay resurrection",
+    "canonical-only accepted response body",
+    "portable SDK lookup, no skipped crash tests",
+    "merge GET deletion only applies to source, not target or references",
+    "sealed scrubbed intent retains lookup-only recovery; 404 never resubmits or implies acceptance",
+    "completed history is not a pending predecessor; source/target/reference bases never regress",
+    "completed sparse merge target checked base participates in known revision only after receipt binding validation"
+  ],
+  "platform_validation": {
+    "windows": "actual SQLite process kill boundaries passed",
+    "linux": "path resolution vectors passed; actual CI execution pending"
+  }
+}

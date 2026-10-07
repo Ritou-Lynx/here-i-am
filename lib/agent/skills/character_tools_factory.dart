@@ -128,7 +128,10 @@ class CharacterToolsFactory {
           currentUserMessageText: currentUserMessageText));
       tools.add(
           buildMemoryV3QueryTool(currentUserMessageId: currentUserMessageId));
-      tools.add(buildMemoryV3UpdateCardTool());
+      tools.add(buildMemoryV3UpdateCardTool(
+        currentUserMessageId: currentUserMessageId,
+        characterId: characterId,
+      ));
       tools.add(buildMemoryV3DeleteCardTool());
       tools.add(buildProjectMemoryQueryTool(
           currentUserMessageId: currentUserMessageId));

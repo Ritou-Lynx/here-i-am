@@ -345,8 +345,21 @@ abstract interface class WorkbenchTextTaskStopGateway
   });
 }
 
-class WorkbenchTextTaskRuntimeClient extends WorkbenchRuntimeClient
+/// A complete long-task executor: the in-process Ollama gateway in production,
+/// or the legacy Bridge text-only profile kept for the P6 acceptance entries.
+abstract interface class WorkbenchTextTaskBackend
     implements WorkbenchTextTaskStopGateway {
+  /// Throws a [WorkbenchRuntimeException] before any task state changes when
+  /// this backend cannot execute at all (for example, no model configured).
+  Future<void> ensureAvailable();
+
+  Future<WorkbenchTextTaskSession> startTextTaskSession({
+    Map<String, dynamic> contextManifest = const {},
+  });
+}
+
+class WorkbenchTextTaskRuntimeClient extends WorkbenchRuntimeClient
+    implements WorkbenchTextTaskBackend {
   WorkbenchTextTaskRuntimeClient({super.bridgeUrl, super.dio});
 
   static const profile = 'workbench_text_only_v1';
@@ -354,6 +367,11 @@ class WorkbenchTextTaskRuntimeClient extends WorkbenchRuntimeClient
   final Map<String, Future<WorkbenchTextTaskStopResult>> _closeAttempts = {};
   final Map<String, _TextTaskCloseBinding> _closeBindings = {};
 
+  /// Availability is decided by the Bridge isolation receipt at session start.
+  @override
+  Future<void> ensureAvailable() async {}
+
+  @override
   Future<WorkbenchTextTaskSession> startTextTaskSession({
     Map<String, dynamic> contextManifest = const {},
   }) async {

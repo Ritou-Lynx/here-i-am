@@ -9,6 +9,9 @@ abstract final class AppRoutes {
   /// Home (main screen with tabs).
   static const String home = '/';
 
+  static const String quickCapture = '/quick-capture';
+  static const String planning = '/planning';
+
   /// Personal center (settings).
   static const String personalCenter = '/personal-center';
 

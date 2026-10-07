@@ -1,0 +1,212 @@
+{
+  "format": "w1-combined-main-acceptance-v1",
+  "baseline": "6895e86b25f6bfdd9a53e1a0155a2893da0158f3",
+  "scope": "source_integration_only_with_authorized_readonly_live_copy_rehearsal",
+  "recursive_core_memory_mcp": {
+    "test_files": 31,
+    "tests": 508,
+    "pass": 507,
+    "fail": 0,
+    "skip": 1,
+    "cancelled": 0,
+    "duration_ms": 366204.1555,
+    "log_sha256": "4496d92353021bdc2eb776c6d0b739d54aecfc799b45d1763a8752f6f8bcbe56",
+    "source_guard_verified": true,
+    "original_windows_case_insensitive_fs_skip_only": true
+  },
+  "focused_fixture": {
+    "pass": 7,
+    "fail": 0,
+    "skip": 0,
+    "path": "tools/i_core/test_fixtures/schema4/runtime_pin_lab.mjs",
+    "sha256": "3d6d29dd56dba4c9a776eeba4f173b9557157d0a2f460af74c752077656bbfea"
+  },
+  "candidate_worktree_raw_sha256": {
+    "tools/i_core/activity_control_plane.mjs": "18fe801708b5d1ff01deefe09e3ec9871a647a771522df0045e8b6c241fa27ce",
+    "tools/i_core/domain_companion.test.mjs": "33f614a4a73e89ad35b6d039b4d7851f4079f721a540b116a9a357bd1b6247e7",
+    "tools/i_core/domain_copy_validation.test.mjs": "bdd93f2cca4ef67999f8c2467aa7bff42ae948a4924911b4907382bd32d9a0f0",
+    "tools/i_core/domain_http.mjs": "f3917f8fae8f20421aed71bdd55cdd65027726734a7825cc8987758581a304ea",
+    "tools/i_core/domain_http.test.mjs": "9e9013b27502cf33ad85df77228efbce1579c9721aaf86390c29f22ba8de8a0f",
+    "tools/i_core/domain_migrate.mjs": "db1b9bf87558463cac4532a36a2fb6405f16771ca15f2487e937e1b96d28da82",
+    "tools/i_core/domain_migrate.test.mjs": "4991e640f7692b76d4f93c91bac22b1752f7001b37dcb834bdbabcf5e9d124e2",
+    "tools/i_core/domain_schema.mjs": "4fe326d383e1ab6a5e94602aa0a83d1505b06fffc5a2517e620b54576de8ec34",
+    "tools/i_core/domain_schema.test.mjs": "7fb0f5848aee17b5be83f973fa150f7da02e9303e6f30e8ce81f11101a0997b5",
+    "tools/i_core/domain_store.mjs": "96a5b292c281087c3a70efc32d9fcfb053da0466d9004c0a196cbfe1f721b0f6",
+    "tools/i_core/domain_store.test.mjs": "10dbfd0386edaf5ba83d735c774ac1101a53b530cf28cdd13bd98efb5cb0bd06",
+    "tools/i_core/i_core_server.mjs": "073c7f24e586c5984bae6e5f358ac2f3c54b2d751d6cd9db3024eddbfbb2eb06",
+    "tools/i_core/i_core_store.mjs": "bc249946d526dca3e06ed9189f0cbe2ba3aa84cbe84c4a535ec5e56e56afa051"
+  },
+  "r01_receipt": "docs/development/handoffs/W1_COMBINED_R01_VALIDATION_20261005.json",
+  "r01_source_binding_verified": true,
+  "existing_live_activity_history_verified": false,
+  "r01_cleanup": {
+    "protected_acl": true,
+    "remaining_plaintext_sqlite_files": 0,
+    "scratch_parent_removed": true
+  },
+  "live_schema_version_after": 4,
+  "core_and_mcp_processes_still_running": true,
+  "runtime_switch_performed": false,
+  "production_grants_issued": false,
+  "phone_install_performed": false,
+  "four_business_domains_enabled": false,
+  "client_A18_A20_complete": false,
+  "git_staged_source_bindings": [
+    {
+      "path": "tools/i_core/activity_control_plane.mjs",
+      "git_staged_sha256": "18fe801708b5d1ff01deefe09e3ec9871a647a771522df0045e8b6c241fa27ce",
+      "worktree_raw_sha256": "18fe801708b5d1ff01deefe09e3ec9871a647a771522df0045e8b6c241fa27ce",
+      "eol_normalization_only": false
+    },
+    {
+      "path": "tools/i_core/domain_companion.test.mjs",
+      "git_staged_sha256": "33f614a4a73e89ad35b6d039b4d7851f4079f721a540b116a9a357bd1b6247e7",
+      "worktree_raw_sha256": "33f614a4a73e89ad35b6d039b4d7851f4079f721a540b116a9a357bd1b6247e7",
+      "eol_normalization_only": false
+    },
+    {
+      "path": "tools/i_core/domain_copy_validation.test.mjs",
+      "git_staged_sha256": "29ffe2664546eaa1dff85096de5590daff8aa4fefa7abaa1f000210f359d8d23",
+      "worktree_raw_sha256": "bdd93f2cca4ef67999f8c2467aa7bff42ae948a4924911b4907382bd32d9a0f0",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/domain_http.mjs",
+      "git_staged_sha256": "3ff57a91eb9b8bcea9dac72396eb76efbdadc54586b7620474581397cb71fc31",
+      "worktree_raw_sha256": "f3917f8fae8f20421aed71bdd55cdd65027726734a7825cc8987758581a304ea",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/domain_http.test.mjs",
+      "git_staged_sha256": "127460053fcc96734427df33bc7a4e49452e34abdf28f4b28bbfe8594414fe7b",
+      "worktree_raw_sha256": "9e9013b27502cf33ad85df77228efbce1579c9721aaf86390c29f22ba8de8a0f",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/domain_migrate.mjs",
+      "git_staged_sha256": "d7ca990c080590b3543e4c80dd6e78dddd12e2394b1548d114eb0362213cca02",
+      "worktree_raw_sha256": "db1b9bf87558463cac4532a36a2fb6405f16771ca15f2487e937e1b96d28da82",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/domain_migrate.test.mjs",
+      "git_staged_sha256": "f39bf41424597c8d951ef7fe08325b24b8c9b54a881165be45cce42fd360cf18",
+      "worktree_raw_sha256": "4991e640f7692b76d4f93c91bac22b1752f7001b37dcb834bdbabcf5e9d124e2",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/domain_schema.mjs",
+      "git_staged_sha256": "692d5d67c9d222bd207eb15b56669f7a0ed85ba3cfbef2a6b7f3d68ae020c7d8",
+      "worktree_raw_sha256": "4fe326d383e1ab6a5e94602aa0a83d1505b06fffc5a2517e620b54576de8ec34",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/domain_schema.test.mjs",
+      "git_staged_sha256": "2feebd4608203d3ea9521bfa508693ca4830da9485b2c72467ba5e0597c8626b",
+      "worktree_raw_sha256": "7fb0f5848aee17b5be83f973fa150f7da02e9303e6f30e8ce81f11101a0997b5",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/domain_store.mjs",
+      "git_staged_sha256": "2bdefe1214da4ee4d1759d626370c67ef109eeed0f3aff79ae127468e4b75dfd",
+      "worktree_raw_sha256": "96a5b292c281087c3a70efc32d9fcfb053da0466d9004c0a196cbfe1f721b0f6",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/domain_store.test.mjs",
+      "git_staged_sha256": "2da53112edcbc0ca9223699a32c3a0f3b7b385efb62243b27d23c2c08ccef017",
+      "worktree_raw_sha256": "10dbfd0386edaf5ba83d735c774ac1101a53b530cf28cdd13bd98efb5cb0bd06",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/i_core_server.mjs",
+      "git_staged_sha256": "24441f7704ef9e405625451df2f576da76775af1919e126a8f7685d2c4b98142",
+      "worktree_raw_sha256": "073c7f24e586c5984bae6e5f358ac2f3c54b2d751d6cd9db3024eddbfbb2eb06",
+      "eol_normalization_only": true
+    },
+    {
+      "path": "tools/i_core/i_core_store.mjs",
+      "git_staged_sha256": "bc249946d526dca3e06ed9189f0cbe2ba3aa84cbe84c4a535ec5e56e56afa051",
+      "worktree_raw_sha256": "bc249946d526dca3e06ed9189f0cbe2ba3aa84cbe84c4a535ec5e56e56afa051",
+      "eol_normalization_only": false
+    },
+    {
+      "path": "tools/i_core/test_fixtures/schema4/runtime_pin_lab.mjs",
+      "git_staged_sha256": "cb41efacc42c69c65138edee0ccbf88e70c215f21d05dd0abc3fb72b396ed630",
+      "worktree_raw_sha256": "3d6d29dd56dba4c9a776eeba4f173b9557157d0a2f460af74c752077656bbfea",
+      "eol_normalization_only": true
+    }
+  ],
+  "raw_vs_git_blob_differences_are_eol_only": true,
+  "post_full_suite_formatting": [
+    {
+      "path": "tools/i_core/domain_copy_validation.test.mjs",
+      "before_sha256": "b52aa2600a6b600fe12c51dd0a525455396651e3c12c51497dbfc3dcf4cf4c3c",
+      "after_sha256": "bdd93f2cca4ef67999f8c2467aa7bff42ae948a4924911b4907382bd32d9a0f0",
+      "trailing_blank_lines_only": true
+    },
+    {
+      "path": "tools/i_core/domain_http.mjs",
+      "before_sha256": "7a933eef5d78073d41f5dc7da84be70870edd3cc2fb5f3b7e73f5ebab9fb6fe9",
+      "after_sha256": "f3917f8fae8f20421aed71bdd55cdd65027726734a7825cc8987758581a304ea",
+      "trailing_blank_lines_only": true
+    },
+    {
+      "path": "tools/i_core/domain_http.test.mjs",
+      "before_sha256": "1b39fdc6ab10ecc3fc32f0f900acab613a28b34a012315b080f606b5d9ec741b",
+      "after_sha256": "9e9013b27502cf33ad85df77228efbce1579c9721aaf86390c29f22ba8de8a0f",
+      "trailing_blank_lines_only": true
+    },
+    {
+      "path": "tools/i_core/domain_migrate.mjs",
+      "before_sha256": "5ce9124f067491ad9f76bacd61269f6f059c7029c9f5e46dcec6acd3580f49ee",
+      "after_sha256": "db1b9bf87558463cac4532a36a2fb6405f16771ca15f2487e937e1b96d28da82",
+      "trailing_blank_lines_only": true
+    },
+    {
+      "path": "tools/i_core/domain_migrate.test.mjs",
+      "before_sha256": "55ce4b75a1cf0b70afed2e97b7bb0b9d46919d97faccaa040f6334d095713f5f",
+      "after_sha256": "4991e640f7692b76d4f93c91bac22b1752f7001b37dcb834bdbabcf5e9d124e2",
+      "trailing_blank_lines_only": true
+    },
+    {
+      "path": "tools/i_core/domain_schema.mjs",
+      "before_sha256": "d5aa13f9a0c21831badadfa90a7cc670e183371726ff492d3d6de68c75d513c1",
+      "after_sha256": "4fe326d383e1ab6a5e94602aa0a83d1505b06fffc5a2517e620b54576de8ec34",
+      "trailing_blank_lines_only": true
+    },
+    {
+      "path": "tools/i_core/domain_schema.test.mjs",
+      "before_sha256": "9d476166aaef68e18d5a37fe396675fea37a6c365e2898a8d7267e309be21fb8",
+      "after_sha256": "7fb0f5848aee17b5be83f973fa150f7da02e9303e6f30e8ce81f11101a0997b5",
+      "trailing_blank_lines_only": true
+    },
+    {
+      "path": "tools/i_core/domain_store.mjs",
+      "before_sha256": "05648931bbea392bc6e38b2e0d0dca13615e3a27530fb9cecbf1a86cce6118b3",
+      "after_sha256": "96a5b292c281087c3a70efc32d9fcfb053da0466d9004c0a196cbfe1f721b0f6",
+      "trailing_blank_lines_only": true
+    }
+  ],
+  "final_domain_suite_after_eof_formatting": {
+    "test_files": 6,
+    "pass": 111,
+    "fail": 0,
+    "skip": 0,
+    "cancelled": 0,
+    "duration_ms": 10256.432,
+    "log_sha256": "6e6135947bd046182d8c301b1ba9f6444bac25b2342e4ad91130e949c03c3834"
+  },
+  "core42_merge": {
+    "number": 7,
+    "url": "https://github.com/Ritou-Lynx/here-i-am/pull/7",
+    "merged": true,
+    "head_sha": "6895e86b25f6bfdd9a53e1a0155a2893da0158f3",
+    "merge_commit_sha": "38ed6b88e6c8fadd372aa6dedf47c18f40879b98",
+    "merged_at": "2026-10-05T12:21:34Z",
+    "v3_lab_sha": "38ed6b88e6c8fadd372aa6dedf47c18f40879b98",
+    "merge_method": "merge",
+    "head_checks_all_success": true
+  },
+  "core42_merge_tree_matches_tested_source": true
+}

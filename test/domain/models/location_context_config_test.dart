@@ -61,7 +61,7 @@ void main() {
       expect(reminder, contains('do not invent a missing city'));
     });
 
-    test('fresh GPS-only context is not injected into agent prompts', () {
+    test('fresh GPS-only context gives coordinates without a place name', () {
       final context = CurrentLocationContext(
         status: 'fresh',
         latitude: 31.212345,
@@ -72,7 +72,12 @@ void main() {
         reason: 'reverse geocode unavailable (amap): amap api key is empty',
       );
 
-      expect(context.toAgentSystemReminderContent(), isNull);
+      final reminder = context.toAgentSystemReminderContent();
+
+      expect(reminder, contains('latitude: 31.212345'));
+      expect(reminder, contains('Do not invent a city, district, or venue'));
+      expect(reminder, contains('GetCurrentLocation'));
+      expect(reminder, isNot(contains('location_summary')));
     });
   });
 }

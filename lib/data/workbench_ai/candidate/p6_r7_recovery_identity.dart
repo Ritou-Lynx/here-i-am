@@ -143,7 +143,7 @@ class P6R7RecoveryInspection {
   }) {
     final origin = P6R7OriginIdentity.inspect(markerBytes, trustedOrigin);
     _require(
-        projection.userVersion == 60 && projection.identityRows.length == 1);
+        projection.userVersion == 62 && projection.identityRows.length == 1);
     final identity = projection.identityRows.single;
     _require(identity.length == 2 &&
         identity['identity_hash'] == origin.identityHash &&

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "purpose": "Byte-exact legacy production source closure for synthetic release-schema6 reader tests",
+  "entry": "i_remote_mcp/server.mjs",
+  "entry_sha256": "adfc88126c6d7ee047fd7fed7eda6b3b536c9e1fe0baffafbedc290b6c5554d6",
+  "files": [
+    {
+      "path": "i_remote_mcp/server.mjs",
+      "sha256": "adfc88126c6d7ee047fd7fed7eda6b3b536c9e1fe0baffafbedc290b6c5554d6",
+      "bytes": 22374
+    },
+    {
+      "path": "i_remote_mcp/oauth.mjs",
+      "sha256": "53dda48003b8b0b7da27c7a10895f31863398e1c42fe5e5ed017608f129755b5",
+      "bytes": 19860
+    },
+    {
+      "path": "i_remote_mcp/diagnostics.mjs",
+      "sha256": "b60230926d0fa8cbcf2cbfefa5667656190507d828fc953605837d8f04e5b4f7",
+      "bytes": 5030
+    },
+    {
+      "path": "i_remote_mcp/mcp.mjs",
+      "sha256": "4bdd55dd3bd41e4ff0e16cdce08b2c58dce007d6fe6eaee51cc2110cdfc7d09b",
+      "bytes": 20159
+    },
+    {
+      "path": "i_remote_mcp/writeback.mjs",
+      "sha256": "f2aac48db1cf61a44a0c9b5b28087b90894f03396cd52830a4428532944bc52a",
+      "bytes": 29165
+    },
+    {
+      "path": "i_memory/i_memory_read.mjs",
+      "sha256": "cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28",
+      "bytes": 21378
+    }
+  ]
+}

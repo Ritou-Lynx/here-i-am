@@ -76,7 +76,7 @@ void main() {
     // 验证 user_version 已升级到当前版本。
     final version =
         await migratedDb.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 60);
+    expect(version.data['user_version'], migratedDb.schemaVersion);
 
     // ========================================================================
     // 3. 验证新表已创建
@@ -277,7 +277,7 @@ void main() {
 
     final version =
         await migratedDb.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 60);
+    expect(version.data['user_version'], migratedDb.schemaVersion);
 
     final columnsResult = await migratedDb
         .customSelect(

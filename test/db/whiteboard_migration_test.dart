@@ -76,7 +76,7 @@ void main() {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 60);
+    expect(version.data['user_version'], db.schemaVersion);
 
     final tables = await tableNames(db);
     for (final table in whiteboardTables) {
@@ -139,7 +139,7 @@ void main() {
     final db = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 60);
+    expect(version.data['user_version'], db.schemaVersion);
 
     final tables = await tableNames(db);
     for (final table in whiteboardTables) {
@@ -223,7 +223,7 @@ void main() {
     final db = AppDatabase.forTesting(NativeDatabase(tempDbFile));
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.data['user_version'], 60);
+    expect(version.data['user_version'], db.schemaVersion);
 
     // Missing tables were created, existing tables untouched (data kept).
     final tables = await tableNames(db);

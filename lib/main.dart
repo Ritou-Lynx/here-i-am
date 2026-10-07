@@ -1,3 +1,7 @@
+import 'package:memex/data/memory_v3/notes/claude_web_note_feed_service.dart';
+import 'package:memex/data/personal_data_hub/personal_data_hub_runtime_owner.dart';
+import 'package:memex/ui/quick_capture/quick_capture_access_gate.dart';
+import 'package:memex/ui/quick_capture/quick_capture_launch_bridge.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -188,6 +192,19 @@ void main() async {
 
   // Initialize l10n
   await UserStorage.initL10n();
+
+  // The independent capture task mounts only its page, after app-lock checks.
+  // It bypasses the companion home/background initialization entirely.
+  if (Platform.isAndroid &&
+      PlatformDispatcher.instance.defaultRouteName == AppRoutes.quickCapture) {
+    final captureRouter = createAppRouter(rootNavigatorKey,
+        () => RootShell(key: rootShellKey),
+        desktopPlatformOverride: false, initialLocation: AppRoutes.quickCapture);
+    runApp(MultiProvider(providers: dependencyProviders,
+        child: MemexApp(router: captureRouter, captureOnly: true)));
+    return;
+  }
+
 
   // Desktop (whiteboard workbench) has no background-task / notification /
   // call-kit plugins — gate the mobile-only startup wiring behind this flag.
@@ -396,7 +413,13 @@ void main() async {
   if (!isDesktop) {
     const QuickActions quickActions = QuickActions();
     quickActions.initialize((String shortcutType) {
-      QuickActionService.instance.handleAction(shortcutType);
+      if (shortcutType == 'quick_note') {
+        if (appRouter.routeInformationProvider.value.uri.path != AppRoutes.quickCapture) {
+          appRouter.push(AppRoutes.quickCapture);
+        }
+      } else {
+        QuickActionService.instance.handleAction(shortcutType);
+      }
     });
   }
 
@@ -480,7 +503,9 @@ class RootShellState extends State<RootShell> {
       _isChecking = true;
       _mainScreenEpoch++;
     });
-    _checkUser();
+    unawaited(_checkUser().then((_) async {
+      if (mounted) await PersonalDataHubRuntimeOwner.current?.reload();
+    }));
   }
 
   @override
@@ -506,15 +531,18 @@ class RootShellState extends State<RootShell> {
 }
 
 class MemexApp extends StatefulWidget {
-  const MemexApp({super.key, required this.router});
+  const MemexApp({super.key, required this.router, this.captureOnly = false});
 
   final GoRouter router;
+  final bool captureOnly;
 
   @override
   State<MemexApp> createState() => _MemexAppState();
 }
 
 class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
+  final _captureLaunchBridge = QuickCaptureLaunchBridge();
+  bool _captureAuthReady = false;
   bool _hasUser = false;
   bool _isLocked = true; // Default to locked on start
   bool _requiresAuth = true; // Whether actual authentication is required
@@ -539,16 +567,42 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (Platform.isAndroid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_captureLaunchBridge.start(() {
+          if (mounted && widget.router.routeInformationProvider.value.uri.path != AppRoutes.quickCapture) {
+            widget.router.push(AppRoutes.quickCapture);
+          }
+        }).catchError((Object _) {}));
+      });
+    }
+    if (widget.captureOnly) {
+      _initializeCaptureAccess();
+      return;
+    }
     if (Platform.isWindows) {
       DesktopWindowExitChannel.install(_ordinaryDesktopExitGate.close);
     }
-    _checkUser();
-    _checkLockSettings();
+    _initializeCaptureAccess();
     // App starts in the foreground; begin the heartbeat so background checkins
     // stay silent while the user is actively using the app.
     if (!OrdinaryDesktopCandidateStorage.isActive) {
       _startForegroundHeartbeat();
     }
+  }
+
+  void _initializeCaptureAccess() {
+    QuickCaptureAccess.instance.value = false;
+    unawaited(Future.wait([_checkUser(), _checkLockSettings()]).then((_) {
+      if (!mounted) return;
+      setState(() => _captureAuthReady = true);
+      _syncCaptureAccess();
+    }));
+  }
+
+  void _syncCaptureAccess() {
+    QuickCaptureAccess.instance.value = _captureAuthReady && !_isLocked;
   }
 
   /// Writes a foreground heartbeat now and every 60s so background checkin
@@ -591,6 +645,8 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    QuickCaptureAccess.instance.value = false;
+    _captureLaunchBridge.dispose();
     _taskKeepAliveSubscription?.cancel();
     _foregroundHeartbeatTimer?.cancel();
     super.dispose();
@@ -609,6 +665,18 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (OrdinaryDesktopCandidateStorage.isActive) return;
     _lastLifecycleState = state;
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      QuickCaptureAccess.instance.value = false;
+    }
+    if (widget.captureOnly) {
+      if (state == AppLifecycleState.paused) {
+        _lastPausedTime = DateTime.now();
+        unawaited(_checkLockSettingsBeforeLocking());
+      } else if (state == AppLifecycleState.resumed) {
+        unawaited(_checkGracePeriod());
+      }
+      return;
+    }
     if (state == AppLifecycleState.paused) {
       unawaited(LocalTaskExecutor.instance
           .recordGracefulShutdown(reason: 'app_lifecycle_paused'));
@@ -674,7 +742,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   }
 
   void _ensureTaskKeepAliveSubscription() {
-    if (_taskKeepAliveSubscription != null || !AppDatabase.isInitialized) {
+    if (widget.captureOnly || _taskKeepAliveSubscription != null || !AppDatabase.isInitialized) {
       return;
     }
 
@@ -717,7 +785,10 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   }
 
   Future<void> _checkGracePeriod() async {
-    if (!_isLocked) return;
+    if (!_isLocked) {
+      _syncCaptureAccess();
+      return;
+    }
 
     if (_lastPausedTime != null) {
       final difference = DateTime.now().difference(_lastPausedTime!);
@@ -744,6 +815,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
         });
       }
     }
+    _syncCaptureAccess();
   }
 
   Future<void> _checkUser() async {
@@ -771,6 +843,22 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
           ThemeMode.light, // Unified light mode, disabling adaptive dark mode
       routerConfig: widget.router,
       builder: (context, child) {
+        if (widget.captureOnly) {
+          // Keep the Router and its text-only draft session mounted across
+          // locks. The route gate still prevents locked microphone creation.
+          return Stack(children: [
+            if (child != null) child,
+            if (!_captureAuthReady)
+              const SizedBox.expand()
+            else if (_isLocked)
+              _requiresAuth
+                  ? LockScreen(onUnlock: () {
+                      setState(() => _isLocked = false);
+                      _syncCaptureAccess();
+                    })
+                  : const PrivacyScreen(),
+          ]);
+        }
         return Stack(
           children: [
             if (child != null) child,
@@ -781,6 +869,7 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
                         setState(() {
                           _isLocked = false;
                         });
+                        _syncCaptureAccess();
                       },
                     )
                   : const PrivacyScreen(),
@@ -902,6 +991,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       }
       _eventBus.connect();
       await CoreSyncRuntimeService.instance.initialize();
+      if (mounted && AppDatabase.isInitialized) {
+        unawaited(context.read<ClaudeWebNoteFeedService>().syncOnce());
+      }
     });
 
     // Check and report all health data
@@ -1759,10 +1851,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       final action = await QuickActionService.instance.consumePendingAction();
       if (!mounted) return;
       if (action == 'quick_note') {
-        _logger.info('Quick action: opening input sheet');
-        setState(() {
-          _isInputOpen = true;
-        });
+        if (GoRouter.of(context).routeInformationProvider.value.uri.path != AppRoutes.quickCapture) {
+          context.push(AppRoutes.quickCapture);
+        }
       }
     });
   }
@@ -1878,6 +1969,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         _eventBus.connect();
       }
       unawaited(CoreSyncRuntimeService.instance.syncNow(reason: 'resume'));
+      if (mounted && AppDatabase.isInitialized) {
+        unawaited(context.read<ClaudeWebNoteFeedService>().syncOnce());
+      }
       // Consume any quick action that arrived while in background.
       // Use synchronous check; platform callback fires before resumed,
       // so no need for the 2-sec wait (which could catch a re-delivered intent).
@@ -1885,8 +1979,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       if (action == 'quick_note' && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            _logger.info('Quick action (resumed): opening input sheet');
-            setState(() => _isInputOpen = true);
+            if (GoRouter.of(context).routeInformationProvider.value.uri.path != AppRoutes.quickCapture) {
+              context.push(AppRoutes.quickCapture);
+            }
           }
         });
       }

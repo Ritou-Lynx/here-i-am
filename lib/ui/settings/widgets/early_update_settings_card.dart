@@ -294,7 +294,6 @@ class _EarlyUpdateSettingsCardState extends State<EarlyUpdateSettingsCard> {
     // nested ListTiles paint above it instead of being hidden behind it.
     return Material(
       color: tokens.surface,
-      borderRadius: BorderRadius.circular(tokens.radius18),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(tokens.radius18),
         side: BorderSide(color: tokens.divider),

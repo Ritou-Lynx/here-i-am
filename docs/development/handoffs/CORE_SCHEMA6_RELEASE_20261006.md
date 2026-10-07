@@ -1,0 +1,35 @@
+# Core schema6 release/preflight package — 2026-10-06
+
+## Scope and integration
+
+- Worker `schema62_compat`, branch `codex/schema62-compat-20261006`. Prior schema package is `281bcce7510f69771844b3b201d383916d4c93dc`.
+- Core dependency `736875630f4ac682571c28adc4e0d6397bec917e` was cherry-picked locally as `16cdf174`; the main agent already owns its separate integration. **Integrate only the new release-package commit for this work package**, not this dependency again.
+- Owned changes: new `tools/i_core/release_schema6/` only and this handoff. No CoreStore/server/domain migration/Flutter changes, no global documentation changes, no edits to old R3/fixed manifests, no private state or real databases read.
+- Candidate preparation and offline preflight are implemented. A production start/stop supervisor adapter, migration authority, service/task installation, backup activation or phone deployment is intentionally not implemented or claimed.
+
+## Delivered behavior
+
+- `package.mjs`: exact source and wrapper bytes from one resolved Git commit (`sourceCommit`, default `HEAD`, only HEAD/full 40-hex accepted). Core/wrapper/source commit are recorded together. No worker-only object requirement or uncommitted file reads for candidate contents. Transitive static ESM dependencies, mail PowerShell dependencies, domain support, release wrappers, and pinned Node executable form an exact 17-file inventory plus manifest; dynamic/unlisted JS dependencies reject preparation.
+- Pinned Windows Node 24.14.1 SHA256 `58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f`. External manifest hash is mandatory for production verification; per-file hashes/lengths and exact inventory are checked. Existing candidate directories cannot be overwritten.
+- `preflight.mjs`: read-only immutable SQLite inspection of explicit schema5/6 offline inputs; no CoreStore constructor. Both external approval file and durable ledger must exist with exactly 72 unique records and the same canonical full five-field binding set. Existing historical rows must retain canonical digest, recomputed body digest, history identity, sender and origin/server/event sequence linkage. Reserved sequence collision rejects before anchor comparison.
+- Grants must be nonempty, exact-format, one character, current Android device credential-hash bound, primary-character consistent and without pending/claimed reply jobs. Identity anchor hashes node ID/cursor secret/devices/server and origin sequence high-water marks. Domain authority hash retains owner-managed registry/principals/phone capabilities/primary character. The tool never grants or changes domain authority.
+- Existing whole-Core `backup_read_only` role remains rejected; active/unverified activity runtime claims reject. No recovery floor is synthesized. Inputs with WAL/SHM/journal, linked paths, missing files, bad schema, drifted anchors, illegal mode, jobs/activity enabled or widened domain policy reject.
+- `preflight_schema6.ps1`: explicit legacy_b3 offline preflight entry; no Start switch. Clears inherited Core/Node/model/proxy/PowerShell settings before invoking pinned Node and restores process environment. Config requires jobs false/activity false/domain owner_managed.
+- `capture-baseline` performs the same intrinsic checks but only proposes hashes (`baseline_capture_only:true`), never approval. Production `preflight` requires externally retained binding/identity/grant/domain anchors. Reports contain boolean/count/hash facts and fixed status labels, not messages/IDs/credentials/private paths. All successful reports retain deployment_ready/deployed/activation_supported/recovery_floor_verified=false.
+- README supplies concrete candidate, protected offline SQLite+grant+approval backup, baseline/preflight, independent key/floor custody and staged rollback steps. It preserves the existing migration proof adapter and empty-domain rollback checks; never flips backup role or downgrades a live schema6 database.
+
+## Verification
+
+- `D:\Nodejs\node.exe --test tools/i_core/release_schema6/release.test.mjs`: **30/30 passed, 0 failed, 0 skipped**, exit 0, final run 13.7 seconds.
+- Includes schema5/6 exact72 input byte preservation; same-count different binding and simultaneous file+ledger replacement; missing either/both/grant and empty/duplicate set; history body/digest/origin/event sequence/missing-row corruption; token/platform/node identity/grant/domain changes; backup role/live claim; sidecar; illegal modes/jobs/activity/domain; manifest/code/Node-byte/extra-file mutations; environment allowlist; real PowerShell subprocess with malicious inherited NODE_OPTIONS; reserved sequence and pending-job conflicts; fresh independent Git history and uncommitted wrapper exclusion; generic inventory cannot pass fixed-Node production gate; real pinned Windows candidate production preflight.
+- `.github/workflows/ci.yml` uses Node 24.14.1. Pure input/inventory/Git history tests are portable and never Linux-skipped; only two actual Windows fixed-executable/PowerShell integration cases are Windows-only. Linux execution was not available in this worker and remains CI evidence to collect; no Linux pass is claimed.
+- `inspectInputs`/`verifyInventory` are deliberately separate low-level checks. Low-level input reports say package_verified=false; production CLI always verifies fixed Node/external manifest before and after input inspection, uses package-verified schema code, and reports package_verified=true. No CLI/environment test bypass exists.
+- Initial failures were test setup using the hardlinked `Git/cmd/git.exe`, an FK-invalid corruption injection and Windows PowerShell inheriting a PowerShell 7 module path. Final setup uses the real non-hardlinked Git bin entry, a valid synthetic event-identity corruption and explicit native module path. No check was suppressed; all 30 final cases passed.
+- Existing Core runtime dependency tests are owned by its package; this worker changed none of those production files. No real database copy, runtime start, service operation, installation or actual D4 deployment occurred here.
+
+## Main-agent use
+
+- `prepareRelease({repository, output, nodePath, gitPath, sourceCommit:'HEAD'})` after this package is committed/integrated; use a new output and `D:\Git\bin\git.exe` on this host. CLI: `node tools/i_core/release_schema6/cli.mjs prepare <repository> <new-output> <git-exe> [40-sha-or-HEAD]`.
+- `preflight({release,manifestHash,config,capture:false})`, or the documented PowerShell wrapper. Use only the main agent's authorized protected offline real-B3 derivatives and independently approved anchors; do not re-capture a failing target as implicit approval.
+- Main agent may build a fixed candidate from its final integrated commit and perform the separate private copy preflight. Actual recovery-floor verification, deployment lifecycle and phone acceptance stay open.
+- This package's authorized source commit uses one-shot `SKIP_PROJECT_STATE=1` with restoration in `finally`. No push/PR/production merge by this worker. Main agent owns global state and final closeout.

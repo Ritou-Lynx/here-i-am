@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -70,6 +71,33 @@ class _FailingSaveRepository extends UnifiedCardRepository {
     if (remainingFailures > 0) {
       remainingFailures--;
       throw StateError('scripted save failure');
+    }
+    return super.saveRichText(
+      cardId,
+      document,
+      title: title,
+      preserveEmptyTitle: preserveEmptyTitle,
+    );
+  }
+}
+
+class _GatedSaveRepository extends UnifiedCardRepository {
+  _GatedSaveRepository({required super.db, required super.whiteboardRoot});
+
+  final saveStarted = Completer<void>();
+  final allowSave = Completer<void>();
+  bool gateEnabled = false;
+
+  @override
+  Future<CardContract> saveRichText(
+    String cardId,
+    RichTextDocument document, {
+    String? title,
+    bool preserveEmptyTitle = false,
+  }) async {
+    if (gateEnabled) {
+      saveStarted.complete();
+      await allowSave.future;
     }
     return super.saveRichText(
       cardId,
@@ -318,7 +346,10 @@ void main() {
     final root = Directory.systemTemp.createTempSync('inline_card_restart_');
     final dbFile = File('${root.path}${Platform.pathSeparator}cards.sqlite');
     var db = AppDatabase.forTesting(NativeDatabase(dbFile));
-    var repository = UnifiedCardRepository(db: db, whiteboardRoot: root);
+    final gatedRepository = (await tester.runAsync(
+      () async => _GatedSaveRepository(db: db, whiteboardRoot: root),
+    ))!;
+    UnifiedCardRepository repository = gatedRepository;
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
       await db.close();
@@ -345,12 +376,12 @@ void main() {
       );
     });
 
-    var closed = false;
+    final closed = (await tester.runAsync(() async => Completer<void>()))!;
     await _pumpEditor(
       tester,
       repository: repository,
       cardId: cardId,
-      onClose: () => closed = true,
+      onClose: closed.complete,
     );
     final field = find.byKey(const Key('rich_text_continuous_document'));
     final editor = find.byKey(const Key('wb_compact_card_editor'));
@@ -384,14 +415,22 @@ void main() {
     await tester.pump();
     expect(tester.widget<TextField>(field).controller!.text, '\n正文 H1 已改\n第二段');
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    for (var i = 0; i < 30 && !closed; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-    }
-    expect(closed, isTrue);
+    gatedRepository.gateEnabled = true;
+    await tester.runAsync(() async {
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await gatedRepository.saveStarted.future
+          .timeout(const Duration(seconds: 10));
+    });
+    // Saving is an I/O completion boundary, not a 600 ms wall-clock promise.
+    // A held save must keep the editor open even after UI time has advanced.
+    await tester.pump(const Duration(seconds: 2));
+    expect(closed.isCompleted, isFalse);
+    expect(find.byKey(const Key('wb_compact_card_editor')), findsOneWidget);
+    await tester.runAsync(() async {
+      gatedRepository.allowSave.complete();
+      await closed.future.timeout(const Duration(seconds: 10));
+    });
+    expect(closed.isCompleted, isTrue);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await db.close();
@@ -448,7 +487,8 @@ void main() {
     expect(find.textContaining('保存失败'), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    for (var i = 0; i < 30 && closeCount == 0; i++) {
+    // The retry save does real file IO; allow a loaded CI runner up to ~5 s.
+    for (var i = 0; i < 250 && closeCount == 0; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
       );

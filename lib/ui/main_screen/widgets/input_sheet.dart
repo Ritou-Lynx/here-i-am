@@ -1582,35 +1582,47 @@ class _InputSheetState extends State<InputSheet>
             ),
           ),
         ),
-        const Spacer(),
-        GestureDetector(
-          onTap: _handleSubmit,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  UserStorage.l10n.recordLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+        const SizedBox(width: 16),
+        // Takes the remaining width so a narrow screen ellipsizes the label
+        // instead of overflowing the row.
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: GestureDetector(
+              onTap: _handleSubmit,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.arrow_upward,
-                  size: 18,
-                  color: Colors.white,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(24),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        UserStorage.l10n.recordLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.arrow_upward,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),

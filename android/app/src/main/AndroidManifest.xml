@@ -288,6 +288,27 @@
 
             <!-- Note: input shares support text + images; .memex files go to restore. -->
         </activity>
+        <activity android:name=".QuickCaptureActivity"
+            android:exported="false" android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.capture"
+            android:excludeFromRecents="true" android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize">
+            <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
+        </activity>
+        <activity-alias android:name=".QuickCaptureAlias"
+            android:targetActivity=".QuickCaptureActivity" android:exported="true"
+            android:label="记一下" android:icon="@drawable/ic_stat_here_i_am">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <service android:name=".QuickCaptureTileService" android:label="记一下"
+            android:icon="@drawable/ic_stat_here_i_am" android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
+        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

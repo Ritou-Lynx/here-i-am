@@ -1690,7 +1690,7 @@ export function activitySchemaStatus(db, {
   const expectedChecksum = canonicalActivityDigest(activityMigrationSql());
   if (
     !migration || migration.state !== 'committed' || migration.checksum !== expectedChecksum
-    || metadataVersion !== ACTIVITY_SCHEMA_VERSION || coreSchemaVersion !== 5
+    || metadataVersion !== ACTIVITY_SCHEMA_VERSION || ![5, 6].includes(coreSchemaVersion)
   ) {
     return { ready: false, schema_version: metadataVersion ?? 0, reason: 'migration_invariant_failed', missing_tables: [] };
   }
@@ -2363,6 +2363,9 @@ export function migrateActivitySchema(db, {
 }
 
 export function rollbackActivitySchema(db) {
+  if (db.prepare("SELECT value FROM core_metadata WHERE key='schema_version'").get()?.value === '6') {
+    fail('domain_schema_present', 'Domain schema must be handled before an activity-only rollback.', { status: 409 });
+  }
   const status = activitySchemaStatus(db);
   if (!status.ready) fail('activity_schema_not_ready', 'Activity schema is not in a committed state.', { status: 409 });
   const protectedRows = ['activity_events', 'activity_principals', 'activity_deletion_receipts']
@@ -2478,6 +2481,26 @@ export function assertActivityRecoveryFloorForDatabase(db, floor, { nodeId, curs
     }
   }
   return { ok: true, manifest: { ...current, digest: recoveryDigest(current, cursorSecret) } };
+}
+
+// Monotonic component of canonical crash recovery. This is deliberately NOT a
+// restore authorization: the supervisor must also verify the independently
+// authenticated history-prefix witness and original live-path binding.
+export function assertActivityRecoveryProgressForDatabase(db, floor, { nodeId, cursorSecret }) {
+  if (!activitySchemaStatus(db).ready) fail('recovery_lineage_unverified', 'Activity schema is not ready.', { status:409 });
+  const expected=normalizeRecoveryFloor(floor,cursorSecret),current=recoveryBody(db,{nodeId});
+  if(expected.authority.node_id!==current.authority.node_id || expected.authority.epoch!==current.authority.epoch
+    || expected.database_role!=='live' || current.database_role!=='live') fail('recovery_lineage_unverified','Activity lineage changed.',{status:409});
+  for(const field of ['retained_watermark','snapshot_generation','commit_high_water','latest_change_sequence','runtime_fence']) {
+    if(current[field]<expected[field]) fail('stale_activity_restore','Activity progress regressed.',{status:409});
+  }
+  const principals=new Map(current.principals.map(p=>[p.principal_id,p]));
+  for(const prior of expected.principals){const next=principals.get(prior.principal_id);
+    if(!next || next.credential_generation<prior.credential_generation || (prior.revoked&&!next.revoked) || (prior.deleted&&!next.deleted)) {
+      fail('stale_activity_restore','Activity principal regressed.',{status:409});
+    }
+  }
+  return {ok:true,manifest:{...current,digest:recoveryDigest(current,cursorSecret)}};
 }
 
 export class ActivityControlPlane {

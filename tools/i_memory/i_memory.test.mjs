@@ -131,6 +131,31 @@ function openModel(extra = {}) {
   return openReadModel({ coreDbPath: core, memoryDbPath: out, policyPath, ...extra });
 }
 
+describe('W3 explicit domain allowlist',()=>{
+  test('v2 requires exact supported domains; new Core domains cannot use direct database reads',()=>{
+    for(const domains of [undefined,null,'chat',['chat','chat'],['cycle'],['captures'],['plan_items'],['*']]){
+      writeFileSync(policyPath,JSON.stringify(policy({schema_version:2,domains})));
+      assert.throws(()=>openModel(),/policy invalid/);
+    }
+  });
+  test('empty allowlist denies chat and memory, including metadata and ID retrieval',()=>{
+    writeFileSync(policyPath,JSON.stringify(policy({schema_version:2,domains:[]})));
+    const model=openModel();try{
+      assert.deepEqual(model.recentMessages(),[]);assert.deepEqual(model.searchMessages({query:'咖啡'}),[]);
+      assert.deepEqual(model.searchMemory({query:'咖啡'}),[]);assert.deepEqual(model.getMemoryCards({ids:['card-coffee']}),[]);
+      assert.equal(model.policySummary().memorySnapshotAtMs,null);
+      assert.deepEqual(model.stats(),{messages:{shareable:0,private:0},memory:{shareable:0,private:0},memorySnapshotAtMs:null});
+    }finally{model.close();}
+  });
+  test('chat-only allowlist preserves outbound filters without granting memory',()=>{
+    writeFileSync(policyPath,JSON.stringify(policy({schema_version:2,domains:['chat']})));
+    const model=openModel();try{
+      assert.ok(model.recentMessages().length>0);assert.deepEqual(model.searchMemory({query:'咖啡'}),[]);
+      assert.ok(model.recentMessages().every(message=>message.characterId===LIN));
+    }finally{model.close();}
+  });
+});
+
 function readOut(sql) {
   const db = new DatabaseSync(out, { readOnly: true });
   try {
@@ -697,5 +722,297 @@ describe('auto_share_origins (B3 claude_web write-back)', () => {
       })));
       assert.throws(() => openModel(), /auto_share_origins/);
     }
+  });
+});
+
+describe('auto_share_devices (approved Android receive-sequence boundary)', () => {
+  const rule = { device_id: 'approved-phone', from_server_sequence: 101 };
+
+  function devicePolicy(extra = {}) {
+    return policy({ messages: {
+      ...policy().messages,
+      shareable_message_ids: ['msg-0'],
+      shareable_message_hashes: { 'msg-0': hashMessageContent(MESSAGES[0][2]) },
+      private_keywords: ['private'], private_message_ids: ['device-104'],
+      auto_share_origins: ['claude_web'], auto_share_devices: [rule],
+      ...extra,
+    } });
+  }
+
+  function addDeviceMessages() {
+    const db = new DatabaseSync(core);
+    try {
+      db.exec('CREATE TABLE devices (device_id TEXT PRIMARY KEY, platform TEXT NOT NULL)');
+      const register = db.prepare('INSERT INTO devices VALUES (?, ?)');
+      register.run('approved-phone', 'android');
+      register.run('other-phone', 'android');
+      register.run('desktop-source', 'windows');
+      const insert = db.prepare("INSERT INTO chat_messages VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', 'digest', ?)");
+      for (const [seq, source, sender, text, type, character] of [
+        [100, 'approved-phone', 'user', 'coffee before approval', 'chat', LIN],
+        [101, 'approved-phone', 'user', 'coffee exactly at approval', 'chat', LIN],
+        [102, 'approved-phone', 'user', 'coffee after approval', 'chat', LIN],
+        [103, 'approved-phone', 'user', 'coffee PrIvAtE keyword', 'chat', LIN],
+        [104, 'approved-phone', 'user', 'coffee excluded by private ID', 'chat', LIN],
+        [105, 'approved-phone', 'user', 'coffee diary', 'diary', LIN],
+        [106, 'approved-phone', 'user', 'coffee other character', 'chat', OTHER],
+        [107, 'approved-phone', 'companion', 'coffee local companion', 'chat', LIN],
+        [108, 'approved-phone', 'user', 'coffee non-chat event', 'notice', LIN],
+        [109, 'other-phone', 'user', 'coffee another phone', 'chat', LIN],
+        [110, 'desktop-source', 'user', 'coffee desktop', 'chat', LIN],
+        [111, 'unregistered-source', 'user', 'coffee unregistered', 'chat', LIN],
+        [120, 'frontend:claude_web', 'user', 'coffee web', 'chat', LIN],
+      ]) {
+        insert.run('device-' + seq, source, seq, character, sender, text,
+          1_790_000_100_000 + seq * 1000, type, seq);
+      }
+    } finally { db.close(); }
+  }
+
+  test('omitted and empty rules preserve strict review without a devices table', () => {
+    for (const devices of [undefined, []]) {
+      const messages = { ...policy().messages, shareable_message_ids: [], shareable_message_hashes: {} };
+      if (devices !== undefined) messages.auto_share_devices = devices;
+      writeFileSync(policyPath, JSON.stringify(policy({ messages })));
+      assert.deepEqual(loadPolicy(policyPath).messages.autoShareDevices, []);
+      const model = openModel();
+      try {
+        assert.deepEqual(model.recentMessages(), []);
+        assert.deepEqual(model.searchMessages({ query: '咖啡' }), []);
+        assert.equal(model.stats().messages.shareable, 0);
+      } finally { model.close(); }
+    }
+  });
+
+  test('malformed, duplicate and frontend rules fail closed without echoing device IDs', () => {
+    for (const invalid of [null, {}, 'approved-phone', [null], [[]], [{}],
+      [{ device_id: 'approved-phone' }],
+      [{ ...rule, extra: true }],
+      ...['', ' approved-phone', 'approved-phone ', 1, 'frontend:claude_web']
+        .map(device_id => [{ ...rule, device_id }]),
+      ...[0, -1, 1.5, '101', true, null, Number.MAX_SAFE_INTEGER + 1]
+        .map(from_server_sequence => [{ ...rule, from_server_sequence }]),
+      [rule, { ...rule, from_server_sequence: 200 }],
+    ]) {
+      writeFileSync(policyPath, JSON.stringify(devicePolicy({ auto_share_devices: invalid })));
+      assert.throws(() => loadPolicy(policyPath), error => {
+        assert.match(error.message, /messages.auto_share_devices/);
+        assert.equal(error.message.includes('approved-phone'), false);
+        return true;
+      });
+    }
+    writeFileSync(policyPath, JSON.stringify(devicePolicy({ auto_share_devices: [
+      { device_id: 'approved-phone', from_server_sequence: Number.MAX_SAFE_INTEGER },
+    ] })));
+    assert.equal(loadPolicy(policyPath).messages.autoShareDevices[0].from_server_sequence, Number.MAX_SAFE_INTEGER);
+  });
+
+  test('exact device and inclusive sequence share only ordinary user chat, keeping private and memory rules', () => {
+    addDeviceMessages();
+    runImport({ source: v3, out, apply: true });
+    writeFileSync(policyPath, JSON.stringify(devicePolicy()));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages().map(m => m.syncId), ['msg-0', 'device-101', 'device-102', 'device-120']);
+      assert.deepEqual(model.searchMessages({ query: 'coffee' }).map(m => m.syncId).sort(), ['device-101', 'device-102', 'device-120']);
+      assert.deepEqual(model.recentMessages({ characterId: OTHER }), []);
+      assert.equal(model.stats().messages.shareable, 4);
+      assert.equal(model.stats().messages.private, MESSAGES.length + 13 - 4);
+      assert.deepEqual(model.searchMemory({ query: '手冲咖啡' }).map(c => c.id), ['card-coffee']);
+      assert.deepEqual(model.searchMemory({ query: '秘密' }), []);
+      assert.equal(model.stats().memory.shareable, 2);
+    } finally { model.close(); }
+  });
+
+  test('device rule bypasses missing or mismatched positive hashes only within its boundary', () => {
+    addDeviceMessages();
+    for (const positive of [
+      { shareable_message_ids: [], shareable_message_hashes: {} },
+      { shareable_message_ids: ['msg-0'], shareable_message_hashes: { 'msg-0': hashMessageContent('changed review') } },
+      { shareable_message_ids: [], shareable_message_hashes: undefined },
+      { shareable_message_ids: undefined, shareable_message_hashes: {} },
+    ]) {
+      writeFileSync(policyPath, JSON.stringify(devicePolicy(positive)));
+      const model = openModel();
+      try {
+        assert.deepEqual(model.recentMessages().map(m => m.syncId), ['device-101', 'device-102', 'device-120']);
+        assert.equal(model.stats().messages.shareable, 3);
+      } finally { model.close(); }
+    }
+  });
+
+  test('non-Android and unregistered configured devices do not gain the exception', () => {
+    addDeviceMessages();
+    writeFileSync(policyPath, JSON.stringify(devicePolicy({ auto_share_devices: [
+      { device_id: 'desktop-source', from_server_sequence: 1 },
+      { device_id: 'unregistered-source', from_server_sequence: 1 },
+    ] })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages().map(m => m.syncId), ['msg-0', 'device-120']);
+      assert.equal(model.stats().messages.shareable, 2);
+    } finally { model.close(); }
+  });
+
+  test('current registered platform is checked on every query', () => {
+    addDeviceMessages();
+    writeFileSync(policyPath, JSON.stringify(devicePolicy()));
+    const model = openModel();
+    const writer = new DatabaseSync(core);
+    try {
+      assert.equal(model.stats().messages.shareable, 4);
+      writer.prepare("UPDATE devices SET platform='windows' WHERE device_id=?").run(rule.device_id);
+      assert.deepEqual(model.recentMessages().map(m => m.syncId), ['msg-0', 'device-120']);
+      assert.equal(model.stats().messages.shareable, 2);
+      writer.prepare("UPDATE devices SET platform='android' WHERE device_id=?").run(rule.device_id);
+      assert.equal(model.stats().messages.shareable, 4);
+    } finally { writer.close(); model.close(); }
+  });
+
+  test('receive-sequence cutoff does not use client timestamps or release prior core history', () => {
+    addDeviceMessages();
+    const writer = new DatabaseSync(core);
+    writer.prepare('UPDATE chat_messages SET created_at_ms=? WHERE sync_id=?').run(1_999_999_999_999, 'device-100');
+    writer.prepare('UPDATE chat_messages SET created_at_ms=? WHERE sync_id=?').run(1, 'device-101');
+    writer.close();
+    writeFileSync(policyPath, JSON.stringify(devicePolicy()));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.searchMessages({ query: 'coffee' }).map(m => m.syncId).sort(), ['device-101', 'device-102', 'device-120']);
+    } finally { model.close(); }
+  });
+
+  test('device-only exception works without a frontend-origin exception', () => {
+    addDeviceMessages();
+    writeFileSync(policyPath, JSON.stringify(devicePolicy({ auto_share_origins: [] })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.recentMessages().map(m => m.syncId), ['msg-0', 'device-101', 'device-102']);
+      assert.deepEqual(model.searchMessages({ query: 'coffee' }).map(m => m.syncId).sort(), ['device-101', 'device-102']);
+      assert.equal(model.stats().messages.shareable, 3);
+    } finally { model.close(); }
+  });
+
+  test('rules do not restrict legacy exposure when both positive review lists are omitted', () => {
+    // No devices table: no device subquery is needed without positive review lists.
+    let expected;
+    for (const rules of [undefined, [rule]]) {
+      writeFileSync(policyPath, JSON.stringify(policy({ messages: {
+        ...policy().messages, auto_share_devices: rules,
+      } })));
+      const model = openModel();
+      try {
+        const result = { recent: model.recentMessages(), search: model.searchMessages({ query: '咖啡' }), stats: model.stats() };
+        if (expected === undefined) expected = result;
+        else assert.deepEqual(result, expected);
+      } finally { model.close(); }
+    }
+  });
+
+  test('enabled rules with missing device registration schema fail closed on every message read', () => {
+    writeFileSync(policyPath, JSON.stringify(devicePolicy()));
+    const model = openModel();
+    try {
+      assert.throws(() => model.recentMessages(), /no such table: devices/);
+      assert.throws(() => model.searchMessages({ query: '咖啡' }), /no such table: devices/);
+      assert.throws(() => model.stats(), /no such table: devices/);
+    } finally { model.close(); }
+  });
+  test('companion sharing is separately explicit and sender selection stays exact', () => {
+    addDeviceMessages();
+    for (const [senders, expected] of [
+      [['user', 'companion'], ['msg-0', 'device-101', 'device-102', 'device-107', 'device-120']],
+      [['companion'], ['msg-0', 'device-107', 'device-120']],
+    ]) {
+      writeFileSync(policyPath, JSON.stringify(devicePolicy({ auto_share_devices: [{ ...rule, senders }] })));
+      const model = openModel();
+      try {
+        assert.deepEqual(model.recentMessages().map(m => m.syncId), expected);
+        assert.deepEqual(model.searchMessages({ query: 'coffee' }).map(m => m.syncId).sort(), expected.filter(id => id !== 'msg-0').sort());
+        assert.equal(model.stats().messages.shareable, expected.length);
+      } finally { model.close(); }
+    }
+  });
+
+  test('optional history window is bounded while omitted rules keep prior messages under review', () => {
+    addDeviceMessages();
+    const at = 1_790_000_200_000;
+    for (const [history_window, expected] of [
+      [undefined, ['msg-0', 'device-101', 'device-102', 'device-120']],
+      [{ from_created_at_ms: at, to_created_at_ms: at + 1 }, ['msg-0', 'device-100', 'device-101', 'device-102', 'device-120']],
+      [{ from_created_at_ms: at + 1, to_created_at_ms: at + 2 }, ['msg-0', 'device-101', 'device-102', 'device-120']],
+      [{ from_created_at_ms: at - 1, to_created_at_ms: at }, ['msg-0', 'device-101', 'device-102', 'device-120']],
+    ]) {
+      const configured = { ...rule }; if (history_window) configured.history_window = history_window;
+      writeFileSync(policyPath, JSON.stringify(devicePolicy({ auto_share_devices: [configured] })));
+      const model = openModel();
+      try {
+        assert.deepEqual(model.recentMessages().map(m => m.syncId), expected);
+        assert.equal(model.stats().messages.shareable, expected.length);
+      } finally { model.close(); }
+    }
+  });
+
+  test('explicit companion and bounded history still reject private content, types, IDs and other origins', () => {
+    addDeviceMessages();
+    const writer = new DatabaseSync(core);
+    try {
+      const insert = writer.prepare("INSERT INTO chat_messages VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', 'digest', ?)");
+      for (const [seq, origin, sender, content, type, character] of [
+        [91, 'approved-phone', 'companion', 'coffee private history', 'chat', LIN],
+        [92, 'approved-phone', 'companion', 'coffee neutral diary history', 'diary', LIN],
+        [93, 'approved-phone', 'companion', 'coffee neutral excluded id history', 'chat', LIN],
+        [94, 'approved-phone', 'companion', 'coffee other character history', 'chat', OTHER],
+        [95, 'other-phone', 'companion', 'coffee other origin history', 'chat', LIN],
+        [96, 'approved-phone', 'companion', 'coffee allowed history', 'chat', LIN],
+      ]) insert.run('device-' + seq, origin, seq, character, sender, content, 1_790_000_200_000, type, seq);
+    } finally { writer.close(); }
+    writeFileSync(policyPath, JSON.stringify(devicePolicy({
+      private_message_ids: ['device-104', 'device-93'],
+      auto_share_devices: [{ ...rule, senders: ['user', 'companion'], history_window: { from_created_at_ms: 1_790_000_200_000, to_created_at_ms: 1_790_000_200_001 } }],
+    })));
+    const model = openModel();
+    try {
+      const allowed = ['device-96', 'device-100', 'device-101', 'device-102', 'device-107', 'device-120'];
+      assert.deepEqual(model.searchMessages({ query: 'coffee', limit: 50 }).map(m => m.syncId).sort(), allowed.sort());
+      assert.equal(model.stats().messages.shareable, allowed.length + 1);
+      assert.deepEqual(model.recentMessages({ characterId: OTHER }), []);
+    } finally { model.close(); }
+  });
+
+  test('invalid optional sender and history grants fail closed without echoing values', () => {
+    for (const extra of [
+      ...[null, [], ['user', 'user'], ['assistant'], [' user'], ['user', 'companion', 'system'], 'companion'].map(senders => ({ senders })),
+      ...[null, [], {}, { from_created_at_ms: 1 }, { from_created_at_ms: 1, to_created_at_ms: 1 },
+        { from_created_at_ms: 0, to_created_at_ms: 2 }, { from_created_at_ms: 1.5, to_created_at_ms: 2 },
+        { from_created_at_ms: 1, to_created_at_ms: Number.MAX_SAFE_INTEGER + 1 },
+        { from_created_at_ms: 1, to_created_at_ms: 2, extra: true }].map(history_window => ({ history_window })),
+    ]) {
+      writeFileSync(policyPath, JSON.stringify(devicePolicy({ auto_share_devices: [{ ...rule, ...extra }] })));
+      assert.throws(() => loadPolicy(policyPath), error => {
+        assert.match(error.message, /messages.auto_share_devices/);
+        assert.equal(error.message.includes('approved-phone'), false);
+        return true;
+      });
+    }
+  });
+  test('device-specific sender and history scopes cannot be combined across rules', () => {
+    addDeviceMessages();
+    const writer = new DatabaseSync(core);
+    try {
+      writer.prepare("INSERT INTO chat_messages VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', 'digest', ?)")
+        .run('device-97', 'other-phone', 97, LIN, 'companion', 'coffee second phone history', 1_790_000_200_000, 'chat', 97);
+    } finally { writer.close(); }
+    writeFileSync(policyPath, JSON.stringify(devicePolicy({ auto_share_devices: [
+      rule,
+      { device_id: 'other-phone', from_server_sequence: 200, senders: ['companion'],
+        history_window: { from_created_at_ms: 1_790_000_200_000, to_created_at_ms: 1_790_000_300_000 } },
+    ] })));
+    const model = openModel();
+    try {
+      assert.deepEqual(model.searchMessages({ query: 'coffee', limit: 50 }).map(m => m.syncId).sort(),
+        ['device-97', 'device-101', 'device-102', 'device-120'].sort());
+      assert.equal(model.stats().messages.shareable, 5);
+    } finally { model.close(); }
   });
 });

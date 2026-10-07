@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -198,6 +199,22 @@ void main() {
     final after = await store.listBoards();
     expect(after.map((b) => b.name), ['B2', 'B1']);
     expect(await store.exists(boards.first.boardId), isFalse);
+  });
+
+  test('listBoards breaks same-millisecond ties by insertion order', () async {
+    // Insert T1, T2, T3 with identical timestamps; their IDs sort the other
+    // way, so ordering by ID would fail too.
+    final rows = [('tie_c', 'T1'), ('tie_b', 'T2'), ('tie_a', 'T3')];
+    for (final (id, name) in rows) {
+      await db.into(db.whiteboardBoards).insert(
+          WhiteboardBoardsCompanion.insert(
+              id: id,
+              name: name,
+              createdAt: 1000,
+              updatedAt: const Value(1000)));
+    }
+    final boards = await store.listBoards();
+    expect(boards.map((b) => b.name), ['T3', 'T2', 'T1']);
   });
 
   test('delete removes board-scoped rows but keeps cards and sources',

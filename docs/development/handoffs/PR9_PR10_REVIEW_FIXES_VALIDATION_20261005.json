@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "date": "2026-10-05",
+  "base_commit": "21a813ef717ad4698dadcb31cdc39a18611b87e9",
+  "branch": "codex/pr9-pr10-review-fixes-20261005",
+  "data_scope": "synthetic_only",
+  "flutter": {
+    "passed": 118,
+    "failed": 0,
+    "skipped": 0,
+    "new_user_turn_cases": 7,
+    "new_capture_lifecycle_cases": 19,
+    "adjacent_cases": 92,
+    "includes_real_sqlite_reopen": true,
+    "includes_existing_nine_os_kill_boundaries": true
+  },
+  "node": {
+    "file": "tools/i_core/personal_data_domains.test.mjs",
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "new_unclassified_area_case": true
+  },
+  "analysis": {
+    "paths": 7,
+    "issues": 0,
+    "exit_code": 0
+  },
+  "code_changed_during_final_validation": false,
+  "source_sha256": {
+    "lib/data/memory_v3/services/capture_card_reconciler.dart": "F3E414BB1D28D2139460BAD82965BE03663C31D4685C94FF64F1759364322C02",
+    "test/agent/built_in_tools/memory_v3_update_card_user_turn_test.dart": "D30EE39EB5F78EC65FADACE22CB8D577F5378D2D4EDAF8226B8962D2378CF8BC",
+    "lib/data/personal_data_hub/capture_consumer.dart": "A8F347FEA9A84D449DDE7C1781A8E6D89CA5D2116376CCC5ED1B85515F4B8366",
+    "lib/agent/built_in_tools/memory_v3_update_card_tool.dart": "D81F64BCE20A5738045C16162BBC5BB72C040E9409996D2388E3F19DDE5C27A3",
+    "lib/agent/skills/character_tools_factory.dart": "8517B81A7480A6D29E54FD11977170A7ECA7BD964AB1582A5BAF47A373BFA715",
+    "lib/data/memory_v3/services/record_organizer_service.dart": "01402C76D608B7A75FA2A4226A544E9791E0C45A2B02ADB5F429351D35712863",
+    "test/data/personal_data_hub/capture_lifecycle_test.dart": "A215887D2EE066C7D607105C6B26BF88FA3885F99F532B212A16142E62B7D2D1",
+    "tools/i_core/personal_data_domains.test.mjs": "75D7BC54D316C52E734F929A9CC2F052EA8912C208F6DA1F85E941DCAD34E615"
+  },
+  "boundaries": [
+    "no_live_database_or_service_change",
+    "no_phone_installation",
+    "W7_per_record_storage_not_implemented",
+    "W7_startup_dedupe_retirement_not_implemented",
+    "protected_card_source_text_retained",
+    "ambiguous_and_legacy_outputs_require_resolution"
+  ],
+  "github_checks": "Verify on the exact task PR head before merging; not inferred from local tests."
+}

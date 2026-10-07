@@ -5,10 +5,9 @@
 /// [FocusNode], so Chinese IME composition state is handled correctly by
 /// Flutter's [EditableText]. Mixed-font rendering uses the centralized
 /// `rich_text_fonts` tokens (`lib/ui/whiteboard/fonts.dart`): CJK characters
-/// resolve to 汇文明朝体 (falling back to system serif), Latin characters,
-/// digits, time codes and code resolve to Cascadia Code (falling back to
-/// system monospace). Note: LXGW WenKai is 霞鹜文楷, a different typeface,
-/// and must NOT be used here.
+/// resolve to 霞鹜文楷 / LXGW WenKai (falling back to system serif), Latin
+/// characters, digits, time codes and code resolve to Cascadia Code (falling
+/// back to system monospace). Use the tokens rather than font strings.
 ///
 /// The editor:
 /// - Renders block types (paragraph, heading, list, quote, code) with

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,7 +45,19 @@ export function startSupervised({ mode = 'pin', timeout = 120000, testOnlyParent
   const output = () => readFileSync(supervisorLog, 'utf8');
   child.once('error', error => { spawnError = error; });
   child.once('close', code => { closed = true; exitCode = code; });
-  const stop = () => writeFileSync(path.join(root, 'stop'), token);
+  let stopPublished = false;
+  const stop = () => {
+    if (stopPublished) return;
+    const staged = path.join(root, `stop-${randomBytes(12).toString('hex')}.tmp`);
+    try {
+      writeFileSync(staged, token, { flag: 'wx' });
+      // Publish only after the writer closes: the native reader denies write sharing.
+      renameSync(staged, path.join(root, 'stop'));
+      stopPublished = true;
+    } finally {
+      if (existsSync(staged)) rmSync(staged);
+    }
+  };
   const cancel = () => stop();
   process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
   return { root, token, child, stop,

@@ -24,7 +24,13 @@ void main() {
     expect(find.text(UserStorage.l10n.createSnapshotNow), findsOneWidget);
     expect(await UserStorage.isAutoBackupEnabled('backup-test-user'), isFalse);
 
-    await tester.tap(find.byType(Switch));
+    final autoBackupRow = find.ancestor(
+      of: find.text(UserStorage.l10n.automaticBackup),
+      matching: find.byType(Row),
+    );
+    await tester.tap(
+      find.descendant(of: autoBackupRow.first, matching: find.byType(Switch)),
+    );
     await tester.pump();
 
     expect(await UserStorage.isAutoBackupEnabled('backup-test-user'), isTrue);

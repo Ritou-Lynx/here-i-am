@@ -194,3 +194,7 @@ tools/dev_agent_bridge/workbench_tool_behavior_probe.mjs -text whitespace=blank-
 tools/dev_agent_bridge/workbench_tool_behavior_probe.test.mjs -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 windows/runner/flutter_window.cpp -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 windows/runner/flutter_window.h -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# PR14 MCP session wrappers: preserve exact reviewed and measured mixed newline bytes.
+tools/i_core/release_schema6/lifecycle/session_window.ps1 -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+tools/i_core/release_schema6/lifecycle/login_schema6.ps1 -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

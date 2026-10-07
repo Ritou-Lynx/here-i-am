@@ -94,7 +94,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final imageFile = File('${testDataRoot.path}/input_sheet_preview.png');
-    await imageFile.writeAsBytes(
+    // Synchronous: real async file IO never completes inside testWidgets'
+    // fake-async zone and would hang the test.
+    imageFile.writeAsBytesSync(
       base64Decode(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lDRT2wAAAABJRU5ErkJggg==',
       ),

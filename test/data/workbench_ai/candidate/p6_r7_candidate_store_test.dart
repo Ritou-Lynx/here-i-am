@@ -122,7 +122,7 @@ void main() {
     await _verify(config);
     expect(AppDatabase.isInitialized, isFalse);
     final store = await P6R7CandidateStore.open(config);
-    expect(store.database.schemaVersion, 60);
+    expect(store.database.schemaVersion, 62);
     expect(AppDatabase.isInitialized, isFalse);
 
     TaskRoomService.init(store.database);

@@ -1,5 +1,7 @@
 # GOAL-20260824-ai-workbench-wave1 — AI 工作台基础能力波次
 
+> 2026-10-02 暂停收尾：用户因整体计划调整暂停本 Goal。父 Goal 未正式关闭，接续入口见 [工作台暂停收尾](../whiteboard-workstreams/WORKBENCH_PAUSE_20261002.md)。
+
 > 2026-10-01 暂停落点：用户要求到此暂停并合入主 worktree；主 `v3-lab@b2adc44b` 已包含本轮选择性集成源码，104/104 受控路径同哈希，候选分支同 HEAD、无待合并独有提交。源码与文档保留为未提交改动；生产启用评估及减弹窗改造尚未开始。见 [主 worktree 暂停交接](../whiteboard-workstreams/GOAL1_MAIN_WORKTREE_PAUSE_20261001.md)。
 
 > 状态：本地验收完成（UI-T、P4、限定 P5 与 P6 的既定自动 / 真人 Gate 已按最终集成审计收口；生产长任务执行仍 fail-closed，commit / push / 发布均未执行。最终判定见 [2026-10-01 本地验收](../whiteboard-workstreams/GOAL1_FINAL_LOCAL_ACCEPTANCE_20261001.md)。下方旧进度按各自日期视为历史快照。）
