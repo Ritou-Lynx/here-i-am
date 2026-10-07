@@ -16,7 +16,7 @@ description: 用户说“用接力做…”“交给 Codex 执行”“接力冒
 5. 发第 1 轮 `<!-- relay:to-codex round=1 -->` 评论：把合同拆成具体步骤，写清本轮验证命令。
 6. 告诉用户 PR 链接，说明之后会在 GitHub 通知里见。
 
-**接力冒烟**：合同为“新建 `tools/agent_relay/SMOKE.md`，一行内容 `relay smoke ok <日期>`”，验证命令 `git show --stat HEAD`。走通后在 [done] 里请用户关闭 PR 而不是合并。
+**接力冒烟**：合同为“新建 `tools/agent_relay/SMOKE.md`，一行内容 `relay smoke ok <日期>`”，验证命令 `git status --short`（Codex 不提交，改动留在工作区）。PR 只为冒烟而开时，走通后在 [done] 里请用户关闭；PR 还带着其他改动时按正常 PR 收尾。
 
 ## 2. 收到 `relay:to-claude`
 
