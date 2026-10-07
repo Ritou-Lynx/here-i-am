@@ -38,3 +38,9 @@
 ## 现场与授权
 
 正式入口仍为未使用cutover-retry-20261007-r02。沿用获批候选须逐47库存与源码对照，沿用XML/双SDDL须重核原hash；任何变化必须说明并重新审批。task-approval…\settings属于生产配置、不可清理。演练全过不等于进场授权；本轮完成后暂停交审核。
+
+## 第一轮真实只读演练：安全拒绝并修正
+
+源码27069c31的15项CI全绿（push37607610743/PR37607614065/policy37607611585），维护52/52、Windows整包283/283均0未执行。固定24项维护快照manifest452a7244…后执行独立readonly-20261007-e7907e724752。候选/映像/完整旧任务树已绑定，在演练文件初始化处报new_empty_directory_required：窗口已含entry.lock/phase-receipts，不得交给只接受空目录的固定保护函数。没有进入ACL审核、模板输出或在线SQL副本阶段，不能记作全套演练通过。
+
+失败回执rollback.attempted=false、noMigrationOrReplacementPerformed=true；只读回查两旧任务仍Running、Core仍schema4，正式r02目录不存在。保留旧演练锁/回执/输入/维护快照，不删不复用。修订只在窗口内新建空copy-validation和prepare-template子目录并分别保护，窗口原ACL及现役144项不变；用真实Open-MaintenanceWindow及固定Protect-NewDirectory补回归，验证非空父目录拒绝、两个新子目录保护正确、父ACL/旧证据不变、重复子目录拒绝。修正提交CI全绿后新ID重试，正式进场仍不在本轮范围。

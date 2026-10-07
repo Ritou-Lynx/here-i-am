@@ -276,6 +276,17 @@ function AssertValidation($Validation){
  VerifyPins
 }
 
+function New-MaintenanceArtifactDirectory([string]$Parent,[ValidateSet('copy-validation','prepare-template')][string]$Name){
+ # The window itself already contains entry.lock/phase-receipts. Never initialize
+ # its ACL with the fixed helper, which deliberately accepts ONLY empty targets.
+ Private $Parent
+ $path=Join-Path $Parent $Name
+ if(Test-Path -LiteralPath $path){Fail 'fresh_artifact_directory_required'}
+ $null=[IO.Directory]::CreateDirectory($path)
+ Protect-NewDirectory $path;Private $path -Root
+ return $path
+}
+
 function Assert-PreflightUsbBackup($Inputs){
  $root=[string]$Inputs.mirrorRoot;Plain $root;Private $root -Root
  $drive=[IO.Path]::GetPathRoot($root).Substring(0,1)
@@ -428,14 +439,11 @@ try{
  $script:initialDbIdentity=[FreezeIdentity]::FileId($config.databasePath)
  foreach($p in @($config.approvalsPath,$config.grantsPath)){$script:externalInitial+=FileStamp $p}
  if(-not (CoreHealth)){Fail 'original_core_health_not_schema4'}
- $copyDirectory=Join-Path $prep 'copy-validation'
- if(Test-Path -LiteralPath $copyDirectory){Fail 'fresh_copy_directory_required'}
- $null=[IO.Directory]::CreateDirectory($copyDirectory)
- # This fixed, manifest-pinned helper protects ONLY the fresh empty artifact.
- # It does not Apply the cutover ACL plan to any existing runtime/data target.
+ # This manifest-pinned helper only protects fresh, EMPTY artifact children;
+ # the existing nonempty window and all 144 production targets are untouched.
  . (Join-Path $release 'tools\i_core\release_schema6\lifecycle\protected_paths.ps1')
- Protect-NewDirectory $prep;Private $prep -Root
- Protect-NewDirectory $copyDirectory;Private $copyDirectory -Root
+ $copyDirectory=New-MaintenanceArtifactDirectory $prep 'copy-validation'
+ $templateDirectory=New-MaintenanceArtifactDirectory $prep 'prepare-template'
  $copyConfigPath=Join-Path $prep 'copy-validation-config.json'
  WriteNew $copyConfigPath ([ordered]@{releaseDirectory=$release;manifestSha256=$manifestHash;databasePath=$config.databasePath;approvalsPath=$config.approvalsPath;grantsPath=$config.grantsPath;outputDirectory=$copyDirectory})
  $copyConfigurationSha256=Hash $copyConfigPath;Pin $copyConfigPath $copyConfigurationSha256
@@ -454,7 +462,7 @@ try{
  $aclAudit=Invoke-PreflightAclAudit -ConfigPath $preflight.aclConfigurationPath -ExpectedConfigSha256 $preflight.aclConfigurationSha256
  $approvalAudit=Invoke-PreflightTaskApproval -Config $preflight.taskApproval
  $backupAudit=Assert-PreflightUsbBackup $preflight
- $templateAudit=Invoke-PreflightPrepareTemplate -Config $preflight.taskApproval -AclConfigPath $preflight.aclConfigurationPath -AclConfigSha256 $preflight.aclConfigurationSha256 -OutputXml (Join-Path $prep 'prepare-template.xml')
+ $templateAudit=Invoke-PreflightPrepareTemplate -Config $preflight.taskApproval -AclConfigPath $preflight.aclConfigurationPath -AclConfigSha256 $preflight.aclConfigurationSha256 -OutputXml (Join-Path $templateDirectory 'login-task.xml')
  Receipt 'all-read-only-checks' @{acl=$aclAudit;approval=$approvalAudit;backup=$backupAudit;prepare=$templateAudit;mode=$(if($PreflightOnly){'preflight_only'}else{'execute'})}
  if($PreflightOnly){
   Invoke-OnlineCopyValidation

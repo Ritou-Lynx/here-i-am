@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop';Set-StrictMode -Version 2
 $env:PSModulePath=Join-Path $PSHOME 'Modules'
 $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($Source,[ref]$tokens,[ref]$errors)
 if($errors.Count){throw 'parse_failed'}
-foreach($name in @('Fail','Hash','Plain','Pin','Assert-PreflightUsbBackup')){$fn=$ast.Find({param($a)$a-is [Management.Automation.Language.FunctionDefinitionAst]-and $a.Name-ceq $name},$true);. ([scriptblock]::Create($fn.Extent.Text))}
+foreach($name in @('Fail','Hash','Plain','Pin','Assert-PreflightUsbBackup','Private','New-MaintenanceArtifactDirectory')){$fn=$ast.Find({param($a)$a-is [Management.Automation.Language.FunctionDefinitionAst]-and $a.Name-ceq $name},$true);. ([scriptblock]::Create($fn.Extent.Text))}
 $native=$ast.Find({param($a)$a-is [Management.Automation.Language.CommandAst]-and $a.GetCommandName()-ceq 'Add-Type'},$true);& ([scriptblock]::Create($native.Extent.Text))
 $script:drift=$false;$script:leases=@();$script:proofFiles=@();$script:mutations=0
 $root=Join-Path ([IO.Path]::GetTempPath()) ('maintenance-preflight-dispatch-'+[Guid]::NewGuid().ToString('N'))
@@ -24,6 +24,26 @@ try{
   Check $rejected ($role+'_double_link_accepted')
  }
  Check ($script:leases.Count-eq 2) 'ordinary_pin_not_retained'
+ # Exercise the production artifact initializer with a REAL nonempty window
+ # and the unchanged fixed protected-path helper. This reproduces the first
+ # live read-only rejection without any real task/process/database.
+ . (Join-Path ([IO.Path]::GetDirectoryName($Source)) 'maintenance_window.ps1')
+ . ([IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($Source)) '..\release_schema6\lifecycle\protected_paths.ps1')))
+ $owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+ $windowRoot=Join-Path $root 'artifact-window';$null=[IO.Directory]::CreateDirectory($windowRoot);Protect-NewDirectory $windowRoot
+ $window=Open-MaintenanceWindow $windowRoot 'readonly-artifacts-synthetic'
+ try{
+  $parent=$window.Directory;$before=(Get-Acl -LiteralPath $parent).Sddl
+  $rejected=$false;try{Protect-NewDirectory $parent}catch{if($_.Exception.Message-ceq 'new_empty_directory_required'){$rejected=$true}}
+  Check $rejected 'nonempty_window_no_longer_rejected'
+  $copy=New-MaintenanceArtifactDirectory $parent 'copy-validation'
+  $template=New-MaintenanceArtifactDirectory $parent 'prepare-template'
+  Assert-ProtectedPath $copy -Root;Assert-ProtectedPath $template -Root
+  Check ((Get-Acl -LiteralPath $parent).Sddl-ceq $before) 'existing_window_acl_changed'
+  $sentinel=Join-Path $template 'sentinel';[IO.File]::WriteAllText($sentinel,'preserve')
+  $rejected=$false;try{$null=New-MaintenanceArtifactDirectory $parent 'prepare-template'}catch{$rejected=$true}
+  Check $rejected 'existing_artifact_directory_reused';Check ([IO.File]::ReadAllText($sentinel)-ceq 'preserve') 'artifact_evidence_changed'
+ }finally{Close-MaintenanceWindow $window}
  # USB/backup predicates run with deterministic read-only providers; the backup
  # hash helper has separate real-file tests. Any failed identity must stop here.
  $script:filesystem='NTFS';$script:volumeId='synthetic-volume';$script:serial='synthetic-serial'
@@ -64,7 +84,7 @@ try{
  Check (!$script:result.productionPrepareInvoked-and $script:result.productionPrepareStillRequiresAclApply) 'false_prepare_attestation'
  $script:copyFail=$true;$rejected=$false;try{$null=& ([scriptblock]::Create($body))}catch{if($_.Exception.Message-ceq 'synthetic_copy_rejected'){$rejected=$true}}
  Check $rejected 'failed_copy_accepted';Check ($script:mutations-eq 0) 'live_mutation_called'
- [ordered]@{passed=$true;normalPreflightReturns=$true;failedPreflightCannotMutate=$true;dataDoubleLinkRejected=$true;configurationDoubleLinkRejected=$true;ordinaryPinLeasesRetained=$true;formalIdReserved=$true;noProductionPrepareReceipt=$true;usbMismatchRejected=$true;incompleteBackupRejected=$true;realRestoreRequired=$true;liveMutationCalls=$script:mutations}|ConvertTo-Json -Compress
+ [ordered]@{passed=$true;normalPreflightReturns=$true;failedPreflightCannotMutate=$true;dataDoubleLinkRejected=$true;configurationDoubleLinkRejected=$true;ordinaryPinLeasesRetained=$true;formalIdReserved=$true;noProductionPrepareReceipt=$true;nonemptyWindowAclPreserved=$true;emptyProtectedArtifactChildren=$true;artifactReuseRejected=$true;usbMismatchRejected=$true;incompleteBackupRejected=$true;realRestoreRequired=$true;liveMutationCalls=$script:mutations}|ConvertTo-Json -Compress
 }finally{
  foreach($h in $script:leases){$h.Dispose()}
  $target=[IO.Path]::GetFullPath($root);$temp=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\'

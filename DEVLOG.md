@@ -3,7 +3,8 @@
 - PreflightOnly独立ID/证据、共享互斥，候选/USB备份/任务树/ACL/审批/在线副本全检后返回，零现役动作。
 - Prepare加固前纯模板逐字核对，明确不代替加固后的正式Prepare；固定47运行库存不改。
 - 本机维护/在线copy整组55项：53通过、2项特权opt-in留Hosted CI，0失败；新增映像30断言通过。
-- R02历史文档已提交；本轮CI/固定维护闭包/现役只读演练通过前不进场。
+- 源码27069c31 CI15绿后第一轮只读预演被非空artifact父目录安全拒绝，零停服、未进入在线SQL。
+- 改为新空子目录，补真实window+固定保护helper回归；新CI/新ID后重试，正式r02未用。
 - 交接：docs/development/handoffs/SCHEMA6_READONLY_PREFLIGHT_20261007.md。
 ---
 ## 2026-10-07 — PR18合并，r02冻结前系统映像预检停止

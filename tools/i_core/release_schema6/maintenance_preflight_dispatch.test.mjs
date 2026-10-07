@@ -10,6 +10,6 @@ test('read-only rehearsal returns before every live mutation and strict artifact
  const r=spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',fixture,'-Source',source],{windowsHide:true,encoding:'utf8',timeout:25000});
  assert.equal(r.error,undefined);assert.equal(r.status,0,r.stderr);
  const result=JSON.parse(r.stdout.trim().split(/\r?\n/).at(-1));
- for(const field of ['passed','normalPreflightReturns','failedPreflightCannotMutate','dataDoubleLinkRejected','configurationDoubleLinkRejected','ordinaryPinLeasesRetained','formalIdReserved','noProductionPrepareReceipt','usbMismatchRejected','incompleteBackupRejected','realRestoreRequired'])assert.equal(result[field],true,field);
+ for(const field of ['passed','normalPreflightReturns','failedPreflightCannotMutate','dataDoubleLinkRejected','configurationDoubleLinkRejected','ordinaryPinLeasesRetained','formalIdReserved','noProductionPrepareReceipt','nonemptyWindowAclPreserved','emptyProtectedArtifactChildren','artifactReuseRejected','usbMismatchRejected','incompleteBackupRejected','realRestoreRequired'])assert.equal(result[field],true,field);
  assert.equal(result.liveMutationCalls,0);
 });
