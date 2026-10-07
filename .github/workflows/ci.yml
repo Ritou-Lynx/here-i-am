@@ -174,8 +174,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Fixed runtime, recovery and backup suites
+      - name: Fixed runtime, recovery, backup and maintenance suites
         shell: powershell
+        env:
+          # Only this disposable hosted runner creates one unique, disabled,
+          # triggerless synthetic task and deletes that exact nonce-bound task.
+          SCHEMA6_SYNTHETIC_TASK_TEST: '1'
+          SCHEMA6_SYNTHETIC_OWNER_PROBE: '1'
+          SCHEMA6_SYNTHETIC_TASK_REPORT: build/ci/schema6-maintenance-register-com.json
         run: ./tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1
       - if: always()
         uses: actions/upload-artifact@v4
@@ -185,6 +191,7 @@ jobs:
             build/ci/schema6-windows.tap
             build/ci/schema6-native-probe.json
             build/ci/schema6-module-scope.json
+            build/ci/schema6-maintenance-register-com.json
           if-no-files-found: error
 
   schema6-cross-user:

@@ -1,5 +1,25 @@
 # schema6 候选切换现场清单（下次窗口顺序，2026-10-07复核）
 
+## 2026-10-07 最新增补：维护源码闭合，仍未进场
+
+用户已审核通过PR16的SHM复现、在线窄修复和既有7项CI；本轮按新授权仅版本化维护入口、合成演练并推送。**合并PR16和重新进场仍需分别另行授权**，本轮不操作现役Core/MCP/隧道/原库/计划任务/手机。下方旧脚本摘要、窗口和回执属于历史证据，不作为新入口的执行参数。
+
+本次入口为仓库 tools/i_core/maintenance/enter-maintenance-window.ps1；计划新WindowId为 cutover-retry-20261007-r02（尚未创建现场窗口）。现场使用批准提交的完整维护闭包，按参数传入私有配置路径/SHA、WindowId。所有锁和回执进入维护根/windows/新WindowId，CreateNew留存；上次目录、锁、回执和guard字节全部保留，不删除或复用。若r02曾被使用，改用新的ID。独占active-window.guard串行化冻结/ACL/注册，后续阶段不重复进入entry。
+
+| 对应步骤 | 本轮更新的精确执行要求 |
+|---|---|
+| ④.1–④.4 | 使用参数化freeze及PR16的precutover_validate_copy.mjs --config。先核维护源码闭包、固定候选完整库存、Node及配置外锚；新空copy-validation目录才可初始化私有ACL。在线判据仅DB/WAL存在/大小/身份/字节，journal存在，SHM存在/大小；不得把rawStable说成四件全字节证明。停Core后的首次闭合和65秒观察仍严格检查四件全字节及冻结身份，不套在线例外。 |
+| ④.5–④.7 | 使用版本化ACL/owner wrapper及新窗口配置/SHA。原144项/16外owner锚只作历史，现场重新核精确库存和同一快照；同SID管理员、SeRestore、本窗口冻结时效、COM任务定义/SDDL/零触发/重试/实例、空端口逐项确认。全项Apply/readback、全清单恢复保持。ACL回执明确raw_external_verified=false：它不读目标内容，必须由持同guard的外层核四件/外部文件内容及身份，不能仅凭ACL passed推进。 |
+| ④.8 | 使用受锚的prepare-production-login入口，绑定本轮freeze和完整ACL逐项回执；独立Prepare在共享锁下重核冻结态，固定PrepareOnly产物必须逐字等于批准XML；只有prepared未registered/started才继续。 |
+| ④.9 | register-approved-login.ps1 -ConfigurationPath 私有配置 -ExpectedConfigurationSha256 配置SHA -RegisterOnly。先确认不存在，再TASK_CREATE=2；真实COM四节/SDDL/零实例回读，旧任务及raw/external注册前后再核。没有启动入口。误配输出不能落到state/raw/不存在journal，成功或失败回执均只写本轮窗口直属路径。 |
+| ⑤/⑥ | 延续既有Native raw保全/替换边界和MCP曾处理请求后的真人关机→开机四Gate。维护源码合成通过不代替现场任务、批准XML、生产Prepare或人机验收。 |
+
+**ACL Apply之后出现pending的处理：**立即停止推进，保持两旧任务及新任务的触发/重试冻结；确认所有candidate/owned writer/reader退出并保留pending、原快照、所有回执、raw密文、head。先查是否有commitStarted、原库替换、head推进或新写入；任一出现或无法排除，只能向前修。即使尚未替换，只要pending令精确144项库存漂移，也不得直接Rollback、删除新项、改144常量、删锁或启动旧v4。报告新增路径/时间/ID前缀及所处阶段，提交受审恢复方案；在精确库存和恢复能力重新闭合以前保持停写。只有确认未替换且原库存仍精确成立，才执行已审全项owner/DACL恢复并真实readback，随后恢复旧定义和Core→同字节MCP。这是显式停止/保全/再审分支，不是已实现的跨阶段自动退回。
+
+Register合成首轮发现Scheduler会改变省略的Unified设置及DACL protected位；生产检查保留严格拒绝。固定Prepare当前模板省略Unified（官方默认false），本机同版本合成曾出现注册后true。**进场前必须复核批准XML在目标Scheduler的语义兼容性；若不符，停在预备阶段，明确审阅必要XML/模板变更，不能停机后靠放宽检查继续。** 本轮没有读取生产XML或执行生产注册，不能据显式true的安全合成任务宣称生产XML已验证。详见维护注册交接。
+
+工作包证据：[主窗验收](SCHEMA6_MAINTENANCE_SOURCE_ACCEPTANCE_20261007.md)、[冻结/新窗口](SCHEMA6_MAINTENANCE_WINDOW_20261007.md)、[ACL](SCHEMA6_MAINTENANCE_ACL_SOURCE_20261007.md)、[RegisterOnly](SCHEMA6_MAINTENANCE_REGISTER_20261007.md)。
+
 2026-10-06原始编写说明：本页细化[本人操作单](SCHEMA6_OWNER_DEPLOY_CHECKLIST_20261006.md)④–⑥，供未来获准窗口逐项执行。本轮仅读取仓库历史报告、候选源码与微软官方说明并编写清单；**没有合并、部署、停启服务、查询现役、读原库/真实备份、注册任务、改设置、重启或操作手机，现役停机为 0**。
 
 2026-10-06编写基线：`codex/core-deploy-readiness-20261006@a608f8ad1761ca2dd2989ec5b654393dce70a2b2`。该提交不是未来部署提交；本页任何历史 PID、文件摘要或快照都不是本次执行授权。

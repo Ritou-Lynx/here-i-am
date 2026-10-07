@@ -1,3 +1,17 @@
+## 2026-10-07 — 现场维护源码入库与单次窗口闭合
+- 继续PR16同分支；仅指定私有脚本源码、合成演练及文档，不进场、不合并。
+- 参数化freeze/新窗口/ACL/owner wrapper/Prepare/RegisterOnly，现场路径、SID和批准锚不入库。
+- 新窗口CreateNew锁/回执，旧证据字节保留；独占guard串行化，WindowId统一8–80。
+- 执行前持柄验源；v2冻结证明、全项ACL回执、taskPath及候选/配置外锚完整衔接。
+- 独立Prepare持锁前后核任务/raw身份和内容，最后才发布成功回执；Register仅CREATE并真实COM回读。
+- 主窗修空hash验源绕过、journal误配输出和错误回执边界；未改固定47项runtime或生产门槛。
+- 本机真实COM仅一次CREATE、回读、删除，始终禁用/无触发/零实例；首轮默认值差异拒绝如实保留。
+- 首轮108项104过/2夹具失败/2未执行；修ID夹具及PS5.1模块路径后最终108项106过/0失败/2未执行，168.206秒。
+- foreign-owner特权及COM往返设Windows CI必跑，普通本机token未执行不算通过。
+- 清单补本次入口/r02预留ID、PR16在线判据、ACL后pending保全再审与向前修界限。
+- 批准XML的Unified/SDDL兼容性须停服务前核，不因安全合成任务通过宣称生产已注册。
+- 精确提交远端全部CI登记同PR正文/Checks，绿后暂停；合并与进场另行授权。
+---
 ## 2026-10-07 — SHM原因合成证实，在线预检窄修复
 - 从v3-lab@1552e251开codex/schema6-online-shm-preflight-20261007，仅源码/合成验证/文档，不重进现场。
 - 固定release四组各三次通过：空闲独立writer捕获和只读SELECT均只改SHM offset104的aReadMark，DB/WAL字节/大小/身份稳定。

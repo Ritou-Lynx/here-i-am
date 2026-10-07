@@ -1,5 +1,15 @@
 # 林埃的项目状态
 
+## PR16 维护源码闭合（2026-10-07，待本轮复核）
+
+用户已通过前轮SHM复现/窄修复和7项CI；本轮继续同分支，把实际会改现役的指定私有维护脚本参数化纳入tools/i_core/maintenance。仅源码与新合成环境，未查询/操作现役、原库、真实任务、隧道或手机。现场配置/快照/正文/凭据未读取或提交，固定runtime47项未改。
+
+新入口enter-maintenance-window.ps1，预留cutover-retry-20261007-r02（未创建现场窗口）；旧锁/回执/guard保留，新ID可进入、同ID拒绝。执行前源/配置持柄pin，v2冻结与全项ACL回执跨阶段绑定；独立Prepare持guard前后核冻结和文件身份，Register仅CREATE并真实COM回读。主窗修复空hash验源、taskPath错配、输出误写journal及错误回执问题；PR16在线例外不扩大到离线SHM/raw/NativeLease/ACL。
+
+本机真实COM只创建一个禁用无触发、零实例合成任务，首次默认设置/SDDL严格拒绝后对同一对象完成回读及删除，最终无遗留，从未运行。Windows CI强制foreign-owner特权及COM往返，本机普通token未执行不当完成。主窗最终108项106过/0失败/2未执行（168.206秒），Windows特殊两项CI必跑；精确远端CI回执见[本轮验收](handoffs/SCHEMA6_MAINTENANCE_SOURCE_ACCEPTANCE_20261007.md)与同PR Checks/正文；前一head绿色不替代本轮。
+
+[现场清单](handoffs/SCHEMA6_CUTOVER_FIELD_CHECKLIST_20261006.md)补新入口、在线判据、ACL后pending库存漂移停止/保全/再审和接管后只向前修。固定Prepare模版省略Unified，本机合成曾注册为true；检查保持严格拒绝，进场前须核批准XML兼容性或审阅必要变更，未执行生产Prepare/注册。合并PR16及重新进场仍须分别授权；推送、全部检查绿后暂停。
+
 ## SHM合成证实与在线预检修复（2026-10-07，源码待审核）
 
 从v3-lab@1552e251隔离codex/schema6-online-shm-preflight-20261007。固定Node/SQLite与固定release的四组各三次合成复现通过：独立空闲writer捕获及只读SELECT都只改SHM offset104的aReadMark[1]2→3，DB/WAL字节、大小、身份稳定；正常关闭/强杀后无writer对照另列。原现场没有before字节，不追认真实原因。公开合成JSON分别登记Git LF摘要与Windows原CRLF摘要，已核只差换行、结构和值完全一致。[合成证据](handoffs/SCHEMA6_SHM_REPRODUCTION_20261007.md)。
