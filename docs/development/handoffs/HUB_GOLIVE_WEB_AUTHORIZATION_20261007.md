@@ -36,7 +36,12 @@ DomainStore provides the durable operation ledger and idempotency check; there i
 no new schema or second approval ledger. Exact retries within validity return the
 existing receipt with one effect. After expiry/revocation, an unexecuted action is
 denied. For a lost response, use the existing scoped operation lookup to determine
-the prior result. Do not replace the authorization reference on the same operation
+the prior result. Web MCP exposes the read-only `capture_operation({op_id})`
+and `i_remember({action:"operation",op_id})` paths for this recovery. They require
+the current principal and scopes, preserve unknown/hidden/error outcomes, and
+cannot submit a replacement write. Opaque authorization refs allow up to 4096
+characters in both the published schema and runtime checks.
+Do not replace the authorization reference on the same operation
 or issue another operation merely because the response was lost.
 
 Public-key removal, action narrowing and principal rotation prevent outstanding
@@ -58,8 +63,11 @@ The host defaults to deny until owner policy supplies a verifier/key registry.
 
 ## Validation
 
-Six tests cover no-authority proposals/OAuth/chat identifiers, exact request and
+Eight tests cover no-authority proposals/OAuth/chat identifiers, exact request and
 principal binding, altered rendered requests, short validity, revocation,
 replacement, narrowed grants, malformed proofs, and real DomainStore acceptance
-with one durable receipt. All six passed on Node 24.14.1 on 2026-10-07 using
-in-memory synthetic data only.
+with one durable receipt, rejected asynchronous key sources, and private-key
+misconfiguration in the public-key registry. All eight passed on Node 24.14.1 on
+2026-10-07 using in-memory synthetic data only. The full MCP group passed 102
+tests, including a real long wua1 ref through the handler and same-operation
+lookup after response loss, approval expiry and signing-key removal.

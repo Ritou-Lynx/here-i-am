@@ -5,13 +5,15 @@ export class DomainToolInputError extends Error {}
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const fail = code => { throw new DomainToolInputError(code); };
 const idSchema = { type: 'string', minLength: 1, maxLength: 200 };
+const authorizationRefSchema = { type: 'string', minLength: 1, maxLength: 4096,
+  description: 'Opaque proof issued by a trusted user entry and bound to this exact intent. Text, OAuth tokens and chat IDs are not authorization.' };
 const timeSchema = { type: 'string', description: 'UTC RFC3339 milliseconds. Keep identical on retry.' };
 const common = {
   op_id: { ...idSchema, description: 'A new UUID for a new intent; retry the identical intent with this same UUID.' },
   id: { ...idSchema, description: 'Stable record ID; new records use a UUID. Never reuse a deleted ID.' },
   base_revision: { type: 'integer', minimum: 0 },
   created_at: timeSchema, expires_at: timeSchema,
-  authorization_ref: { ...idSchema, description: 'Opaque reference issued by a trusted user entry, bound to this intent. Text or a chat ID alone is not authorization.' },
+  authorization_ref: authorizationRefSchema,
 };
 const writeRequired = ['op_id', 'id', 'base_revision', 'created_at', 'expires_at'];
 const readProps = { id: idSchema, limit: { type: 'integer', minimum: 1, maximum: 500 }, snapshot_token: {type:'string',maxLength:8192}, page_token: {type:'string',maxLength:8192} };
@@ -40,6 +42,9 @@ const write = (name, domain, kind, properties, required = []) => ({name, domain,
 const definitions = [
   write('capture_add', 'captures', 'create', {text:{type:'string',minLength:1,maxLength:16000},recorded_at:timeSchema}, ['text','recorded_at','authorization_ref']),
   read('capture_list', 'captures', 'Read one capture by id or one consistent snapshot page, including per-processor input revisions.'),
+  {name:'capture_operation',domain:'captures',read:true,requiredScope:'captures:read',
+    description:'Recover the authoritative result of an existing capture operation for this same principal. A missing, hidden or unavailable result remains unknown; never create a new op from this response.',
+    inputSchema:{type:'object',properties:{op_id:{...idSchema,description:'The exact prior operation ID to recover.'}},required:['op_id'],additionalProperties:false}},
   write('capture_ack', 'captures', 'ack_capture', {disposition:{...shape({status:{type:'string',enum:['pending','done','skipped']},outputs:listOf(idSchema),input_revision:{type:'integer',minimum:1},note:{type:'string'}}),description:'Planner only. input_revision must be the current text field revision. Non-done outcomes require empty outputs.'}}, ['disposition']),
   read('plan_list', 'plan_items', 'Read one item or a paginated consistent snapshot.'),
   write('plan_upsert', 'plan_items', 'upsert', {data:dataSchema('plan_items')}, ['data']),
@@ -54,7 +59,7 @@ export const DOMAIN_TOOLS = Object.freeze(definitions.map(tool => ({...tool,
   annotations:{readOnlyHint:!!tool.read,destructiveHint:false,idempotentHint:true,openWorldHint:false},
 })));
 export const PLANNER_SCOPES = Object.freeze(['captures:read','captures:ack', ...['plan_items','plan_weeks','plan_days'].flatMap(domain => ['read','create','patch'].map(action=>`${domain}:${action}`))]);
-export const WEB_DOMAIN_TOOLS = Object.freeze(['capture_add','week_get','day_get']);
+export const WEB_DOMAIN_TOOLS = Object.freeze(['capture_add','capture_operation','week_get','day_get']);
 
 function checkArgs(args, allowed, required = []) {
   if (!object(args) || Object.keys(args).some(key => !allowed.includes(key)) || required.some(key=>!Object.hasOwn(args,key))) fail('invalid_request');
@@ -62,6 +67,7 @@ function checkArgs(args, allowed, required = []) {
 function scopeFor(tool, args) { return tool.kind === 'upsert' ? `${tool.domain}:${args.base_revision === 0 ? 'create' : 'patch'}` : tool.requiredScope; }
 function available(tool, scopes) { return tool.kind === 'upsert' ? ['create','patch'].some(action=>scopes.includes(`${tool.domain}:${action}`)) : scopes.includes(tool.requiredScope); }
 function safeId(value) { if(typeof value !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,199}$/.test(value))fail('invalid_id');return encodeURIComponent(value); }
+function safeAuthorizationRef(value) { if(typeof value!=='string'||value.length<1||value.length>4096)fail('invalid_authorization_ref');return value; }
 
 export function createDomainClient({coreUrl, token, coreInstanceId, fetchImpl = fetch, timeoutMs = 15000}) {
   const url = new URL(coreUrl);
@@ -82,7 +88,9 @@ export function createDomainClient({coreUrl, token, coreInstanceId, fetchImpl = 
       }
       return {http_status:response.status,...payload};
     } catch {
-      return {outcome:'transport_unknown',error:{code:'core_unavailable',retryable:true},retry:'Retry the exact same intent with the same op_id. Do not create a new operation or claim acceptance.'};
+      return {outcome:'transport_unknown',error:{code:'core_unavailable',retryable:true},retry:domain==='captures'
+        ? 'Keep the same op_id and query capture_operation or i_remember operation before any resubmit. A failed lookup remains unknown. Never create a new operation or claim acceptance.'
+        : 'Retry the exact same intent with the same op_id. Do not create a new operation or claim acceptance.'};
     }
   }
   return {
@@ -131,10 +139,16 @@ async function withDayItemTitles(result, client, scopes) {
 export function createDomainTools({client, scopes, surface = 'planner', captureSource = 'codex'}) {
   if(!client || !Array.isArray(scopes) || scopes.some(s=>typeof s!=='string') || !['planner','web'].includes(surface)) throw new Error('invalid_domain_configuration');
   if(!['codex','dot','claude_web'].includes(captureSource) || surface==='web'&&captureSource!=='claude_web')throw new Error('invalid_capture_source');
-  const permitted = DOMAIN_TOOLS.filter(tool=>available(tool,scopes)&&(surface!=='web'||WEB_DOMAIN_TOOLS.includes(tool.name)));
+  const permitted = DOMAIN_TOOLS.filter(tool=>available(tool,scopes)
+    && (surface==='web'?WEB_DOMAIN_TOOLS.includes(tool.name):tool.name!=='capture_operation'));
   const handlers = Object.fromEntries(permitted.map(tool=>[tool.name, async(args={})=>{
     checkArgs(args,Object.keys(tool.inputSchema.properties),tool.inputSchema.required);
     if(!scopes.includes(scopeFor(tool,args)))return {error:{code:'scope_forbidden',retryable:false},http_status:403};
+    if(tool.name==='capture_operation') {
+      if(Object.keys(args).length!==1)fail('invalid_request');
+      safeId(args.op_id);
+      return client.operation('captures',args.op_id);
+    }
     if(tool.read) {
       if(args.id!==undefined){if(Object.keys(args).length!==1)fail('invalid_request');const result=await client.record(tool.domain,args.id);return tool.name==='day_get'?withDayItemTitles(result,client,scopes):result;}
       if(args.limit!==undefined&&(!Number.isSafeInteger(args.limit)||args.limit<1||args.limit>500))fail('invalid_limit');
@@ -146,6 +160,7 @@ export function createDomainTools({client, scopes, surface = 'planner', captureS
     const kind = tool.kind==='upsert'?(args.base_revision===0?'create':'patch'):tool.kind;
     const actor = tool.name==='capture_add'?'user_via_agent':tool.name==='plan_set_status'?'user_direct':'agent_inferred';
     if(actor==='agent_inferred'&&args.authorization_ref!==undefined)fail('authorization_not_applicable');
+    if(args.authorization_ref!==undefined)safeAuthorizationRef(args.authorization_ref);
     const intent=Object.fromEntries(writeRequired.map(key=>[key,args[key]]));
     Object.assign(intent,{kind,actor},args.authorization_ref===undefined?{}:{authorization_ref:args.authorization_ref});
     if(tool.name==='capture_add')Object.assign(intent,{data:{text:args.text,source:captureSource,recorded_at:args.recorded_at},provenance:{source:captureSource,source_refs:[],import_batch_id:null}});
@@ -160,8 +175,8 @@ export function createDomainTools({client, scopes, surface = 'planner', captureS
 
 export const CORE_REMEMBER_TOOL = {
   name:'i_remember', title:'林埃：Core 显式记录',requiredScope:'i.write',
-  description:'用户明确要求记录时调用。add/update/delete 写入 Core captures；list 只列本端记录。新记录由 organizer 和 planner 分工处理。删除立即清除 Core 在线正文；下游用户改过的卡会保留待确认。写操作必须携带稳定 op_id、id（update/delete 可用 note_id）、base_revision、created_at、expires_at 和受信入口发出的 authorization_ref。原样重试；没有授权引用时说明缺少授权，不能读取聊天来猜测或构造。',
-  inputSchema:{type:'object',properties:{...common,action:{type:'string',enum:['add','update','delete','list']},note_id:idSchema,text:{type:'string',minLength:1,maxLength:2000}},additionalProperties:false},
+  description:'用户明确要求记录时调用。add/update/delete 写入 Core captures；list 只列本端记录；operation 只查询同一 principal 已有 op_id 的权威结果，用于未知提交恢复。新记录由 organizer 和 planner 分工处理。删除立即清除 Core 在线正文；下游用户改过的卡会保留待确认。写操作必须携带稳定 op_id、id（update/delete 可用 note_id）、base_revision、created_at、expires_at 和受信入口发出的 authorization_ref。提交结果未知时先用 operation 查询原 op_id；404、403 或 transport_unknown 都不证明未执行，不得自动创建新 op。没有授权引用时说明缺少授权，不能读取聊天来猜测或构造。',
+  inputSchema:{type:'object',properties:{...common,action:{type:'string',enum:['add','update','delete','list','operation']},note_id:idSchema,text:{type:'string',minLength:1,maxLength:2000}},additionalProperties:false},
   annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:true,openWorldHint:false},
 };
 
@@ -186,11 +201,17 @@ export function createCoreRemember({client,scopes}) {
     async remember(args={}) {
       checkArgs(args,Object.keys(CORE_REMEMBER_TOOL.inputSchema.properties));
       const action=args.action??'add';
-      if(!['add','update','delete','list'].includes(action))fail('invalid_action');
+      if(!['add','update','delete','list','operation'].includes(action))fail('invalid_action');
       if(action==='list'){if(Object.keys(args).some(k=>k!=='action'))fail('invalid_request');return {action,notes:await this.activeNotes(50)};}
+      if(action==='operation'){
+        if(Object.keys(args).some(k=>!['action','op_id'].includes(k))||!Object.hasOwn(args,'op_id'))fail('invalid_request');
+        requireScope('read');safeId(args.op_id);
+        return {action,...await client.operation('captures',args.op_id)};
+      }
       const id=args.id??args.note_id;
       if(args.id&&args.note_id&&args.id!==args.note_id)fail('invalid_id');
       for(const key of ['op_id','base_revision','created_at','expires_at','authorization_ref'])if(args[key]===undefined)fail(`missing_${key}`);
+      safeAuthorizationRef(args.authorization_ref);
       safeId(id);
       const kind={add:'create',update:'patch',delete:'delete'}[action];requireScope(kind);
       if(kind!=='delete'&&(typeof args.text!=='string'||!args.text.trim()||[...args.text].length>2000))fail('invalid_text');

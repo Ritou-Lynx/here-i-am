@@ -1,6 +1,6 @@
 // Explicit trusted-UI signing boundary. This module creates no listener, keys,
 // principal, or grant. OAuth, a chat message, and model output cannot approve.
-import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, KeyObject, sign, verify } from 'node:crypto';
 import { canonicalJSON } from './domain_store.mjs';
 
 const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -34,6 +34,20 @@ function validChallenge(c) {
     && c.expires_at > c.issued_at && c.expires_at - c.issued_at <= MAX_VALIDITY_MS;
 }
 
+function publicVerificationKey(value) {
+  if (value instanceof KeyObject) {
+    if (value.type !== 'public') throw new Error('invalid_web_verification_key');
+    return value;
+  }
+  // Accept only an explicit SPKI public PEM. createPublicKey by itself also
+  // accepts private keys, which would silently defeat the deployment boundary.
+  const pem = typeof value === 'string' ? value.trim() : Buffer.isBuffer(value) ? value.toString('utf8').trim() : '';
+  if (!/^-----BEGIN PUBLIC KEY-----\r?\n(?:[A-Za-z0-9+/=]+\r?\n)+-----END PUBLIC KEY-----$/.test(pem)) {
+    throw new Error('invalid_web_verification_key');
+  }
+  return createPublicKey({key:pem, format:'pem', type:'spki'});
+}
+
 // Public proposal: safe to construct in an untrusted caller. It is NOT authority.
 // The trusted surface must render the exact full request and current binding
 // before signing; changing anything requires a new review and a new signature.
@@ -52,7 +66,7 @@ export function createWebActionChallenge({domain, binding, request, keyId: signe
 // LOCAL TRUSTED UI ONLY. Never expose this function/private key as an MCP tool,
 // generic HTTP endpoint, model command, or function authorized by an OAuth token.
 export function approveWebActionChallenge({challenge, domain, binding, request, privateKey, now = Date.now()}) {
-  if (!validChallenge(challenge) || now < challenge.issued_at || now >= challenge.expires_at
+  if (!validChallenge(challenge) || !Number.isSafeInteger(now) || now < challenge.issued_at || now >= challenge.expires_at
     || canonicalJSON(createWebActionChallenge({domain, binding, request, keyId:challenge.key_id,
       now:challenge.issued_at, validityMs:challenge.expires_at - challenge.issued_at})) !== canonicalJSON(challenge)) {
     throw new Error('invalid_web_action');
@@ -66,7 +80,8 @@ export function approveWebActionChallenge({challenge, domain, binding, request, 
 }
 
 // getTrustedKeys reads owner-controlled CURRENT configuration every time.
-// Each entry: {key_id, public_key, binding, kinds}. No private signing key.
+// Each entry: {key_id, public_key, binding, kinds}. public_key is a public
+// KeyObject or SPKI public PEM string/Buffer. Private key input is rejected.
 // Removing a key or changing generation/install revokes unexecuted approvals.
 // DomainStore owns durable op-id deduplication; no second approval ledger/DB.
 export function createTrustedWebAuthorizationVerifier({coreInstanceId, getTrustedKeys = () => [], now = Date.now}) {
@@ -91,6 +106,10 @@ export function createTrustedWebAuthorizationVerifier({coreInstanceId, getTruste
         credential_generation:principal.generation, installation_id:principal.installation_id};
       if (canonicalJSON(binding) !== canonicalJSON(c.binding)) return false;
       const keys = getTrustedKeys();
+      if (keys && typeof keys.then === 'function') {
+        Promise.resolve(keys).catch(() => {});
+        return false;
+      }
       if (!Array.isArray(keys) || keys.length > 32) return false;
       const matches = keys.filter(k => k?.key_id === c.key_id);
       if (matches.length !== 1) return false;
@@ -99,7 +118,7 @@ export function createTrustedWebAuthorizationVerifier({coreInstanceId, getTruste
         || canonicalJSON(grant.binding) !== canonicalJSON(binding) || !Array.isArray(grant.kinds)
         || !grant.kinds.length || new Set(grant.kinds).size !== grant.kinds.length
         || grant.kinds.some(k => !['create','patch','delete'].includes(k)) || !grant.kinds.includes(request.kind)) return false;
-      const key = grant.public_key?.type === 'public' ? grant.public_key : createPublicKey(grant.public_key);
+      const key = publicVerificationKey(grant.public_key);
       return key.type === 'public' && key.asymmetricKeyType === 'ed25519' && verify(null, payload, key, signature);
     } catch { return false; }
   };

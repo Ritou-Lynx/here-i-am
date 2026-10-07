@@ -82,6 +82,27 @@ test('malformed proofs and configuration fail closed without propagating input o
   assert.equal(v({principal,request:r,domain:'captures',authorizationRef:r.authorization_ref}),false);
 });
 
+test('an asynchronous rejected key source denies without an unhandled rejection', async () => {
+  const f=fixture(),r=f.approve(request());
+  const v=createTrustedWebAuthorizationVerifier({coreInstanceId:binding.core_instance_id,
+    getTrustedKeys:()=>Promise.reject(new Error('synthetic private adapter error')),now:()=>instant});
+  assert.equal(v({principal,request:r,domain:'captures',authorizationRef:r.authorization_ref}),false);
+  await new Promise(resolve=>setImmediate(resolve));
+});
+
+test('the verification registry rejects private keys and accepts only public key material', () => {
+  const f=fixture(),r=f.approve(request()),grant=f.state.grants[0];
+  const privatePem=f.keys.privateKey.export({type:'pkcs8',format:'pem'});
+  for (const key of [f.keys.privateKey,privatePem,Buffer.from(privatePem),
+    {key:privatePem,format:'pem'},f.keys.privateKey.export({format:'jwk'})]) {
+    f.state.grants=[{...grant,public_key:key}];assert.equal(f.check(r),false);
+  }
+  const publicPem=f.keys.publicKey.export({type:'spki',format:'pem'});
+  for (const key of [f.keys.publicKey,publicPem,Buffer.from(publicPem)]) {
+    f.state.grants=[{...grant,public_key:key}];assert.equal(f.check(r),true);
+  }
+});
+
 test('real DomainStore rejects forged and revoked authority; exact retry has a single durable effect', t => {
   const f=fixture(),db=new DatabaseSync(':memory:');t.after(()=>db.close());
   db.exec("CREATE TABLE core_metadata(key TEXT PRIMARY KEY,value TEXT);INSERT INTO core_metadata VALUES('schema_version','6'),('node_id','synthetic-web-core'),('cursor_secret','synthetic-only');");
