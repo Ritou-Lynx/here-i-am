@@ -24,7 +24,7 @@ description: 用户说“用接力做…”“交给 Codex 执行”“接力冒
 2. 对照合同逐条核：完成标准、路径边界、验证结果。Node 代码在云端自己跑 `node --test` 复核；Dart 只能读 diff，重点看逻辑、边界和 Codex 贴出的 analyze/测试输出是否覆盖改动。
 3. 按状态处理：
    - `done` 且全部达标 → 第 3 节收尾。
-   - `done` 未达标、`dirty`、`failed` → 下一轮 `to-codex`，每条问题带文件:行号、要求、验收。`failed` 是环境问题（登录、网络、worktree 冲突）而非代码问题时，发 `to-human` 说明需要用户在电脑上做什么。
+   - `done` 未达标、`failed` → 下一轮 `to-codex`，每条问题带文件:行号、要求、验收。`failed` 是环境问题（登录、网络、worktree 冲突）而非代码问题时，发 `to-human` 说明需要用户在电脑上做什么。
    - `blocked` → 能依合同、AGENTS.md 和既有决定回答的直接答（作为下一轮指令）；涉及产品语义、权限、外部影响、真实数据或用户偏好的发 `to-human`。
 4. 下一轮编号 = 上一轮 + 1。第 4 轮仍不过 → 不再发指令，加 `relay-needs-human`，发 `to-human` 总结卡点和建议。
 5. 一轮执行中不要往分支推送任何东西。

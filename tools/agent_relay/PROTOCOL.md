@@ -8,7 +8,7 @@
 |---|---|---|---|
 | Claude | claude.ai/code 云端会话，订阅该 PR | 写任务合同、开 PR、发每轮指令、读真实 diff 审阅、判定完成或升级给用户 | 合并 PR、在一轮执行中途推送代码 |
 | watcher | 用户电脑，计划任务每 3 分钟跑一次 | 发现新指令 → 在 PR 专用 worktree 调 `codex exec` → 推送 → 回帖 | 判断代码对错、改写指令、force-push、合并 |
-| Codex | 用户电脑，由 watcher 启动 | 按本轮指令实现、跑指定验证、提交 | 扩大范围、构建安装 App、碰真实数据和账户 |
+| Codex | 用户电脑，由 watcher 启动 | 按本轮指令实现、跑指定验证，改动留在工作区由 watcher 提交 | 扩大范围、构建安装 App、碰真实数据和账户 |
 | 用户 | GitHub 手机 App 通知 | 只处理 `to-human` 和 `done`；随时可加 `relay-paused` 叫停 | 复制粘贴 |
 
 ## 标签
@@ -54,7 +54,7 @@ Claude 开 PR 时在描述里写合同，以 `<!-- relay:contract v1 -->` 开头
 | 第一行 | 谁发 | 意思 |
 |---|---|---|
 | `<!-- relay:to-codex round=N -->` | Claude | 第 N 轮指令。N 从 1 开始连续递增 |
-| `<!-- relay:to-claude round=N status=S sha=X -->` | watcher | 第 N 轮结果。S 为 `done`、`blocked`、`dirty`、`failed`；X 为推送后的 head 短 SHA，失败时为 `none` |
+| `<!-- relay:to-claude round=N status=S sha=X -->` | watcher | 第 N 轮结果。S 为 `done`、`blocked`、`failed`；X 为推送后的 head 短 SHA，失败时为 `none` |
 | `<!-- relay:to-human -->` | Claude 或 watcher | 需要用户决定，正文 @Ritou-Lynx 并写清楚问题和选项 |
 | `<!-- relay:done -->` | Claude | 审阅通过，正文 @Ritou-Lynx，列出需要真人做的事 |
 
@@ -76,8 +76,8 @@ Claude 开 PR 时在描述里写合同，以 `<!-- relay:contract v1 -->` 开头
 
 1. Claude 发 `to-codex round=N`。
 2. watcher 发现后先给评论加 👀 反应（表示已接单），再在 PR 专用 worktree 里快进到 PR head，启动 Codex。
-3. Codex 实现、验证、提交；最后一条消息按 [CODEX_ROUND_PROMPT.md](CODEX_ROUND_PROMPT.md) 的格式写结果。
-4. watcher 推送（只快进，不 force），发 `to-claude round=N`，给指令评论加 🚀（成功）或 😕（失败）。
+3. Codex 实现、验证，改动留在工作区（Codex 沙箱通常不允许写 `.git`）；最后一条消息按 [CODEX_ROUND_PROMPT.md](CODEX_ROUND_PROMPT.md) 的格式写结果。
+4. watcher 用 Codex 给的提交信息提交工作区改动，推送（不 force），发 `to-claude round=N`，给指令评论加 🚀（成功）或 😕（失败）。
 5. Claude 被唤醒，审阅后发下一轮 `to-codex`、`done` 或 `to-human`。
 
 ## 轮数与停止

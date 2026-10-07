@@ -57,10 +57,10 @@ tools/agent_relay/
 8. **执行**：用模板渲染提示词（contract = PR 描述，instruction = 评论正文，去掉第一行标记），`codex exec --cd <worktree> <codexArgs...> --json --output-last-message <logs/pr-n-round-N.last.txt> -`，stdin 传提示词，环境变量加 `SKIP_PROJECT_STATE=1`。stdout 全量写 `logs/pr-n-round-N.jsonl`。超时则终止进程树，`failed`。
 9. **判定状态**：
    - Codex 退出码非 0 或无最后消息 → `failed`。
-   - `git status --porcelain` 非空 → `dirty`（不替 Codex 提交，回帖列出 `git status --short`）。
-   - 最后消息首行 `STATUS: blocked` → `blocked`。
-   - 否则 `done`。
-10. **推送**：只要有新提交（且不是 `dirty`），`git push origin HEAD:refs/heads/<branch>`。被拒（Claude 期间推过）→ `git fetch` 后 `git merge --no-edit origin/<branch>`；无冲突再推一次，有冲突则 `git merge --abort`，状态改 `failed` 并说明。**永不 force。**
+   - 最后消息首行 `STATUS: blocked` → `blocked`；否则 `done`。
+   - 工作区有改动（`git status --porcelain` 非空）→ watcher 提交：`git add -A`，`git commit -m "<COMMIT 行>" -m "relay: PR #<n> 第 N 轮"`，环境变量 `SKIP_PROJECT_STATE=1`。COMMIT 行缺失或为“无”时用 `relay: 第 N 轮`。提交失败（如 hook 拒绝）→ `failed`，回帖列出 `git status --short`，不推送。
+   - Codex 自己提交了也接受（沙箱允许时），照常检查 `startSha` 是 HEAD 的祖先。
+10. **推送**：只要有新提交，`git push origin HEAD:refs/heads/<branch>`。被拒（Claude 期间推过）→ `git fetch` 后 `git merge --no-edit origin/<branch>`；无冲突再推一次，有冲突则 `git merge --abort`，状态改 `failed` 并说明。**永不 force。**
 11. **回帖**：`gh pr comment <n> --repo <repo> --body-file <tmp>`，格式：
 
     ```markdown
@@ -75,8 +75,8 @@ tools/agent_relay/
     <Codex 最后消息，经脱敏与截断>
     ```
 
-    `failed` / `dirty` 时附原因和最多 30 行相关输出（同样脱敏）。
-12. **收尾**：指令评论加 `rocket`（done/blocked）或 `confused`（failed/dirty）；state 记为已处理（含状态、SHA、时间）；释放锁。
+    `failed` 时附原因和最多 30 行相关输出（同样脱敏）。
+12. **收尾**：指令评论加 `rocket`（done/blocked）或 `confused`（failed）；state 记为已处理（含状态、SHA、时间）；释放锁。
 
 `--loop` 只是每 `pollSeconds`（默认 180）调用一次上述流程。`--dry-run` 只打印将要处理的 PR、评论、渲染后的提示词和将要执行的命令，不加反应、不跑 Codex、不推送、不回帖、不写 state。
 
@@ -99,7 +99,7 @@ tools/agent_relay/
 5. `round=5`（maxRounds=4）→ 加 `relay-needs-human` + 发 `to-human`，不跑 Codex。
 6. 完整一轮 done：命令顺序为 反应 eyes → fetch/worktree → codex（stdin 是渲染后的提示词、带 `SKIP_PROJECT_STATE=1`）→ push（无 `--force` 字样）→ 回帖首行格式正确 → 反应 rocket。
 7. Codex 退出码 1 → `failed`，不推送。
-8. 工作区留有未提交改动 → `dirty`，不推送、不提交。
+8. 工作区留有改动 → watcher 用 COMMIT 行提交（带 `SKIP_PROJECT_STATE=1`）后推送；COMMIT 缺失用默认信息；commit 失败 → `failed` 且不推送。
 9. 推送被拒 → fetch + merge 成功后重推；merge 冲突 → `merge --abort`、`failed`。
 10. 脱敏：上面每个模式各一例被替换；超长截断。
 11. 锁：已有存活锁时立即退出、不调用 `gh`。

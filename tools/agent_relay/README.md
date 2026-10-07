@@ -32,7 +32,7 @@
 | 0 分 | 你在 claude.ai/code 说“用接力做：给 X 加 Y” | — |
 | ~10 分 | Claude 读代码、写合同、开 draft PR、发第 1 轮指令 | PR 出现，带 `agent-relay` 标签 |
 | ≤3 分后 | watcher 接单，指令评论出现 👀 | — |
-| +10~40 分 | Codex 实现、跑测试、提交；watcher 推送并回帖，评论变 🚀 | PR 里多了提交和一条 [to-claude] |
+| +10~40 分 | Codex 实现、跑测试；watcher 提交、推送并回帖，评论变 🚀 | PR 里多了提交和一条 [to-claude] |
 | +几分钟 | Claude 被唤醒，读 diff 审阅；不过关就发第 2 轮返修，循环 | PR 里一来一回的指令和结果 |
 | 结束 | Claude 发 [done] 并 @你，列出需要你亲自做的事（构建、装机、真人体验） | **手机收到 GitHub 通知** |
 
