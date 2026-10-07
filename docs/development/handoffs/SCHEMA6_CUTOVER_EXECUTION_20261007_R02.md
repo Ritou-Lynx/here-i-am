@@ -1,3 +1,9 @@
+## 2026-10-07 21:29（上海）最新结果：r02 Prepare 拒绝，已完整退回
+
+单目录 settings 已按新授权加固成功，新只读演练零失败；六项批准外锚及实时父 SD 均未变，故按有条件预授权进入正式 r02。144项 Apply 成功后，正式 Prepare 在读取 ACL 回执时因 owner 为 Administrators 而非本人，报 `prepare_owner_rejected`。没有现场改 owner 重试。已真实恢复全144项原 owner/DACL/继承，复核原 raw 身份/字节、grant/replay、旧固定包和库存，再恢复旧任务原定义/权限，按 Core→MCP 启动并绑定完整树、schema4及三个端口。21:28:57退回签收通过。
+
+**未完成切换，暂停待审。** 新任务不存在，候选从未启动，原库未迁移/替换，head未推进；四项真人Gate未执行。r02已消费，旧锁/回执全部保留，不得复用；下一轮须新的正式ID。单 settings 获批前置保留（f88d49ec…），生产 settings **不可清理**。完整证据和下一轮源码建议见[本轮授权及实录](SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md)。以下旧阶段的“r02未使用/零停机/尚未加固”均仅为当时历史，不覆盖本节。
+
 # r02 再次进场前签收：系统映像 Pin 拒绝，未进入窗口
 
 本轮用户已精确批准 FINAL_TASK_APPROVAL.md 的 XML、双 SDDL、父 SD、零外 SID、候选 manifest 与 login 配置，并授权合并 PR18 后按原④–⑥切换。以下是本轮实际执行结果，不代替旧历史记录。

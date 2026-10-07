@@ -1,3 +1,16 @@
+## 2026-10-07 — settings前置通过，r02 Prepare拒绝并完整退回
+- dd39129c源码CI15全绿：Hosted维护54/54、Windows285/285均无失败/跳过，才执行现场。
+- 单settings目录关闭继承保留ACE成功，owner/三配置字节/子ACL不变；原DACL和全部回执保留。
+- 新只读演练100.711秒全过，模板逐字/PR16副本72replay和1grant/结束复核通过。
+- 六批准hash及实时父SD未变，按预授权进r02；冻结与144项Apply成功。
+- 正式Prepare因管理员生成的ACL回执owner为Administrators而非本人拒绝；未临场改owner重试。
+- 已真实Rollback全144原owner/DACL/继承，独立核原四件身份/hash、外部审批、旧包和库存。
+- 恢复两原任务定义/权限，Core→MCP启动；21:28:57 schema4/单实例/完整树/三端口及MCPmetadata通过。
+- 原库未迁移替换、head未推进、新任务未注册/启动；未切换，真人四Gate未执行，暂停待审。
+- settings获批前置保留且不可清理；r02已消费，须新正式ID；回执writer修复仅提案、本轮不做。
+- B PR19源码/此前CI绿结果不变，未纳入A固定47候选或部署；交接见SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007。
+---
+
 ## 2026-10-07 生产 settings 单目录 ACL 前置
 - 目标：按本人新授权，先交付实际入口/合成测试并等 PR20 CI，再处理唯一 settings 目录继承。
 - 仅保留原ACE并保护DACL；不改 owner/配置字节或子权限，不触原库/任务/服务。

@@ -1,6 +1,10 @@
-## 生产 settings ACL 前置已授权，等待受审源码/CI（2026-10-07）
+## 2026-10-07 21:29：settings/只读重演通过，r02 Prepare拒绝，已完整退回
 
-本人已授权唯一 settings 目录保护继承保留ACE，先将真实入口与合成测试纳入PR20并CI绿，再执行；原144项、候选47运行文件和批准XML/双SDDL/父SD/login外锚不变。成功后新ID全套只读重演，零失败且原批准hash全部不变可直接进未使用r02；任何现场失败/偏差停审。此刻尚未执行加固、重演或正式切换。[范围及判据](handoffs/SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md)。旧轮禁止改ACL/须另请进场保留为历史。
+PR20源码dd39129c CI15全绿（Hosted维护54/54、Windows285/285零跳过）后，唯一settings目录保护继承保留ACE成功f88d49ec，三配置owner/hash/子ACL不变；新readonly-d4becd66c1b8全套100.711秒通过，模板逐字、PR16副本72replay/1grant及结束复核均通过。六批准hash/实时父SD不变，按条件预授权进r02。
+
+冻结及144项Apply均成功，正式Prepare因提升进程生成的acl-apply.json owner为Administrators而非本人报prepare_owner_rejected，停止；未现场修owner绕过。真实Rollback恢复全144原owner/DACL/继承并独立核原四件身份/字节、grant/replay/旧包/库存，再恢复原任务四段/权限，Core→MCP启动；21:28:57 schema4/两单实例/完整树/三端口/MCPmetadata核验通过。新任务不存在，原库未迁移替换/head未推进；四项真人Gate未跑，**未完成切换，已退回，暂停待审**。
+
+单settings获批前置保留、生产settings不可清理；r02已消费须新ID，旧新证据全保留。回执writer显式owner及提升→非提升串联测试为下一轮待审建议，本轮不写修复。B PR19最终cf2f6d57此前CI核绿且暂停，16项未来运行变化未进A包。实录及精确证据见[本轮交接](handoffs/SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md)。以下“r02未用/尚未加固/零停机”为旧阶段历史。
 
 # 林埃的项目状态
 
