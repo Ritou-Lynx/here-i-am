@@ -4,6 +4,9 @@ import 'package:uuid/uuid.dart';
 import 'domain_protocol.dart';
 import 'domain_row_storage.dart';
 
+typedef DomainIntentAuthorizationIssuer = FutureOr<String> Function(
+    Json unsignedIntent);
+
 /// Persists in the existing kv_store on the injected AppDatabase connection.
 /// Records, tombstones, corrections and outbox operations own separate rows.
 /// Every local write / outbox change / cursor change uses a real transaction. No schema migration, global database, or filesystem is opened.
@@ -121,12 +124,18 @@ class DomainStore {
       required Json fields,
       required String actor,
       String? authorizationRef,
+      DomainIntentAuthorizationIssuer? authorizeIntent,
       int schemaVersion = 1,
       int? baseRevision,
       Future<void> Function()? phoneWrite}) async {
+    if (authorizationRef != null && authorizeIntent != null) {
+      throw const DomainFailure('invalid_request');
+    }
     if (!['user_direct', 'user_via_agent', 'agent_inferred', 'import']
             .contains(actor) ||
-        (actor.startsWith('user_') && (authorizationRef?.isEmpty ?? true))) {
+        (actor.startsWith('user_') &&
+            (authorizationRef?.isEmpty ?? true) &&
+            authorizeIntent == null)) {
       throw const DomainFailure('actor_evidence_required');
     }
     if (!RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(name) || id.isEmpty) {
@@ -193,6 +202,11 @@ class DomainStore {
           predecessors.add(last['op_id'] as String);
         }
       }
+      if (authorizeIntent != null && predecessors.isNotEmpty) {
+        // The signature binds the final base revisions. Never queue a signed
+        // user action whose causal predecessor could later rewrite them.
+        throw const DomainFailure('causal_predecessor_unresolved');
+      }
       final prior = rows
           .where((o) =>
               o['domain'] == name &&
@@ -255,9 +269,16 @@ class DomainStore {
         'created_at': now.toIso8601String(),
         'expires_at': now.add(DomainPolicy.ttl).toIso8601String(),
         'actor': actor,
-        'authorization_ref': authorizationRef,
+        if (authorizationRef != null) 'authorization_ref': authorizationRef,
         ...copyJson(fields),
       };
+      if (authorizeIntent != null) {
+        final ref = await authorizeIntent(copyJson(intent));
+        if (ref.isEmpty) {
+          throw const DomainFailure('actor_evidence_required');
+        }
+        intent['authorization_ref'] = ref;
+      }
       if (jsonBytes(intent) > DomainPolicy.maxOpBytes) {
         throw const DomainFailure('payload_too_large');
       }
@@ -280,6 +301,7 @@ class DomainStore {
           'state': 'pending',
           'namespace': route == 'shadow' ? 'shadow' : 'production',
           'sealed': false,
+          'authorization_sealed': authorizeIntent != null,
           'predecessor': prior?['op_id'],
           'predecessors': predecessors.toList(),
           'touched_ids': touched.toList(),
@@ -481,7 +503,7 @@ class DomainStore {
             continue;
           }
           var blocked = false;
-          if (o['sealed'] != true) {
+          if (o['sealed'] != true && o['authorization_sealed'] != true) {
             for (final predecessor in predecessors) {
               final targets =
                   predecessor['result']?['receipt']?['targets'] as List? ?? [];

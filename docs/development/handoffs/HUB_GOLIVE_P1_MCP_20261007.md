@@ -10,7 +10,7 @@
 
 1. **MCP 没有可信 `authorization_ref` issuer。** `domain_tools.mjs` 只要求并转发调用参数中的引用；`i_remote_mcp` 的非测试源码没有签发、持久化或核验授权记录的实现。当前合成测试由夹具用 `synthetic:<op_id>` 和注入的 verifier 代替真实入口。模型能够填写一个字符串不构成用户授权，因此 `capture_add`、Core `i_remember` 的 add/update/delete 和任何 `user_direct/user_via_agent` 操作尚不能作为生产写入入口。
 2. **Core 正常 CLI 未装配业务 host policy。** `createICoreServer` 支持注入 `domainVerifyAuthorization`、`domainDedupHooks`、`domainHooks`、`domainVerifyLegacyAdoption`，但 `i_core_server.mjs` 的正常 `main()` 没有传入这些参数，也没有调用 `registerPersonalDataDomains` 或配置 scoped principals。schema6 只会创建通用 `DomainStore`：未注册域返回不可用；已注册且声明 `requiredHooksVersion` 的域在缺 hooks 时 fail-closed 为 `schema_not_ready`；user-level actor 在缺 verifier 时 fail-closed 为 `actor_not_authorized`。
-3. **手机生产 runtime 没有接上 Core 领域。** `lib/config/dependencies.dart::_createHubRuntime` 未注入 `quickCaptureAuthorize` / `planningAuthorize`，也没有为 captures/plan 域执行生产 `hub.attach`。因此手机默认仍使用 `phone-local` capture store；规划状态写在缺 callback 时明确拒绝。
+3. **手机领域接线在基线缺失，本候选已另行补充。** 基线 `lib/config/dependencies.dart::_createHubRuntime` 未注入授权 callback，也没有执行领域 `hub.attach`。App 工作包已补充可选、独立领域凭据、完整 intent 签名和逐请求撤销检查，见 P1_APP 与 PHONE_AUTH 交接。它不负责生产授予或显式 route/adoption 迁移；没有有效授予和迁移证据时仍保持本地或禁用状态。
 4. **凭据和模式仍只有外置注入点。** MCP `--domain-config` 能消费 owner 配置的 token/scopes，但不签发 principal，也不证明配置声明与真实 grant 一致；Core 才是最终裁决。仓库正常 host 路径尚没有已审核的个人领域注册、principal 签发、mode 切换和授权记录生命周期装配。
 
 ### 建议的最小安全闭环
@@ -46,7 +46,7 @@ $tests = @(rg --files tools/i_remote_mcp | Where-Object { $_ -match '\.test\.mjs
 
 ## 限制与主窗口事项
 
-- 这是组件源码与合成 HTTP 验证，不等于可上线候选。生产 scoped principal、授权 issuer/verifier、业务 hooks/注册、手机 attach、真实 owner 配置及迁移均未闭环。
+- 这是组件源码与合成 HTTP 验证，不等于可上线闭环。生产 scoped principal、网页授权 issuer、业务 hooks/注册、真实 owner 配置及迁移均未闭环；手机候选接线的最新结果另见 P1_APP。
 - 本轮未启用 `--domain-config`、未签发或轮换凭据、未停用 47862。真实切换仍按 README 的部署前置执行，并确保只启用一个记事消费者。
 - 新的本机 `planner_server.mjs` 入口可能影响启动器/库存；按任务边界，本轮不改启动器，由主窗口决定是否纳入现场清单。
 - `tools/i_core/import_personal_notes*` 由主窗口拥有，本轮只复核 MCP 侧合成 adoption 覆盖，没有修改迁移脚本。

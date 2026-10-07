@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:memex/data/memory_v3/notes/claude_web_note_feed_service.dart';
 import 'package:memex/data/memory_v3/services/record_organizer_service.dart';
 import 'package:memex/data/memory_v3/agents/record_organizer_agent/agent.dart';
-import 'dart:ui';
 import 'package:memex/data/personal_data_hub/personal_data_hub_runtime.dart';
+import 'package:memex/data/personal_data_hub/domain_access.dart';
 import 'package:memex/data/personal_data_hub/planning_models.dart';
 import 'package:memex/data/personal_data_hub/planning_reminders.dart';
 import 'package:memex/data/personal_data_hub/quick_capture_organizer_adapter.dart';
@@ -43,11 +44,13 @@ List<SingleChildWidget> get dependencyProviders => [
             organizer: RecordOrganizerServiceV3(AppDatabase.instance),
             organize: (source) async {
               final resources = await UserStorage.getAgentLLMResources(
-                AgentDefinitions.recordOrganizerAgent,
-                defaultClientKey: LLMConfig.defaultClientKey);
+                  AgentDefinitions.recordOrganizerAgent,
+                  defaultClientKey: LLMConfig.defaultClientKey);
               return const RecordOrganizerAgentV3().organize(
-                client: resources.client, modelConfig: resources.modelConfig,
-                rawInput: source.rawInput, now: source.recordedAt);
+                  client: resources.client,
+                  modelConfig: resources.modelConfig,
+                  rawInput: source.rawInput,
+                  now: source.recordedAt);
             },
           ),
         ),
@@ -106,6 +109,10 @@ Future<PersonalDataHubRuntime> _createHubRuntime() async {
   await AppDatabase.init(userId);
   final db = AppDatabase.instance;
   final hub = PersonalDataHub.forDatabase(db);
+  final domainAccess = await loadOptionalDomainAccess(
+    hub: hub,
+    reportError: debugPrint,
+  );
   return PersonalDataHubRuntime.create(
     db: db,
     hub: hub,
@@ -114,6 +121,8 @@ Future<PersonalDataHubRuntime> _createHubRuntime() async {
         PlatformDispatcher.instance.defaultRouteName != '/quick-capture',
     ownsCaptureConnectionLifetime:
         PlatformDispatcher.instance.defaultRouteName != '/quick-capture',
+    quickCaptureAuthorize: domainAccess?.authorizeCapture,
+    planningAuthorize: domainAccess?.authorizePlanning,
     connection: () {
       final configured =
           planningDomains.where((name) => hub.storeFor(name) != null);

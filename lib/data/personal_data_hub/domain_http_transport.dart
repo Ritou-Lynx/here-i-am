@@ -9,6 +9,7 @@ class DomainHttpTransport implements DomainTransport {
       {required String baseUrl,
       required this.token,
       required this.binding,
+      this.verifyCredential,
       Dio? dio})
       : base = Uri.parse(baseUrl),
         dio = dio ??
@@ -26,11 +27,13 @@ class DomainHttpTransport implements DomainTransport {
   final String token;
   final DomainBinding binding;
   final Dio dio;
+  final Future<void> Function()? verifyCredential;
   Future<Json> _call(String method, String domain, String path,
       {Json? data, Json? query}) async {
     if (!RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(domain)) {
       throw const DomainFailure('invalid_domain');
     }
+    await verifyCredential?.call();
     final uri = base.replace(
         path: '/v1/core/domains/$domain/$path',
         queryParameters: query?.map((k, v) => MapEntry(k, v.toString())));

@@ -66,7 +66,8 @@ class CoreSyncRuntimeService extends ChangeNotifier {
       _onChatMessageAdded,
     );
     await refreshStatus();
-    if (_status.isConfigured || PersonalDataHub.forDatabase(AppDatabase.instance).hasConnections) {
+    if (_status.isConfigured ||
+        PersonalDataHub.forDatabase(AppDatabase.instance).hasConnections) {
       unawaited(syncNow(reason: 'startup'));
     }
   }
@@ -142,7 +143,7 @@ class CoreSyncRuntimeService extends ChangeNotifier {
         platform: _platformName,
         clientVersion: '${package.version}+${package.buildNumber}',
         pairingCode: code,
-        capabilities: const ['chat', 'share'],
+        capabilities: const ['chat', 'share', 'domain_access_v1'],
       ),
     );
     final connection = CoreSyncConnection(
@@ -150,6 +151,7 @@ class CoreSyncRuntimeService extends ChangeNotifier {
       deviceToken: response.deviceToken,
       initialCursor: response.initialCursor,
       coreNodeId: response.coreNodeId,
+      domainAccess: response.domainAccess,
     );
     await _connectionStore.save(connection);
     await CoreSyncEngine(
@@ -182,7 +184,8 @@ class CoreSyncRuntimeService extends ChangeNotifier {
 
   Future<void> _performSync(String reason) async {
     if (!AppDatabase.isInitialized) return;
-    await PersonalDataHub.forDatabase(AppDatabase.instance).syncConfiguredOnce();
+    await PersonalDataHub.forDatabase(AppDatabase.instance)
+        .syncConfiguredOnce();
     CoreSyncConnection? connection;
     try {
       connection = await _connectionStore.read();
