@@ -1,11 +1,12 @@
-﻿# Parameterized, source-reviewed freeze. Does not migrate, replace or start a candidate.
+# Parameterized, source-reviewed freeze. Does not migrate, replace or start a candidate.
 # Windows PowerShell 5.1. All deployment bindings come from the pinned private JSON.
 [CmdletBinding()]
 param(
  [Parameter(Mandatory=$true)][string]$ConfigPath,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedConfigSha256,
  [Parameter(Mandatory=$true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$')][string]$WindowId,
- [Parameter(Mandatory=$true)][switch]$Execute
+ [switch]$Execute,
+ [switch]$PreflightOnly
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2
@@ -14,7 +15,7 @@ $stage='preflight';$started=[DateTime]::UtcNow;$clock=[Diagnostics.Stopwatch]::S
 $script:drift=$false;$script:changed=$false;$script:stopped=@{};$script:originals=@{}
 $script:bindings=@{};$script:proofFiles=@();$script:journal=$null;$script:receiptSeq=0
 $script:rawFrozen=@();$script:initialDbIdentity=$null;$script:externalInitial=@()
-$script:leases=@();$script:window=$null;$script:validatorMayRead=$false;$script:validatorTree=@()
+$script:leases=@();$script:window=$null;$script:preflightGuard=$null;$script:validatorMayRead=$false;$script:validatorTree=@()
 function Fail([string]$Code,[switch]$Drift){if($Drift){$script:drift=$true};throw [InvalidOperationException]::new($Code)}
 function Stage([string]$Name){$script:stage=$Name;[Console]::Out.WriteLine('stage='+$Name+' elapsed_ms='+$clock.ElapsedMilliseconds)}
 function XmlHash([string]$Text){$sha=[Security.Cryptography.SHA256]::Create();try{return ([BitConverter]::ToString($sha.ComputeHash([Text.UTF8Encoding]::new($false).GetBytes($Text)))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}}
@@ -52,8 +53,8 @@ function Pin([string]$Path,[string]$Expected){
  $s=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
  $script:leases+=$s
  if((Hash $Path)-cne $Expected){Fail 'pinned_file_open_race' -Drift}
- $systemPowerShell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
- if($Path-ine $systemPowerShell){$null=[FreezeIdentity]::FileId($Path)}
+ # Non-image artifacts always retain the single-hardlink identity gate.
+ $null=[FreezeIdentity]::FileId($Path)
  $script:proofFiles+=@{path=$Path;sha256=$Expected}
 }
 function VerifyPins{foreach($p in $script:proofFiles){if((Hash $p.path)-cne $p.sha256){Fail 'pinned_file_drift' -Drift}}}
@@ -74,16 +75,13 @@ function FileStamp([string]$Path){
  return [pscustomobject]@{path=$Path;exists=$true;size=[long]$b.Length;sha256=$hash;file_id=$id}
 }
 function ProcessRows{return @(Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,ExecutablePath,CreationDate)}
-function PIdentity($Row){
- $p=Get-Process -Id ([int]$Row.ProcessId) -ErrorAction Stop
- try{$null=$p.Handle;$ticks=$p.StartTime.ToUniversalTime().Ticks.ToString();$exe=$p.MainModule.FileName
-  # WMI DMTF CreationDate has microsecond precision; Process.StartTime is 100 ns.
-  if($null-eq $Row.CreationDate-or [Math]::Abs([long]$ticks-[long]$Row.CreationDate.ToUniversalTime().Ticks)-gt 9){Fail 'cim_handle_creation_mismatch' -Drift}
-  if(-not $exe-or -not $Row.ExecutablePath-or $exe-ine $Row.ExecutablePath){Fail 'process_path_unavailable' -Drift}
-  if(-not $allowedImages.ContainsKey($exe.ToLowerInvariant())-or (Hash $exe)-cne $allowedImages[$exe.ToLowerInvariant()]){Fail 'unapproved_tree_image' -Drift}
-  return [pscustomobject]@{pid=[int]$Row.ProcessId;parent_pid=[int]$Row.ParentProcessId;started_ticks=$ticks;path=$exe;sha256=(Hash $exe)}
- }finally{$p.Dispose()}
+function PinImage([string]$Path,[string]$Expected){
+ RequireHash $Expected
+ $image=Assert-ProcessImageFile -Path $Path -ExpectedSha256 $Expected
+ $script:leases+=$image.lease
+ $script:proofFiles+=@{path=$image.path;sha256=$image.sha256}
 }
+function PIdentity($Row){return Get-BoundProcessIdentity -Row $Row -AllowedImages $allowedImages}
 function SameAlive($Binding){
  $p=Get-Process -Id $Binding.pid -ErrorAction SilentlyContinue;if(-not $p){return $false}
  try{$null=$p.Handle;if($p.StartTime.ToUniversalTime().Ticks.ToString()-cne $Binding.started_ticks-or $p.MainModule.FileName-ine $Binding.path){Fail 'process_identity_reused' -Drift};if((Hash $Binding.path)-cne $Binding.sha256){Fail 'process_image_changed' -Drift};return $true}finally{$p.Dispose()}
@@ -278,14 +276,62 @@ function AssertValidation($Validation){
  VerifyPins
 }
 
+function Assert-PreflightUsbBackup($Inputs){
+ $root=[string]$Inputs.mirrorRoot;Plain $root;Private $root -Root
+ $drive=[IO.Path]::GetPathRoot($root).Substring(0,1)
+ $volume=Get-Volume -DriveLetter $drive -ErrorAction Stop
+ if($volume.FileSystem-cne 'NTFS'){Fail 'usb_ntfs_required_do_not_format'}
+ $volumes=@(Get-CimInstance Win32_Volume -Filter ("DriveLetter='"+$drive+":'"))
+ if($volumes.Count-ne 1-or $volumes[0].DeviceID-cne $Inputs.expectedVolumeId){Fail 'usb_volume_identity_changed'}
+ $disk=Get-Partition -DriveLetter $drive -ErrorAction Stop|Get-Disk -ErrorAction Stop
+ if([string]$disk.BusType-cne 'USB'-or ([string]$disk.SerialNumber).Trim()-cne $Inputs.usbSerialNumber-or ([string]$disk.FriendlyName).Trim()-cne $Inputs.usbFriendlyName){Fail 'usb_device_binding_changed'}
+ $receipt=ReadJson $Inputs.backupReceiptPath
+ if($receipt.format-cne 'schema6-cutover-current-backup-v1'-or $receipt.passed-ne $true-or $receipt.backup.verified-ne $true-or $receipt.backup.mirrored-ne $true-or $receipt.backup.mirrorPending-ne $false-or $receipt.restore.restored-ne $true-or $receipt.restore.verified-ne $true-or $receipt.restore.inspectionOnly-ne $true-or $receipt.restore.databaseBytesUnchanged-ne $true-or $receipt.restore.sidecarsAbsent-ne $true){Fail 'backup_and_restore_receipt_required'}
+ foreach($role in @('database','release','configuration','task','credentials','domain_policy','transcript_grants','replay_approvals','recovery_custody')){
+  if([int]$receipt.inputRoles.$role-lt 1){Fail 'backup_nine_roles_incomplete'}
+ }
+ if($receipt.backup.files-ne $receipt.restore.files-or $receipt.backup.artifactSha256-cne $receipt.restore.artifactSha256){Fail 'backup_restore_binding_changed'}
+ $artifacts=@($Inputs.backupArtifacts)
+ if($artifacts.Count-ne 1-or $artifacts[0].localPath-cne $receipt.artifactPath-or $artifacts[0].usbPath-cne $receipt.mirrorArtifactPath-or $artifacts[0].sha256-cne $receipt.backup.artifactSha256-or -not $receipt.mirrorArtifactPath.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){Fail 'backup_artifact_binding_changed'}
+ $verified=Invoke-PreflightBackupArtifacts -Artifacts $artifacts
+ return [pscustomobject]@{passed=$true;ntfs=$true;volumeIdentityExact=$true;usbIdentityExact=$true;backupNineRoles=$true;priorRealRestoreVerified=$true;backupFiles=$receipt.backup.files;artifacts=$verified;newBackupCreated=$false;newRestorePerformed=$false}
+}
+
+function Invoke-OnlineCopyValidation{
+ Stage 'validate-copy'
+ Receipt 'validator-intent' @{validatorSha256=$validatorHash;receiptPath=$validationPath;copyConfigurationSha256=$copyConfigurationSha256}
+ $out=Join-Path $script:journal 'validator.stdout.txt';$err=Join-Path $script:journal 'validator.stderr.txt'
+ $pi=[Diagnostics.ProcessStartInfo]::new();$pi.FileName=$config.nodePath
+ $pi.Arguments='"'+$validatorPath+'" --config "'+$copyConfigPath+'"';$pi.WorkingDirectory=$prep;$pi.UseShellExecute=$false;$pi.CreateNoWindow=$true;$pi.RedirectStandardOutput=$true;$pi.RedirectStandardError=$true
+ $pi.EnvironmentVariables.Clear()
+ foreach($environmentName in @('SystemRoot','WINDIR','TEMP','TMP','COMSPEC')){$environmentValue=[Environment]::GetEnvironmentVariable($environmentName);if($null-ne $environmentValue){$pi.EnvironmentVariables[$environmentName]=$environmentValue}}
+ $validatorStartedMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+ $vp=[Diagnostics.Process]::new();$vp.StartInfo=$pi
+ try{$null=$vp.Start();$null=$vp.Handle;$script:validatorMayRead=$true
+  RefreshValidatorTree $vp
+  $os=$vp.StandardOutput.ReadToEndAsync();$es=$vp.StandardError.ReadToEndAsync();$validatorClock=[Diagnostics.Stopwatch]::StartNew()
+  while(-not $vp.WaitForExit(250)){
+   RefreshValidatorTree $vp
+   if($validatorClock.ElapsedMilliseconds-ge $config.validatorTimeoutMs){StopValidatorTree $vp;Fail 'precutover_validator_timeout'}
+  }
+  RefreshValidatorTree $vp;AssertValidatorTreeExited
+  foreach($pair in @(@{path=$out;text=$os.GetAwaiter().GetResult()},@{path=$err;text=$es.GetAwaiter().GetResult()})){$b=[Text.UTF8Encoding]::new($false).GetBytes($pair.text);$f=[IO.File]::Open($pair.path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read);try{$f.Write($b,0,$b.Length);$f.Flush($true)}finally{$f.Dispose()}}
+  if($vp.ExitCode-ne 0){Fail 'precutover_validator_failed'}
+ }catch{if($script:validatorMayRead){try{StopValidatorTree $vp}catch{$script:drift=$true}};throw}finally{$vp.Dispose()}
+ $script:validation=ReadJson $validationPath;AssertValidation $validation;ExternalCheck $validation
+ $script:validationReceiptSha256=Hash $validationPath;Pin $validationPath $validationReceiptSha256
+ Receipt 'validator-passed' @{validationReceiptPath=$validationPath;validationReceiptSha256=$validationReceiptSha256;copyConfigurationSha256=$copyConfigurationSha256;comparisonPolicy=$validation.comparison_policy;originalSchemaMigrationPerformed=$false}
+}
+
+
 try{
- if(-not $Execute){Fail 'execute_switch_required'}
+ if($Execute.IsPresent-eq $PreflightOnly.IsPresent){Fail 'exactly_one_maintenance_mode_required'}
  if($PSVersionTable.PSVersion.Major-ne 5-or $PSVersionTable.PSEdition-ne 'Desktop'){Fail 'windows_powershell_51_required'}
  Plain $ConfigPath;RequireHash $ExpectedConfigSha256
  # Lock the exact bytes before parsing, and keep this lease through rollback.
  Pin $ConfigPath $ExpectedConfigSha256
  $config=Get-Content -LiteralPath $ConfigPath -Raw|ConvertFrom-Json
- if($config.windowId-cne $WindowId-or $config.format-cne 'schema6-maintenance-freeze-config-v2'-or $config.candidateSourceCommit-cnotmatch '^[a-f0-9]{40}$'){Fail 'configuration_format_rejected'}
+ if($config.windowId-cne $WindowId-or $config.format-cne 'schema6-maintenance-freeze-config-v3'-or $config.candidateSourceCommit-cnotmatch '^[a-f0-9]{40}$'){Fail 'configuration_format_rejected'}
  $owner=[string]$config.ownerSid
  if([Security.Principal.WindowsIdentity]::GetCurrent().User.Value-cne $owner){Fail 'owner_sid_mismatch'}
  Private $ConfigPath;Private $config.maintenanceRoot -Root
@@ -293,13 +339,33 @@ try{
  $windowModule=Join-Path $PSScriptRoot 'maintenance_window.ps1'
  RequiredPin $windowModule $config.windowModuleSha256
  . $windowModule
- $script:window=Open-MaintenanceWindow -MaintenanceRoot $config.maintenanceRoot -WindowId $WindowId
- Private (Join-Path $config.maintenanceRoot 'active-window.guard')
+ # Read-only rehearsal has its own root and ID; never consumes the formal entry.
+ if($config.formalWindowId-cnotmatch '^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$'){Fail 'formal_window_binding_required'}
+ if($PreflightOnly){
+  if($WindowId-ceq $config.formalWindowId){Fail 'rehearsal_must_not_use_formal_id'}
+  # Share the formal byte-preserving mutex, but never create its one-shot ID.
+  $script:preflightGuard=Acquire-MaintenanceGuard $config.maintenanceRoot
+  $windowRoot=Join-Path $config.maintenanceRoot 'rehearsals'
+  if(-not (Test-Path -LiteralPath $windowRoot)){$null=[IO.Directory]::CreateDirectory($windowRoot)}
+  Private $windowRoot
+ }else{if($WindowId-cne $config.formalWindowId){Fail 'formal_window_id_mismatch'};$windowRoot=$config.maintenanceRoot}
+ $script:window=Open-MaintenanceWindow -MaintenanceRoot $windowRoot -WindowId $WindowId
+ Private (Join-Path $windowRoot 'active-window.guard')
  $prep=$script:window.Directory;$script:journal=$script:window.PhaseReceiptsDirectory
  Private $prep;Private $script:journal
+ $imageModule=Join-Path $PSScriptRoot 'process_image_binding.ps1'
+ RequiredPin $imageModule $config.processImageModuleSha256;. $imageModule
+ $approvalModule=Join-Path $PSScriptRoot 'preflight_approval_checks.ps1'
+ RequiredPin $approvalModule $config.preflightApprovalModuleSha256
+ foreach($relative in @('acl-cutover-maintenance.ps1','register_task_primitives.ps1','task_security_policy.ps1')){
+  $dependency=Join-Path $PSScriptRoot $relative;$pins=@($config.modulePins|Where-Object{$_.path-ceq $dependency})
+  if($pins.Count-ne 1){Fail 'preflight_dependency_pin_missing'}
+  RequiredPin $dependency $pins[0].sha256
+ }
+ . $approvalModule
  $release=$config.candidateDirectory;$manifestHash=$config.candidateManifestSha256;$xmlHash=$config.approvedXmlSha256
  $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
- RequiredPin $powershell $config.powershellSha256
+ PinImage $powershell $config.powershellSha256
  RequiredPin (Join-Path $release 'manifest.json') $manifestHash
  RequiredPin $config.approvedXmlPath $xmlHash
  $manifest=ReadJson (Join-Path $release 'manifest.json')
@@ -343,7 +409,7 @@ try{
  if($health.Scheme-cne 'http'-or $health.Host-cne '127.0.0.1'-or $health.Port-notin $config.tasks.core.ports-or $health.AbsolutePath-cne '/v1/core/health'-or $health.Query-or $health.UserInfo){Fail 'core_health_url_rejected'}
  $allowedImages=@{}
  foreach($pin in @($config.processImagePins)){
-  RequiredPin $pin.path $pin.sha256;$allowedImages[$pin.path.ToLowerInvariant()]=$pin.sha256
+  PinImage $pin.path $pin.sha256;$allowedImages[$pin.path.ToLowerInvariant()]=$pin.sha256
  }
  foreach($image in @($powershell,$config.nodePath,$config.tasks.core.nodePath,$config.tasks.mcp.nodePath)){if(-not $allowedImages.ContainsKey($image.ToLowerInvariant())){Fail 'process_image_pin_missing'}}
  $svc=New-Object -ComObject Schedule.Service;$svc.Connect()
@@ -351,7 +417,7 @@ try{
   $tc=$taskConfigs[$name]
   if($tc.taskPath-notmatch '^\\.*\\$'-and $tc.taskPath-cne '\'){Fail 'task_path_rejected'}
   RequiredPin $tc.originalXmlPath $tc.originalXmlSha256
-  RequiredPin $tc.nodePath $tc.nodeSha256;RequiredPin $tc.serverPath $tc.serverSha256
+  PinImage $tc.nodePath $tc.nodeSha256;RequiredPin $tc.serverPath $tc.serverSha256
   RequiredPin $tc.launcherPath $tc.launcherSha256;RequiredPin $tc.manifestPath $tc.manifestSha256
   $text=Get-Content -LiteralPath $tc.originalXmlPath -Raw;[xml]$doc=$text
   $t=Task $name;[xml]$live=$t.Xml;AssertNodes $live $doc @('Actions','Principals','Triggers','Settings')
@@ -368,41 +434,54 @@ try{
  # This fixed, manifest-pinned helper protects ONLY the fresh empty artifact.
  # It does not Apply the cutover ACL plan to any existing runtime/data target.
  . (Join-Path $release 'tools\i_core\release_schema6\lifecycle\protected_paths.ps1')
+ Protect-NewDirectory $prep;Private $prep -Root
  Protect-NewDirectory $copyDirectory;Private $copyDirectory -Root
  $copyConfigPath=Join-Path $prep 'copy-validation-config.json'
  WriteNew $copyConfigPath ([ordered]@{releaseDirectory=$release;manifestSha256=$manifestHash;databasePath=$config.databasePath;approvalsPath=$config.approvalsPath;grantsPath=$config.grantsPath;outputDirectory=$copyDirectory})
  $copyConfigurationSha256=Hash $copyConfigPath;Pin $copyConfigPath $copyConfigurationSha256
  $validationPath=Join-Path $copyDirectory 'precutover-validation-receipt.json'
  Receipt 'baseline' @{candidateSourceCommit=$config.candidateSourceCommit;candidateManifestSha256=$manifestHash;configurationSha256=$ExpectedConfigSha256;tasks=@($taskOrder|ForEach-Object{@{name=$_;xmlSha256=$script:originals[$_].sha256;sddl=$script:originals[$_].sddl}});bindings=$script:bindings;databaseFileId=$script:initialDbIdentity;processCommandlinesRead=$false}
+ Stage 'read-only-approval-checks'
+ RequiredPin $config.preflightConfigurationPath $config.preflightConfigurationSha256
+ $preflight=ReadJson $config.preflightConfigurationPath
+ if($preflight.format-cne 'schema6-maintenance-preflight-inputs-v1'-or $preflight.formalWindowId-cne $config.formalWindowId-or $preflight.candidateManifestSha256-cne $manifestHash-or $preflight.approvedXmlSha256-cne $xmlHash){Fail 'preflight_inputs_binding_rejected'}
+ foreach($pin in @($preflight.inputPins)){RequiredPin $pin.path $pin.sha256}
+ $aclAudit=Invoke-PreflightAclAudit -ConfigPath $preflight.aclConfigurationPath -ExpectedConfigSha256 $preflight.aclConfigurationSha256
+ $approvalAudit=Invoke-PreflightTaskApproval -Config $preflight.taskApproval
+ $backupAudit=Assert-PreflightUsbBackup $preflight
+ $templateAudit=Invoke-PreflightPrepareTemplate -Config $preflight.taskApproval -AclConfigPath $preflight.aclConfigurationPath -AclConfigSha256 $preflight.aclConfigurationSha256 -OutputXml (Join-Path $prep 'prepare-template.xml')
+ Receipt 'all-read-only-checks' @{acl=$aclAudit;approval=$approvalAudit;backup=$backupAudit;prepare=$templateAudit;mode=$(if($PreflightOnly){'preflight_only'}else{'execute'})}
+ if($PreflightOnly){
+  Invoke-OnlineCopyValidation
+  # Rebind live tasks/processes/ports after copy and detect any mid-rehearsal drift.
+  foreach($name in $taskOrder){
+   $before=$script:bindings[$name];$tc=$taskConfigs[$name]
+   $after=GetBound $name $tc.ports $tc.nodePath $tc.serverPath $tc.serverSha256
+   if($after.instance_guid-cne $before.instance_guid-or $after.root.started_ticks-cne $before.root.started_ticks-or $after.node.started_ticks-cne $before.node.started_ticks){Fail 'rehearsal_runtime_changed' -Drift}
+   $beforeTree=($before.tree|Sort-Object pid|ConvertTo-Json -Depth 5 -Compress)
+   $afterTree=($after.tree|Sort-Object pid|ConvertTo-Json -Depth 5 -Compress)
+   if($beforeTree-cne $afterTree){Fail 'rehearsal_process_tree_changed' -Drift}
+   [xml]$live=(Task $name).Xml;AssertNodes $live $script:originals[$name].doc @('Actions','Principals','Triggers','Settings')
+   if(-not (Task $name).Enabled-or (Task $name).GetSecurityDescriptor(7)-cne $script:originals[$name].sddl){Fail 'rehearsal_task_changed' -Drift}
+  }
+  if(-not (CoreHealth)){Fail 'rehearsal_core_health_failed'}
+  if($script:initialDbIdentity-cne [FreezeIdentity]::FileId($config.databasePath)){Fail 'rehearsal_database_identity_changed' -Drift}
+  $aclAfter=Invoke-PreflightAclAudit -ConfigPath $preflight.aclConfigurationPath -ExpectedConfigSha256 $preflight.aclConfigurationSha256
+  $approvalAfter=Invoke-PreflightTaskApproval -Config $preflight.taskApproval
+  VerifyPins
+  $result=[ordered]@{format='schema6-maintenance-preflight-only-v1';passed=$true;windowId=$WindowId;formalWindowId=$config.formalWindowId;configurationSha256=$ExpectedConfigSha256;candidateManifestSha256=$manifestHash;approvedXmlSha256=$xmlHash;elapsedMs=$clock.ElapsedMilliseconds;acl=$aclAfter;approval=$approvalAfter;backup=$backupAudit;prepare=$templateAudit;validationReceiptPath=$validationPath;validationReceiptSha256=$validationReceiptSha256;comparisonPolicy=$validation.comparison_policy;tasksUnchanged=$true;processTreesBound=$true;liveMutationPerformed=$false;productionPrepareInvoked=$false;productionPrepareStillRequiresAclApply=$true;productionConfigurationWritten=$false;formalEntryConsumed=$false;deployed=$false}
+  WriteNew (Join-Path $prep 'preflight-only-receipt.json') $result
+  Receipt 'preflight-only-finished' @{passed=$true;liveMutationPerformed=$false}
+  [Console]::Out.WriteLine(($result|ConvertTo-Json -Depth 16 -Compress))
+  return
+ }
  Stage 'disable-old-tasks'
  Receipt 'disable-intent' @{tasks=$taskOrder};$script:changed=$true
  foreach($name in $taskOrder){Disable-ScheduledTask -TaskPath $taskConfigs[$name].taskPath -TaskName $name|Out-Null;if((Task $name).Enabled){Fail 'disable_failed'}}
  foreach($name in $taskOrder){FreezeDefinition $name}
  Receipt 'definitions-frozen' @{bothDisabled=$true;triggersRemoved=$true;retryRemoved=$true}
  Stage 'stop-mcp';StopBound $mcpName
- Stage 'validate-copy'
- Receipt 'validator-intent' @{validatorSha256=$validatorHash;receiptPath=$validationPath;copyConfigurationSha256=$copyConfigurationSha256}
- $out=Join-Path $script:journal 'validator.stdout.txt';$err=Join-Path $script:journal 'validator.stderr.txt'
- $pi=[Diagnostics.ProcessStartInfo]::new();$pi.FileName=$config.nodePath
- $pi.Arguments='"'+$validatorPath+'" --config "'+$copyConfigPath+'"';$pi.WorkingDirectory=$prep;$pi.UseShellExecute=$false;$pi.CreateNoWindow=$true;$pi.RedirectStandardOutput=$true;$pi.RedirectStandardError=$true
- $pi.EnvironmentVariables.Clear()
- foreach($environmentName in @('SystemRoot','WINDIR','TEMP','TMP','COMSPEC')){$environmentValue=[Environment]::GetEnvironmentVariable($environmentName);if($null-ne $environmentValue){$pi.EnvironmentVariables[$environmentName]=$environmentValue}}
- $validatorStartedMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
- $vp=[Diagnostics.Process]::new();$vp.StartInfo=$pi
- try{$null=$vp.Start();$null=$vp.Handle;$script:validatorMayRead=$true
-  RefreshValidatorTree $vp
-  $os=$vp.StandardOutput.ReadToEndAsync();$es=$vp.StandardError.ReadToEndAsync();$validatorClock=[Diagnostics.Stopwatch]::StartNew()
-  while(-not $vp.WaitForExit(250)){
-   RefreshValidatorTree $vp
-   if($validatorClock.ElapsedMilliseconds-ge $config.validatorTimeoutMs){StopValidatorTree $vp;Fail 'precutover_validator_timeout'}
-  }
-  RefreshValidatorTree $vp;AssertValidatorTreeExited
-  foreach($pair in @(@{path=$out;text=$os.GetAwaiter().GetResult()},@{path=$err;text=$es.GetAwaiter().GetResult()})){$b=[Text.UTF8Encoding]::new($false).GetBytes($pair.text);$f=[IO.File]::Open($pair.path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read);try{$f.Write($b,0,$b.Length);$f.Flush($true)}finally{$f.Dispose()}}
-  if($vp.ExitCode-ne 0){Fail 'precutover_validator_failed'}
- }catch{if($script:validatorMayRead){try{StopValidatorTree $vp}catch{$script:drift=$true}};throw}finally{$vp.Dispose()}
- $validation=ReadJson $validationPath;AssertValidation $validation;ExternalCheck $validation
- $validationReceiptSha256=Hash $validationPath;Pin $validationPath $validationReceiptSha256
- Receipt 'validator-passed' @{validationReceiptPath=$validationPath;validationReceiptSha256=$validationReceiptSha256;copyConfigurationSha256=$copyConfigurationSha256;comparisonPolicy=$validation.comparison_policy;originalSchemaMigrationPerformed=$false}
+ Invoke-OnlineCopyValidation
  Stage 'stop-core';StopBound $coreName
  Stage 'frozen-file-check';$null=FrozenFiles $validation -Record
  if($script:initialDbIdentity-cne [FreezeIdentity]::FileId($config.databasePath)){Fail 'database_identity_drift' -Drift}
@@ -432,5 +511,6 @@ try{
 }finally{
  foreach($h in $script:leases){$h.Dispose()}
  if($script:window){Close-MaintenanceWindow $script:window}
+ if($script:preflightGuard){$script:preflightGuard.Dispose()}
  # Append-only receipts and all lock files deliberately remain for review.
 }

@@ -1,3 +1,7 @@
+## R02 后更新：只读演练先行（2026-10-07）
+
+正式r02仍未使用。新维护v3入口支持独立ID的PreflightOnly；先源码/CI全绿、固定维护闭包，再完整只读演练，全部通过后另请本人授权进场。候选47项及精确XML/双SDDL无变化时沿用。在线预检继续PR16判据：DB/WAL字节/大小/身份及journal存在性不变，SHM仅存在性/大小；离线raw保全和strictClosedPath等不变。详细检查和Prepare纯模板/生产Prepare区别见[本轮交接](SCHEMA6_READONLY_PREFLIGHT_20261007.md)。生产task-approval…\settings仍不可清理。
+
 ## 2026-10-07 r02本轮实录：已授权，冻结前因系统映像Pin停止
 
 PR18已按本人授权合入v3-lab@ea388345；全部精确XML/双SDDL/父SD/manifest/login hash已批准并重核，合并源码与获批候选47项和维护快照22项相同。用户已确认NTFS T盘。现场只读核144项ACL/16外owner、两旧任务与基线一致；conhost系统双硬链接被受审Pin拒绝，未执行r02入口、未冻结或停服，人为停机0。详见[本轮现场记录](SCHEMA6_CUTOVER_EXECUTION_20261007_R02.md)。以下“尚未批准/未合并”是旧阶段历史。
