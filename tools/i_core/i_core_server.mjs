@@ -262,12 +262,15 @@ export function createICoreServer({
   domainDedupHooks = undefined,
   domainHooks = undefined,
   domainVerifyLegacyAdoption = undefined,
+  domainConfigure = undefined,
   clock = Date.now,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
   if (mode === 'inspection_read_only') {
     if (pairingCode || certPath || keyPath || workerSecret || companionReplyJobsEnabled || shortcutMailRelay || activityAdminSecret
-        || activityRecoveryFloor || requireActivityRecoveryFloor || localTranscriptGrants || localTranscriptGrantsPath || historicalReplayApprovalsPath) {
+        || activityRecoveryFloor || requireActivityRecoveryFloor || localTranscriptGrants || localTranscriptGrantsPath || historicalReplayApprovalsPath
+        || domainVerifyAuthorization !== undefined || domainTestOnlyFault !== undefined || domainDedupHooks !== undefined
+        || domainHooks !== undefined || domainVerifyLegacyAdoption !== undefined || domainConfigure !== undefined) {
       throw new CoreStoreError('inspection_configuration_rejected', 'Inspection does not accept runtime authority or jobs.');
     }
     return createInspectionReadOnlyCore({ databasePath });
@@ -322,6 +325,7 @@ export function createICoreServer({
     domainDedupHooks,
     domainHooks,
     domainVerifyLegacyAdoption,
+    domainConfigure,
   });
   const handleDomainRequest = createDomainRequestHandler({
     getStore: () => store.domains,

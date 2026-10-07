@@ -120,5 +120,6 @@ test('adoption never retains raw text or ordinary hashes in permanent operation 
 test('adoption survives a lost response after commit and returns its one durable receipt after reopen',t=>{
  let lose=false;const f=fixture(t,{file:true,fault:stage=>{if(lose&&stage==='after_commit')throw new Error('synthetic lost response');}});
  lose=true;assert.throws(()=>f.adopt(f.record,{dryRun:false}),/synthetic lost response/);lose=false;assert.deepEqual(f.counts(),[1,1,1,1,1]);
+ assert.equal(f.db.prepare('SELECT request_digest FROM domain_ops').get().request_digest,'fc1960585c46bcb582ccf0357ba90c2f1c9ff0eb2ac616fb68efc6a37a97b471');
  f.reopen();const recovered=f.adopt(f.record,{dryRun:false});assert.equal(recovered.body.outcome,'duplicate');assert.deepEqual(recovered.body.receipt.targets,[{id:f.record.id,revision:7}]);assert.deepEqual(f.counts(),[1,1,1,1,1]);
 });
