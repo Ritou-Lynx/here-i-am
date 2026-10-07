@@ -33,7 +33,7 @@
 
 映像专项：本机Windows真实conhost hardlink_count=2只读通过；30个断言，包括路径/hash/owner/别名/reparse/租约/CIM时间/PID复用/退出拒绝。只读分支测试实际执行源AST，在正常/失败两条路径后设置mutation trap，均零调用；data/config双硬链接拒绝。USB身份/九类/实际restore门槛反例通过。审批专项用合成144项、真实COM内存对象、纯模板逐字XML和流式密文hash；Windows CI自动发现maintenance_*.test.mjs。
 
-全维护回归、CI、新维护快照与现役演练结果在完成后追加；此时不声明已演练通过。
+本机维护+在线copy整组55项：53通过、0失败、2项opt-in未执行（foreign-owner提升与真实COM注册留Hosted Windows一次性VM）。新增维护专项全部执行，映像30断言、合成ACL144/模板与备份、只读dispatch和三个真实fixed-release在线copy适配场景通过；合成writer仍存活，DB/WAL不变、SHM读标记offset104变化，72审批/1grant对齐。CI、新维护快照与现役演练结果在完成后追加；此时不声明已演练通过。
 
 ## 现场与授权
 

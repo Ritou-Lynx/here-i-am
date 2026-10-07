@@ -446,6 +446,11 @@ try{
  $preflight=ReadJson $config.preflightConfigurationPath
  if($preflight.format-cne 'schema6-maintenance-preflight-inputs-v1'-or $preflight.formalWindowId-cne $config.formalWindowId-or $preflight.candidateManifestSha256-cne $manifestHash-or $preflight.approvedXmlSha256-cne $xmlHash){Fail 'preflight_inputs_binding_rejected'}
  foreach($pin in @($preflight.inputPins)){RequiredPin $pin.path $pin.sha256}
+ RequiredPin $preflight.aclConfigurationPath $preflight.aclConfigurationSha256
+ RequiredPin $preflight.backupReceiptPath $preflight.backupReceiptSha256
+ $taskApproval=$preflight.taskApproval
+ if($taskApproval.windowId-cne $config.formalWindowId-or $taskApproval.ownerSid-cne $owner-or $taskApproval.candidateSourceCommit-cne $config.candidateSourceCommit-or $taskApproval.candidateManifestSha256-cne $manifestHash-or $taskApproval.releaseDirectory-cne $release-or $taskApproval.approvedXmlPath-cne $config.approvedXmlPath-or $taskApproval.approvedXmlSha256-cne $xmlHash){Fail 'preflight_task_candidate_binding_changed'}
+ foreach($pair in @(@($taskApproval.ownerApprovalPath,$taskApproval.ownerApprovalSha256),@($taskApproval.loginConfigurationPath,$taskApproval.loginConfigurationSha256))){RequiredPin $pair[0] $pair[1]}
  $aclAudit=Invoke-PreflightAclAudit -ConfigPath $preflight.aclConfigurationPath -ExpectedConfigSha256 $preflight.aclConfigurationSha256
  $approvalAudit=Invoke-PreflightTaskApproval -Config $preflight.taskApproval
  $backupAudit=Assert-PreflightUsbBackup $preflight
