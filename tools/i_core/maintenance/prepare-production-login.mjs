@@ -36,15 +36,32 @@ export function validateFrozenReceipt(f, c) {
  for(const r of Object.values(f.external)){assert.match(r.sha256,hash);assert.ok(Number.isSafeInteger(r.size)&&r.size>=0);}
  return true;
 }
+export function taskSecurityBindings(c) {
+ assert.equal(Object.hasOwn(c,'approvedSddl'),false);
+ for(const k of ['registrationSddl','expectedRegisteredSddl'])assert.ok(typeof c[k]==='string'&&c[k].length>0);
+ assert.match(c.parentSddlSha256,hash);assert.equal(c.taskSecurityPolicyVersion,'windows-file-oi-v1');
+ assert.ok(Array.isArray(c.inheritedReadOnlyPrincipals));
+ let previous='';
+ for(const item of c.inheritedReadOnlyPrincipals){
+  assert.deepEqual(Object.keys(item).sort(),['flags','mask','sid']);
+  assert.match(item.sid,/^S-1-(?:[0-9]+-)*[0-9]+$/);assert.equal(item.flags,16);assert.match(item.mask,/^[0-9A-F]{8}$/);
+  const rights=Number.parseInt(item.mask,16);assert.equal((rights&~0x00120089)>>>0,0);
+  assert.equal([c.ownerSid,'S-1-5-18','S-1-5-32-544'].includes(item.sid),false);
+  const key=item.sid+'|'+item.flags;assert.ok(key>previous);previous=key;
+ }
+ return {registrationSddlSha256:sha256(c.registrationSddl),expectedRegisteredSddlSha256:sha256(c.expectedRegisteredSddl),parentSddlSha256:c.parentSddlSha256,taskSecurityPolicyVersion:c.taskSecurityPolicyVersion,inheritedReadOnlyPrincipals:c.inheritedReadOnlyPrincipals};
+}
 export async function validatePreparationInputs(c) {
- assert.equal(c.format,'schema6-maintenance-login-config-v1');assert.match(c.windowId,/^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$/);
+ assert.equal(c.format,'schema6-maintenance-login-config-v2');assert.match(c.windowId,/^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$/);
  assert.match(c.candidateSourceCommit,/^[a-f0-9]{40}$/);assert.match(c.taskName,/^[A-Za-z0-9][A-Za-z0-9_.-]{0,180}$/);
  assert.equal(c.frozenTaskNames.some(n=>n.toLowerCase()===c.taskName.toLowerCase()),false);
- assert.equal(typeof c.ownerSid,'string');assert.match(c.ownerSid,/^S-1-/);assert.ok(c.approvedSddl.length>0);
+ assert.equal(typeof c.ownerSid,'string');assert.match(c.ownerSid,/^S-1-/);taskSecurityBindings(c);
  const approval=JSON.parse(anchored(c.ownerApprovalPath,c.ownerApprovalSha256));
- assert.equal(approval.format,'schema6-owner-gates-approved-v1');assert.equal(approval.windowId,c.windowId);
+ assert.equal(approval.format,'schema6-owner-gates-approved-v2');assert.equal(Object.hasOwn(approval,'approved_sddl'),false);assert.equal(approval.windowId,c.windowId);
  assert.equal(approval.candidateSourceCommit,c.candidateSourceCommit);assert.equal(approval.candidateManifestSha256,c.candidateManifestSha256);
- assert.equal(approval.task_name,c.taskName);assert.equal(approval.owner_sid,c.ownerSid);assert.equal(approval.approved_sddl,c.approvedSddl);
+ assert.equal(approval.task_name,c.taskName);assert.equal(approval.owner_sid,c.ownerSid);assert.equal(approval.registration_sddl,c.registrationSddl);assert.equal(approval.expected_registered_sddl,c.expectedRegisteredSddl);
+ assert.equal(approval.parent_sddl_sha256,c.parentSddlSha256);assert.equal(approval.task_security_policy_version,c.taskSecurityPolicyVersion);
+ assert.deepEqual(approval.inherited_read_only_principals,c.inheritedReadOnlyPrincipals);
  assert.equal(approval.xml_review_sha256,c.approvedXmlSha256);assert.equal(approval.login_sha256,c.loginConfigurationSha256);
  assert.equal(approval.require_fixed_prepare_identical,true);
  const frozen=JSON.parse(anchored(c.frozenReceiptPath,c.frozenReceiptSha256));validateFrozenReceipt(frozen,c);
@@ -57,17 +74,18 @@ export async function validatePreparationInputs(c) {
  return { frozen, approval };
 }
 export function validatePreparedReceipt(r,c) {
- assert.equal(r.format,'schema6-production-login-prepare-v2');
+ assert.equal(r.format,'schema6-production-login-prepare-v3');
  for(const k of ['passed','fixed_prepare_validated','identical_to_approved_xml'])assert.equal(r[k],true);
  for(const k of ['registered','started'])assert.equal(r[k],false);
  for(const k of ['windowId','candidateSourceCommit','candidateManifestSha256','frozenReceiptSha256','ownerApprovalSha256','aclReceiptSha256','approvedXmlSha256','loginConfigurationSha256','taskName'])assert.equal(r[k],c[k]);
+ for(const [k,v] of Object.entries(taskSecurityBindings(c)))assert.deepEqual(r[k],v);
  assert.equal(r.outputXmlPath,c.outputXmlPath);
  assert.deepEqual(anchored(c.outputXmlPath,c.approvedXmlSha256),anchored(c.approvedXmlPath,c.approvedXmlSha256));
  return true;
 }
 export async function prepareProductionLogin(c,{validateOnly=false,configurationPath}={}) {
  const own=path.dirname(fileURLToPath(import.meta.url));
- const required=['register-approved-login.ps1','register_task_primitives.ps1','maintenance_window.ps1','prepare-production-login.mjs','prepare-production-login.ps1','prepare_live_guard.ps1','acl_receipt.mjs','maintenance_outputs.mjs'].map(n=>path.join(own,n));
+ const required=['register-approved-login.ps1','register_task_primitives.ps1','task_security_policy.ps1','maintenance_window.ps1','prepare-production-login.mjs','prepare-production-login.ps1','prepare_live_guard.ps1','acl_receipt.mjs','maintenance_outputs.mjs'].map(n=>path.join(own,n));
  required.push(path.resolve(own,'../release_schema6/package.mjs'));
  assert.equal(new Set(c.maintenanceFiles.map(e=>e.path)).size,c.maintenanceFiles.length);
  for(const p of required){const entries=c.maintenanceFiles.filter(e=>e.path===p);assert.equal(entries.length,1);anchored(p,entries[0].sha256);}
@@ -83,14 +101,21 @@ export async function prepareProductionLogin(c,{validateOnly=false,configuration
  const quote=v=>"'"+v.replaceAll("'","''")+"'";
  const checks='. '+quote(path.join(c.releaseDirectory,'tools/i_core/release_schema6/lifecycle/protected_paths.ps1'))+'; '+privateInputs.map(p=>'Assert-ProtectedPath '+quote(p)).join('; ');
  execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-Command',checks],{env:cleanEnvironment(),windowsHide:true,stdio:['ignore','pipe','pipe'],timeout:30000});
+ assert.deepEqual(json(configurationPath),c);
  await validatePreparationInputs(c);
+ // Read-only parent COM checks apply to the direct API as well as its guarded
+ // PS writer. They neither register tasks nor change the inheritance oracle.
+ const securityChecks='. '+quote(path.join(own,'register_task_primitives.ps1'))+'; . '+quote(path.join(own,'task_security_policy.ps1'))+'; $c=Get-Content -LiteralPath '+quote(configurationPath)+' -Raw|ConvertFrom-Json; $s=New-Object -ComObject Schedule.Service; $s.Connect(); $null=Assert-TaskSecurityPolicy $c ($s.GetFolder("\\").GetSecurityDescriptor(7));';
+ const assertParent=()=>execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-Command',securityChecks],{env:cleanEnvironment(),windowsHide:true,stdio:['ignore','pipe','pipe'],timeout:30000});
+ assertParent();
  if(validateOnly){validatePreparedReceipt(json(c.preparedReceiptPath),c);return {validated:true,registered:false,started:false};}
  assert.equal(existsSync(c.outputXmlPath),false);assert.equal(existsSync(c.preparedReceiptPath),false);
  const raw=execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(c.releaseDirectory,'tools/i_core/release_schema6/lifecycle/prepare_login_schema6.ps1'),'-ReleaseDirectory',c.releaseDirectory,'-ManifestSha256',c.candidateManifestSha256,'-LoginConfigurationPath',c.loginConfigurationPath,'-LoginConfigurationSha256',c.loginConfigurationSha256,'-OutputXml',c.outputXmlPath,'-PrepareOnly'],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:120000,maxBuffer:65536});
  const prepared=JSON.parse(raw);assert.equal(prepared.prepared,true);assert.equal(prepared.registered,false);assert.equal(prepared.started,false);
  assert.equal(prepared.manifest_sha256,c.candidateManifestSha256);assert.equal(prepared.login_configuration_sha256,c.loginConfigurationSha256);
  assert.deepEqual(anchored(c.outputXmlPath,c.approvedXmlSha256),anchored(c.approvedXmlPath,c.approvedXmlSha256));
- const report={format:'schema6-production-login-prepare-v2',passed:true,fixed_prepare_validated:true,identical_to_approved_xml:true,registered:false,started:false,outputXmlPath:c.outputXmlPath};
+ assertParent();
+ const report={...taskSecurityBindings(c),format:'schema6-production-login-prepare-v3',passed:true,fixed_prepare_validated:true,identical_to_approved_xml:true,registered:false,started:false,outputXmlPath:c.outputXmlPath};
  for(const k of ['windowId','candidateSourceCommit','candidateManifestSha256','frozenReceiptSha256','ownerApprovalSha256','aclReceiptSha256','approvedXmlSha256','loginConfigurationSha256','taskName'])report[k]=c[k];
  // Only the PS owner of the guard publishes this report, after its second live
  // freeze check. The API returns evidence; it never publishes a ready receipt.

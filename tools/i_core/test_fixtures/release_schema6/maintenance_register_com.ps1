@@ -2,6 +2,7 @@
 param([Parameter(Mandatory=$true)][string]$PrimitivesPath,[string]$OutputReport)
 $ErrorActionPreference='Stop';Set-StrictMode -Version 2
 . $PrimitivesPath
+. (Join-Path (Split-Path -Parent $PrimitivesPath) 'task_security_policy.ps1')
 $s=New-Object -ComObject 'Schedule.Service';$s.Connect();$folder=$s.GetFolder('\')
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $name='HereIAm-Synthetic-'+[Guid]::NewGuid().ToString('N');$nonce=[Guid]::NewGuid().ToString('N')
@@ -42,9 +43,19 @@ function Get-SyntheticSecurityShape([string]$Text){
 }
 $parentSddl=$folder.GetSecurityDescriptor(7)
 $expectedSddl=Get-SyntheticInheritedSecurity $registrationSddl $parentSddl $sid $sid
+$policyExpectedSddl=Get-TaskPolicyExpectedSecurity $registrationSddl $parentSddl $sid
+if((Convert-TaskSecurity $policyExpectedSddl)-cne (Convert-TaskSecurity $expectedSddl)){throw 'synthetic_independent_policy_mismatch'}
+$disclosure=Get-TaskInheritedReadOnlyPrincipals $expectedSddl $sid
+$config=[pscustomobject][ordered]@{
+ format='schema6-maintenance-login-config-v2';ownerSid=$sid
+ registrationSddl=$registrationSddl;expectedRegisteredSddl=$expectedSddl
+ parentSddlSha256=(Get-TaskSecuritySha256 $parentSddl)
+ taskSecurityPolicyVersion='windows-file-oi-v1';inheritedReadOnlyPrincipals=$disclosure
+}
 $xml=$doc.OuterXml;$expected=$s.NewTask(0);$expected.XmlText=$xml
-$created=$null;$result=[ordered]@{format='schema6-synthetic-register-test-v1';created=$false;readback=$false;existingRejected=$false;xmlDifferenceRejected=$false;deleted=$false;noInstances=$false;disabled=$true;triggers=0;taskPrefix='HereIAm-Synthetic-';startedUtc=[DateTime]::UtcNow.ToString('o')}
+$created=$null;$result=[ordered]@{format='schema6-synthetic-register-test-v1';created=$false;readback=$false;existingRejected=$false;xmlDifferenceRejected=$false;deleted=$false;noInstances=$false;disabled=$true;triggers=0;securityPolicyVerified=$false;foreignReadOnlyCount=$disclosure.Count;taskPrefix='HereIAm-Synthetic-';startedUtc=[DateTime]::UtcNow.ToString('o')}
 try {
+ $null=Assert-TaskSecurityPolicy $config ($folder.GetSecurityDescriptor(7))
  $created=New-ApprovedTask $s $folder $name $xml $sid $registrationSddl;$result.created=$true
  $live=$folder.GetTask($name)
  # Anonymous diagnostics are evidence only; never replace the pre-CREATE expectation.
@@ -54,6 +65,9 @@ try {
  $result.actualSecurity=Get-SyntheticSecurityShape $live.GetSecurityDescriptor(7)
  Assert-RegisteredTask $live $expected $name $expectedSddl;$result.readback=$true
  if($folder.GetSecurityDescriptor(7)-cne $parentSddl){throw 'synthetic_parent_security_changed'};$result.parentStable=$true
+ $null=Assert-TaskSecurityPolicy $config ($folder.GetSecurityDescriptor(7))
+ Assert-TaskAllowedRights $live.GetSecurityDescriptor(7) $sid
+ $result.securityPolicyVerified=$true
  $result.noInstances=($live.GetInstances(0).Count-eq 0)
  if($live.Enabled -or $live.Definition.Triggers.Count-ne 0){throw 'synthetic_safety_failed'}
  try{$null=New-ApprovedTask $s $folder $name $xml $sid $registrationSddl;throw 'existing_task_was_accepted'}catch{if($_.Exception.Message-cne 'existing_task_rejected'){throw};$result.existingRejected=$true}

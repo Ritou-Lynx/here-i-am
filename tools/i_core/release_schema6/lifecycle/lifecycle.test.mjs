@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync, readdirSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -46,8 +46,16 @@ test('Windows fixed production entry: real loopback, credential-free argv, authe
  const liveSince=Date.now();while(Date.now()-liveSince<125000){await sleep(Math.min(1000,125000-(Date.now()-liveSince)));assert.equal((await health(ready)).status,200);}
  t.diagnostic('continuous_loopback_ms='+String(Date.now()-liveSince));
  assert.throws(()=>run.stop('close',secret()));
- writeFileSync(path.join(run.control,'close'),'forged');await sleep(150);assert.equal((await health(ready)).status,200);unlinkSync(path.join(run.control,'close'));
- run.stop();run.stop();await run.wait();cleanReceipt(run);await assert.rejects(health(ready));
+ // Published requests are never deleted by request_stop. Deleting the forged
+ // target while the child checks it adds an unrelated Windows delete-pending
+ // race (EPERM/EBADF). Keep it in place and authenticate the other action.
+ run.cleanupAction='close';
+ const forgedStop=path.join(run.control,'stop');
+ writeFileSync(forgedStop,'forged');await sleep(150);assert.equal((await health(ready)).status,200);
+ assert.equal(run.read('child.json'),null);
+ run.stop();run.stop();await run.wait();cleanReceipt(run);
+ assert.equal(run.read('child.json').reason,'close_requested');
+ assert.equal(readFileSync(forgedStop,'utf8'),'forged');await assert.rejects(health(ready));
  const again=l.launch();await again.ready();again.stop();await again.wait();cleanReceipt(again);
  const db=new DatabaseSync(pathToFileURL(path.join(l.state,'i-core.sqlite')).href+'?mode=ro&immutable=1',{readOnly:true});
  try{assert.equal(db.prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE sync_id='schema6-user-turn'").get().n,1);}finally{db.close();}

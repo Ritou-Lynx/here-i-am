@@ -5,7 +5,7 @@ $ErrorActionPreference='Stop';Set-StrictMode -Version 2
 $env:PSModulePath=Join-Path $PSHOME 'Modules'
 $locks=New-Object 'System.Collections.Generic.List[System.IDisposable]'
 $outputScopeValidated=$false;$created=$false;$attempted=$false;$registered=$null;$config=$null;$phase='gate';$exitCode=2
-$report=[ordered]@{format='schema6-approved-login-registration-v2';passed=$false;registered=$false;started=$false;old_tasks_changed=$false;database_changed=$false}
+$report=[ordered]@{format='schema6-approved-login-registration-v3';passed=$false;registered=$false;started=$false;old_tasks_changed=$false;database_changed=$false}
 function Assert-Private([string]$P){
  if($P -notmatch '^[A-Za-z]:\\' -or [IO.Path]::GetFullPath($P)-cne $P -or $P.Substring(2).Contains(':')){throw 'absolute_path_required'}
  $q=$P;while($q){if(([IO.File]::GetAttributes($q)-band [IO.FileAttributes]::ReparsePoint)-ne 0){throw 'linked_path_rejected'};$par=[IO.Directory]::GetParent($q);$q=if($par){$par.FullName}else{$null}}
@@ -84,10 +84,11 @@ try{
  $helper=@($config.maintenanceFiles|Where-Object {$_.path-ceq (Join-Path $PSScriptRoot 'register_task_primitives.ps1')})
  $prepare=Join-Path $PSScriptRoot 'prepare-production-login.mjs'
  if($self.Count-ne 1 -or $helper.Count-ne 1 -or @($config.maintenanceFiles|Where-Object {$_.path-ceq $prepare}).Count-ne 1){throw 'maintenance_inventory_rejected'}
- foreach($required in @('acl_receipt.mjs','maintenance_window.ps1','maintenance_outputs.mjs','prepare-production-login.ps1','prepare_live_guard.ps1')){if(@($config.maintenanceFiles|Where-Object {$_.path-ceq (Join-Path $PSScriptRoot $required)}).Count-ne 1){throw 'maintenance_inventory_rejected'}}
+ foreach($required in @('acl_receipt.mjs','maintenance_window.ps1','maintenance_outputs.mjs','prepare-production-login.ps1','prepare_live_guard.ps1','task_security_policy.ps1')){if(@($config.maintenanceFiles|Where-Object {$_.path-ceq (Join-Path $PSScriptRoot $required)}).Count-ne 1){throw 'maintenance_inventory_rejected'}}
  $package=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\release_schema6\package.mjs'))
  if(@($config.maintenanceFiles|Where-Object {$_.path-ceq $package}).Count-ne 1){throw 'maintenance_inventory_rejected'}
  . (Join-Path $PSScriptRoot 'register_task_primitives.ps1')
+ . (Join-Path $PSScriptRoot 'task_security_policy.ps1')
  . (Join-Path $PSScriptRoot 'maintenance_window.ps1')
  . (Join-Path $PSScriptRoot 'prepare_live_guard.ps1')
  Assert-Private $config.maintenanceRoot
@@ -103,15 +104,22 @@ try{
  $service=New-Object -ComObject 'Schedule.Service';$service.Connect();$folder=$service.GetFolder('\')
  Assert-TaskAbsent $folder $config.taskName
  $expected=$service.NewTask(0);$expected.XmlText=$xml
- if($expected.Triggers.Count-ne 1 -or $expected.Triggers.Item(1).Type-ne 9 -or !$expected.Triggers.Item(1).Enabled -or !$expected.Settings.Enabled -or (Convert-TaskSid $expected.Triggers.Item(1).UserId)-cne $config.ownerSid){throw 'approved_login_shape_rejected'}
+ if($expected.Triggers.Count-ne 1 -or $expected.Triggers.Item(1).Type-ne 9 -or !$expected.Triggers.Item(1).Enabled -or !$expected.Settings.Enabled -or !$expected.Settings.UseUnifiedSchedulingEngine -or (Convert-TaskSid $expected.Triggers.Item(1).UserId)-cne $config.ownerSid){throw 'approved_login_shape_rejected'}
  $frozen=Get-Content -LiteralPath $config.frozenReceiptPath -Raw|ConvertFrom-Json
  $phase='frozen_live_gate';Assert-FrozenLive $frozen $folder
+ $phase='security_policy_gate'
+ $policy=Assert-TaskSecurityPolicy $config ($folder.GetSecurityDescriptor(7))
+ foreach($name in @('taskSecurityPolicyVersion','parentSddlSha256','registrationSddlSha256','expectedRegisteredSddlSha256','inheritedReadOnlyPrincipals')){$report[$name]=$policy.$name}
+ $report.inheritedReadOnlyPrincipalCount=$policy.inheritedReadOnlyPrincipals.Count
  $phase='register';$attempted=$true
- $registered=New-ApprovedTask $service $folder $config.taskName $xml $config.ownerSid $config.approvedSddl
+ $registered=New-ApprovedTask $service $folder $config.taskName $xml $config.ownerSid $config.registrationSddl
  $created=$true;$report.registered=$true
  $phase='readback';$actual=$folder.GetTask($config.taskName)
- Assert-RegisteredTask $actual $expected $config.taskName $config.approvedSddl
+ $null=Assert-TaskSecurityPolicy $config ($folder.GetSecurityDescriptor(7))
+ Assert-RegisteredTask $actual $expected $config.taskName $config.expectedRegisteredSddl
+ Assert-TaskAllowedRights ($actual.GetSecurityDescriptor(7)) $config.ownerSid
  Assert-FrozenLive $frozen $folder
+ $null=Assert-TaskSecurityPolicy $config ($folder.GetSecurityDescriptor(7))
  $report.passed=$true;$report.actions_verified=$true;$report.principals_verified=$true;$report.triggers_verified=$true;$report.settings_verified=$true;$report.sddl_verified=$true;$report.frozen_rechecked=$true;$report.instances_zero=$true
  Write-Receipt;$exitCode=0
 }catch{
@@ -122,4 +130,6 @@ try{
  elseif($attempted){$report.registration_outcome_unconfirmed=$true}
  if($null-ne $config -and $outputScopeValidated){try{if(!(Test-Path -LiteralPath $config.registrationReceiptPath)){Write-Receipt}}catch{$report.receipt_write_failed=$true}}
 }finally{foreach($h in $locks){$h.Dispose()}}
+# Full disclosure is stored only in the private receipt. Public output is anonymous.
+$report.Remove('inheritedReadOnlyPrincipals')
 [Console]::Out.WriteLine(($report|ConvertTo-Json -Depth 15 -Compress));exit $exitCode

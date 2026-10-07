@@ -33,6 +33,9 @@ void publishReady(String file, String content) {
 }
 
 Future<void> main(List<String> args) async {
+  if (args[2] == 'fixture_slow_no_handshake') {
+    sleep(const Duration(milliseconds: 250));
+  }
   final db = CrashDatabase(File(args[0]));
   final store = DomainStore(db, binding: fixtureBinding, testFault: (point) {
     if (point == args[1]) {
@@ -43,7 +46,8 @@ Future<void> main(List<String> args) async {
   });
   if (args[2].startsWith('fixture_')) {
     await db.customSelect('SELECT 1').get();
-    if (args[2] == 'fixture_no_handshake') {
+    if (args[2] == 'fixture_no_handshake' ||
+        args[2] == 'fixture_slow_no_handshake') {
       publishReady('${args[0]}.started', '$pid');
       sleep(const Duration(seconds: 45));
       await db.close();

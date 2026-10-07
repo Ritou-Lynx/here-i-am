@@ -1,3 +1,39 @@
+## 2026-10-07 — 任务模板与继承权限分别锁定
+- 用户已接受Unified=true/非保护DACL；仅源码、合成测试、CI及新候选，最终XML/SDDL另交本人批准。
+- 固定47项仅Prepare XML模板变化，会话启动器/Core/MCP运行字节不变；旧候选不再复用。
+- 配置/审批v2、准备回执v3，分别锁input/expected/父SD/算法/只读明细，各入口前后核父SD。
+- 独审将外SID读与执行收紧为00120089纯读，执行/写/删除/改权限与未知位全部拒绝。
+- 保留原strict比较、CREATE-only、持柄pin、冻结与ACL门槛；新增独立继承及模板真实AST/COM内存测试。
+- 本机专项14过/0失败/1不执行的真实任务CREATE；69内存断言通过；Hosted单次安全COM往返接入新policy。
+- 新候选c9662439/manifest3b7e210b核47项仅模板变化；精确XML4bc64357/双SDDL审批包准备，外SID只读继承0。
+- 本机整组278项276过0失败2项opt-in未执行，Hosted已实跑；PR单项关闭失败补合成诊断，只修测试live删除竞态。
+- 伪造stop保留、合法close重复和完整回执/125秒/重启断言仍在，47项运行字节不增加变化；最终CI见PR18。
+- CI另暴露Flutter旧崩溃夹具冷启动计时缺口，只修测试并补慢启动/失败清理回归，两整文件81项通过；最终CI见PR18。
+- 未冻结/停启现役、Apply现役ACL、生产Prepare/注册/替换/head或操作手机；B在PR19继续。
+- 交接：docs/development/handoffs/SCHEMA6_TASK_SECURITY_REVISION_20261007.md。
+---
+## 2026-10-07 — 四组本机任务兼容实测闭合，切换仍未放行
+- 用户授权最多4组真实COM探针；禁用/无触发/安全cmd动作，从未Run。
+- CREATE前固定所有输入和期望，protected保留P，unprotected独立推导父继承；不由actual回填。
+- 4次CREATE/回读/绑定删除，最终0遗留；约1.121秒，无清理失败或结果不确定。
+- 缺省和显式false均注册为true；protected均丢P，严格比较正确拒绝。
+- unprotected与预先期望一致，仅合并已有规则允许的同SID/flags冗余OWNER FR。
+- 旧任务完整快照/父SD稳定，Core/MCP各1实例和三端口原PID保持，零人为停机。
+- 私有review-only XML/SDDL提案准备，未改原批准文件/生产配置，不能注册或放行。
+- 待用户接受显式true、分别绑定input/expected及父SD的修订方向；之后仍须新候选/CI/最终本人批准。
+- 固定47项和生产比较未改；诊断fixture/记录仅本机，未提交推送；B继续独立源码任务。
+---
+## 2026-10-07 — PR16合并，Core切换停在只读兼容性首关
+- 先启动独立B源码窗，P1记一下优先；A不等B完成。
+- 用户授权普通合并PR16至v3-lab@72905f6f；原受审head09ea2914的15项CI全绿。
+- 固定47项实际库存与合并源码逐字相同，允许复用1552e251候选，没有重写manifest。
+- 本机只读COM核批准XML：缺省Unified内存false稳定，但不能证明注册后的语义；原批准记录未绑定SDDL。
+- 严格门槛不放宽，未调用新窗口入口、冻结、停服务、Apply ACL、Prepare/注册或替换原库。
+- 原两任务Enabled/Running各1实例、三端口仍在；本轮人为停机0，旧锁/回执保留。
+- 具体受限合成兼容演练方案列现场记录，需补充授权；生产XML/SDDL变更仍交本人批准。
+- B在独立分支复验notes/领域36项通过，继续补手机正式连接/授权；未宣称P1已交付。
+- 现场记录：docs/development/handoffs/SCHEMA6_CUTOVER_REENTRY_20261007_R02.md。
+---
 ## 2026-10-07 — 现场维护源码入库与单次窗口闭合
 - 继续PR16同分支；仅指定私有脚本源码、合成演练及文档，不进场、不把PR16合入主线。
 - 参数化freeze/新窗口/ACL/owner wrapper/Prepare/RegisterOnly，现场路径、SID和批准锚不入库。
