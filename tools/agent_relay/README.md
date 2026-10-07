@@ -87,3 +87,52 @@
 > 用接力做：<目标>。
 
 Claude 会按 SKILL 手册开 PR、发指令、订阅 PR。之后你可以关掉网页，等 GitHub 通知。想插话就在 PR 里直接评论，或回到那个会话说。
+## watcher 已实现（2026-10-07）
+
+零 npm 依赖，源码使用 Node 22 支持的 `.mjs` 与内置模块。`package.json` 只有目录测试入口及运行版本声明，没有 dependencies；无需 `npm install`。清单 12 项均已写成离线测试，额外覆盖仓库归属、并发锁回收、通知恢复、分支历史保护和超时清理阻断。
+
+```powershell
+node --test tools/agent_relay/
+node tools/agent_relay/relay_watcher.mjs --dry-run
+node tools/agent_relay/relay_watcher.mjs --once --config tools/agent_relay/.state/config.json
+node tools/agent_relay/relay_watcher.mjs --loop --config tools/agent_relay/.state/config.json
+```
+
+`--once` 是默认模式。`--loop` 使用 `pollSeconds`（默认 180）。`--dry-run` 只做读取和打印：没有本机配置时用当前仓库及默认白名单查询 PR，不创建配置、锁、日志或 state，不加反应、不运行 Codex、不推送和回帖。安装前应核对 `allowedAuthors`。
+
+### 本机实际版本
+
+2026-10-07 核对：
+
+| 工具 | 实际版本与验证 |
+|---|---|
+| Node（原终端 PATH） | `v24.14.1`，全部 39 项通过 |
+| Node 22（临时官方便携版） | `v22.23.3`，全部 39 项通过；未替换本机 Node |
+| Codex | `codex-cli 0.160.0`，已先运行 `codex exec --help` 对齐参数 |
+| GitHub CLI | `gh 2.102.0 (2026-09-30)`，官方便携包经 SHA-256 校验；原终端 PATH 找不到 gh，本轮仅临时加入进程 PATH 验证，未全局安装 |
+
+实际启动参数如下。提示词通过 stdin 传入，最后的 `-` 不省略；子进程环境加入 `SKIP_PROJECT_STATE=1`，不改全局配置。
+
+```text
+codex exec --cd <PR-worktree> --sandbox workspace-write --json --output-last-message <local-log.last.txt> -
+```
+
+本机只读 dry-run 已返回“无待处理”，未调用真实 Codex 执行任务。真实 PR 接力冒烟、本机持久配置与计划任务仍按上文第二、三步进行。
+
+### 执行与恢复边界
+
+- 所有进程调用经可注入 `run(cmd, args, opts)`；业务操作只调用 `gh`、`git`、`codex`。为满足 Windows 超时终止整棵进程树，另使用系统清理辅助 `taskkill.exe /PID <本轮子进程PID> /T /F`，也经过同一 `run`，有独立超时，不使用进程名或通配符。清理无法确认时写入 `.state/cleanup-blocked.json`，只允许补送已有通知，阻止新任务；核验进程树已退出后才能人工移除标记。
+- 仅使用已确认仓库的 origin，并核对 fetch/push 目标、既有 worktree 的 Git common-dir、分支和仓库根。创建 worktree 不使用会重置已有分支的 `-B`；已有脏改动或领先提交均保留并报告失败。
+- 推送被拒时只尝试一次普通合并和重推，冲突执行 `merge --abort`；永不 force。Codex 非零退出、缺少最后消息、未提交改动均不推送。
+- 接单先保存 `in_progress`。崩溃或通知失败都不重跑同一评论；执行结果先持久化，失败的回帖/反应在下次轮询补送，不把通知故障当作执行失败。网络中断时已发出的评论可能重复投递，执行仍不会重复。
+- `.state/` 已被忽略；配置、原始 JSONL、最后消息、stderr 和结果详情只留本机。公开回帖先对完整内容脱敏，再限制摘要长度和诊断行数，避免截断私钥后漏扫。请勿提交本机日志。
+- 活锁直接退出；旧锁恢复由单独保护文件串行处理。如果恢复时崩溃遗留 `lock.recover`，脚本明确报错；先核验没有 watcher/Codex 在工作，再移除残留恢复文件。不要直接删存活进程的锁。
+
+### Windows 计划任务脚本
+
+`install_relay_task.ps1` 默认注册当前用户的 Interactive/Limited 任务，每 3 分钟 `--once`，登录后执行，重叠触发忽略；无需保存密码或管理员运行级别。可用 `-NodePath`、`-GhPath`、`-CodexPath` 指定稳定的可执行文件；脚本把这些工具目录加入任务自身的 PATH，避免计划任务缺少终端 PATH。已有同名任务不会被覆盖；`-Remove` 只移除该任务，`-WhatIf` 可预览注册动作。Codex 程序路径随桌面应用更新变化时，应移除并重新注册以刷新路径。本次仅交付脚本并检查 PowerShell 语法，没有注册任务。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/agent_relay/install_relay_task.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/agent_relay/install_relay_task.ps1 -Remove
+```

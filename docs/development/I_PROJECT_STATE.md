@@ -1,10 +1,14 @@
 # 林埃的项目状态
 
+## Agent Relay watcher 源码完成（2026-10-07）
+
+`tools/agent_relay/` 已实现零依赖 Node watcher、配置示例和当前普通用户的 3 分钟计划任务注册/移除脚本；12 项清单及恢复边界共 39 项假 run 测试，在 Node 24.14.1 与官方临时 Node 22.23.3 全通过。Codex 0.160.0 参数已按本机 help 对齐；临时官方便携 gh 2.102.0 的只读 dry-run 返回“无待处理”。提交推送目标为 `claude/wonderful-carson-a26i9d`，不 force。执行与通知分开持久化；仓库/历史归属、脏工作区、锁竞争、超时清理和脱敏均有保护。未创建持久配置、标签或计划任务，未触发真实 Codex 接力；本机安装和真实 PR 冒烟仍待后续步骤。
+
 ## 开发协作：Agent Relay 经 GitHub PR 自动接力（2026-10-07）
 
 用户只能用 Claude 网页端，要求 Claude 负责指令与规划、Codex 负责执行。方案不自建工作台、不复活 dev_agent_bridge，以 GitHub PR 为交接通道：claude.ai/code 会话写合同、开 draft PR、发 `relay:to-codex` 评论并订阅 PR；用户电脑上的 watcher 每 3 分钟查一次，在 PR 专用 worktree 运行 `codex exec`，推送（不 force）后回帖 `relay:to-claude` 唤醒 Claude 审阅。最多 4 轮，不合并、不构建安装、不碰真实数据；仓库公开，PR 内容不含私人资料。
 
-已交付文档：`tools/agent_relay/`（PROTOCOL、BUILD_BRIEF、CODEX_ROUND_PROMPT、README）与 `.claude/skills/agent-relay/SKILL.md`。watcher 源码、标签、本机计划任务与真实冒烟待 Codex 执行；纯文档，未构建。
+已交付文档：`tools/agent_relay/`（PROTOCOL、BUILD_BRIEF、CODEX_ROUND_PROMPT、README）与 `.claude/skills/agent-relay/SKILL.md`。watcher 源码已实现并验证，见上方记录；标签、本机计划任务与真实冒烟待后续执行，未构建 App。
 
 ## 学习系统：思源为知识库与学习账本，dot 语音带练（2026-10-04）
 

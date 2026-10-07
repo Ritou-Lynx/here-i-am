@@ -1,3 +1,12 @@
+## 2026-10-07 — Agent Relay watcher 实现与离线验证
+
+**交付**：`tools/agent_relay/` 零依赖 watcher、纯函数、配置示例、目录测试入口及当前普通用户的 3 分钟计划任务脚本。
+**保护**：白名单/PR 条件、串行锁与崩溃防重放、仓库与历史归属、脏工作区、无 force 的推送冲突处理、通知补送、超时清理阻断及完整内容脱敏。
+**验证**：12 项清单扩展为 39 项假 run 测试，Node 24.14.1 / 22.23.3 均通过；Codex 0.160.0 help 已对齐；官方临时便携 gh 2.102.0 的只读 dry-run 返回“无待处理”；PowerShell 语法通过。
+**边界**：同一 `claude/wonderful-carson-a26i9d` 分支提交推送；未注册计划任务或运行真实接力，未改 App/生产数据。本机持久配置、标签及真实 PR 冒烟留待第二、三步。
+
+---
+
 ## 2026-10-07 — Agent Relay：Claude 云端规划审阅 × Codex 本机执行
 
 **决定**：Claude 仅能用网页端，故不建工作台前端、不以 Slack 为总线；以 GitHub PR 评论为交接通道，Claude 云端会话订阅 PR 被唤醒，本机 watcher 轮询指令并调用 `codex exec`。
