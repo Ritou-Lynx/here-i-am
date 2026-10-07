@@ -109,6 +109,7 @@ jobs:
           tools/i_core/personal_data_http.test.mjs
           tools/i_core/import_personal_notes.test.mjs
           tools/i_core/phone_ui_authorization.test.mjs
+          tools/i_core/web_action_authorization.test.mjs
           tools/i_core/domain_store.test.mjs
           tools/i_core/domain_http.test.mjs
           tools/i_core/local_transcript_grants.test.mjs
