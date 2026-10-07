@@ -109,7 +109,7 @@ node tools/agent_relay/relay_watcher.mjs --loop --config tools/agent_relay/.stat
 | Node（原终端 PATH） | `v24.14.1`，全部 48 项通过 |
 | Node 22（临时官方便携版） | `v22.23.3`，全部 48 项通过；未替换本机 Node |
 | Codex | `codex-cli 0.160.0`，已先运行 `codex exec --help` 对齐参数 |
-| GitHub CLI | `gh 2.102.0 (2026-09-30)`，官方便携包经 SHA-256 校验；原终端 PATH 找不到 gh，本轮仅临时加入进程 PATH 验证，未全局安装 |
+| GitHub CLI | `gh 2.102.0 (2026-09-30)`，官方便携包经 SHA-256 校验，已安装在固定用户程序目录；gh 与 Codex 的实际 exe 均经 Node spawn(shell:false) 验证，未改全局 PATH |
 
 实际启动参数如下。提示词通过 stdin 传入，最后的 `-` 不省略；子进程环境加入 `SKIP_PROJECT_STATE=1`，不改全局配置。
 
@@ -117,7 +117,7 @@ node tools/agent_relay/relay_watcher.mjs --loop --config tools/agent_relay/.stat
 codex exec --cd <PR-worktree> --sandbox workspace-write --json --output-last-message <local-log.last.txt> -
 ```
 
-本机只读 dry-run 已返回“无待处理”，未调用真实 Codex 执行任务。真实 PR 接力冒烟、本机持久配置与计划任务仍按上文第二、三步进行。
+本机固定 gh、登录检查、标签、持久配置及普通用户计划任务已安装完成。只读 dry-run 与计划任务实际执行均返回“无待处理”，LastTaskResult 为 0，未调用真实 Codex 执行任务；现在可按第三步通知 Claude 发起真实 PR 接力冒烟。
 
 ### 执行与恢复边界
 
@@ -130,7 +130,7 @@ codex exec --cd <PR-worktree> --sandbox workspace-write --json --output-last-mes
 
 ### Windows 计划任务脚本
 
-`install_relay_task.ps1` 默认注册当前用户的 Interactive/Limited 任务，每 3 分钟 `--once`，登录后执行，重叠触发忽略；无需保存密码或管理员运行级别。可用 `-NodePath`、`-GhPath`、`-CodexPath` 指定稳定的可执行文件；脚本把这些工具目录加入任务自身的 PATH，避免计划任务缺少终端 PATH。已有同名任务不会被覆盖；`-Remove` 只移除该任务，`-WhatIf` 可预览注册动作。Codex 程序路径随桌面应用更新变化时，应移除并重新注册以刷新路径。本次仅交付脚本并检查 PowerShell 语法，没有注册任务。
+`install_relay_task.ps1` 默认注册当前用户的 Interactive/Limited 任务，每 3 分钟 `--once`，登录后执行，重叠触发忽略；无需保存密码或管理员运行级别。可用 `-NodePath`、`-GhPath`、`-CodexPath` 指定稳定的可执行文件；脚本把这些工具目录加入任务自身的 PATH，避免计划任务缺少终端 PATH。已有同名任务不会被覆盖；`-Remove` 只移除该任务，`-WhatIf` 可预览注册动作。Codex 程序路径随桌面应用更新变化时，应移除并重新注册以刷新路径。已显式传入 gh/Codex 实际 exe 路径注册本机任务，确认 Interactive/Limited、PT3M、真实运行结束且结果为 0；任务日志已固定 UTF-8 的外部程序解码，中文输出正常。注册默认值不作为运行证据。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/agent_relay/install_relay_task.ps1

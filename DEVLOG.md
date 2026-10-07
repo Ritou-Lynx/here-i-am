@@ -1,3 +1,12 @@
+## 2026-10-07 — Agent Relay 本机安装验证完成
+
+**安装**：校验后的 gh 2.102.0 已放固定用户程序目录；当前用户的 GitHub/Codex 登录有效，Node spawn(shell:false) 实际直启两个 exe 均退出 0；三个标签已创建。
+**配置**：主仓库保持干净 v3-lab；运行脚本与忽略配置保留在专用 relay worktree，PR worktree 根在主仓库外。
+**任务**：显式传入 GhPath/CodexPath，当前用户 Interactive/Limited、PT3M、IgnoreNew；实际启动后回到 Ready，LastTaskResult=0，日志“无待处理”。修正 Windows PowerShell 外部程序中文解码后再次真实通过。
+**证据**：本机忽略目录保留安装回执、脚本/执行器哈希与任务日志；公开交接只记录结论。真实 PR 接力尚未触发，现在可由用户通知 Claude 冒烟。
+
+---
+
 ## 2026-10-07 — Agent Relay 按 COMMIT 行提交
 
 **实现**：按 8877a50 新规格由 watcher 提交工作区改动，双段提交信息与 SKIP_PROJECT_STATE；COMMIT 缺失/空白/“无”使用本轮默认值，删除 dirty 状态，暂存/提交失败停止推送。
