@@ -43,3 +43,5 @@ ACL合成覆盖Owner/DACL/继承全项往返、父级中断后全清单恢复、
 最终静态检查：10个维护PowerShell文件PS5.1解析通过，维护Node模块语法通过；版本化源码无现场路径/真实SID/现场凭据，Git差异与文档链接检查通过。新固定47项runtime源码没有变化。远端结果按精确head登记在同PR正文/Checks，全部绿后才结束。
 
 主线PR15后续已合入v3-lab@0a24cac2b7db812f34fb845325e27b77d16139dd，导致PR16仅DEVLOG与项目状态冲突。本轮把该精确主线提交整合进隔离分支，保留双方新增记录；维护源码及固定runtime未因此改变，未运行Relay脚本或任务。PR16仍为草稿且未合入主线；最终CI以整合后精确head为准。
+
+最终d07be5b2两组Windows整组均272项271过/1失败/0跳过；唯一失败真实COM的registered_sddl_changed，foreign-owner往返实际通过，合成任务已安全删除。没有把失败改跳过或重跑掩盖。新增快速Windows维护job和匿名SD形状诊断（OWNER/SYSTEM/ADMIN/OTHER、flags/mask；无真实SID/SDDL），定位差异；生产安全描述符比较不改，不用actual覆盖expected。最终完整CI仍以修正后的精确head为准。

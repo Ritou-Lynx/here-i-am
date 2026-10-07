@@ -11,11 +11,21 @@ $ns=New-Object Xml.XmlNamespaceManager($doc.NameTable);$ns.AddNamespace('t',$doc
 $doc.SelectSingleNode('//t:UserId',$ns).InnerText=$sid
 $doc.SelectSingleNode('//t:Command',$ns).InnerText=Join-Path $env:SystemRoot 'System32\cmd.exe'
 $doc.SelectSingleNode('//t:Source',$ns).InnerText=$nonce
+function Get-SyntheticSecurityShape([string]$Text){
+ $sd=[Security.AccessControl.RawSecurityDescriptor]::new($Text)
+ function Alias([Security.Principal.SecurityIdentifier]$Value){if($null-eq $Value){return 'NONE'};switch($Value.Value){$sid{return 'OWNER'} 'S-1-5-18'{return 'SYSTEM'} 'S-1-5-32-544'{return 'ADMIN'} default{return 'OTHER'}}}
+ $aces=@($sd.DiscretionaryAcl|ForEach-Object{@{principal=(Alias $_.SecurityIdentifier);type=[string]$_.AceType;flags=[int]$_.AceFlags;mask=('{0:X8}'-f $_.AccessMask)}})
+ return @{owner=(Alias $sd.Owner);group=(Alias $sd.Group);protected=[bool]($sd.ControlFlags-band [Security.AccessControl.ControlFlags]::DiscretionaryAclProtected);autoInherited=[bool]($sd.ControlFlags-band [Security.AccessControl.ControlFlags]::DiscretionaryAclAutoInherited);autoInheritRequired=[bool]($sd.ControlFlags-band [Security.AccessControl.ControlFlags]::DiscretionaryAclAutoInheritRequired);aces=$aces}
+}
 $xml=$doc.OuterXml;$expected=$s.NewTask(0);$expected.XmlText=$xml
 $created=$null;$result=[ordered]@{format='schema6-synthetic-register-test-v1';created=$false;readback=$false;existingRejected=$false;xmlDifferenceRejected=$false;deleted=$false;noInstances=$false;disabled=$true;triggers=0;taskPrefix='HereIAm-Synthetic-';startedUtc=[DateTime]::UtcNow.ToString('o')}
 try {
  $created=New-ApprovedTask $s $folder $name $xml $sid $sddl;$result.created=$true
- $live=$folder.GetTask($name);Assert-RegisteredTask $live $expected $name $sddl;$result.readback=$true
+ $live=$folder.GetTask($name)
+ # Anonymous diagnostics are evidence only; never replace the pre-CREATE expectation.
+ $result.expectedSecurity=Get-SyntheticSecurityShape $sddl
+ $result.actualSecurity=Get-SyntheticSecurityShape $live.GetSecurityDescriptor(7)
+ Assert-RegisteredTask $live $expected $name $sddl;$result.readback=$true
  $result.noInstances=($live.GetInstances(0).Count-eq 0)
  if($live.Enabled -or $live.Definition.Triggers.Count-ne 0){throw 'synthetic_safety_failed'}
  try{$null=New-ApprovedTask $s $folder $name $xml $sid $sddl;throw 'existing_task_was_accepted'}catch{if($_.Exception.Message-cne 'existing_task_rejected'){throw};$result.existingRejected=$true}
@@ -35,7 +45,7 @@ try {
   $folder.DeleteTask($name,0);Assert-TaskAbsent $folder $name;$result.deleted=$true
  }
  $result.completedUtc=[DateTime]::UtcNow.ToString('o')
- $encoded=$result|ConvertTo-Json -Compress
+ $encoded=$result|ConvertTo-Json -Depth 8 -Compress
  if($OutputReport){$bytes=[Text.UTF8Encoding]::new($false).GetBytes($encoded+"`n");$h=[IO.File]::Open($OutputReport,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$h.Write($bytes,0,$bytes.Length);$h.Flush($true)}finally{$h.Dispose()}}
  [Console]::Out.WriteLine($encoded)
 }
