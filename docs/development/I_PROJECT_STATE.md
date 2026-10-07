@@ -1,5 +1,9 @@
 # 林埃的项目状态
 
+## Agent Relay 真实冒烟通过（2026-10-07，PR #15）
+
+Ritou-Lynx/here-i-am#15 上完成三轮真实接力：worktree 占用分支导致的环境失败已在本机修正；第 2 轮 Codex 经 watcher 提交 SMOKE.md；第 3 轮按 Claude 返修指令修正回帖脱敏误伤 URL 与成功回帖附带 stderr，50/50 测试通过并经云端复核。接力链路（接单、执行、提交推送、回帖唤醒、审阅、返修）已可日常使用。合入 v3-lab 待用户决定；合入后 watcher 从停在 v3-lab 的主仓库运行，专用 relay worktree 可退役。
+
 ## Agent Relay 提交职责更新（2026-10-07）
 
 按 `8877a50` 更新规格：Codex 留下改动，watcher 按 COMMIT 行提交，缺失/空白/“无”使用本轮默认信息，提交携带 SKIP_PROJECT_STATE；暂存或提交失败为 failed 且不推送，移除 dirty 结果。既有脏工作区和祖先关系保护保留。48 项假 run 测试在 Node 24.14.1 / 22.23.3 全通过；计划任务入口新增准确退出码与本机日志。固定 gh 安装、当前用户登录与 Node spawn(shell:false) 直接启动检查、三个标签、本机配置均已完成；主仓库保持干净 v3-lab，专用 relay worktree 运行脚本。计划任务为当前用户 Interactive/Limited、每 3 分钟，实际执行结束且结果为 0、日志“无待处理”；现在可由用户通知 Claude 发起真实 PR 冒烟，尚未执行真实模型轮次。

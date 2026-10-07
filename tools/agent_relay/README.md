@@ -87,6 +87,12 @@
 > 用接力做：<目标>。
 
 Claude 会按 SKILL 手册开 PR、发指令、订阅 PR。之后你可以关掉网页，等 GitHub 通知。想插话就在 PR 里直接评论，或回到那个会话说。
+## 已知坑（冒烟所得）
+
+- 运行 watcher 的目录不能检出任何 PR 分支，否则 watcher 建不了 PR 专用 worktree（报 `already used by worktree`）。主仓库停在 `v3-lab`，或用 detached HEAD。
+- Codex 启动时会尝试连接 config 里所有 MCP 服务，本机没开的会打印 `rmcp::transport` 报错，不影响执行。
+- watcher 代码更新后要让运行它的目录跟上新提交，计划任务才会用到新逻辑。
+
 ## watcher 已实现（2026-10-07）
 
 零 npm 依赖，源码使用 Node 22 支持的 `.mjs` 与内置模块。`package.json` 只有目录测试入口及运行版本声明，没有 dependencies；无需 `npm install`。清单 12 项均已写成离线测试，额外覆盖仓库归属、并发锁回收、通知恢复、分支历史保护和超时清理阻断。

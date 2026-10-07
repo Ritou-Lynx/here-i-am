@@ -7,7 +7,7 @@
 - [x] 本轮改动只有这一个文件
 - [x] watcher 用 COMMIT 行提交并推送到本 PR 分支，回帖 `relay:to-claude status=done`
 
-- [ ] 第 3 轮（冒烟发现的两处回帖问题）：
+- [x] 第 3 轮（冒烟发现的两处回帖问题）：
   - `redact` 不再把 URL（如 `https://github.com/...`）当成 Windows 绝对路径隐藏；`C:\x`、`D:/x` 这类盘符路径照旧隐藏。
   - `done` / `blocked` 回帖不再附带 Codex 的 stderr；`failed` 照旧附最多 30 行诊断。
   - 两处各有新增测试，`node --test tools/agent_relay/` 全部通过。

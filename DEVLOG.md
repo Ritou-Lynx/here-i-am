@@ -1,3 +1,12 @@
+## 2026-10-07 — Agent Relay 真实 PR 冒烟通过（PR #15）
+
+**结果**：Claude 云端发指令 → 本机 watcher 3 分钟内接单 → Codex 执行 → watcher 提交推送回帖 → 回帖唤醒云端 Claude 审阅，全程无人工搬运。作者白名单（Ritou-Lynx）与脱敏生效。
+**轮次**：第 1 轮 failed（运行 watcher 的 relay worktree 占用了 PR 分支，已改 detached）；第 2 轮 done（6fe7efb，只新增 SMOKE.md）；第 3 轮返修 done（422790d：脱敏不再误隐藏 URL，done/blocked 回帖不附 stderr；50/50 测试，云端复核通过）。
+**已知**：Codex 启动时连不上本机未运行的 MCP 服务会打印 rmcp 报错，不影响执行；运行 watcher 的目录不得检出任何 PR 分支。
+**未完**：合入 v3-lab 待用户决定；合入后 watcher 改从停在 v3-lab 的主仓库运行。纯 Node/文档，未构建 App。
+
+---
+
 ## 2026-10-07 — Agent Relay 本机安装验证完成
 
 **安装**：校验后的 gh 2.102.0 已放固定用户程序目录；当前用户的 GitHub/Codex 登录有效，Node spawn(shell:false) 实际直启两个 exe 均退出 0；三个标签已创建。
