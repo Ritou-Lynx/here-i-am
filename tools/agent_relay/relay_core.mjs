@@ -41,8 +41,8 @@ const secretPatterns = [
   /Bearer\s+[A-Za-z0-9._~+\/-]{16,}/gi,
   /-----BEGIN ([A-Z ]*PRIVATE KEY)-----[\s\S]*?-----END \1-----/g,
 ];
-const userPath = /[A-Za-z]:[\\/]Users[\\/][^\s]+/g;
-const absolutePath = /[A-Za-z]:[\\/](?!Users[\\/])[^\s\r\n]+/g;
+const userPath = /(?<![A-Za-z0-9])[A-Za-z]:(?!\/\/)[\\/]Users[\\/][^\s]+/g;
+const absolutePath = /(?<![A-Za-z0-9])[A-Za-z]:(?!\/\/)[\\/](?!Users[\\/])[^\s\r\n]+/g;
 
 export function redact(text, maxChars = 6000) {
   let value = String(text ?? '');
@@ -74,9 +74,10 @@ export function formatReply({ round, status, sha, startSha, commitCount, files, 
   }
   const rawSummary = redact(String(summary ?? ''), Number.MAX_SAFE_INTEGER);
   const rawReason = redact(String(reason ?? ''), Number.MAX_SAFE_INTEGER);
-  const rawDetails = redact(String(details ?? ''), Number.MAX_SAFE_INTEGER);
+  const diagnosticText = ok ? '' : String(details ?? '');
+  const rawDetails = redact(diagnosticText, Number.MAX_SAFE_INTEGER);
   const detailLines = rawDetails.text.split(/\r?\n/).slice(0, 29);
-  const droppedLines = (reason ? String(reason).split(/\r?\n/).length > 1 : false) || String(details ?? '').split(/\r?\n/).length > 29;
+  const droppedLines = (reason ? String(reason).split(/\r?\n/).length > 1 : false) || diagnosticText.split(/\r?\n/).length > 29;
   // Redact complete diagnostics before clipping, so a multiline key cannot be cut before its END marker.
   const combined = [rawSummary.text, ...detailLines].filter(Boolean).join('\n');
   const reasonLines = reason ? [`原因：${rawReason.text.split(/\r?\n/)[0]}`] : [];

@@ -27,6 +27,34 @@ test('redact covers token, key, bearer, path and truncation', () => {
   const short = redact('abcdef', 3); assert.equal(short.truncated, true); assert.equal(short.text.length, 3);
 });
 
+test('redact preserves URLs and enforces drive path boundaries', () => {
+  for (const text of [
+    'https://github.com/x/y', 'http://127.0.0.1:6806/mcp',
+    'https://Users/name/x', 'C://Users/name/x', 'D://data',
+    'prefixC:\\tools\\x', '1D:/data', 'prefixC:\\Users\\name\\x', '1D:/Users/name/x',
+  ]) assert.deepEqual(redact(text), { text, redacted: false, truncated: false });
+  for (const text of ['C:\\tools\\x', 'D:/data', 'E:\\a', '(F:\\b)']) {
+    const out = redact(text);
+    assert.equal(out.redacted, true, text);
+    assert.match(out.text, /\[已隐藏\]/, text);
+    assert.doesNotMatch(out.text, /[C-F]:[\\/]/, text);
+  }
+  for (const text of ['C:\\Users\\name\\x', 'C:/Users/name/x']) {
+    assert.deepEqual(redact(text), { text: '%USERPROFILE%', redacted: true, truncated: false });
+  }
+});
+
+test('formatReply omits details for done and blocked without a hidden-content notice', () => {
+  const diagnostics = Array.from({ length: 40 }, (_, i) => `stderr-${i} C:\\tools\\x`).join('\n');
+  for (const status of ['done', 'blocked']) {
+    const input = { round: 3, status, sha: 'abcdef', files: ['src/a.mjs'], summary: 'Task result.' };
+    const out = formatReply({ ...input, details: diagnostics });
+    assert.equal(out, formatReply(input), status);
+    assert.doesNotMatch(out, /stderr-|部分内容已隐藏/, status);
+    assert.match(out, /Task result\./, status);
+  }
+});
+
 test('formatReply has protocol header, failed sha none, sanitizes details and caps lines', () => {
   const out = formatReply({ round: 1, status: 'failed', sha: 'bad', reason: 'C:\\Users\\x\\a', details: Array.from({ length: 40 }, (_, i) => `${i} ghp_12345678901234567890`).join('\n') });
   assert.match(out, /^<!-- relay:to-claude round=1 status=failed sha=none -->/);
