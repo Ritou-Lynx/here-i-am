@@ -1,5 +1,21 @@
 # 林埃的项目状态
 
+## SHM合成证实与在线预检修复（2026-10-07，源码待审核）
+
+从v3-lab@1552e251隔离codex/schema6-online-shm-preflight-20261007。固定Node/SQLite与固定release的四组各三次合成复现通过：独立空闲writer捕获及只读SELECT都只改SHM offset104的aReadMark[1]2→3，DB/WAL字节、大小、身份稳定；正常关闭/强杀后无writer对照另列。原现场没有before字节，不追认真实原因。[合成证据](handoffs/SCHEMA6_SHM_REPRODUCTION_20261007.md)。
+
+在线预检比较仅要求DB/WAL全字节、大小及身份不变，journal存在不变，SHM存在/大小不变；四件诊断SHA仍保留，rawStable只表示该online policy通过。17项guard和固定release真实3项适配器通过，Git新包3场景亦过，主窗最终67/67、0失败/跳过（103.954秒）；schema4合成原库不动，副本4→5、exact72/1 grant及缺grant拒绝均核。系统PowerShell nlink=2导致新适配器首跑误拒已沿固定lifecycle入口模式修正，没有改plainPath函数或固定47项runtime。[执行交接增补](handoffs/SCHEMA6_CUTOVER_EXECUTION_20261007.md)登记最终汇总与远端精确CI。
+
+本轮不读取或操作现役、原库、任务、配置与手机，不重进现场、不合主线。离线原始SHM字节保全、冻结全件摘要、strictClosedPath/NativeLease/ACL全部保留；私有新窗口入口及依赖锚仍须受审准备，不能重跑旧锁/CLI。下次ACL先在线预检再停Core及65秒观察，144项含16旧owner逐项加固/恢复；Start新增pending后的精确库存退回缺口及只向前修界限见[现场清单](handoffs/SCHEMA6_CUTOVER_FIELD_CHECKLIST_20261006.md)。草稿PR精确CI全绿后暂停等审核。下节保留前轮历史现场事实。
+
+## PR14 已合并，现场预检失败后安全退回（2026-10-07）
+
+用户已授权PR14合并、合并后重新构建和现场④–⑥；口令、NTFS U盘、最终登录XML、真人重启及手机/claude.ai验收仍由本人逐步操作。实际合并为`v3-lab@1552e251c18c4554d425a0051ea7452e4904bb40`，正式副本仅快进，源树与审核head `aba12d60`相同。47项固定候选manifest `6ae8f970a08ee8f21f8c78ba8846273144101cbdd8d3a2cb0530d5a3daf6b1ff`，Core与同字节旧MCP联合启停烟测通过。
+
+当次现役只读一致副本4→5预检核exact72 replay与1 grant、旧表digest及原四件前后摘要；5→6隔离验证亦通过。这不构成生产head、接管或真人Gate。新独立两钥/Core/MCP配置已准备，未激活；MCP原mutable .state不搬迁。跨项目.i不改，显式I_HOME使用受保护同字节身份快照，今后原投影变动需显式刷新。
+
+本人T盘NTFS/口令绑定、116项九类加密镜像和T盘真实只读Core还原通过（44.098秒；本次使用DPAPI，不混称口令-only跨用户）。本人已批准最终审阅XML，管理员合成外SID owner恢复预检成功。10:33冻结旧任务并停止MCP后，在线副本捕获因SHM hash变化拒绝（DB/WAL hash不变、journal不存在，不能证明具体原因）；已按用户失败分支于10:34恢复原两任务及旧MCP。Core全程未停、原PID/schema4保持；10:36独立核任务XML语义/SDDL完全恢复、各一实例、三端口及MCP HTTP200通过。原库未迁移/替换，未Apply现役ACL、未Prepare/注册新任务、无生产head，daily/login未启用，手机未动。合并提交6项CI全成功不代替此次现场Gate。本次切换暂停；后续用户明确先合成证实SHM原因，已由本页新节记录，不采用先停Core再复制的设想，生产原raw加密及NativeLease等门槛保持。见[切换执行记录](handoffs/SCHEMA6_CUTOVER_EXECUTION_20261007.md)。下方未合并/未授权表述均为前轮历史快照。
+
 ## PR14 MCP读库持柄与会话管理（2026-10-06）
 
 继续 `codex/core-deploy-readiness-20261006` / 草稿PR14；用户要求解决旧MCP缓存Core只读句柄导致清停/恢复阻断。指定旧入口 `adfc8812…5554d6` 的六模块源码原字节在合成真实CLI中复现：实际OAuth/initialize/i_recall开库后，未托管进程仍活着时原生门控 `offline_probe_failed`、sidecars残留；停止该合成读者后恢复通过。没有查询现役进程或原库。

@@ -1,3 +1,39 @@
+## 2026-10-07 — SHM原因合成证实，在线预检窄修复
+- 从v3-lab@1552e251开codex/schema6-online-shm-preflight-20261007，仅源码/合成验证/文档，不重进现场。
+- 固定release四组各三次通过：空闲独立writer捕获和只读SELECT均只改SHM offset104的aReadMark，DB/WAL字节/大小/身份稳定。
+- 两组无存活writer对照分别记录sidecars新建和SHM头部恢复；不据合成结果反推原现场具体字节。
+- 私有驱动在线比较形成maintenance源码：DB/WAL全字节与身份、journal存在、SHM存在/大小；诊断SHA保留。
+- 主窗67/67、0失败/跳过（103.954秒）；含17项guard和Git新包3项适配器，另固定release3/3，原schema4不迁移。
+- 首跑新adapter误对系统硬链接PS调用plainPath，沿固定lifecycle入口模式修正；生产路径函数和固定47项runtime未改。
+- strictClosedPath/NativeLease/ACL/离线raw原样SHM保存及冻结原件全字节证明均保留，rawStable只表示在线policy。
+- ACL清单补144项含16旧owner的parent→child加固、全项恢复与readback；pending库存漂移不得盲退。
+- 新私有一次性现场入口/依赖锚尚待受审构建，不重用旧CLI/锁；草稿PR精确CI全绿后暂停审核，不合并部署。
+- 证据见SCHEMA6_SHM_REPRODUCTION_20261007、SCHEMA6_CUTOVER_EXECUTION_20261007与ACL_SEQUENCE_REVIEW。
+---
+## 2026-10-07 — 现场副本预检拒绝，按清单安全退回
+- 本人批准最终XML及管理员预检；合成临时文件SeRestore/外SID owner往返和readback通过，生产ACL未Apply。
+- 新预检回执owner归一只改该新文件；维护helper三处COM单值Count修复经PS5.1/空单双实例/全只读预检和独审。
+- 10:33旧任务冻结并停MCP；在线只读捕获前后仅SHM hash变化触发raw_input_changed_during_capture，DB/WAL hash不变。
+- 无before字节，不能认定为锁页/read mark，也没有忽略SHM或放宽固定生产门槛。
+- 10:34按已授权失败分支恢复旧任务定义/启用/原触发与重试及同字节旧MCP；Core原PID/schema4全程未停。
+- 整次52.423秒；停止意图至端口/任务恢复确认31.753秒，未连续HTTP采样，不冒充精确停机或新会话关机Gate。
+- 10:36独立核两任务四组XML语义/SDDL完全恢复、各一实例、三端口和MCP元数据HTTP200通过。
+- 未迁移/替换原库、未Apply ACL、未Prepare/注册新任务、无生产head；隧道/手机/PR10/47862配置未动。
+- 本次暂停；曾提出停机后快照设想，后由用户要求先证实SHM原因取代，未实现/执行。
+- 拒绝/退回回执留私有维护根；公开交接见SCHEMA6_CUTOVER_EXECUTION_20261007，真人四Gate未开始。
+---
+## 2026-10-07 — PR14获准合并与切换准备（现场尝试前快照）
+- 用户授权PR14合入v3-lab、合并提交重建及现场④–⑥；口令/U盘/XML/真人重启与客户端Gate由本人操作。
+- PR14实际合并1552e251c18c4554d425a0051ea7452e4904bb40，合并树与审核head aba12d60逐字相同；正式副本仅快进。
+- 合并后47项固定候选manifest 6ae8f970a08ee8f21f8c78ba8846273144101cbdd8d3a2cb0530d5a3daf6b1ff，库存/ACL核验通过。
+- 固定Core烟测23.095秒；同字节旧MCP真实请求/清停/独占/下次登录读回通过，完整关闭4.822459/4.804819秒。
+- 现役只读一致副本4→5预检exact72 replay/1 grant通过，原四件前后摘要一致、旧表digest保全；5→6隔离验证通过。
+- 准备新独立DPAPI两钥、空custody/control、未激活Core/MCP配置和六文件同字节MCP快照；未生成生产head。
+- 原Core state和i_memory输入ACL待切换前保全收紧；跨项目.i不改，独立身份快照未来原投影变化需显式刷新。
+- 合并提交6项CI全绿；本人T盘NTFS/口令绑定通过，116项九类加密镜像及T盘真实只读Core还原通过（44.098秒）。
+- 目前0停机，原库未迁移，任务/线上配置/手机未改；16项旧owner需可回退的管理员维护，最终XML/真人Gate待本人。
+- 现场执行状态见SCHEMA6_CUTOVER_EXECUTION_20261007；真人四Gate未完成，不宣称切换成功。
+---
 ## 2026-10-06 — PR14 CI私有端口结果竞态收尾
 - 同一分支/草稿PR14，未查询或操作现役/原库/任务/手机，不合主线不部署。
 - 保留0ddb PR事件Linux Bridge失败，activity wrongBinding的测试race误判无结果。
