@@ -12,15 +12,15 @@
 
 | 包 | 执行者与拥有路径 | 退出条件 | 当前状态 |
 |---|---|---|---|
-| P1-MCP | p1_mcp；tools/i_remote_mcp | i_remember → captures、scopes、聊天兼容；合成 API 与权限测试 | 审计/补缺中 |
-| P1-App | p1_app；lib、test 的捕获路径 | W3 改版/删除保护、W4 真实 API、Organizer、47862 单消费者；widget/逻辑测试 | 审计/补缺中 |
-| P1-Import | B 线主控；tools/i_core/import_personal_notes* | 默认 dry-run、旧 ID/revision/墓碑、planner skipped、幂等 | 已有实现待本次复验 |
-| P1-Handoff | B 线主控；本交接及独立上线清单 | 单上传器交接/退回方案与测试；每步授权和退回点 | 编写中 |
-| P2 | P1-App 收口后独立提交 | 今日/本周、状态 outbox、离线副本、拒绝提示和闹钟；widget/逻辑测试 | 待 P1 源码冻结 |
-| P3 | p3_planner；tools/life_planner | MCP 规划存储、capture 监视器；假 Codex 故障测试和上线手册 | 独立进行中 |
-| 集成 | B 线主控；CI 与各包交接 | 审查 diff、专项回归、精确 head 的 CI 全绿、草稿 PR | 待分包回收 |
+| P1-MCP | p1_mcp；tools/i_remote_mcp | i_remember → captures、scopes、聊天兼容；合成 API 与权限测试 | 100 项合成测试通过；受信网页授权 issuer 与正式 host 装配仍缺 |
+| P1-App | p1_app；lib、test 的捕获路径 | W3 改版/删除保护、W4 真实 API、Organizer、47862 单消费者；widget/逻辑测试 | 候选接线与撤销守卫完成；52/131/74 分组通过，启动/回滚返修 37 项通过，主控最终组合 65 项通过，15 文件分析无问题；生产入口/Gate 未完 |
+| P1-Import | B 线主控；tools/i_core/import_personal_notes* | 默认 dry-run、旧 ID/revision/墓碑、planner skipped、幂等 | 复用现有实现，相关 36 项合成测试通过 |
+| P1-Handoff | B 线主控；本交接及独立上线清单 | 单上传器交接/退回方案与测试；每步授权和退回点 | 独立清单已提交；上传器 32 项通过，未启用切换 |
+| P2 | P1-App 收口后独立提交 | 今日/本周、状态 outbox、离线副本、拒绝提示和闹钟；widget/逻辑测试 | 28 项专项通过；新增放弃冲突回退用例，最终组合覆盖；正式读写仍依赖显式 route 与 host |
+| P3 | p3_planner；tools/life_planner | MCP 规划存储、capture 监视器；假 Codex 故障测试和上线手册 | 默认禁用候选完成；主控最终 25 项通过，状态转授权与 dot bridge 仍缺，真实一天 Gate 未执行 |
+| 集成 | B 线主控；CI 与各包交接 | 审查 diff、专项回归、精确 head 的 CI 全绿、草稿 PR | 分包回收与独立复核完成；推送后记录最终 head CI。创建 PR 的 GitHub 连接器返回 403，隐藏网页入口超时，本机无 gh；交接预备 PR 正文，不冒称已创建 |
 
-P1 的提交与清单独立完整，P2/P3 不作为 P1 上线依赖。共享 Git 索引、CI 配置、全局文档由主控串行处理；worker 不提交，不继续派生。
+P1 的候选提交与清单独立交付，P2/P3 不作为 P1 上线依赖。当前 P1 尚未完整：正式 Core host、网页受信授权入口、手机授予及 route 迁移、47862 adoption/Gate 接线仍须关闭，详见 P1_RUNBOOK。共享 Git 索引、CI 配置、全局文档由主控串行处理；worker 不提交，不继续派生。
 
 ## 证据与边界
 

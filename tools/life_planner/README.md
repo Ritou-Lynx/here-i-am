@@ -1,185 +1,118 @@
-# 思源规划助手
+# i_core 规划助手
 
-> **存储方式已变更（2026-10-05）**：规划数据不再放思源数据库，**不要初始化思源规划库**。过渡期按[个人数据中枢规划](../../docs/development/PERSONAL_DATA_HUB_PLAN_20261005.md)的 WI 卡改用本机文件，最终按 W8 卡改用 i_core。本文的分诊、配额、队列、事件驱动规则不变。
-
-用户不画待办。想到什么就随手记一句，电脑上的 Codex 来判断这句话属于哪条主线、拆成几步、排在什么前后、哪天做。每天早上出一张今日单，之后有新任务、任务取消或时间变化，几分钟内重排。所有规划数据只有一个家：思源笔记里的"规划"数据库。日历、看板、流程图都是从这张表投影出来的视图。
-
-```
- 手机 Here I Am "记一下"（侧键双击）──► i_core ──► capture_sync ──┐
- dot 通话里"记一下" ──► inbox/*.md ─────────────────────────────────┤
- 思源里手打 ──► 规划收件箱 ──────────────────────────────────────────┤
-                                                    有新内容就唤起 ▼
-                      Codex 分诊、重排（本目录 AGENTS.md）
-                                     │
-                     思源"规划"数据库（唯一的家）
-              ┌──────────┬───────────┼────────────┐
-            日历视图   看板视图    全局地图     今日单 today.md
-           （思源）    （思源）  （Mermaid）       │
-                                                   ▼
-                                  dot 早上过单、晚上收工 ──► inbox/*.md
-```
-
-| 文件 | 给谁 | 作用 |
-|---|---|---|
-| `PLANNER_AGENTS.md` | Codex | 规划助手指令：分诊、出今日单、全局地图、周复盘。复制到规划目录后改名为 `AGENTS.md` |
-| `DOT_PLAN_RULES.md` | dot | 过单、记一下、收工的规则和回执格式 |
-| `areas.md` | Codex | 主线、作息、时间块、默认容量、每周配额。仓库里是模板，真实内容只放在本机 |
-
-## 时间不确定时怎么办
-
-用户每天能空出多少时间事先不知道，所以这套系统不排课表，而是：
-
-1. **按块量。** 深块 50 分钟、长块 90 分钟、语音块 10～15 分钟。所有事都折算成块。
-2. **按配额追进度。** 每条主线每周要几块（下限和目标）写在 `areas.md`。时间够就追目标，不够先保下限；下限都保不住时，规划助手不硬塞，而是请你拍板这周砍哪条。
-3. **今日单是队列。** 按"谁最该做"排好顺序，空出一块就做下一件。时间少了只做前面的，多了往下做，**不需要重排**。只有考试、面试这类真正定时的事才写钟点。
-4. **有事就反应。** 早上 dot 过单先问"今天有几块时间"；白天在手机上记一句"今晚加班""X 不做了""新加一件事"，电脑上的捕获同步程序几分钟内唤起 Codex 重排，今日单开头写明"这次改了什么"。
-5. **从实际里学。** 两周后用实际完成的块数代替默认容量；某条主线连续两周没到下限，会请你决定降配额、换做法还是暂停。欠账只滚一周，不会越滚越多。
-
-## 和其他工具的分工
-
-沿用 [学习系统交接](../../docs/development/handoffs/LEARNING_SYSTEM_AND_TOOLS_20261005.md) 定下的原则：每类数据只有一个家，AI 负责在工具之间搬运。
-
-- **规划和待办**：思源"规划"数据库。不放 Here I Am，Here I Am 继续只放生活事实（消费、睡眠等）。
-- **学习**：仍由 `tools/siyuan_tutor/` 那条线负责。规划助手管时间、学习导师管内容：规划助手每周写一份 `study-quota.md`（各科目本周要几块、什么类型），学习导师每天把每科的"下一块"准备好，规划助手从中挑今天做哪几块。规划助手只读学习目录的 `today.md` 和思源的 `学习记录`，不改学习目录，也不碰学习账本。
-- **招聘公告**：学习线的思源"招聘日历"数据库是公告的家。规划助手只读它，把要报的批次变成规划库里有截止的事项。
-- **流程图**：日常看思源里的 Mermaid 图（全局地图、今日路线），手机上也能看，而且是只读的，不会和数据库对不上。FlexNote 只在周复盘或卡住时用来画图梳理，改动不回流；想清楚的结论口头告诉 dot 或 Codex，再由它们写回数据库。
-- **提醒**：沿用学习线的结论，不靠通知，用 Tasker 模拟来电叫过单和收工。
-
-## 设置：交给 Codex 做
-
-前提和学习导师一样：思源开着，Codex 能连上思源 MCP。学习导师已经装好的话，MCP 配置和白名单不用再动。
-
-### 第一步：建规划目录
-
-在**本仓库目录**里启动 Codex，发：
+规划助手把“想到一句”变成可执行事项和按顺序的今日队列。结构化规划只有一个权威：i_core 的 `captures`、`plan_items`、`plan_weeks`、`plan_days`。思源、本机 `plan.json` 和 Markdown 文件不再保存权威副本。
 
 ```text
-帮我把思源规划助手装好，不碰思源里的任何笔记。
-
-1. 确认 %USERPROFILE%\.codex\config.toml 里的 [mcp_servers.siyuan] 已配置，令牌走环境变量。
-   没配置就停下，告诉我先按 tools/siyuan_tutor/README.md 配好。
-2. 新建 %USERPROFILE%\life-plan，以及其中的 inbox、inbox\done、logs 文件夹。
-3. 从本仓库 tools/life_planner/ 复制：PLANNER_AGENTS.md 改名为 AGENTS.md，
-   DOT_PLAN_RULES.md、areas.md 原名。目标已存在且内容不同，先给我看差异，不要覆盖。
-4. 最后告诉我：在 life-plan 目录里新开一个 Codex，说"初始化规划"。
+Here I Am / 受信入口
+          │
+          ▼
+  i_core captures feed ──► capture_sync.mjs ──► codex exec “刷新今日单”
+          │                                      │
+          └──────── scoped planner MCP ──────────┤
+                                                 ▼
+                         plan_items / plan_weeks / plan_days
+                                                 │
+                                     可重建 today.md 投影
 ```
 
-### 第二步：初始化
+`capture_sync.mjs` 只观察 feed、合批和唤起 Codex。它不保存捕获原文，不做分诊，也不写规划记录。Codex 按 `PLANNER_AGENTS.md` 使用 scoped planner MCP 完成分诊、写入和 `capture_ack`。
 
-在 `%USERPROFILE%\life-plan` 里新开 Codex（`AGENTS.md` 只在这个目录里生效），说"初始化规划"。它会先列出要建的笔记本、文档和数据库，并验证关联字段能不能用。
+## 文件
 
-然后把你的真实情况发给它：主线、作息、手头的事、各种期限。可以直接粘一段乱糟糟的清单。Codex 会先把 `areas.md` 填好给你看，再把事项整理成一张表，你确认后才写入。
+| 文件 | 作用 |
+|---|---|
+| `PLANNER_AGENTS.md` | Codex 的分诊、配额、队列、重排和 MCP 写入规则 |
+| `capture_sync.mjs` | captures feed 监视器，默认未启用 |
+| `capture_sync.test.mjs` | 假 Core 与假 Codex 进程的离线专项测试 |
+| `DOT_PLAN_RULES.md` | dot 过单、记事、收工的交互规则 |
+| `areas.md` | 首次建立 Core 周记录时使用的模板，不是权威存储 |
 
-### 第三步：试跑并设成每天自动
+`today.md`、`week.md`、`study-quota.md` 可以保留为面向现有消费者的投影。先写 Core，收到接受结果后再更新投影。投影丢失或过期时从 Core 重建，不能反向覆盖 Core。
 
-还在规划目录里，说"出今日单"，看结果没问题后，发：
+## 规划规则不变
 
-```text
-把"每天出今日单"设成 Windows 计划任务：
-1. 在 life-plan 里写一个 run-daily.cmd：用 codex 可执行文件的完整路径运行
-   codex exec --cd "%USERPROFILE%\life-plan" --full-auto "出今日单"
-   输出追加到 life-plan\logs\daily-日期.log。
-2. 先手动运行一次 run-daily.cmd，确认它不会卡在任何确认上、today.md 已更新。
-3. 用 schtasks 建一个每天 07:00、以我当前用户身份运行的任务（时间先问我）。
-   如果学习导师也有计划任务，确认它排在这个任务之前。
-4. 再写一个 run-refresh.cmd，和上面一样，只是提示词换成"刷新今日单"。
-   捕获同步程序（见下文）装好之前，先建两个每天 12:30 和 18:30 运行它的任务兜底；
-   收件箱没新内容时它什么都不写。
-5. 把任务名和怎么删除它们告诉我。
+- 深块、长块、语音块和零碎四种块型。
+- 先保本周下限，再按“缺口 × 优先级权重”追目标。
+- 今日单是队列，不是课表；按容量八成排，余下放“有余力再做”。
+- 欠账只滚一周；连续两周未达下限交给用户决定。
+- 新主线、超过 12 块的新目的、容量不足和明显冲突进入待拍板。
+- 作息是硬约束，关灯时间不被任务挤占。
+
+字段、完整创建要求、冲突处理和 capture disposition 顺序见 `PLANNER_AGENTS.md`。工具接口由 `tools/i_remote_mcp/domain_tools.mjs` 与 `planner_server.mjs` 提供。
+
+## 监视器行为
+
+- 每 60 秒读取一次 `/v1/core/domains/captures/changes`。
+- 首次运行或 cursor 失效时读取一致性 snapshot；逐页校验 page digest、最终 collection digest 和 principal / policy / snapshot binding，禁止把不同 snapshot 的分页混用。cursor、待处理 ID、重试状态持久化在规划目录中。
+- 第一条 pending capture 到达后等待 3 分钟合批。
+- 同一实例的 tick 串行；CLI 另用独占锁阻止两个监视器共用同一 state。锁中登记正在运行的 Codex PID；旧监视器异常退出而子进程仍在时，新实例拒绝接管。两次成功唤起至少间隔 10 分钟。
+- cursor 要求 resync 时，新 snapshot 不可见的旧 pending ID 仍保留，只有明确终态记录或经验证的 tombstone 才能移除。principal、credential generation、installation 或 view policy binding 变化时进入 `rebind_required`，不继续唤起或 ack，由部署者核对新绑定后显式重建 state。
+- 23:30–07:00 按 `Asia/Shanghai` 计算，只积累 cursor 和待处理项，不唤起 Codex，不受宿主时区影响。
+- Codex 通过 `shell: false` 启动，必须在配置中提供可直接 spawn 的绝对可执行文件路径；Windows `.cmd` / `.bat` shim 不被接受。生产运行当前只支持 Windows。执行超时或收到中断时用 `taskkill /T /F` 回收整个子进程树；只有 `taskkill` 明确退出 0 才解除子进程锁。非零退出、启动错误或超时会持久进入 `codex_tree_reap_unverified`，阻止本实例继续唤起和新实例接管，等待部署者人工核对进程树。
+- Codex 成功退出后逐条确认当前可见 record 的 planner disposition 已对当前 text revision 终态化，或 Core 明确返回有效 410 tombstone，才 ack feed cursor。401 / 403 / 404 不视为删除。进程失败、验证失败、网络失败或 ack 失败使用 2 秒起、上限 5 分钟、带抖动的持久重试。
+- JSONL 日志只记时间、数量、阶段、退出码和固定 allowlist 中的错误码，未知 Core 错误码统一写为 `unspecified_error`；不记录捕获原文、记录 ID 或令牌。
+
+监视器只接受 loopback Core URL，令牌只从环境变量读取。配置文件、state 和日志都不得保存令牌。
+
+## 离线验证
+
+在仓库根目录运行：
+
+```powershell
+D:\Nodejs\node.exe --check tools/life_planner/capture_sync.mjs
+D:\Nodejs\node.exe --test tools/life_planner/capture_sync.test.mjs
 ```
 
-任务运行时电脑和思源都要开着。
+测试启动临时假 Core、真正的子进程形式假 Codex，以及内存中的真实 `DomainStore + domain_http` 合成服务。覆盖一致性 snapshot / cursor / binding / digest、3 分钟合批、disposition 复核与 feed ack、不可见记录不冒充删除、失败后跨重启重试、锁与并发、Windows `taskkill` 成功及非零退出/启动错误/超时、持久回收阻断、静默时段和日志净化。非 Windows 环境只用于协议和直接子进程的合成测试，不是生产支持声明。测试不读取真实配置、数据或凭据。
 
-### 只能你自己做的
+## 上线手册（本源码包不执行）
 
-- **思源视图**：给"规划"数据库加三个视图：日历（按"计划日期"）、看板（按"状态"分组）、表格（按"主线"分组）。MCP 不能建视图。
-- **手机一键捕获**：Here I Am "记一下"（开发中）；在那之前用 Tasker 过渡，见下文。
-- **dot**：设置指令和 Custom rules，见下文。
+以下步骤必须由部署负责人在 W2/W3 已上线、用户已批准启用后手工执行。本仓库不会创建 Codex 任务、注册 Windows 后台任务或启动生产监视器。
 
-## 手机一键捕获
+1. 在 scoped planner MCP 侧准备规划凭据。规划助手按需拥有 `captures:read`、`captures:ack`，以及 `plan_items`、`plan_weeks`、`plan_days` 的 read/create/patch；只有可信用户入口需要的流程才额外给 `plan_items:status`。不授予聊天或其他生活领域。
+2. 为监视器单独准备仅含 `captures:read`、`captures:ack` 的 scoped token，放入部署者选择的环境变量。不要把值写进 JSON、命令行、日志或仓库。
+3. 建立规划目录并复制 `PLANNER_AGENTS.md` 为其中的 `AGENTS.md`。如保留 dot 和学习导师，只复制它们需要的投影规则；不要迁入旧 `plan.json` 充当权威。
+4. 创建不含秘密的配置文件，初始保持禁用：
 
-dot 目前没法用快捷方式直接唤醒，所以捕获不依赖 dot。
-
-### 正式方案：Here I Am "记一下"（开发中）
-
-三星侧键双击打开 Here I Am 的"记一下"入口，一打开就开始本机语音识别，说完点发送。这句话经 i_core 到电脑，`capture_sync.mjs` 把它写进 `inbox/capture-*.md`，并在几分钟内唤起 Codex 重排。不经过思源手机端，所以没有思源启动同步慢的问题。设计和进度见 [Here I Am 快速捕获设计](../../docs/development/QUICK_CAPTURE_DESIGN_20261005.md)。
-
-### 过渡方案：Tasker → 思源手机端
-
-正式方案做好之前可以先用这个。缺点是思源手机端同步慢：记下的内容要等思源同步到电脑，才会被分诊。
-
-做法是用 Tasker 调手机的语音识别，把这句话直接写进**手机上的思源**，一句话建一篇子文档，再靠同步回到电脑。手机离线也能记。每次都新建文档、不改已有文档，所以不会产生同步冲突。
-
-### 准备
-
-- 思源手机端：设置 → 关于，复制 **API token**（手机的令牌和电脑的不一定一样）。
-- 规划笔记本的 ID：初始化时 Codex 会告诉你。
-- Tasker 里建两个全局变量：`%SIYUAN_TOKEN`（令牌）、`%PLAN_NOTEBOOK`（笔记本 ID）。
-
-### Tasker 任务"记一下"
-
-1. **Get Voice**：Prompt 填"记一下"，语言选中文，Timeout 20 秒。
-2. **If** `%VOICE` 未设置 → **Flash**"没听到" → **Stop**。
-3. **JavaScriptlet**：
-
-   ```js
-   var d = new Date();
-   function p(n) { return (n < 10 ? '0' : '') + n; }
-   var title = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-     + ' ' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
-   var body = JSON.stringify({
-     notebook: global('PLAN_NOTEBOOK'),
-     path: '/规划收件箱/' + title,
-     markdown: global('VOICE')
-   });
+   ```json
+   {
+     "enabled": false,
+     "core_url": "https://127.0.0.1:PORT/",
+     "core_instance_id": "OWNER_APPROVED_CORE_ID",
+     "token_env": "I_CORE_CAPTURE_MONITOR_TOKEN",
+     "plan_dir": "C:\\Users\\OWNER\\life-plan",
+     "codex_timeout_ms": 900000,
+     "codex_kill_grace_ms": 5000,
+     "codex": {
+       "executable": "C:\\absolute\\path\\to\\codex.exe",
+       "model": "DEPLOYMENT_APPROVED_MODEL",
+       "args": ["exec", "--model", "DEPLOYMENT_APPROVED_MODEL", "--cd", "C:\\Users\\OWNER\\life-plan", "--full-auto", "刷新今日单"]
+     }
+   }
    ```
 
-4. **HTTP Request**：Method POST，URL `http://127.0.0.1:6806/api/filetree/createDocWithMd`，Headers 两行：`Authorization:Token %SIYUAN_TOKEN`、`Content-Type:application/json`，Body `%body`，Timeout 10 秒。
-5. **If** `%http_data` 包含 `"code":0` → **Flash**"记了：%VOICE"。
-   **Else** → **Set Clipboard** `%VOICE` → **Flash**"没写进思源，已复制" → **Launch App** 思源，进收件箱手动粘贴。
+   `executable` 必须是绝对路径且能在 `shell: false` 下直接启动。`args` 在 `--` 终止符之前必须恰好有一个 `-m` / `--model` 选项，且值与 `model` 完全一致；重复、冲突、缺值或只在 `--` 后出现都会拒绝启动。模型及 reasoning effort 由部署时当前有效的模型路由规则决定，监视器不提供隐式默认。如当前 CLI 需要显式 effort 参数，同样由部署者按已安装版本的语法加入 `args`。
 
-触发方式任选：桌面上放一个这个任务的快捷图标，或者在 Tasker 设置里把它放进下拉快捷开关（Quick Settings tile）。
+5. 先用合成 Core 或隔离副本运行 `--once`。核对：不会写捕获原文；Codex 退出成功但 capture disposition 仍 pending 时不会 ack；同一 cursor 重启后可继续；23:30–07:00 不启动进程。
+6. 由 W2 的审定导入脚本迁移 WI 数据。默认 dry-run；核对 ID、字段、引用、周记录和日记录后另行授权正式导入。本规划助手不扫描或导入真实 WI 文件。
+7. 只读检查 scoped planner MCP 的 `plan_list`、`week_get`、`day_get`。任一领域为 off/frozen、schema_not_ready 或 scope_forbidden 时停止，不回退到思源或本机文件权威。
+8. 用户批准生产启用后，把配置中的 `enabled` 改为 `true`，先人工前台运行一天。确认合批、限频、静默、失败重试、今日 `plan_days` 和 `today.md` 投影一致。
+9. 一天实跑通过并再次批准后，才按受控部署规范注册登录自启。记录任务名、配置路径、停用和删除步骤；不得由源码安装过程自动注册。
 
-### 待验证
+示例启动命令：
 
-- 思源手机端的内核是否在 `127.0.0.1:6806` 上接受其他应用的请求，以及思源退到后台、被系统清掉之后还能不能连上。连不上的话，在第 1 步前加 **Launch App** 思源、**Go Home**、**Wait** 3 秒再试。
-- Get Voice 依赖系统语音识别服务（通常是 Google）。手机上没有的话，把第 1 步换成 **Get Input**（文本输入框），点输入法的语音键说话，比直接说多点一下。
-- 返回内容的格式以思源实际返回为准；第 5 步的判断条件按实际返回调整。
-
-## dot
-
-### 设置指令
-
-dot 原来只按日语导师设置过。现在要让它同时管学习和规划，在 dot 对话里重新发一次下面这段（学习部分的意思不变，只是加了分流）：
-
-```text
-你同时是我的学习导师和规划助手。规则都在我电脑上的文件里，以文件为准，每次都重新读，不要用记忆里的旧版本：
-- 学习（我说"学习""开始练"，或学习时间来电）：读 %USERPROFILE%\siyuan-study\TUTOR_RULES.md 和 today.md，严格照做。
-- 规划（我说"过一下今天""记一下""收工"，或早上、晚上来电）：读 %USERPROFILE%\life-plan\DOT_PLAN_RULES.md 和 today.md，严格照做。
-共同规则：
-1. 计划由电脑上的另一个程序生成，你只执行和记录，不自己编计划，也不改计划文件。
-2. 学习结果只写到 siyuan-study\inbox\，规划回执只写到 life-plan\inbox\，都新建文件。
-3. 不修改、不移动、不删除电脑上的任何其他文件。
-4. 不替我给任何人发消息，不登录、不购买任何东西。
-读完后用两句话告诉我：你理解的分流方式，以及今天的今日单第一行。
+```powershell
+D:\Nodejs\node.exe tools/life_planner/capture_sync.mjs --config C:\path\capture-sync.json
 ```
 
-### Custom rules
-
-在学习导师已加的规则之外，再加两条（设置 → Personalization → Permissions → Custom rules → Add）：
-
-| 动作 | 处理方式 |
-|---|---|
-| 读取 life-plan 文件夹里的文件 | Take action without asking |
-| 在 life-plan\inbox 里新建规划回执文件 | Take action without asking |
-
-### 来电
-
-早上过单、晚上收工都靠 Tasker 模拟来电打开 dot 对话（和学习线共用一套方案，配置步骤待补）。建议时间：起床后（07:30）一次，收工时（22:45）一次。
+加 `--once` 只执行一轮，适合人工点验；本轮进入 retry / backoff / rebind_required / reap_required 时返回非零退出码。
 
 ## 已知限制
 
-- 分诊和出今日单都在电脑上，需要电脑和思源开着。今日单没生成的那天，dot 只做"记一下"和"收工"。
-- 规划库的关联字段（上级、前置、替代为）能否指向本库、能否经 MCP 写，没有实测过；初始化时会先验证，不行就退回文本字段。
-- 单元格写法按思源数据库通用格式编写，第一次写入会先核对一格，以思源返回为准。
-- FlexNote 的 MCP 只在本机，只能操作当前打开的空间，改动不回流，所以它不存任何规划数据。
+陈旧锁若仍登记 `child_pid`，即使该直接进程已退出也不会自动接管，因为这不能证明后代进程退出。须按受控流程核对后再处理；不要把删除锁文件当作正常重试。
+
+- 捕获表达“完成/放弃”时，`plan_set_status` 需要受信入口签发的 `authorization_ref`。当前 `capture_list` 不返回可转交引用；在共享接口补齐前，规划助手只能把该动作写进 `plan_days.pending_decisions`，不能伪造授权或静默改状态。
+- `today.md` 仍是 dot 的兼容投影。dot 回执若继续写本机 `inbox/`，必须由另一个受信桥接层先提交为 Core capture；本规划助手不会把本机文件直接提升为权威输入。
+- 锁恢复 guard 若因监视器在恢复中再次异常退出而残留，新实例会保守拒绝启动。部署者必须先核对监视器与记录的 Codex 子进程均不在，再按受控运维步骤处理 guard；源码不自动删除无法证明安全的 guard。
+- `codex_tree_reap_unverified` 同时保存在 state 和实例锁中。部署者必须用 Windows 进程工具核对记录的 Codex PID 及其后代均已退出，再按受控运维步骤归档阻断锁并显式重建监视器 state；不能只因父 PID 已消失就自动恢复。Unix/macOS 上的直接子进程终止仅供合成测试，不能作为生产进程树回收保证。
+- P3 依赖 W2/W3 已提供的领域与 scoped planner MCP。P1 的上线、运行和验收不依赖本目录，也不应因 P3 未启用而改变。
