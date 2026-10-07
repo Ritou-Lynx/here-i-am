@@ -71,6 +71,25 @@ Future<void> runCrashProcess(File file, String point, String mode,
   final stderrDone =
       process.stderr.transform(utf8.decoder).forEach(output.write);
   await withCrashCleanup(() async {
+    if (mode == 'fixture_no_handshake' || mode == 'fixture_slow_no_handshake') {
+      // Start the missing-stdout clock only after a real SQLite writer exists.
+      // This independent evidence must never provide cleanup's stdout identity.
+      final started = File('${file.path}.started.ready');
+      final elapsed = Stopwatch()..start();
+      while (
+          !started.existsSync() && !exited && elapsed.elapsed < readyTimeout) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+      if (exited || !started.existsSync() || elapsed.elapsed >= readyTimeout) {
+        fail('Crash fixture did not publish startup readiness for $point: '
+            '$output');
+      }
+      final evidence = started.readAsStringSync();
+      final startedPid = int.tryParse(evidence);
+      expect(startedPid, greaterThan(0), reason: 'Positive startup writer PID');
+      expect(evidence, '$startedPid',
+          reason: 'Complete atomic startup identity receipt');
+    }
     final actualWriter = await writer.future.timeout(handshakeTimeout);
     expect(actualWriter, greaterThan(0));
     final ready = File('${file.path}.ready');
@@ -1650,36 +1669,74 @@ void main() {
                 contains('secondary-cleanup-failure')))));
   });
 
-  test('crash fixture no stdout handshake still terminates the whole tree',
+  for (final slowStartup in [false, true]) {
+    test(
+        slowStartup
+            ? 'crash fixture slow startup precedes missing stdout handshake timeout'
+            : 'crash fixture no stdout handshake still terminates the whole tree',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('w7-crash-startup-');
+      await withCrashCleanup(() async {
+        final file = File('${directory.path}/startup.sqlite');
+        var terminationObserved = false;
+        String? receipt;
+        await expectLater(
+            runCrashProcess(
+                file,
+                'startup',
+                slowStartup
+                    ? 'fixture_slow_no_handshake'
+                    : 'fixture_no_handshake',
+                handshakeTimeout: slowStartup
+                    ? const Duration(milliseconds: 100)
+                    : const Duration(seconds: 5),
+                onTerminated: (writer, evidence) {
+              expect(writer, isNull, reason: 'No stdout identity was received');
+              terminationObserved = true;
+              receipt = evidence;
+            }),
+            throwsA(isA<TimeoutException>()));
+        expect(terminationObserved, true);
+        // Independent evidence proves a real SQLite writer had started, without
+        // providing stdout identity to the cleanup path under test.
+        final actualWriter =
+            int.parse(File('${file.path}.started.ready').readAsStringSync());
+        if (Platform.isWindows) {
+          expect(receipt, contains('$actualWriter'),
+              reason: 'No-handshake tree receipt includes the actual VM');
+        }
+        final reopened = CrashDatabase(file);
+        await withCrashCleanup(() async {
+          expect(await reopened.customSelect('SELECT 1').get(), hasLength(1));
+        }, reopened.close);
+      }, () => deleteCrashFixture(directory));
+      expect(directory.existsSync(), false);
+    });
+  }
+
+  test(
+      'crash fixture startup timeout remains a readiness failure and cleans up',
       () async {
     final directory =
-        await Directory.systemTemp.createTemp('w7-crash-startup-');
+        await Directory.systemTemp.createTemp('w7-crash-startup-timeout-');
     await withCrashCleanup(() async {
       final file = File('${directory.path}/startup.sqlite');
       var terminationObserved = false;
-      String? receipt;
       await expectLater(
-          runCrashProcess(file, 'startup', 'fixture_no_handshake',
+          runCrashProcess(file, 'startup', 'fixture_slow_no_handshake',
+              readyTimeout: const Duration(milliseconds: 1),
               handshakeTimeout: const Duration(seconds: 5),
               onTerminated: (writer, evidence) {
             expect(writer, isNull, reason: 'No stdout identity was received');
+            if (Platform.isWindows) expect(evidence, isNotEmpty);
             terminationObserved = true;
-            receipt = evidence;
           }),
-          throwsA(isA<TimeoutException>()));
+          throwsA(isA<TestFailure>().having(
+              (error) => error.message,
+              'startup failure is not the expected handshake timeout',
+              contains('Crash fixture did not publish startup readiness'))));
       expect(terminationObserved, true);
-      // Independent evidence proves a real SQLite writer had started, without
-      // providing stdout identity to the cleanup path under test.
-      final actualWriter =
-          int.parse(File('${file.path}.started.ready').readAsStringSync());
-      if (Platform.isWindows) {
-        expect(receipt, contains('$actualWriter'),
-            reason: 'No-handshake tree receipt includes the actual VM');
-      }
-      final reopened = CrashDatabase(file);
-      await withCrashCleanup(() async {
-        expect(await reopened.customSelect('SELECT 1').get(), hasLength(1));
-      }, reopened.close);
     }, () => deleteCrashFixture(directory));
     expect(directory.existsSync(), false);
   });

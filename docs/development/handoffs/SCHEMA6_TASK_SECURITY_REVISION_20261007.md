@@ -72,3 +72,15 @@ approval包明确productionApproved=false/registrationAllowed=false、fixedPrepa
 可复核诊断源为 tools/i_core/test_fixtures/release_schema6/probe_control_path_churn.mjs（默认1000、上限5000，手动运行，不把调度相关的异常数量当CI通过断言）。主窗复跑4000次/组：unlink-recreate 113、unlink-rename 110个controlFailures；publish-only/stable-read均0，各writer错误0、预算均未超时。匿名原始报告保留在忽略的build/ci/control-path-churn-review.json，SHA256 e24d71a3556a6a38404f9b825c488b2f850df739c445a07d9d52ef7549759766。前表worker首轮报告只在工具输出，无落盘原件，不以此新文件冒充旧证据。计数不同是调度差异，两轮都只在live删除交错产生非忽略异常。
 
 修正后的原125秒用例主窗聚焦实跑1/1通过、0未执行、真实退出0；continuous_loopback_ms=125013，总216589ms，完整认证关闭与重启断言通过，Job-empty后合成根已清理。最终全套CI以随后推送head的PR18 Checks为准，当前不提前登记全绿。
+
+## Flutter 旧崩溃夹具的启动同步修正
+
+精确head11998dde的PR CI37590005414，Linux full job112688959015失败于domain_sync_test.dart:1674读取不存在的startup.sqlite.started.ready；随后诊断writer=null/exit=-9/output=closed。其余2851通过、20个既有跳过；同head push Linux full通过。父端确实执行了预期timeout和终止，但测试未先确认SQLite writer已启动；实际冷启动耗时未被旧日志记录，不虚构具体耗时。
+
+生产App、Core、MCP和维护入口字节均未因此改变。仅两份测试源码修正：no-handshake模式先在原30秒readyTimeout内等原子started receipt并校验完整正PID，进程退出/超时/缺证据明确TestFailure；不赋writerPid、不complete stdout身份。随后才开始原有5秒缺stdout握手计时，认证身份及whole-tree终止、逐PID退出、独立writer证据、SQLite重开/清理断言均保留。没有延长生产超时或把启动失败当预期握手失败。
+
+新增slow fixture在SQLite打开前延迟250ms，以100ms握手期限验证启动等待与缺握手期限分离；另用1ms启动预算证明启动缺证据必须TestFailure且仍清理。原用例名称和5秒期限不变。独审建议的等待后exited显式拒绝也已补入。
+
+主窗两整文件实跑81/81通过、0未执行、退出0；新增exited检查后，主窗全部6项crash fixture专项通过、0未执行、退出0；两测试源dart analyze为No issues found、退出0。分析首次被用户AppData旧perf目录errno1920阻断，改用当前进程专属忽略目录LOCALAPPDATA后成功，没有更改全局环境或用户缓存。原始复验日志均在忽略的build/ci目录，最终CI回执登记在PR18 Validation。首次锁定依赖准备因用户Pub缓存junction入口active_roots报errno2；用同缓存真实目录仅当前进程PUB_CACHE离线准备成功，pubspec.lock未变；没有升级依赖、改全局环境或安装App。生成的三个Windows plugin文件只发生换行/时间戳扰动，提交前按Git内容一致性核对后恢复本测试自己产生的改动。
+
+本轮全部CI必须以最后测试修正提交为准，旧绿不代替；runtime47项与新维护源码快照22项在最终head逐字复核，既有XML/SDDL及candidate manifest不变。进场仍须最终完整工件批准和新PR合并授权，A未冻结，B继续PR19。
