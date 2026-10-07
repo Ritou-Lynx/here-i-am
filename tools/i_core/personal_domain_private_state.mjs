@@ -29,11 +29,14 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 
 const DPAPI_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Security
+$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
+$PSModuleAutoloadingPreference = 'None'
+[void][System.Reflection.Assembly]::LoadWithPartialName('System.Security')
 $inputStream = [Console]::OpenStandardInput()
-$memory = New-Object System.IO.MemoryStream
+$memory = [System.IO.MemoryStream]::new()
 $inputStream.CopyTo($memory)
 $inputBytes = $memory.ToArray()
+$memory.Dispose()
 $entropy = [Convert]::FromBase64String($env:I_CORE_PERSONAL_STATE_ENTROPY)
 if ($env:I_CORE_PERSONAL_STATE_OPERATION -eq 'protect') {
   $outputBytes = [System.Security.Cryptography.ProtectedData]::Protect(
@@ -52,6 +55,16 @@ $output.Flush()
 function defaultPowerShell(environment) {
   const root = environment.SystemRoot || environment.SYSTEMROOT;
   return root ? join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : null;
+}
+
+function childEnvironment(environment, extra) {
+  const clean = Object.fromEntries(Object.entries(environment)
+    .filter(([key]) => key.toLocaleUpperCase('en-US') !== 'PSMODULEPATH'));
+  const root = clean.SystemRoot || clean.SYSTEMROOT;
+  if (!root) fail('personal_domain_private_state_unavailable');
+  return { ...clean,
+    PSModulePath: join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'Modules'),
+    ...extra };
 }
 
 function writeDurableTemporary(filePath, bytes) {
@@ -98,8 +111,8 @@ export function createWindowsDpapiPersonalDomainStateAdapter({
     const result = spawnProvider(powershellPath, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
       Buffer.from(DPAPI_SCRIPT, 'utf16le').toString('base64')], {
       input,
-      env: { ...environment, I_CORE_PERSONAL_STATE_OPERATION: operation,
-        I_CORE_PERSONAL_STATE_ENTROPY: entropy.toString('base64') },
+      env: childEnvironment(environment, { I_CORE_PERSONAL_STATE_OPERATION: operation,
+        I_CORE_PERSONAL_STATE_ENTROPY: entropy.toString('base64') }),
       windowsHide: true,
       timeout: 15_000,
       maxBuffer: 4 * 1024 * 1024,

@@ -48,11 +48,13 @@ test('real Windows CurrentUser DPAPI round trips owner state without plaintext o
   skip: process.platform !== 'win32',
 }, t => {
   const root = directory(t, 'personal-domain-real-dpapi-'), statePath = path.join(root, 'owner.dpapi.json');
-  const adapter = createWindowsDpapiPersonalDomainStateAdapter({ statePath, coreInstanceId: 'core-dpapi-real' });
+  const environment = { ...process.env, PSModulePath: path.join(root, 'poisoned-modules') };
+  const adapter = createWindowsDpapiPersonalDomainStateAdapter({ statePath, coreInstanceId: 'core-dpapi-real',
+    environment });
   const state = { version: 1, phone_grants: [{ principal_id: 'phone', secret: 'PRIVATE-REAL-DPAPI' }],
     adoption_manifests: [] };
   adapter.save(state);
   assert.deepEqual(createWindowsDpapiPersonalDomainStateAdapter({ statePath,
-    coreInstanceId: 'core-dpapi-real' }).load(), state);
+    coreInstanceId: 'core-dpapi-real', environment }).load(), state);
   assert.equal(readFileSync(statePath, 'utf8').includes('PRIVATE-REAL-DPAPI'), false);
 });

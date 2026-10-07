@@ -67,12 +67,14 @@ function readOwnerJson(filePath) {
 
 const ACL_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
+$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
+$PSModuleAutoloadingPreference = 'None'
 $path = $env:I_CORE_OWNER_PROTECTED_PATH
 $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
-$acl = New-Object System.Security.AccessControl.DirectorySecurity
+$acl = [System.Security.AccessControl.DirectorySecurity]::new()
 $acl.SetOwner($identity)
 $acl.SetAccessRuleProtection($true, $false)
-$rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+$rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
   $identity,
   [System.Security.AccessControl.FileSystemRights]::FullControl,
   [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit',
@@ -87,11 +89,21 @@ function defaultPowerShell(environment) {
   return root ? join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : null;
 }
 
+function childEnvironment(environment, extra) {
+  const clean = Object.fromEntries(Object.entries(environment)
+    .filter(([key]) => key.toLocaleUpperCase('en-US') !== 'PSMODULEPATH'));
+  const root = clean.SystemRoot || clean.SYSTEMROOT;
+  if (!root) fail('protected_owner_output_unavailable');
+  return { ...clean,
+    PSModulePath: join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'Modules'),
+    ...extra };
+}
+
 function protectDirectory(directoryPath, { platform, environment, powershellPath, spawnProvider }) {
   if (platform !== 'win32' || !powershellPath || !existsSync(powershellPath)) fail('protected_owner_output_unavailable');
   const result = spawnProvider(powershellPath, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
     Buffer.from(ACL_SCRIPT, 'utf16le').toString('base64')], {
-    env: { ...environment, I_CORE_OWNER_PROTECTED_PATH: directoryPath }, windowsHide: true,
+    env: childEnvironment(environment, { I_CORE_OWNER_PROTECTED_PATH: directoryPath }), windowsHide: true,
     timeout: 15_000, maxBuffer: 1024 * 1024, encoding: null,
   });
   if (result.error || result.status !== 0) fail('protected_owner_output_unavailable');

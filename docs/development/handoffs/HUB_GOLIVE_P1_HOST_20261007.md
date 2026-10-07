@@ -27,6 +27,9 @@ Implemented source:
 - `tools/i_core/personal_domain_private_state.mjs`
   - Windows CurrentUser DPAPI private-state adapter with Core/path-bound entropy
   - fail-closed lifetime lock shared by the server and owner CLI
+  - bounded Windows PowerShell children remove inherited `PSModulePath`, use only
+    `$PSHOME\Modules`, disable module autoload, and invoke .NET types directly;
+    no module-discovery or plaintext fallback is used
 - `tools/i_core/personal_domain_runtime.mjs`
   - strict explicit configuration loader and real host/owner/Web-verifier assembly
 - `tools/i_core/personal_domain_server.mjs`
@@ -247,6 +250,11 @@ missing and stale anchor downgrade, same-state concurrent runtime rejection,
 lock release on close, real Windows DPAPI round trip, a schema-6 formal-entry
 startup through the default DPAPI factory, protected output, and a no-overwrite
 publish race.
+
+The real Windows DPAPI round trip and CurrentUser-only owner export also pass
+with a deliberately poisoned parent `PSModulePath`. Both child processes retain
+the 15-second timeout and return only stable failure codes; secrets are not
+included in child-process diagnostics.
 
 Coverage includes default-disabled/schema-5 fail-closed behavior, mixed-mode reopen, durable frozen mismatch, real schema-6 HTTP phone create, rotation and revocation, default Web denial, injected real Ed25519 Web approval, rejected async verifier containment, principal collision, preserved historical Web origin, phone-owner operation refetch, full-record manifest binding, forged/non-adoption receipt rejection, post-adoption edit rejection, stale generation, fixed cross-language HMAC vector, old no-projection request digest compatibility, and lost-response reopen replay.
 

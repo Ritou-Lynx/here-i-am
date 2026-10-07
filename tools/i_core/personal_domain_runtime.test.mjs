@@ -188,9 +188,11 @@ test('owner export uses a CurrentUser-only staging directory and rejects overwri
   const root = mkdtempSync(path.join(tmpdir(), 'personal-owner-output-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const output = path.join(root, 'access.json'), payload = { secret: 'SYNTHETIC-TRANSFER-SECRET' };
-  writeProtectedOwnerJson(output, payload);
+  const environment = { ...process.env, PSModulePath: path.join(root, 'poisoned-modules') };
+  writeProtectedOwnerJson(output, payload, { environment });
   assert.deepEqual(JSON.parse(readFileSync(output)), payload);
-  assert.throws(() => writeProtectedOwnerJson(output, payload), { code: 'protected_owner_output_rejected' });
+  assert.throws(() => writeProtectedOwnerJson(output, payload, { environment }),
+    { code: 'protected_owner_output_rejected' });
 });
 
 test('formal runtime binds real chat-message authorization and downgrades a missing anchor', async t => {
