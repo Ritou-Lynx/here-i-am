@@ -189,12 +189,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Personal domain protected owner state and formal host
-        shell: powershell
-        run: node --test tools/i_core/personal_domain_private_state.test.mjs tools/i_core/personal_domain_runtime.test.mjs tools/i_core/web_user_message_authorization.test.mjs
       - name: Fixed runtime, recovery and backup suites
         shell: powershell
         run: ./tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1
+      - name: Personal domain protected owner state and formal host
+        shell: powershell
+        run: node --test tools/i_core/personal_domain_private_state.test.mjs tools/i_core/personal_domain_runtime.test.mjs tools/i_core/web_user_message_authorization.test.mjs
       - if: always()
         uses: actions/upload-artifact@v4
         with:
