@@ -1,5 +1,11 @@
 # 林埃的项目状态
 
+## 开发协作：Agent Relay 经 GitHub PR 自动接力（2026-10-07）
+
+用户只能用 Claude 网页端，要求 Claude 负责指令与规划、Codex 负责执行。方案不自建工作台、不复活 dev_agent_bridge，以 GitHub PR 为交接通道：claude.ai/code 会话写合同、开 draft PR、发 `relay:to-codex` 评论并订阅 PR；用户电脑上的 watcher 每 3 分钟查一次，在 PR 专用 worktree 运行 `codex exec`，推送（不 force）后回帖 `relay:to-claude` 唤醒 Claude 审阅。最多 4 轮，不合并、不构建安装、不碰真实数据；仓库公开，PR 内容不含私人资料。
+
+已交付文档：`tools/agent_relay/`（PROTOCOL、BUILD_BRIEF、CODEX_ROUND_PROMPT、README）与 `.claude/skills/agent-relay/SKILL.md`。watcher 源码、标签、本机计划任务与真实冒烟待 Codex 执行；纯文档，未构建。
+
 ## 学习系统：思源为知识库与学习账本，dot 语音带练（2026-10-04）
 
 用户认定不追求 all-in-one：思源（3.8.6，已购第三方同步）作知识本体和学习账本；FlexNote 只用于需要可视化理解的主题，不全量搬入思源内容，教综线保持现状；ChatGPT dot（用户为 Pro）作语音带练前端，用户期待官方后续支持 dot 主动来电，过渡期用 Tasker 模拟来电。Here I Am 自制语音不用于学习；学习单不经 i_core。

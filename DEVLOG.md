@@ -1,3 +1,11 @@
+## 2026-10-07 — Agent Relay：Claude 云端规划审阅 × Codex 本机执行
+
+**决定**：Claude 仅能用网页端，故不建工作台前端、不以 Slack 为总线；以 GitHub PR 评论为交接通道，Claude 云端会话订阅 PR 被唤醒，本机 watcher 轮询指令并调用 `codex exec`。
+**交付**：`tools/agent_relay/` 协议（标签、评论标记、4 轮上限、公开边界）、watcher 实现规格与 12 项测试清单、每轮 Codex 提示词模板、README（预期效果与交给 Codex 的安装提示词）；`.claude/skills/agent-relay/SKILL.md` 为云端 Claude 操作手册。
+**未完**：watcher 由 Codex 按 BUILD_BRIEF 实现并本机安装；标签创建、计划任务与真实冒烟待执行。纯文档，未构建。
+
+---
+
 ## 2026-10-04 — 思源学习导师首次实测修订
 
 **实测**：dot 已连电脑、读对学习单、写入 inbox；首次通话除语速外顺畅，语速调慢后一两分钟内回弹。
