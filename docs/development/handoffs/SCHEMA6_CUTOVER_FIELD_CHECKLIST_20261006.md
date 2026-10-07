@@ -1,3 +1,9 @@
+## 2026-10-07 r02本轮实录：已授权，冻结前因系统映像Pin停止
+
+PR18已按本人授权合入v3-lab@ea388345；全部精确XML/双SDDL/父SD/manifest/login hash已批准并重核，合并源码与获批候选47项和维护快照22项相同。用户已确认NTFS T盘。现场只读核144项ACL/16外owner、两旧任务与基线一致；conhost系统双硬链接被受审Pin拒绝，未执行r02入口、未冻结或停服，人为停机0。详见[本轮现场记录](SCHEMA6_CUTOVER_EXECUTION_20261007_R02.md)。以下“尚未批准/未合并”是旧阶段历史。
+
+**生产配置不可清理：** `D:\HereIAmRuntime\i-core\maintenance\cutover-20261007-1552e251\task-approval-c9662439-3fb4b5c51a0f467cbd1ec3c1c18aee73\settings` 是现役候选将引用的生产配置目录，内含login/core/daily配置，绝不是临时审阅缓存。当前不得清理、移动或改名；以后换包时再迁至正式配置目录，重新绑定路径/hash并审阅XML。本轮仍未启用新候选。
+
 ## 2026-10-07 当前任务模板与批准门槛（优先于下文历史锚）
 
 本轮用户已接受显式Unified=true和非保护任务DACL方案，仅授权源码/CI/新候选；最终精确XML/SDDL尚须本人批准，未进场。旧XML SHA 7de2a122…和旧manifest不能放行新模板。新分支源码/候选及最终审批见[任务权限修订](SCHEMA6_TASK_SECURITY_REVISION_20261007.md)。新PR不得自动合并。

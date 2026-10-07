@@ -1,3 +1,12 @@
+## 2026-10-07 — PR18合并，r02冻结前系统映像预检停止
+- 用户精确批准XML/双SDDL/父SD/manifest/login；15项CI重核后PR18普通合并ea388345。
+- 合并字节与候选47项/维护22项一致，沿用获批包，未改变Core/MCP/启动器字节。
+- 用户确认NTFS T盘；144项ACL/16外owner及旧任务定义/权限/单实例均与基线一致。
+- conhost为System32/WinSxS双硬链接，原受审Pin只读实测file_identity_rejected；独审确认无合法配置绕过。
+- 按失败规则停在冻结前，r02未使用，无停服/Apply/注册/库迁移替换/head/手机操作，人为停机0。
+- 生产task-approval…\settings标为不可清理；换包时才迁正式配置目录并重绑审批。
+- 交接：docs/development/handoffs/SCHEMA6_CUTOVER_EXECUTION_20261007_R02.md；B独立PR19不取消。
+---
 ## 2026-10-07 — 任务模板与继承权限分别锁定
 - 用户已接受Unified=true/非保护DACL；仅源码、合成测试、CI及新候选，最终XML/SDDL另交本人批准。
 - 固定47项仅Prepare XML模板变化，会话启动器/Core/MCP运行字节不变；旧候选不再复用。
