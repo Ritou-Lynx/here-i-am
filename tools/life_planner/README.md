@@ -129,7 +129,7 @@ D:\Nodejs\node.exe tools/life_planner/capture_sync.mjs --config C:\path\capture-
 
 桥只接受 `patch={status:"完成"|"放弃"}`，核当前 binding 和当前可见 capture revision，再把冻结的完整 intent 原样交给 Core。它不验证或签发 `uia1`；签名真实性、计划目标 revision、scope 和 actor 始终由 Core 校验。capture 的授权、文字、ID 或 revision 都不能转换成计划状态授权。没有完整 proof 时只生成 `pending_decisions` 的三字段建议，事项保持原状态。
 
-每个 op 使用两个 exclusive-create 文件记录 prepared digest 与成功 receipt，跨进程不做无锁覆盖。同 op 只能绑定同一 envelope/capture revision；提交未知或进程崩溃后先查询同 op，不能换 op、改 ref 或重签。即使 intent 已过期，只要 Core 已接受，仍可按同 op 查询恢复；Core 没有成功 receipt 时保持待处置。已完成的本机 receipt 每次也要与当前 Core 查询结果核对，不单独作为权威。只有 receipt 的 `accepted_op_id` 等于转交 op 才完成；新 op 的语义 no-op 若绑定历史 receipt 会保守拒绝，不伪造新接受。capture 不可见、读取错误、revision/binding 改变都 fail closed，不推断删除。
+每个 op 使用两个 immutable 文件记录 prepared digest 与成功 receipt；先在同目录随机临时文件完整写入、同步并关闭，再用 exclusive hard-link 原子发布，跨进程不做无锁覆盖。平台不支持该发布语义时 fail closed，不回退到覆盖写；崩溃遗留的随机临时文件也不会被自动扫描或批量删除。同 op 只能绑定同一 envelope/capture revision；提交未知或进程崩溃后先查询同 op，不能换 op、改 ref 或重签。即使 intent 已过期，只要 Core 已接受，仍可按同 op 查询恢复；Core 没有成功 receipt 时保持待处置。已完成的本机 receipt 每次也要与当前 Core 查询结果核对，不单独作为权威。只有 receipt 的 `accepted_op_id` 等于转交 op 才完成；新 op 的语义 no-op 若绑定历史 receipt 会保守拒绝，不伪造新接受。capture 不可见、读取错误、revision/binding 改变都 fail closed，不推断删除。
 
 独立测试：
 

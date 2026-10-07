@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -183,6 +183,38 @@ test('a cached receipt with the wrong ledger schema or op id fails closed before
     await writeFile(path,JSON.stringify(cached),'utf8');
     await assert.rejects((await f.bridge()).apply(transfer),error=>error?.code==='transfer_idempotency_conflict');
   }
+});
+
+test('ledger readers see only a complete atomic publication and an existing receipt is never overwritten', async t => {
+  const f=fixture(t), intent=f.statusIntent(), envelope=f.envelope(intent), root=await f.rootPromise;
+  const ledger=new FileTrustedTransferLedger(root), envelopeDigest='a'.repeat(64);
+  assert.equal(await ledger.prepare(envelope,envelopeDigest),null);
+  const finalPath=join(root,`${intent.op_id}.receipt.json`);
+  const abandonedPath=`${finalPath}.tmp-crash-residue`;
+  await writeFile(abandonedPath,'abandoned-by-synthetic-crash','utf8');
+  const receipt={receipt_id:'atomic-synthetic',padding:'x'.repeat(8*1024*1024)};
+  let settled=false;
+  const publishing=ledger.complete(envelope,envelopeDigest,{receipt}).finally(()=>{settled=true;});
+  while(!settled) {
+    try {
+      const visible=JSON.parse(await readFile(finalPath,'utf8'));
+      assert.equal(visible.schema_version,1);
+      assert.equal(visible.op_id,intent.op_id);
+      assert.deepEqual(visible.receipt,receipt);
+    } catch(error) {
+      if(error?.code!=='ENOENT')throw error;
+    }
+    await new Promise(resolve=>setImmediate(resolve));
+  }
+  await publishing;
+  const winner=await readFile(finalPath,'utf8');
+  assert.deepEqual(JSON.parse(winner).receipt,receipt);
+  await assert.rejects(ledger.complete(envelope,envelopeDigest,{receipt:{receipt_id:'replacement'}}),
+    error=>error?.code==='transfer_receipt_conflict');
+  assert.equal(await readFile(finalPath,'utf8'),winner);
+  assert.equal(await readFile(abandonedPath,'utf8'),'abandoned-by-synthetic-crash');
+  assert.deepEqual((await readdir(root)).filter(name=>name.startsWith(`${intent.op_id}.receipt.json.tmp-`)),
+    [`${intent.op_id}.receipt.json.tmp-crash-residue`]);
 });
 
 test('a non-finite or backwards clock after Core lookup cannot reach submit', async t => {

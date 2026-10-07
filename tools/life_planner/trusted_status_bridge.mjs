@@ -1,8 +1,8 @@
 // Inert transfer library for a plan_items/status intent already approved by a
 // trusted local UI. It does not watch inboxes, sign actions, mint grants, read
 // credentials, or turn capture authority into plan authority.
-import { createHash } from 'node:crypto';
-import { mkdir, open, readFile } from 'node:fs/promises';
+import { createHash, randomBytes } from 'node:crypto';
+import { link, mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { canonicalJSON, DOMAIN_POLICY } from '../i_core/domain_store.mjs';
 
@@ -114,17 +114,34 @@ export function createTrustedPlanCoreTransport({getCapture, getOperation, submit
 }
 
 async function writeExclusive(path, value) {
-  let handle;
+  const payload = canonicalJSON(value);
+  // Publish only a closed, synced file. link(2) is the exclusive atomic claim:
+  // a competing writer sees EEXIST only after the winner is fully readable.
+  // Unsupported link semantics fail closed; never fall back to overwrite/rename.
+  const temporaryPath = `${path}.tmp-${process.pid}-${randomBytes(16).toString('hex')}`;
+  let handle, temporaryCreated = false;
   try {
-    handle = await open(path, 'wx', 0o600);
-    await handle.writeFile(canonicalJSON(value), 'utf8');
+    handle = await open(temporaryPath, 'wx', 0o600);
+    temporaryCreated = true;
+    await handle.writeFile(payload, 'utf8');
     await handle.sync();
-    return true;
-  } catch (error) {
-    if (error?.code === 'EEXIST') return false;
-    throw error;
+    await handle.close();
+    handle = null;
+    try {
+      await link(temporaryPath, path);
+      return true;
+    } catch (error) {
+      if (error?.code === 'EEXIST') return false;
+      throw error;
+    }
   } finally {
-    await handle?.close();
+    try { await handle?.close(); }
+    finally {
+      if (temporaryCreated) {
+        try { await unlink(temporaryPath); }
+        catch (error) { if (error?.code !== 'ENOENT') throw error; }
+      }
+    }
   }
 }
 
@@ -138,8 +155,9 @@ async function readExact(path, fields, missing = null) {
   return value;
 }
 
-// Two immutable, exclusive-create files avoid an unlocked cross-process
-// read/modify/write cycle. A torn file is a fail-closed manual-recovery state.
+// Two immutable, atomically published files avoid an unlocked cross-process
+// read/modify/write cycle. Existing partial/corrupt files remain fail-closed;
+// abandoned random temp files are not scanned or removed automatically.
 export class FileTrustedTransferLedger {
   constructor(directory) {
     if (typeof directory !== 'string' || !directory) throw new Error('invalid_transfer_ledger');
