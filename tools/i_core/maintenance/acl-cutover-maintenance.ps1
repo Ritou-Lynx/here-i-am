@@ -5,6 +5,7 @@ function Initialize-CutoverAclNative {
 Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
+using System.Text;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 public static class CutoverAclNative {
@@ -15,6 +16,7 @@ public static class CutoverAclNative {
  [StructLayout(LayoutKind.Sequential)] struct TokenPrivileges {public uint count;public Luid luid;public uint attributes;}
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern SafeFileHandle CreateFile(string p,uint access,uint share,IntPtr sa,uint disposition,uint flags,IntPtr template);
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(SafeFileHandle h,out Info i);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern uint GetFinalPathNameByHandle(SafeFileHandle h,StringBuilder b,uint n,uint f);
  [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool CloseHandle(IntPtr h);
  [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr p);
@@ -34,10 +36,23 @@ public static class CutoverAclNative {
    return h;
   }catch{h.Dispose();throw;}
  }
+ // Source ancestors need LIST_DIRECTORY: metadata-only handles do not enforce
+ // delete sharing. ACL targets retain the original READ_CONTROL-only Open.
+ public static SafeFileHandle OpenSourceDirectory(string p) {
+  var h=CreateFile(p,0x00020081u,3,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
+  if(h.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
+  try{IdentityAt(h,p,true);return h;}catch{h.Dispose();throw;}
+ }
  public static string Identity(SafeFileHandle h) {
   Info i;if(!GetFileInformationByHandle(h,out i))throw new Win32Exception(Marshal.GetLastWin32Error());
   if((i.attributes&0x400)!=0 || ((i.attributes&0x10)==0 && i.links!=1))throw new InvalidOperationException("linked_target_rejected");
   return i.volume+":"+i.indexHigh+":"+i.indexLow+":"+i.sizeHigh+":"+i.sizeLow+":"+i.writeHigh+":"+i.writeLow;
+ }
+ public static string IdentityAt(SafeFileHandle h,string path,bool directory) {
+  Info i;var b=new StringBuilder(32768);uint n=GetFinalPathNameByHandle(h,b,32768,0);
+  if(!GetFileInformationByHandle(h,out i)||n==0||n>=32768)throw new Win32Exception(Marshal.GetLastWin32Error());
+  if(((i.attributes&0x10)!=0)!=directory||!b.ToString().Equals("\\\\?\\"+path,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("source_path_identity_rejected");
+  return Identity(h);
  }
  public static void SetOwnerDacl(SafeFileHandle h,string sddl,bool protect) {
   IntPtr sd=IntPtr.Zero,own,acl;uint size;bool present,def;
@@ -257,14 +272,33 @@ function Acquire-AclMaintenanceGuard([string]$Path) {
  Hold-Path $Path $false
  $guardPath=Join-Path $Path 'active-window.guard'
  if(Test-Path -LiteralPath $guardPath){Assert-Plain $guardPath}
- $guard=[IO.File]::Open($guardPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
- try{$null=[CutoverAclNative]::Identity($guard.SafeFileHandle);return $guard}catch{$guard.Dispose();throw}
+ $guard=if(Test-Path -LiteralPath $guardPath){[IO.File]::Open($guardPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}else{New-OwnedArtifactFile $guardPath $owner}
+ try{$null=[CutoverAclNative]::Identity($guard.SafeFileHandle);$null=[OwnedArtifactNative]::Check($guard.SafeFileHandle,$guardPath,$false);[OwnedArtifactNative]::Private($guard.SafeFileHandle,$owner,$false);return $guard}catch{$guard.Dispose();throw}
 }
 function Invoke-AclMaintenance {
  [CmdletBinding()]
- param([Parameter(Mandatory=$true)][string]$ConfigPath,[Parameter(Mandatory=$true)][string]$ExpectedConfigSha256,[Parameter(Mandatory=$true)][ValidateSet("Audit","Apply","Rollback")][string]$Mode,[switch]$ConfirmFrozen)
+ param([Parameter(Mandatory=$true)][string]$ConfigPath,[Parameter(Mandatory=$true)][string]$ExpectedConfigSha256,[Parameter(Mandatory=$true)][ValidatePattern("^[a-f0-9]{64}$")][string]$ExpectedOwnedArtifactsSha256,[Parameter(Mandatory=$true)][ValidateSet("Audit","Apply","Rollback")][string]$Mode,[switch]$ConfirmFrozen)
  Set-StrictMode -Version 2
  $ErrorActionPreference="Stop"
+ $artifactHelper=Join-Path $PSScriptRoot 'owned_artifacts.ps1'
+ Initialize-CutoverAclNative
+ $artifactLease=$null;$artifactIdentity=$null;$artifactParents=[Collections.Generic.List[IDisposable]]::new()
+ try {
+  Assert-Plain $artifactHelper
+  $chain=@();for($q=[IO.Path]::GetDirectoryName($artifactHelper);$q;$q=[IO.Path]::GetDirectoryName($q)){$chain=@($q)+$chain}
+  foreach($q in $chain){$h=[CutoverAclNative]::OpenSourceDirectory($q);$artifactParents.Add($h);$null=[CutoverAclNative]::IdentityAt($h,$q,$true)}
+  $artifactIdentity=[CutoverAclNative]::Open($artifactHelper,$false)
+  $artifactLease=[IO.File]::Open($artifactHelper,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+  $sourceIdentity=[CutoverAclNative]::IdentityAt($artifactIdentity,$artifactHelper,$false)
+  if([CutoverAclNative]::IdentityAt($artifactLease.SafeFileHandle,$artifactHelper,$false)-cne $sourceIdentity){throw 'owned_artifact_source_identity_rejected'}
+  $memory=[IO.MemoryStream]::new();try{$artifactLease.CopyTo($memory);$artifactBytes=$memory.ToArray()}finally{$memory.Dispose()}
+  $artifactSha=[Security.Cryptography.SHA256]::Create()
+  try{$actual=([BitConverter]::ToString($artifactSha.ComputeHash($artifactBytes))).Replace('-','').ToLowerInvariant()}finally{$artifactSha.Dispose()}
+  if($actual-cne $ExpectedOwnedArtifactsSha256){throw 'owned_artifact_source_hash_rejected'}
+  if([CutoverAclNative]::IdentityAt($artifactLease.SafeFileHandle,$artifactHelper,$false)-cne $sourceIdentity){throw 'owned_artifact_source_identity_rejected'}
+  # Execute only the exact bytes hashed above; retain source and ancestor leases.
+  . ([scriptblock]::Create([Text.UTF8Encoding]::new($false,$true).GetString($artifactBytes).TrimStart([char]0xfeff)))
+  Initialize-OwnedArtifactNative
  $config=Read-AclConfiguration $ConfigPath $ExpectedConfigSha256
  $base=[string]$config.baseDirectory;$snapshot=[string]$config.snapshotPath;$snapshotHash=[string]$config.snapshotSha256;$owner=[string]$config.ownerSid;$roots=@($config.roots);$ports=@($config.ports)
  Initialize-CutoverAclNative
@@ -353,10 +387,11 @@ try {
  if($privilege){try{$privilege.Dispose()}catch{$receipt.privilege_restore_failed=$true;$receipt.passed=$false;$exitCode=2}}
  $receipt.completed_utc=[DateTime]::UtcNow.ToString('o')
  if($receiptPath){
-  try{$bytes=[Text.UTF8Encoding]::new($false).GetBytes(($receipt|ConvertTo-Json -Depth 10));$stream=[IO.File]::Open($receiptPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}}
+  try{$bytes=[Text.UTF8Encoding]::new($false).GetBytes(($receipt|ConvertTo-Json -Depth 10));Write-OwnedArtifactBytes $receiptPath $bytes $owner}
   catch{[Console]::Error.WriteLine('private_receipt_write_failed');$receipt.passed=$false;$exitCode=2}
  }
  if($maintenanceGuard){$maintenanceGuard.Dispose()}
 }
 return [pscustomobject]@{passed=$receipt.passed;exitCode=$exitCode;receipt=$receiptPath;result=[pscustomobject]$receipt}
+ }finally{if($artifactLease){$artifactLease.Dispose()};if($artifactIdentity){$artifactIdentity.Dispose()};foreach($h in $artifactParents){$h.Dispose()}}
 }

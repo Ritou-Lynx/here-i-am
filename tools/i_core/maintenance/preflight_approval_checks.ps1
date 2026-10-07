@@ -2,6 +2,7 @@
 # Import-safe online approval checks. Never acquire the maintenance guard or
 # produce freeze/ACL Apply/production Prepare receipts. All native target handles
 # request READ_CONTROL only. XML output is a separate CreateNew rehearsal file.
+. (Join-Path $PSScriptRoot 'owned_artifacts.ps1')
 . (Join-Path $PSScriptRoot 'acl-cutover-maintenance.ps1')
 . (Join-Path $PSScriptRoot 'register_task_primitives.ps1')
 . (Join-Path $PSScriptRoot 'task_security_policy.ps1')
@@ -203,6 +204,7 @@ function Invoke-PreflightPrepareTemplate {
  $verified=[pscustomobject]@{owner_sid=$loginConfig.owner_sid}
  # Exact reviewed template only: no ValidateOnly, no fixed Prepare process, no
  # registration, no production configuration writes, and no invented receipt.
+ Assert-OwnedArtifactUnelevatedProcess $Config.ownerSid
  & ([scriptblock]::Create($template))
  $rendered=Read-PreflightAnchoredBytes $OutputXml $Config.approvedXmlSha256
  if([Convert]::ToBase64String($rendered)-cne [Convert]::ToBase64String($approved)){throw 'preflight_prepare_bytes_changed'}

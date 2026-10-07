@@ -38,8 +38,7 @@ function Private([string]$Path,[switch]$Root){
 function WriteNew([string]$Path,$Value){
  Private ([IO.Path]::GetDirectoryName($Path))
  $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($Value|ConvertTo-Json -Depth 16))
- $f=[IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read)
- try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}
+ Write-OwnedArtifactBytes $Path $bytes $owner
  Private $Path
 }
 function Receipt([string]$Name,$Value){
@@ -282,8 +281,7 @@ function New-MaintenanceArtifactDirectory([string]$Parent,[ValidateSet('copy-val
  Private $Parent
  $path=Join-Path $Parent $Name
  if(Test-Path -LiteralPath $path){Fail 'fresh_artifact_directory_required'}
- $null=[IO.Directory]::CreateDirectory($path)
- Protect-NewDirectory $path;Private $path -Root
+ New-OwnedArtifactDirectory $path $owner;Private $path -Root
  return $path
 }
 
@@ -326,7 +324,7 @@ function Invoke-OnlineCopyValidation{
    if($validatorClock.ElapsedMilliseconds-ge $config.validatorTimeoutMs){StopValidatorTree $vp;Fail 'precutover_validator_timeout'}
   }
   RefreshValidatorTree $vp;AssertValidatorTreeExited
-  foreach($pair in @(@{path=$out;text=$os.GetAwaiter().GetResult()},@{path=$err;text=$es.GetAwaiter().GetResult()})){$b=[Text.UTF8Encoding]::new($false).GetBytes($pair.text);$f=[IO.File]::Open($pair.path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read);try{$f.Write($b,0,$b.Length);$f.Flush($true)}finally{$f.Dispose()}}
+  foreach($pair in @(@{path=$out;text=$os.GetAwaiter().GetResult()},@{path=$err;text=$es.GetAwaiter().GetResult()})){$b=[Text.UTF8Encoding]::new($false).GetBytes($pair.text);Write-OwnedArtifactBytes $pair.path $b $owner}
   if($vp.ExitCode-ne 0){Fail 'precutover_validator_failed'}
  }catch{if($script:validatorMayRead){try{StopValidatorTree $vp}catch{$script:drift=$true}};throw}finally{$vp.Dispose()}
  $script:validation=ReadJson $validationPath;AssertValidation $validation;ExternalCheck $validation
@@ -349,6 +347,12 @@ try{
  RequiredPin $PSCommandPath $config.freezeScriptSha256
  $windowModule=Join-Path $PSScriptRoot 'maintenance_window.ps1'
  RequiredPin $windowModule $config.windowModuleSha256
+ $artifactModule=Join-Path $PSScriptRoot 'owned_artifacts.ps1'
+ $artifactPins=@($config.modulePins|Where-Object{$_.path-ceq $artifactModule});if($artifactPins.Count-ne 1){Fail 'owned_artifact_pin_required'}
+ RequiredPin $artifactModule $artifactPins[0].sha256
+ . $artifactModule
+ # Fixed-runtime child writers are approved only under the ordinary owner token.
+ Assert-OwnedArtifactUnelevatedProcess $config.ownerSid
  . $windowModule
  # Read-only rehearsal has its own root and ID; never consumes the formal entry.
  if($config.formalWindowId-cnotmatch '^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$'){Fail 'formal_window_binding_required'}
@@ -357,7 +361,7 @@ try{
   # Share the formal byte-preserving mutex, but never create its one-shot ID.
   $script:preflightGuard=Acquire-MaintenanceGuard $config.maintenanceRoot
   $windowRoot=Join-Path $config.maintenanceRoot 'rehearsals'
-  if(-not (Test-Path -LiteralPath $windowRoot)){$null=[IO.Directory]::CreateDirectory($windowRoot)}
+  if(-not (Test-Path -LiteralPath $windowRoot)){New-OwnedArtifactDirectory $windowRoot $owner}
   Private $windowRoot
  }else{if($WindowId-cne $config.formalWindowId){Fail 'formal_window_id_mismatch'};$windowRoot=$config.maintenanceRoot}
  $script:window=Open-MaintenanceWindow -MaintenanceRoot $windowRoot -WindowId $WindowId

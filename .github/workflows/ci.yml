@@ -221,6 +221,29 @@ jobs:
             build/ci/schema6-maintenance-register-com.json
           if-no-files-found: error
 
+  schema6-identity-pipeline:
+    name: Schema6 elevated writer to ordinary owner pipeline
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Required independent job: do not inherit run_windows_tests' TokenOwner
+      # workaround. Real BA-default elevated writer and same-SID medium consumer.
+      - name: Real Apply 144, ordinary fixed Prepare, safe COM registration and deletion
+        shell: powershell
+        run: ./tools/i_core/test_fixtures/release_schema6/run_identity_pipeline.ps1
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema6-identity-pipeline-results
+          path: |
+            build/ci/schema6-identity-pipeline.json
+            build/ci/schema6-module-scope.json
+          if-no-files-found: error
+
   schema6-cross-user:
     name: Schema6 password-only restore under another Windows user
     runs-on: windows-latest

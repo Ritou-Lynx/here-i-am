@@ -33,9 +33,11 @@ try{
  $configuration=Open-BootstrapPin $ConfigPath $ExpectedConfigSha256
  $reader=[IO.StreamReader]::new($configuration,[Text.UTF8Encoding]::new($false),$true,1024,$true);try{$config=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}
  if($config.format-cne 'schema6-maintenance-login-config-v2' -or $config.ownerSid-cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $config.windowId-cnotmatch '^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$'){throw 'prepare_configuration_rejected'}
- $required=@('prepare-production-login.ps1','prepare-production-login.mjs','prepare_live_guard.ps1','maintenance_window.ps1','maintenance_outputs.mjs','acl_receipt.mjs','register-approved-login.ps1','register_task_primitives.ps1','task_security_policy.ps1')|ForEach-Object{Join-Path $PSScriptRoot $_}
+ $required=@('prepare-production-login.ps1','prepare-production-login.mjs','prepare_live_guard.ps1','maintenance_window.ps1','owned_artifacts.ps1','maintenance_outputs.mjs','acl_receipt.mjs','register-approved-login.ps1','register_task_primitives.ps1','task_security_policy.ps1')|ForEach-Object{Join-Path $PSScriptRoot $_}
  $required+= [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\release_schema6\package.mjs'))
  foreach($p in $required){$entry=@($config.maintenanceFiles|Where-Object{$_.path-ceq $p});if($entry.Count-ne 1){throw 'prepare_closure_pin_required'};$null=Open-BootstrapPin $p $entry[0].sha256}
+ . (Join-Path $PSScriptRoot 'owned_artifacts.ps1')
+ Assert-OwnedArtifactUnelevatedProcess $config.ownerSid
  . (Join-Path $PSScriptRoot 'prepare_live_guard.ps1')
  . (Join-Path $PSScriptRoot 'maintenance_window.ps1')
  . (Join-Path $PSScriptRoot 'register_task_primitives.ps1')
@@ -65,14 +67,7 @@ try{
  $leases.Add((Open-PreparePin $config.outputXmlPath $config.approvedXmlSha256))
  Assert-PreparePrivate ([IO.Path]::GetDirectoryName($config.preparedReceiptPath))
  $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($report|ConvertTo-Json -Depth 15)+"`n")
- $h=[IO.File]::Open($config.preparedReceiptPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
- try{
-  # Publish no JSON until the newly opened file has the private owner/DACL.
-  $acl=$h.GetAccessControl();$acl.SetOwner([Security.Principal.SecurityIdentifier]::new($config.ownerSid));$h.SetAccessControl($acl);$acl=$h.GetAccessControl()
-  if($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value-cne $config.ownerSid){throw 'prepare_receipt_owner_rejected'}
-  foreach($r in $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])){if($r.AccessControlType-eq 'Allow' -and $r.IdentityReference.Value-notin @($config.ownerSid,'S-1-5-18','S-1-5-32-544')){throw 'prepare_receipt_acl_rejected'}}
-  $h.Write($bytes,0,$bytes.Length);$h.Flush($true)
- }finally{$h.Dispose()}
+ Write-OwnedArtifactBytes $config.preparedReceiptPath $bytes $config.ownerSid
  Assert-PreparePrivate $config.preparedReceiptPath;$exitCode=0
 }catch{
  $code=if($_.Exception.Message-match '^[a-z][a-z0-9_]+$'){$_.Exception.Message}else{'production_login_prepare_rejected'}

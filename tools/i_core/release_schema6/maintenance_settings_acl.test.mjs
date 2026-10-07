@@ -12,7 +12,8 @@ test('settings protection entry has no deployment constants, privilege, owner mu
   assert.doesNotMatch(text, /S-1-5-21-|HereIAmRuntime|Start-Process|AdjustTokenPrivileges|SetOwnerDacl|SetSecurityInfo\(|SetOwner\(|TestMode|SkipValidation|BypassGuard/);
   assert.match(text, /SetFileSecurity\(path.ToString\(\),4u/);
   assert.match(text, /SetAccessRuleProtection\(\$true,\$true\)/);
-  assert.match(text, /Flush\(\$true\)/);
+  assert.match(text, /Write-OwnedArtifactBytes \$p \$bytes \$owner/);
+  assert.match(readFileSync(new URL('../maintenance/owned_artifacts.ps1',import.meta.url),'utf8'), /Flush\(true\)/);
 });
 test('Windows settings ACL synthetic success, guards, exact rollback and lock checks', { skip: process.platform !== 'win32' }, t => {
   const root = syntheticRoot('maintenance-settings-acl-');

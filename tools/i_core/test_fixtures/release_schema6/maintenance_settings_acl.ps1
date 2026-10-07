@@ -1,9 +1,15 @@
 param([Parameter(Mandatory=$true)][string]$SourcePath,[Parameter(Mandatory=$true)][string]$FixtureParent)
 $ErrorActionPreference='Stop';Set-StrictMode -Version 2
+$helperHash=(Get-FileHash -LiteralPath (Join-Path (Split-Path -Parent $SourcePath) 'owned_artifacts.ps1')).Hash.ToLowerInvariant()
 $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($SourcePath,[ref]$tokens,[ref]$errors)
 if($errors.Count){throw ($errors|Out-String)}
 # Import only reviewed function definitions, never top-level production dispatch.
-foreach($fn in $ast.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst]},$false)){Invoke-Expression $fn.Extent.Text}
+# Preserve source filename for the dependency-loading function (whose param
+# block is inside its body). Other functions use signature parameter syntax.
+foreach($fn in $ast.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst]},$false)){
+ if($fn.Name-ceq 'Invoke-SettingsProtection'){Set-Item -LiteralPath ('Function:\'+$fn.Name) -Value $fn.Body.GetScriptBlock()}
+ else{Invoke-Expression $fn.Extent.Text}
+}
 Initialize-SettingsAclNative
 $owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $private=[Security.AccessControl.DirectorySecurity]::new()
@@ -24,7 +30,7 @@ function New-Case([string]$Name) {
  return [pscustomobject]@{base=$base;root=$root;originalRows=($rows|ConvertTo-Json -Depth 8|ConvertFrom-Json);proposal=$proposal;proposalPath=Join-Path $base 'proposal.json';receipt=Join-Path $base 'receipt'}
 }
 function Save-Case($c){[IO.File]::WriteAllText($c.proposalPath,($c.proposal|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false));return (Get-FileHash -LiteralPath $c.proposalPath).Hash.ToLowerInvariant()}
-function Run-Case($c,[string]$Hash='') {if(!$Hash){$Hash=Save-Case $c};return Invoke-SettingsProtection -ProposalPath $c.proposalPath -ExpectedProposalSha256 $Hash -ReceiptDirectory $c.receipt -Execute}
+function Run-Case($c,[string]$Hash='') {if(!$Hash){$Hash=Save-Case $c};return Invoke-SettingsProtection -ProposalPath $c.proposalPath -ExpectedProposalSha256 $Hash -ExpectedOwnedArtifactsSha256 $helperHash -ReceiptDirectory $c.receipt -Execute}
 function Check([bool]$Condition,[string]$Name){if(!$Condition){throw ('check_failed_'+$Name)};$checks.Add($Name)}
 function Original-Intact($c){foreach($r in $c.originalRows){if((Get-Acl -LiteralPath $r.path).Sddl -cne $r.originalSddl){return $false};if(!$r.directory -and (Get-FileHash -LiteralPath $r.path).Hash.ToLowerInvariant() -cne $r.sha256){return $false}};return $true}
 $c=New-Case 'success';$r=Run-Case $c
@@ -56,7 +62,7 @@ $c=New-Case 'owner';$h=[SettingsAclNative]::Open($c.root,$true,$false);$savedOwn
 try{Assert-SettingsPrivate $h $false}catch{$rejected=$_.Exception.Message -ceq 'owner_mismatch'}finally{$h.Dispose();$owner=$savedOwner}
 Check $rejected 'reject_owner_mismatch'
 $c=New-Case 'no_execute';$hash=Save-Case $c;$rejected=$false
-try{Invoke-SettingsProtection -ProposalPath $c.proposalPath -ExpectedProposalSha256 $hash -ReceiptDirectory $c.receipt|Out-Null}catch{$rejected=$_.Exception.Message -ceq 'explicit_execute_required'}
+try{Invoke-SettingsProtection -ProposalPath $c.proposalPath -ExpectedProposalSha256 $hash -ExpectedOwnedArtifactsSha256 $helperHash -ReceiptDirectory $c.receipt|Out-Null}catch{$rejected=$_.Exception.Message -ceq 'explicit_execute_required'}
 Check ($rejected -and (Original-Intact $c)) 'reject_missing_execute'
 $realSet=${function:Set-SettingsDacl};$realReceipt=${function:Write-SettingsReceipt}
 function Set-SettingsDacl($Handle,[string]$Sddl,[bool]$Protected){[SettingsAclNative]::DaclOnly($Handle,$Sddl,$Protected);if($Protected){throw 'synthetic_after_write_failure'}}

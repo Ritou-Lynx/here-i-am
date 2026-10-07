@@ -2,6 +2,7 @@
 param([Parameter(Mandatory=$true)][string]$SourcePath,[Parameter(Mandatory=$true)][string]$FixtureParent)
 $ErrorActionPreference='Stop';Set-StrictMode -Version 2
 . $SourcePath
+$helperHash=(Get-FileHash -LiteralPath (Join-Path (Split-Path -Parent $SourcePath) 'owned_artifacts.ps1')).Hash.ToLowerInvariant()
 Initialize-CutoverAclNative
 $owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $sections=[Security.AccessControl.AccessControlSections]::Owner -bor [Security.AccessControl.AccessControlSections]::Access
@@ -19,21 +20,21 @@ $configHash=Save-Config
 # Prevent any live task/listener enumeration even if Audit accidentally calls it.
 function Get-ScheduledTask { throw 'synthetic_live_task_access_forbidden' }
 function Get-NetTCPConnection { throw 'synthetic_live_port_access_forbidden' }
-$answer=Invoke-AclMaintenance -ConfigPath $configPath -ExpectedConfigSha256 $configHash -Mode Audit
+$answer=Invoke-AclMaintenance -ConfigPath $configPath -ExpectedConfigSha256 $configHash -ExpectedOwnedArtifactsSha256 $helperHash -Mode Audit
 if(!$answer.passed -or $answer.exitCode -ne 0 -or $answer.result.items.Count -ne 2){throw 'synthetic_audit_failed'}
 if((Get-FileHash -LiteralPath $guardPath -Algorithm SHA256).Hash -cne $guardHash){throw 'guard_bytes_changed'}
 $c.receiptPath=Join-Path $window 'locked-audit.json';$configHash=Save-Config
 $lock=[IO.File]::Open($guardPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
-try{$answer=Invoke-AclMaintenance -ConfigPath $configPath -ExpectedConfigSha256 $configHash -Mode Audit;if($answer.passed -or (Test-Path -LiteralPath $c.receiptPath)){throw 'concurrent_guard_not_rejected'}}finally{$lock.Dispose()}
+try{$answer=Invoke-AclMaintenance -ConfigPath $configPath -ExpectedConfigSha256 $configHash -ExpectedOwnedArtifactsSha256 $helperHash -Mode Audit;if($answer.passed -or (Test-Path -LiteralPath $c.receiptPath)){throw 'concurrent_guard_not_rejected'}}finally{$lock.Dispose()}
 $guardLink=Join-Path $maintenance 'synthetic-guard-link'
 $null=New-Item -ItemType HardLink -Path $guardLink -Target $guardPath
 try{
- $answer=Invoke-AclMaintenance -ConfigPath $configPath -ExpectedConfigSha256 $configHash -Mode Audit
+ $answer=Invoke-AclMaintenance -ConfigPath $configPath -ExpectedConfigSha256 $configHash -ExpectedOwnedArtifactsSha256 $helperHash -Mode Audit
  if($answer.passed -or (Test-Path -LiteralPath $c.receiptPath)){throw 'hardlink_guard_not_rejected'}
 }finally{Remove-Item -LiteralPath $guardLink -Force}
 # New inventory is preserved, and exact old snapshot remains insufficient.
 $pending=Join-Path $root 'synthetic.pending';[IO.File]::WriteAllText($pending,'preserve',[Text.UTF8Encoding]::new($false))
 $c.receiptPath=Join-Path $window 'drift-audit.json';$configHash=Save-Config
-$answer=Invoke-AclMaintenance -ConfigPath $configPath -ExpectedConfigSha256 $configHash -Mode Audit
+$answer=Invoke-AclMaintenance -ConfigPath $configPath -ExpectedConfigSha256 $configHash -ExpectedOwnedArtifactsSha256 $helperHash -Mode Audit
 if($answer.passed -or $answer.result.error_code -cne 'inventory_drift' -or !(Test-Path -LiteralPath $pending)){throw 'audit_inventory_drift_not_preserved'}
 [Console]::WriteLine('{"passed":true,"fullAudit":true,"guardBytesPreserved":true,"concurrentGuardRejected":true,"hardlinkGuardRejected":true,"pendingPreserved":true,"liveTasksRead":false}')

@@ -14,7 +14,7 @@ try{
  # Deliberately stale legacy lock and receipt bytes must neither block nor change.
  $old=Join-Path $Root 'freeze-legacy-runtime.lock';[IO.File]::WriteAllBytes($old,[byte[]]@(1,4,9,16))
  $legacy=Join-Path $Root 'frozen-legacy-runtime-ready.json';[IO.File]::WriteAllText($legacy,'synthetic-old-receipt')
- $guardPath=Join-Path $Root 'active-window.guard';[IO.File]::WriteAllBytes($guardPath,[byte[]]@(65,66,0,67))
+ $guardPath=Join-Path $Root 'active-window.guard';Write-OwnedArtifactBytes $guardPath ([byte[]]@(65,66,0,67)) ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
  $oldBytes=Bytes $old;$legacyBytes=Bytes $legacy;$guardBytes=Bytes $guardPath
  $rootAcl=(Get-Acl -LiteralPath $Root).Sddl
  $oldAcl=(Get-Acl -LiteralPath $old).Sddl

@@ -85,7 +85,7 @@ export function validatePreparedReceipt(r,c) {
 }
 export async function prepareProductionLogin(c,{validateOnly=false,configurationPath}={}) {
  const own=path.dirname(fileURLToPath(import.meta.url));
- const required=['register-approved-login.ps1','register_task_primitives.ps1','task_security_policy.ps1','maintenance_window.ps1','prepare-production-login.mjs','prepare-production-login.ps1','prepare_live_guard.ps1','acl_receipt.mjs','maintenance_outputs.mjs'].map(n=>path.join(own,n));
+ const required=['register-approved-login.ps1','register_task_primitives.ps1','task_security_policy.ps1','maintenance_window.ps1','owned_artifacts.ps1','prepare-production-login.mjs','prepare-production-login.ps1','prepare_live_guard.ps1','acl_receipt.mjs','maintenance_outputs.mjs'].map(n=>path.join(own,n));
  required.push(path.resolve(own,'../release_schema6/package.mjs'));
  assert.equal(new Set(c.maintenanceFiles.map(e=>e.path)).size,c.maintenanceFiles.length);
  for(const p of required){const entries=c.maintenanceFiles.filter(e=>e.path===p);assert.equal(entries.length,1);anchored(p,entries[0].sha256);}
@@ -100,6 +100,7 @@ export async function prepareProductionLogin(c,{validateOnly=false,configuration
  for(const p of privateInputs)plainPath(p);
  const quote=v=>"'"+v.replaceAll("'","''")+"'";
  const checks='. '+quote(path.join(c.releaseDirectory,'tools/i_core/release_schema6/lifecycle/protected_paths.ps1'))+'; '+privateInputs.map(p=>'Assert-ProtectedPath '+quote(p)).join('; ');
+ if(!validateOnly)execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-Command','. '+quote(path.join(own,'owned_artifacts.ps1'))+'; Assert-OwnedArtifactUnelevatedProcess '+quote(c.ownerSid)],{env:cleanEnvironment(),windowsHide:true,stdio:['ignore','pipe','pipe'],timeout:30000});
  execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-Command',checks],{env:cleanEnvironment(),windowsHide:true,stdio:['ignore','pipe','pipe'],timeout:30000});
  assert.deepEqual(json(configurationPath),c);
  await validatePreparationInputs(c);

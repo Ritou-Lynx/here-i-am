@@ -1,28 +1,10 @@
-﻿# Import-safe, filesystem-only window primitives. No tasks, processes or callbacks.
+. (Join-Path $PSScriptRoot 'owned_artifacts.ps1')
+# Import-safe, filesystem-only window primitives. No tasks, processes or callbacks.
 function Assert-MaintenancePlainDirectory([string]$Path) {
  if($Path -notmatch '^[A-Za-z]:\\' -or $Path.Substring(2).Contains(':') -or [IO.Path]::GetFullPath($Path) -cne $Path){throw 'window_path_not_canonical'}
  for($p=$Path;$p;$p=[IO.Path]::GetDirectoryName($p)){
   $item=Get-Item -LiteralPath $p -Force -ErrorAction Stop
   if(-not $item.PSIsContainer -or ($item.Attributes-band [IO.FileAttributes]::ReparsePoint)){throw 'window_path_not_plain'}
- }
-}
-function Protect-NewMaintenanceWindow([string]$Path) {
- # Only this just-created EMPTY window is initialized. Existing roots, windows,
- # locks and receipts are never changed; reserve a failed ID rather than reuse it.
- Assert-MaintenancePlainDirectory $Path
- if(@(Get-ChildItem -LiteralPath $Path -Force).Count-ne 0){throw 'new_empty_window_required'}
- $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
- if((Get-Acl -LiteralPath $Path).GetOwner([Security.Principal.SecurityIdentifier]).Value-cne $sid.Value){throw 'new_window_owner_mismatch'}
- $acl=New-Object Security.AccessControl.DirectorySecurity
- $acl.SetOwner($sid);$acl.SetAccessRuleProtection($true,$false)
- foreach($id in @($sid,[Security.Principal.SecurityIdentifier]::new('S-1-5-18'),[Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))){
-  $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($id,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))
- }
- Set-Acl -LiteralPath $Path -AclObject $acl
- $actual=Get-Acl -LiteralPath $Path
- if(!$actual.AreAccessRulesProtected-or $actual.GetOwner([Security.Principal.SecurityIdentifier]).Value-cne $sid.Value){throw 'new_window_private_acl_required'}
- foreach($rule in $actual.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])){
-  if($rule.AccessControlType-eq 'Allow'-and $rule.IdentityReference.Value-cnotin @($sid.Value,'S-1-5-18','S-1-5-32-544')){throw 'new_window_private_acl_required'}
  }
 }
 function Acquire-MaintenanceGuard([string]$MaintenanceRoot) {
@@ -43,28 +25,29 @@ public static class MaintenanceGuardIdentity {
 }
 "@
  }
- # OpenOrCreate neither truncates nor appends. FileShare.None serializes stages/windows.
- $handle=[IO.File]::Open($guardPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
- try{[MaintenanceGuardIdentity]::Check($handle.SafeFileHandle);return $handle}catch{$handle.Dispose();throw}
+ # Existing guards open without truncation or ACL changes; fresh guards are owner-fixed.
+ $ownerSid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+ $handle=if(Test-Path -LiteralPath $guardPath){[IO.File]::Open($guardPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}else{New-OwnedArtifactFile $guardPath $ownerSid}
+ try{Initialize-OwnedArtifactNative;[MaintenanceGuardIdentity]::Check($handle.SafeFileHandle);$null=[OwnedArtifactNative]::Check($handle.SafeFileHandle,$guardPath,$false);[OwnedArtifactNative]::Private($handle.SafeFileHandle,$ownerSid,$false);return $handle}catch{$handle.Dispose();throw}
 }
 function Open-MaintenanceWindow {
  [CmdletBinding()]
  param([Parameter(Mandatory=$true)][string]$MaintenanceRoot,[Parameter(Mandatory=$true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$')][string]$WindowId)
  Assert-MaintenancePlainDirectory $MaintenanceRoot
+ $ownerSid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
  $guard=$null;$entry=$null
  try {
   $guard=Acquire-MaintenanceGuard $MaintenanceRoot
   $windows=Join-Path $MaintenanceRoot 'windows'
-  if(-not (Test-Path -LiteralPath $windows)){$null=[IO.Directory]::CreateDirectory($windows)}
+  if(-not (Test-Path -LiteralPath $windows)){New-OwnedArtifactDirectory $windows $ownerSid}
   Assert-MaintenancePlainDirectory $windows
   $directory=Join-Path $windows $WindowId
   if(Test-Path -LiteralPath $directory){throw 'window_id_already_used'}
-  $null=[IO.Directory]::CreateDirectory($directory);Assert-MaintenancePlainDirectory $directory
-  Protect-NewMaintenanceWindow $directory
-  $entry=[IO.File]::Open((Join-Path $directory 'entry.lock'),[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+  New-OwnedArtifactDirectory $directory $ownerSid;Assert-MaintenancePlainDirectory $directory
+  $entryPath=Join-Path $directory 'entry.lock';$entry=New-OwnedArtifactFile $entryPath $ownerSid
   $bytes=[Text.UTF8Encoding]::new($false).GetBytes($WindowId+"`n")
-  $entry.Write($bytes,0,$bytes.Length);$entry.Flush($true)
-  $receipts=Join-Path $directory 'phase-receipts';$null=[IO.Directory]::CreateDirectory($receipts)
+  $entry.Write($bytes,0,$bytes.Length);$entry.Flush($true);[OwnedArtifactNative]::Readback($entry,$entryPath,$ownerSid,$bytes)
+  $receipts=Join-Path $directory 'phase-receipts';New-OwnedArtifactDirectory $receipts $ownerSid
   return [pscustomobject]@{WindowId=$WindowId;Directory=$directory;PhaseReceiptsDirectory=$receipts;Guard=$guard;Entry=$entry}
  } catch {if($entry){$entry.Dispose()};if($guard){$guard.Dispose()};throw}
 }

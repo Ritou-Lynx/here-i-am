@@ -1,3 +1,8 @@
+## 2026-10-07 最后一次授权：owner全链与强制真实跨token串联
+
+截止北京时间10/09 18:00完成四真人Gate，缺一则切换未完成并停止新尝试；pending库存漂移或提交/head/newwrite边界不允许盲退v4。PR20继续维护源码：统一新产物本人owner/私有DACL/同身份读回、原子目录与来源lease；固定47运行字节未改，六批准hash21:59全实核不变。新Hosted必跑真实提升144项Apply→sameSID普通固定Prepare→安全COM往返，主窗最终维护57项55过0失败2特权未执行（79.491秒）、20原生断言通过，Hosted双token/新CI待实跑，尚未重新进场。
+
+已新增[完整产物库存](handoffs/SCHEMA6_ELEVATED_ARTIFACT_INVENTORY_20261007.md)、[Prepare后16阶段表](handoffs/SCHEMA6_POST_PREPARE_GATES_20261007.md)与[最后一次/晚间备份约束](handoffs/SCHEMA6_LAST_ATTEMPT_20261007.md)。本机预验证固定47/46源码、纯内存COM/PS5编译、隔离恢复9/9通过，不代替真实注册/登录/四Gate。r02已完整退回、已消费；新r03须准确CI全绿+fresh只读全套通过且六hash/父SD未变，才按既有条件授权进入。10/09 18:00/20:00线程自动化已安排，备份和恢复未来实际完成另签收。生产settings不可清理，47862保留、legacy_b3唯一、PR10关闭、MCP程序不换；B源码PR19不纳入本次运行包。
 ## 2026-10-07 21:29：settings/只读重演通过，r02 Prepare拒绝，已完整退回
 
 PR20源码dd39129c CI15全绿（Hosted维护54/54、Windows285/285零跳过）后，唯一settings目录保护继承保留ACE成功f88d49ec，三配置owner/hash/子ACL不变；新readonly-d4becd66c1b8全套100.711秒通过，模板逐字、PR16副本72replay/1grant及结束复核均通过。六批准hash/实时父SD不变，按条件预授权进r02。

@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$Repository,[Parameter(Mandatory=$true)][string]$FixtureRoot)
 $ErrorActionPreference='Stop';Set-StrictMode -Version 2
+. (Join-Path $PSScriptRoot 'ordinary_fixture.ps1');Invoke-OrdinaryFixtureIfElevated $PSCommandPath $PSBoundParameters
 $env:PSModulePath=Join-Path $PSHOME 'Modules'
 . (Join-Path $Repository 'tools/i_core/maintenance/preflight_approval_checks.ps1')
 $checks=0

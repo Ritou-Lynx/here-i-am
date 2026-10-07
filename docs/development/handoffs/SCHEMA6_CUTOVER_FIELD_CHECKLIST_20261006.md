@@ -1,3 +1,4 @@
+> **2026-10-07 最后一次授权更新**：r02已消费且已完整退回；新正式窗口用r03，旧锁/回执不动。所有提升产物经统一本人owner持柄读回，新的必跑Hosted真实跨token串联CI通过后，先用全新只读ID完整演练。六批准hash/固定47/父SD未变且零失败才按已有条件授权进场。截止北京时间10/09 18:00须四真人Gate齐全，否则停止；pending库存漂移/提交边界不能盲退v4。晚间20:00独立T9完整加密备份+实际恢复核对已安排，实际完成另签收。见[最后一次执行约束](SCHEMA6_LAST_ATTEMPT_20261007.md)、[工件库存](SCHEMA6_ELEVATED_ARTIFACT_INVENTORY_20261007.md)、[Prepare后16阶段表](SCHEMA6_POST_PREPARE_GATES_20261007.md)。本注覆盖下文历史入口“r02未使用”等旧状态；生产settings不可清理。
 ## 2026-10-07 21:29（上海）最新结果：r02 Prepare 拒绝，已完整退回
 
 单目录 settings 已按新授权加固成功，新只读演练零失败；六项批准外锚及实时父 SD 均未变，故按有条件预授权进入正式 r02。144项 Apply 成功后，正式 Prepare 在读取 ACL 回执时因 owner 为 Administrators 而非本人，报 `prepare_owner_rejected`。没有现场改 owner 重试。已真实恢复全144项原 owner/DACL/继承，复核原 raw 身份/字节、grant/replay、旧固定包和库存，再恢复旧任务原定义/权限，按 Core→MCP 启动并绑定完整树、schema4及三个端口。21:28:57退回签收通过。

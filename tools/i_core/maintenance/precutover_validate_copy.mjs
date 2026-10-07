@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, constants, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { plainPath, verifyRelease, PINNED_NODE_SHA256, cleanEnvironment } from '../release_schema6/package.mjs';
 import { backupFilePrimitives as files } from '../release_schema6/backup_bundle.mjs';
 import { captureWithOnlinePreflightGuard } from './online_preflight_input_guard.mjs';
@@ -46,7 +46,7 @@ export async function validatePrecutoverCopy(config) {
   const ps = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   assert.equal(path.isAbsolute(ps) && path.normalize(ps) === ps, true);
   execFileSync(ps, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',
-    '. ' + psQuote(path.join(release, 'tools/i_core/release_schema6/lifecycle/protected_paths.ps1')) + '; Assert-ProtectedPath ' + psQuote(out) + ' -Root'],
+    "$ErrorActionPreference='Stop'; . " + psQuote(path.join(path.dirname(fileURLToPath(import.meta.url)), 'owned_artifacts.ps1')) + '; Assert-OwnedArtifactUnelevatedProcess; . ' + psQuote(path.join(release, 'tools/i_core/release_schema6/lifecycle/protected_paths.ps1')) + '; Assert-ProtectedPath ' + psQuote(out) + ' -Root'],
     { env: cleanEnvironment(), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000 });
   const load = rel => import(pathToFileURL(path.join(release, rel)).href);
   const { captureConsistentSqlite } = await load('tools/i_core/release_schema6/automatic_backup.mjs');

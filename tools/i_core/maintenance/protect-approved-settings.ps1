@@ -2,8 +2,10 @@
 [CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$ProposalPath,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedProposalSha256,
- [Parameter(Mandatory=$true)][string]$ReceiptDirectory,[switch]$Execute)
-# No UAC, privilege enablement, owner writes, deployment defaults or child ACL writes.
+ [Parameter(Mandatory=$true)][string]$ReceiptDirectory,
+ [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedOwnedArtifactsSha256,[switch]$Execute)
+# No UAC, privilege enablement, target owner writes, deployment defaults or child ACL writes.
+# Fresh evidence artifacts explicitly use the ordinary owner SID.
 # SDDL means Owner/Group/DACL (the complete ordinary Get-Acl view); SACL is never requested or changed.
 function Initialize-SettingsAclNative {
  if ('SettingsAclNative' -as [type]) { return }
@@ -11,11 +13,9 @@ function Initialize-SettingsAclNative {
 using System;using System.IO;using System.Text;using System.ComponentModel;using System.Runtime.InteropServices;using Microsoft.Win32.SafeHandles;
 public static class SettingsAclNative {
  [StructLayout(LayoutKind.Sequential)] struct Info {public uint attr,cLo,cHi,aLo,aHi,wLo,wHi,volume,sizeHi,sizeLo,links,idHi,idLo;}
- [StructLayout(LayoutKind.Sequential)] struct SA {public int length;public IntPtr descriptor;public int inherit;}
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern SafeFileHandle CreateFile(string p,uint a,uint s,IntPtr sa,uint d,uint f,IntPtr t);
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(SafeFileHandle h,out Info i);
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern uint GetFinalPathNameByHandle(SafeFileHandle h,StringBuilder b,uint n,uint f);
- [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool CreateDirectory(string p,ref SA a);
  [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr p);
  [DllImport("advapi32.dll")] static extern uint GetSecurityInfo(SafeFileHandle h,int type,uint info,out IntPtr o,out IntPtr g,out IntPtr d,out IntPtr s,out IntPtr sd);
  [DllImport("advapi32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool ConvertSecurityDescriptorToStringSecurityDescriptor(IntPtr sd,uint rev,uint info,out IntPtr s,out uint n);
@@ -61,10 +61,7 @@ public static class SettingsAclNative {
    if(!SetFileSecurity(path.ToString(),4u|(protect?0x80000000u:0x20000000u),sd))throw new Win32Exception(Marshal.GetLastWin32Error());
   }finally{LocalFree(sd);}
  }
- public static void FreshDirectory(string p,string sddl) {
-  IntPtr sd;uint n;if(!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl,1,out sd,out n))throw new Win32Exception(Marshal.GetLastWin32Error());
-  try{var a=new SA{length=Marshal.SizeOf(typeof(SA)),descriptor=sd};if(!CreateDirectory(p,ref a))throw new Win32Exception(Marshal.GetLastWin32Error());}finally{LocalFree(sd);}
- }
+
 }
 "@
 }
@@ -117,13 +114,12 @@ function Write-SettingsReceipt([string]$Name,$Value) {
  Assert-SettingsPrivate $receiptHandle $true
  $p=Join-Path $ReceiptDirectory $Name
  $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($Value|ConvertTo-Json -Depth 12))
- $f=[IO.File]::Open($p,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read)
- try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}
+ Write-OwnedArtifactBytes $p $bytes $owner
  return Get-SettingsHash $bytes
 }
 function Set-SettingsDacl($Handle,[string]$Sddl,[bool]$Protected) { [SettingsAclNative]::DaclOnly($Handle,$Sddl,$Protected) }
 function Invoke-SettingsProtection {
- param([string]$ProposalPath,[string]$ExpectedProposalSha256,[string]$ReceiptDirectory,[switch]$Execute)
+ param([string]$ProposalPath,[string]$ExpectedProposalSha256,[string]$ReceiptDirectory,[Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedOwnedArtifactsSha256,[switch]$Execute)
  Set-StrictMode -Version 2;$ErrorActionPreference='Stop'
  if(!$Execute){throw 'explicit_execute_required'}
  if($ExpectedProposalSha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'proposal_hash_required'}
@@ -133,6 +129,11 @@ function Invoke-SettingsProtection {
  $attempted=$false;$created=$false;$receiptHandle=$null;$proposal=$null
  $result=[ordered]@{format='schema6-production-settings-acl-receipt-v1';proposalSha256=$ExpectedProposalSha256;passed=$false;scope='directory_dacl_only';ownerChanged=$null;childAclsChanged=$null;fileBytesChanged=$null;saclRead=$false;saclChanged=$false;rollbackAttempted=$false;rollbackVerified=$false;startedUtc=[DateTime]::UtcNow.ToString('o')}
  try {
+  $helperPath=Join-Path $PSScriptRoot 'owned_artifacts.ps1'
+  $helperHandle=Hold-SettingsPath $helperPath $false $false
+  $helperStream=[IO.FileStream]::new($helperHandle,[IO.FileAccess]::Read);$locks.Add($helperStream)
+  if((Get-SettingsHash (Read-SettingsBytes $helperStream))-cne $ExpectedOwnedArtifactsSha256){throw 'owned_artifact_source_hash_rejected'}
+  . $helperPath
   $ph=Hold-SettingsPath $ProposalPath $false $false;Assert-SettingsPrivate $ph $false
   $ps=[IO.FileStream]::new($ph,[IO.FileAccess]::Read);$locks.Add($ps)
   $bytes=Read-SettingsBytes $ps
@@ -167,8 +168,7 @@ function Invoke-SettingsProtection {
   if($expected -cne $proposal.expectedSddl -or (Get-SettingsHash ([Text.Encoding]::UTF8.GetBytes($expected))) -cne $proposal.expectedSddlSha256){throw 'exact_protection_only_required'}
   $parent=[IO.Path]::GetDirectoryName($ReceiptDirectory);$parentHandle=Hold-SettingsPath $parent $true $false;Assert-SettingsPrivate $parentHandle $true
   # Atomic create with a protected DACL; an existing output directory is never reused.
-  $private='O:'+$owner+'D:P(A;OICI;FA;;;'+$owner+')(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'
-  [SettingsAclNative]::FreshDirectory($ReceiptDirectory,$private);$created=$true
+  New-OwnedArtifactDirectory $ReceiptDirectory $owner;$created=$true
   $receiptHandle=Hold-SettingsPath $ReceiptDirectory $true $false;Assert-SettingsPrivate $receiptHandle $true
   $result.path=$proposal.path;$result.identities=$identities
   $snapshotHash=Write-SettingsReceipt 'original.json' ([ordered]@{format='schema6-production-settings-acl-snapshot-v1';proposalSha256=$ExpectedProposalSha256;objects=$proposal.objects;identities=$identities;expectedSddl=$expected;capturedUtc=[DateTime]::UtcNow.ToString('o')})
@@ -203,6 +203,6 @@ function Invoke-SettingsProtection {
   return [pscustomobject]$result
  }finally {for($j=$locks.Count-1;$j -ge 0;$j--){$locks[$j].Dispose()}}
 }
-$answer=Invoke-SettingsProtection -ProposalPath $ProposalPath -ExpectedProposalSha256 $ExpectedProposalSha256 -ReceiptDirectory $ReceiptDirectory -Execute:$Execute
+$answer=Invoke-SettingsProtection -ProposalPath $ProposalPath -ExpectedProposalSha256 $ExpectedProposalSha256 -ReceiptDirectory $ReceiptDirectory -ExpectedOwnedArtifactsSha256 $ExpectedOwnedArtifactsSha256 -Execute:$Execute
 $answer|ConvertTo-Json -Depth 12
 if(!$answer.passed){exit 2}
