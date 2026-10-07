@@ -129,4 +129,3 @@ test('App frozen projection joins exact legacy records then adopts with the same
   assert.equal(current.record.origin.principal_id, 'legacy-web');
   assert.equal(current.record.provenance.source, 'i_remember');
 });
-

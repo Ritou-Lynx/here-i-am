@@ -1,7 +1,7 @@
 # Hub Go-live P1 legacy capture ownership proof design（仅设计）
 
-日期：2026-10-07  
-基线：`df35b8872b623a119f5131cbdc1997cb9262ec02`  
+日期：2026-10-07
+基线：`df35b8872b623a119f5131cbdc1997cb9262ec02`
 状态：**接口与测试建议，未实现、未执行真实数据读取、未通过现场 Gate、不可据此上线。**
 
 后续实现已另行记录于 `HUB_GOLIVE_P1_HOST_20261007.md` 和
