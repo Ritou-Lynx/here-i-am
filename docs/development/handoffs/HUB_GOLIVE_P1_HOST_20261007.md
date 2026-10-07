@@ -20,6 +20,10 @@ Implemented source:
 - `tools/i_core/personal_domain_migration.mjs`
   - strict canonical migration digests
   - strict `i-domain-migration-v1` adoption proof sign and verify
+- `tools/i_core/phone_capture_migration.mjs`
+  - strict adapter from the App's frozen `i-domain-migration-manifest-v1`
+    projection plus caller-supplied closed-snapshot records
+  - separate freeze and apply calls; no file discovery, grant, or automatic apply
 - `tools/i_core/i_core_store.mjs` and `tools/i_core/i_core_server.mjs`
   - synchronous `domainConfigure` injection after schema-6 `DomainStore` construction
 - `tools/i_core/domain_store.mjs`
@@ -72,7 +76,10 @@ The domain token and 32-byte HMAC signing secret are independently generated. Th
 
 The default phone grant covers existing capture and planning UI scopes. Migration authority is never automatic. The owner must explicitly add `captures:owner` and `captures:adopt`, list every allowed adoption source, and provide the allowed historical origin principals. Only that explicit grant gains the `import` actor, `import_sources`, and bounded `origins`; ordinary grants remain `origin_device_only`.
 
-The origin allowlist applies to every scope on that migration-capable principal. If the same grant also includes `captures:patch` or `captures:delete`, an exact trusted-UI signature can authorize those actions for an allowed historical origin. Deployment should grant only the phone capabilities the selected workflow needs.
+The origin allowlist permits controlled adoption, read and refetch of the named
+historical origins. Ordinary phone UI patch/delete still pass through the capture
+business hook, which denies them unless the record origin principal or device
+matches that phone principal or device. The allowlist does not bypass that check.
 
 ## Local adoption orchestration
 
@@ -81,13 +88,38 @@ The migration-capable phone owner principal performs adoption so the current App
 The executable sequence is:
 
 1. The App freezes its source and mapped-output manifest locally.
-2. The owner explicitly grants the phone principal owner/adopt scopes, both source kinds used by the migration, and the mapped historical origin allowlist. It then calls `freezeAdoptionManifest` with the phone binding, expiry, full synthetic records, and per-record source/output digests.
+2. The owner explicitly grants the phone principal owner/adopt scopes, both source kinds used by the migration, and the mapped historical origin allowlist. A local caller passes the App's frozen manifest and the matching closed-snapshot Core records to `freezePhoneCaptureMigration`. The adapter validates the App protocol, binding, source, 1..5000 records, exact source/target identity and revision, slot/projection references, and aggregate source/output digests before it calls `freezeAdoptionManifest`.
 3. Core recomputes aggregate digests. The current contract preserves source ID and revision exactly, so each source ID/revision must equal its target ID/revision.
 4. `applyAdoptionManifest({migrationId, adoptionToken, records})` authenticates the same current phone owner generation, runs every dry-run preflight, then calls `DomainStore.adoptLegacyRecord` for each exact frozen record using a projection proof bound to the private manifest and owner-phone consumer binding.
 5. Core produces a report only after every production receipt is found again in `domain_receipts`, its `receipt_auth` is verified, the matching owner-principal `domain_ops` row is a local legacy adoption with the exact source, batch, mapping, projection, and HMAC record binding, the current owner generation is active, and the current record revision/tombstone still matches.
 6. The returned signed `phase:'adopt'` proof has `pending_ops:0` and `conflict_count:0`. Shadow, partial, conflicting, stale-generation, forged-receipt, ordinary-create-receipt, or post-adoption-edited state cannot produce a report. A lost response is recovered by retrying the same adoption identity and durable receipt.
 
 The App completes local verification and commit. Core does not sign separate freeze and verify phases.
+
+The local source adapter is invoked explicitly:
+
+```js
+const frozen = freezePhoneCaptureMigration({
+  owner,
+  appManifest,
+  legacyRecords,
+  batchId,
+  mappingVersion: PHONE_CAPTURE_MAPPING_VERSION,
+  expiresAt,
+});
+
+const applied = applyPhoneCaptureMigration({
+  owner,
+  migrationId: frozen.migration_id,
+  adoptionToken: phoneAccess.token,
+  legacyRecords,
+});
+```
+
+`legacyRecords` comes from a separately authorized closed snapshot supplied by
+the caller. The adapter does not read it from disk or infer trust. The App's
+`output_digest` remains the App projection digest and is never replaced with a
+Core record-body hash.
 
 ## Cross-language proof contract
 
@@ -127,6 +159,17 @@ Final scoped command covered these files:
 - `import_local_plan.test.mjs`
 
 Result: 53 tests passed, 0 failed.
+
+Root integration recheck: 175/175 across the Core host, domain store/HTTP,
+authorization, importer, adoption, and server suites. After adding the source
+adapter, its combined adapter/host/adoption group passed 20/20. These overlap.
+
+The additional phone capture source-adapter test passed 1/1. It uses a real
+schema-6 Core owner, a current App-shaped frozen manifest, a historical Web
+origin record, production adoption, and authenticated loopback operation and
+current-record refetch. Invalid ID, revision, mapping version, and aggregate
+digest cases are rejected, and the App output digest remains distinct from the
+Core record digest.
 
 Coverage includes default-disabled/schema-5 fail-closed behavior, mixed-mode reopen, durable frozen mismatch, real schema-6 HTTP phone create, rotation and revocation, default Web denial, injected real Ed25519 Web approval, rejected async verifier containment, principal collision, preserved historical Web origin, phone-owner operation refetch, full-record manifest binding, forged/non-adoption receipt rejection, post-adoption edit rejection, stale generation, fixed cross-language HMAC vector, old no-projection request digest compatibility, and lost-response reopen replay.
 
