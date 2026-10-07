@@ -1,3 +1,9 @@
+## 2026-10-08 r03最新现场停点（覆盖下方历史）
+
+实际r03冻结、144项Apply、普通正式Prepare、CREATE严格回读和获批交互式任务启动已通过；原raw加密保全、副本4→5→6及原址替换完成，head generation1，schema6 Core与同会话同字节MCP健康。**原址替换/head已提交，只向前修，不盲退v4。**
+
+首轮自动备份worker_failed，纯固定ACL断言证实daily-backup-config.json当前继承三ACE与其严格仅本人/SYSTEM规则不符。原144之外单文件DACL修复方案待用户另批，未实施；实际stderr未保留，不承诺修复后无其他拒绝。四真人Gate暂停，**切换未完成**；MCP开库前提请求及真人关机尚未执行。详见[r03实录](SCHEMA6_R03_EXECUTION_20261008.md)。生产settings不可清理，运行47/六批准锚不变；10/09晚T9完整加密备份/真实还原仍待。
+
 > **2026-10-07 最后一次授权更新**：r02已消费且已完整退回；新正式窗口用r03，旧锁/回执不动。所有提升产物经统一本人owner持柄读回，新的必跑Hosted真实跨token串联CI通过后，先用全新只读ID完整演练。六批准hash/固定47/父SD未变且零失败才按已有条件授权进场。截止北京时间10/09 18:00须四真人Gate齐全，否则停止；pending库存漂移/提交边界不能盲退v4。晚间20:00独立T9完整加密备份+实际恢复核对已安排，实际完成另签收。见[最后一次执行约束](SCHEMA6_LAST_ATTEMPT_20261007.md)、[工件库存](SCHEMA6_ELEVATED_ARTIFACT_INVENTORY_20261007.md)、[Prepare后16阶段表](SCHEMA6_POST_PREPARE_GATES_20261007.md)。本注覆盖下文历史入口“r02未使用”等旧状态；生产settings不可清理。
 ## 2026-10-07 21:29（上海）最新结果：r02 Prepare 拒绝，已完整退回
 

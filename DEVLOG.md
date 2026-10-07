@@ -1,3 +1,13 @@
+## 2026-10-08 — r03已接管schema6，备份ACL阻断停审
+- a85精确源码完整CI八job全绿，维护61/61、生命周期292/292、真实提升→普通Prepare串联通过。
+- 新完整只读演练零失败、六批准锚全实核不变；r03冻结/144项Apply/正式Prepare/CREATE严格回读通过。
+- 实际获批交互式任务启动，固定包原raw加密、副本4→5→6、原址替换和独立head generation1已完成。
+- Core schema6及同会话同字节MCP健康；legacy_b3唯一、47862保留、PR10关闭、debug邮件503禁用。
+- 首轮自动备份worker_failed；纯ACL断言证实配置文件继承三ACE与备份严格规则不符。
+- 原144之外的单文件DACL拟议方案已列精确hash，尚未实施，按偏差停审另请批准。
+- 原库已替换/head已推进，只向前修；四真人Gate暂停，切换未完成，T9完整备份/真实还原仍待。
+- 现场结构/哈希回执见handoffs/SCHEMA6_R03_EXECUTION_20261008.md；无正文/密钥写入交付。
+---
 ## 2026-10-07 — 修正Hosted合成权限披露数组
 - 34582e23两个Hosted维护验收通过；真实身份链准确拒绝inheritedReadOnlyPrincipals嵌套空项。
 - 根因为fixture对return ,$items再次@包装；仅移除多余@，保留完整外SID披露与严格生产检查。

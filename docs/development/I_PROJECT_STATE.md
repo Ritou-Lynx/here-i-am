@@ -1,3 +1,11 @@
+## 2026-10-08：r03原址schema6已接管，自动备份ACL阻断，暂停真人Gate
+
+精确a85源码原生完整CI八job全部成功（维护61/61、生命周期292/292、真实提升→普通固定Prepare/安全COM往返），新完整只读演练及六批准锚均通过。r03实际冻结、144项Apply、普通正式Prepare、CREATE-only注册与严格回读成功，获批交互式任务已真实启动；固定包已加密保全原raw、副本4→5→6并原址替换，独立head generation1推进，Core schema6与同会话旧MCP健康。生产settings不可清理；固定47运行字节、XML/双SDDL/父SD/login批准锚保持。
+
+首轮自动备份回执worker_failed；纯固定ACL断言与独审证实daily-backup-config.json未保护继承且含Administrators，必被仅本人/SYSTEM的备份规则拒绝。实际attempt stderr未保存，不能据此排除其他原因。仅该文件DACL的精确向前修方案已准备、尚未执行，原144之外变更须按用户偏差停审另批；不改文件内容或批准运行字节。
+
+**切换尚未完成：四项真人Gate全部暂停，已跨原库替换/head边界只能向前修。** 保持新Core/MCP运行，不恢复旧ACL或旧v4、不删pending/锁；后续修复、固定自动备份及隔离真实还原通过再继续。10/09晚T9九类完整加密备份与真实还原仍待，截止10/09 18:00条件不改。完整证据见[r03现场记录](handoffs/SCHEMA6_R03_EXECUTION_20261008.md)。下方未进场/仍schema4均为历史阶段。
+
 ## 2026-10-07：Hosted夹具披露数组窄修，未进场
 
 34582e23的两个维护job已通过；真实身份链在taskSecurityBindings明确发现合成配置的披露项为嵌套数组。生产纯函数return ,$items已返回数组，fixture重复@包装造成[[]]；仅去掉该@，保留零/非零外SID完整披露。新增实际pipeline AST表达式的PS5→JSON→生产policy/JS 0/1/2主体回归，旧嵌套继续拒绝；主窗数组/观察器/static6/6、0跳过。下一HEAD真实提升→普通固定Prepare→安全COM串联仍待CI，不把局部通过当完整链成功。
