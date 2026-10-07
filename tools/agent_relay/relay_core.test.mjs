@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply } from './relay_core.mjs';
+import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply, parseNotification, formatNotification } from './relay_core.mjs';
 
 test('parseInstruction requires exact first line and safe positive round', () => {
   assert.deepEqual(parseInstruction('<!-- relay:to-codex round=2 -->\nDo it'), { round: 2, instruction: 'Do it' });
@@ -86,4 +86,30 @@ test('formatReply redacts a PEM block before clipping diagnostics', () => {
   const out = formatReply({ round: 5, status: 'failed', reason: 'check', details: pem, summaryMaxChars: 6000 });
   assert.doesNotMatch(out, /SYNTHETIC_SECRET_MATERIAL|-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----/);
   assert.match(out, /\[已隐藏\]/);
+});
+
+test('notification markers are restricted to the exact first line', () => {
+  assert.equal(parseNotification('<!-- relay:done -->\r\nReview'), 'done');
+  assert.equal(parseNotification('<!-- relay:to-human -->\nDecide'), 'to-human');
+  for (const body of [null, 'x\n<!-- relay:done -->', ' <!-- relay:done -->', '<!-- relay:to-codex round=1 -->', '<!-- relay:to-claude round=1 status=done sha=abc -->', '<!-- relay:to-claude round=1 status=blocked sha=abc -->', '<!-- relay:to-claude round=1 status=failed sha=none -->']) assert.equal(parseNotification(body), null);
+});
+
+test('notification content strips marker/signature and redacts before the 300 character limit', () => {
+  const input = { prNumber: 17, prTitle: 'Synthetic title', repo: 'Ritou-Lynx/here-i-am', kind: 'done', body: '<!-- relay:done -->\r\nStart\n-----BEGIN PRIVATE KEY-----\n' + 'private material\n'.repeat(40) + '-----END PRIVATE KEY-----\n' + '字'.repeat(500) + '\r\n---\r\nSignature' };
+  const result = formatNotification(input);
+  assert.equal(result.title, '接力 PR #17：完成，等你验收');
+  assert.equal(result.url, 'https://github.com/Ritou-Lynx/here-i-am/pull/17');
+  assert.equal(Array.from(result.content.split('\n').slice(2).join('\n')).length, 300);
+  assert.doesNotMatch(result.content, /relay:done|Signature|private material|PRIVATE KEY/);
+  assert.match(result.content, /Start\n\[已隐藏\]/);
+  assert.equal(formatNotification({ ...input, kind: 'to-human' }).title, '接力 PR #17：需要你决定');
+  assert.equal(formatNotification({ ...input, kind: 'failed', round: 3 }).title, '接力 PR #17：第 3 轮失败');
+});
+
+test('configured secrets are hidden literally before truncation, including in PR titles', () => {
+  const secrets = ['synthetic.push+token', 'synthetic-bark-key'];
+  assert.deepEqual(redact('synthetic.push+token tail', 6, secrets), { text: '[已隐藏] ', redacted: true, truncated: true });
+  const out = formatNotification({ prNumber: 17, prTitle: secrets[0], repo: 'Ritou-Lynx/here-i-am', kind: 'done', body: `<!-- relay:done -->\n${secrets[1]}`, secrets });
+  for (const secret of secrets) assert.equal(out.content.includes(secret), false);
+  assert.match(out.content, /\[已隐藏\]/);
 });

@@ -5,7 +5,8 @@ import { access, mkdir, open, readFile, realpath, rename, unlink, writeFile } fr
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply } from './relay_core.mjs';
+import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply, parseNotification, formatNotification } from './relay_core.mjs';
+import { sendNotification } from './relay_notify.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = 'Ritou-Lynx/here-i-am';
@@ -112,8 +113,17 @@ async function acquireLock(stateDir, pid, isProcessAlive) {
   }
   return null;
 }
-function validateConfig(input) {
+export function validateConfig(input) {
   const config = { ...defaults, ...input };
+  if (config.notify !== undefined && (!config.notify || typeof config.notify !== 'object' || Array.isArray(config.notify))) throw new Error('notify 必须是对象');
+  config.notify = { pushplusToken: '', barkKey: '', barkServer: 'https://api.day.app', ...config.notify };
+  for (const field of ['pushplusToken', 'barkKey', 'barkServer']) if (typeof config.notify[field] !== 'string') throw new Error(`notify.${field} 必须是字符串`);
+  config.notify.pushplusToken = config.notify.pushplusToken.trim();
+  config.notify.barkKey = config.notify.barkKey.trim();
+  try {
+    const server = new URL(config.notify.barkServer);
+    if (server.protocol !== 'https:' || server.username || server.password || server.search || server.hash) throw new Error();
+  } catch { throw new Error('notify.barkServer 必须是无凭据、查询参数和片段的 https 地址'); }
   if (config.repo !== REPO || config.baseBranch !== 'v3-lab') throw new Error('只允许协议指定仓库和 v3-lab base');
   for (const field of ['allowedAuthors', 'headPrefixes', 'codexArgs']) if (!Array.isArray(config[field]) || !config[field].every(x => typeof x === 'string')) throw new Error(`${field} 必须是字符串数组`);
   if (!config.allowedAuthors.length || !config.headPrefixes.length || config.headPrefixes.some(x => !['claude/', 'codex/'].includes(x))) throw new Error('作者或分支白名单无效');
@@ -128,8 +138,12 @@ function validateConfig(input) {
   return config;
 }
 
-export async function runOnce({ config: input, stateDir = path.join(here, '.state'), run: execute = run, now = Date.now, pid = process.pid, isProcessAlive = alive, log = console.log, template, dryRun = false } = {}) {
+export async function runOnce({ config: input, stateDir = path.join(here, '.state'), run: execute = run, now = Date.now, pid = process.pid, isProcessAlive = alive, log = console.log, template, dryRun = false, fetchImpl = fetch } = {}) {
   const config = validateConfig(input);
+  const secrets = [config.notify.pushplusToken, config.notify.barkKey];
+  const safe = text => redact(text, Number.MAX_SAFE_INTEGER, secrets).text;
+  const hideCredentials = text => secrets.filter(Boolean).reduce((value, secret) => value.split(secret).join('[已隐藏]'), String(text ?? ''));
+  const notifyEnabled = Boolean(config.notify.pushplusToken || config.notify.barkKey);
   let release;
   if (!dryRun) {
     release = await acquireLock(stateDir, pid, isProcessAlive);
@@ -150,20 +164,57 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
   const post = async (pr, body) => {
     const file = path.join(stateDir, 'logs', `reply-${pr}-${randomUUID()}.md`);
     await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, body, { mode: 0o600 });
-    await gh(['pr', 'comment', String(pr), '--repo', config.repo, '--body-file', file]);
+    await writeFile(file, safe(body), { mode: 0o600 });
+    const receipt = await gh(['pr', 'comment', String(pr), '--repo', config.repo, '--body-file', file]);
+    return /#issuecomment-(\d+)/.exec(receipt)?.[1];
   };
   try {
     const state = await readState(stateFile);
+    state.notified ??= {};
+    if (!state.notified || typeof state.notified !== 'object' || Array.isArray(state.notified)) throw new Error('state.json 的 notified 无效');
+    if (!notifyEnabled) log('未配置通知通道');
+    const attempted = new Set();
+    const notify = async (id, payload) => {
+      if (!notifyEnabled || attempted.has(String(id)) || ['sent', 'gave_up'].includes(state.notified[id]?.status)) return;
+      attempted.add(String(id));
+      if (dryRun) { log(`将要发送通知：${safe(payload.title)}`); return; }
+      try {
+        const attempts = (state.notified[id]?.attempts ?? 0) + 1;
+        const result = await sendNotification(payload, config.notify, fetchImpl);
+        const sent = Object.values(result).includes('ok');
+        state.notified[id] = { status: sent ? 'sent' : attempts >= 3 ? 'gave_up' : 'pending', attempts, at: timestamp(now) };
+        // Retain only sanitized pending payloads so deletion/closure of a PR
+        // cannot silently discard the promised retries. Drop after termination.
+        if (state.notified[id].status === 'pending') state.notified[id].notification = payload;
+        log(`通知 #${id}：pushplus=${result.pushplus} bark=${result.bark}`);
+        if (!sent && attempts >= 3) log(`通知 #${id} 已失败 3 次，放弃重试`);
+        await saveState(stateFile, state);
+      } catch { log(`通知 #${id} 处理失败，下次轮询再检查`); }
+    };
+    const notifyFailed = async entry => {
+      if (!notifyEnabled || entry.status !== 'failed' || !entry.notification?.commentId) return;
+      if (!entry.prTitle) {
+        try { entry.prTitle = safe(JSON.parse(await gh(['pr', 'view', String(entry.pr), '--repo', config.repo, '--json', 'title'])).title ?? `PR #${entry.pr}`); } catch {}
+      }
+      await notify(entry.notification.commentId, formatNotification({ prNumber: entry.pr, prTitle: entry.prTitle, repo: config.repo, body: entry.notification.body, kind: 'failed', round: entry.round, secrets }));
+    };
+    for (const [id, entry] of Object.entries(state.notified)) {
+      if (entry.status === 'pending' && entry.notification) await notify(id, {
+        title: safe(entry.notification.title), content: safe(entry.notification.content), url: safe(entry.notification.url),
+      });
+    }
     const promptTemplate = template ?? await readFile(path.join(here, 'CODEX_ROUND_PROMPT.md'), 'utf8');
     const deliver = async (id, entry) => {
-      await post(entry.pr, entry.notification.body);
+      const postedId = await post(entry.pr, entry.notification.body);
+      entry.notification.commentId ??= postedId ?? String(id);
+      await notifyFailed(entry);
       if (entry.notification.reaction) await reaction(id, entry.notification.reaction);
       entry.notification.pending = false;
       await saveState(stateFile, state);
     };
     if (!dryRun) for (const [id, entry] of Object.entries(state.comments)) {
       if (entry.notification?.pending) await deliver(id, entry);
+      else await notifyFailed(entry);
     }
     if (await exists(path.join(stateDir, 'cleanup-blocked.json'))) { log('上次进程树清理未确认；需本机检查后移除 cleanup-blocked.json'); return { status: 'cleanup-blocked' }; }
     // Accepted comments never replay, even after a crash. Report abandoned work separately.
@@ -178,21 +229,52 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         log(entry.reason);
       }
     }
-    const prs = JSON.parse(await gh(['pr', 'list', '--repo', config.repo, '--state', 'open', '--label', 'agent-relay', '--json', 'number,headRefName,baseRefName,headRefOid,isCrossRepository,labels']));
+    const prs = JSON.parse(await gh(['pr', 'list', '--repo', config.repo, '--state', 'open', '--label', 'agent-relay', '--json', 'number,title,headRefName,baseRefName,headRefOid,isCrossRepository,labels']));
+    const commentsByPr = new Map();
+    const firstEnable = notifyEnabled && !state.notifyEnabledAt;
+    const enabledAt = state.notifyEnabledAt ?? timestamp(now);
+    let baselineChanged = false;
+    // Scan the whole labelled open set before executing any round, including
+    // paused/human PRs. Cache comments so execution never scans a PR twice.
+    for (const pr of prs) {
+      if (!Number.isSafeInteger(pr.number) || pr.number < 1) continue;
+      let comments;
+      try {
+        const pages = JSON.parse(await gh(['api', `repos/${config.repo}/issues/${pr.number}/comments`, '--paginate', '--slurp']));
+        comments = pages.flat();
+        commentsByPr.set(pr.number, comments);
+      } catch { log(`PR #${pr.number} 评论读取失败，本次跳过`); continue; }
+      if (!notifyEnabled) continue;
+      for (const comment of comments) {
+        const kind = parseNotification(comment.body);
+        if (!kind || !Number.isSafeInteger(comment.id) || comment.id < 1 || !config.allowedAuthors.includes(comment.user?.login)) continue;
+        if (firstEnable || (!state.notified[comment.id] && Date.parse(comment.created_at) < Date.parse(enabledAt))) {
+          if (!dryRun) {
+            state.notified[comment.id] = { status: 'sent', attempts: 0, at: enabledAt };
+            baselineChanged = true;
+          }
+          continue;
+        }
+        await notify(comment.id, formatNotification({ prNumber: pr.number, prTitle: pr.title, repo: config.repo, body: comment.body, kind, secrets }));
+      }
+    }
+    if ((firstEnable || baselineChanged) && !dryRun) {
+      if (firstEnable) state.notifyEnabledAt = enabledAt;
+      try { await saveState(stateFile, state); } catch { log('通知启用记录保存失败，下次轮询再检查'); }
+    }
     for (const pr of prs) {
       if (!Number.isSafeInteger(pr.number) || pr.number < 1 || !isEligiblePr(pr, config)) { log(`跳过 PR #${pr.number}：不满足接力条件`); continue; }
-      const pages = JSON.parse(await gh(['api', `repos/${config.repo}/issues/${pr.number}/comments`, '--paginate', '--slurp']));
-      const comments = pages.flat().filter(comment => Number.isSafeInteger(comment.id) && comment.id > 0 && parseInstruction(comment.body) && config.allowedAuthors.includes(comment.user?.login) && !Object.hasOwn(state.comments, String(comment.id))).sort((a, b) => Date.parse(a.created_at ?? 0) - Date.parse(b.created_at ?? 0) || Number(a.id) - Number(b.id));
+      const comments = (commentsByPr.get(pr.number) ?? []).filter(comment => Number.isSafeInteger(comment.id) && comment.id > 0 && parseInstruction(comment.body) && config.allowedAuthors.includes(comment.user?.login) && !Object.hasOwn(state.comments, String(comment.id))).sort((a, b) => Date.parse(a.created_at ?? 0) - Date.parse(b.created_at ?? 0) || Number(a.id) - Number(b.id));
       const comment = comments[0];
       if (!comment) continue;
       const { round, instruction } = parseInstruction(comment.body);
       const worktree = path.join(config.worktreeRoot, `pr-${pr.number}`);
       const codexArgs = ['exec', '--cd', worktree, ...config.codexArgs, '--json', '--output-last-message', path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.last.txt`), '-'];
       const contract = JSON.parse(await gh(['pr', 'view', String(pr.number), '--repo', config.repo, '--json', 'body'])).body ?? '';
-      const prompt = renderPrompt(promptTemplate, { pr_number: pr.number, branch: pr.headRefName, round, contract, instruction });
+      const prompt = hideCredentials(renderPrompt(promptTemplate, { pr_number: pr.number, branch: pr.headRefName, round, contract, instruction }));
       if (dryRun) {
         const preview = { status: 'dry-run', pr: pr.number, commentId: comment.id, round, prompt, commands: round > config.maxRounds ? [['gh', 'pr', 'edit', String(pr.number), '--add-label', 'relay-needs-human'], ['gh', 'pr', 'comment', String(pr.number)]] : [['gh', 'api', '-X', 'POST', '.../reactions', '-f', 'content=eyes'], ['git', 'fetch', 'origin', pr.headRefName], ['git', 'worktree', 'add', worktree], ['codex', ...codexArgs], ['git', 'push', 'origin', `HEAD:refs/heads/${pr.headRefName}`], ['gh', 'pr', 'comment', String(pr.number)]] };
-        log(JSON.stringify(preview, null, 2));
+        log(safe(JSON.stringify(preview, null, 2)));
         return preview;
       }
       if (round > config.maxRounds) {
@@ -206,7 +288,7 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         return { status: 'human', pr: pr.number, round };
       }
       await reaction(comment.id, 'eyes');
-      state.comments[comment.id] = { status: 'in_progress', pr: pr.number, round, startedAt: timestamp(now) };
+      state.comments[comment.id] = { status: 'in_progress', pr: pr.number, prTitle: safe(pr.title ?? `PR #${pr.number}`), round, startedAt: timestamp(now) };
       await saveState(stateFile, state);
       let status = 'failed', summary = '', reason = '', details = '', startSha = '', sha = 'none', commitCount = 0, files = [];
       const git = args => checked('git', args, { cwd: worktree });
@@ -242,9 +324,19 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         // Never accept a leftover answer from an earlier interrupted run.
         try { await unlink(last); } catch (error) { if (error.code !== 'ENOENT') throw error; }
         const result = await invoke('codex', codexArgs, { cwd: worktree, input: prompt, env: { SKIP_PROJECT_STATE: '1' }, timeoutMs: config.codexTimeoutMinutes * 60000, stdoutFile });
-        if (result.stdout) await writeFile(stdoutFile, result.stdout, { mode: 0o600 });
-        await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.stderr.txt`), result.stderr, { mode: 0o600 });
-        details = result.stderr;
+        if (result.stdout) await writeFile(stdoutFile, hideCredentials(result.stdout), { mode: 0o600 });
+        else if (notifyEnabled && await exists(stdoutFile)) {
+          const output = await readFile(stdoutFile, 'utf8');
+          const clean = hideCredentials(output);
+          if (clean !== output) await writeFile(stdoutFile, clean, { mode: 0o600 });
+        }
+        await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.stderr.txt`), hideCredentials(result.stderr), { mode: 0o600 });
+        if (notifyEnabled && await exists(last)) {
+          const output = await readFile(last, 'utf8');
+          const clean = hideCredentials(output);
+          if (clean !== output) await writeFile(last, clean, { mode: 0o600 });
+        }
+        details = hideCredentials(result.stderr);
         if (result.cleanupUnconfirmed) {
           await writeFile(path.join(stateDir, 'cleanup-blocked.json'), JSON.stringify({ pid: result.pid, pr: pr.number, round, occurredAt: timestamp(now) }) + '\n', { mode: 0o600 });
           throw new Error('Codex 超时且进程树清理未确认，后续轮询已阻止，需本机检查');
@@ -298,9 +390,10 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         status = 'failed'; reason = error.message.split(/\r?\n/, 1)[0]; sha = 'none';
         if (!details) details = error.message.split(/\r?\n/).slice(1).join('\n');
       }
+      reason = hideCredentials(reason); details = hideCredentials(details);
       await mkdir(path.join(stateDir, 'logs'), { recursive: true });
-      await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.result.json`), JSON.stringify({ status, sha, startSha, commitCount, files, summary, reason, details }, null, 2) + '\n', { mode: 0o600 });
-      const body = formatReply({ round, status, sha, startSha: startSha.slice(0, 12), commitCount, files, summary, reason, details, summaryMaxChars: config.summaryMaxChars });
+      await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.result.json`), hideCredentials(JSON.stringify({ status, sha, startSha, commitCount, files, summary, reason, details }, null, 2)) + '\n', { mode: 0o600 });
+      const body = safe(formatReply({ round, status, sha, startSha: startSha.slice(0, 12), commitCount, files, summary, reason, details, summaryMaxChars: config.summaryMaxChars }));
       state.comments[comment.id] = { ...state.comments[comment.id], status, sha, finishedAt: timestamp(now), notification: { pending: true, body, reaction: ['done', 'blocked'].includes(status) ? 'rocket' : 'confused' } };
       await saveState(stateFile, state);
       await deliver(comment.id, state.comments[comment.id]);
@@ -311,12 +404,13 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
   } finally { await release?.(); }
 }
 
-export async function main(argv = process.argv.slice(2), { executeOnce = runOnce, log = console.log } = {}) {
-  let loop = false, dryRun = false, configFile = path.join(here, '.state', 'config.json');
+export async function main(argv = process.argv.slice(2), { executeOnce = runOnce, log = console.log, fetchImpl = fetch } = {}) {
+  let loop = false, dryRun = false, testNotify = false, configFile = path.join(here, '.state', 'config.json');
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--loop') loop = true;
     else if (argv[i] === '--once') loop = false;
     else if (argv[i] === '--dry-run') dryRun = true;
+    else if (argv[i] === '--test-notify') testNotify = true;
     else if (argv[i] === '--config' && argv[i + 1]) configFile = path.resolve(argv[++i]);
     else throw new Error(`未知参数：${argv[i]}`);
   }
@@ -328,9 +422,17 @@ export async function main(argv = process.argv.slice(2), { executeOnce = runOnce
     input = { ...defaults, repoPath: path.resolve(here, '../..'), worktreeRoot: path.join(os.homedir(), 'relay-worktrees') };
   }
   const config = validateConfig(input);
+  if (testNotify) {
+    const payload = { title: '接力测试通知', content: 'Agent Relay 手机通知测试', url: `https://github.com/${config.repo}` };
+    if (!config.notify.pushplusToken && !config.notify.barkKey) log('未配置通知通道');
+    if (dryRun) { log(`将要发送通知：${payload.title}`); return 0; }
+    const result = await sendNotification(payload, config.notify, fetchImpl);
+    log(`pushplus=${result.pushplus} bark=${result.bark}`);
+    return Object.values(result).includes('failed') ? 1 : 0;
+  }
   do {
-    const result = await executeOnce({ config, stateDir: path.dirname(configFile), dryRun, log });
-    if (!['idle', 'locked', 'dry-run'].includes(result.status)) log(redact(`PR #${result.pr ?? '-'}: ${result.status}${result.reason ? ` - ${result.reason}` : ''}`).text);
+    const result = await executeOnce({ config, stateDir: path.dirname(configFile), dryRun, log, fetchImpl });
+    if (!['idle', 'locked', 'dry-run'].includes(result.status)) log(redact(`PR #${result.pr ?? '-'}: ${result.status}${result.reason ? ` - ${result.reason}` : ''}`, 6000, [config.notify.pushplusToken, config.notify.barkKey]).text);
     if (!loop || dryRun) return ['failed', 'cleanup-blocked'].includes(result.status) ? 1 : 0;
     if (loop && !dryRun) await new Promise(resolve => setTimeout(resolve, config.pollSeconds * 1000));
   } while (loop && !dryRun);
