@@ -7,10 +7,24 @@ export const PINNED_NODE_SHA256 = '58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b
 export const SOURCES = Object.freeze([
   'activity_control_plane.mjs', 'domain_http.mjs', 'domain_store.mjs',
   'domain_schema.mjs', 'domain_migrate.mjs', 'i_core_server.mjs', 'i_core_store.mjs',
-  'personal_data_domains.mjs', 'shortcut_mail_relay.mjs', 'send_shortcut_mail.ps1',
+  'personal_data_domains.mjs', 'inspection_read_only.mjs', 'shortcut_mail_relay.mjs', 'send_shortcut_mail.ps1',
   'strict_smtp_tls_validation.ps1',
 ].map(name => `tools/i_core/${name}`));
-const WRAPPERS = ['package.mjs', 'preflight.mjs', 'cli.mjs', 'preflight_schema6.ps1', 'README.md'];
+export const WRAPPERS = Object.freeze([
+  'package.mjs', 'preflight.mjs', 'cli.mjs', 'preflight_schema6.ps1', 'README.md',
+  'recovery_adapter.mjs', 'readonly_witness.mjs', 'recovery_witness_worker.mjs', 'backup_bundle.mjs', 'backup_bundle_schema6.ps1',
+  'automatic_recovery.mjs', 'raw_state_backup.mjs',
+  'backup_key_child.mjs', 'key_custody.ps1', 'restore_inspection.mjs',
+  'portable_key_custody.mjs', 'automatic_backup.mjs', 'portable_backup_schema6.ps1', 'scheduler_once_schema6.ps1',
+  'lifecycle/start_schema6.ps1', 'lifecycle/owned_job.ps1',
+  'lifecycle/job_guardian.ps1', 'lifecycle/protected_paths.ps1',
+  'lifecycle/request_stop.ps1', 'lifecycle/runtime_child.mjs',
+  'lifecycle/common.mjs', 'lifecycle/configuration.mjs',
+  'lifecycle/offline_lease.mjs', 'lifecycle/probe_offline.ps1',
+  'lifecycle/offline_probe_client.mjs',
+  'lifecycle/session_window.ps1', 'lifecycle/login_schema6.ps1',
+  'lifecycle/prepare_login_schema6.ps1', 'lifecycle/mcp_configuration.ps1',
+]);
 export const INVENTORY = Object.freeze([
   ...SOURCES, ...WRAPPERS.map(name => `tools/i_core/release_schema6/${name}`), 'runtime/node.exe',
 ].sort());
@@ -34,7 +48,11 @@ export function cleanEnvironment(env = process.env) {
   // Allow only operating-system plumbing. No inherited Node, Core, model, proxy,
   // pairing, grant, domain, activity, relay, or PowerShell module configuration.
   const allowed = new Set(['SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'COMSPEC']);
-  return Object.fromEntries(Object.entries(env).filter(([key]) => allowed.has(key.toUpperCase())));
+  const clean = Object.fromEntries(Object.entries(env).filter(([key]) => allowed.has(key.toUpperCase())));
+  // Native Windows PowerShell needs a fixed executable extension list. Never
+  // inherit a caller-supplied PATHEXT or silently skip a pinned .exe invocation.
+  if (process.platform === 'win32') clean.PATHEXT = '.EXE';
+  return clean;
 }
 function files(root, relative = '') {
   return readdirSync(path.join(root, relative), { withFileTypes: true }).flatMap(entry => {
@@ -46,13 +64,13 @@ function files(root, relative = '') {
   }).sort();
 }
 function validateImports(content) {
-  const known = new Set(SOURCES);
+  const known = new Set(INVENTORY);
   for (const [name, bytes] of content) {
     if (!name.endsWith('.mjs') || !known.has(name)) continue;
     const source = bytes.toString('utf8');
-    // These pinned sources use static ESM imports only. Reject runtime import or
-    // require additions rather than silently emitting an incomplete manifest.
-    if (/\bimport\s*\(|\brequire\s*\(/.test(source)) fail('dynamic_dependency_requires_review');
+    // Core dependencies are static. The two fixed wrappers load only modules
+    // inside a release that was already verified against its external anchor.
+    if (SOURCES.includes(name) && /\bimport\s*\(|\brequire\s*\(/.test(source)) fail('dynamic_dependency_requires_review');
     for (const match of source.matchAll(/\bfrom\s+['"]([^'"]+)['"]|\bimport\s+['"]([^'"]+)['"]/g)) {
       const dependency = match[1] ?? match[2];
       if (dependency.startsWith('node:')) continue;
@@ -68,6 +86,11 @@ export function verifyInventory(release, expectedManifestHash) {
   const manifest = JSON.parse(raw);
   if (manifest.format !== 'i-core-schema6-preflight-candidate-v1' || !/^[a-f0-9]{40}$/.test(manifest.source_commit ?? '')
       || manifest.core_commit !== manifest.source_commit || manifest.wrapper_commit !== manifest.source_commit
+      || manifest.core_schema_version !== 6 || manifest.runtime_profile !== 'schema6-owned-lifecycle-v1'
+      || manifest.activation_supported !== false
+      || manifest.policy?.companion_upload_mode !== 'legacy_b3' || manifest.policy?.companion_reply_jobs !== false
+      || manifest.policy?.activity_enabled !== false || manifest.policy?.domain_policy !== 'owner_managed'
+      || Object.keys(manifest.policy ?? {}).sort().join(',') !== 'activity_enabled,companion_reply_jobs,companion_upload_mode,domain_policy'
       || JSON.stringify(manifest.files?.map(file => file.path).sort()) !== JSON.stringify(INVENTORY)
       || JSON.stringify(files(release)) !== JSON.stringify([...INVENTORY, 'manifest.json'].sort())) fail('manifest_contract_mismatch');
   for (const file of manifest.files) {
@@ -104,6 +127,7 @@ export function prepareRelease({ repository, output, nodePath = process.execPath
   const { resolvedCommit, content } = readCommittedSources({ repository, gitPath, sourceCommit });
   content.set('runtime/node.exe', nodeBytes);
   const manifest = Buffer.from(JSON.stringify({ format: 'i-core-schema6-preflight-candidate-v1', source_commit: resolvedCommit, core_commit: resolvedCommit, wrapper_commit: resolvedCommit,
+    core_schema_version: 6, runtime_profile: 'schema6-owned-lifecycle-v1',
     pinned_node_sha256: PINNED_NODE_SHA256, node_version: 'v24.14.1',
     policy: { companion_upload_mode: 'legacy_b3', companion_reply_jobs: false, activity_enabled: false, domain_policy: 'owner_managed' },
     activation_supported: false, files: INVENTORY.map(name => ({ path: name, bytes: content.get(name).length, sha256: sha256(content.get(name)) })) }, null, 2) + '\n');

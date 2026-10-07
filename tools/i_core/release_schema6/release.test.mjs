@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { syntheticRoot, syntheticFixedNode } from '../test_fixtures/release_schema6/synthetic_paths.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -13,7 +15,7 @@ import { digest, inspectInputs, preflight } from './preflight.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repository = path.resolve(here, '../../..');
-const node = process.execPath;
+let node;
 const gitExecPath = spawnSync('git', ['--exec-path'], { encoding: 'utf8', windowsHide: true }).stdout?.trim();
 const git = process.platform === 'win32' ? path.resolve(gitExecPath, '../../../bin/git.exe') : '/usr/bin/git';
 let root, release, manifestHash, sourceRepository, sourceCommit, inventoryRelease, inventoryHash;
@@ -27,7 +29,8 @@ function runGit(args) {
   return result.stdout.trim();
 }
 before(() => {
-  root = mkdtempSync(path.join(tmpdir(), 'schema6-release-synthetic-'));
+  root = syntheticRoot('schema6-release-synthetic-');
+  node = syntheticFixedNode(root);
   sourceRepository = path.join(root, 'fresh-git'); mkdirSync(sourceRepository);
   runGit(['init', '-q', sourceRepository]);
   for (const name of INVENTORY.filter(name => name !== 'runtime/node.exe')) {
@@ -46,7 +49,9 @@ before(() => {
     return { path: name, bytes: content.length, sha256: sha256(content) };
   });
   const manifest = Buffer.from(JSON.stringify({ format: 'i-core-schema6-preflight-candidate-v1',
-    source_commit: sourceCommit, core_commit: sourceCommit, wrapper_commit: sourceCommit, files: records }));
+    source_commit: sourceCommit, core_commit: sourceCommit, wrapper_commit: sourceCommit,
+    core_schema_version: 6, runtime_profile: 'schema6-owned-lifecycle-v1', activation_supported: false,
+    policy: { companion_upload_mode: 'legacy_b3', companion_reply_jobs: false, activity_enabled: false, domain_policy: 'owner_managed' }, files: records }));
   writeFileSync(path.join(inventoryRelease, 'manifest.json'), manifest); inventoryHash = sha256(manifest);
   if (process.platform === 'win32') {
     release = path.join(root, 'release');
@@ -54,7 +59,7 @@ before(() => {
   }
 });
 after(() => {
-  assert.equal(path.dirname(root), path.resolve(tmpdir()));
+  assert.equal(path.dirname(root), realpathSync.native(tmpdir()));
   assert.ok(path.basename(root).startsWith('schema6-release-synthetic-'));
   rmSync(root, { recursive: true, force: true });
 });
@@ -215,7 +220,7 @@ test('portable inventory detects manifest, source, Node-byte mutations and extra
 test('environment allowlist removes case-insensitive injection and runtime flags', () => {
   assert.deepEqual(cleanEnvironment({ SystemRoot: 'C:\\Windows', TEMP: 'C:\\Temp', I_CORE_COMPANION_UPLOAD_MODE: 'pr10',
     i_core_activity_admin_secret: 'secret', NODE_OPTIONS: '--require evil.js', node_path: 'evil', HTTPS_PROXY: 'evil',
-    PSModulePath: 'evil', OLLAMA_HOST: 'evil', RANDOM_OTHER_SETTING: 'evil' }), { SystemRoot: 'C:\\Windows', TEMP: 'C:\\Temp' });
+    PSModulePath: 'evil', OLLAMA_HOST: 'evil', PATHEXT: '.CMD;.BAT', RANDOM_OTHER_SETTING: 'evil' }), { SystemRoot: 'C:\\Windows', TEMP: 'C:\\Temp', ...(process.platform === 'win32' ? { PATHEXT: '.EXE' } : {}) });
 });
 
 test('actual PowerShell wrapper clears inherited Node injection and is preflight-only', { skip: process.platform !== 'win32' && 'Windows PowerShell integration only' }, async t => {
@@ -274,4 +279,30 @@ test('Windows pinned candidate from fresh history passes production preflight', 
   const report = await preflight({ release, manifestHash, config });
   assert.equal(report.preflight_passed, true); assert.equal(report.source_commit, sourceCommit);
   assert.equal(report.deployed, false);
+});
+
+
+test('re-anchored unsafe policy and missing owned lifecycle profile reject inventory', () => {
+  const filename = path.join(inventoryRelease, 'manifest.json'), original = readFileSync(filename);
+  try {
+    for (const patch of [ { runtime_profile: 'unsupervised' }, { core_schema_version: 5 }, { activation_supported: true },
+      { policy: { companion_upload_mode: 'pr10', companion_reply_jobs: false, activity_enabled: false, domain_policy: 'owner_managed' } },
+      { policy: { companion_upload_mode: 'legacy_b3', companion_reply_jobs: true, activity_enabled: false, domain_policy: 'owner_managed' } },
+      { policy: { companion_upload_mode: 'legacy_b3', companion_reply_jobs: false, activity_enabled: true, domain_policy: 'owner_managed' } },
+      { policy: { companion_upload_mode: 'legacy_b3', companion_reply_jobs: false, activity_enabled: false, domain_policy: 'owner_managed', extra: true } } ]) {
+      const bytes = Buffer.from(JSON.stringify({ ...JSON.parse(original), ...patch })); writeFileSync(filename, bytes);
+      assert.throws(() => verifyInventory(inventoryRelease, sha256(bytes)), { code: 'manifest_contract_mismatch' });
+    }
+  } finally { writeFileSync(filename, original); }
+});
+
+test('committed unlisted wrapper dependency rejects a fresh source package', t => {
+  const directory = path.join(root, 'unlisted-wrapper-git');
+  t.after(() => removeOwned(directory));
+  runGit(['clone', '-q', '--no-hardlinks', sourceRepository, directory]);
+  const wrapper = path.join(directory, 'tools/i_core/release_schema6/cli.mjs');
+  writeFileSync(wrapper, readFileSync(wrapper, 'utf8') + "\nimport './not-in-fixed-inventory.mjs';\n");
+  runGit(['-C', directory, '-c', 'core.autocrlf=false', 'add', 'tools/i_core/release_schema6/cli.mjs']);
+  runGit(['-C', directory, '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'synthetic unlisted dependency']);
+  assert.throws(() => readCommittedSources({ repository: directory, gitPath: git }), { code: 'unlisted_runtime_dependency' });
 });

@@ -15,6 +15,7 @@ import {
 } from './i_core_store.mjs';
 import { ACTIVITY_MAX_REQUEST_BYTES } from './activity_control_plane.mjs';
 import { createDomainRequestHandler } from './domain_http.mjs';
+import { createInspectionReadOnlyCore, isInspectionDatabasePath } from './inspection_read_only.mjs';
 import {
   SHORTCUT_WORKFLOW,
   ShortcutMailRelayError,
@@ -238,6 +239,7 @@ function idempotencyKey(request) {
 
 export function createICoreServer({
   databasePath,
+  mode = 'live',
   pairingCode = null,
   certPath = null,
   keyPath = null,
@@ -263,6 +265,16 @@ export function createICoreServer({
   clock = Date.now,
 } = {}) {
   if (!databasePath) throw new Error('databasePath is required');
+  if (mode === 'inspection_read_only') {
+    if (pairingCode || certPath || keyPath || workerSecret || companionReplyJobsEnabled || shortcutMailRelay || activityAdminSecret
+        || activityRecoveryFloor || requireActivityRecoveryFloor || localTranscriptGrants || localTranscriptGrantsPath || historicalReplayApprovalsPath) {
+      throw new CoreStoreError('inspection_configuration_rejected', 'Inspection does not accept runtime authority or jobs.');
+    }
+    return createInspectionReadOnlyCore({ databasePath });
+  }
+  if (mode !== 'live' || isInspectionDatabasePath(databasePath)) {
+    throw new CoreStoreError('backup_activation_unsupported', 'Inspection restore cannot be activated as a live Core.');
+  }
   // This must precede secret separation and recovery verification: read-only
   // SQLite opens can themselves create or alter source WAL/SHM files.
   preflightActivityCommitmentVersion(databasePath);

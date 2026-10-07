@@ -2483,6 +2483,26 @@ export function assertActivityRecoveryFloorForDatabase(db, floor, { nodeId, curs
   return { ok: true, manifest: { ...current, digest: recoveryDigest(current, cursorSecret) } };
 }
 
+// Monotonic component of canonical crash recovery. This is deliberately NOT a
+// restore authorization: the supervisor must also verify the independently
+// authenticated history-prefix witness and original live-path binding.
+export function assertActivityRecoveryProgressForDatabase(db, floor, { nodeId, cursorSecret }) {
+  if (!activitySchemaStatus(db).ready) fail('recovery_lineage_unverified', 'Activity schema is not ready.', { status:409 });
+  const expected=normalizeRecoveryFloor(floor,cursorSecret),current=recoveryBody(db,{nodeId});
+  if(expected.authority.node_id!==current.authority.node_id || expected.authority.epoch!==current.authority.epoch
+    || expected.database_role!=='live' || current.database_role!=='live') fail('recovery_lineage_unverified','Activity lineage changed.',{status:409});
+  for(const field of ['retained_watermark','snapshot_generation','commit_high_water','latest_change_sequence','runtime_fence']) {
+    if(current[field]<expected[field]) fail('stale_activity_restore','Activity progress regressed.',{status:409});
+  }
+  const principals=new Map(current.principals.map(p=>[p.principal_id,p]));
+  for(const prior of expected.principals){const next=principals.get(prior.principal_id);
+    if(!next || next.credential_generation<prior.credential_generation || (prior.revoked&&!next.revoked) || (prior.deleted&&!next.deleted)) {
+      fail('stale_activity_restore','Activity principal regressed.',{status:409});
+    }
+  }
+  return {ok:true,manifest:{...current,digest:recoveryDigest(current,cursorSecret)}};
+}
+
 export class ActivityControlPlane {
   constructor(db, {
     nodeId,

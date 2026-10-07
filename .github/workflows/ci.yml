@@ -111,7 +111,8 @@ jobs:
           tools/i_core/local_transcript_grants.test.mjs
           tools/i_core/historical_replay_approvals.test.mjs
           tools/i_core/transcript_compatibility.test.mjs
-          tools/i_core/release_schema6/release.test.mjs
+          tools/i_core/release_schema6/*.test.mjs
+          tools/i_core/release_schema6/lifecycle/*.test.mjs
       - name: chatgpt_android_bridge
         working-directory: tools/chatgpt_android_bridge
         run: node --test $(find . -name '*.test.mjs' | sort)
@@ -163,3 +164,46 @@ jobs:
           name: whiteboard-screenshots
           path: build/m5b2_screenshots/
           if-no-files-found: ignore
+
+  schema6-windows:
+    name: Schema6 Windows lifecycle and backup
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Fixed runtime, recovery and backup suites
+        shell: powershell
+        run: ./tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema6-windows-results
+          path: |
+            build/ci/schema6-windows.tap
+            build/ci/schema6-native-probe.json
+            build/ci/schema6-module-scope.json
+          if-no-files-found: error
+
+  schema6-cross-user:
+    name: Schema6 password-only restore under another Windows user
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Synthetic restore with a disposable standard Windows user
+        shell: powershell
+        # This guard and all account changes are confined to an ephemeral hosted VM.
+        # A second SID must run the real immutable Core, not just decrypt or hash files.
+        run: ./tools/i_core/test_fixtures/release_schema6/cross_user_restore.ps1 -OutputReport build/ci/schema6-cross-user.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema6-cross-user-results
+          path: build/ci/schema6-cross-user.json
+          if-no-files-found: error
