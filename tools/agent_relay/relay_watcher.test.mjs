@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm, access } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, access, readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { main, runOnce } from './relay_watcher.mjs';
+import { main, runOnce, validateConfig } from './relay_watcher.mjs';
+// Include transport tests through the existing directory entrypoint.
+import './relay_notify.test.mjs';
 
 const START = 'a'.repeat(40);
 const END = 'b'.repeat(40);
@@ -11,7 +13,7 @@ const NOW = Date.parse('2026-10-07T02:00:00.000Z');
 const template = '# Test template\n---\nPR {{pr_number}} branch {{branch}} round {{round}}\nCONTRACT\n{{contract}}\nINSTRUCTION\n{{instruction}}\n---\n';
 const contract = '<!-- relay:contract v1 -->\nOnly change tools/agent_relay/.';
 const instruction = 'Run the requested tests and leave the scoped change for the watcher to commit.';
-const basePr = { number: 71, headRefName: 'claude/relay-test', baseRefName: 'v3-lab', headRefOid: START, isCrossRepository: false, labels: [{ name: 'agent-relay' }] };
+const basePr = { number: 71, title: 'Synthetic relay PR', headRefName: 'claude/relay-test', baseRefName: 'v3-lab', headRefOid: START, isCrossRepository: false, labels: [{ name: 'agent-relay' }] };
 const baseComment = { id: 101, user: { login: 'Ritou-Lynx' }, body: `<!-- relay:to-codex round=1 -->\n${instruction}`, created_at: '2026-10-07T01:00:00Z' };
 
 async function exists(file) {
@@ -44,6 +46,7 @@ async function fixture(t, scenario = {}) {
   const calls = [];
   const posts = [];
   const output = [];
+  const fetchCalls = [];
   let executed = false;
   let dirtyAfter = Boolean(scenario.dirtyAfter);
   let hasNewCommit = false;
@@ -58,7 +61,11 @@ async function fixture(t, scenario = {}) {
     if (cmd === 'gh') {
       if (args[0] === 'pr' && args[1] === 'list') return ok(JSON.stringify(scenario.prs ?? [basePr]));
       if (args[0] === 'pr' && args[1] === 'view') return ok(JSON.stringify({ body: contract }));
-      if (args[0] === 'api' && args.some(arg => /\/issues\/\d+\/comments$/.test(arg))) return ok(JSON.stringify(scenario.comments ?? [baseComment]));
+      if (args[0] === 'api' && args.some(arg => /\/issues\/\d+\/comments$/.test(arg))) {
+        const number = Number(args.find(arg => /\/issues\/\d+\/comments$/.test(arg)).match(/\/issues\/(\d+)/)[1]);
+        if (scenario.failCommentsFor === number) return { code: 1, stderr: 'synthetic comment read failure' };
+        return ok(JSON.stringify(scenario.commentsByPr?.[number] ?? scenario.comments ?? [baseComment]));
+      }
       if (args[0] === 'api' && args.some(arg => arg.endsWith('/reactions'))) return ok('{}');
       if (args[0] === 'pr' && args[1] === 'edit') return ok();
       if (args[0] === 'pr' && args[1] === 'comment') {
@@ -67,7 +74,7 @@ async function fixture(t, scenario = {}) {
         commentAttempts += 1;
         if (scenario.failFirstComment && commentAttempts === 1) return { code: 1, stdout: '', stderr: 'comment delivery temporarily failed' };
         posts.push(call.body);
-        return ok();
+        return ok(`https://github.com/${config.repo}/pull/71#issuecomment-${9000 + posts.length}`);
       }
     }
     if (cmd === 'git') {
@@ -121,14 +128,19 @@ async function fixture(t, scenario = {}) {
         await mkdir(path.dirname(last), { recursive: true });
         await writeFile(last, scenario.lastMessage ?? 'STATUS: done\nSUMMARY:\n- Updated relay.\nVERIFY:\n- tests passed\nQUESTIONS:\n- 无');
       }
-      if (opts.stdoutFile) await writeFile(opts.stdoutFile, '{"type":"test-event"}\n');
+      if (opts.stdoutFile) await writeFile(opts.stdoutFile, scenario.codexOutput ?? '{"type":"test-event"}\n');
       return { code: scenario.codexCode ?? 0, stdout: '', stderr: scenario.codexError ?? '', timedOut: scenario.timedOut ?? false, cleanupUnconfirmed: scenario.cleanupUnconfirmed ?? false };
     }
     throw new Error(`Unexpected subprocess: ${cmd} ${JSON.stringify(args)}`);
   };
+  const fetchImpl = async (url, opts) => {
+    fetchCalls.push({ url, opts, body: JSON.parse(opts.body) });
+    if (scenario.fetchImpl) return scenario.fetchImpl(url, opts, { calls, posts });
+    return { status: 200, json: async () => ({ code: 200 }) };
+  };
   return {
-    config, stateDir, calls, posts, output, worktree,
-    once: (extra = {}) => runOnce({ config, stateDir, run, now: () => NOW, pid: 424242, isProcessAlive: () => Boolean(scenario.liveLock), log: (...args) => output.push(args), template, ...extra }),
+    config, stateDir, calls, posts, output, worktree, fetchCalls,
+    once: (extra = {}) => runOnce({ config, stateDir, run, now: () => NOW, pid: 424242, isProcessAlive: () => Boolean(scenario.liveLock), log: (...args) => output.push(args), template, fetchImpl, ...extra }),
     state: async () => JSON.parse(await readFile(path.join(stateDir, 'state.json'), 'utf8')),
   };
 }
@@ -541,4 +553,248 @@ test('CLI maps failed and cleanup-blocked to exit 1 and other terminal states to
     assert.equal(process.exitCode, previousExitCode, 'imported CLI wrapper must not mutate global exitCode');
   }
   assert.deepEqual(f.calls, [], 'CLI tests must not invoke any subprocess');
+});
+
+const notificationConfig = { pushplusToken: 'synthetic-push-token', barkKey: 'synthetic-bark-key', barkServer: 'https://api.day.app' };
+const enabledState = { comments: {}, notified: {}, notifyEnabledAt: '2026-10-07T00:00:00.000Z' };
+const humanComment = (id, marker = 'done', extra = {}) => ({ ...baseComment, id, body: `<!-- relay:${marker} -->\nPlease review.\n---\nSynthetic signature`, ...extra });
+
+test('notify config is optional and validates types/https without exposing input credentials', async t => {
+  const f = await fixture(t);
+  assert.deepEqual(validateConfig(f.config).notify, { pushplusToken: '', barkKey: '', barkServer: 'https://api.day.app' });
+  assert.deepEqual(validateConfig({ ...f.config, notify: notificationConfig }).notify, notificationConfig);
+  for (const notify of [null, [], false, 'bad', { pushplusToken: 123 }, { barkKey: true }, { barkServer: 123 }, { barkServer: 'http://synthetic-push-token.test' }, { barkServer: 'https://synthetic-push-token@api.day.app' }, { barkServer: 'https://api.day.app?key=synthetic-push-token' }]) {
+    assert.throws(() => validateConfig({ ...f.config, notify }), error => !error.message.includes(notificationConfig.pushplusToken) && /notify/.test(error.message));
+  }
+});
+
+test('all labelled PRs notify before execution, even paused/human, and comment reads are reused', async t => {
+  const f = await fixture(t, { state: enabledState,
+    prs: [basePr, { ...basePr, number: 72, labels: ['agent-relay', 'relay-needs-human'] }, { ...basePr, number: 73, labels: ['agent-relay', 'relay-paused'] }],
+    commentsByPr: { 71: [baseComment], 72: [humanComment(202, 'to-human')], 73: [humanComment(203)] },
+    checkCodex: () => assert.equal(f.fetchCalls.length, 4, 'notifications for later PRs must happen before the first round'),
+  });
+  f.config.notify = notificationConfig;
+  assert.equal((await f.once()).status, 'done');
+  assert.deepEqual(f.fetchCalls.filter(x => x.url.includes('pushplus')).map(x => x.body.title), ['接力 PR #72：需要你决定', '接力 PR #73：完成，等你验收']);
+  assert.equal(f.calls.filter(x => x.args.some(arg => /\/issues\/\d+\/comments$/.test(arg))).length, 3);
+  assert.ok(f.calls.find(x => x.args[1] === 'list').args.some(arg => arg.includes('title')));
+  assert.equal((await f.state()).notified['202'].status, 'sent');
+  await f.once();
+  assert.equal(f.fetchCalls.length, 4, 'same comments must not be notified twice');
+  assert.equal(f.calls.filter(isCodex).length, 1);
+});
+
+test('done/to-human notify, AI handoffs and non-whitelisted authors do not', async t => {
+  const f = await fixture(t, { state: enabledState, comments: [humanComment(201), humanComment(202, 'to-human'), humanComment(203, 'done', { user: { login: 'outsider' } }), { ...baseComment, user: { login: 'outsider' } }, { ...baseComment, id: 204, body: '<!-- relay:to-claude round=1 status=done sha=abc -->\nDone' }, { ...baseComment, id: 205, body: '<!-- relay:to-claude round=1 status=blocked sha=abc -->\nBlocked' }, { ...baseComment, id: 206, body: '<!-- relay:to-claude round=1 status=failed sha=none -->\nForeign failure' }] });
+  f.config.notify = notificationConfig;
+  assert.equal((await f.once()).status, 'idle');
+  assert.equal(f.fetchCalls.length, 4);
+  const bark = f.fetchCalls.find(x => x.url.includes('day.app'));
+  assert.equal(bark.body.url, 'https://github.com/Ritou-Lynx/here-i-am/pull/71');
+  assert.match(bark.body.body, /^Synthetic relay PR\nhttps:\/\/github.com\/Ritou-Lynx\/here-i-am\/pull\/71\nPlease review\./);
+  assert.doesNotMatch(bark.body.body, /relay:|Synthetic signature/);
+  assert.deepEqual(Object.keys((await f.state()).notified), ['201', '202']);
+});
+
+test('first enable ignores history and persists the baseline, then notifies new comments', async t => {
+  const comments = [humanComment(201), humanComment(202, 'to-human')];
+  const f = await fixture(t, { comments });
+  f.config.notify = notificationConfig;
+  await f.once();
+  assert.equal(f.fetchCalls.length, 0);
+  const state = await f.state();
+  assert.equal(state.notifyEnabledAt, new Date(NOW).toISOString());
+  assert.deepEqual(state.notified['201'], { status: 'sent', attempts: 0, at: state.notifyEnabledAt });
+  await f.once();
+  assert.equal(f.fetchCalls.length, 0);
+  comments.push(humanComment(203, 'done', { created_at: '2026-10-07T02:01:00Z' }));
+  await f.once();
+  assert.equal(f.fetchCalls.length, 2);
+  assert.equal((await f.state()).notified['203'].status, 'sent');
+});
+
+test('no channels causes one log and no fetch, and does not initialize notification history', async t => {
+  const f = await fixture(t, { comments: [humanComment(201)] });
+  await f.once();
+  assert.equal(f.fetchCalls.length, 0);
+  assert.equal(f.output.filter(x => x[0] === '未配置通知通道').length, 1);
+  assert.equal(await exists(path.join(f.stateDir, 'state.json')), false);
+});
+
+test('all failures retry at most three times; a pending payload survives removed/closed PRs', async t => {
+  const prs = [basePr];
+  const f = await fixture(t, { state: enabledState, prs, comments: [humanComment(201)], fetchImpl: async () => { throw new Error('synthetic-push-token synthetic-bark-key'); } });
+  f.config.notify = notificationConfig;
+  await f.once();
+  assert.equal((await f.state()).notified['201'].status, 'pending');
+  prs.length = 0;
+  for (let i = 0; i < 4; i++) await f.once();
+  assert.equal(f.fetchCalls.length, 6);
+  assert.equal((await f.state()).notified['201'].status, 'gave_up');
+  assert.equal((await f.state()).notified['201'].attempts, 3);
+  assert.equal((await f.state()).notified['201'].notification, undefined);
+  assert.ok(JSON.stringify(f.output).includes('放弃重试'));
+  for (const secret of Object.values(notificationConfig).slice(0, 2)) assert.equal(JSON.stringify(f.output).includes(secret), false);
+});
+
+test('one channel success marks sent and avoids duplicate delivery on the successful channel', async t => {
+  const f = await fixture(t, { state: enabledState, comments: [humanComment(201)], fetchImpl: async url => ({ status: 200, json: async () => ({ code: url.includes('pushplus') ? 500 : 200 }) }) });
+  f.config.notify = notificationConfig;
+  await f.once();
+  await f.once();
+  assert.equal(f.fetchCalls.length, 2);
+  assert.equal((await f.state()).notified['201'].status, 'sent');
+  assert.equal((await f.state()).notified['201'].attempts, 1);
+});
+
+test('failed mobile notification cannot stop execution, push or reply', async t => {
+  const f = await fixture(t, { state: enabledState, comments: [humanComment(201), baseComment], fetchImpl: async () => { throw new Error('synthetic outage'); } });
+  f.config.notify = notificationConfig;
+  assert.equal((await f.once()).status, 'done');
+  assert.equal(f.calls.filter(isPush).length, 1);
+  assert.equal(f.posts.length, 1);
+  assert.equal((await f.state()).notified['201'].status, 'pending');
+});
+
+test('watcher failed reply sends immediately after delivery and retries without reposting or replaying', async t => {
+  let failures = true;
+  const f = await fixture(t, { state: enabledState, codexCode: 1, fetchImpl: async (url, opts, { posts }) => {
+    assert.equal(posts.length, 1, 'failure notification must follow a successful GitHub reply');
+    assert.match(posts[0], /^<!-- relay:to-claude round=1 status=failed/);
+    return { status: 200, json: async () => ({ code: failures ? 500 : 200 }) };
+  } });
+  f.config.notify = notificationConfig;
+  assert.equal((await f.once()).status, 'failed');
+  assert.equal(f.fetchCalls[0].body.title, '接力 PR #71：第 1 轮失败');
+  assert.match(f.fetchCalls[0].body.content, /^Synthetic relay PR\n/);
+  assert.equal((await f.state()).notified['9001'].status, 'pending');
+  failures = false;
+  await f.once();
+  await f.once();
+  assert.equal(f.fetchCalls.length, 4);
+  assert.equal(f.posts.length, 1);
+  assert.equal(f.calls.filter(isCodex).length, 1);
+  assert.equal((await f.state()).notified['9001'].status, 'sent');
+});
+
+test('a failed GitHub reply sends no mobile notification until the reply succeeds', async t => {
+  const f = await fixture(t, { state: enabledState, codexCode: 1, failFirstComment: true });
+  f.config.notify = notificationConfig;
+  await assert.rejects(f.once(), /comment delivery temporarily failed/);
+  assert.equal(f.fetchCalls.length, 0);
+  await f.once();
+  assert.equal(f.fetchCalls.length, 2);
+  assert.equal(f.posts.length, 1);
+  assert.equal(f.calls.filter(isCodex).length, 1);
+});
+
+test('dry-run previews notification titles without network or changes to existing state', async t => {
+  const f = await fixture(t, { state: enabledState, comments: [humanComment(201)] });
+  f.config.notify = notificationConfig;
+  const before = await readFile(path.join(f.stateDir, 'state.json'), 'utf8');
+  await f.once({ dryRun: true });
+  assert.equal(f.fetchCalls.length, 0);
+  assert.equal(await readFile(path.join(f.stateDir, 'state.json'), 'utf8'), before);
+  assert.equal(await exists(path.join(f.stateDir, 'lock')), false);
+  assert.ok(JSON.stringify(f.output).includes('将要发送通知：接力 PR #71：完成，等你验收'));
+  assert.deepEqual(f.posts, []);
+});
+
+test('a notification scan read failure on one PR does not prevent executing another PR', async t => {
+  const f = await fixture(t, { state: enabledState, prs: [{ ...basePr, number: 72, labels: ['agent-relay', 'relay-needs-human'] }, basePr], failCommentsFor: 72 });
+  f.config.notify = notificationConfig;
+  assert.equal((await f.once()).status, 'done');
+  assert.equal(f.calls.filter(isCodex).length, 1);
+});
+
+test('test-notify reads only config, reports each channel, and never calls the watcher or touches state', async t => {
+  const f = await fixture(t);
+  const configFile = path.join(f.stateDir, 'config.json');
+  await mkdir(f.stateDir, { recursive: true });
+  await writeFile(configFile, JSON.stringify({ ...f.config, notify: notificationConfig }));
+  await writeFile(path.join(f.stateDir, 'state.json'), 'deliberately invalid state');
+  const logs = [], requests = [];
+  const options = { executeOnce: async () => { assert.fail('must not access GitHub/watcher'); }, log: msg => logs.push(msg), fetchImpl: async (url, opts) => { requests.push(JSON.parse(opts.body)); return { status: 200, json: async () => ({ code: 200 }) }; } };
+  assert.equal(await main(['--config', configFile, '--test-notify', '--loop'], options), 0);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].title, '接力测试通知');
+  assert.ok(logs.includes('pushplus=ok bark=ok'));
+  assert.equal(await readFile(path.join(f.stateDir, 'state.json'), 'utf8'), 'deliberately invalid state');
+  assert.equal(await exists(path.join(f.stateDir, 'lock')), false);
+  assert.deepEqual(f.calls, []);
+  assert.equal(await main(['--config', configFile, '--test-notify', '--dry-run'], options), 0);
+  assert.equal(requests.length, 2);
+  for (const secret of [notificationConfig.pushplusToken, notificationConfig.barkKey]) assert.equal(JSON.stringify(logs).includes(secret), false);
+});
+
+test('test-notify reports failure/off without logging rejected fetch diagnostics or writing state', async t => {
+  const f = await fixture(t);
+  const configFile = path.join(f.config.repoPath, 'cli-config.json');
+  const logs = [];
+  await writeFile(configFile, JSON.stringify({ ...f.config, notify: { pushplusToken: notificationConfig.pushplusToken } }));
+  assert.equal(await main(['--config', configFile, '--test-notify'], { log: msg => logs.push(msg), fetchImpl: async () => { throw new Error(notificationConfig.pushplusToken); } }), 1);
+  assert.ok(logs.includes('pushplus=failed bark=off'));
+  assert.equal(JSON.stringify(logs).includes(notificationConfig.pushplusToken), false);
+  assert.equal(await exists(f.stateDir), false);
+});
+
+test('tokens echoed in PR text are excluded from notification content, watcher logs and replies', async t => {
+  const echoed = `${notificationConfig.pushplusToken} ${notificationConfig.barkKey}`;
+  const f = await fixture(t, { state: enabledState, comments: [humanComment(201, 'done', { body: `<!-- relay:done -->\n${echoed}` }), baseComment], lastMessage: `STATUS: done\nSUMMARY:\n${echoed}`, codexOutput: JSON.stringify({ diagnostic: echoed }), codexError: echoed });
+  f.config.notify = notificationConfig;
+  assert.equal((await f.once()).status, 'done');
+  for (const secret of [notificationConfig.pushplusToken, notificationConfig.barkKey]) {
+    assert.equal(f.fetchCalls[0].body.content.includes(secret), false);
+    assert.equal(JSON.stringify(f.output).includes(secret), false);
+    assert.equal(f.posts.join('\n').includes(secret), false);
+    for (const file of await readdir(path.join(f.stateDir, 'logs'))) {
+      assert.equal((await readFile(path.join(f.stateDir, 'logs', file), 'utf8')).includes(secret), false, `credential leaked in ${file}`);
+    }
+  }
+});
+
+test('failed execution diagnostics are sanitized in every local log before the failure reply', async t => {
+  const echoed = `${notificationConfig.pushplusToken} ${notificationConfig.barkKey}`;
+  const f = await fixture(t, { state: enabledState, codexCode: 1, codexOutput: echoed, codexError: echoed, lastMessage: echoed });
+  f.config.notify = notificationConfig;
+  assert.equal((await f.once()).status, 'failed');
+  for (const file of await readdir(path.join(f.stateDir, 'logs'))) {
+    const contents = await readFile(path.join(f.stateDir, 'logs', file), 'utf8');
+    for (const secret of [notificationConfig.pushplusToken, notificationConfig.barkKey]) assert.equal(contents.includes(secret), false, file);
+  }
+  assert.doesNotMatch(f.fetchCalls[0].body.content, /synthetic-push-token|synthetic-bark-key/);
+});
+
+test('configured notification credentials cannot enter the Codex prompt or dry-run preview', async t => {
+  const echoed = `${notificationConfig.pushplusToken} ${notificationConfig.barkKey}`;
+  const f = await fixture(t, { comments: [{ ...baseComment, body: `<!-- relay:to-codex round=1 -->\n${echoed}` }],
+    checkCodex: call => assert.doesNotMatch(call.opts.input, /synthetic-push-token|synthetic-bark-key/),
+  });
+  f.config.notify = notificationConfig;
+  const preview = await f.once({ dryRun: true });
+  assert.doesNotMatch(preview.prompt, /synthetic-push-token|synthetic-bark-key/);
+  assert.equal((await f.once()).status, 'done');
+});
+
+test('history discovered after first enable is recorded, while newer messages still notify', async t => {
+  const f = await fixture(t, { state: enabledState, comments: [humanComment(201, 'done', { created_at: '2026-10-06T23:00:00Z' })] });
+  f.config.notify = notificationConfig;
+  await f.once();
+  assert.equal(f.fetchCalls.length, 0);
+  assert.equal((await f.state()).notified['201'].attempts, 0);
+});
+
+test('first-enable comment read failures do not reset the activation time or suppress later messages', async t => {
+  const scenario = { failCommentsFor: 71, comments: [humanComment(201)] };
+  const f = await fixture(t, scenario);
+  f.config.notify = notificationConfig;
+  await f.once();
+  assert.equal((await f.state()).notifyEnabledAt, new Date(NOW).toISOString());
+  scenario.failCommentsFor = undefined;
+  scenario.comments.push(humanComment(202, 'to-human', { created_at: '2026-10-07T02:01:00Z' }));
+  await f.once();
+  assert.equal(f.fetchCalls.length, 2);
+  assert.equal((await f.state()).notified['201'].attempts, 0);
+  assert.equal((await f.state()).notified['202'].status, 'sent');
 });

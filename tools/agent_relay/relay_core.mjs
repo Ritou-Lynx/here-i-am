@@ -44,9 +44,14 @@ const secretPatterns = [
 const userPath = /(?<![A-Za-z0-9])[A-Za-z]:(?!\/\/)[\\/]Users[\\/][^\s]+/g;
 const absolutePath = /(?<![A-Za-z0-9])[A-Za-z]:(?!\/\/)[\\/](?!Users[\\/])[^\s\r\n]+/g;
 
-export function redact(text, maxChars = 6000) {
+export function redact(text, maxChars = 6000, secrets = []) {
   let value = String(text ?? '');
   let redacted = false;
+  // Notification credentials have no reliable prefix; hide configured values
+  // before clipping or publishing any text, without logging the credentials.
+  for (const secret of secrets.filter(x => typeof x === 'string' && x)) {
+    if (value.includes(secret)) { value = value.split(secret).join('[已隐藏]'); redacted = true; }
+  }
   for (const pattern of secretPatterns) {
     value = value.replace(pattern, () => { redacted = true; return '[已隐藏]'; });
   }
@@ -56,6 +61,26 @@ export function redact(text, maxChars = 6000) {
   const truncated = value.length > limit;
   if (truncated) value = value.slice(0, limit);
   return { text: value, redacted, truncated };
+}
+
+export function parseNotification(body) {
+  if (typeof body !== 'string') return null;
+  const first = body.split(/\r?\n/, 1)[0];
+  if (/^<!-- relay:done -->[ \t]*$/.test(first)) return 'done';
+  if (/^<!-- relay:to-human -->[ \t]*$/.test(first)) return 'to-human';
+  return null;
+}
+
+export function formatNotification({ prNumber, prTitle, repo, body, kind, round, secrets = [] }) {
+  const url = `https://github.com/${repo}/pull/${prNumber}`;
+  const suffix = kind === 'done' ? '完成，等你验收' : kind === 'to-human' ? '需要你决定' : `第 ${round} 轮失败`;
+  const raw = String(body ?? '').replace(/^.*?(?:\r?\n|$)/, '').split(/^---[ \t]*\r?$/m, 1)[0].trim();
+  const excerpt = Array.from(redact(raw, Number.MAX_SAFE_INTEGER, secrets).text).slice(0, 300).join('');
+  return {
+    title: `接力 PR #${prNumber}：${suffix}`,
+    content: redact(`${prTitle ?? `PR #${prNumber}`}\n${url}\n${excerpt}`, Number.MAX_SAFE_INTEGER, secrets).text,
+    url,
+  };
 }
 
 export function formatReply({ round, status, sha, startSha, commitCount, files, summary, reason, details, summaryMaxChars = 6000 } = {}) {

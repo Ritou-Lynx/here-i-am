@@ -23,7 +23,7 @@
 
 ## 做出来以后的效果
 
-**你做的事只剩三件**：在 claude.ai/code 开会话说目标；手机上收到 GitHub 通知时看一眼；最后自己验收并点合并。
+**你做的事只剩三件**：在 claude.ai/code 开会话说目标；手机上收到微信通知时看一眼；最后自己验收并点合并。
 
 一次典型接力：
 
@@ -34,7 +34,7 @@
 | ≤3 分后 | watcher 接单，指令评论出现 👀 | — |
 | +10~40 分 | Codex 实现、跑测试；watcher 提交、推送并回帖，评论变 🚀 | PR 里多了提交和一条 [to-claude] |
 | +几分钟 | Claude 被唤醒，读 diff 审阅；不过关就发第 2 轮返修，循环 | PR 里一来一回的指令和结果 |
-| 结束 | Claude 发 [done] 并 @你，列出需要你亲自做的事（构建、装机、真人体验） | **手机收到 GitHub 通知** |
+| 结束 | Claude 发 [done] 并 @你，列出需要你亲自做的事（构建、装机、真人体验） | **微信收到提醒（可选再推送 Bark）** |
 
 中途 Codex 卡在需要你拍板的问题上，Claude 能按合同和仓库规则回答的就直接答；涉及产品取舍、权限、真实数据的才 @你。
 
@@ -86,7 +86,36 @@
 
 > 用接力做：<目标>。
 
-Claude 会按 SKILL 手册开 PR、发指令、订阅 PR。之后你可以关掉网页，等 GitHub 通知。想插话就在 PR 里直接评论，或回到那个会话说。
+Claude 会按 SKILL 手册开 PR、发指令、订阅 PR。配置手机通知后，你可以关掉网页，等微信提醒。想插话就在 PR 里直接评论，或回到那个会话说。
+
+## 手机通知
+
+评论使用你自己的 GitHub 账号发布，GitHub 不会给自己发送通知。watcher 可通过 PushPlus 推送到微信，iPhone 也可选用 Bark。
+
+1. PushPlus：在 [pushplus.plus](https://www.pushplus.plus/) 用微信扫码登录，进入“一对一推送”，复制 token。
+2. Bark（可选）：在 iPhone 的 App Store 安装 Bark，打开后复制 key。默认服务器为 `https://api.day.app`，自建服务器也必须使用 https。
+3. 在已忽略的 `tools/agent_relay/.state/config.json` 中增加以下配置，将所需通道的空字符串替换为自己的值。空 token/key 表示关闭，省略整个 `notify` 也表示关闭。
+
+```json
+"notify": {
+  "pushplusToken": "",
+  "barkKey": "",
+  "barkServer": "https://api.day.app"
+}
+```
+
+真实 token/key 只保存在本机 `.state/config.json`，不要填进示例配置、提交到仓库、贴到评论或日志中。配置后运行：
+
+```powershell
+node tools/agent_relay/relay_watcher.mjs --test-notify
+```
+
+这会发送“接力测试通知”，打印各通道 `ok`、`failed` 或 `off` 后退出，不访问 GitHub、不读写 state。请在手机确认送达；本轮离线测试不代表真实送达。
+
+每次轮询在执行任何一轮之前扫描全部带 `agent-relay` 标签的 open PR，包括 `relay-paused` 与 `relay-needs-human`。只提醒白名单作者的 `done` / `to-human`，以及 watcher 成功回帖的轮次失败；AI 之间的其他交接不提醒。通知正文包含 PR 标题、链接和脱敏后的评论摘要，Bark 点击可打开 PR。
+
+首次启用记录 `state.notifyEnabledAt`，现有完成/人工处理评论只记入 `state.notified`，不补发历史消息。之后以评论 ID 去重：任一通道成功即为 `sent`；全部失败为 `pending`，保存脱敏通知内容用于补发，PR 关闭或评论删除也会继续重试。每次轮询最多尝试一次，累计 3 次后为 `gave_up` 并记日志，结束后删除补发内容。单个通道故障不影响其他通道或接力执行。未配置时只提示“未配置通知通道”；`--dry-run` 不发送、不修改 state，只打印将要发送的标题。
+
 ## 已知坑（冒烟所得）
 
 - 运行 watcher 的目录不能检出任何 PR 分支，否则 watcher 建不了 PR 专用 worktree（报 `already used by worktree`）。主仓库停在 `v3-lab`，或用 detached HEAD。

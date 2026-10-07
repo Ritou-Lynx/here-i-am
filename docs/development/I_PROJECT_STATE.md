@@ -1,5 +1,9 @@
 # 林埃的项目状态
 
+## Agent Relay 手机通知（2026-10-07，PR #17）
+
+GitHub 不会通知用户本人账号发出的评论，故 watcher 增加 PushPlus 微信推送（安卓无 VPN 可收）与可选 Bark（iPhone）。只在 done、to-human 和执行失败时推送，去重、不补发历史、失败重试至多 3 次；token 只存本机已忽略配置并全程脱敏。经接力一轮完成，81/81 离线测试，云端复核通过。真实送达待用户合并后配置 token 并运行 `--test-notify`。
+
 ## Agent Relay 真实冒烟通过（2026-10-07，PR #15）
 
 Ritou-Lynx/here-i-am#15 上完成三轮真实接力：worktree 占用分支导致的环境失败已在本机修正；第 2 轮 Codex 经 watcher 提交 SMOKE.md；第 3 轮按 Claude 返修指令修正回帖脱敏误伤 URL 与成功回帖附带 stderr，50/50 测试通过并经云端复核。接力链路（接单、执行、提交推送、回帖唤醒、审阅、返修）已可日常使用。合入 v3-lab 待用户决定；合入后 watcher 从停在 v3-lab 的主仓库运行，专用 relay worktree 可退役。

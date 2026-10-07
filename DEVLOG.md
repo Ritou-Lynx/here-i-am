@@ -1,3 +1,12 @@
+## 2026-10-07 — Agent Relay 微信 / Bark 通知（PR #17）
+
+**原因**：接力评论都以用户本人账号发出，GitHub 不给自己发通知，用户收不到任何提醒；安卓机不能开 VPN，选微信。
+**交付**：经接力由 Codex 实现（d284082）：`relay_notify.mjs` 推 PushPlus（微信）与可选 Bark；watcher 每轮先扫描全部 agent-relay PR（含 paused / needs-human），只为 done、to-human 和执行失败推送；评论 ID 去重、首次启用不补发、失败重试至多 3 次；`--test-notify`；token 只在本机 `.state/config.json`，日志、回帖、提示词均脱敏。
+**验证**：81/81 离线测试（假 fetch），云端复核通过；Codex 沙箱内 dry-run 因无 GitHub 认证失败，属环境限制。
+**未完**：用户合并后在 pushplus.plus 取 token（可选 Bark key）填入本机配置，`--test-notify` 确认两台手机收到。
+
+---
+
 ## 2026-10-07 — Agent Relay 真实 PR 冒烟通过（PR #15）
 
 **结果**：Claude 云端发指令 → 本机 watcher 3 分钟内接单 → Codex 执行 → watcher 提交推送回帖 → 回帖唤醒云端 Claude 审阅，全程无人工搬运。作者白名单（Ritou-Lynx）与脱敏生效。
