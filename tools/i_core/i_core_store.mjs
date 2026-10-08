@@ -733,6 +733,7 @@ export class ICoreStore {
     domainDedupHooks = undefined,
     domainHooks = undefined,
     domainVerifyLegacyAdoption = undefined,
+    domainConfigure = undefined,
   } = {}) {
     if (!['pr10', 'legacy_b3', 'disabled'].includes(companionUploadMode)) {
       throw new CoreStoreError('invalid_companion_upload_mode', 'Unknown companion upload mode.', { status: 503 });
@@ -799,6 +800,16 @@ export class ICoreStore {
         });
         if (this.companionReplyJobsEnabled && this.#phoneOwnsCharacter(this.#metadata('domain_primary_character_id'))) {
           throw new CoreStoreError('companion_executor_conflict', 'Phone ownership requires Core reply production to remain disabled.', { status: 409 });
+        }
+      }
+      if (domainConfigure !== undefined) {
+        if (typeof domainConfigure !== 'function' || !this.domains) {
+          throw new CoreStoreError('schema_not_ready', 'Configured domains require an active schema 6 store.', { status: 503 });
+        }
+        const configured = domainConfigure(this.domains);
+        if (configured && typeof configured.then === 'function') {
+          Promise.resolve(configured).catch(() => {});
+          throw new CoreStoreError('schema_not_ready', 'Domain configuration must be synchronous.', { status: 503 });
         }
       }
       const primary = this.#metadata('domain_primary_character_id');

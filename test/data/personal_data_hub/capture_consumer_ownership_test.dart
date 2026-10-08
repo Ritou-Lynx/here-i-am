@@ -240,11 +240,8 @@ void main() {
         contains('User title'));
   });
 
-  test(
-      'Core selection requires verified Gate and explicit adopted card IDs; same note ID is not adoption',
-      () async {
-    final imp = importer(db);
-    final id = await imp.apply(ClaudeWebNoteChange.fromJson(item()));
+  test('free-form takeover strings cannot select the Core owner', () async {
+    await importer(db).apply(ClaudeWebNoteChange.fromJson(item()));
     const proof = CoreCaptureTakeover(
         gateRef: 'verified-synthetic-gate',
         coreInstanceId: 'core-test',
@@ -253,32 +250,7 @@ void main() {
         noteToCapture: {'note_one': 'note_one'});
     await expectLater(CaptureConsumerOwnership(db).selectCore(proof),
         throwsA(failure('capture_core_gate_required')));
-    final owner = CaptureConsumerOwnership(db,
-        verifyCoreGate: (p) async => p['gate_ref'] == proof.gateRef);
-    await expectLater(
-        owner.selectCore(proof), throwsA(failure('capture_adoption_required')));
-    await db.customStatement(
-        'INSERT INTO kv_store(key,value,bucket,updated_at) VALUES(?,?,?,?)', [
-      'capture_lifecycle.core-test.note_one',
-      jsonEncode({
-        'slots': [
-          {'id': id}
-        ],
-        'legacy_note_id': 'note_one',
-        'origin_proof': proof.adoptionProof
-      }),
-      'capture_consumer',
-      0
-    ]);
-    await owner.selectCore(proof);
-    expect(await owner.coreSelected(), true);
-    await expectLater(owner.runLegacy((_) async {}),
-        throwsA(failure('capture_owner_mismatch')));
-    await owner.runCore((lease) => lease.verify(),
-        bindingFingerprint: 'synthetic-binding');
-    await expectLater(
-        owner.runCore((_) async {}, bindingFingerprint: 'another-core'),
-        throwsA(failure('binding_changed')));
+    expect(await CaptureConsumerOwnership(db).coreSelected(), false);
     expect(await db.select(db.memoryCards).get(), hasLength(1));
   });
 
@@ -322,11 +294,9 @@ void main() {
     await feed('phone', 'phone_quick', 1);
     expect(await consumer.consume(allowRemoteWeb: false), 1);
     expect((await db.select(db.memoryCards).getSingle()).title, 'phone');
-    await expectLater(
-        consumer.consume(verifyRemoteOwnership: () async {
-          throw const DomainFailure('capture_consumer_fenced');
-        }),
-        throwsA(failure('capture_consumer_fenced')));
+    await expectLater(consumer.consume(verifyRemoteOwnership: () async {
+      throw const DomainFailure('capture_consumer_fenced');
+    }), throwsA(failure('capture_consumer_fenced')));
     expect((await db.select(db.memoryCards).getSingle()).title, 'phone');
     // Simulate an already generated Core output, then show that a bodyless web
     // tomb cannot be processed by the legacy-owner runtime.

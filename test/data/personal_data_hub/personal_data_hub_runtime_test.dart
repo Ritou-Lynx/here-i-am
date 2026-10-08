@@ -7,6 +7,7 @@ import 'package:memex/db/app_database.dart';
 import 'package:memex/data/memory_v3/models/organized_record.dart';
 import 'package:memex/data/services/device_identity_service.dart';
 import 'package:memex/data/personal_data_hub/domain_protocol.dart';
+import 'package:memex/data/personal_data_hub/domain_access.dart';
 import 'package:memex/data/personal_data_hub/domain_store.dart';
 import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
 import 'package:memex/data/personal_data_hub/personal_data_hub_runtime.dart';
@@ -144,6 +145,26 @@ void main() {
     expect((await reopened.recent()).single.text, 'synthetic capture');
   });
 
+  test('optional secure connection read failure keeps phone-local startup',
+      () async {
+    final errors = <String>[];
+    final access = await loadOptionalDomainAccess(
+      hub: hub,
+      readConnection: () async => throw StateError('synthetic keystore error'),
+      readInstallationId: () async => 'runtime-install',
+      reportError: errors.add,
+    );
+    expect(access, isNull);
+    expect(errors, ['hub_domain_access_unavailable']);
+
+    final r = await start();
+    final draft = r.quickCaptureService.newDraft('凭据不可用仍保存在本机');
+    final result = await r.quickCaptureService.send(draft);
+    expect(result.deliveryMessage, contains('本机'));
+    expect((await r.phoneStore.visible('captures')).single['data']['text'],
+        '凭据不可用仍保存在本机');
+  });
+
   test(
       'runtime discovers all domains attached after creation and missing issuer fails closed',
       () async {
@@ -172,13 +193,14 @@ void main() {
     final actions = <PlanningUiAuthorization>[];
     final r = await start(authorize: (_, action) async {
       actions.add(action);
+      return 'runtime-planning:${action.actionId}';
     });
     expect(alarms.events, hasLength(1));
     final op = await r.setStatus('status', PlanningStatusAction.complete);
-    expect(actions.single.opId, op);
+    expect(actions.single.intent['op_id'], op);
     expect(actions.single.status, '完成');
     expect((await store.read())['outbox'].single['intent']['authorization_ref'],
-        actions.single.reference);
+        'runtime-planning:${actions.single.actionId}');
     expect(alarms.events.last, startsWith('cancel:'));
     expect(await db.select(db.systemMessageQueue).get(), isEmpty);
   });

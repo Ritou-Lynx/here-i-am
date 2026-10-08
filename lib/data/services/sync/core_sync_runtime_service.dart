@@ -1,4 +1,5 @@
 import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
+import 'package:memex/data/personal_data_hub/personal_data_hub_runtime_owner.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -66,7 +67,8 @@ class CoreSyncRuntimeService extends ChangeNotifier {
       _onChatMessageAdded,
     );
     await refreshStatus();
-    if (_status.isConfigured || PersonalDataHub.forDatabase(AppDatabase.instance).hasConnections) {
+    if (_status.isConfigured ||
+        PersonalDataHub.forDatabase(AppDatabase.instance).hasConnections) {
       unawaited(syncNow(reason: 'startup'));
     }
   }
@@ -145,11 +147,17 @@ class CoreSyncRuntimeService extends ChangeNotifier {
         capabilities: const ['chat', 'share'],
       ),
     );
+    if (response.deviceId != deviceId) {
+      throw const FormatException('核心返回了不同的设备绑定');
+    }
     final connection = CoreSyncConnection(
       baseUrl: normalizedUrl,
       deviceToken: response.deviceToken,
       initialCursor: response.initialCursor,
       coreNodeId: response.coreNodeId,
+      // Chat pairing never provisions domain authority. The owner-controlled
+      // CLI export must be imported through CoreDomainWorkflowService.
+      domainAccess: null,
     );
     await _connectionStore.save(connection);
     await CoreSyncEngine(
@@ -159,14 +167,30 @@ class CoreSyncRuntimeService extends ChangeNotifier {
       coreNodeId: connection.coreNodeId,
       initialCursor: connection.initialCursor,
     ).saveCursor(connection.initialCursor);
+    await rebuildDomainRuntime();
     await syncNow(reason: 'paired');
   }
 
   Future<void> disconnect() async {
+    final running = _activeSync;
+    if (running != null) {
+      try {
+        await running;
+      } catch (_) {
+        // Revocation still proceeds after a failed pass.
+      }
+    }
     await _connectionStore.clear();
+    await rebuildDomainRuntime();
     _setStatus(const CoreSyncRuntimeStatus(
       phase: CoreSyncRuntimePhase.notConfigured,
     ));
+  }
+
+  /// Explicitly rebuilds the Hub after a separately authorized grant rotation
+  /// or revocation. It never retargets an existing route by itself.
+  Future<void> rebuildDomainRuntime() async {
+    await PersonalDataHubRuntimeOwner.current?.reload();
   }
 
   Future<void> syncNow({String reason = 'manual'}) {
@@ -182,7 +206,8 @@ class CoreSyncRuntimeService extends ChangeNotifier {
 
   Future<void> _performSync(String reason) async {
     if (!AppDatabase.isInitialized) return;
-    await PersonalDataHub.forDatabase(AppDatabase.instance).syncConfiguredOnce();
+    await PersonalDataHub.forDatabase(AppDatabase.instance)
+        .syncConfiguredOnce();
     CoreSyncConnection? connection;
     try {
       connection = await _connectionStore.read();

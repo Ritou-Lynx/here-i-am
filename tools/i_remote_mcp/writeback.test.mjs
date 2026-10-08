@@ -87,6 +87,22 @@ describe('createWriteback', () => {
 
   const turn = (args) => wb.chatTurn(args, { characterId: CHAR });
 
+  test('only the exact committed start user message is returned as an authorization anchor', async () => {
+    const first=await turn({phase:'start',turns:[u('请记住这条合成记录')]});
+    assert.equal(core.stored.get(first.user_message_anchor.sync_id).content,'请记住这条合成记录');
+    const retry=await turn({thread_id:first.thread_id,phase:'start',turns:[u('请记住这条合成记录')]});
+    assert.deepEqual(retry.user_message_anchor,first.user_message_anchor);
+    const end=await turn({thread_id:first.thread_id,phase:'end',turns:[a('已记录')]});
+    assert.equal(end.user_message_anchor,null);
+    core.down=true;
+    const pending=await turn({thread_id:first.thread_id,phase:'start',turns:[u('另一个触发消息')]});
+    assert.equal(pending.user_message_anchor,null);
+    core.down=false;
+    const committed=await turn({thread_id:first.thread_id,phase:'start',turns:[u('另一个触发消息')]});
+    assert.notEqual(committed.user_message_anchor.sync_id,first.user_message_anchor.sync_id);
+    assert.equal(core.stored.get(committed.user_message_anchor.sync_id).content,'另一个触发消息');
+  });
+
   test('normal flow: each call adds the previous reply and the new user message, in order', async () => {
     const first = await turn({ turns: [u('早上好')] });
     assert.match(first.thread_id, /^t_/);

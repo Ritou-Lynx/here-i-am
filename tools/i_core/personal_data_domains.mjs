@@ -180,18 +180,28 @@ export function planDedupHook({data,candidates}) {
 export function personalDedupHooks(){return {plan_items:planDedupHook};}
 
 /** Trusted host policy: never inferred from request.actor, source text or a role name in JSON. */
-export function createPersonalDataHooks({captureSourcesByPrincipal={},plannerPrincipalIds=[],processorPrincipals={},resolveDerivedReferences=null}={}) {
+export function createPersonalDataHooks({captureSourcesByPrincipal={},plannerPrincipalIds=[],processorPrincipals={},resolveDerivedReferences=null,
+  webPrincipalIds=[],verifyWebAuthorization=null}={}) {
   const hooks={};
   for(const domain of PERSONAL_DOMAINS)hooks[domain]={
     version:PERSONAL_HOOK_VERSION,
+    usesActorResolution:({principal,request})=>domain==='captures'&&webPrincipalIds.includes(principal.principal_id)
+      &&['user_via_agent','agent_inferred'].includes(request.actor)&&['create','patch','delete'].includes(request.kind),
+    resolveActor(ctx) {
+      if(ctx.request.actor==='agent_inferred')return 'agent_inferred';
+      return typeof verifyWebAuthorization==='function'&&verifyWebAuthorization({...ctx,authorizationRef:ctx.request.authorization_ref})===true
+        ?'user_via_agent':'agent_inferred';
+    },
+    allowInferredDelete:domain==='captures'&&webPrincipalIds.length>0,
     authorizeOperation(ctx) {
       const {principal:p,request:r,current,operationOrigin}=ctx;
+      const web=domain==='captures'&&webPrincipalIds.includes(p.principal_id);
       if(ctx.phase==='lookup') {
         const op=ctx.operation;
         if(op.kind==='legacy_adopt')return op.actor==='import';
         if(domain==='captures') {
           if(op.kind==='ack_capture')return processorPrincipals[p.principal_id]===op.processor && op.fields.every(f=>f===op.processor);
-          if(!['user_direct','user_via_agent'].includes(op.actor)||!(captureSourcesByPrincipal[p.principal_id]?.length))return false;
+          if(!(web?['user_via_agent','agent_inferred']:['user_direct','user_via_agent']).includes(op.actor)||!(captureSourcesByPrincipal[p.principal_id]?.length))return false;
           if(op.kind==='create')return captureSourcesByPrincipal[p.principal_id].some(source=>ctx.matchesOperationValue('source',source));
           return ['delete','restore','purge'].includes(op.kind)||op.kind==='patch'&&op.fields.every(f=>f==='text');
         }
@@ -203,10 +213,17 @@ export function createPersonalDataHooks({captureSourcesByPrincipal={},plannerPri
       if(domain==='captures'){
         if(r.kind==='ack_capture')return processorPrincipals[p.principal_id]===r.processor;
         if(!(captureSourcesByPrincipal[p.principal_id]?.length))return false;
-        if(!['create','patch','delete','restore','purge'].includes(r.kind)||!['user_direct','user_via_agent'].includes(r.actor))return false;
+        if(!(web?['create','patch','delete']:['create','patch','delete','restore','purge']).includes(r.kind)
+          ||!(web?['user_via_agent','agent_inferred']:['user_direct','user_via_agent']).includes(r.actor))return false;
         if(r.kind==='create')return (captureSourcesByPrincipal[p.principal_id]??[]).includes(r.data.source)
           && r.provenance.source===r.data.source&&!('organizer'in r.data)&&!('planner'in r.data);
         if(ctx.phase!=='preflight'&&(!current||current.origin?.principal_id!==p.principal_id&&current.origin?.device_id!==p.device_id))return false;
+        // A user edit after creation protects the capture from Web deletion.
+        // Processor acknowledgements do not constitute a user text edit.
+        if(web&&ctx.phase!=='preflight'&&r.kind==='delete') {
+          if(current.data?.source!=='claude_web')return false;
+          if(Object.values(current.field_meta??{}).some(m=>m.rev>1&&['user_direct','user_via_agent'].includes(m.actor)))return false;
+        }
         return r.kind!=='patch'||Object.keys(r.patch).every(k=>k==='text');
       }
       if(r.kind==='status')return domain==='plan_items'&&r.actor==='user_direct'

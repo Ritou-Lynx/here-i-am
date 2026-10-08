@@ -139,10 +139,11 @@ class PersonalDataHubRuntime implements PlanningReader {
               if (epoch != _ownerEpoch) {
                 throw const DomainFailure('binding_changed');
               }
-              await planningAuthorize!(database, action);
+              final reference = await planningAuthorize!(database, action);
               if (epoch != _ownerEpoch) {
                 throw const DomainFailure('binding_changed');
               }
+              return reference;
             },
       syncDomain: hub.syncOnce,
       connection: connection,
@@ -335,7 +336,9 @@ class PersonalDataHubRuntime implements PlanningReader {
             if (await ownership.coreSelected()) {
               await ownership.runCore((lease) async {
                 await _consumer?.consume(verifyRemoteOwnership: lease.verify);
-              }, bindingFingerprint: canonicalJson(_captureStore.binding.forDomain('captures')));
+              },
+                  bindingFingerprint: canonicalJson(
+                      _captureStore.binding.forDomain('captures')));
             }
           } on DomainFailure catch (error) {
             if (error.code != 'binding_changed' || epoch == _ownerEpoch) {

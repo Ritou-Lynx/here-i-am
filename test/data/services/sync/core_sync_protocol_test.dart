@@ -50,6 +50,117 @@ void main() {
     );
   });
 
+  test('optional domain access pairing grant round-trips independently', () {
+    const response = CoreDevicePairResponse(
+      deviceId: 'device-a',
+      deviceToken: 'chat-secret',
+      initialCursor: 'opaque:zero',
+      coreNodeId: 'home-core',
+      protocolVersion: CoreSyncProtocol.version,
+      domainAccess: CoreDomainAccessGrant(
+        protocolVersion: 1,
+        coreInstanceId: 'home-core',
+        principalId: 'phone-ui',
+        credentialGeneration: 2,
+        installationId: 'device-a',
+        policyVersion: 'domain-policy-v1',
+        schemaVersion: 1,
+        token: 'separate-domain-bearer',
+        scopes: ['captures:read', 'captures:create'],
+        authorization: CoreDomainAuthorizationGrant(
+          scheme: 'hmac-sha256-v1',
+          keyId: 'phone-ui-key',
+          secret: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
+        ),
+      ),
+    );
+
+    final decoded = CoreDevicePairResponse.fromJson(response.toJson());
+    expect(decoded.deviceToken, 'chat-secret');
+    expect(decoded.domainAccess!.token, 'separate-domain-bearer');
+    expect(decoded.domainAccess!.authorization.keyId, 'phone-ui-key');
+  });
+
+  test('chat pair decoder ignores even malformed domain access material', () {
+    final response = CoreDevicePairResponse.fromChatPairJson({
+      'device_id': 'device-a',
+      'device_token': 'chat-secret',
+      'initial_cursor': 'opaque:zero',
+      'core_node_id': 'home-core',
+      'protocol_version': CoreSyncProtocol.version,
+      'domain_access': {'secret': 'must-not-be-consumed'},
+    });
+    expect(response.deviceId, 'device-a');
+    expect(response.domainAccess, isNull);
+  });
+
+  test('malformed or cross-installation domain grants fail closed', () {
+    Map<String, dynamic> pair(Map<String, dynamic> access) => {
+          'device_id': 'device-a',
+          'device_token': 'chat-secret',
+          'initial_cursor': 'opaque:zero',
+          'core_node_id': 'home-core',
+          'protocol_version': CoreSyncProtocol.version,
+          'domain_access': access,
+        };
+    final access = {
+      'protocol_version': 1,
+      'core_instance_id': 'home-core',
+      'principal_id': 'phone-ui',
+      'credential_generation': 2,
+      'installation_id': 'other-device',
+      'policy_version': 'domain-policy-v1',
+      'schema_version': 1,
+      'token': 'separate-domain-bearer',
+      'scopes': ['captures:read'],
+      'authorization': {
+        'scheme': 'hmac-sha256-v1',
+        'key_id': 'phone-ui-key',
+        'secret': 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
+      },
+    };
+    expect(
+      () => CoreDevicePairResponse.fromJson(pair(access)),
+      throwsFormatException,
+    );
+    access['installation_id'] = 'device-a';
+    access['authorization'] = {
+      ...access['authorization'] as Map<String, dynamic>,
+      'secret': 'dG9vLXNob3J0',
+    };
+    expect(
+      () => CoreDevicePairResponse.fromJson(pair(access)),
+      throwsFormatException,
+    );
+    access['authorization'] = {
+      ...access['authorization'] as Map<String, dynamic>,
+      'secret': 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
+    };
+    access['credential_generation'] = 0;
+    expect(
+      () => CoreDevicePairResponse.fromJson(pair(access)),
+      throwsFormatException,
+    );
+    access['credential_generation'] = 1;
+    access['scopes'] = ['captures:read', 'captures:read'];
+    expect(
+      () => CoreDevicePairResponse.fromJson(pair(access)),
+      throwsFormatException,
+    );
+    access['scopes'] = ['captures:read'];
+    access['principal_id'] = 'bad principal';
+    expect(
+      () => CoreDevicePairResponse.fromJson(pair(access)),
+      throwsFormatException,
+    );
+    access['principal_id'] = 'phone-ui';
+    access['token'] = 'chat-secret';
+    expect(
+      () => CoreDevicePairResponse.fromJson(pair(access)),
+      throwsFormatException,
+    );
+  });
+
   test('chat submission round-trips without local database ids', () {
     final request = CoreChatSubmitRequest(
       deviceId: 'device-a',

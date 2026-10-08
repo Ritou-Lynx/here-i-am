@@ -16,6 +16,7 @@ void main() {
   late DomainStore store;
   late PlanningService service;
   final evidence = <PlanningUiAuthorization>[];
+  final references = <String>[];
   setUp(() async {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     store = DomainStore(db,
@@ -32,18 +33,22 @@ void main() {
     await store.applyPage('plan_days', planningPage([planningDay()]));
     await store.applyPage('plan_weeks', planningPage([planningWeek()]));
     evidence.clear();
+    references.clear();
     service = PlanningService(
         stores: {for (final name in planningDomains) name: store},
         connection: () => PlanningConnection.offline,
         clock: () => planningTestNow,
         authorize: (database, action) async {
           evidence.add(action);
+          final reference = 'planning-test:${action.actionId}';
+          references.add(reference);
           await database.customStatement(
               'INSERT INTO kv_store(key,value,bucket) VALUES(?,?,?)', [
-            action.reference,
-            jsonEncode(action.toJson()),
+            reference,
+            jsonEncode(action.toJson(authorizationRef: reference)),
             'planning_test_authorization'
           ]);
+          return reference;
         });
   });
   tearDown(() async {
@@ -71,11 +76,13 @@ void main() {
     expect(raw['intent']['kind'], 'status');
     expect(raw['intent']['actor'], 'user_direct');
     expect(raw['intent']['base_revision'], 1);
-    expect(raw['intent']['authorization_ref'], evidence.single.reference);
-    expect(evidence.single.opId, op);
-    expect(evidence.single.toJson()['principal_id'], 'planning-phone');
-    expect(evidence.single.toJson()['installation_id'], 'planning-install');
-    expect(evidence.single.toJson()['patch'], {'status': '完成'});
+    expect(raw['intent']['authorization_ref'], references.single);
+    expect(evidence.single.intent['op_id'], op);
+    final request = evidence.single.toAuthorizationRequest();
+    expect(request['binding']['principal_id'], 'planning-phone');
+    expect(request['binding']['installation_id'], 'planning-install');
+    expect(request['intent']['patch'], {'status': '完成'});
+    expect(request['intent'].containsKey('authorization_ref'), isFalse);
     final s = await service.read(planningTestNow);
     expect(s.items['a']!.status, '完成');
     expect(s.items['a']!.pending, true);
@@ -100,6 +107,50 @@ void main() {
     expect((await service.read(planningTestNow)).items['a']!.status, '待办');
   });
 
+  test('outbox save failure rolls back already-written authorization evidence',
+      () async {
+    final broken = DomainStore(
+      db,
+      binding: planningTestBinding,
+      clock: () => planningTestNow,
+      testFault: (point) {
+        if (point == 'enqueue_before_commit') {
+          throw StateError('synthetic outbox save failure');
+        }
+      },
+    );
+    final failing = PlanningService(
+      stores: {'plan_items': broken},
+      clock: () => planningTestNow,
+      authorize: (database, action) async {
+        final reference = 'planning-test:${action.actionId}';
+        await database.customStatement(
+          'INSERT INTO kv_store(key,value,bucket) VALUES(?,?,?)',
+          [
+            reference,
+            jsonEncode(action.toJson(authorizationRef: reference)),
+            'planning_rollback_authorization',
+          ],
+        );
+        return reference;
+      },
+    );
+    await expectLater(
+      failing.setStatus('a', PlanningStatusAction.complete),
+      throwsStateError,
+    );
+    expect((await broken.read())['outbox'], isEmpty);
+    expect(
+      await db
+          .customSelect(
+            "SELECT value FROM kv_store WHERE bucket='planning_rollback_authorization'",
+          )
+          .get(),
+      isEmpty,
+    );
+    expect((await service.read(planningTestNow)).items['a']!.status, '待办');
+  });
+
   test('unconfigured, phone and shadow cannot write or synchronize online',
       () async {
     var calls = 0;
@@ -118,7 +169,7 @@ void main() {
             installationId: 'other'));
     final inactive = PlanningService(
         stores: {'plan_items': second},
-        authorize: (_, __) async {},
+        authorize: (_, __) async => 'synthetic-inactive-evidence',
         syncDomain: (_) async {
           calls++;
         });

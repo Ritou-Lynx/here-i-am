@@ -108,11 +108,26 @@ jobs:
           tools/i_core/personal_data_domains.test.mjs
           tools/i_core/personal_data_http.test.mjs
           tools/i_core/import_personal_notes.test.mjs
+          tools/i_core/phone_ui_authorization.test.mjs
+          tools/i_core/web_action_authorization.test.mjs
+          tools/i_core/personal_domain_host.test.mjs
+          tools/i_core/personal_domain_private_state.test.mjs
+          tools/i_core/personal_domain_runtime.test.mjs
+          tools/i_core/web_user_message_authorization.test.mjs
+          tools/i_core/phone_capture_migration.test.mjs
+          tools/i_core/domain_adoption.test.mjs
+          tools/i_core/domain_store.test.mjs
+          tools/i_core/domain_http.test.mjs
           tools/i_core/local_transcript_grants.test.mjs
           tools/i_core/historical_replay_approvals.test.mjs
           tools/i_core/transcript_compatibility.test.mjs
           tools/i_core/release_schema6/*.test.mjs
           tools/i_core/release_schema6/lifecycle/*.test.mjs
+      - name: Planner capture monitor
+        run: >-
+          node --test tools/life_planner/capture_sync.test.mjs
+          tools/life_planner/trusted_status_bridge.test.mjs
+          tools/life_planner/dot_inbox_bridge.test.mjs
       - name: chatgpt_android_bridge
         working-directory: tools/chatgpt_android_bridge
         run: node --test $(find . -name '*.test.mjs' | sort)
@@ -183,6 +198,9 @@ jobs:
           SCHEMA6_SYNTHETIC_OWNER_PROBE: '1'
           SCHEMA6_SYNTHETIC_TASK_REPORT: build/ci/schema6-maintenance-register-com.json
         run: ./tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1
+      - name: Personal domain protected owner state and formal host
+        shell: powershell
+        run: node --test tools/i_core/personal_domain_private_state.test.mjs tools/i_core/personal_domain_runtime.test.mjs tools/i_core/web_user_message_authorization.test.mjs
       - if: always()
         uses: actions/upload-artifact@v4
         with:

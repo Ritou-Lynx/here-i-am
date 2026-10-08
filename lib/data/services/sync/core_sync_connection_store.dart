@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:memex/data/services/sync/core_sync_protocol.dart';
 
 /// Per-installation connection credentials for the private i core.
 ///
@@ -11,12 +14,14 @@ class CoreSyncConnection {
     required this.deviceToken,
     required this.initialCursor,
     required this.coreNodeId,
+    this.domainAccess,
   });
 
   final String baseUrl;
   final String deviceToken;
   final String initialCursor;
   final String coreNodeId;
+  final CoreDomainAccessGrant? domainAccess;
 
   static String normalizeBaseUrl(String value) {
     final trimmed = value.trim();
@@ -55,6 +60,7 @@ class CoreSyncConnectionStore {
   static const _deviceTokenKey = 'i_core_device_token';
   static const _initialCursorKey = 'i_core_initial_cursor';
   static const _coreNodeIdKey = 'i_core_node_id';
+  static const _domainAccessKey = 'i_core_domain_access_v1';
 
   Future<CoreSyncConnection?> read() async {
     final values = await _storage.readAll();
@@ -72,11 +78,28 @@ class CoreSyncConnectionStore {
         nodeId.isEmpty) {
       return null;
     }
+    CoreDomainAccessGrant? domainAccess;
+    final rawDomainAccess = values[_domainAccessKey];
+    if (rawDomainAccess != null && rawDomainAccess.isNotEmpty) {
+      try {
+        domainAccess = CoreDomainAccessGrant.fromJson(
+          Map<String, dynamic>.from(jsonDecode(rawDomainAccess) as Map),
+        );
+        if (domainAccess.coreInstanceId != nodeId ||
+            domainAccess.token == token) {
+          domainAccess = null;
+        }
+      } catch (_) {
+        // Keep chat usable while the optional domain credential fails closed.
+        domainAccess = null;
+      }
+    }
     return CoreSyncConnection(
       baseUrl: baseUrl,
       deviceToken: token,
       initialCursor: cursor,
       coreNodeId: nodeId,
+      domainAccess: domainAccess,
     );
   }
 
@@ -88,6 +111,38 @@ class CoreSyncConnectionStore {
       value: connection.initialCursor,
     );
     await _storage.write(key: _coreNodeIdKey, value: connection.coreNodeId);
+    final domainAccess = connection.domainAccess;
+    if (domainAccess == null) {
+      await _storage.delete(key: _domainAccessKey);
+    } else {
+      await _storage.write(
+        key: _domainAccessKey,
+        value: jsonEncode(domainAccess.toJson()),
+      );
+    }
+  }
+
+  /// Replaces only the separately provisioned domain credential.
+  ///
+  /// The expected chat connection is checked immediately before the secure
+  /// storage write so an authorization import cannot attach to a concurrent
+  /// re-pair. Domain credential rotation never changes chat credentials.
+  Future<void> replaceDomainAccess({
+    required CoreSyncConnection expected,
+    required CoreDomainAccessGrant? domainAccess,
+  }) async {
+    final current = await read();
+    if (current == null || !_sameConnection(current, expected)) {
+      throw StateError('核心连接已改变，请重新导入授权');
+    }
+    if (domainAccess == null) {
+      await _storage.delete(key: _domainAccessKey);
+    } else {
+      await _storage.write(
+        key: _domainAccessKey,
+        value: jsonEncode(domainAccess.toJson()),
+      );
+    }
   }
 
   Future<void> clear() async {
@@ -95,5 +150,17 @@ class CoreSyncConnectionStore {
     await _storage.delete(key: _deviceTokenKey);
     await _storage.delete(key: _initialCursorKey);
     await _storage.delete(key: _coreNodeIdKey);
+    await _storage.delete(key: _domainAccessKey);
   }
+
+  static bool _sameConnection(
+    CoreSyncConnection left,
+    CoreSyncConnection right,
+  ) =>
+      left.baseUrl == right.baseUrl &&
+      left.deviceToken == right.deviceToken &&
+      left.initialCursor == right.initialCursor &&
+      left.coreNodeId == right.coreNodeId &&
+      jsonEncode(left.domainAccess?.toJson()) ==
+          jsonEncode(right.domainAccess?.toJson());
 }

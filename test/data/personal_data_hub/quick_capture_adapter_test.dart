@@ -55,7 +55,8 @@ void main() {
     await dir.delete(recursive: true);
   });
 
-  test('core offline processes life records without acking unsent input',
+  test(
+      'core offline processes one signed record and blocks dependent re-signing',
       () async {
     await store.configureRoute('captures', DomainRoute.core);
     adapter = QuickCaptureDomainAdapter(
@@ -69,12 +70,20 @@ void main() {
     expect(await db.select(db.memoryCards).get(), hasLength(1));
     expect(((await store.read())['outbox'] as List).single['intent']['kind'],
         'create');
-    await adapter.submit(draft.copyWith(text: '午饭35元'));
-    expect((await adapter.readResult(draft.captureId!)).organizerMessage,
-        contains('待处理'));
-    expect(await consumer.consume(), 1);
-    expect(extractions, 2);
+    await expectLater(
+      adapter.submit(draft.copyWith(text: '午饭35元')),
+      throwsA(
+        isA<DomainFailure>().having(
+          (failure) => failure.code,
+          'code',
+          'causal_predecessor_unresolved',
+        ),
+      ),
+    );
+    expect(await consumer.consume(), 0);
+    expect(extractions, 1);
     expect(await db.select(db.memoryCards).get(), hasLength(1));
+    expect((await store.read())['outbox'], hasLength(1));
   });
 
   test('local deletion protects user edited card and reports issue', () async {
@@ -215,14 +224,67 @@ void main() {
       expect(pending['intent']['actor'], 'user_direct');
       expect(pending['intent']['data']['source'], 'phone_quick');
       expect(evidence!['surface'], 'quick_capture_send');
+      final unsignedIntent = evidence!['intent'] as Map<String, dynamic>;
+      expect(unsignedIntent['op_id'], pending['op_id']);
+      expect(unsignedIntent['base_revision'], 0);
+      expect(unsignedIntent['created_at'], isNotEmpty);
+      expect(unsignedIntent['expires_at'], isNotEmpty);
+      expect(unsignedIntent.containsKey('authorization_ref'), isFalse);
       expect(
         (await adapter.authorizationEvidence(
           'fixture-verified-action',
-        ))!['op_id'],
-        pending['op_id'],
+        )),
+        allOf(
+          containsPair('op_id', pending['op_id']),
+          containsPair('intent_sha256', domainDigest(unsignedIntent)),
+        ),
       );
     },
   );
+  test('signed final intent survives reopen and prepare without base rewrite',
+      () async {
+    await store.configureRoute('captures', DomainRoute.core);
+    var issued = 0;
+    adapter = QuickCaptureDomainAdapter(
+      store: store,
+      issueAuthorization: (_) async {
+        issued++;
+        return 'fixture-sealed-action';
+      },
+    );
+    final draft =
+        QuickCaptureService(submit: adapter.submit).newDraft('不可自动重签的合成记录');
+    await adapter.submit(draft);
+    final before = ((await store.read())['outbox'] as List).single;
+    final immutableIntent = copyJson(before['intent'] as Json);
+    expect(before['authorization_sealed'], isTrue);
+
+    await db.close();
+    connect();
+    adapter = QuickCaptureDomainAdapter(
+      store: store,
+      issueAuthorization: (_) async {
+        issued++;
+        return 'unexpected-second-signature';
+      },
+    );
+    final reopened = ((await store.read())['outbox'] as List).single;
+    expect(reopened['authorization_sealed'], isTrue);
+    final prepared = await store.prepare('captures');
+    expect(prepared!['query_first'], isFalse);
+    expect(prepared['intent'], immutableIntent);
+    await expectLater(
+      adapter.submit(draft.copyWith(text: '不允许变更 base 后重签')),
+      throwsA(
+        isA<DomainFailure>().having(
+          (failure) => failure.code,
+          'code',
+          'causal_predecessor_unresolved',
+        ),
+      ),
+    );
+    expect(issued, 1);
+  });
   test(
     'local output promoted to core acks existing card without extraction',
     () async {

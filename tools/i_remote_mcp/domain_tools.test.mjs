@@ -1,7 +1,7 @@
 import { listenForFetch } from './fetch_test_listener.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {randomUUID,createHash} from 'node:crypto';
+import {randomUUID,createHash,generateKeyPairSync} from 'node:crypto';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -10,12 +10,14 @@ import {createICoreServer} from '../i_core/i_core_server.mjs';
 import {ICoreStore} from '../i_core/i_core_store.mjs';
 import {DOMAIN_SCHEMA_SQL} from '../i_core/domain_schema.mjs';
 import {createPersonalDataHooks,registerPersonalDataDomains,personalDedupHooks} from '../i_core/personal_data_domains.mjs';
-import {createDomainClient,createDomainTools,createCoreRemember,PLANNER_SCOPES} from './domain_tools.mjs';
+import {createDomainClient,createDomainTools,createCoreRemember,CORE_REMEMBER_TOOL,PLANNER_SCOPES} from './domain_tools.mjs';
 import {createPlannerApp} from './planner_server.mjs';
 import {createToolHandlers,handleRpcMessage} from './mcp.mjs';
 import {importPersonalNotes} from '../i_core/import_personal_notes.mjs';
 import {startTestServer,obtainTokens,initSession,mcpPost,registerClient,pkcePair,authorizeParams,submitPassphrase,postToken,REDIRECT_URI,PUBLIC_URL} from './fixtures.mjs';
 import {createWebDomainOptions} from './server.mjs';
+import {approveWebActionChallenge,createTrustedWebAuthorizationVerifier,
+ createWebActionChallenge} from '../i_core/web_action_authorization.mjs';
 
 const now='2026-10-05T12:00:00.000Z';
 const item=(extra={})=>({title:'synthetic item',level:'行动',area:'未归类',parent_id:null,depends_on:[],status:'待办',replaced_by:null,
@@ -48,6 +50,41 @@ async function fixture(t,{mode='authoritative'}={}) {
  const plannerTools=createDomainTools({client:client(planner),scopes:PLANNER_SCOPES});
  const webTools=createDomainTools({client:client(web),scopes:webScopes,surface:'web',captureSource:'claude_web'});
  return {directory,core,coreUrl,client,planner,web,other,phone,webScopes,plannerTools,webTools,remember:createCoreRemember({client:client(web),scopes:webScopes})};
+}
+
+async function trustedWebFixture(t) {
+ const directory=mkdtempSync(path.join(tmpdir(),'w3-web-proof-synthetic-'));const databasePath=path.join(directory,'core.sqlite');let core;
+ t.after(async()=>{if(core)await core.close();assert.equal(path.dirname(path.resolve(directory)),path.resolve(tmpdir()));
+  assert.ok(path.basename(directory).startsWith('w3-web-proof-synthetic-'));rmSync(directory,{recursive:true,force:true});});
+ const initial=new ICoreStore(databasePath,{activityEnabled:false,activityAutoActivate:false}),coreId=initial.nodeId;initial.close();
+ const db=new DatabaseSync(databasePath);try{db.exec('BEGIN IMMEDIATE');db.exec(DOMAIN_SCHEMA_SQL);db.exec("UPDATE core_metadata SET value='6' WHERE key='schema_version';COMMIT");}finally{db.close();}
+ const state={now:Date.parse(now),grants:[]},keys=generateKeyPairSync('ed25519');
+ const hooks=createPersonalDataHooks({captureSourcesByPrincipal:{web:['claude_web'],other:['claude_web']}});
+ const currentVerifier=createTrustedWebAuthorizationVerifier({coreInstanceId:coreId,getTrustedKeys:()=>state.grants,now:()=>state.now});
+ core=createICoreServer({databasePath,clock:()=>state.now,domainHooks:hooks,domainDedupHooks:personalDedupHooks(),
+  domainVerifyAuthorization:currentVerifier});
+ registerPersonalDataDomains(core.store.domains,{mode:'authoritative'});
+ const scopes=['captures:read','captures:create','captures:patch','captures:delete'];
+ const issue=name=>core.store.domains.configurePrincipal({principal_id:name,device_id:'device-'+name,
+  installation_id:'install-'+name,scopes,actors:['user_via_agent'],origin_device_only:true});
+ const web=issue('web'),other=issue('other');
+ const binding={core_instance_id:coreId,principal_id:'web',credential_generation:web.generation,installation_id:'install-web'};
+ state.grants=[{key_id:'trusted-web-ui',public_key:keys.publicKey,binding,kinds:['create','patch','delete']}];
+ const address=await listenForFetch(core.server,()=>core.listen({port:0})),coreUrl='http://127.0.0.1:'+address.port;
+ const client=(credential,options={})=>createDomainClient({coreUrl,coreInstanceId:coreId,token:credential.token,...options});
+ function signedAdd(text='trusted synthetic web capture') {
+  const input={op_id:randomUUID(),id:randomUUID(),base_revision:0,created_at:new Date(state.now).toISOString(),
+   expires_at:new Date(state.now+3600000).toISOString(),text,recorded_at:new Date(state.now).toISOString()};
+  const request={domain_protocol_version:1,core_instance_id:coreId,schema_version:1,op_id:input.op_id,id:input.id,
+   kind:'create',actor:'user_via_agent',base_revision:0,created_at:input.created_at,expires_at:input.expires_at,
+   data:{text,source:'claude_web',recorded_at:input.recorded_at},
+   provenance:{source:'claude_web',source_refs:[],import_batch_id:null}};
+  const challenge=createWebActionChallenge({domain:'captures',binding,request,keyId:'trusted-web-ui',now:state.now});
+  input.authorization_ref=approveWebActionChallenge({challenge,domain:'captures',binding,request,
+   privateKey:keys.privateKey,now:state.now});
+  return {input,request,challenge};
+ }
+ return {core,state,keys,web,other,scopes,client,signedAdd};
 }
 
 test('real schema6 domain tools preserve creation, patch, full week/day editions and exact replay',async t=>{
@@ -123,6 +160,58 @@ test('lost Core response stays transport_unknown and exact retry reuses one dura
  const h=createDomainTools({client,scopes:PLANNER_SCOPES}).handlers;const op=args({data:item()});
  assert.equal((await h.plan_upsert(op)).outcome,'transport_unknown');const retry=await h.plan_upsert(op);assert.equal(retry.outcome,'duplicate');
  assert.equal(f.core.store.db.prepare("SELECT COUNT(*) n FROM domain_changes WHERE domain='plan_items'").get().n,1);
+});
+
+test('real wua1 crosses the MCP schema and an unknown accepted write is recovered only by its original op id',async t=>{
+ const f=await trustedWebFixture(t),signed=f.signedAdd();let drop=true;
+ const droppedClient=f.client(f.web,{fetchImpl:async(...params)=>{const response=await fetch(...params);
+  if(drop&&params[1]?.method==='POST'){drop=false;await response.arrayBuffer();throw new Error('synthetic dropped response');}
+  return response;}});
+ const tools=createDomainTools({client:droppedClient,scopes:f.scopes,surface:'web',captureSource:'claude_web'});
+ const captureSchema=tools.tools.find(tool=>tool.name==='capture_add').inputSchema.properties.authorization_ref;
+ assert.equal(captureSchema.maxLength,4096);assert.ok(signed.input.authorization_ref.length>200);
+ assert.equal(CORE_REMEMBER_TOOL.inputSchema.properties.authorization_ref.maxLength,4096);
+ assert.equal((await tools.handlers.capture_add(signed.input)).outcome,'transport_unknown');
+ assert.equal(f.core.store.db.prepare("SELECT COUNT(*) n FROM domain_changes WHERE domain='captures'").get().n,1);
+
+ // Expiry and key revocation deny a fresh submission, but must not hide an already accepted same-principal op receipt.
+ f.state.now=signed.challenge.expires_at;f.state.grants=[];
+ const recovered=await tools.handlers.capture_operation({op_id:signed.input.op_id});
+ assert.equal(recovered.http_status,200);assert.equal(recovered.found,true);
+ assert.equal(recovered.result.op_id,signed.input.op_id);assert.equal(recovered.result.receipt.accepted_op_id,signed.input.op_id);
+ const remember=createCoreRemember({client:droppedClient,scopes:f.scopes});
+ const viaRemember=await remember.remember({action:'operation',op_id:signed.input.op_id});
+ assert.equal(viaRemember.action,'operation');assert.equal(viaRemember.result.receipt.receipt_id,recovered.result.receipt.receipt_id);
+
+ const otherTools=createDomainTools({client:f.client(f.other),scopes:f.scopes,surface:'web',captureSource:'claude_web'});
+ const hidden=await otherTools.handlers.capture_operation({op_id:signed.input.op_id});
+ assert.equal(hidden.http_status,404);assert.equal(hidden.error.code,'op_not_found');
+ const otherRemember=createCoreRemember({client:f.client(f.other),scopes:f.scopes});
+ assert.equal((await otherRemember.remember({action:'operation',op_id:signed.input.op_id})).error.code,'op_not_found');
+ const missing=await tools.handlers.capture_operation({op_id:randomUUID()});
+ assert.equal(missing.http_status,404);assert.equal(missing.error.code,'op_not_found');
+ await assert.rejects(()=>tools.handlers.capture_operation({op_id:signed.input.op_id,text:'changed'}),/invalid_request/);
+ await assert.rejects(()=>remember.remember({action:'operation',op_id:signed.input.op_id,text:'changed'}),/invalid_request/);
+
+ const unavailable=createDomainTools({client:f.client(f.web,{fetchImpl:async()=>{throw new Error('offline');}}),
+  scopes:f.scopes,surface:'web',captureSource:'claude_web'});
+ const unknown=await unavailable.handlers.capture_operation({op_id:signed.input.op_id});
+ assert.equal(unknown.outcome,'transport_unknown');assert.equal(unknown.error.code,'core_unavailable');
+ assert.match(unknown.retry,/query capture_operation/);assert.match(unknown.retry,/failed lookup remains unknown/i);
+ const restricted=f.core.store.domains.configurePrincipal({principal_id:'web',device_id:'device-web',installation_id:'install-web',
+  scopes:['captures:read'],actors:['user_via_agent'],origin_device_only:true});
+ const restrictedTools=createDomainTools({client:f.client(restricted),scopes:['captures:read'],surface:'web',captureSource:'claude_web'});
+ const forbidden=await restrictedTools.handlers.capture_operation({op_id:signed.input.op_id});
+ assert.equal(forbidden.http_status,403);assert.equal(forbidden.error.code,'scope_forbidden');
+ assert.equal(f.core.store.db.prepare("SELECT COUNT(*) n FROM domain_changes WHERE domain='captures'").get().n,1);
+});
+
+test('authorization references are bounded independently from record ids in both Web handlers',async t=>{
+ const f=await fixture(t),tooLong='x'.repeat(4097),add=authorized({text:'bounded',recorded_at:now});add.authorization_ref=tooLong;
+ await assert.rejects(()=>f.webTools.handlers.capture_add(add),/invalid_authorization_ref/);
+ const rememberAdd={action:'add',op_id:add.op_id,id:add.id,base_revision:add.base_revision,created_at:add.created_at,
+  expires_at:add.expires_at,authorization_ref:add.authorization_ref,text:add.text};
+ await assert.rejects(()=>f.remember.remember(rememberAdd),/invalid_authorization_ref/);
 });
 
 test('local MCP requires distinct configured scoped bearer, binds loopback and has zero chat tools',async t=>{

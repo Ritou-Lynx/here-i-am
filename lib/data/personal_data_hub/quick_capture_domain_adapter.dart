@@ -8,10 +8,12 @@ import 'domain_protocol.dart';
 import 'domain_store.dart';
 import 'quick_capture_models.dart';
 
-/// A host-authorized issuer must bind this durable UI action to Core's trusted
-/// authorization verifier. No arbitrary caller-supplied ref is accepted here.
+/// A host-authorized issuer must bind the reviewed UI action and the exact
+/// final intent to Core's trusted authorization verifier. The request includes
+/// the immutable op id, base revision and timestamps and never accepts an
+/// arbitrary caller-supplied ref.
 typedef QuickCaptureAuthorizationIssuer = Future<String> Function(
-    Json evidence);
+    Json authorizationRequest);
 
 class QuickCaptureDomainAdapter {
   QuickCaptureDomainAdapter({
@@ -56,28 +58,30 @@ class QuickCaptureDomainAdapter {
         'occurred_at': store.clock().toUtc().toIso8601String(),
         'binding': store.binding.forDomain('captures'),
       };
-      if (domain['route'] != 'phone' && issueAuthorization == null) {
+      final route = domain['route'] as String;
+      if (route != 'phone' && issueAuthorization == null) {
         throw const DomainFailure('capture_authorization_not_configured');
       }
-      final ref = issueAuthorization == null
-          ? 'local-ui:$actionId'
-          : await issueAuthorization!(copyJson(evidence));
-      if (ref.isEmpty) throw const DomainFailure('actor_evidence_required');
-      await store.db.customStatement(
-        'INSERT INTO kv_store(key,value,bucket,updated_at) VALUES(?,?,?,?)',
-        [
-          'quick_capture_action.$actionId',
-          jsonEncode({...evidence, 'authorization_ref': ref}),
-          'quick_capture_authorization',
-          store.clock().millisecondsSinceEpoch,
-        ],
-      );
+      Json? signedRequest;
+      String? signedRef;
       final opId = await store.enqueue(
         'captures',
         id: id,
         kind: current == null ? 'create' : 'patch',
         actor: 'user_direct',
-        authorizationRef: ref,
+        authorizationRef: route == 'phone' ? 'local-ui:$actionId' : null,
+        authorizeIntent: route == 'phone'
+            ? null
+            : (intent) async {
+                final request = <String, dynamic>{
+                  ...evidence,
+                  'intent': copyJson(intent),
+                };
+                final ref = await issueAuthorization!(copyJson(request));
+                signedRequest = request;
+                signedRef = ref;
+                return ref;
+              },
         fields: current == null
             ? {
                 'data': {
@@ -95,11 +99,20 @@ class QuickCaptureDomainAdapter {
                 'patch': {'text': text},
               },
       );
+      final ref = signedRef ?? 'local-ui:$actionId';
       await store.db.customStatement(
-        'UPDATE kv_store SET value = ? WHERE key = ?',
+        'INSERT INTO kv_store(key,value,bucket,updated_at) VALUES(?,?,?,?)',
         [
-          jsonEncode({...evidence, 'authorization_ref': ref, 'op_id': opId}),
           'quick_capture_action.$actionId',
+          jsonEncode({
+            ...evidence,
+            'authorization_ref': ref,
+            'op_id': opId,
+            if (signedRequest != null)
+              'intent_sha256': domainDigest(signedRequest!['intent']),
+          }),
+          'quick_capture_authorization',
+          store.clock().millisecondsSinceEpoch,
         ],
       );
     });

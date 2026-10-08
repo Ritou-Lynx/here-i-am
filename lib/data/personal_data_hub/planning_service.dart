@@ -10,29 +10,38 @@ import 'planning_models.dart';
 /// reference; generating a UUID alone does not authorize a request on Core.
 class PlanningUiAuthorization {
   const PlanningUiAuthorization(
-      {required this.reference,
-      required this.opId,
+      {required this.actionId,
       required this.binding,
       required this.itemId,
       required this.status,
-      required this.at});
-  final String reference, opId, itemId, status;
+      required this.at,
+      required this.intent});
+  final String actionId, itemId, status;
   final DomainBinding binding;
   final DateTime at;
-  Json toJson() => {
-        'authorization_ref': reference,
-        'op_id': opId,
-        ...binding.forDomain('plan_items'),
-        'kind': 'status',
+  final Json intent;
+
+  Json toAuthorizationRequest() => {
+        'action_id': actionId,
+        'domain': 'plan_items',
+        'item_id': itemId,
+        'action': 'status',
         'actor': 'user_direct',
-        'id': itemId,
-        'patch': {'status': status},
-        'at': at.toUtc().toIso8601String(),
-        'source': 'planning_status_button'
+        'surface': 'planning_status',
+        'status': status,
+        'occurred_at': at.toUtc().toIso8601String(),
+        'binding': binding.forDomain('plan_items'),
+        'intent': copyJson(intent),
+      };
+
+  Json toJson({required String authorizationRef}) => {
+        ...toAuthorizationRequest(),
+        'authorization_ref': authorizationRef,
+        'intent_sha256': domainDigest(intent),
       };
 }
 
-typedef PlanningAuthorize = Future<void> Function(
+typedef PlanningAuthorize = Future<String> Function(
     GeneratedDatabase db, PlanningUiAuthorization action);
 
 abstract interface class PlanningReader {
@@ -218,25 +227,24 @@ class PlanningService implements PlanningReader {
           !['accepted', 'duplicate'].contains(op['state']))) {
         throw const DomainFailure('planning_action_unresolved');
       }
-      final ref = 'planning-ui:${const Uuid().v4()}';
+      final actionId = const Uuid().v4();
       final op = await store.enqueue('plan_items',
           id: itemId,
           kind: 'status',
           actor: 'user_direct',
-          authorizationRef: ref,
+          authorizeIntent: (intent) => authorize!(
+              store.db,
+              PlanningUiAuthorization(
+                  actionId: actionId,
+                  binding: store.binding,
+                  itemId: itemId,
+                  status: action.value,
+                  at: clock(),
+                  intent: intent)),
           baseRevision: item.revision,
           fields: {
             'patch': {'status': action.value}
           });
-      await authorize!(
-          store.db,
-          PlanningUiAuthorization(
-              reference: ref,
-              opId: op,
-              binding: store.binding,
-              itemId: itemId,
-              status: action.value,
-              at: clock()));
       return op;
     });
   }

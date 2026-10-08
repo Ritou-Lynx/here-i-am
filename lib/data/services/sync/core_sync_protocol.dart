@@ -4,6 +4,8 @@
 /// deliberately absent because they are not stable across devices.
 library;
 
+import 'dart:convert';
+
 abstract final class CoreSyncProtocol {
   static const version = '0.1';
   static const basePath = '/v1/core';
@@ -129,6 +131,7 @@ class CoreDevicePairResponse {
     required this.initialCursor,
     required this.coreNodeId,
     required this.protocolVersion,
+    this.domainAccess,
   });
 
   final String deviceId;
@@ -136,6 +139,7 @@ class CoreDevicePairResponse {
   final String initialCursor;
   final String coreNodeId;
   final String protocolVersion;
+  final CoreDomainAccessGrant? domainAccess;
 
   Map<String, dynamic> toJson() => {
         'device_id': deviceId,
@@ -143,16 +147,157 @@ class CoreDevicePairResponse {
         'initial_cursor': initialCursor,
         'core_node_id': coreNodeId,
         'protocol_version': protocolVersion,
+        if (domainAccess != null) 'domain_access': domainAccess!.toJson(),
       };
 
-  factory CoreDevicePairResponse.fromJson(Map<String, dynamic> json) =>
-      CoreDevicePairResponse(
-        deviceId: _requiredString(json, 'device_id'),
-        deviceToken: _requiredString(json, 'device_token'),
-        initialCursor: _requiredString(json, 'initial_cursor'),
-        coreNodeId: _requiredString(json, 'core_node_id'),
-        protocolVersion: _requiredString(json, 'protocol_version'),
-      );
+  factory CoreDevicePairResponse.fromJson(Map<String, dynamic> json) {
+    final deviceId = _requiredString(json, 'device_id');
+    final coreNodeId = _requiredString(json, 'core_node_id');
+    final domainAccess = json['domain_access'] == null
+        ? null
+        : CoreDomainAccessGrant.fromJson(_requiredMap(json, 'domain_access'));
+    if (domainAccess != null &&
+        (domainAccess.coreInstanceId != coreNodeId ||
+            domainAccess.installationId != deviceId ||
+            domainAccess.token == _requiredString(json, 'device_token'))) {
+      throw const FormatException('domain_access pairing binding mismatch');
+    }
+    return CoreDevicePairResponse(
+      deviceId: deviceId,
+      deviceToken: _requiredString(json, 'device_token'),
+      initialCursor: _requiredString(json, 'initial_cursor'),
+      coreNodeId: coreNodeId,
+      protocolVersion: _requiredString(json, 'protocol_version'),
+      domainAccess: domainAccess,
+    );
+  }
+
+  /// Chat pairing deliberately ignores any domain credential offered by the
+  /// response. Domain authority is installed only from the owner CLI export.
+  /// The general decoder remains available for protocol compatibility tests.
+  factory CoreDevicePairResponse.fromChatPairJson(Map<String, dynamic> json) {
+    final chatOnly = Map<String, dynamic>.from(json)..remove('domain_access');
+    return CoreDevicePairResponse.fromJson(chatOnly);
+  }
+}
+
+class CoreDomainAuthorizationGrant {
+  const CoreDomainAuthorizationGrant({
+    required this.scheme,
+    required this.keyId,
+    required this.secret,
+  });
+
+  final String scheme;
+  final String keyId;
+  final String secret;
+
+  Map<String, dynamic> toJson() => {
+        'scheme': scheme,
+        'key_id': keyId,
+        'secret': secret,
+      };
+
+  factory CoreDomainAuthorizationGrant.fromJson(Map<String, dynamic> json) {
+    final scheme = _requiredString(json, 'scheme');
+    final keyId = _requiredString(json, 'key_id');
+    final secret = _requiredString(json, 'secret');
+    if (scheme != 'hmac-sha256-v1' ||
+        !RegExp(r'^[A-Za-z0-9_-]{1,40}$').hasMatch(keyId) ||
+        _decodeBase64Url(secret).length != 32) {
+      throw const FormatException('invalid domain authorization grant');
+    }
+    return CoreDomainAuthorizationGrant(
+        scheme: scheme, keyId: keyId, secret: secret);
+  }
+}
+
+/// Optional, separately scoped domain credential returned only after the Core
+/// owner provisioned this exact device and installation. It is not the chat
+/// device token and its presence never changes a domain route or bridge owner.
+class CoreDomainAccessGrant {
+  const CoreDomainAccessGrant({
+    required this.protocolVersion,
+    required this.coreInstanceId,
+    required this.principalId,
+    required this.credentialGeneration,
+    required this.installationId,
+    required this.policyVersion,
+    required this.schemaVersion,
+    required this.token,
+    required this.scopes,
+    required this.authorization,
+  });
+
+  final int protocolVersion;
+  final String coreInstanceId;
+  final String principalId;
+  final int credentialGeneration;
+  final String installationId;
+  final String policyVersion;
+  final int schemaVersion;
+  final String token;
+  final List<String> scopes;
+  final CoreDomainAuthorizationGrant authorization;
+
+  Map<String, dynamic> toJson() => {
+        'protocol_version': protocolVersion,
+        'core_instance_id': coreInstanceId,
+        'principal_id': principalId,
+        'credential_generation': credentialGeneration,
+        'installation_id': installationId,
+        'policy_version': policyVersion,
+        'schema_version': schemaVersion,
+        'token': token,
+        'scopes': scopes,
+        'authorization': authorization.toJson(),
+      };
+
+  factory CoreDomainAccessGrant.fromJson(Map<String, dynamic> json) {
+    final value = CoreDomainAccessGrant(
+      protocolVersion: _requiredInt(json, 'protocol_version'),
+      coreInstanceId: _requiredString(json, 'core_instance_id'),
+      principalId: _requiredString(json, 'principal_id'),
+      credentialGeneration:
+          _requiredNonNegativeInt(json, 'credential_generation'),
+      installationId: _requiredString(json, 'installation_id'),
+      policyVersion: _requiredString(json, 'policy_version'),
+      schemaVersion: _requiredInt(json, 'schema_version'),
+      token: _requiredString(json, 'token'),
+      scopes: _stringList(json['scopes'], 'scopes'),
+      authorization: CoreDomainAuthorizationGrant.fromJson(
+          _requiredMap(json, 'authorization')),
+    );
+    const allowedScopes = {
+      'captures:read',
+      'captures:create',
+      'captures:patch',
+      'captures:delete',
+      'captures:ack',
+      'captures:adopt',
+      'captures:owner',
+      'plan_items:read',
+      'plan_items:status',
+      'plan_items:ack',
+      'plan_days:read',
+      'plan_days:ack',
+      'plan_weeks:read',
+      'plan_weeks:ack',
+    };
+    final idPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$');
+    if (value.protocolVersion != 1 ||
+        value.schemaVersion != 1 ||
+        value.credentialGeneration < 1 ||
+        !idPattern.hasMatch(value.coreInstanceId) ||
+        !idPattern.hasMatch(value.principalId) ||
+        !idPattern.hasMatch(value.installationId) ||
+        value.scopes.isEmpty ||
+        value.scopes.toSet().length != value.scopes.length ||
+        value.scopes.any((scope) => !allowedScopes.contains(scope))) {
+      throw const FormatException('unsupported domain access grant');
+    }
+    return value;
+  }
 }
 
 enum CoreCompanionUploadMode { legacyB3, pr10, disabled }
@@ -546,4 +691,20 @@ List<String> _stringList(Object? value, String field) {
     throw FormatException('$field must be an array of strings');
   }
   return value.cast<String>();
+}
+
+List<int> _decodeBase64Url(String value) {
+  if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(value)) {
+    throw const FormatException('invalid base64url');
+  }
+  final padded = value.padRight((value.length + 3) ~/ 4 * 4, '=');
+  try {
+    final decoded = base64Url.decode(padded);
+    if (base64UrlEncode(decoded).replaceAll('=', '') != value) {
+      throw const FormatException('invalid base64url');
+    }
+    return decoded;
+  } on FormatException {
+    throw const FormatException('invalid base64url');
+  }
 }
