@@ -81,6 +81,10 @@ public sealed class Schema6SessionJob : IDisposable {
 public sealed class Schema6SessionWindow : Form {
   [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool ShutdownBlockReasonCreate(IntPtr window,string reason);
   [DllImport("user32.dll",SetLastError=true)] static extern bool ShutdownBlockReasonDestroy(IntPtr window);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] static extern IntPtr GetProcessWindowStation();
+  [DllImport("user32.dll")] static extern IntPtr GetThreadDesktop(uint thread);
+  [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool GetUserObjectInformation(IntPtr handle,int index,StringBuilder value,int length,out int needed);
   readonly string ps,release,manifest,state,session,configuration;
   string control;
   readonly string[] backupArgs;
@@ -100,7 +104,8 @@ public sealed class Schema6SessionWindow : Form {
   const int ForceReserveMs=1500;
   System.Windows.Forms.Timer timer;
   DateTime nextBackup=DateTime.MinValue;
-  int closing; bool started,clean,shutdownRequested,shutdownCancelled,exitRequested,forcedTimeout;
+  readonly object closePublishGate=new object();
+  int closing,exitFinalized; bool started,clean,shutdownRequested,shutdownCancelled,exitRequested,forcedTimeout,messageReceiptFailed;
   bool currentReady,recoveryPending,recoveryAttempted;
   DateTime readySince,restartAfter;
   string reason="running";
@@ -144,11 +149,60 @@ public sealed class Schema6SessionWindow : Form {
     try{using(FileStream file=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None)){byte[] data=Encoding.UTF8.GetBytes(text);file.Write(data,0,data.Length);file.Flush(true);}File.Move(pending,filename);}
     finally{if(File.Exists(pending))File.Delete(pending);}
   }
+  void WriteCloseReceipt(string filename,object value,Stopwatch budget) {
+    string text;lock(json)text=json.Serialize(value);
+    string pending=filename+"."+Guid.NewGuid().ToString("N")+".pending";
+    try {
+      using(FileStream file=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None)){
+        byte[] data=Encoding.UTF8.GetBytes(text);file.Write(data,0,data.Length);file.Flush(true);
+      }
+      // Flush is outside the publication gate: a stalled disk must not hold up
+      // the UI finalizer. Only the final rename and terminal seal are serialized.
+      lock(closePublishGate){
+        if(Volatile.Read(ref exitFinalized)!=0 || forcedTimeout || budget.ElapsedMilliseconds>CloseLimitMs){
+          clean=false;reason="session_shutdown_timeout";return;
+        }
+        File.Move(pending,filename);
+      }
+    } finally {if(File.Exists(pending))File.Delete(pending);}
+  }
+  static string ObjectName(IntPtr handle) {
+    StringBuilder value=new StringBuilder(256);int needed;
+    if(handle==IntPtr.Zero || !GetUserObjectInformation(handle,2,value,value.Capacity*2,out needed))return "unavailable";
+    return value.ToString();
+  }
+  bool MessageEntry(Message message) {
+    try {
+      Protected(session,true);
+      string id=Guid.NewGuid().ToString("N");
+      // Synchronous and durable before either session-message handler returns.
+      // OS shutdown may end the process after ENDSESSION returns.
+      WriteNew(Path.Combine(session,"session-message-"+id+".json"),new {
+        message_id=id,message=message.Msg==0x0011?"WM_QUERYENDSESSION":"WM_ENDSESSION",
+        wparam=message.WParam.ToInt64(),lparam=message.LParam.ToInt64(),
+        received_utc=DateTime.UtcNow.ToString("o"),entry_flushed=true,
+        pid=Process.GetCurrentProcess().Id,session_id=Process.GetCurrentProcess().SessionId,
+        thread_id=GetCurrentThreadId(),window_station=ObjectName(GetProcessWindowStation()),
+        desktop=ObjectName(GetThreadDesktop(GetCurrentThreadId()))});
+      return true;
+    } catch {messageReceiptFailed=true;clean=false;reason="session_message_receipt_write_failed";return false;}
+  }
+  void ClosePhase(string phase) {
+    try {
+      Protected(session,true);
+      WriteNew(Path.Combine(session,"session-phase-"+Guid.NewGuid().ToString("N")+".json"),
+        new {phase=phase,received_utc=DateTime.UtcNow.ToString("o"),pid=Process.GetCurrentProcess().Id,
+          session_id=Process.GetCurrentProcess().SessionId,thread_id=GetCurrentThreadId(),
+          elapsed_ms=closeBudget==null?0:closeBudget.ElapsedMilliseconds,phase_flushed=true});
+    } catch {messageReceiptFailed=true;clean=false;reason="session_message_receipt_write_failed";}
+  }
   protected override void OnHandleCreated(EventArgs e) {
     base.OnHandleCreated(e);
     if(!ShutdownBlockReasonCreate(Handle,"Here I am is closing its local data safely."))throw new InvalidOperationException("shutdown_block_reason_failed");
     // The hidden top-level HWND and shutdown hook exist before any Core writer.
-    WriteNew(Path.Combine(session,"session-window.json"),new {pid=Process.GetCurrentProcess().Id,hwnd=Handle.ToInt64(),manifest_sha256=manifest,hook_ready=true});
+    WriteNew(Path.Combine(session,"session-window.json"),new {pid=Process.GetCurrentProcess().Id,hwnd=Handle.ToInt64(),manifest_sha256=manifest,hook_ready=true,
+      session_id=Process.GetCurrentProcess().SessionId,thread_id=GetCurrentThreadId(),
+      window_station=ObjectName(GetProcessWindowStation()),desktop=ObjectName(GetThreadDesktop(GetCurrentThreadId()))});
     timer=new System.Windows.Forms.Timer();timer.Interval=100;timer.Tick+=Tick;timer.Start();
   }
   void Tick(object sender,EventArgs args) {
@@ -160,7 +214,7 @@ public sealed class Schema6SessionWindow : Form {
             // Recovery is forbidden until every prior MCP descendant has exited.
             if(!mcpEmpty||!mcpHandlesReleased){exitRequested=true;Close();return;}
             if(core!=null){core.Dispose();core=null;}if(backup!=null){backup.Dispose();backup=null;}if(mcp!=null){mcp.Dispose();mcp=null;}
-            closeBudget=null;mcpForced=false;mcpExitCode=null;mcpNaturalExit=false;backupForced=false;coreForced=false;databaseExclusive=false;forcedTimeout=false;
+            closeBudget=null;mcpForced=false;mcpExitCode=null;mcpNaturalExit=false;backupForced=false;coreForced=false;databaseExclusive=false;forcedTimeout=false;messageReceiptFailed=false;Interlocked.Exchange(ref exitFinalized,0);
             control=Path.Combine(session,"control-"+Guid.NewGuid().ToString("N"));
             var acl=Directory.GetAccessControl(session);acl.SetAccessRuleProtection(true,true);
             Directory.CreateDirectory(control,acl);
@@ -271,21 +325,27 @@ public sealed class Schema6SessionWindow : Form {
   }
   void BeginClose() {
     if(Interlocked.Exchange(ref closing,1)!=0)return;
-    closeBudget=Stopwatch.StartNew();
+    if(closeBudget==null)closeBudget=Stopwatch.StartNew();
+    ClosePhase("close_queued");
     ThreadPool.QueueUserWorkItem(delegate {
       Stopwatch budget=closeBudget;
+      ClosePhase("close_worker_entered");
       try {
         Schema6SessionJob currentCore,currentBackup;
         lock(gate){currentCore=core;currentBackup=backup;}
         // One monotonic budget covers MCP, backup, authenticated Core close and cleanup.
         StopMcp(budget);
+        ClosePhase("mcp_stop_completed");
         Stopwatch backupWatch=Stopwatch.StartNew();
         if(currentBackup!=null && !currentBackup.WaitEmpty(Math.Min(5000,WorkRemaining(budget)))) {
           backupForced=true;if(!currentBackup.TerminateAndWait(Math.Min(1000,Remaining(budget))))throw new InvalidOperationException("backup_job_empty_unconfirmed");
         }
         backupStopElapsed=backupWatch.ElapsedMilliseconds;
         Stopwatch coreWatch=Stopwatch.StartNew();
-        if(currentCore==null){clean=true;reason="closed_before_start";return;}
+        if(currentCore==null){
+          clean=!forcedTimeout && Volatile.Read(ref exitFinalized)==0 && Remaining(budget)>0;
+          reason=clean?"closed_before_start":"session_shutdown_timeout";return;
+        }
         Dictionary<string,object> launch=null;
         while(WorkRemaining(budget)>0) {
           try {launch=Read(Path.Combine(control,"launch.json"));break;}catch(IOException){Thread.Sleep(25);}
@@ -317,7 +377,9 @@ public sealed class Schema6SessionWindow : Form {
           if(!mcpHandlesReleased || (core!=null&&!(core.Exited&&core.Empty)) || (backup!=null&&!(backup.Exited&&backup.Empty))){clean=false;recoveryPending=false;exitRequested=true;}
         } catch{clean=false;recoveryPending=false;exitRequested=true;}
         if(mcpFailure){clean=false;recoveryPending=false;exitRequested=true;if(!forcedTimeout)reason="mcp_start_or_process_failed";}
-        try{WriteNew(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_stop_elapsed_ms=mcpStopElapsed,backup_forced=backupForced,backup_stop_elapsed_ms=backupStopElapsed,core_forced=coreForced,core_close_elapsed_ms=coreCloseElapsed,database_exclusive_open_confirmed=databaseExclusive});}
+        if(messageReceiptFailed){clean=false;reason="session_message_receipt_write_failed";}
+        if(forcedTimeout || Volatile.Read(ref exitFinalized)!=0){clean=false;reason="session_shutdown_timeout";}
+        try{if(Volatile.Read(ref exitFinalized)==0)WriteCloseReceipt(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_stop_elapsed_ms=mcpStopElapsed,backup_forced=backupForced,backup_stop_elapsed_ms=backupStopElapsed,core_forced=coreForced,core_close_elapsed_ms=coreCloseElapsed,database_exclusive_open_confirmed=databaseExclusive},budget);}
         catch{clean=false;reason="session_receipt_write_failed";}
         finally{finished.Set();}
       }
@@ -338,32 +400,91 @@ public sealed class Schema6SessionWindow : Form {
     using(FileStream file=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.None)){byte[] data=Encoding.UTF8.GetBytes(mac);file.Write(data,0,data.Length);file.Flush(true);}File.Move(temporary,target);
   }
   protected override void WndProc(ref Message message) {
-    if(message.Msg==0x0011){shutdownRequested=true;BeginClose();message.Result=new IntPtr(1);return;}
+    if(message.Msg==0x0011){
+      if(closeBudget==null)closeBudget=Stopwatch.StartNew();
+      shutdownRequested=true;
+      if(!MessageEntry(message)){message.Result=IntPtr.Zero;return;}
+      // QUERY must answer promptly. The cancellable close starts here, with the
+      // same monotonic budget later used by ENDSESSION and final publication.
+      BeginClose();message.Result=new IntPtr(1);return;
+    }
     if(message.Msg==0x0016){
-      if(message.WParam!=IntPtr.Zero){exitRequested=true;BeginClose();if(!finished.WaitOne(closeBudget==null?CloseLimitMs:Remaining(closeBudget))){forcedTimeout=true;clean=false;reason="session_shutdown_timeout";}BeginInvoke((Action)delegate{Close();});}
-      else if(shutdownRequested){shutdownCancelled=true;}
+      if(message.WParam!=IntPtr.Zero && closeBudget==null)closeBudget=Stopwatch.StartNew();
+      MessageEntry(message);
+      if(message.WParam!=IntPtr.Zero){
+        exitRequested=true;BeginClose();
+        if(!finished.WaitOne(Remaining(closeBudget))){forcedTimeout=true;clean=false;reason="session_shutdown_timeout";}
+        ClosePhase("endsession_wait_completed");
+        // Required receipts and owned-job cleanup are synchronous. A queued UI
+        // Close/OnFormClosed is only optional disposal after this point.
+        FinalizeSessionExit();
+        if(IsHandleCreated)BeginInvoke((Action)delegate{Close();});
+      }
+      else if(shutdownRequested){
+        if(Volatile.Read(ref closing)==0){
+          // A rejected QUERY never queued a close worker. END(FALSE) ends that
+          // attempt; do not poison the next shutdown with its expired budget.
+          shutdownRequested=false;shutdownCancelled=false;closeBudget=null;
+          messageReceiptFailed=false;reason="running";
+        } else shutdownCancelled=true;
+      }
       message.Result=IntPtr.Zero;return;
     }
     if(message.Msg==0x0010 && !finished.WaitOne(0) && !forcedTimeout){exitRequested=true;BeginClose();message.Result=IntPtr.Zero;return;}
     base.WndProc(ref message);
   }
-  protected override void OnFormClosed(FormClosedEventArgs e) {
-    if(timer!=null)timer.Dispose();
+  void FinalizeSessionExit() {
+    lock(closePublishGate){if(Interlocked.Exchange(ref exitFinalized,1)!=0)return;}
     bool coreEmpty=core==null,backupEmpty=backup==null;
     Stopwatch budget=closeBudget??Stopwatch.StartNew();
-    lock(gate){
-      if(mcp!=null){try{ObserveMcpExit(mcpForced);if(!(mcp.Exited&&mcp.Empty))mcpForced=true;mcpEmpty=mcp.TerminateAndWait(Math.Min(500,Remaining(budget)));mcpHandlesReleased=mcpEmpty&&mcp.Exited;ObserveMcpExit(mcpForced);if(mcpFailure)clean=false;}finally{mcp.Dispose();}}
-      if(backup!=null){try{backupEmpty=backup.TerminateAndWait(Math.Min(500,Remaining(budget)));}finally{backup.Dispose();}}
-      if(core!=null){try{coreEmpty=core.TerminateAndWait(Remaining(budget));}finally{core.Dispose();}}
+    bool completed=finished.WaitOne(0);
+    if(!completed){clean=false;forcedTimeout=true;reason="session_shutdown_timeout";}
+    try {
+      lock(gate){
+        if(mcp!=null){try{ObserveMcpExit(mcpForced);if(!(mcp.Exited&&mcp.Empty)){mcpForced=true;mcpEmpty=mcp.TerminateAndWait(Math.Min(500,Remaining(budget)));}else mcpEmpty=true;mcpHandlesReleased=mcpEmpty&&mcp.Exited;ObserveMcpExit(mcpForced);if(mcpFailure)clean=false;}finally{mcp.Dispose();}}
+        if(backup!=null){try{backupEmpty=backup.Exited&&backup.Empty;if(!backupEmpty){backupForced=true;backupEmpty=backup.TerminateAndWait(Math.Min(500,Remaining(budget)));}}finally{backup.Dispose();}}
+        if(core!=null){try{coreEmpty=core.Exited&&core.Empty;if(!coreEmpty){coreForced=true;clean=false;coreEmpty=core.TerminateAndWait(Remaining(budget));}}finally{core.Dispose();}}
+      }
+    } catch{clean=false;reason="session_exit_cleanup_failed";}
+    if(!coreEmpty||!backupEmpty||!mcpEmpty||!mcpHandlesReleased||messageReceiptFailed||coreForced||budget.ElapsedMilliseconds>CloseLimitMs)clean=false;
+    if(messageReceiptFailed)reason="session_message_receipt_write_failed";
+    try {
+      Protected(session,true);
+      WriteNew(Path.Combine(session,"session-exit.json"),new {clean_closed=clean&&!forcedTimeout,
+        core_job_empty_confirmed=coreEmpty,backup_job_empty_confirmed=backupEmpty,
+        mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,
+        mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,
+        elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,forced_timeout=forcedTimeout,
+        termination_requested=!clean,reason=reason,worker_completion_confirmed=completed,
+        manifest_sha256=manifest,message_receipt_failed=messageReceiptFailed,publication_before_handler_return=true,
+        elapsed_sampled_before_final_flush=true});
+    }catch{clean=false;reason="session_exit_receipt_write_failed";}
+    // A receipt cannot serialize the duration of its own final Flush/Move.
+    // Check again after durable publication; an overrun is a failed host exit,
+    // with a separate failure receipt, never a successful 30-second close.
+    if(budget.ElapsedMilliseconds>CloseLimitMs){
+      forcedTimeout=true;clean=false;reason="session_shutdown_timeout";
+      try{
+        Protected(session,true);
+        WriteNew(Path.Combine(session,"session-exit-over-budget.json"),new {
+          clean_closed=false,reason=reason,elapsed_ms=budget.ElapsedMilliseconds,
+          budget_ms=CloseLimitMs,final_publication_completed=true});
+      }catch{}
     }
-    try{WriteNew(Path.Combine(session,"session-exit.json"),new {clean_closed=clean&&!forcedTimeout,core_job_empty_confirmed=coreEmpty,backup_job_empty_confirmed=backupEmpty,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,forced_timeout=forcedTimeout,termination_requested=!clean,reason=reason});}catch{clean=false;}
+  }
+  protected override void OnFormClosed(FormClosedEventArgs e) {
+    if(timer!=null)timer.Dispose();
+    // Normal WM_CLOSE uses the same once-only finalizer. During OS shutdown the
+    // required durable publication already completed inside ENDSESSION.
+    FinalizeSessionExit();
     ShutdownBlockReasonDestroy(Handle);base.OnFormClosed(e);
   }
+  int HostExitCode(){return clean && !forcedTimeout && !messageReceiptFailed && finished.WaitOne(0)?0:1;}
   public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port) {
     return Run(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,"");
   }
   public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port,string mcpJson) {
-    using(Schema6SessionWindow window=new Schema6SessionWindow(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,mcpJson)) {Application.Run(window);return window.clean?0:1;}
+    using(Schema6SessionWindow window=new Schema6SessionWindow(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,mcpJson)) {Application.Run(window);return window.HostExitCode();}
   }
 }
 '@

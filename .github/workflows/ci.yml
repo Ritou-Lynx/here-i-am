@@ -168,17 +168,23 @@ jobs:
   schema6-windows:
     name: Schema6 Windows lifecycle and backup
     runs-on: windows-latest
-    timeout-minutes: 60
+    # Serial native cross-package interruption drills add >10 minutes of real starts.
+    # Production shutdown and each native stage retain their original deadlines.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Native upgrade/WM_CLOSE fixtures execute the exact historical old47 commit.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Fixed runtime, recovery, backup and maintenance suites
         shell: powershell
         env:
-          # Only this disposable hosted runner creates one unique, disabled,
-          # triggerless synthetic task and deletes that exact nonce-bound task.
+          # Only this disposable hosted runner creates nonce-bound disabled tasks.
+          # Legacy triggerless and same-schema LogonTrigger definitions are both
+          # strictly read back and deleted; no synthetic task is started.
           SCHEMA6_SYNTHETIC_TASK_TEST: '1'
           SCHEMA6_SYNTHETIC_OWNER_PROBE: '1'
           SCHEMA6_SYNTHETIC_TASK_REPORT: build/ci/schema6-maintenance-register-com.json
@@ -197,9 +203,13 @@ jobs:
   schema6-maintenance-windows:
     name: Schema6 Windows maintenance acceptance
     runs-on: windows-latest
-    timeout-minutes: 10
+    # Also runs real old/new session WM_CLOSE and complete manual custody inventory checks.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Native upgrade/WM_CLOSE fixtures execute the exact historical old47 commit.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -219,6 +229,33 @@ jobs:
             build/ci/schema6-native-probe.json
             build/ci/schema6-module-scope.json
             build/ci/schema6-maintenance-register-com.json
+          if-no-files-found: error
+
+  schema6-identity-pipeline:
+    name: Schema6 elevated writer to ordinary owner pipeline
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Required independent job: do not inherit run_windows_tests' TokenOwner
+      # workaround. Real BA-default elevated writer and same-SID medium consumer.
+      - name: Measure restricted token startup variants
+        shell: powershell
+        run: ./tools/i_core/test_fixtures/release_schema6/identity_startup_diagnostics.ps1
+      - name: Real Apply 144, ordinary fixed Prepare, safe COM registration and deletion
+        shell: powershell
+        run: ./tools/i_core/test_fixtures/release_schema6/run_identity_pipeline.ps1
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema6-identity-pipeline-results
+          path: |
+            build/ci/schema6-identity-pipeline.json
+            build/ci/schema6-identity-startup.json
+            build/ci/schema6-module-scope.json
           if-no-files-found: error
 
   schema6-cross-user:

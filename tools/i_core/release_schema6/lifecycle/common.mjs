@@ -21,12 +21,12 @@ export function separatePaths(...paths) {
   if(a===b || a.startsWith(b+path.sep) || b.startsWith(a+path.sep)) fail('paths_must_be_separate');
  }
 }
-export function closedStateSnapshot(root) {
+export function closedStateSnapshot(root, {packageSwitchPending=false}={}) {
  let databaseSha256=null;
  plainPath(root);
  const walk = (directory, prefix='') => readdirSync(directory,{withFileTypes:true}).sort((a,b)=>a.name<b.name?-1:1).flatMap(e=>{
   const relative=prefix+e.name;
-  if(!prefix && [MARKER,LOCK].includes(e.name)) return [];
+  if(!prefix && ([MARKER,LOCK].includes(e.name)||(packageSwitchPending && e.name==='s6-package-switch-pending.json'))) return [];
   const filename=plainPath(path.join(directory,e.name));
   if(e.isDirectory()) return [[relative+'/',null],...walk(filename,relative+'/')];
   if(!e.isFile()) fail('state_inventory_invalid');
@@ -70,6 +70,9 @@ export function validatePrevious(marker, config, before, configurationHash) {
 }
 
 const SAFE_STARTUP_CODES=new Set([
+ 'switch_business_schema_unverifiable',
+ 'switch_artifact_changed','switch_artifacts_required','switch_business_schema_invalid','switch_configuration_changed','switch_configuration_scope_changed','switch_distinct_packages_required','switch_event_changed','switch_history_binding_mismatch','switch_history_invalid','switch_history_limit','switch_orphan_sentinel','switch_receipt_required','switch_release_inventory_invalid','switch_resume_head_changed','switch_resume_marker_changed','switch_state_changed',
+ 'switch_reverse_proof_required','switch_business_changed','switch_pending_review_required','switch_executor_unbound','switch_plan_anchor_mismatch','switch_plan_invalid','switch_marker_changed','switch_head_changed','switch_sentinel_changed','switch_pending_other_operation',
  'domain_receipt_authentication_failed','domain_operation_authentication_failed','domain_record_result_mismatch','domain_record_envelope_invalid',
  'domain_accepted_target_invalid','domain_record_witness_limit', 'recovery_witness_unavailable', 'offline_probe_failed', 'offline_probe_cleanup_failed','domain_record_revision_invalid','old_domain_witness_unverifiable',
  'domain_record_rollback_rejected','domain_record_advance_unproven','domain_record_materialization_mismatch',

@@ -8,6 +8,7 @@
 |---|---|
 | enter-maintenance-window.ps1 / freeze-legacy-runtime.ps1 | 新窗口固定入口；保存/冻结旧任务、触发及重试 → 停MCP → PR16在线副本预检 → 停旧Core → 全件证明及至少65秒观察。内置退回仅覆盖冻结阶段。 |
 | maintenance_window.ps1 | 每窗口CreateNew目录/entry.lock/回执；active-window.guard独占句柄串行化动作，不删除或截断旧证据。 |
+| protect-approved-settings.ps1 | 独立获批单目录前置；方案SHA锚、3配置单链接/hash、原DACL耐久保存后只保护继承保留ACE，失败精确恢复；不处理144项、不碰任务/服务/库。 |
 | acl-cutover-maintenance.ps1 | import-safe Audit/Apply/Rollback，仅owner/DACL/继承，精确库存、全项恢复及readback。 |
 | owner-apply-runtime-permissions.ps1 | 同owner提升会话的显式wrapper，pin后加载ACL实现并复核回执；绿色UI不代替验收。 |
 | owner_elevation_probe.ps1 | 仅新合成根的foreign-owner往返，不操作现场目标。 |
@@ -42,3 +43,21 @@ Windows CI的schema6-windows job串行纳入maintenance_acl/window/register测�
 ## 2026-10-07 任务安全修订
 
 当前配置/审批采用v2、准备回执v3，registrationSddl与expectedRegisteredSddl分别锁定，parentSddlSha256及windows-file-oi-v1独立推导并前后重核。外SID只允许00120089纯读子集，所有其他权限包括执行均拒绝；只读主体逐项披露绑定本人批准。旧approvedSddl不再接受。固定Prepare模板显式Unified=true，须新包和本人最终XML/SDDL审批后再进场。详见docs/development/handoffs/SCHEMA6_TASK_SECURITY_REVISION_20261007.md。
+
+## 2026-10-07 R02 后：只读演练优先
+
+维护配置升级为 `schema6-maintenance-freeze-config-v3`，显式绑定 `formalWindowId`、两新模块及完整依赖哈希、独立 preflight 输入。入口只能选 `-Execute` 或 `-PreflightOnly` 其中之一。只读模式必须使用与正式ID不同的新ID，在 `rehearsals/windows/<ID>` 建立追加证据；共享主根的独占guard防止同时正式进场，但不创建/消费正式窗口。失败也保留演练ID和证据，不删锁复用。
+
+全部现役改动前共用：候选47库存、USB NTFS/卷UUID/设备身份与两端密文哈希、九类备份/既有真实还原回执、旧任务XML/SDDL/完整进程树（含conhost）/端口、精确ACL144/16外owner、批准XML/双SDDL/父SD与本机COM内存兼容、固定Prepare纯模板逐字输出。只读模式还执行PR16在线副本预检，再核任务/完整进程树/DB文件身份/ACL/父SD及pins。它不停止/冻结任务或现役进程，不Apply、不注册、不写生产配置，不生成冻结/Apply/正式Prepare成功回执。
+
+正式Prepare要求加固后的实际ACL，不能在加固前假装执行成功。演练使用固定候选manifest绑定并独立审阅哈希钉住的纯XML构造段，以及全部声明配置/待Apply库存检查；记录 `productionPrepareInvoked=false`、`productionPrepareStillRequiresAclApply=true`、`prepareTemplateBytesEqual=true`。生产Prepare及其冻结/ACL/NativeLease等门槛不变，现场仍必须真实执行。
+
+仅进程映像使用 `process_image_binding.ps1`：PID、OS创建时间、实际完整路径、SHA256持柄绑定；系统路径由Windows API取得且必须TrustedInstaller owner，可有servicing硬链接。数据/配置/密钥/状态/回执/发行包（含候选Node）仍单硬链接。没有通用豁免标记。
+
+演练CLI与正式入口相同参数，末尾使用 `-PreflightOnly`。演练全过后仍须本人另行授权正式进场。
+
+## 单目录 settings 前置的最新授权
+
+单目录入口先随 PR20 合成/CI 通过，执行时必须固定完整维护快照，参数 `-ProposalPath … -ExpectedProposalSha256 … -ReceiptDirectory … -Execute`；全新受保护回执目录不能在目标内，旧输出不复用。真实方案和 SDDL/SID 只在私有文件，源码无现场默认路径。此入口仅目录 DACL，不能代替正式冻结后的144项 owner/ACL Apply。
+
+执行成功后新ID完整 PreflightOnly；用户当前已明确有条件预授权：全套零失败且全部原批准外锚不变才直接用 r02。任何现场失败或偏差停审；原先“演练后另请授权”是此前阶段历史。固定47运行文件/Core/MCP/会话启动器不随新增维护入口变化。详见 `docs/development/handoffs/SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md`。

@@ -7,7 +7,9 @@ param(
   [string]$ConfigurationFile = '',
   [switch]$Start,
   [switch]$InitializeEmpty,
-  [ValidateSet('verify','migrate','rollback')][string]$OfflineOperation
+  [ValidateSet('verify','migrate','rollback','package-switch')][string]$OfflineOperation,
+  [string]$PackageSwitchPlan = '',
+  [string]$PackageSwitchSha256 = ''
 )
 $ErrorActionPreference = 'Stop'
 # Reject injected Node/Core settings before the first Node. Explicit config is authoritative.
@@ -51,7 +53,7 @@ $custodyLock = $null
 $configHandle = $null
 $externalHandles = @()
 try {
-  if ((-not $Start) -and ($InitializeEmpty -or $OfflineOperation -or $StateDirectory -or $ControlDirectory -or $PSBoundParameters.ContainsKey('CorePort') -or $ConfigurationFile)) { throw 'start_required_for_runtime_arguments' }
+  if ((-not $Start) -and ($InitializeEmpty -or $OfflineOperation -or $PackageSwitchPlan -or $PackageSwitchSha256 -or $StateDirectory -or $ControlDirectory -or $PSBoundParameters.ContainsKey('CorePort') -or $ConfigurationFile)) { throw 'start_required_for_runtime_arguments' }
   Assert-Tree $release
   $manifestPath = Join-Path $release 'manifest.json'
   if ((Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash -ne $ManifestSha256) { throw 'manifest_fingerprint_mismatch' }
@@ -92,6 +94,26 @@ try {
     Assert-ProtectedPath $ConfigurationFile
     Assert-Separate @($release,$StateDirectory,$ControlDirectory,[IO.Path]::GetDirectoryName($ConfigurationFile))
     $configHandle=[IO.File]::Open($ConfigurationFile,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+  }
+  if($OfflineOperation -eq 'package-switch') {if(-not $PackageSwitchPlan -or $PackageSwitchSha256 -notmatch '^[a-f0-9]{64}$'){throw 'switch_plan_required'}}
+  elseif($PackageSwitchPlan -or $PackageSwitchSha256){throw 'switch_plan_unexpected'}
+  $switchPlan=$null
+  if($OfflineOperation -eq 'package-switch') {
+    Assert-ProtectedPath ([IO.Path]::GetDirectoryName($PackageSwitchPlan)) -Root
+    Assert-ProtectedPath $PackageSwitchPlan
+    $externalHandles += [IO.File]::Open($PackageSwitchPlan,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+    if((Get-FileHash -LiteralPath $PackageSwitchPlan -Algorithm SHA256).Hash.ToLowerInvariant() -cne $PackageSwitchSha256){throw 'switch_plan_anchor_mismatch'}
+    $switchPlan=Get-Content -LiteralPath $PackageSwitchPlan -Raw|ConvertFrom-Json
+    if($switchPlan.format -cne 'schema6-package-switch-approved-v1' -or $switchPlan.approved -ne $true){throw 'switch_plan_invalid'}
+    $pins=@($switchPlan.from.configurationPath,$switchPlan.to.configurationPath)+@($switchPlan.artifacts|ForEach-Object {$_.path})+@($switchPlan.fromArtifacts|ForEach-Object {$_.path})
+    foreach($endpoint in @($switchPlan.from,$switchPlan.to)){
+      Assert-ProtectedPath $endpoint.releaseDirectory -Root
+      foreach($item in Get-ChildItem -LiteralPath $endpoint.releaseDirectory -Recurse -Force){Assert-ProtectedPath $item.FullName;if(-not $item.PSIsContainer){$pins+=$item.FullName}}
+    }
+    foreach($pinned in @($pins|Select-Object -Unique)){
+      Assert-ProtectedPath $pinned
+      $externalHandles += [IO.File]::Open($pinned,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+    }
   }
   if($InitializeEmpty -and $OfflineOperation) { throw 'operation_conflict' }
   try { $configuration = Get-Content -LiteralPath $ConfigurationFile -Raw | ConvertFrom-Json }
@@ -144,6 +166,7 @@ try {
   [IO.File]::WriteAllText((Join-Path $ControlDirectory 'stop.key'),$stopKey,[Text.UTF8Encoding]::new($false))
   $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
   $config = @{ owner_sid=$sid; configuration_file=$ConfigurationFile; parent_pid=$PID; parent_started_ticks=(Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks.ToString(); token=$token; mode=$mode; state=$StateDirectory; release=$release; lifecycle=$lifecycle; manifest_sha256=$ManifestSha256; port=$CorePort }
+  if($switchPlan){$config.package_switch_plan=$PackageSwitchPlan;$config.package_switch_sha256=$PackageSwitchSha256}
   [IO.File]::WriteAllText((Join-Path $ControlDirectory 'launch.pending'),($config | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
   [IO.File]::Move((Join-Path $ControlDirectory 'launch.pending'),(Join-Path $ControlDirectory 'launch.json'))
   [IO.File]::WriteAllText((Join-Path $ControlDirectory 'manifest.id'),$ManifestSha256,[Text.UTF8Encoding]::new($false))
@@ -169,15 +192,34 @@ try {
   if ($cleanExit) {
     $markerPath=Join-Path $StateDirectory 's6-lifecycle.json'
     Assert-ProtectedPath $markerPath
-    $marker=Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
-    if($marker.token -ne $token -or $marker.phase -ne 'close_prepared' -or $marker.manifest_sha256 -ne $ManifestSha256) { throw 'close_marker_mismatch' }
+    $preparedMarker=if($switchPlan){Join-Path $ControlDirectory 'package-switch-marker.json'}else{$markerPath}
+    Assert-ProtectedPath $preparedMarker
+    $marker=Get-Content -LiteralPath $preparedMarker -Raw | ConvertFrom-Json
+    $targetManifest=if($switchPlan){$switchPlan.to.manifestSha256}else{$ManifestSha256}
+    if($switchPlan -and ($marker.package_switch_plan_sha256 -cne $PackageSwitchSha256 -or $marker.configuration_sha256 -cne $switchPlan.to.configurationSha256)){throw 'switch_marker_changed'}
+    if($marker.token -ne $token -or $marker.phase -ne 'close_prepared' -or $marker.manifest_sha256 -ne $targetManifest) { throw 'close_marker_mismatch' }
     $marker.phase='clean_closed'
     $marker | Add-Member -NotePropertyName supervisor -NotePropertyValue @{job_empty_confirmed=$true;child_exit_code=0;guardian_exit_code=0;termination_requested=$false} -Force
     $temporary=Join-Path $StateDirectory ('s6-final-'+$token+'.tmp')
-    [IO.File]::WriteAllText($temporary,($marker | ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
+    if($switchPlan){
+      $markerBytes=[Text.UTF8Encoding]::new($false).GetBytes(($marker|ConvertTo-Json -Depth 5))
+      $markerHandle=[IO.File]::Open($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+      try{$markerHandle.Write($markerBytes,0,$markerBytes.Length);$markerHandle.Flush($true)}finally{$markerHandle.Dispose()}
+    }else{[IO.File]::WriteAllText($temporary,($marker | ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))}
     [IO.File]::Replace($temporary,$markerPath,[NullString]::Value)
+    if($switchPlan){
+      $sentinel=Join-Path $StateDirectory 's6-package-switch-pending.json'
+      $pending=Join-Path $configuration.recovery_custody_directory 'package-switch-pending.json'
+      Assert-ProtectedPath $sentinel;Assert-ProtectedPath $pending
+      $sentinelValue=Get-Content -LiteralPath $sentinel -Raw|ConvertFrom-Json
+      $pendingValue=Get-Content -LiteralPath $pending -Raw|ConvertFrom-Json
+      if($sentinelValue.planSha256 -cne $PackageSwitchSha256 -or $pendingValue.planSha256 -cne $PackageSwitchSha256 -or $sentinelValue.eventSha256 -cne $marker.package_switch_event_sha256 -or $pendingValue.eventSha256 -cne $marker.package_switch_event_sha256){throw 'switch_pending_changed'}
+      # All children have exited; target clean marker is durable before either blocker disappears.
+      [IO.File]::Delete($pending)
+      [IO.File]::Delete($sentinel)
+    }
   }
-  if(-not $cleanExit) {
+  if(-not $cleanExit -and -not $switchPlan) {
     $markerPath=Join-Path $StateDirectory 's6-lifecycle.json'
     if(Test-Path -LiteralPath $markerPath) {
       Assert-ProtectedPath $markerPath

@@ -1,8 +1,98 @@
+## 2026-10-08：PR20补齐历史布局的精确反向映射，仍不部署
+上一轮三项返修已关闭；新增P1为维护链无法返回原历史备份布局。本轮使用reverseBinding精确引用原已批准正向计划和对应canonical事件，反向双端及四类附件必须与其逐项交换，并重新执行原方向完整绑定。未提交证明、未批准/漂移的原计划、事件错配及任意库存缩减仍拒绝；Native的MAC、当前栈与完整持久状态见证不变。返回旧端只恢复原保留任务，不放宽RegisterOnly的新48项目标检查。
+本轮只改维护源码/专项测试/交接，固定48项、aef68af0 manifest及已复审精确配置/XML/双SDDL/父SD沿用；运行候选来源2c01de5b与本轮维护head分别签收。完整CI以新head为准，不继承旧421/157计数。现役Core/MCP/任务/配置/原库/手机未动，deploymentReady=false；独立维护补充审批完成后仍需本人另行批准换包。
+
+## 2026-10-08：PR20严格历史布局与旧v4保全返修，仍不部署
+审阅确认的旧端绑定阻断与目标丢失旧v4库存均纳入维护层返修：只对from识别固定v4九文件加manifest＋candidate/release当前schema6完整库存；新端保留原路径/hash十项为独立configuration命名空间，其余非release只允许原四附件重绑。参数化生成器在创建前核源端/四附件/固定48目标与输出隔离，未知增加、缺项、禁用、碰撞和路径别名均拒绝。详见[返修交接](handoffs/SCHEMA6_CLEAN_CLOSE_PACKAGE_UPGRADE_20261008.md)。
+本轮不改48项运行字节，按新head重建manifest/维护快照及精确backup→login→XML链；最终专项、完整CI及真实Prepare以本机候选审批材料签收。旧候选状态已按原head CI和真实还原回执纠正，不能继承为本轮CI。10/08本机/T9完整备份及真实隔离还原已完成，10/09重复安排已取消。现役Core/MCP/任务/配置/原库不改，deploymentReady=false；换包、登记与真人关机仍待重新批准。
+
+## 2026-10-08：PR20审阅后，先合并主线与今晚完整备份
+现役已上线，开机后手机/claude.ai正常，clean-close仍是唯一未通过真人项。用户只批准修复方向，换包暂不批准；现役设置、任务、原库、手机与MCP程序保持。已授权merge最新v3-lab并重跑新head完整CI；冲突仅合并双方文档记录，不rebase或force-push。
+10/09 20:00重复备份已取消，改为今晚本人在场时执行最新九类完整加密备份→本机/T9→真实隔离还原→只读Core核对。使用动态custody工具，捕获前后各check；备份最终签收及新head候选/CI锚见本轮审批材料，安排或backup_completed不代表还原通过。真实还原通过前不进入换包第1步。
+最终审批材料须含精确生产配置、XML、双SDDL、父SD及0–6失败处置，另获批准后才约换包/真人关机。验收先查session-message入口；无入口按session-window的window station/desktop及任务方式排查，入口到达与六终态齐全分开签收。以后运行字节PR独立于预检/文档/ACL。本节覆盖下方明晚安排等历史状态。
+
+## 2026-10-08：schema6已上线；clean-close修复与同版本换包待审批
+本人确认开机后手机与claude.ai均正常；clean-close为唯一未过真人项。现役运行包、任务、配置保持，本轮只读诊断/合成源码/新候选，未部署或合并。
+QUERY/END同步耐久入口与END内终态、晚到worker封口已补；旧47/新48外部关闭1301/1232ms，Native同版本换包及断点/拒退实测通过。新增同版本RegisterOnly固定CREATE即disabled，Prepare/派生登记XML独立锁定；本机登记链3/3，真实COM创建留hosted CI。主窗首次357项352通过、3项旧HEAD缺新文件失败、2权限项跳过；3e68b0e4提交后三项3/3复验通过，新增登记3/3，再加库存gate回归1项，合计361项末次359通过/2权限项留CI。首轮CI维护96/96实际COM通过，身份独立job在Apply前被夹具旧47计数拒绝；仅夹具精确库存修正5/5，不改生产检查或运行48字节。最终CI/候选材料按PR对应head签收。
+10/09 20:00 T9完整九类加密备份与实际还原安排保留，动态custody手动清单工具已补，自动静态清单缺口明确保留。详见[本轮交接](handoffs/SCHEMA6_CLEAN_CLOSE_PACKAGE_UPGRADE_20261008.md)。下方“开机复测尚待/切换未完成”为原时点记录，当前运行状态以本节为准。
+
+## 2026-10-08：真人正常关机清停未通过；新登录自动异常恢复与备份成功
+本人直接正常关机且无提示/强制操作，旧代六份关闭终态均缺，正常clean-close及共同30秒预算无法签收。新登录任务已自动启动新会话，Core/MCP健康、schema6/原node不变，实际kind=automatic_crash_recovery并推进head至gen2；raw密文保全及head/floor/event/ready元数据绑定通过。短时只读副本核关机前六条测试消息仍在，ledger268 committed、pending/rejected零；新自动备份回执success=true。[本次完整验收记录](handoffs/SCHEMA6_REAL_SHUTDOWN_ACCEPTANCE_20261008.md)。
+
+**切换未完成，暂停进一步现场动作，保留新Core在线，只向前修。** 已发现ENDSESSION返回后排队发布exit回执的竞态，不能单独解释六回执全缺；须先隔离复现并定位消息入口/退出顺序，任何新运行包仍需精确批准。开机后新MCP实际请求及客户端复测尚待，不能把关机前两项通过或自动恢复成功补算clean-close。日常动态custody清单、换机激活、10/2记忆快照仍按各自后续范围；10/09晚备份另做。下方“具备关机条件/等待本人”是关机前历史。
+
+2026-10-08 09:11：紧前i_recall实际09:08:35成功；最终只读基线通过，已具备叫本人正常关机→开机→登录的条件。旧关机终态/新自动启动尚未发生，四项仍过2/4。详情见SCHEMA6_CLIENT_HUMAN_GATES_20261008.md末节。
+
+2026-10-08 09:04：本人已选现在做关机→登录；静态只读复核通过，待claude.ai紧前i_recall回执后才叫本人关机，尚未执行或签收剩余两Gate。运行字节/生产配置不改。
+
+## 2026-10-08：两项客户端真人Gate通过，剩关机与登录自动启动
+精确25e4b4fd的最新CI八项和Policy共九项全绿。本人约08:52 claude.ai同步成功、约08:54手机发送成功并确认已看到回复无异常；短时只读一致副本核claude两条账本committed、Core7064/7065与事件精确关联各一行，手机7066/7067及ack7067，pending/rejected为0。同一MCP已有成功i_chat_turn/i_recall，临时副本已关闭删除，未读正文/凭据或改现役。详见[客户端真人证据](handoffs/SCHEMA6_CLIENT_HUMAN_GATES_20261008.md)。
+
+**四项已过两项，切换仍未完成。** 正常关机clean-close与开机登录自动启动待本人选择现在/今晚；若留今晚，临近关机须再做一次真实MCP请求。原址/head已推进只能向前修。生产settings不可清理；10/09晚备份仍另做。下方早先“四项仍待”均为历史时点。
+
+## 2026-10-08：R03备份ACL修复及本机/T9真实还原已通过
+精确a8d1源码push/PR各8项及Policy全绿，维护63/63、生命周期294/294零失败/跳过后，实际仅对已批daily文件设置protected本人/SYSTEM；内容、owner、六批准锚、固定47字节保持。原固定工具完成手动Automatic九类130文件、本机+T9双份，27.184秒；从T9第二新目录实际还原并启动只读Core，真实exit0、19.940秒，schema6/node、7设备/35表指纹匹配、5业务403。原始回执与外围首轮记录失败均留证，不改运行包；[完整证据](handoffs/SCHEMA6_R03_FIRST_POSTWRITE_BACKUP_20261008.md)。
+
+现役Core/MCP持续健康，原址/head已推进只能向前修。**四项真人Gate仍待，切换未完成**：手机/claude.ai本人答稍后，真实关机→开机→登录留今晚且关机前MCP需实际处理请求。定时下一轮未观察；日常动态恢复链/任务导出、固定PS深层JSON报告、换机激活重绑仍是后续单独范围。10/09晚备份仍另做，不把今天的签收提前挪到明晚。
+
+## 2026-10-08：备份单文件ACL已获批，源码待CI后执行
+用户已明确仅本人/SYSTEM；新增受审单文件维护入口与PS5故障测试，最终专项2/2、35合成断言通过，独审无剩余阻断。严格固定生产检查与47运行库存不变。全路径审计599条/506唯一路径，只有daily配置确定ACL违例，完整逐项索引见[路径审计](handoffs/SCHEMA6_RUNTIME_PATH_ACL_AUDIT_20261008.md)。
+
+生产尚未改ACL；本提交精确HEAD完整CI绿后才执行已批方案，再立即做本机/T9完整加密备份与隔离实际还原。手动清单补齐当前恢复链；日常静态清单覆盖缺口另提内容方案，不偷偷变更批准配置。手机与claude.ai验收独立已叫人、答稍后；真实关机→登录留今晚。新Core/MCP继续运行，原址/head已推进，只向前修，切换尚未完成。
+
+## 2026-10-08：r03原址schema6已接管，自动备份ACL阻断，暂停真人Gate
+
+精确a85源码原生完整CI八job全部成功（维护61/61、生命周期292/292、真实提升→普通固定Prepare/安全COM往返），新完整只读演练及六批准锚均通过。r03实际冻结、144项Apply、普通正式Prepare、CREATE-only注册与严格回读成功，获批交互式任务已真实启动；固定包已加密保全原raw、副本4→5→6并原址替换，独立head generation1推进，Core schema6与同会话旧MCP健康。生产settings不可清理；固定47运行字节、XML/双SDDL/父SD/login批准锚保持。
+
+首轮自动备份回执worker_failed；纯固定ACL断言与独审证实daily-backup-config.json未保护继承且含Administrators，必被仅本人/SYSTEM的备份规则拒绝。实际attempt stderr未保存，不能据此排除其他原因。仅该文件DACL的精确向前修方案已准备、尚未执行，原144之外变更须按用户偏差停审另批；不改文件内容或批准运行字节。
+
+**切换尚未完成：四项真人Gate全部暂停，已跨原库替换/head边界只能向前修。** 保持新Core/MCP运行，不恢复旧ACL或旧v4、不删pending/锁；后续修复、固定自动备份及隔离真实还原通过再继续。10/09晚T9九类完整加密备份与真实还原仍待，截止10/09 18:00条件不改。完整证据见[r03现场记录](handoffs/SCHEMA6_R03_EXECUTION_20261008.md)。下方未进场/仍schema4均为历史阶段。
+
+## 2026-10-07：Hosted夹具披露数组窄修，未进场
+
+34582e23的两个维护job已通过；真实身份链在taskSecurityBindings明确发现合成配置的披露项为嵌套数组。生产纯函数return ,$items已返回数组，fixture重复@包装造成[[]]；仅去掉该@，保留零/非零外SID完整披露。新增实际pipeline AST表达式的PS5→JSON→生产policy/JS 0/1/2主体回归，旧嵌套继续拒绝；主窗数组/观察器/static6/6、0跳过。下一HEAD真实提升→普通固定Prepare→安全COM串联仍待CI，不把局部通过当完整链成功。
+
+独审确认现场生成器26项源码闭包、九种必需CI及全部结果成功门、六锚、PR16在线/模板字节/结束复核、新r03锁、144库存/pending停点无遗漏；生成器必须从本C正式工作树执行。固定47/批准内容无改动，现役未动；全绿和新全套只读通过才继续条件预授权。
+## 2026-10-07：启动原因有实证，Prepare拒绝仍在定位
+
+cf9b121e的push/PR两Hosted runner一致：原DefaultDacl缺本人允许项，baseline/private-only/kernel三组合9次0xC0000142；只改变新token DefaultDacl后另9次cmd/Node/PS全exit0。实际普通consumer sameSID/owner/非提升/Medium成立且aclReceiptRead=true，144/16真实提升Apply已交接到普通读取；fixedPrepare仍false，prepare_node_rejected尚未取得内部错误。不能把启动成功提升为完整链成功。
+
+维护58/59通过，唯一失败是合成Console.WriteLine绕过successstream造成空JSON；fixture改Write-Output、原断言不变。新合成观察器在原PS Invoke-PrepareNode唯一WaitForExit行记录既有子进程任务，源hash/控制流/返回码/guard不变，保存实际argv/OSenv/exit/stdout/stderr；独立只读probe不调用写API。主窗专项5/5、worker预检2/2通过。生产47及maintenance逻辑无新增diff；新CI仍待实际结果，未新演练/冻结/进场。现有条件授权与本人今晚就位答复保持，CI全绿和完整新演练仍为前置。
+## 2026-10-07：Hosted启动证据补齐，仍在源码准备
+
+6647d041真实私有station/desktop安全、父状态恢复与关闭均通过，但child仍0xC0000142、没有consumer身份结果；144项提升Apply和回执本人owner已过，fixedPrepare仍未进入。新夹具增加18组cmd/Node/PS启动观测，记录父/limited DefaultDacl、token及process/thread内核SD和组；CREATE_SUSPENDED先核实际sameSID/ownerSID、非提升/非管理员/Medium再Resume。固定RunLimited候选不按观测动态选择，只变新受限token默认DACL及新对象SD，生产严格检查和父token不变；完整Hosted结果仍待新CI。
+
+本机普通cmd定向启动实际成功，不冒充提升→普通整链。22:35再次只读重核批准manifest/47项库存和六hash全部一致、settings受保护，运行47字节无变化。旧现役未动，未新全套只读/进入r03；只有准确源码全部CI绿、新只读全套零失败且六锚/实时父SD未变才按已有条件预授权进场。本人已确认今晚可完成真人节点，无需重复申请切换授权。
+## 2026-10-07 22:19：Hosted普通进程初始化修订，未进场
+
+befcad08新强制job实际管理员BA默认owner/High及144/16 Apply成功、回执本人owner验证通过，但普通子进程初始化0xC0000142，fixedPrepare仍false；快维护两例同根因失败，整链未通过。当前只改测试夹具：每次新建私有Medium窗口站/桌面，真实SD/名称/父状态恢复/关闭验证，原宿主对象ACL不改、身份断言不放宽。补在线副本三case普通身份包装，本机最终3/3实跑通过、static3/编译/解析通过；私有命名窗口站本机普通token被拒，未请求UAC，完整提升→普通修订仍待Hosted。固定运行47/六批准hash未变；未新只读/停服/进入r03。当前结果覆盖下方“Hosted尚未运行”的早期交接，准确CI全绿后才继续。
+## 2026-10-07 最后一次授权：owner全链与强制真实跨token串联
+
+截止北京时间10/09 18:00完成四真人Gate，缺一则切换未完成并停止新尝试；pending库存漂移或提交/head/newwrite边界不允许盲退v4。PR20继续维护源码：统一新产物本人owner/私有DACL/同身份读回、原子目录与来源lease；固定47运行字节未改，六批准hash21:59全实核不变。新Hosted必跑真实提升144项Apply→sameSID普通固定Prepare→安全COM往返，主窗最终维护57项55过0失败2特权未执行（79.491秒）、20原生断言通过，Hosted双token/新CI待实跑，尚未重新进场。
+
+已新增[完整产物库存](handoffs/SCHEMA6_ELEVATED_ARTIFACT_INVENTORY_20261007.md)、[Prepare后16阶段表](handoffs/SCHEMA6_POST_PREPARE_GATES_20261007.md)与[最后一次/晚间备份约束](handoffs/SCHEMA6_LAST_ATTEMPT_20261007.md)。本机预验证固定47/46源码、纯内存COM/PS5编译、隔离恢复9/9通过，不代替真实注册/登录/四Gate。r02已完整退回、已消费；新r03须准确CI全绿+fresh只读全套通过且六hash/父SD未变，才按既有条件授权进入。10/09 18:00/20:00线程自动化已安排，备份和恢复未来实际完成另签收。生产settings不可清理，47862保留、legacy_b3唯一、PR10关闭、MCP程序不换；B源码PR19不纳入本次运行包。
+## 2026-10-07 21:29：settings/只读重演通过，r02 Prepare拒绝，已完整退回
+
+PR20源码dd39129c CI15全绿（Hosted维护54/54、Windows285/285零跳过）后，唯一settings目录保护继承保留ACE成功f88d49ec，三配置owner/hash/子ACL不变；新readonly-d4becd66c1b8全套100.711秒通过，模板逐字、PR16副本72replay/1grant及结束复核均通过。六批准hash/实时父SD不变，按条件预授权进r02。
+
+冻结及144项Apply均成功，正式Prepare因提升进程生成的acl-apply.json owner为Administrators而非本人报prepare_owner_rejected，停止；未现场修owner绕过。真实Rollback恢复全144原owner/DACL/继承并独立核原四件身份/字节、grant/replay/旧包/库存，再恢复原任务四段/权限，Core→MCP启动；21:28:57 schema4/两单实例/完整树/三端口/MCPmetadata核验通过。新任务不存在，原库未迁移替换/head未推进；四项真人Gate未跑，**未完成切换，已退回，暂停待审**。
+
+单settings获批前置保留、生产settings不可清理；r02已消费须新ID，旧新证据全保留。回执writer显式owner及提升→非提升串联测试为下一轮待审建议，本轮不写修复。B PR19最终cf2f6d57此前CI核绿且暂停，16项未来运行变化未进A包。实录及精确证据见[本轮交接](handoffs/SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md)。以下“r02未用/尚未加固/零停机”为旧阶段历史。
+
 # 林埃的项目状态
 
 ## 笔记工具 MCP 参考知识库（2026-10-08）
 
 新增 [docs/reference/](../reference/README.md)：思源 3.8.6 与 FlexNote 1.1.57 的 MCP 接入速查，含连接与鉴权、思源 30 个工具逐动作读写划分与暴露策略、FlexNote 官方能力与只读模式、两者对比、安全底线和维护约定。依据为思源 v3.8.6 源码、两家官方资料与本项目实测；纯文档，未改源码，未构建。
+
+## 2026-10-07 R02后修订：只读演练优先
+
+源码62104abd/PR20完成，CI15全绿，维护52/52及Windows283/283均0跳过；固定47及获批XML/SDDL/login不改。三轮只读演练安全拒绝，最新发现生产login父settings继承ACL且不在144计划，固定Prepare同样拒绝。本轮禁止改现场ACL，精确单目录补齐/回退方案已备但未执行。正式r02未用，旧Core/MCP Running/schema4，人为停机0；未到在线副本，不声明完整预演通过，不申请进场。详见[演练交接](handoffs/SCHEMA6_READONLY_PREFLIGHT_20261007.md)。B PR19最终cf2f6d57三套CI已核绿并暂停，16项运行变化留未来包/入口评估，未上线。
+
+## 2026-10-07 PR18已合并，r02冻结前停止
+
+本人已精确批准最终工件和进场，PR18已合入v3-lab@ea388345，15项CI全绿重核。候选47项/维护22项与合并源码一致；144项ACL/16外owner及旧任务定义/权限/单实例仍与基线相同。只读实测受审维护Pin拒绝系统conhost双硬链接，无法合法配置绕过；r02未进入，未停服、Apply、注册或升级原库，人为停机0。生产task-approval…\settings已标不可清理，换包时再迁正式配置目录。详见[本轮现场记录](handoffs/SCHEMA6_CUTOVER_EXECUTION_20261007_R02.md)。B独立PR19继续，四项真人Gate未执行。下文待批准/待合并是旧阶段历史。
+
 
 ## 任务权限方案已接受，源码/新候选准备（2026-10-07）
 

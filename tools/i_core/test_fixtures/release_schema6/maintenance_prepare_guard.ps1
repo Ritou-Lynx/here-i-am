@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$Repository,[Parameter(Mandatory=$true)][string]$NodePath,[Parameter(Mandatory=$true)][string]$FixtureParent)
 $ErrorActionPreference='Stop';Set-StrictMode -Version 2
+. (Join-Path $PSScriptRoot 'ordinary_fixture.ps1');Invoke-OrdinaryFixtureIfElevated $PSCommandPath $PSBoundParameters
 $env:PSModulePath=Join-Path $PSHOME 'Modules'
 $root=Join-Path $FixtureParent ('maintenance-prepare-'+[Guid]::NewGuid().ToString('N'));$null=[IO.Directory]::CreateDirectory($root)
 $owner=[Security.Principal.WindowsIdentity]::GetCurrent().User
@@ -20,7 +21,7 @@ $guard=$null
 try{
  Protect $root -Directory
  $maintenance=Join-Path $root 'tools\i_core\maintenance';$package=Join-Path $root 'tools\i_core\release_schema6';$null=[IO.Directory]::CreateDirectory($maintenance);$null=[IO.Directory]::CreateDirectory($package)
- $files=@('prepare-production-login.ps1','prepare-production-login.mjs','prepare_live_guard.ps1','maintenance_window.ps1','maintenance_outputs.mjs','acl_receipt.mjs','register-approved-login.ps1','register_task_primitives.ps1','task_security_policy.ps1')
+ $files=@('prepare-production-login.ps1','prepare-production-login.mjs','prepare_live_guard.ps1','maintenance_window.ps1','owned_artifacts.ps1','maintenance_outputs.mjs','acl_receipt.mjs','register-approved-login.ps1','register_task_primitives.ps1','task_security_policy.ps1')
  $pins=@();foreach($name in $files){$p=Join-Path $maintenance $name;Copy-Item -LiteralPath (Join-Path $Repository ('tools\i_core\maintenance\'+$name)) -Destination $p;Protect $p;$pins+=@{path=$p;sha256=(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}}
  $p=Join-Path $package 'package.mjs';Copy-Item -LiteralPath (Join-Path $Repository 'tools\i_core\release_schema6\package.mjs') -Destination $p;Protect $p;$pins+=@{path=$p;sha256=(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}
  $private=Join-Path $root 'private';$null=[IO.Directory]::CreateDirectory($private);Protect $private -Directory

@@ -84,3 +84,7 @@ approval包明确productionApproved=false/registrationAllowed=false、fixedPrepa
 主窗两整文件实跑81/81通过、0未执行、退出0；新增exited检查后，主窗全部6项crash fixture专项通过、0未执行、退出0；两测试源dart analyze为No issues found、退出0。分析首次被用户AppData旧perf目录errno1920阻断，改用当前进程专属忽略目录LOCALAPPDATA后成功，没有更改全局环境或用户缓存。原始复验日志均在忽略的build/ci目录，最终CI回执登记在PR18 Validation。首次锁定依赖准备因用户Pub缓存junction入口active_roots报errno2；用同缓存真实目录仅当前进程PUB_CACHE离线准备成功，pubspec.lock未变；没有升级依赖、改全局环境或安装App。生成的三个Windows plugin文件只发生换行/时间戳扰动，提交前按Git内容一致性核对后恢复本测试自己产生的改动。
 
 本轮全部CI必须以最后测试修正提交为准，旧绿不代替；runtime47项与新维护源码快照22项在最终head逐字复核，既有XML/SDDL及candidate manifest不变。进场仍须最终完整工件批准和新PR合并授权，A未冻结，B继续PR19。
+
+## 用户最终批准与再次进场前停止
+
+用户已批准上文全部精确工件并授权合并/进场，PR18已合入ea388345。合并字节仍与47项候选及22项维护快照一致，精确工件没有变化。但冻结前只读确认系统conhost双硬链接会被维护Pin拒绝；没有进入r02或停止现役。详见SCHEMA6_CUTOVER_EXECUTION_20261007_R02.md。task-approval…\settings是**生产配置，不可清理**，以后换包时再迁正式配置目录；路径/hash/XML的批准绑定当前保持，不能把审阅目录名称当缓存清理理由。

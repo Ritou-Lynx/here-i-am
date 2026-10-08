@@ -1,10 +1,11 @@
-﻿# The production entry has one fixed action and no callback or test bypass.
+# The production entry has one fixed action and no callback or test bypass.
 [CmdletBinding()]
 param(
  [Parameter(Mandatory=$true)][string]$ConfigPath,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedConfigSha256,
  [Parameter(Mandatory=$true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{7,79}$')][string]$WindowId,
- [Parameter(Mandatory=$true)][switch]$Execute
+ [switch]$Execute,
+ [switch]$PreflightOnly
 )
 $ErrorActionPreference='Stop'
 $env:PSModulePath=Join-Path $PSHOME 'Modules'
@@ -28,6 +29,7 @@ function Assert-EntryPrivate($Handle,[string]$Owner){
 }
 $configLease=$null;$freezeLease=$null
 try {
+ if($Execute.IsPresent-eq $PreflightOnly.IsPresent){throw 'exactly_one_maintenance_mode_required'}
  Assert-EntryPlain $ConfigPath
  $configLease=[IO.File]::Open($ConfigPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
  if((Get-EntryHandleHash $configLease)-cne $ExpectedConfigSha256){throw 'configuration_hash_rejected'}
@@ -39,7 +41,7 @@ try {
  $freeze=Join-Path $PSScriptRoot 'freeze-legacy-runtime.ps1';Assert-EntryPlain $freeze
  $freezeLease=[IO.File]::Open($freeze,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
  if($config.freezeScriptSha256-cnotmatch '^[a-f0-9]{64}$'-or (Get-EntryHandleHash $freezeLease)-cne $config.freezeScriptSha256){throw 'freeze_source_hash_rejected'}
- & $freeze -ConfigPath $ConfigPath -ExpectedConfigSha256 $ExpectedConfigSha256 -WindowId $WindowId -Execute:$Execute
+ & $freeze -ConfigPath $ConfigPath -ExpectedConfigSha256 $ExpectedConfigSha256 -WindowId $WindowId -Execute:$Execute -PreflightOnly:$PreflightOnly
 } finally {
  if($freezeLease){$freezeLease.Dispose()};if($configLease){$configLease.Dispose()}
 }

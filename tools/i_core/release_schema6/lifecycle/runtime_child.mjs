@@ -6,8 +6,9 @@ import { cleanEnvironment, plainPath, sha256, verifyRelease } from '../package.m
 import { assertNode, inspectExisting, closedStateSnapshot, validatePrevious, MARKER, separatePaths, readConfigurationDeclaration, publicLifecycleErrorCode } from './common.mjs';
 import { readConfiguration, protectedPath } from './configuration.mjs';
 import { createOfflineLease, recordClosedDatabase, closeOfflineLease } from './offline_lease.mjs';
-import { sealClosedRecovery, verifyCanonicalRestart, migrateToSchema6, rollbackEmptySchema6 } from '../recovery_adapter.mjs';
+import { sealClosedRecovery, verifyCanonicalRestart, migrateToSchema6, rollbackEmptySchema6, switchClosedPackage } from '../recovery_adapter.mjs';
 import { needsStartupRecovery, recoverAtStartup } from '../automatic_recovery.mjs';
+import { SWITCH_PENDING, readSwitchPlan, verifySwitchConfigurations } from '../package_switch.mjs';
 import { isInspectionDatabasePath } from '../../inspection_read_only.mjs';
 
 const [control,token,mode,...extra]=process.argv.slice(2);
@@ -54,7 +55,7 @@ async function shutdown(reason,failure=null) {
  process.exitCode=clean?0:1;
 }
 try {
- if(extra.length || !['start','initialize-empty','offline-verify','offline-migrate','offline-rollback'].includes(mode) || !/^[a-f0-9]{64}$/.test(token??''))throw new Error('invalid_internal_arguments');
+ if(extra.length || !['start','initialize-empty','offline-verify','offline-migrate','offline-rollback','offline-package-switch'].includes(mode) || !/^[a-f0-9]{64}$/.test(token??''))throw new Error('invalid_internal_arguments');
  assertNode();plainPath(control);
  config=JSON.parse(readFileSync(plainPath(path.join(control,'launch.json'))));
  if(config.token!==token || config.mode!==mode || config.lifecycle!==path.dirname(fileURLToPath(import.meta.url))
@@ -79,6 +80,21 @@ try {
  const declared=readConfigurationDeclaration(config.configuration_file);
  settings=readConfiguration(config.configuration_file,{manifest_sha256:config.manifest_sha256,database_path:filename,
   node_id:initial?'new':previous?.node_id??declared.node_id,owner_sid:config.owner_sid,release:config.release,provisioned_empty:initial||previous?.provisioned_empty===true});
+ const packageSwitch=mode==='offline-package-switch';
+ if(!packageSwitch&&(existsSync(path.join(config.state,SWITCH_PENDING))||existsSync(path.join(settings.value.recovery_custody_directory,'package-switch-pending.json'))))throw new Error('switch_pending_review_required');
+ if(packageSwitch){
+  const plan=readSwitchPlan(config.package_switch_plan,config.package_switch_sha256);
+  verifySwitchConfigurations(plan);
+  if(![plan.from,plan.to].some(e=>e.releaseDirectory===config.release&&e.manifestSha256===config.manifest_sha256&&e.configurationPath===config.configuration_file&&e.configurationSha256===settings.configurationHash))throw new Error('switch_executor_unbound');
+  lease=createOfflineLease({control,token,config,origin:'package_switch',cleanCloseReceipt:null});
+  const result=switchClosedPackage({databasePath:filename,supervisorLease:lease,custodyDirectory:settings.value.recovery_custody_directory,custodyKey:settings.custodyKey,
+   planPath:config.package_switch_plan,planSha256:config.package_switch_sha256,receiptId:token});
+  writeControl('package-switch-marker.json',result.marker);
+  writeControl('operation.json',{operation:mode,event_sha256:result.eventSha256,head_sha256:result.headSha256,custody_generation:result.custodyGeneration,target_manifest_sha256:plan.to.manifestSha256});
+  await closeOfflineLease(lease);lease=null;closed=true;
+  writeControl('child.json',{token,mode,manifest_sha256:config.manifest_sha256,phase:'clean_closed',reason:'package_switch_completed',
+    store_construction_attempted:false,store_close_confirmed:true,listener_closed_confirmed:true});
+ }else{
  const recoveryNeeded=!initial&&needsStartupRecovery(filename,previous);
  lease=createOfflineLease({control,token,config,origin:initial?'empty_provision':recoveryNeeded?'canonical_recovery':'canonical_restart',cleanCloseReceipt:null});
  if(recoveryNeeded){
@@ -95,7 +111,7 @@ try {
  if(secretValues.some(secret=>process.argv.some(arg=>arg.includes(secret))))throw new Error('secret_in_argument_path_rejected');
  lifecycle={format:'schema6-lifecycle-v1',token,database_path:filename,node_id:before?.nodeId??null,manifest_sha256:config.manifest_sha256,
   configuration_sha256:settings.configurationHash,phase:'opening',provisioned_empty:initial||previous?.provisioned_empty===true,custody_sha256:recovered?.custodySha256??previous?.custody_sha256??null};
- if(!initial && !['offline-migrate','offline-rollback'].includes(mode))await verifyCanonicalRestart({databasePath:filename,supervisorLease:lease,custodyDirectory:settings.value.recovery_custody_directory,custodyKey:settings.custodyKey});
+ if(!initial && !['offline-migrate','offline-rollback','offline-package-switch'].includes(mode))await verifyCanonicalRestart({databasePath:filename,supervisorLease:lease,custodyDirectory:settings.value.recovery_custody_directory,custodyKey:settings.custodyKey});
  if(existsSync(path.join(control,'stop')))throw new Error('cancelled_before_store');
  saveMarker(lifecycle);
  if(mode.startsWith('offline-')) {
@@ -152,4 +168,4 @@ try {
  process.once('SIGINT',()=>{void shutdown('signal');});
  process.once('SIGTERM',()=>{void shutdown('signal');});
  }
-}catch(error){if(config)await shutdown('startup_failed',error);else{process.stderr.write('fixed_child_rejected\n');process.exitCode=2;}}
+}}catch(error){if(config)await shutdown('startup_failed',error);else{process.stderr.write('fixed_child_rejected\n');process.exitCode=2;}}

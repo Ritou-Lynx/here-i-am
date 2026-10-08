@@ -14,9 +14,27 @@ try{
  # Deliberately stale legacy lock and receipt bytes must neither block nor change.
  $old=Join-Path $Root 'freeze-legacy-runtime.lock';[IO.File]::WriteAllBytes($old,[byte[]]@(1,4,9,16))
  $legacy=Join-Path $Root 'frozen-legacy-runtime-ready.json';[IO.File]::WriteAllText($legacy,'synthetic-old-receipt')
- $guardPath=Join-Path $Root 'active-window.guard';[IO.File]::WriteAllBytes($guardPath,[byte[]]@(65,66,0,67))
+ $guardPath=Join-Path $Root 'active-window.guard';Write-OwnedArtifactBytes $guardPath ([byte[]]@(65,66,0,67)) ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
  $oldBytes=Bytes $old;$legacyBytes=Bytes $legacy;$guardBytes=Bytes $guardPath
+ $rootAcl=(Get-Acl -LiteralPath $Root).Sddl
+ $oldAcl=(Get-Acl -LiteralPath $old).Sddl
  $w=Open-MaintenanceWindow -MaintenanceRoot $Root -WindowId 'window-first'
+ # Run the actual ACL Apply consumer's directory assertion, without invoking
+ # Apply or granting it access to any production path.
+ $aclSource=Join-Path ([IO.Path]::GetDirectoryName($ModulePath)) 'acl-cutover-maintenance.ps1'
+ $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($aclSource,[ref]$tokens,[ref]$errors)
+ Check ($errors.Count-eq 0) 'acl_consumer_parse_failed'
+ $fn=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst]-and $n.Name-ceq 'Assert-PrivateDirectory'},$true)
+ . ([scriptblock]::Create($fn.Extent.Text))
+ function Assert-Plain([string]$p){Assert-MaintenancePlainDirectory $p}
+ $owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+ Assert-PrivateDirectory $w.Directory
+ Check ((Get-Acl -LiteralPath $Root).Sddl-ceq $rootAcl) 'existing_root_acl_changed'
+ Check ((Get-Acl -LiteralPath $old).Sddl-ceq $oldAcl) 'legacy_artifact_acl_changed'
+ $before=(Get-Acl -LiteralPath $w.Directory).Sddl
+ $rejected=$false;try{Protect-NewMaintenanceWindow $w.Directory}catch{$rejected=$true}
+ Check $rejected 'nonempty_window_reprotected'
+ Check ((Get-Acl -LiteralPath $w.Directory).Sddl-ceq $before) 'nonempty_window_acl_changed'
  Check (Test-Path -LiteralPath $w.PhaseReceiptsDirectory -PathType Container) 'phase_directory_missing'
  # Contention is verified in another OS process, not a mocked FileStream.
  $ps=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -46,7 +64,7 @@ try{
  $rejected=$false;try{$bad=Open-MaintenanceWindow -MaintenanceRoot $links -WindowId 'window-linked';Close-MaintenanceWindow $bad}catch{$rejected=$true};Check $rejected 'hardlinked_guard_accepted'
  Check ((Bytes $old)-ceq $oldBytes) 'hardlink_target_changed'
  $after=Open-MaintenanceWindow -MaintenanceRoot $Root -WindowId 'after-failure';Close-MaintenanceWindow $after
- [ordered]@{passed=$true;parallelRejected=$true;sameWindowRejected=$true;freshWindowAccepted=$true;oldBytesPreserved=$true;guardBytesPreserved=$true;interruptedWindowRejected=$true;traversalRejected=$true;stageGuardRejected=$true;hardlinkGuardRejected=$true}|ConvertTo-Json -Compress
+ [ordered]@{passed=$true;parallelRejected=$true;sameWindowRejected=$true;freshWindowAccepted=$true;oldBytesPreserved=$true;guardBytesPreserved=$true;interruptedWindowRejected=$true;traversalRejected=$true;stageGuardRejected=$true;hardlinkGuardRejected=$true;formalAclConsumerPassed=$true;existingAclsPreserved=$true;nonemptyProtectionRejected=$true}|ConvertTo-Json -Compress
 }finally{
  if($guard){$guard.Dispose()};Close-MaintenanceWindow $w;Close-MaintenanceWindow $w2
  # Delete only the synthetic directory we created under the OS temp directory.

@@ -8,6 +8,7 @@ function Invoke-OwnerAclMaintenance {
   [Parameter(Mandatory=$true)][string]$ExpectedScriptSha256,
   [Parameter(Mandatory=$true)][string]$ConfigPath,
   [Parameter(Mandatory=$true)][string]$ExpectedConfigSha256,
+  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedOwnedArtifactsSha256,
   [Parameter(Mandatory=$true)][ValidateSet('Apply','Rollback')][string]$Mode,
   [switch]$ConfirmFrozen
  )
@@ -29,7 +30,7 @@ function Invoke-OwnerAclMaintenance {
   if(!(New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'administrator_required'}
   if(Test-Path -LiteralPath $c.receiptPath){throw 'fresh_receipt_required'}
   $started=[DateTimeOffset]::UtcNow
-  $answer=Invoke-AclMaintenance -ConfigPath $ConfigPath -ExpectedConfigSha256 $ExpectedConfigSha256 -Mode $Mode -ConfirmFrozen
+  $answer=Invoke-AclMaintenance -ConfigPath $ConfigPath -ExpectedConfigSha256 $ExpectedConfigSha256 -ExpectedOwnedArtifactsSha256 $ExpectedOwnedArtifactsSha256 -Mode $Mode -ConfirmFrozen
   if(!$answer.passed -or $answer.exitCode -ne 0){throw 'acl_maintenance_failed'}
   $receipt=Get-Content -LiteralPath $c.receiptPath -Raw -Encoding UTF8|ConvertFrom-Json
   if($receipt.format -cne 'schema6-acl-maintenance-v2' -or $receipt.mode -cne $Mode -or $receipt.passed -ne $true -or [DateTimeOffset]::Parse($receipt.started_utc) -lt $started){throw 'apply_receipt_rejected'}

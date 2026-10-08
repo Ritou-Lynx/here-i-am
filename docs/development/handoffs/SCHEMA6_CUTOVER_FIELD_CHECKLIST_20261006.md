@@ -1,3 +1,49 @@
+## 2026-10-08 09:27：⑥.4正常清停未过，停止继续现场验收
+本人正常关机无提示/强制操作；旧六终态不存在，新登录走automatic_crash_recovery并恢复在线，自动备份成功。不能用恢复补签clean-close，不能宣称切换完成；原址/head已推进，只向前修。详见[真实关机证据与最窄后续](SCHEMA6_REAL_SHUTDOWN_ACCEPTANCE_20261008.md)。现役保持，不再重启、不改批准47项/任务/配置。源码复现、修复及新候选审阅后再申请精确批准与真人复验。
+
+2026-10-08 09:11：紧前i_recall实际09:08:35成功；最终只读基线通过，已具备叫本人正常关机→开机→登录的条件。旧关机终态/新自动启动尚未发生，四项仍过2/4。详情见SCHEMA6_CLIENT_HUMAN_GATES_20261008.md末节。
+
+2026-10-08 09:04：本人已选现在做关机→登录；静态只读复核通过，待claude.ai紧前i_recall回执后才叫本人关机，尚未执行或签收剩余两Gate。运行字节/生产配置不改。
+
+## 2026-10-08 08:59：真人验收进度2/4
+手机同步及claude.ai写入已获本人确认并核耐久入库，最新25e4b4fd九项检查全绿，详见[客户端真人证据](SCHEMA6_CLIENT_HUMAN_GATES_20261008.md)。正常关机clean-close与开机登录自动启动尚未执行，切换未完成；原址/head已推进，只向前修。本人选择关机时段尚待，临近关机需真实MCP请求，未代按关机或停服务。
+
+## 2026-10-08 01:40更新：单文件ACL及首份T9备份实还原已签收
+a8d1精确源码push/PR全8及Policy绿后，已批daily文件protected本人/SYSTEM真实应用、固定Assert通过；内容/owner/六锚/运行47字节不变。130文件本机+T9双份、真实T9隔离还原及只读Core核对通过，见[签收证据](SCHEMA6_R03_FIRST_POSTWRITE_BACKUP_20261008.md)。唯一确定ACL失败消除，没有停启服务/改任务。
+
+接下来只继续本人验收：手机与claude.ai答稍后；今晚关机前先让MCP实际处理请求，再真人关机→开机→登录并核clean_closed回执、自动启动、手机同步、claude.ai写入。四Gate未齐仍不签切换完成。原址/head已提交只向前修；settings不可清理；10/09晚另一次备份保留。日常动态恢复链/任务导出及报告JSON深度属于后续单独范围，不据此擅改候选。下方旧“方案待批/尚无备份”为历史。
+
+## 2026-10-08 r03最新现场停点（覆盖下方历史）
+
+实际r03冻结、144项Apply、普通正式Prepare、CREATE严格回读和获批交互式任务启动已通过；原raw加密保全、副本4→5→6及原址替换完成，head generation1，schema6 Core与同会话同字节MCP健康。**原址替换/head已提交，只向前修，不盲退v4。**
+
+首轮自动备份worker_failed，纯固定ACL断言证实daily-backup-config.json当前继承三ACE与其严格仅本人/SYSTEM规则不符。原144之外单文件DACL修复方案待用户另批，未实施；实际stderr未保留，不承诺修复后无其他拒绝。四真人Gate暂停，**切换未完成**；MCP开库前提请求及真人关机尚未执行。详见[r03实录](SCHEMA6_R03_EXECUTION_20261008.md)。生产settings不可清理，运行47/六批准锚不变；10/09晚T9完整加密备份/真实还原仍待。
+
+> **2026-10-07 最后一次授权更新**：r02已消费且已完整退回；新正式窗口用r03，旧锁/回执不动。所有提升产物经统一本人owner持柄读回，新的必跑Hosted真实跨token串联CI通过后，先用全新只读ID完整演练。六批准hash/固定47/父SD未变且零失败才按已有条件授权进场。截止北京时间10/09 18:00须四真人Gate齐全，否则停止；pending库存漂移/提交边界不能盲退v4。晚间20:00独立T9完整加密备份+实际恢复核对已安排，实际完成另签收。见[最后一次执行约束](SCHEMA6_LAST_ATTEMPT_20261007.md)、[工件库存](SCHEMA6_ELEVATED_ARTIFACT_INVENTORY_20261007.md)、[Prepare后16阶段表](SCHEMA6_POST_PREPARE_GATES_20261007.md)。本注覆盖下文历史入口“r02未使用”等旧状态；生产settings不可清理。
+## 2026-10-07 21:29（上海）最新结果：r02 Prepare 拒绝，已完整退回
+
+单目录 settings 已按新授权加固成功，新只读演练零失败；六项批准外锚及实时父 SD 均未变，故按有条件预授权进入正式 r02。144项 Apply 成功后，正式 Prepare 在读取 ACL 回执时因 owner 为 Administrators 而非本人，报 `prepare_owner_rejected`。没有现场改 owner 重试。已真实恢复全144项原 owner/DACL/继承，复核原 raw 身份/字节、grant/replay、旧固定包和库存，再恢复旧任务原定义/权限，按 Core→MCP 启动并绑定完整树、schema4及三个端口。21:28:57退回签收通过。
+
+**未完成切换，暂停待审。** 新任务不存在，候选从未启动，原库未迁移/替换，head未推进；四项真人Gate未执行。r02已消费，旧锁/回执全部保留，不得复用；下一轮须新的正式ID。单 settings 获批前置保留（f88d49ec…），生产 settings **不可清理**。完整证据和下一轮源码建议见[本轮授权及实录](SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md)。以下旧阶段的“r02未使用/零停机/尚未加固”均仅为当时历史，不覆盖本节。
+
+## 2026-10-07 新授权：单目录前置及有条件 r02（优先于历史记录）
+
+用户已授权先将单目录 settings DACL 执行入口/测试纳入 PR20、CI 全绿后，仅关闭继承并保留既有ACE；加固成功后新ID完整只读重演，包含模板逐字、PR16在线副本和结束全套复核。全套零失败且 manifest/XML/双SDDL/父SD/login 原批准hash全部不变，可直接按预授权用r02执行④–⑥；任何现场失败或偏差就停审，不进场。实际管理员/U盘/口令/关机及手机、claude.ai节点仍叫本人。此刻尚未执行加固或新演练。[本轮精确门槛和恢复判据](SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md)。下方“禁止改ACL/需另请进场”等为旧轮历史。
+
+## 只读演练阻断，当前不得进场（2026-10-07）
+
+维护源码62104abd/PR20 CI15绿，但最新只读演练因获批login父task-approval…\\settings仍继承ACL拒绝，固定生产Prepare同样要求protected；该目录不在原144项计划。本轮禁止改生产ACL，补齐方案未执行。精确目录/方案hash/回退及三次回执见[演练交接](SCHEMA6_READONLY_PREFLIGHT_20261007.md)。正式r02未用，旧Core/MCP schema4、零停机。先另审此目录前置处理并完整重演通过，才可另请正式进场授权；下文为历史阶段记录。
+
+## R02 后更新：只读演练先行（2026-10-07）
+
+正式r02仍未使用。新维护v3入口支持独立ID的PreflightOnly；先源码/CI全绿、固定维护闭包，再完整只读演练，全部通过后另请本人授权进场。候选47项及精确XML/双SDDL无变化时沿用。在线预检继续PR16判据：DB/WAL字节/大小/身份及journal存在性不变，SHM仅存在性/大小；离线raw保全和strictClosedPath等不变。详细检查和Prepare纯模板/生产Prepare区别见[本轮交接](SCHEMA6_READONLY_PREFLIGHT_20261007.md)。生产task-approval…\settings仍不可清理。
+
+## 2026-10-07 r02本轮实录：已授权，冻结前因系统映像Pin停止
+
+PR18已按本人授权合入v3-lab@ea388345；全部精确XML/双SDDL/父SD/manifest/login hash已批准并重核，合并源码与获批候选47项和维护快照22项相同。用户已确认NTFS T盘。现场只读核144项ACL/16外owner、两旧任务与基线一致；conhost系统双硬链接被受审Pin拒绝，未执行r02入口、未冻结或停服，人为停机0。详见[本轮现场记录](SCHEMA6_CUTOVER_EXECUTION_20261007_R02.md)。以下“尚未批准/未合并”是旧阶段历史。
+
+**生产配置不可清理：** `D:\HereIAmRuntime\i-core\maintenance\cutover-20261007-1552e251\task-approval-c9662439-3fb4b5c51a0f467cbd1ec3c1c18aee73\settings` 是现役候选将引用的生产配置目录，内含login/core/daily配置，绝不是临时审阅缓存。当前不得清理、移动或改名；以后换包时再迁至正式配置目录，重新绑定路径/hash并审阅XML。本轮仍未启用新候选。
+
 ## 2026-10-07 当前任务模板与批准门槛（优先于下文历史锚）
 
 本轮用户已接受显式Unified=true和非保护任务DACL方案，仅授权源码/CI/新候选；最终精确XML/SDDL尚须本人批准，未进场。旧XML SHA 7de2a122…和旧manifest不能放行新模板。新分支源码/候选及最终审批见[任务权限修订](SCHEMA6_TASK_SECURITY_REVISION_20261007.md)。新PR不得自动合并。

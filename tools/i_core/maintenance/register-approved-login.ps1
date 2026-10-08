@@ -53,8 +53,7 @@ function Assert-FrozenLive($F,$Folder){
 function Write-Receipt {
  Assert-Private ([IO.Path]::GetDirectoryName($config.registrationReceiptPath))
  $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($report|ConvertTo-Json -Depth 15))
- $h=[IO.File]::Open($config.registrationReceiptPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
- try{$h.Write($bytes,0,$bytes.Length);$h.Flush($true)}finally{$h.Dispose()}
+ Write-OwnedArtifactBytes $config.registrationReceiptPath $bytes $config.ownerSid
 }
 function Invoke-VerifiedPrepare([string]$Node,[string]$Prepare){
  $arguments=@($Prepare,'--config',$ConfigurationPath,'--config-sha256',$ExpectedConfigurationSha256,'--validate-registration')
@@ -84,7 +83,7 @@ try{
  $helper=@($config.maintenanceFiles|Where-Object {$_.path-ceq (Join-Path $PSScriptRoot 'register_task_primitives.ps1')})
  $prepare=Join-Path $PSScriptRoot 'prepare-production-login.mjs'
  if($self.Count-ne 1 -or $helper.Count-ne 1 -or @($config.maintenanceFiles|Where-Object {$_.path-ceq $prepare}).Count-ne 1){throw 'maintenance_inventory_rejected'}
- foreach($required in @('acl_receipt.mjs','maintenance_window.ps1','maintenance_outputs.mjs','prepare-production-login.ps1','prepare_live_guard.ps1','task_security_policy.ps1')){if(@($config.maintenanceFiles|Where-Object {$_.path-ceq (Join-Path $PSScriptRoot $required)}).Count-ne 1){throw 'maintenance_inventory_rejected'}}
+ foreach($required in @('acl_receipt.mjs','owned_artifacts.ps1','maintenance_window.ps1','maintenance_outputs.mjs','prepare-production-login.ps1','prepare_live_guard.ps1','task_security_policy.ps1')){if(@($config.maintenanceFiles|Where-Object {$_.path-ceq (Join-Path $PSScriptRoot $required)}).Count-ne 1){throw 'maintenance_inventory_rejected'}}
  $package=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\release_schema6\package.mjs'))
  if(@($config.maintenanceFiles|Where-Object {$_.path-ceq $package}).Count-ne 1){throw 'maintenance_inventory_rejected'}
  . (Join-Path $PSScriptRoot 'register_task_primitives.ps1')
