@@ -1,3 +1,17 @@
+## 2026-10-08：真人正常关机清停未通过；新登录自动异常恢复与备份成功
+本人直接正常关机且无提示/强制操作，旧代六份关闭终态均缺，正常clean-close及共同30秒预算无法签收。新登录任务已自动启动新会话，Core/MCP健康、schema6/原node不变，实际kind=automatic_crash_recovery并推进head至gen2；raw密文保全及head/floor/event/ready元数据绑定通过。短时只读副本核关机前六条测试消息仍在，ledger268 committed、pending/rejected零；新自动备份回执success=true。[本次完整验收记录](handoffs/SCHEMA6_REAL_SHUTDOWN_ACCEPTANCE_20261008.md)。
+
+**切换未完成，暂停进一步现场动作，保留新Core在线，只向前修。** 已发现ENDSESSION返回后排队发布exit回执的竞态，不能单独解释六回执全缺；须先隔离复现并定位消息入口/退出顺序，任何新运行包仍需精确批准。开机后新MCP实际请求及客户端复测尚待，不能把关机前两项通过或自动恢复成功补算clean-close。日常动态custody清单、换机激活、10/2记忆快照仍按各自后续范围；10/09晚备份另做。下方“具备关机条件/等待本人”是关机前历史。
+
+2026-10-08 09:11：紧前i_recall实际09:08:35成功；最终只读基线通过，已具备叫本人正常关机→开机→登录的条件。旧关机终态/新自动启动尚未发生，四项仍过2/4。详情见SCHEMA6_CLIENT_HUMAN_GATES_20261008.md末节。
+
+2026-10-08 09:04：本人已选现在做关机→登录；静态只读复核通过，待claude.ai紧前i_recall回执后才叫本人关机，尚未执行或签收剩余两Gate。运行字节/生产配置不改。
+
+## 2026-10-08：两项客户端真人Gate通过，剩关机与登录自动启动
+精确25e4b4fd的最新CI八项和Policy共九项全绿。本人约08:52 claude.ai同步成功、约08:54手机发送成功并确认已看到回复无异常；短时只读一致副本核claude两条账本committed、Core7064/7065与事件精确关联各一行，手机7066/7067及ack7067，pending/rejected为0。同一MCP已有成功i_chat_turn/i_recall，临时副本已关闭删除，未读正文/凭据或改现役。详见[客户端真人证据](handoffs/SCHEMA6_CLIENT_HUMAN_GATES_20261008.md)。
+
+**四项已过两项，切换仍未完成。** 正常关机clean-close与开机登录自动启动待本人选择现在/今晚；若留今晚，临近关机须再做一次真实MCP请求。原址/head已推进只能向前修。生产settings不可清理；10/09晚备份仍另做。下方早先“四项仍待”均为历史时点。
+
 ## 2026-10-08：R03备份ACL修复及本机/T9真实还原已通过
 精确a8d1源码push/PR各8项及Policy全绿，维护63/63、生命周期294/294零失败/跳过后，实际仅对已批daily文件设置protected本人/SYSTEM；内容、owner、六批准锚、固定47字节保持。原固定工具完成手动Automatic九类130文件、本机+T9双份，27.184秒；从T9第二新目录实际还原并启动只读Core，真实exit0、19.940秒，schema6/node、7设备/35表指纹匹配、5业务403。原始回执与外围首轮记录失败均留证，不改运行包；[完整证据](handoffs/SCHEMA6_R03_FIRST_POSTWRITE_BACKUP_20261008.md)。
 

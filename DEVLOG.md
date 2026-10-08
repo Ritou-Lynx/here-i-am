@@ -1,3 +1,26 @@
+## 2026-10-08 — 真人正常关机清停未过，登录自动异常恢复在线
+- 本人直接正常关机、无提示/强制操作；旧六份终态回执全缺，不能确认clean-close或30秒总耗时。
+- 登录任务自动新会话，schema6/原node及Core/MCP端口健康；本次kind=automatic_crash_recovery、head gen2。
+- raw DB/WAL/SHM密文保全与head/floor/event/ready元数据链匹配；不独立重算MAC或冒称全库复验。
+- 关机前六条测试消息/事件保留，ledger268 committed，pending/rejected零；新自动backup_completed成功。
+- 已证实ENDSESSION返回后才排队发布exit回执的竞态，但不足解释六份全缺，根因仍待查。
+- 当前保留新Core在线，只向前修；不再关机/换包/改任务，切换未完成，待复核。
+- 证据见SCHEMA6_REAL_SHUTDOWN_ACCEPTANCE_20261008.md；手机/MCP/上传器/47862范围不扩大。
+---
+## 2026-10-08 — 真人关机前最终签收
+- 本人选择现在；09:08:35真实i_recall成功，09:11最终只读基线通过，同代钩子/进程/T9与固定候选正确。
+- 核对脚本UTC类型转换误判已查明纠正，运行包/生产检查不改；无正文最终回执留证。
+- 准备由本人正常关机再登录；尚未发生关机终态或自动启动，四项仍2/4，不能宣布切换完成。
+- 10/2记忆卡快照滞后仅列后续待查，不扩大当前部署范围。
+---
+## 2026-10-08 — 手机与claude.ai真人写回通过，关机登录仍待
+- 精确25e4b4fd最新CI八项及Policy共九项全绿。
+- claude.ai用户/回复Core7064/7065、账本committed；精确ID/事件关联各一行，pending/rejected为0。
+- 手机用户/回复Core7066/7067、ack7067；本人确认已看到回复，无异常。
+- 同一MCP已成功i_chat_turn/i_recall；仅留无正文元数据，短时副本已关闭删除。
+- 两客户端Gate通过；正常关机clean-close、开机登录自动启动待本人时间选择，切换未完成。
+- 证据见SCHEMA6_CLIENT_HUMAN_GATES_20261008.md；不改生产配置/服务/任务/手机，只向前修。
+---
 ## 2026-10-08 — R03备份ACL已修，首份T9备份与真实还原通过
 - 精确a8d1源码push/PR各8项及Policy全绿；Hosted维护63/63、生命周期294/294，零失败/跳过。
 - 仅已批daily文件protected本人/SYSTEM，真实exit0与固定Assert通过；内容/owner/六锚/固定47不变。
