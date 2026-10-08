@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { OAuthServer, revokeAll, setPassphrase } from './oauth.mjs';
+import { OAuthServer, chatgptEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
 import { readFileSync } from 'node:fs';
 import { createDomainClient, createDomainTools, createCoreRemember, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
 import { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';
@@ -49,6 +49,8 @@ const MAX_PHONE_BODY_BYTES = 4 * 1024;
 const MAX_SESSIONS = 100;
 const SESSION_IDLE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_ALLOWED_ORIGINS = ['https://claude.ai', 'https://claude.com'];
+const CHATGPT_ORIGIN = 'https://chatgpt.com';
+const CHATGPT_CORS_HEADERS = ['accept', 'authorization', 'content-type', 'mcp-session-id', 'mcp-protocol-version'];
 
 // 生产用读取层：动态加载 tools/i_memory/i_memory_read.mjs 的 openReadModel。
 export function createLazyReadModel({ coreDbPath, memoryDbPath, policyPath }) {
@@ -72,6 +74,7 @@ export function createApp({
   identityLoader = loadIdentity,
   timeZone = process.env.I_REMOTE_MCP_TIMEZONE,
   allowedOrigins = DEFAULT_ALLOWED_ORIGINS,
+  chatgptEnabled = chatgptEnabledFromEnv(),
   log = () => {},
   diagnostic = () => {},
   writeback = null,
@@ -81,11 +84,11 @@ export function createApp({
   if (!publicUrl) throw new Error('publicUrl is required');
   if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');
   const writeEnabled = Boolean(writeback || coreRemember);
-  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled });
+  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled });
   if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');
   const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};
   const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];
-  const origins = new Set([...allowedOrigins, oauth.issuer]);
+  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
 
   function pruneSessions() {
@@ -97,6 +100,24 @@ export function createApp({
   async function handleMcp(req, res, diagnostics) {
     const origin = req.headers.origin;
     if (origin && !origins.has(origin)) return sendJson(res, 403, { error: 'forbidden_origin' });
+    // Only the explicitly enabled exact ChatGPT origin gets browser CORS.
+    // OPTIONS discloses no data; every actual MCP request still needs OAuth.
+    if (chatgptEnabled && origin === CHATGPT_ORIGIN) {
+      res.setHeader('Access-Control-Allow-Origin', CHATGPT_ORIGIN);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id, WWW-Authenticate');
+      if (req.method === 'OPTIONS') {
+        const method = req.headers['access-control-request-method'];
+        const headers = String(req.headers['access-control-request-headers'] ?? '')
+          .split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
+        if (!['POST', 'DELETE'].includes(method) || headers.some((value) => !CHATGPT_CORS_HEADERS.includes(value))) {
+          return sendJson(res, 403, { error: 'forbidden_preflight' });
+        }
+        res.setHeader('Access-Control-Allow-Methods', 'POST, DELETE');
+        res.setHeader('Access-Control-Allow-Headers', CHATGPT_CORS_HEADERS.join(', '));
+        return sendEmpty(res, 204);
+      }
+    }
 
     const auth = oauth.verifyAccessToken(req.headers.authorization);
     if (!auth.ok) {
@@ -493,6 +514,7 @@ async function main(argv) {
   const host = args.host ?? process.env.I_REMOTE_MCP_HOST ?? DEFAULTS.host;
   const port = Number(args.port ?? process.env.I_REMOTE_MCP_PORT ?? DEFAULTS.port);
   const publicUrl = args['public-url'] ?? process.env.I_REMOTE_MCP_PUBLIC_URL ?? `http://${host}:${port}`;
+  const chatgptEnabled = chatgptEnabledFromEnv();
   if (!publicUrl.startsWith('https://')) {
     process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\n`);
   }
@@ -519,6 +541,7 @@ async function main(argv) {
   const { server, oauth } = createApp({
     stateDir,
     publicUrl,
+    chatgptEnabled,
     getReadModel,
     diagnostic,
     writeback,

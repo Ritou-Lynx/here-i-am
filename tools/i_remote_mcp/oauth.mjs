@@ -1,4 +1,4 @@
-// 单用户最小 OAuth 2.1 授权服务器（claude.ai 自定义 connector 用）。
+// 单用户最小 OAuth 2.1 授权服务器（Claude 默认，ChatGPT 显式启用）。
 // 只用 Node 内置模块；所有令牌、授权码和口令都只以哈希保存。
 import {
   createHash,
@@ -19,6 +19,7 @@ import { join } from 'node:path';
 
 export const SCOPE = 'i.read';
 export const WRITE_SCOPE = 'i.write';
+export const CHATGPT_CALLBACK_URI = 'https://chatgpt.com/connector_platform_oauth_redirect';
 export const CLAUDE_AI_CALLBACKS = Object.freeze([
   'https://claude.ai/api/mcp/auth_callback',
   'https://claude.com/api/mcp/auth_callback',
@@ -128,15 +129,23 @@ export function revokeAll(stateDir) {
 }
 
 // 单用户服务：默认只接受 claude.ai 的回调，防止他人注册自己的回调后诱导用户在授权页输入口令。
-// 以后接 ChatGPT 等其他客户端时，用 I_REMOTE_MCP_EXTRA_REDIRECT_URIS（逗号分隔、精确匹配的 https 地址）追加。
+// ChatGPT 使用独立开关和稳定精确回调；其他客户端仍可显式追加精确 HTTPS 地址。
 export function extraRedirectUris(env = process.env) {
   return String(env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS ?? '')
     .split(',').map((value) => value.trim()).filter(Boolean);
 }
 
-export function isAllowedRedirectUri(value, extra = extraRedirectUris()) {
+export function chatgptEnabledFromEnv(env = process.env) {
+  const value = env.I_REMOTE_MCP_CHATGPT_ENABLED;
+  if (value === undefined || value === '0') return false;
+  if (value === '1') return true;
+  throw new Error('invalid_chatgpt_mode');
+}
+
+export function isAllowedRedirectUri(value, extra = extraRedirectUris(), chatgptEnabled = chatgptEnabledFromEnv()) {
   if (typeof value !== 'string' || value.length > 2048) return false;
   if (CLAUDE_AI_CALLBACKS.includes(value)) return true;
+  if (chatgptEnabled === true && value === CHATGPT_CALLBACK_URI) return true;
   if (!extra.includes(value)) return false;
   let url;
   try { url = new URL(value); } catch { return false; }
@@ -148,7 +157,9 @@ function normalizeResource(value) {
 }
 
 export class OAuthServer {
-  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false }) {
+  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv() }) {
+    if (typeof chatgptEnabled !== 'boolean') throw new Error('invalid_chatgpt_mode');
+    this.chatgptEnabled = chatgptEnabled;
     this.store = new OAuthStateStore(stateDir);
     // 单用户服务：启用写回后，每次授权都签发全部支持的 scope（授权页会写明），
     // 避免客户端只请求 i.read 导致写回永远不可用。旧令牌没有 i.write，需要重新授权。
@@ -181,6 +192,7 @@ export class OAuthServer {
   authorizationServerMetadata() {
     return {
       issuer: this.issuer,
+      authorization_response_iss_parameter_supported: true,
       authorization_endpoint: `${this.issuer}/authorize`,
       token_endpoint: `${this.issuer}/token`,
       registration_endpoint: `${this.issuer}/register`,
@@ -212,7 +224,7 @@ export class OAuthServer {
     if (!Array.isArray(redirectUris) || redirectUris.length === 0 || redirectUris.length > MAX_REDIRECT_URIS) {
       return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be a non-empty array');
     }
-    if (!redirectUris.every((uri) => isAllowedRedirectUri(uri))) {
+    if (!redirectUris.every((uri) => isAllowedRedirectUri(uri, extraRedirectUris(), this.chatgptEnabled))) {
       return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');
     }
     const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];
@@ -256,7 +268,7 @@ export class OAuthServer {
     const client = clientId ? this.store.state.clients[clientId] : undefined;
     if (!client) return { ok: false, status: 400, error: '未知的 client_id' };
     const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);
-    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri)) {
+    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, extraRedirectUris(), this.chatgptEnabled)) {
       return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };
     }
     const state = get('state');

@@ -434,7 +434,7 @@ export async function handleRpcMessage(message, {
       if (!handler) return rpcError(id, -32602, `Unknown tool: ${String(name).slice(0, 64)}`);
       if (typeof args !== 'object' || args === null || Array.isArray(args)) return rpcError(id, -32602, 'arguments must be an object');
       if (tool.requiredScope && !scopes.includes(tool.requiredScope)) {
-        return rpcResult(id, toolError('写回需要重新授权：请告诉用户在 claude.ai 的 connector 设置里断开 i 再重新连接。这一轮没有写回，下次调用时把这一轮一起带上。'));
+        return rpcResult(id, toolError('写回需要重新授权：请告诉用户在当前客户端的连接器设置里断开 i 再重新连接。这一轮没有写回，下次调用时把这一轮一起带上。'));
       }
       try {
         return rpcResult(id, toolResult(await handler(args)));

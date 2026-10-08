@@ -7,6 +7,29 @@
 - 内置单用户 OAuth 2.1：DCR、口令授权页、PKCE S256、refresh token 轮换；令牌、授权码和口令只存哈希。
 - 只用 Node 22 内置模块，无 npm 依赖。
 
+## ChatGPT 兼容（源码候选，默认关闭）
+
+只有显式设置 `I_REMOTE_MCP_CHATGPT_ENABLED=1` 才增加 ChatGPT 回调和 Origin；未设置或 `0` 保持 Claude 默认，其他值直接拒绝启动。配置在创建 OAuth 实例时固定，不随进程环境后续变化切换。
+
+- OAuth metadata 声明 `authorization_response_iss_parameter_supported: true`；成功及 OAuth 错误重定向都返回与 issuer 完全一致的 `iss`。
+- 只增加稳定精确回调 `https://chatgpt.com/connector_platform_oauth_redirect`，不开放 `/connector/oauth/*`、通配地址、近似域名或任意子域。
+- `/mcp` 只对精确 `https://chatgpt.com` Origin 提供受限 CORS：POST/DELETE，以及 accept、authorization、content-type、mcp-session-id、mcp-protocol-version。OPTIONS 不读取业务数据，实际请求仍需 OAuth；不开启 credentials CORS。
+- DCR 使用 public client、`token_endpoint_auth_method=none`、PKCE S256；scope、refresh 轮换、MCP session 家族绑定和现有 B3 去重规则不变。CIMD/OIDC 没有实现，也没有虚假声明支持。
+
+后续获批激活后，在 ChatGPT 添加服务器 URL `https://i.ilynx.date/mcp`，认证选 OAuth，注册方式 DCR，默认 scope 选择 `i.read` 和 `i.write`；基础 scope 留空，OIDC 保持关闭，端点使用自动发现。CIMD/OIDC 不可用提示本身不代表设置错误。仍须真人完成授权和实际工具调用才能验收，合成测试不能替代这一项。
+
+这次兼容沿用旧 B3 网页主体 `frontend:claude_web`、`claude_web` 来源与稳定 thread/sync_id 规则；ChatGPT 和 Claude 的独立线程不会按相同正文合并。这个名称是既有网页渠道别名，并不声称把 ChatGPT 消息辨认为 Claude。新增独立来源身份属于另外的迁移，当前不做。
+
+**生产准备必须使用最小候选，不能直接复制主线 MCP 目录。** 主线同时含尚未激活的 W3 领域工具。`chatgpt_candidate.mjs` 从固定、已核验的旧六文件 Git 库存构建，只改变 server/oauth 和 mcp 的一条中性重授权提示，另外三项逐字节保持。示例：
+
+```powershell
+node tools/i_remote_mcp/chatgpt_candidate.mjs --out build/chatgpt-mcp-candidate
+```
+
+输出只允许当前 checkout 的全新 `build` 子目录，包含六文件、非运行时 manifest，并标明 `not_deployed`；不会改现役环境、MCP 状态或登录配置。现役启动器锁定 MCP 源码库存，未来激活还需要独立审批新的 MCP 配置、备份覆盖及 login/XML 哈希链；本分支不改 Core 运行包、维护工具或生命周期。
+
+依据：[OpenAI 身份验证文档](https://developers.openai.com/plugins/build/auth)、[自定义 MCP 指南](https://developers.openai.com/api/docs/guides/custom-mcp-server)。详细证据及上线节点见 [ChatGPT 兼容交接](../../docs/development/handoffs/CHATGPT_MCP_COMPATIBILITY_20261009.md)。
+
 ## W3 领域工具（源码候选，默认未启用）
 
 `domain_tools.mjs` 仅通过 schema6 Core 的领域 HTTP API 访问 captures、plan_items、plan_weeks、plan_days。没有数据库连接、worker 密钥、聊天读取或授权签发能力。Core 注册/模式、受信授权 verifier 和 scoped principal 由 owner 配置；本模块不升级/注册/启用领域。
