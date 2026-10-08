@@ -1,3 +1,7 @@
+## 2026-10-08：PR20严格历史布局与旧v4保全返修，仍不部署
+审阅确认的旧端绑定阻断与目标丢失旧v4库存均纳入维护层返修：只对from识别固定v4九文件加manifest＋candidate/release当前schema6完整库存；新端保留原路径/hash十项为独立configuration命名空间，其余非release只允许原四附件重绑。参数化生成器在创建前核源端/四附件/固定48目标与输出隔离，未知增加、缺项、禁用、碰撞和路径别名均拒绝。详见[返修交接](handoffs/SCHEMA6_CLEAN_CLOSE_PACKAGE_UPGRADE_20261008.md)。
+本轮不改48项运行字节，按新head重建manifest/维护快照及精确backup→login→XML链；最终专项、完整CI及真实Prepare以本机候选审批材料签收。旧候选状态已按原head CI和真实还原回执纠正，不能继承为本轮CI。10/08本机/T9完整备份及真实隔离还原已完成，10/09重复安排已取消。现役Core/MCP/任务/配置/原库不改，deploymentReady=false；换包、登记与真人关机仍待重新批准。
+
 ## 2026-10-08：PR20审阅后，先合并主线与今晚完整备份
 现役已上线，开机后手机/claude.ai正常，clean-close仍是唯一未通过真人项。用户只批准修复方向，换包暂不批准；现役设置、任务、原库、手机与MCP程序保持。已授权merge最新v3-lab并重跑新head完整CI；冲突仅合并双方文档记录，不rebase或force-push。
 10/09 20:00重复备份已取消，改为今晚本人在场时执行最新九类完整加密备份→本机/T9→真实隔离还原→只读Core核对。使用动态custody工具，捕获前后各check；备份最终签收及新head候选/CI锚见本轮审批材料，安排或backup_completed不代表还原通过。真实还原通过前不进入换包第1步。

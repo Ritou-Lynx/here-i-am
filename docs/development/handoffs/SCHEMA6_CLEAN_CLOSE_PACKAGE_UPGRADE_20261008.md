@@ -1,12 +1,16 @@
 # clean-close 修复与 schema6 同版本换包（2026-10-08）
 
-当前：schema6 已上线运行；本人确认开机后手机与 claude.ai 均正常。clean-close 为唯一未通过项。本轮仅源码、隔离测试、只读诊断；没有换包或再次真人关机。最终源码CI、候选锚及逐项库存差异由本机候选审批材料和PR对应head结果签收；本文件不构成进场授权。
+基线记录（截至上一轮首次编写）：schema6 已上线运行；本人确认开机后手机与 claude.ai 均正常。clean-close 为唯一未通过项；当时没有换包或再次真人关机。下文第1–7节除明确标出的状态更新外，保留上一轮结果与计划，均按各段所指时间点理解，不代表当前返修已实现、CI已通过或可以上线。本文件不构成进场授权。
 
-## 审阅后执行约束（2026-10-08）
+当前返修状态（2026-10-08）：严格兼容真实旧备份布局、保留旧 v4 十项及参数化配置生成器已落地；本轮最终专项、新 head CI 与重生成精确配置链由本机新候选审批材料分别签收。`deploymentReady=false`，不构成可上线的结论。
 
-用户批准clean-close修复方向，换包暂不批准。先merge v3-lab并在新head重跑完整CI；同时今晚执行本机/T9完整加密备份及真实隔离还原。10/09 20:00重复安排已取消。动态custody清单在捕获前后各check，最新九类逐项覆盖，不把旧文件数量、哈希一致或backup_completed当作还原通过。
+本日完整加密备份已完成：现役九类及动态 custody 全链已备份至本机与 T9，并完成真实隔离还原和只读 Core 核对。报告位置留在本机候选审批材料中，不在此公开路径、真实库正文或内部 hash。
 
-还原通过前不进入下方换包第1步，不生成或写入新的生产配置。备份和CI均通过后再准备精确配置、Prepare/派生登记XML、双SDDL/父SD，连同新head、manifest、逐项运行差异和0–6步骤交最终审批。48项运行字节与旧c539候选逐字核对；若新head构建仅使manifest中的三个commit字段改变，也按新manifest重建候选并披露，不能宣称旧hash不变。
+## 上一轮审阅后约束与计划（2026-10-08 历史记录）
+
+上一轮获准的仅为 clean-close 修复方向，换包暂不批准。当时计划在新 head 重跑完整 CI，并执行本机/T9完整加密备份及真实隔离还原；其中备份已于 2026-10-08 完成（见当前状态），10/09 20:00 的重复备份安排已取消。动态 custody 清单在捕获前后各 check、最新九类逐项覆盖的要求仍适用；不把旧文件数量、哈希一致或 backup_completed 当作还原通过。
+
+本日备份还原核对已通过，但这不代表当前返修 CI 通过或换包获批。仍须在新 head 重跑完整 CI；严格旧布局兼容与旧 v4 十项保全已纳入本轮源码；精确配置链须在新 head 上重新生成。专项、新 head CI、精确配置、Prepare/派生登记 XML、双 SDDL/父 SD、manifest、逐项运行差异和 0–6 步骤材料分别签收后交最终审批。48 项运行字节与旧 c539 候选逐字核对；若新 head 构建仅使 manifest 中的三个 commit 字段改变，也按新 manifest 重建候选并披露，不能宣称旧 hash 不变。
 
 真人关机报告必须分列：①session-message入口是否到达（QUERY/END、PID/会话、window station/desktop）；②六终态是否齐全。关机后先读入口；一份都没有时，先依session-window及任务运行方式调查窗口收消息路径，不继续增加关闭流程复杂度。合成定向消息/测试通过不代表真实系统广播已到达或真人验收通过。
 
@@ -26,7 +30,7 @@
 - 终态封口与 session-close 最终 rename 串行；flush 不持该锁。晚到 worker 不能补发过时 clean 回执，不能把超时宿主改回成功。
 - strictClosedPath、NativeLease、ACL/owner、plainPath、状态/配置单硬链接和 MCP 先停顺序均保留。
 
-## 2. 验证结果
+## 2. 上一轮验证记录（不代表当前返修通过）
 
 | 专项 | 结果及证据边界 |
 |---|---|
@@ -49,11 +53,11 @@
 
 合成消息不等于真人关机通过；上线、开机后手机/claude.ai 已通过的状态也不撤销。
 
-## 3. 新运行包与配置链
+## 3. 上一轮候选设计记录（当前返修状态见文首）
 
 新固定库存为 48 项，在原47项上加入 package_switch.mjs；历史47项库存单独固定，绝不改旧包字节。候选只从正式 C 副本的已提交源码构建，源提交、manifest、完整库存摘要和逐项运行字节差异由本机 SCHEMA6_PACKAGE_APPROVAL_20261008.md 随候选交付，避免自引用提交/manifest哈希。
 
-需要重建 Core manifest 锚 → 备份完整 release 库存 → MCP 可执行路径（仅 Node 路径需要时）→ login 路径/各文件 hash → 固定 Prepare XML。原 MCP 程序与全源码库存、参数、环境策略、DB、47860/47862、grace、单上传器 legacy_b3、关闭的 debug 邮件和密钥绑定保持。
+上一轮候选要求重建 Core manifest 锚 → 备份完整 release 库存 → MCP 可执行路径（仅 Node 路径需要时）→ login 路径/各文件 hash → 固定 Prepare XML。当前精确配置链须按本轮维护修订重新生成，`deploymentReady=false`。原 MCP 程序与全源码库存、参数、环境策略、DB、47860/47862、grace、单上传器 legacy_b3、关闭的 debug 邮件和密钥绑定保持。
 
 prepare-package-switch.mjs 只读检查双端 Core/login/MCP/backup/task 文件，保留两端附件锚并验证新包完整 release 备份清单；只出 approved:false、deploymentReady:false 提案。四个文件的 hash、backupReleaseInventoryBound 或最近备份 not_due 都不能替代完整绑定和九类内容覆盖。受保护配置可能含 inline secret，校验不输出它，也不另读密钥/凭据文件或数据库。
 
@@ -67,11 +71,11 @@ CREATE 即 disabled：固定 Prepare 原 XML 与仅将 Settings.Enabled 改成 f
 
 专项证据分层：配置串联使用真实旧/新 release 与固定 legacy MCP 源码，检查 Core/login/MCP/备份 release 库存和严格 XML 模板；非 release 凭据及 portable envelope 为合成占位锚，没有真实注册任务或还原备份。WM_CLOSE 专项实际运行旧/新 login、Core、managed MCP，未启动备份 worker，空 backup Job 仅按既有语义验证。整组中的备份/恢复与 COM 测试是各自独立合成证据，不把这些拼成生产部署已经就绪。
 
-## 4. 待批准的换包顺序
+## 4. 待批准的换包顺序（历史候选方案，尚未获批）
 
 | 步骤 | 动作与完成判据 | 失败处置 |
 |---|---|---|
-| 0 审批 | 批准本轮新包及维护入口，随后核准精确双端配置/计划、XML/双 SDDL/父 SD。确认 T9 为原 NTFS 介质、完整加密备份可实际还原。 | 任一锚或介质不符即停，不格式化、不冻现役。 |
+| 0 审批 | 批准本轮新包及维护入口，随后核准精确双端配置/计划、XML/双 SDDL/父 SD；核对本机/T9完整加密备份及真实隔离还原证据。 | 任一锚或介质不符即停，不格式化、不冻现役。 |
 | 1 准备 | 旧包、旧配置和旧任务导出原样留存；新配置写独立受保护正式目录。特别是新 daily-backup-config.json 必须保护性 DACL、本人 owner、仅本人和 SYSTEM 的 FullControl、单硬链接；不能继承目录里的 Administrators ACE。固定 PrepareOnly 逐字比对，不注册；并按既有全路径 ACL 审计核对全部新旧运行依赖，单独调用已验证的 Assert-BackupPrivateAcl 只读检查备份配置。只读全套通过后才停用旧登录任务，避免维护时再次登录启动。 | 未停会话时可恢复旧任务 enabled 状态，现役继续运行。 |
 | 2 安全关闭 | 受绑定会话关闭入口持原进程 handle，核 PID/创建时间/owner/映像路径与 hash/实时 HWND；只对该窗发 WM_CLOSE。MCP 先停，随后认证关 Core；验完整六终态、原进程退出、Jobs 空、原库独占且无 sidecar。不得用 EndTask/强杀冒充 clean。 | 任何判据缺失即停在改锚之前。保留失败证据；通过原包正常恢复机制恢复服务，不能删除 raw/pending 或伪造 clean。 |
 | 3 离线换锚 | 使用新包 start_schema6.ps1 的 package-switch 操作、批准计划 hash 和独立空 control。NativeLease 下核完整双包/双端附件/旧 marker+current-head，追加认证转换、floor、head，不迁移、不替换 SQLite。 | 未提交 head 的中断也保留 sentinel/pending，仅相同计划在租约下续行；不手删标记、不覆盖旧 head。 |
@@ -87,11 +91,11 @@ CREATE 即 disabled：固定 Prepare 原 XML 与仅将 Settings.Enabled 改成 f
 
 中断测试需包括 pending 后、head 后、目标 marker 后、custody pending 已删但 sentinel 仍在，正反两向分别验证旧/新真实包在 store 构造前拒启，并由同一计划在真实租约下续行。未授权操作、其他操作计划、附件漂移、历史改写、marker/head 不匹配均拒绝。
 
-## 6. 本轮交付和下一次本人节点
+## 6. 上一轮交付记录和后续本人节点
 
-本轮完成源码、专项/整组/CI、候选后推送 PR #20 并暂停。新候选改变运行字节与 manifest，旧包/旧 XML 的批准不能继承；合并、换包和真实关机需按新精确材料批准后再约。当前不改手机、MCP 程序、上传器或退役 47862。
+上一轮交付记录：完成当时源码、专项/整组/CI及候选后推送 PR #20 并暂停。新候选改变运行字节与 manifest，旧包/旧 XML 的批准不能继承；合并、换包和真实关机需按新精确材料批准后再约。当前返修状态以文首为准。
 
-10/09 20:00 已有一次完整加密备份安排：现役全部九类和动态 custody 全链→本机/T9→真实隔离还原及只读 Core 核对，不以 hash 比对代替。需要口令或介质时叫本人；安排不是已完成。若当时换包处于关键提交段，先等事务闭合再备份并明确迟延。换电脑建立新现役仍是独立已知缺口。
+历史计划（已取消）：曾安排 10/09 20:00 再做一次现役全部九类和动态 custody 全链的本机/T9加密备份、真实隔离还原及只读 Core 核对。该重复安排已取消；上述工作已于 2026-10-08 完成，不再是待执行事项。若未来另有备份遇到换包关键提交段，先等事务闭合再继续。换电脑建立新现役仍是独立已知缺口。
 
 ## 7. 手动完整备份与自动调度的边界
 
@@ -99,7 +103,7 @@ CREATE 即 disabled：固定 Prepare 原 XML 与仅将 Settings.Enabled 改成 f
 
 准备时双读目录和每个文件，捕获前、捕获全部九类之后各执行一次 check，钉住同一准备文件 SHA256；任一次 vector 变化，本次产物只能留证，不签收完整备份。生成器不解密、不认证 MAC，也不承诺跨组件原子性、外部 raw/计划引用正文完整或可激活现役；这些仍由实际捕获/还原检查和范围清单核实。该工具只自动扩展 custody 目录；raw 保全、grant、72 条 replay 审批、MCP .state、i_memory、隧道/Serve、手机库副本等仍须按最新九类清单逐项枚举，不沿用过时文件数量。
 
-当前自动调度仍读取静态 specTemplate，新增 custody 历史不会自动扩展进去；此为既有独立缺口，本轮未改运行调度或批准配置。10/09 晚、换包前和换包后手动备份均须使用最新九类清单及上述动态历史工具，并做真实隔离还原。不能把自动 backup_completed、清单生成成功或 hash 相等代替完整还原核对。
+当前自动调度仍读取静态 specTemplate，新增 custody 历史不会自动扩展进去；此为既有独立缺口，本轮未改运行调度或批准配置。10/09 晚的重复备份安排已取消；后续若在换包前或换包后另行执行手动备份，均须使用最新九类清单及上述动态历史工具，并做真实隔离还原。不能把自动 backup_completed、清单生成成功或 hash 相等代替完整还原核对。
 
 手动入口（均为新隔离输出；变量由审批材料填写）：
 
@@ -115,3 +119,15 @@ CREATE 即 disabled：固定 Prepare 原 XML 与仅将 Settings.Enabled 改成 f
     powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File <approved-maintenance>/register-package-switch-login.ps1 -ConfigurationPath <approved-registration.json> -ExpectedConfigurationSha256 <registration-file-hash> -RegisterOnly
 
 关闭入口只允许精确旧47/新48库存；旧47本身没有 exit.manifest_sha256，仅这一缺失可由整包、原进程/HWND 和其他完整 manifest 回执绑定替代，显式报告 legacyExitManifestAbsent。字段存在但不符仍拒绝，新48必须包含正确字段。该入口既不发送系统关机消息，也不强杀 Core，不能代替下一次真人关机验收。
+
+## 8. 审阅返修：严格历史布局与完整保全（2026-10-08）
+
+旧端没有伪装成新格式。维护绑定器仅对 from 识别固定历史布局：schema6 的 node/database 与 Core 一致；release 为冻结 v4 的九个文件和 manifest，仅兼容基础固定 v4 和已存在 transcript/replay 补丁的精确 profile，逐项核验真实目录、库存、大小、哈希、单链接与 Node pin；当前 schema6 的 47 文件和 manifest 则必须完整地位于 `configuration` 的 `candidate/release/` 命名空间。缺项、额外项、改名、换路径/哈希、禁用和附加状态字段均拒绝。其他旧布局继续走原有标准检查。
+
+新端仍须使用标准 schema6 release 清单。历史 v4 十项增加为 `configuration` 的 `preserved/legacy-v4-release/`，逐字保留旧逻辑名后缀、原来源路径和哈希；其余原非 release 库存逐项保持，仅 Core/login/backup/task 四附件按原有规则重绑。比较器只允许这十项明确增加，未知增加、删项、保全命名空间碰撞均拒绝。后续以标准端为 from 时继续完整保留该命名空间，不能重复增加。
+
+新增仓库入口 `tools/i_core/maintenance/generate-package-switch-configurations.mjs` 替代本机旧硬编码生成器。输入必须锚定旧 login、完整新包和旧 XML，目标固定 48 文件加 manifest。首次创建前验证源端、四附件、目标库存和输出隔离；输出不能嵌入状态、配置、密钥、源码、备份或发行包目录，父目录别名也拒绝。只写全新受保护候选目录，不打开数据库、独立密钥或凭据，不生成 XML、注册/启动任务，也不更新现役配置。失败输出保留为证据，重试必须用新目录。
+
+合成用例覆盖真实布局形状、十项逐项漏失、未知增加/碰撞、路径/哈希/flag 变化、未来标准端保全，以及生成器→合成 XML→完整绑定链；真实 Prepare 与派生登记 XML 另在本机候选材料签收，不把合成 XML 当生产 Prepare。最终测试/CI、新 head、候选 manifest 及精确配置链，以本轮本机审批材料为准；旧 pending 标签按对应历史完成回执纠正，并保留更正历史。
+
+本次只改维护绑定、配置生成器、测试与交接；48 项运行文件必须与上一轮逐字相同，新的 manifest 仅允许提交元数据变化。今晚已完成备份与真实还原不重复执行，10/09 的重复安排仍为已取消。`deploymentReady=false`；生成器成功、绑定通过或 CI 全绿均不构成换包批准、登记、部署或真人验收。

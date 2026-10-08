@@ -3,8 +3,8 @@
 // No database or separate key/credential file is opened, and no task is run.
 import path from 'node:path';
 import {readFileSync,readdirSync,lstatSync} from 'node:fs';
-import {plainPath,sha256,PINNED_NODE_SHA256} from '../release_schema6/package.mjs';
-import {verifySwitchRelease} from '../release_schema6/package_switch.mjs';
+import {INVENTORY,plainPath,sha256,PINNED_NODE_SHA256} from '../release_schema6/package.mjs';
+import {LEGACY_SWITCH_INVENTORY,verifySwitchRelease} from '../release_schema6/package_switch.mjs';
 import {parseConfiguration} from '../release_schema6/lifecycle/configuration.mjs';
 import {backupFilePrimitives} from '../release_schema6/backup_bundle.mjs';
 
@@ -95,30 +95,115 @@ function task(end,l,a){
  xml=xml.replace(/^<\?xml version="1\.0" encoding="utf-8"\?>\s*/i,'').replace(/>\s+</g,'><');
  requireValue(xml===expected,'task_xml_changed');
 }
-function backup(end,c,a){
- const b=json(a.backup.path,a.backup.sha256);
+// The schema4 recovery package is deliberately independent of the active schema6
+// endpoint. Its inventory is the frozen runtime_pin/start_pinned_i_core.ps1 set.
+const legacyV4Files=[
+ 'tools/i_core/i_core_server.mjs','tools/i_core/i_core_store.mjs','tools/i_core/shortcut_mail_relay.mjs',
+ 'tools/i_core/send_shortcut_mail.ps1','tools/i_core/strict_smtp_tls_validation.ps1','tools/i_core/start_i_core_service.ps1',
+ 'start_pinned_i_core.ps1','verify_v4_state.mjs','runtime/node.exe',
+].sort();
+const candidatePrefix='candidate/release/',preservedPrefix='preserved/legacy-v4-release/';
+function releaseExpected(end){
+ const manifest=json(path.join(end.releaseDirectory,'manifest.json'),end.manifestSha256);
+ const expected=new Map(manifest.files.map(f=>[f.path,f.sha256]));expected.set('manifest.json',end.manifestSha256);
+ return expected;
+}
+function requireCurrentTarget(end){
+ requireValue(same([...releaseExpected(end).keys()].sort(),[...INVENTORY,'manifest.json'].sort()),'backup_target_inventory_invalid');
+}
+function exactInventory(entries,expected,root,role,prefix=''){
+ requireValue(same(entries.map(e=>e.name).sort(),[...expected.keys()].map(n=>prefix+n).sort()),'backup_inventory_changed');
+ for(const entry of entries){
+  exact(entry,['role','name','source_path','sha256'],'backup_inventory_changed');
+  const name=entry.name.slice(prefix.length);
+  requireValue(entry.role===role&&entry.source_path===path.join(root,name)&&entry.sha256===expected.get(name),'backup_inventory_changed');
+  // Package bytes, plain paths and link counts were verified by the schema6
+  // verifier or legacyV4Expected before comparing this logical inventory.
+ }
+}
+function legacyV4Expected(root,manifestHash){
+ lexical(root);plainPath(root);
+ const manifest=json(path.join(root,'manifest.json'),manifestHash);
+ const patched=manifest.release==='b3-v4-phone-transcripts-20261003';
+ requireValue(manifest.format==='i-core-runtime-pin-v1'&&(manifest.release==='v4-bbb8025d'||patched)
+  &&manifest.source_commit==='bbb8025d99fc0acaa846d58b4e5a94cef90f8756'&&manifest.core_schema_version===4
+  &&manifest.node_version==='v24.14.1'&&Array.isArray(manifest.files)
+  &&same(manifest.files.map(f=>f.path).sort(),legacyV4Files)
+  &&same(scan(root),[...legacyV4Files,'manifest.json'].sort()),'backup_legacy_inventory_invalid');
+ for(const file of manifest.files){
+  const baseBlob=patched&&['tools/i_core/i_core_server.mjs','tools/i_core/i_core_store.mjs'].includes(file.path);
+  const blobKey=baseBlob?'base_source_blob':'source_blob';
+  exact(file,baseBlob||blobKey in file?['path','sha256','bytes',blobKey]:['path','sha256','bytes'],'backup_legacy_inventory_invalid');
+  requireValue(!(blobKey in file)||(typeof file[blobKey]==='string'&&/^[a-f0-9]{40}$/.test(file[blobKey])),'backup_legacy_inventory_invalid');
+  const raw=anchored(path.join(root,file.path),file.sha256,256*1024*1024);
+  requireValue(Number.isSafeInteger(file.bytes)&&file.bytes>=0&&file.bytes===raw.length,'backup_legacy_inventory_invalid');
+ }
+ requireValue(manifest.files.find(f=>f.path==='runtime/node.exe').sha256===PINNED_NODE_SHA256,'backup_legacy_inventory_invalid');
+ return new Map([...manifest.files.map(f=>[f.path,f.sha256]),['manifest.json',manifestHash]]);
+}
+function preservedEntries(entries){return entries.filter(e=>e.name.toLowerCase().startsWith(preservedPrefix));}
+function hasPreservedAncestor(entries){return entries.some(e=>['preserved','preserved/legacy-v4-release'].includes(e.name.toLowerCase()));}
+function validatePreserved(entries){
+ const preserved=preservedEntries(entries);if(!preserved.length)return;
+ requireValue(!hasPreservedAncestor(entries),'backup_legacy_namespace_collision');
+ const manifest=preserved.find(e=>e.name===preservedPrefix+'manifest.json');
+ requireValue(!!manifest,'backup_legacy_inventory_invalid');
+ const root=path.dirname(manifest.source_path),expected=legacyV4Expected(root,manifest.sha256);
+ exactInventory(preserved,expected,root,'configuration',preservedPrefix);
+}
+function validateBackup(b,end,c,{allowLegacy=false}={}){
  exact(b,['policy','specTemplate','sqliteEntryNames','envelopePath','envelopeSha256'],'backup_invalid');
  const policy=b.policy;
  requireValue(object(policy)&&Object.keys(policy).every(k=>['format','outputRoot','retentionDays','mirrorRoot','backupSetId'].includes(k))&&policy.format==='i-core-automatic-backup-v1'&&hex(policy.backupSetId)&&Number.isInteger(policy.retentionDays??30)&&(policy.retentionDays??30)>=1&&(policy.retentionDays??30)<=3650,'backup_policy_invalid');
  lexical(policy.outputRoot);if(policy.mirrorRoot)lexical(policy.mirrorRoot);
  lexical(b.envelopePath);requireValue(hex(b.envelopeSha256),'backup_envelope_invalid');
  const spec=b.specTemplate;requireValue(object(spec),'backup_invalid');
- requireValue(spec.source_schema===6&&spec.canonical_database_path===c.database_path&&(c.node_id==='new'||spec.node_id===c.node_id)&&spec.old_release_root===end.releaseDirectory&&spec.old_release_manifest_sha256===end.manifestSha256,'backup_binding_changed');
+ requireValue(spec.source_schema===6&&spec.canonical_database_path===c.database_path&&(c.node_id==='new'||spec.node_id===c.node_id),'backup_binding_changed');
+ const legacy=spec.old_release_root!==end.releaseDirectory||spec.old_release_manifest_sha256!==end.manifestSha256;
+ requireValue(!legacy||(allowLegacy&&spec.old_release_root!==end.releaseDirectory),'backup_binding_changed');
  backupFilePrimitives.validate(spec);
- const manifest=json(path.join(end.releaseDirectory,'manifest.json'),end.manifestSha256);
- const expected=new Map(manifest.files.map(f=>[f.path,f.sha256]));expected.set('manifest.json',end.manifestSha256);
  const releaseEntries=spec.entries.filter(e=>e.role==='release');
- requireValue(same(releaseEntries.map(e=>e.name).sort(),[...expected.keys()].sort()),'backup_inventory_changed');
- for(const entry of releaseEntries)requireValue(entry.source_path===path.join(end.releaseDirectory,entry.name)&&entry.sha256===expected.get(entry.name)&&!entry.state&&!entry.custody_context,'backup_inventory_changed');
+ if(legacy){
+  exactInventory(releaseEntries,legacyV4Expected(spec.old_release_root,spec.old_release_manifest_sha256),spec.old_release_root,'release');
+  // Only this historical fixed namespace binds the active schema6 inventory.
+  // A broad configuration-role search could silently accept an incomplete set.
+  const active=spec.entries.filter(e=>e.name.toLowerCase().startsWith(candidatePrefix));
+  const expected=releaseExpected(end);
+  requireValue(c.node_id!=='new'&&spec.node_id===c.node_id&&same([...expected.keys()].sort(),[...LEGACY_SWITCH_INVENTORY,'manifest.json'].sort()),'backup_binding_changed');
+  exactInventory(active,expected,end.releaseDirectory,'configuration',candidatePrefix);
+  requireValue(!preservedEntries(spec.entries).length&&!hasPreservedAncestor(spec.entries),'backup_legacy_namespace_collision');
+ }else exactInventory(releaseEntries,releaseExpected(end),end.releaseDirectory,'release');
+ validatePreserved(spec.entries);
  requireValue(Array.isArray(b.sqliteEntryNames)&&new Set(b.sqliteEntryNames).size===b.sqliteEntryNames.length&&b.sqliteEntryNames.every(n=>spec.entries.some(e=>e.name===n&&['database','configuration'].includes(e.role))),'backup_sqlite_inventory_invalid');
- return b;
+ return {backup:b,legacy};
 }
-function compareBackup(from,to,oldEnd,newEnd,oldArtifacts,newArtifacts){
+function backup(end,c,a,options){return validateBackup(json(a.backup.path,a.backup.sha256),end,c,options);}
+function preservedLegacy(entries){return entries.filter(e=>e.role==='release').map(e=>({...e,role:'configuration',name:preservedPrefix+e.name}));}
+// Read-only preparation: validates the anchored source and packages, then returns
+// an independent object. Artifact rebinding remains the caller's explicit step.
+export function buildPackageSwitchBackupTemplate(sourceBackup,{from,to}){
+ try{
+  const c=core(from);verifySwitchRelease(to.releaseDirectory,to.manifestSha256);
+  const {legacy}=validateBackup(sourceBackup,from,c,{allowLegacy:true});
+  if(legacy)requireCurrentTarget(to);
+  const result=structuredClone(sourceBackup),spec=result.specTemplate;
+  const kept=spec.entries.filter(e=>e.role!=='release');
+  if(legacy)kept.push(...preservedLegacy(spec.entries));
+  spec.old_release_root=to.releaseDirectory;spec.old_release_manifest_sha256=to.manifestSha256;
+  spec.entries=[...kept,...[...releaseExpected(to)].map(([name,sha256])=>({role:'release',name,source_path:path.join(to.releaseDirectory,name),sha256}))];
+  validateBackup(result,to,c);
+  return result;
+ }catch(error){
+  if(typeof error?.code==='string'&&/^switch_bindings_[a-z_]+$/.test(error.code))throw error;
+  fail('input_rejected');
+ }
+}
+function compareBackup(from,to,oldEnd,newEnd,oldArtifacts,newArtifacts,{legacy=false}={}){
  requireValue(same(without(from,['specTemplate']),without(to,['specTemplate'])),'backup_policy_changed');
  requireValue(same(without(from.specTemplate,['entries','old_release_root','old_release_manifest_sha256']),without(to.specTemplate,['entries','old_release_root','old_release_manifest_sha256'])),'backup_scope_changed');
  const rebound=new Map([[oldEnd.configurationPath,{path:newEnd.configurationPath,sha256:newEnd.configurationSha256}]]);
  for(const role of roles)rebound.set(oldArtifacts[role].path,newArtifacts[role]);
- const oldEntries=from.specTemplate.entries.filter(e=>e.role!=='release').sort((a,b)=>a.name.localeCompare(b.name));
+ const oldEntries=[...from.specTemplate.entries.filter(e=>e.role!=='release'),...(legacy?preservedLegacy(from.specTemplate.entries):[])].sort((a,b)=>a.name.localeCompare(b.name));
  const newEntries=to.specTemplate.entries.filter(e=>e.role!=='release').sort((a,b)=>a.name.localeCompare(b.name));
  requireValue(oldEntries.length===newEntries.length,'backup_scope_changed');
  for(let i=0;i<oldEntries.length;i++){
@@ -144,8 +229,9 @@ export function validatePackageSwitchBindings(plan,{fromArtifacts}={}){
   requireValue(oldMcp.executable_path===newMcp.executable_path||relocated,'mcp_runtime_changed');
   requireValue(same(without(oldMcp,['executable_path']),without(newMcp,['executable_path'])),'mcp_program_or_policy_changed');
   task(plan.from,oldLogin,oldArtifacts);task(plan.to,newLogin,newArtifacts);
-  const oldBackup=backup(plan.from,oldCore,oldArtifacts),newBackup=backup(plan.to,newCore,newArtifacts);
-  compareBackup(oldBackup,newBackup,plan.from,plan.to,oldArtifacts,newArtifacts);
+  const oldBackup=backup(plan.from,oldCore,oldArtifacts,{allowLegacy:true}),newBackup=backup(plan.to,newCore,newArtifacts);
+  if(oldBackup.legacy)requireCurrentTarget(plan.to);
+  compareBackup(oldBackup.backup,newBackup.backup,plan.from,plan.to,oldArtifacts,newArtifacts,{legacy:oldBackup.legacy});
   return {format:'schema6-package-switch-bindings-v1',validated:true,approved:false,deploymentReady:false,corePolicyPreserved:true,loginPolicyPreserved:true,mcpProgramAndPolicyPreserved:true,backupReleaseInventoryBound:true,backupPolicyPreserved:true,taskXmlBound:true,credentialFilesRead:false,databaseRead:false,registered:false,started:false};
  }catch(error){
   if(typeof error?.code==='string'&&/^switch_bindings_[a-z_]+$/.test(error.code))throw error;
