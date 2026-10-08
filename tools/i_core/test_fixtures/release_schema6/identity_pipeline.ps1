@@ -15,6 +15,13 @@ function Protect-Setup([string]$Path){
  $a.SetSecurityDescriptorSddlForm(('O:'+$owner+'D:P(A;'+$flags+';FA;;;'+$owner+')(A;'+$flags+';FA;;;SY)(A;'+$flags+';FA;;;BA)'))
  Set-Acl -LiteralPath $Path -AclObject $a
 }
+function Assert-IdentityInventory($Assembly){
+ # The seed exports source-owned INVENTORY after prepareRelease verifies every byte.
+ # Compare exact paths as well as counts; a self-declared manifest cannot omit a file.
+ $inventory=@($Assembly.inventory)
+ $manifestInventory=@((Get-Content -LiteralPath (Join-Path $Assembly.release 'manifest.json') -Raw|ConvertFrom-Json).files|ForEach-Object{$_.path})
+ if([IO.Path]::GetFileName($Assembly.root)-cnotmatch '^schema6-identity-[A-Za-z0-9]+$' -or $inventory.Count-eq 0 -or $Assembly.files-ne $inventory.Count -or @($inventory|Select-Object -Unique).Count-ne $inventory.Count -or (($manifestInventory|Sort-Object)-join "`n")-cne (($inventory|Sort-Object)-join "`n")){throw 'synthetic_root_or_inventory_rejected'}
+}
 try {
  if(!$report.writer.elevated -or !$report.writer.administrator -or $report.writer.owner-cne 'S-1-5-32-544' -or $report.writer.integritySid-cne 'S-1-16-12288'){throw 'real_elevated_admin_default_owner_required'}
  $owner=$report.writer.sid
@@ -27,7 +34,8 @@ try {
  if($LASTEXITCODE-ne 0){throw 'real_candidate_assembly_failed'}
  $assembly=($raw-join '')|ConvertFrom-Json;$root=$assembly.root;$release=$assembly.release;$maintenance=$assembly.maintenance
  $report.sourceCommit=$assembly.source_commit;$report.candidateManifestSha256=$assembly.manifest_sha256
- if([IO.Path]::GetFileName($root)-cnotmatch '^schema6-identity-[A-Za-z0-9]+$' -or $assembly.files-ne 47){throw 'synthetic_root_or_inventory_rejected'}
+ Assert-IdentityInventory $assembly
+ $report.inventoryCount=@($assembly.inventory).Count
  . (Join-Path $maintenance 'owned_artifacts.ps1')
  # Setup copies only. Never repair the ACL receipt or any actual writer output.
  Protect-Setup $root;foreach($p in Get-ChildItem -LiteralPath $root -Recurse -Force){Protect-Setup $p.FullName}

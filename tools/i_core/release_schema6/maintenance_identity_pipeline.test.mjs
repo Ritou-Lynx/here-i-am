@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,rmSync,realpathSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {INVENTORY,cleanEnvironment} from './package.mjs';
 const fixture = name => readFileSync(new URL(`../test_fixtures/release_schema6/${name}`,import.meta.url),'utf8');
 test('identity integration is required on hosted Windows and never inherits owner workaround',()=>{
  const ci=readFileSync(new URL('../../../.github/workflows/ci.yml',import.meta.url),'utf8');
@@ -49,4 +54,36 @@ test('startup matrix preserves actual identity, bounds diagnostics and never sel
  assert.match(native,/new_kernel_dacl_unprotected/);assert.match(native,/AssertMediumKernelLabel/);
  assert.match(diagnostic,/pipelinePassed=\$false/);assert.match(diagnostic,/cases.Count-eq 18/);
  assert.doesNotMatch(diagnostic,/RunLimited|Invoke-AclMaintenance|prepare-production-login|Set-Acl/);
+});
+
+
+test('identity inventory gate executes against the authoritative package paths', {skip:process.platform!=='win32'},t=>{
+ const seed=fixture('identity_assemble.mjs');
+ assert.match(seed,/import \{ INVENTORY, prepareRelease \}/);
+ assert.match(seed,/assert\.equal\(report\.files, INVENTORY\.length\)/);
+ assert.match(seed,/inventory:\[\.\.\.INVENTORY\]/);
+ const root=realpathSync.native(mkdtempSync(path.join(tmpdir(),'schema6-identity-inventory-')));
+ t.after(()=>{assert.match(path.basename(root),/^schema6-identity-inventory-/);rmSync(root,{recursive:true,force:true});});
+ const scenarios=[
+  ['exact',true,n=>n],
+  ['missing',false,n=>n.slice(1)],
+  ['same-count-wrong-path',false,n=>['tools/i_core/not-in-inventory.mjs',...n.slice(1)]],
+  ['duplicate',false,n=>[n[1],...n.slice(1)]],
+  ['wrong-report-count',false,n=>n],
+  ['duplicate-source-inventory',false,n=>n],
+ ];
+ const cases=scenarios.map(([name,accepted,mutate])=>{
+  const release=path.join(root,name);mkdirSync(release);
+  writeFileSync(path.join(release,'manifest.json'),JSON.stringify({files:mutate([...INVENTORY]).map(path=>({path}))}));
+  const inventory=[...INVENTORY];if(name==='duplicate-source-inventory')inventory[0]=inventory[1];
+  return {name,accepted,assembly:{root:path.join(root,'schema6-identity-Synthetic123'),release,inventory,files:INVENTORY.length-(name==='wrong-report-count'?1:0)}};
+ });
+ const inputs=path.join(root,'cases.json');writeFileSync(inputs,JSON.stringify(cases));
+ const quote=s=>"'"+s.replaceAll("'","''")+"'";
+ const pipeline=new URL('../test_fixtures/release_schema6/identity_pipeline.ps1',import.meta.url);
+ const script=`$ErrorActionPreference='Stop';$tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile(${quote(fileURLToPath(pipeline))},[ref]$tokens,[ref]$errors);if($errors.Count){throw 'fixture_parse_failed'};$f=$ast.Find({param($a)$a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -ceq 'Assert-IdentityInventory'},$true);if(!$f){throw 'inventory_function_missing'};. ([scriptblock]::Create($f.Extent.Text));$result=@(foreach($case in (Get-Content -LiteralPath ${quote(inputs)} -Raw|ConvertFrom-Json)){$accepted=$true;try{Assert-IdentityInventory $case.assembly}catch{if($_.Exception.Message-cne 'synthetic_root_or_inventory_rejected'){throw};$accepted=$false};@{name=$case.name;accepted=$accepted}});ConvertTo-Json -InputObject $result -Compress`;
+ const ps=path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
+ const result=spawnSync(ps,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:30000});
+ assert.equal(result.status,0,result.stdout+result.stderr);
+ assert.deepEqual(JSON.parse(result.stdout),cases.map(({name,accepted})=>({name,accepted})));
 });
