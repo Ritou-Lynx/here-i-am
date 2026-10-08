@@ -29,7 +29,7 @@ function assertExit(receipt,{clean=true,timeout=false}={}){
  for(const key of ['core_job_empty_confirmed','backup_job_empty_confirmed','mcp_job_empty_confirmed','mcp_owned_tree_handles_released_confirmed'])assert.equal(receipt[key],true,key);
 }
 test('synthetic real WndProc preserves shutdown receipts before return without OnFormClosed',{skip:process.platform!=='win32',timeout:180000},async t=>{
- for(const scenario of ['query','end','cancel','repeated','entry-failure','entry-failure-cancel-retry','exit-failure','timeout','final-publication-over-budget'])await t.test(scenario,{timeout:60000},()=>{
+ for(const scenario of ['query','end','cancel','repeated','entry-failure','entry-failure-cancel-retry','exit-failure','timeout','final-publication-over-budget','late-close-publication','late-worker-no-core'])await t.test(scenario,{timeout:60000},()=>{
   const root=syntheticRoot('schema6-shutdown-receipts-');
   let passed=false;
   protect(root);
@@ -46,7 +46,30 @@ test('synthetic real WndProc preserves shutdown receipts before return without O
    for(const call of calls)assert.equal(call.error,null,'real WndProc must return normally');
    const exit=read(path.join(root,'session','session-exit.json'));
    if(['end','repeated','timeout'].includes(scenario))assert.equal(last.exit_at_return,true,'END must publish exit before returning, without queued Form.Close');
-   if(scenario==='final-publication-over-budget'){
+   if(scenario==='late-close-publication'||scenario==='late-worker-no-core'){
+    assert.equal(calls[0].result,1,'QUERY must queue the production BeginClose worker');
+    assert.equal(last.exit_at_return,true);
+    assertExit(exit,{clean:false,timeout:true});
+    const late=proof.late_worker;
+    assert.ok(late);
+    assert.ok(late.real_worker_thread>0);
+    assert.notEqual(late.real_worker_thread,late.handler_thread,'gate must suspend a real ThreadPool worker');
+    assert.equal(late.core_absent,true);
+    assert.equal(late.pending_close_before_timeout,scenario==='late-close-publication','publication scenario must pause after pending close bytes are flushed');
+    assert.equal(late.finished_before_release,false,'END must return while the real worker is still gated');
+    assert.equal(late.clean_at_handler_return,false);
+    assert.equal(late.host_exit_code_at_handler_return,1);
+    assert.equal(late.finished_after_release,true,'worker must actually resume and finish');
+    assert.equal(late.clean_after_release,false,'late worker must never restore shared clean success');
+    assert.equal(late.host_exit_code_after_release,1,'same production HostExitCode used by Run must retain failure');
+    assert.equal(late.exit_unchanged_after_release,true);
+    assert.equal(late.close_after_release,null,'sealed finalization must prevent late session-close publication');
+    assert.equal(late.pending_close_after_release,0,'worker must remove its unpublished pending receipt');
+    assert.equal(proof.clean_at_return,false);
+    assert.equal(proof.forced_timeout_at_return,true);
+    assert.ok(proof.budget_elapsed_at_return>=30000);
+    assert.ok(last.elapsed_ms<3000,'real 30s stopwatch is advanced only after worker reaches its gate');
+   }else if(scenario==='final-publication-over-budget'){
     assert.equal(last.exit_at_return,true);
     assert.equal(last.elapsed_ms>=250,true,'final publication delay belongs to handler execution');
     assert.equal(proof.budget_elapsed_at_return>=30000,true);

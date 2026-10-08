@@ -104,6 +104,7 @@ public sealed class Schema6SessionWindow : Form {
   const int ForceReserveMs=1500;
   System.Windows.Forms.Timer timer;
   DateTime nextBackup=DateTime.MinValue;
+  readonly object closePublishGate=new object();
   int closing,exitFinalized; bool started,clean,shutdownRequested,shutdownCancelled,exitRequested,forcedTimeout,messageReceiptFailed;
   bool currentReady,recoveryPending,recoveryAttempted;
   DateTime readySince,restartAfter;
@@ -147,6 +148,23 @@ public sealed class Schema6SessionWindow : Form {
     string pending=filename+"."+Guid.NewGuid().ToString("N")+".pending";
     try{using(FileStream file=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None)){byte[] data=Encoding.UTF8.GetBytes(text);file.Write(data,0,data.Length);file.Flush(true);}File.Move(pending,filename);}
     finally{if(File.Exists(pending))File.Delete(pending);}
+  }
+  void WriteCloseReceipt(string filename,object value,Stopwatch budget) {
+    string text;lock(json)text=json.Serialize(value);
+    string pending=filename+"."+Guid.NewGuid().ToString("N")+".pending";
+    try {
+      using(FileStream file=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None)){
+        byte[] data=Encoding.UTF8.GetBytes(text);file.Write(data,0,data.Length);file.Flush(true);
+      }
+      // Flush is outside the publication gate: a stalled disk must not hold up
+      // the UI finalizer. Only the final rename and terminal seal are serialized.
+      lock(closePublishGate){
+        if(Volatile.Read(ref exitFinalized)!=0 || forcedTimeout || budget.ElapsedMilliseconds>CloseLimitMs){
+          clean=false;reason="session_shutdown_timeout";return;
+        }
+        File.Move(pending,filename);
+      }
+    } finally {if(File.Exists(pending))File.Delete(pending);}
   }
   static string ObjectName(IntPtr handle) {
     StringBuilder value=new StringBuilder(256);int needed;
@@ -324,7 +342,10 @@ public sealed class Schema6SessionWindow : Form {
         }
         backupStopElapsed=backupWatch.ElapsedMilliseconds;
         Stopwatch coreWatch=Stopwatch.StartNew();
-        if(currentCore==null){clean=true;reason="closed_before_start";return;}
+        if(currentCore==null){
+          clean=!forcedTimeout && Volatile.Read(ref exitFinalized)==0 && Remaining(budget)>0;
+          reason=clean?"closed_before_start":"session_shutdown_timeout";return;
+        }
         Dictionary<string,object> launch=null;
         while(WorkRemaining(budget)>0) {
           try {launch=Read(Path.Combine(control,"launch.json"));break;}catch(IOException){Thread.Sleep(25);}
@@ -357,7 +378,8 @@ public sealed class Schema6SessionWindow : Form {
         } catch{clean=false;recoveryPending=false;exitRequested=true;}
         if(mcpFailure){clean=false;recoveryPending=false;exitRequested=true;if(!forcedTimeout)reason="mcp_start_or_process_failed";}
         if(messageReceiptFailed){clean=false;reason="session_message_receipt_write_failed";}
-        try{if(Volatile.Read(ref exitFinalized)==0)WriteNew(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_stop_elapsed_ms=mcpStopElapsed,backup_forced=backupForced,backup_stop_elapsed_ms=backupStopElapsed,core_forced=coreForced,core_close_elapsed_ms=coreCloseElapsed,database_exclusive_open_confirmed=databaseExclusive});}
+        if(forcedTimeout || Volatile.Read(ref exitFinalized)!=0){clean=false;reason="session_shutdown_timeout";}
+        try{if(Volatile.Read(ref exitFinalized)==0)WriteCloseReceipt(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_stop_elapsed_ms=mcpStopElapsed,backup_forced=backupForced,backup_stop_elapsed_ms=backupStopElapsed,core_forced=coreForced,core_close_elapsed_ms=coreCloseElapsed,database_exclusive_open_confirmed=databaseExclusive},budget);}
         catch{clean=false;reason="session_receipt_write_failed";}
         finally{finished.Set();}
       }
@@ -412,7 +434,7 @@ public sealed class Schema6SessionWindow : Form {
     base.WndProc(ref message);
   }
   void FinalizeSessionExit() {
-    if(Interlocked.Exchange(ref exitFinalized,1)!=0)return;
+    lock(closePublishGate){if(Interlocked.Exchange(ref exitFinalized,1)!=0)return;}
     bool coreEmpty=core==null,backupEmpty=backup==null;
     Stopwatch budget=closeBudget??Stopwatch.StartNew();
     bool completed=finished.WaitOne(0);
@@ -457,11 +479,12 @@ public sealed class Schema6SessionWindow : Form {
     FinalizeSessionExit();
     ShutdownBlockReasonDestroy(Handle);base.OnFormClosed(e);
   }
+  int HostExitCode(){return clean && !forcedTimeout && !messageReceiptFailed && finished.WaitOne(0)?0:1;}
   public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port) {
     return Run(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,"");
   }
   public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port,string mcpJson) {
-    using(Schema6SessionWindow window=new Schema6SessionWindow(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,mcpJson)) {Application.Run(window);return window.clean?0:1;}
+    using(Schema6SessionWindow window=new Schema6SessionWindow(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,mcpJson)) {Application.Run(window);return window.HostExitCode();}
   }
 }
 '@

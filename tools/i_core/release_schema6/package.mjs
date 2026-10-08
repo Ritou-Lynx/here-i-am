@@ -13,7 +13,7 @@ export const SOURCES = Object.freeze([
 export const WRAPPERS = Object.freeze([
   'package.mjs', 'preflight.mjs', 'cli.mjs', 'preflight_schema6.ps1', 'README.md',
   'recovery_adapter.mjs', 'readonly_witness.mjs', 'recovery_witness_worker.mjs', 'backup_bundle.mjs', 'backup_bundle_schema6.ps1',
-  'automatic_recovery.mjs', 'raw_state_backup.mjs',
+  'automatic_recovery.mjs', 'raw_state_backup.mjs', 'package_switch.mjs',
   'backup_key_child.mjs', 'key_custody.ps1', 'restore_inspection.mjs',
   'portable_key_custody.mjs', 'automatic_backup.mjs', 'portable_backup_schema6.ps1', 'scheduler_once_schema6.ps1',
   'lifecycle/start_schema6.ps1', 'lifecycle/owned_job.ps1',

@@ -7,7 +7,8 @@ import { activityRecoveryManifestForDatabase, assertActivityRecoveryFloorForData
 import { migrateDomainSchema, rollbackEmptyDomainSchema } from '../domain_migrate.mjs';
 import { assertDomainSchemaReady, DOMAIN_SCHEMA_SQL } from '../domain_schema.mjs';
 import { canonicalJSON } from '../domain_store.mjs';
-import { publicLifecycleErrorCode } from './lifecycle/common.mjs';
+import { publicLifecycleErrorCode, validatePrevious, closedStateSnapshot, MARKER } from './lifecycle/common.mjs';
+import { readSwitchPlan, verifySwitchConfigurations, packageBusinessWitness, SWITCH_PENDING } from './package_switch.mjs';
 import { plainPath, sha256, fail } from './package.mjs';
 import { assertOfflineLease, withOfflineCustodyLock } from './lifecycle/offline_lease.mjs';
 import { verifyInitialRuntimeBackup } from './backup_bundle.mjs';
@@ -604,5 +605,158 @@ export function recoverCanonicalState(input){
    if(!committed&&!latch.commitStarted&&existsSync(stageDirectory)){plainPath(stageDirectory);for(const name of readdirSync(stageDirectory))plainPath(path.join(stageDirectory,name));rmSync(stageDirectory,{recursive:true});}
    throw error;
   }
+ });
+}
+
+
+// Same-schema package rebinding never writes or replaces SQLite. Its durable
+// sentinel makes historical releases' state-tree check fail before head commit.
+export function switchClosedPackage(input) {
+ return withCustodyLock({...input,recovering:true},options=>{
+  const plan=readSwitchPlan(options.planPath,options.planSha256);
+  const [fromSettings,toSettings]=verifySwitchConfigurations(plan);
+  if(fromSettings.database_path!==options.databasePath||fromSettings.recovery_custody_directory!==options.custodyDirectory
+    ||toSettings.node_id!==fromSettings.node_id)fail('switch_configuration_scope_changed');
+  if(!(/^[a-f0-9]{64}$/).test(options.receiptId??''))fail('switch_receipt_required');
+  const state=path.dirname(options.databasePath),markerPath=path.join(state,MARKER),sentinelPath=path.join(state,SWITCH_PENDING);
+  const pendingPath=path.join(options.custodyDirectory,'package-switch-pending.json');
+  const evidence=proof({...options,recovering:true},'package_switch_begin');
+  let previous=readHead(options),event,eventSha256,sourceFloor;
+  const loadEvent=digest=>{
+   if(!HEX.test(digest??''))fail('switch_event_changed');
+   const raw=readFileSync(plainPath(path.join(options.custodyDirectory,digest+'.package-switch.json')));
+   if(sha256(raw)!==digest)fail('switch_event_changed');
+   return authenticated(raw,options.custodyKey,'i-core-package-switch-event-v1');
+  };
+  const sentinelRaw=digest=>Buffer.from(JSON.stringify({format:'schema6-package-switch-pending-v1',planSha256:plan.planSha256,eventSha256:digest})+'\n');
+  const immutable=(filename,raw)=>{
+   plainPath(filename,{missing:true});
+   if(existsSync(filename)){if(!readFileSync(filename).equals(raw))fail('switch_artifact_changed');}
+   else writeFileSync(filename,raw,{flag:'wx',mode:0o600,flush:true});
+  };
+  const authenticatedBytes=body=>Buffer.from(JSON.stringify({...body,authentication:mac(body,options.custodyKey)})+'\n');
+  if(existsSync(sentinelPath)&&!existsSync(pendingPath)){
+   const orphan=JSON.parse(readFileSync(plainPath(sentinelPath)));
+   const candidate=loadEvent(orphan.eventSha256);
+   const markerRaw=readFileSync(plainPath(markerPath)),marker=JSON.parse(markerRaw);
+   const beforeCommit=previous.headSha256===plan.expectedHeadSha256&&sha256(markerRaw)===plan.expectedMarkerSha256;
+   const afterCommit=floorAtHead(options,previous).packageSwitchEventSha256===orphan.eventSha256
+    &&marker.phase==='clean_closed'&&marker.package_switch_plan_sha256===plan.planSha256
+    &&marker.package_switch_event_sha256===orphan.eventSha256&&marker.custody_sha256===previous.custodySha256
+    &&marker.manifest_sha256===plan.to.manifestSha256&&marker.configuration_sha256===plan.to.configurationSha256;
+   if(orphan.planSha256!==plan.planSha256||candidate.planSha256!==plan.planSha256||(!beforeCommit&&!afterCommit)
+     ||!readFileSync(sentinelPath).equals(sentinelRaw(orphan.eventSha256)))fail('switch_orphan_sentinel');
+   immutable(pendingPath,authenticatedBytes({format:'i-core-package-switch-pending-v1',planSha256:plan.planSha256,eventSha256:orphan.eventSha256}));
+  }
+  if(existsSync(pendingPath)){
+   const pending=authenticated(readFileSync(plainPath(pendingPath)),options.custodyKey,'i-core-package-switch-pending-v1');
+   if(pending.planSha256!==plan.planSha256)fail('switch_pending_other_operation');
+   eventSha256=pending.eventSha256;event=loadEvent(eventSha256);
+   if(event.planSha256!==plan.planSha256||event.databasePath!==options.databasePath||event.nodeId!==event.sourceMarker.node_id)fail('switch_event_changed');
+   const current=floorAtHead(options,previous);
+   if(previous.headSha256!==plan.expectedHeadSha256&&current.packageSwitchEventSha256!==eventSha256)fail('switch_resume_head_changed');
+   sourceFloor=current;
+   // A completed supervisor may have removed the sentinel before it died. Only
+   // recreate it if the target marker is still exact and DB is still unchanged.
+   if(!existsSync(sentinelPath)){
+    const marker=JSON.parse(readFileSync(plainPath(markerPath)));
+    if(marker.package_switch_plan_sha256!==plan.planSha256||marker.phase!=='clean_closed'
+      ||marker.manifest_sha256!==plan.to.manifestSha256||marker.custody_sha256!==previous.custodySha256)fail('switch_resume_marker_changed');
+    immutable(sentinelPath,sentinelRaw(eventSha256));
+   }else if(!readFileSync(plainPath(sentinelPath)).equals(sentinelRaw(eventSha256)))fail('switch_sentinel_changed');
+  }else{
+   if(existsSync(sentinelPath))fail('switch_orphan_sentinel');
+   if(previous.headSha256!==plan.expectedHeadSha256)fail('switch_head_changed');
+   const markerRaw=readFileSync(plainPath(markerPath));
+   if(sha256(markerRaw)!==plan.expectedMarkerSha256)fail('switch_marker_changed');
+   const marker=JSON.parse(markerRaw);
+   const before=inspect(options,(db,info)=>{
+    if(info.version!==6)fail('schema6_required');
+    validatePrevious(marker,{state,manifest_sha256:plan.from.manifestSha256}, {database_sha256:info.databaseSha256,nodeId:info.nodeId},plan.from.configurationSha256);
+    const receipt={receiptId:marker.token,databasePath:options.databasePath,nodeId:info.nodeId,databaseSha256:info.databaseSha256,custodySha256:marker.custody_sha256};
+    sourceFloor=readCustody(options,info,receipt);
+    assertActivityRecoveryFloorForDatabase(db,sourceFloor.activityRecoveryFloor,info);
+    return {info,witness:packageBusinessWitness(db)};
+   });
+   // Reconstruct committed package history from the authenticated head chain.
+   // A caller cannot turn a reverse into an upgrade by omitting rollbackOf.
+   const events=[],seen=new Set();let cursor=previous;
+   for(let n=0;cursor&&n<100000;n++){
+    const body=floorAtHead(options,cursor),digest=body.packageSwitchEventSha256;
+    if(digest&&!seen.has(digest)){seen.add(digest);events.push({digest,value:loadEvent(digest)});}
+    if(!cursor.previousHeadSha256){cursor=null;break;}
+    const raw=readFileSync(plainPath(path.join(options.custodyDirectory,cursor.previousHeadSha256+'.head.json')));
+    if(sha256(raw)!==cursor.previousHeadSha256)fail('custody_head_chain_invalid');
+    const prior=authenticated(raw,options.custodyKey,'i-core-custody-head-v1');
+    if(prior.generation!==cursor.generation-1||prior.databasePath!==options.databasePath||prior.nodeId!==before.info.nodeId)fail('custody_head_chain_invalid');
+    cursor={...prior,headSha256:cursor.previousHeadSha256};
+   }
+   if(cursor)fail('switch_history_limit');
+   const stack=[],known=new Set(),same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+   let base=null,active=null;
+   for(const record of events.reverse()){
+    const e=record.value;
+    if(e.databasePath!==options.databasePath||e.nodeId!==before.info.nodeId)fail('switch_history_invalid');
+    if(!base){base=e.from;active=base;}
+    if(!same(active,e.from))fail('switch_history_invalid');
+    known.add(e.from.manifestSha256);known.add(e.to.manifestSha256);
+    if(e.rollbackOf){
+     const top=stack.at(-1);
+     if(!top||top.digest!==e.rollbackOf||!same(top.value.from,e.to)||!same(top.value.to,e.from))fail('switch_history_invalid');
+     stack.pop();
+    }else stack.push(record);
+    active=e.to;
+   }
+   if(active&&!same(active,plan.from))fail('switch_history_binding_mismatch');
+   const ancestors=stack.map(r=>r.value.from.manifestSha256);
+   const returning=ancestors.includes(plan.to.manifestSha256);
+   if(returning){
+    const top=stack.at(-1);
+    if(!plan.rollbackOf||!top||plan.rollbackOf!==top.digest||!same(top.value.from,plan.to)||!same(top.value.to,plan.from))fail('switch_reverse_proof_required');
+    if(top.value.businessWitness.sha256!==before.witness.sha256)fail('switch_business_changed');
+   }else{
+    if(plan.rollbackOf)fail('switch_reverse_proof_required');
+    // Previously undone forward edges may be applied again. Arbitrary historical
+    // cross-edges/multi-hop returns remain rejected.
+    if(known.has(plan.to.manifestSha256)&&!events.some(r=>!r.value.rollbackOf&&same(r.value.from,plan.from)&&same(r.value.to,plan.to)))fail('switch_reverse_proof_required');
+   }
+   event={format:'i-core-package-switch-event-v1',operationId:plan.operationId,planSha256:plan.planSha256,
+    databasePath:options.databasePath,nodeId:before.info.nodeId,databaseSha256:before.info.databaseSha256,
+    previousHeadSha256:previous.headSha256,sourceMarker:marker,from:plan.from,to:plan.to,rollbackOf:plan.rollbackOf??null,businessWitness:before.witness};
+   const raw=authenticatedBytes(event);eventSha256=sha256(raw);
+   immutable(path.join(options.custodyDirectory,eventSha256+'.package-switch.json'),raw);
+   proof({...options,recovering:true},'package_switch_before_pending');
+   // State sentinel first: an interrupted pending write still blocks both old
+   // and new normal entrypoints and requires explicit reviewed repair.
+   immutable(sentinelPath,sentinelRaw(eventSha256));
+   immutable(pendingPath,authenticatedBytes({format:'i-core-package-switch-pending-v1',planSha256:plan.planSha256,eventSha256}));
+   proof({...options,recovering:true},'package_switch_after_pending');
+  }
+  // No clean marker is replaced by the child. Old binaries remain blocked by
+  // the sentinel until the native supervisor proves child/guardian exit.
+  if(!readFileSync(plainPath(sentinelPath)).equals(sentinelRaw(eventSha256)))fail('switch_sentinel_changed');
+  if(closedStateSnapshot(state,{packageSwitchPending:true}).stateTreeSha256!==event.sourceMarker.state_tree_sha256)fail('switch_state_changed');
+  const currentMarkerRaw=readFileSync(plainPath(markerPath)),currentMarker=JSON.parse(currentMarkerRaw);
+  if(sha256(currentMarkerRaw)!==plan.expectedMarkerSha256
+    && !(currentMarker.phase==='clean_closed'&&currentMarker.package_switch_plan_sha256===plan.planSha256
+      &&currentMarker.package_switch_event_sha256===eventSha256&&currentMarker.custody_sha256===previous.custodySha256
+      &&currentMarker.manifest_sha256===plan.to.manifestSha256&&currentMarker.configuration_sha256===plan.to.configurationSha256))fail('switch_resume_marker_changed');
+  const current=inspect(options,(db,info)=>{
+   if(info.version!==6||info.nodeId!==event.nodeId||info.databaseSha256!==event.databaseSha256
+      ||packageBusinessWitness(db).sha256!==event.businessWitness.sha256)fail('switch_business_changed');
+   assertActivityRecoveryFloorForDatabase(db,sourceFloor.activityRecoveryFloor,info);return info;
+  });
+  proof({...options,recovering:true},'package_switch_before_floor');
+  const body={...sourceFloor,cleanCloseReceiptId:options.receiptId,origin:plan.rollbackOf?'same_schema_package_reverse':'same_schema_package_switch',
+   packageSwitchEventSha256:eventSha256,databaseSha256:current.databaseSha256};
+  const raw=authenticatedBytes(body),custodySha256=sha256(raw);
+  immutable(path.join(options.custodyDirectory,custodySha256+'.floor.json'),raw);
+  proof({...options,recovering:true},'package_switch_before_head');
+  const head=writeHead({...options,recovering:true},{custodySha256,receiptId:options.receiptId,nodeId:current.nodeId},previous);
+  proof({...options,recovering:true},'package_switch_after_head');
+  return {eventSha256,...head,custodySha256,databaseSha256:current.databaseSha256,
+   marker:{...event.sourceMarker,token:options.receiptId,phase:'close_prepared',
+    manifest_sha256:plan.to.manifestSha256,configuration_sha256:plan.to.configurationSha256,custody_sha256:custodySha256,
+    package_switch_plan_sha256:plan.planSha256,package_switch_event_sha256:eventSha256}};
  });
 }
