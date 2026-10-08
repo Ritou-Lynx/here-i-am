@@ -57,7 +57,14 @@ export async function connectManaged(run,mcp,{requireMessage=true}={}){
 }
 export function processGone(pid){try{process.kill(pid,0);return false;}catch(error){if(error.code==='ESRCH')return true;throw error;}}
 export async function shutdownAndMeasure(run){
- const begin=performance.now();assert.equal(run.send(17).result,1);run.send(22,1);await run.wait();
+ const begin=performance.now();assert.equal(run.send(17).result,1);run.send(22,1);
+ // END already performed required publication; host exit is independently checked.
+ const exit=json(path.join(run.session,'session-exit.json'));
+ assert.equal(exit?.clean_closed,true);assert.equal(exit.worker_completion_confirmed,true);
+ assert.equal(exit.publication_before_handler_return,true);
+ assert.equal(existsSync(path.join(run.session,'session-exit-over-budget.json')),false);
+ for(const receipt of ['mcp-stop.json','session-close.json','supervisor.json','child.json','guardian.json'])assert.ok(run.read(receipt),receipt);
+ await run.wait();assert.equal(run.exit,0,run.stdout+run.stderr);
  return Number((performance.now()-begin).toFixed(3));
 }
 export function mcpStopped(run){

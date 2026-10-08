@@ -1,3 +1,8 @@
+## 2026-10-08：已上线运行；clean-close 为唯一未通过项，开始源码修复轮次
+本人确认开机后手机与claude.ai复测均正常；当前schema6已上线运行，正常安全关闭是唯一未通过项。按最新授权并行只读诊断、隔离复现及同版本换包准备；现役保持原运行包、任务和配置，新包/换包方案必须先审批，再约一次真人关机。
+合成已复现旧END返回后必需exit未发布；新消息入口同步flush、END返回前同步终态，取消/重复/发布失败/30秒边界回归已补。完整Core/MCP拥有Job组合与安全换包仍在验证，不能提前签收。10/09 20:00 T9完整加密备份及实际恢复核对安排保留；旧18:00检查改为本轮审批/验收状态核对，不执行过时的退v4规则。
+详见[本轮修复与换包交接](handoffs/SCHEMA6_CLEAN_CLOSE_PACKAGE_UPGRADE_20261008.md)。下方“开机复测尚待/切换未完成”为原时点记录，当前运行状态以本节为准。
+
 ## 2026-10-08：真人正常关机清停未通过；新登录自动异常恢复与备份成功
 本人直接正常关机且无提示/强制操作，旧代六份关闭终态均缺，正常clean-close及共同30秒预算无法签收。新登录任务已自动启动新会话，Core/MCP健康、schema6/原node不变，实际kind=automatic_crash_recovery并推进head至gen2；raw密文保全及head/floor/event/ready元数据绑定通过。短时只读副本核关机前六条测试消息仍在，ledger268 committed、pending/rejected零；新自动备份回执success=true。[本次完整验收记录](handoffs/SCHEMA6_REAL_SHUTDOWN_ACCEPTANCE_20261008.md)。
 
