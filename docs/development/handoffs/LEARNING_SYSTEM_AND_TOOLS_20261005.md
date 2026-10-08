@@ -46,8 +46,10 @@
 
 ## 3. 核实过的外部事实（2026-10-03～05）
 
+> 思源和 FlexNote 的 MCP 能力已整理成可查阅的参考知识库：[docs/reference/](../../reference/README.md)（2026-10-08 核对，含逐个工具的读写划分、鉴权和客户端配置）。下文保留当时的摘要。
+
 **思源 3.8.6**（2026-09-29）
-- 内置 MCP：`http://127.0.0.1:6806/mcp`，鉴权 `Authorization: Bearer <API Token>`；3.8.6 起也支持 OAuth 2.1（DCR + PKCE），可以经隧道接 claude.ai / ChatGPT 网页。依据源码 `kernel/mcp/server.go`、`kernel/model/mcp_oauth.go`。
+- 内置 MCP：`http://127.0.0.1:6806/mcp`，鉴权 `Authorization: Bearer <API Token>`；3.8.6 起也支持 OAuth 2.1（PKCE；客户端需在思源里手动添加，不支持动态注册，2026-10-08 按源码更正），可以经隧道接 claude.ai / ChatGPT 网页。依据源码 `kernel/mcp/server.go`、`kernel/model/mcp_oauth.go`。
 - 工具清单由用户导出，见 `tools/siyuan_tutor/README.md` 的 Codex 白名单；`database` 工具能建表、加行、改单元格，但**不能建视图**。
 - 内置 AI Agent，工作空间 `data/ai/AGENTS.md`，电脑和手机都能用；Agent 本身也能连外部 MCP。
 - 免费：插件、挂件、数据库、闪卡、API、ECharts 图表块。插件 API 有 `addTab`、`addDock`（含手机）、`openTab`、`onLayoutReady`。`data/plugins` 和 `data/widgets` 会随同步到手机（源码 `kernel/model/repository.go`）。

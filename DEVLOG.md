@@ -1,3 +1,18 @@
+## 2026-10-08 — PR20合并主线与提前完整备份
+- 用户批准clean-close方向，换包仍停审；仅merge最新v3-lab，不rebase/force-push。
+- 保留双方DEVLOG/项目状态与MCP参考文档；现役设置、任务、原库和运行包不改。
+- 精确运行48项按新head核对；旧c539候选保留，若新manifest元数据改变则重建并重新签收。
+- 今晚完整九类加密备份到本机/T9并真实隔离还原，动态custody捕获前后check；明晚重复安排已取消。
+- 备份还原与新head完整CI均通过后才准备精确生产配置/XML/双SDDL/父SD，交审批，不执行换包。
+- 真人验收分别记录入口与六终态；无入口先查window station/desktop及任务运行方式，不扩复杂关闭流程。
+- 后续修改运行字节的PR单独开，与预检、文档、ACL分开；本轮沿用用户指定PR20闭合合并。
+---
+## 2026-10-08 — 笔记工具 MCP 参考知识库
+- 新增 docs/reference/（README 对比与选型、SIYUAN_MCP、FLEXNOTE_MCP），供人和 Agent 查阅。
+- 思源：内核 /mcp 的协议、Bearer 与 OAuth 2.1 端点、暴露策略默认全放行及能力 ID、30 个工具逐动作读写与外发属性、数据库写法、思源 Agent 作为 MCP 客户端；依据 v3.8.6 源码。
+- FlexNote：专业版、仅本机 39125、Codex 走 stdio 桥接、只读模式、仅当前空间、不能删卡；依据官方博客与发布记录。
+- 每条事实标注源码/官方/实测/约定/未核实；纯文档，未构建。
+---
 ## 2026-10-08 — clean-close 与同schema6换包源码准备
 - 现役已上线、开机后手机/claude.ai正常；clean-close仍是唯一未过真人项，本轮不部署/合并。
 - QUERY/END入口同步flush、END内终态；晚到worker封口，完整30秒预算与严格路径/租约检查保留。
