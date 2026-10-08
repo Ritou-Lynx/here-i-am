@@ -4,7 +4,7 @@
 import path from 'node:path';
 import {readFileSync,readdirSync,lstatSync} from 'node:fs';
 import {INVENTORY,plainPath,sha256,PINNED_NODE_SHA256} from '../release_schema6/package.mjs';
-import {LEGACY_SWITCH_INVENTORY,verifySwitchRelease} from '../release_schema6/package_switch.mjs';
+import {LEGACY_SWITCH_INVENTORY,verifySwitchRelease,readSwitchPlan} from '../release_schema6/package_switch.mjs';
 import {parseConfiguration} from '../release_schema6/lifecycle/configuration.mjs';
 import {backupFilePrimitives} from '../release_schema6/backup_bundle.mjs';
 
@@ -214,10 +214,42 @@ function compareBackup(from,to,oldEnd,newEnd,oldArtifacts,newArtifacts,{legacy=f
   requireValue(same(without(old,['source_path','sha256']),without(next,['source_path','sha256']))&&next.source_path===mapping.path&&[old.sha256,mapping.sha256].includes(next.sha256),'backup_scope_changed');
  }
 }
+// A return to the historical backup layout is only the exact inverse of a
+// separately anchored approved forward plan. Revalidate that direction: its
+// mutable template hashes may predate both files and cannot be compared backward.
+function validateReverseBinding(plan,fromArtifacts){
+ const proof=plan.reverseBinding;
+ exact(proof,['plan','event'],'reverse_proof_invalid');
+ for(const ref of [proof.plan,proof.event])exact(ref,['path','sha256'],'reverse_proof_invalid');
+ requireValue(hex(plan.rollbackOf)&&plan.rollbackOf===proof.event.sha256,'reverse_event_changed');
+ anchored(proof.plan.path,proof.plan.sha256,128*1024);
+ const forward=readSwitchPlan(proof.plan.path,proof.plan.sha256);
+ requireValue(forward.rollbackOf==null&&!Object.hasOwn(forward,'reverseBinding'),'reverse_forward_required');
+ requireValue(same(plan.from,forward.to)&&same(plan.to,forward.from),'reverse_endpoints_changed');
+ const source=artifacts(fromArtifacts),target=artifacts(plan.artifacts);
+ const forwardSource=artifacts(forward.fromArtifacts),forwardTarget=artifacts(forward.artifacts);
+ requireValue(same(source,forwardTarget)&&same(target,forwardSource),'reverse_artifacts_changed');
+ if(Object.hasOwn(plan,'fromArtifacts'))requireValue(same(artifacts(plan.fromArtifacts),source),'reverse_artifacts_changed');
+ const c=core(forward.from);
+ requireValue(proof.event.path===path.join(c.recovery_custody_directory,proof.event.sha256+'.package-switch.json'),'reverse_event_path_changed');
+ const event=json(proof.event.path,proof.event.sha256);
+ requireValue(event.format==='i-core-package-switch-event-v1'&&event.planSha256===proof.plan.sha256
+  &&event.operationId===forward.operationId&&event.rollbackOf==null&&same(event.from,forward.from)&&same(event.to,forward.to)
+  &&event.databasePath===c.database_path&&event.nodeId===c.node_id&&event.previousHeadSha256===forward.expectedHeadSha256
+  &&hex(event.authentication)&&hex(event.databaseSha256)&&event.sourceMarker?.phase==='clean_closed'
+  &&event.sourceMarker.manifest_sha256===forward.from.manifestSha256&&event.sourceMarker.configuration_sha256===forward.from.configurationSha256
+  &&event.sourceMarker.database_path===c.database_path&&event.sourceMarker.node_id===c.node_id
+  &&event.sourceMarker.database_sha256===event.databaseSha256,'reverse_event_changed');
+ // This is static material binding only. NativeLease retains event HMAC,
+ // current history/stack, business witness and strictClosedPath authority.
+ const report=validatePackageSwitchBindings(forward,{fromArtifacts:forward.fromArtifacts});
+ return {...report,reverseBindingBound:true,hmacRechecked:false};
+}
 export function validatePackageSwitchBindings(plan,{fromArtifacts}={}){
  try{
   requireValue(object(plan)&&object(plan.from)&&object(plan.to),'plan_invalid');
   requireValue(plan.from.releaseDirectory!==plan.to.releaseDirectory&&plan.from.manifestSha256!==plan.to.manifestSha256,'distinct_packages_required');
+  if(Object.hasOwn(plan,'reverseBinding'))return validateReverseBinding(plan,fromArtifacts);
   const oldArtifacts=artifacts(fromArtifacts),newArtifacts=artifacts(plan.artifacts);
   const oldCore=core(plan.from),newCore=core(plan.to);
   requireValue(same(without(oldCore,['manifest_sha256']),without(newCore,['manifest_sha256'])),'core_policy_changed');

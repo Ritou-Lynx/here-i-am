@@ -7,7 +7,7 @@ import {buildPackageSwitchBackupTemplate,validatePackageSwitchBindings} from '..
 import {generatePackageSwitchConfigurations} from '../maintenance/generate-package-switch-configurations.mjs';
 import {preparePackageSwitch} from '../maintenance/prepare-package-switch.mjs';
 import {INVENTORY,PINNED_NODE_SHA256,sha256} from './package.mjs';
-import {LEGACY_SWITCH_INVENTORY} from './package_switch.mjs';
+import {LEGACY_SWITCH_INVENTORY,readSwitchPlan} from './package_switch.mjs';
 import {syntheticRoot} from '../test_fixtures/release_schema6/synthetic_paths.mjs';
 import {removeOwned} from './lifecycle/test-fixture.mjs';
 
@@ -343,4 +343,106 @@ test('legacy schema4 backup inventory stays complete across a schema6 package sw
   f.reset();const bad=structuredClone(old().backup);bad.specTemplate.entries.find(e=>e.role==='release').name='never-echo';
   assert.throws(()=>buildPackageSwitchBackupTemplate(bad,{from:old().end,to:target().end}),e=>{assert.match(e.code,/^switch_bindings_[a-z_]+$/);assert.equal(e.message,e.code);assert.equal(String(e).includes('never-echo'),false);return true;});
  });
+});
+
+
+test('historical backup reverse requires the exact approved forward binding',{skip:process.platform!=='win32',timeout:900000},async t=>{
+ const f=fixture(t,{legacy:true}),old=()=>f.sides[0],target=()=>f.sides[1];
+ let sequence=0;
+ function proof({changeForward=()=>{},changeEvent=()=>{},prepare=false}={}){
+  const [p,options]=f.args(),headPath=path.join(f.root,'head.json'),markerPath=path.join(f.root,'marker.json');
+  const sourceMarker={format:'schema6-lifecycle-v1',phase:'clean_closed',manifest_sha256:p.from.manifestSha256,configuration_sha256:p.from.configurationSha256,database_path:old().core.database_path,node_id:old().core.node_id,database_sha256:H};
+  write(headPath,{synthetic:true,generation:1});write(markerPath,sourceMarker);
+  const input={...structuredClone(p),...options,operationId:'synthetic-forward-'+sequence++,headPath,markerPath};
+  const forward=prepare?preparePackageSwitch(input).plan:{...input,format:'schema6-package-switch-approved-v1',expectedHeadSha256:hash(headPath),expectedMarkerSha256:hash(markerPath),rollbackOf:null};
+  forward.approved=true;changeForward(forward);
+  const forwardPath=path.join(f.root,'forward-'+sequence+'.json');write(forwardPath,forward);
+  const planRef={path:forwardPath,sha256:hash(forwardPath)};
+  const event={format:'i-core-package-switch-event-v1',operationId:forward.operationId,planSha256:planRef.sha256,databasePath:old().core.database_path,nodeId:old().core.node_id,databaseSha256:H,previousHeadSha256:forward.expectedHeadSha256,sourceMarker,from:forward.from,to:forward.to,rollbackOf:null,businessWitness:{format:'schema6-all-business-v1',sha256:H,tables:0,rows:0},authentication:H};
+  changeEvent(event);
+  const eventHash=sha256(Buffer.from(JSON.stringify(event))),custody=old().core.recovery_custody_directory;
+  mkdirSync(custody,{recursive:true});const eventPath=path.join(custody,eventHash+'.package-switch.json');write(eventPath,event);
+  const reverse={format:'schema6-package-switch-approved-v1',approved:false,operationId:'synthetic-reverse-'+sequence,from:structuredClone(p.to),to:structuredClone(p.from),fromArtifacts:structuredClone(p.artifacts),artifacts:structuredClone(options.fromArtifacts),rollbackOf:eventHash,reverseBinding:{plan:planRef,event:{path:eventPath,sha256:eventHash}}};
+  return {forward,reverse,headPath,markerPath};
+ }
+ const validate=p=>validatePackageSwitchBindings(p,{fromArtifacts:p.fromArtifacts});
+ const rejected=p=>assert.throws(()=>validate(p),e=>{assert.match(e.code,/^switch_bindings_[a-z_]+$/);assert.equal(e.message,e.code);return true;});
+ await t.test('prepare old layout to current layout to the exact original layout and read approved reverse',()=>{
+  // Forward may replace an old mutable template hash with the known target
+  // hash. Restoring the exact source retains H, so reverse comparison is wrong.
+  target().backup.specTemplate.entries.find(e=>e.name==='core.json').sha256=target().end.configurationSha256;f.publish();
+  assert.notEqual(old().backup.specTemplate.entries.find(e=>e.name==='core.json').sha256,target().backup.specTemplate.entries.find(e=>e.name==='core.json').sha256);
+  const before=[...Object.values(old().files),...Object.values(target().files),old().end.configurationPath,target().end.configurationPath].map(p=>[p,hash(p)]);
+  const {forward,reverse,headPath,markerPath}=proof({prepare:true});
+  write(headPath,{synthetic:true,generation:2});write(markerPath,{format:'schema6-lifecycle-v1',phase:'clean_closed',manifest_sha256:reverse.from.manifestSha256,configuration_sha256:reverse.from.configurationSha256});
+  const prepared=preparePackageSwitch({...reverse,headPath,markerPath});
+  assert.deepEqual(prepared.plan.from,forward.to);assert.deepEqual(prepared.plan.to,forward.from);
+  assert.deepEqual(prepared.plan.artifacts,forward.fromArtifacts);assert.deepEqual(prepared.plan.fromArtifacts,forward.artifacts);
+  assert.equal(prepared.bindingReport.reverseBindingBound,true);assert.equal(prepared.bindingReport.hmacRechecked,false);
+  for(const key of ['approved','deploymentReady','credentialFilesRead','databaseRead','registered','started'])assert.equal(prepared.bindingReport[key],false);
+  const approvedPath=path.join(f.root,'approved-reverse.json');write(approvedPath,{...prepared.plan,approved:true});
+  assert.equal(validate(readSwitchPlan(approvedPath,hash(approvedPath))).validated,true);
+  assert.deepEqual(before,before.map(([p])=>[p,hash(p)]));
+  assert.equal(old().backup.specTemplate.entries.filter(e=>e.role==='release').length,10);
+  assert.equal(old().backup.specTemplate.entries.filter(e=>e.name.startsWith(preservedPrefix)).length,0);
+  assert.equal(existsSync(old().core.database_path),false);assert.equal(existsSync(old().core.recovery_key_path),false);
+ });
+ for(const [name,change] of [
+  ['missing original evidence',p=>delete p.reverseBinding],
+  ['missing rollback digest',p=>delete p.rollbackOf],
+  ['wrong rollback digest',p=>p.rollbackOf=H],
+  ['extra proof key',p=>p.reverseBinding.validated=true],
+  ['extra plan reference key',p=>p.reverseBinding.plan.approved=true],
+  ['wrong original plan hash',p=>p.reverseBinding.plan.sha256=H],
+  ['wrong original event hash',p=>p.reverseBinding.event.sha256=H],
+  ['swapped endpoints',p=>[p.from,p.to]=[p.to,p.from]],
+  ['source endpoint configuration changed',p=>p.from.configurationSha256=H],
+  ['target endpoint configuration changed',p=>p.to.configurationSha256=H],
+  ['extra endpoint field',p=>p.to.allowLegacy=true],
+ ])await t.test(name,()=>{f.reset();const {reverse}=proof();change(reverse);rejected(reverse);});
+ await t.test('evidence cannot be attached to a forward operation',()=>{
+  f.reset();const {forward,reverse}=proof();rejected({...forward,reverseBinding:reverse.reverseBinding});
+ });
+ await t.test('artifact ordering does not change the role binding',()=>{
+  f.reset();const {reverse}=proof();reverse.artifacts.reverse();reverse.fromArtifacts.reverse();assert.equal(validate(reverse).validated,true);
+ });
+ for(const side of ['fromArtifacts','artifacts'])for(const role of ['backup','login','mcp','task'])await t.test(side+' '+role+' cannot be replaced by an identical copy',()=>{
+  f.reset();const {reverse}=proof(),a=reverse[side].find(a=>a.role===role),copy=path.join(f.root,side+'-'+role+'-copy');copyFileSync(a.path,copy);a.path=copy;rejected(reverse);
+ });
+ for(const [name,changeForward] of [
+  ['unapproved original plan',p=>p.approved=false],
+  ['original reverse plan',p=>p.rollbackOf=H],
+  ['nested reverse evidence',p=>p.reverseBinding={}],
+  ['original endpoint substituted',p=>p.from.configurationSha256=H],
+  ['missing original artifact',p=>p.fromArtifacts.pop()],
+ ])await t.test(name,()=>{f.reset();rejected(proof({changeForward}).reverse);});
+ for(const [name,changeEvent] of [
+  ['wrong event plan',e=>e.planSha256=H],
+  ['wrong event operation',e=>e.operationId='another-operation'],
+  ['event reversed edge',e=>[e.from,e.to]=[e.to,e.from]],
+  ['event is another rollback',e=>e.rollbackOf=H],
+  ['wrong event database',e=>e.databasePath=path.join(f.root,'other.sqlite')],
+  ['wrong event node',e=>e.nodeId='another-node'],
+  ['wrong event previous head',e=>e.previousHeadSha256=H],
+  ['missing event authentication',e=>delete e.authentication],
+  ['event source was not closed',e=>e.sourceMarker.phase='running'],
+  ['event source configuration differs',e=>e.sourceMarker.configuration_sha256=H],
+ ])await t.test(name,()=>{f.reset();rejected(proof({changeEvent}).reverse);});
+ await t.test('event must remain in the exact canonical custody path',()=>{
+  f.reset();const {reverse}=proof(),ref=reverse.reverseBinding.event,copy=path.join(f.root,'copied-event.json');copyFileSync(ref.path,copy);ref.path=copy;rejected(reverse);
+ });
+ await t.test('hardlinked original proof files are rejected',()=>{
+  for(const role of ['plan','event']){
+   f.reset();const {reverse}=proof(),alias=path.join(f.root,'proof-'+role+'-hardlink');linkSync(reverse.reverseBinding[role].path,alias);try{rejected(reverse);}finally{unlinkSync(alias);}
+  }
+ });
+ await t.test('file drift after the original approval is rejected',()=>{
+  f.reset();const {reverse}=proof();target().backup.policy.retentionDays=1;f.publish();rejected(reverse);
+ });
+ for(const [name,change] of [
+  ['lost preserved v4 item',()=>target().backup.specTemplate.entries.splice(target().backup.specTemplate.entries.findIndex(e=>e.name.startsWith(preservedPrefix)),1)],
+  ['new unapproved preserved item',()=>target().backup.specTemplate.entries.push({role:'configuration',name:preservedPrefix+'extra.bin',source_path:path.join(f.root,'extra.bin'),sha256:H})],
+  ['lost original nonrelease item',()=>target().backup.specTemplate.entries=target().backup.specTemplate.entries.filter(e=>e.name!=='unchanged-11.json')],
+  ['changed unrelated scope',()=>target().backup.specTemplate.entries.find(e=>e.name==='unchanged-11.json').sha256='b'.repeat(64)],
+ ])await t.test('reanchored malformed forward cannot authorize reverse: '+name,()=>{f.reset();change();f.publish();rejected(proof().reverse);});
 });

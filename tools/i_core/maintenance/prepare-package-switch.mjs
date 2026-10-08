@@ -12,7 +12,8 @@ export function preparePackageSwitch(input){
  const plan={format:'schema6-package-switch-approved-v1',approved:false,operationId,from:endpoints[0],to:endpoints[1],
   expectedHeadSha256:sha256(readFileSync(plainPath(headPath))),expectedMarkerSha256:sha256(readFileSync(plainPath(markerPath))),rollbackOf,
   fromArtifacts:input.fromArtifacts?.map(a=>({role:a.role,path:plainPath(a.path),sha256:a.sha256})),
-  artifacts:artifacts.map(a=>({role:a.role,path:plainPath(a.path),sha256:sha256(readFileSync(a.path))}))};
+  artifacts:artifacts.map(a=>({role:a.role,path:plainPath(a.path),sha256:sha256(readFileSync(a.path))})),
+  ...(input.reverseBinding!==undefined?{reverseBinding:input.reverseBinding}:{})};
  if(JSON.stringify(plan.artifacts.map(a=>a.role).sort())!==JSON.stringify(['backup','login','mcp','task']))fail('switch_artifacts_required');
  verifySwitchConfigurations(plan);
  const bindingReport=validatePackageSwitchBindings(plan,{fromArtifacts:input.fromArtifacts});
