@@ -1,3 +1,13 @@
+## 2026-10-09 — ChatGPT MCP独立维护链与部署审批准备
+- 接手ChatGPT接入/真人验收，兼容PR21与独立MCP配置维护PR分开审阅。
+- 六文件三变三不变，兼容精确head CI核绿；Core原48项/config/path/hash及旧换包MCP门控保持。
+- 补同Core生成/绑定/登记链，九类backup保全10项旧附件，原固定PrepareOnly与proposal在新私有目录通过。
+- 登记需来源闭包、双锁、真实在线六终态/闭态树、旧任务冻结及XML/双SDDL/父SD；只CREATE新disabled任务。
+- 交叉复审补backup文件显式双主体ACL；真实COM primitives与完整wrapper/真人Gate分别签收。
+- 只读入场发现原服务离线、最近ready/mcp-start缺终态、marker仍listening；未恢复/启停或改现役。
+- 精确审批材料仅本机忽略目录；先请本人批准原链恢复与最新完整备份/真实还原，再绑定现场hash交登记/启用审批。
+- 未读真实库/独立凭据内容，未完成新鲜备份还原/ChatGPT账号或关机Gate；deploymentReady=false。
+---
 ## 2026-10-08 — PR20历史布局认证反向计划返修
 - 复审新增P1：原绑定器只允许历史布局作为from，无法生成返回原精确配置的维护反向计划。
 - 反向计划显式绑定原批准正向计划及对应事件，双端Core和backup/login/MCP/task四附件必须精确交换。
