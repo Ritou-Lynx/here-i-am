@@ -74,7 +74,7 @@
 
 **S1 实测（2026-10-11 北京时间 23:40–01:18，用户在场逐步执行）**：停用 AgentRelay 与 cleanclose、启用 chatgpt 后注销再登录。① 注销强制结束 cleanclose 会话（0xC000013A），库留 wal/shm；② 登录触发 chatgpt：Core 进入自动崩溃恢复，23:43:39 写恢复锁存，23:44:06 因 `offline_probe_failed` 中断（登录高峰期，探针 15 秒时限内未完成，推测），`commitStarted=false`、无 s6-copy 残留，原库未替换；③ 手动重跑被锁存拦下（`recovery_interrupted_review_required`）；④ 确认无占用后把锁存移到用户目录留档（未删），再 Start 一次：自动恢复完成，47841/47860 监听，公网 discovery 200，ChatGPT 连接器 OAuth 连接成功。待核：Claude 是否仍可用、观察闪窗。**教训**：注销不是安全停服，切换前须先走正常关闭；登录期自启程序多时恢复探针可能超时，Start 前应等系统空闲；Start 任务时会闪一次 PowerShell 窗口。
 
-**S1 后续（同日）**：Claude、ChatGPT、Here I Am 三端都能看到消息；停用 AgentRelay 后约 30 分钟无闪窗，闪窗来源基本锁定为该每 3 分钟启动的 PowerShell 任务。新问题：ChatGPT 写回的消息来源仍标 `claude_web`。原因：MCP 写回身份写死为单一前端设备 `frontend:claude_web`（`tools/i_remote_mcp/writeback.mjs` 第 8–10 行，配对名“claude.ai 网页端”；`i_chat_turn` 描述也写死），不区分 OAuth 客户端；Core 本身接受任意 `frontend:<name>`（`tools/i_core/i_core_store.mjs` 第 38 行）。修复与部署见下一合同，部署前须先有安全停服流程（注销会强杀会话）。
+**S1 后续（同日）**：Claude、ChatGPT、Here I Am 三端都能看到消息；停用 AgentRelay 后约 30 分钟无闪窗，闪窗来源基本锁定为该每 3 分钟启动的 PowerShell 任务。新问题：ChatGPT 写回的消息来源仍标 `claude_web`。原因：MCP 写回身份写死为单一前端设备 `frontend:claude_web`（`tools/i_remote_mcp/writeback.mjs` 第 8–10 行，配对名“claude.ai 网页端”；`i_chat_turn` 描述也写死），不区分 OAuth 客户端；Core 本身接受任意 `frontend:<name>`（`tools/i_core/i_core_store.mjs` 第 38 行）。修复与部署见[安全切换与前端身份合同](RELAY_20261011_safe-switch-frontend-id.md)，部署前须先有安全停服流程（注销会强杀会话）。
 
 ## 3. 合同 A2：先只读后消耗、干跑模式、先改任务再切包
 
