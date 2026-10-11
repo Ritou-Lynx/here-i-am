@@ -1,3 +1,30 @@
+## 2026-10-11 iCore 阶段 A 接力合同（云端审核、Codex 执行）
+
+- 云端审查结论：失败主因是错误被通用 catch 吞掉、attempt 先于只读检查消耗、每次小修触发整条哈希/审批链重建；另有两项未排除 P0（ACL 规则自相矛盾、任务按预测字节比对且发生在包切换后）。
+- 新增合同 docs/development/handoffs/RELAY_20261011_icore-stage-a.md：A1 入库与错误可见、A2 先只读后消耗+干跑+先改任务再切包、A3 统一 ACL+语义比对+按实际读依赖生成前置；阶段 B–E 门槛。
+- Codex 轮次提示加止损：同一验证连续两次失败即 blocked；禁止生产入口、真实任务与新审批材料。
+- 生产仍暂停，原窗口自然过期，不发起第四次调用；待用户答复 D1（Administrators ACE）与 D2（是否先恢复旧服务）。
+
+## 2026-10-11 iCore 切换云端独立审查交接
+
+- 按用户授权发布独立审查分支，基于维护提交 d146c51a；不修改生产候选。
+- 整理三次入口失败、ACL/父目录/COM 身份阻塞、r08 离线证据与未验项。
+- 附 93 份脱敏程序快照、源码双哈希和云端审查任务；排除真实配置、数据库、凭据和原始回执。
+- 确认远端 v3-lab 已含 PR #20；源码合并不等于部署。生产 Run 仍为 0，继续暂停。
+- 入口：docs/development/icore-cloud-review-20261011/README.md。
+
+---
+
+## 2026-10-09 — ChatGPT MCP独立维护链与部署审批准备
+- 接手ChatGPT接入/真人验收，兼容PR21与独立MCP配置维护PR分开审阅。
+- 六文件三变三不变，兼容精确head CI核绿；Core原48项/config/path/hash及旧换包MCP门控保持。
+- 补同Core生成/绑定/登记链，九类backup保全10项旧附件，原固定PrepareOnly与proposal在新私有目录通过。
+- 登记需来源闭包、双锁、真实在线六终态/闭态树、旧任务冻结及XML/双SDDL/父SD；只CREATE新disabled任务。
+- 交叉复审补backup文件显式双主体ACL；真实COM primitives与完整wrapper/真人Gate分别签收。
+- 只读入场发现原服务离线、最近ready/mcp-start缺终态、marker仍listening；未恢复/启停或改现役。
+- 精确审批材料仅本机忽略目录；先请本人批准原链恢复与最新完整备份/真实还原，再绑定现场hash交登记/启用审批。
+- 未读真实库/独立凭据内容，未完成新鲜备份还原/ChatGPT账号或关机Gate；deploymentReady=false。
+---
 ## 2026-10-08 — PR20历史布局认证反向计划返修
 - 复审新增P1：原绑定器只允许历史布局作为from，无法生成返回原精确配置的维护反向计划。
 - 反向计划显式绑定原批准正向计划及对应事件，双端Core和backup/login/MCP/task四附件必须精确交换。

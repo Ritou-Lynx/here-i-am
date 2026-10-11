@@ -15,7 +15,7 @@ export const WRAPPERS = Object.freeze([
   'recovery_adapter.mjs', 'readonly_witness.mjs', 'recovery_witness_worker.mjs', 'backup_bundle.mjs', 'backup_bundle_schema6.ps1',
   'automatic_recovery.mjs', 'raw_state_backup.mjs', 'package_switch.mjs',
   'backup_key_child.mjs', 'key_custody.ps1', 'restore_inspection.mjs',
-  'portable_key_custody.mjs', 'automatic_backup.mjs', 'portable_backup_schema6.ps1', 'scheduler_once_schema6.ps1',
+  'portable_key_custody.mjs', 'automatic_backup.mjs', 'backup_effects.mjs', 'custody_inventory.mjs', 'due_inventory.mjs', 'export_backup_tasks.ps1', 'lifecycle/backup_native.cs', 'lifecycle/backup_evidence.cs', 'lifecycle/backup_owned_artifacts.ps1', 'portable_backup_schema6.ps1', 'scheduler_once_schema6.ps1',
   'lifecycle/start_schema6.ps1', 'lifecycle/owned_job.ps1',
   'lifecycle/job_guardian.ps1', 'lifecycle/protected_paths.ps1',
   'lifecycle/request_stop.ps1', 'lifecycle/runtime_child.mjs',
@@ -25,8 +25,39 @@ export const WRAPPERS = Object.freeze([
   'lifecycle/session_window.ps1', 'lifecycle/login_schema6.ps1',
   'lifecycle/prepare_login_schema6.ps1', 'lifecycle/mcp_configuration.ps1',
 ]);
+export const ASSEMBLY_DEPENDENCIES = Object.freeze([
+  "tools/i_core/maintenance/activation-preflight.mjs" ,
+  "tools/i_core/maintenance/close-schema6-session.ps1" ,
+  "tools/i_core/maintenance/owned_artifacts.ps1" ,
+  "tools/i_core/maintenance/p4/evidence-context-r09.mjs" ,
+  "tools/i_core/maintenance/p4/evidence-contract-r08.mjs" ,
+  "tools/i_core/maintenance/p4/evidence-parent-bridge-r09.mjs" ,
+  "tools/i_core/maintenance/p4/p4-bounded-transport-r05.mjs" ,
+  "tools/i_core/maintenance/p4/p4-health-policy-dormant-r01.mjs" ,
+  "tools/i_core/maintenance/p4/p4-pinned-entry-r04.mjs" ,
+  "tools/i_core/maintenance/process_image_binding.ps1" ,
+  "tools/i_core/maintenance/register_task_primitives.ps1" ,
+  "tools/i_core/maintenance/task_security_policy.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/continuous-activation-entry.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/continuous-activation.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/evidence-native.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/evidence-pinned-launch.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/fresh-identity-native.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/identity-activation-proof.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/identity-native.cs" ,
+  "tools/i_core/release_schema6/lifecycle/identity-sampler.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/p3-permit-library.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/p3-permit-producer.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/p4-backup-total-gate.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/recovery-p4-cleanup.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/recovery-p4-entry.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/recovery-p4-helper.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/task-caller-context.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/task-instance-projection.ps1" ,
+  "tools/i_core/release_schema6/lifecycle/task-two-slot-evaluator.ps1"
+]);
 export const INVENTORY = Object.freeze([
-  ...SOURCES, ...WRAPPERS.map(name => `tools/i_core/release_schema6/${name}`), 'runtime/node.exe',
+  ...SOURCES, ...WRAPPERS.map(name => `tools/i_core/release_schema6/${name}`), ...ASSEMBLY_DEPENDENCIES, 'runtime/node.exe',
 ].sort());
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export class ReleaseError extends Error { constructor(code) { super(code); this.code = code; } }
@@ -97,6 +128,7 @@ export function verifyInventory(release, expectedManifestHash) {
     const bytes = readFileSync(plainPath(path.join(release, file.path)));
     if (bytes.length !== file.bytes || sha256(bytes) !== file.sha256) fail('release_file_changed');
   }
+  validateImports(new Map(manifest.files.filter(file=>file.path.endsWith('.mjs')).map(file=>[file.path,readFileSync(plainPath(path.join(release,file.path)))])));
   return { manifest, manifest_sha256: expectedManifestHash };
 }
 export function verifyRelease(release, expectedManifestHash) {
@@ -113,7 +145,7 @@ export function readCommittedSources({ repository, gitPath, sourceCommit = 'HEAD
   const resolvedCommit = execFileSync(gitPath, ['-C', repository, 'rev-parse', '--verify', sourceCommit + '^{commit}'], gitOptions).toString('utf8').trim();
   if (!/^[a-f0-9]{40}$/.test(resolvedCommit)) fail('source_commit_unresolved');
   const content = new Map();
-  for (const name of [...SOURCES, ...WRAPPERS.map(name => 'tools/i_core/release_schema6/' + name)]) {
+  for (const name of [...SOURCES, ...WRAPPERS.map(name => 'tools/i_core/release_schema6/' + name), ...ASSEMBLY_DEPENDENCIES]) {
     content.set(name, execFileSync(gitPath, ['-C', repository, 'show', resolvedCommit + ':' + name], gitOptions));
   }
   validateImports(content);

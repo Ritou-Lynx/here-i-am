@@ -1,7 +1,11 @@
-# Loaded only after login_schema6.ps1 verifies the fixed release and ACL tree.
+# Loaded only after login_schema6.ps1 verifies fixed release and ACL tree.
+. (Join-Path $PSScriptRoot 'backup_owned_artifacts.ps1')
+Initialize-OwnedArtifactNative
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Web.Extensions
-Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing,System.Web.Extensions -TypeDefinition @'
+$backupNative=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'backup_native.cs'))
+$backupCoordinator=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'backup_evidence.cs'))
+$sessionSource=@'
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -93,7 +97,8 @@ public sealed class Schema6SessionWindow : Form {
   readonly int corePort;
   readonly ManualResetEvent finished=new ManualResetEvent(false);
   readonly object gate=new object();
-  Schema6SessionJob core,backup,mcp;
+  Schema6SessionJob core,mcp;Schema6BackupEvidence backup;
+  readonly string backupPolicyPath,backupPolicyHash,loginConfigurationHash,evidenceBindingPath,evidenceBindingHash,expectedApprovalHash;bool backupControlRecovered;
   readonly Dictionary<string,object> mcpConfiguration;
   Stopwatch closeBudget;
   bool mcpFailure,mcpForced,mcpEmpty=true,mcpHandlesReleased=true,backupForced,coreForced,databaseExclusive;
@@ -110,7 +115,9 @@ public sealed class Schema6SessionWindow : Form {
   DateTime readySince,restartAfter;
   string reason="running";
   static readonly JavaScriptSerializer json=new JavaScriptSerializer();
-  public Schema6SessionWindow(string powerShell,string releaseRoot,string manifestHash,string stateRoot,string controlRoot,string sessionRoot,string config,bool initializeEmpty,string[] schedulerArgs,int interval,int port,string mcpJson) {
+  public Schema6SessionWindow(string powerShell,string releaseRoot,string manifestHash,string stateRoot,string controlRoot,string sessionRoot,string config,bool initializeEmpty,string[] schedulerArgs,int interval,int port,string mcpJson,string evidencePolicyPath,string evidencePolicyHash,string loginHash,string bindingPath,string bindingHash,string approvalHash) {
+    if(schedulerArgs.Length>0&&(String.IsNullOrEmpty(evidencePolicyPath)||String.IsNullOrEmpty(evidencePolicyHash)||String.IsNullOrEmpty(loginHash)||String.IsNullOrEmpty(bindingPath)||String.IsNullOrEmpty(bindingHash)||String.IsNullOrEmpty(approvalHash)))throw new IOException("backup_policy_required");
+    evidenceBindingPath=bindingPath;evidenceBindingHash=bindingHash;expectedApprovalHash=approvalHash;backupPolicyPath=evidencePolicyPath;backupPolicyHash=evidencePolicyHash;loginConfigurationHash=loginHash;
     if(!String.IsNullOrEmpty(mcpJson)){lock(json)mcpConfiguration=json.Deserialize<Dictionary<string,object>>(mcpJson);}
     ps=powerShell;release=releaseRoot;manifest=manifestHash;state=stateRoot;control=controlRoot;session=sessionRoot;configuration=config;initialize=initializeEmpty;backupArgs=schedulerArgs;backupSeconds=interval;corePort=port;
     ShowInTaskbar=false;FormBorderStyle=FormBorderStyle.None;Text="Here I am session lifecycle";
@@ -212,13 +219,15 @@ public sealed class Schema6SessionWindow : Form {
           if((shutdownCancelled || recoveryPending) && !exitRequested) {
             if(DateTime.UtcNow<restartAfter)return;
             // Recovery is forbidden until every prior MCP descendant has exited.
-            if(!mcpEmpty||!mcpHandlesReleased){exitRequested=true;Close();return;}
+            if(!mcpEmpty||!mcpHandlesReleased||(backup!=null&&(!backup.Closed||!backup.RecoveryClosed))){exitRequested=true;Close();return;}
+            string previousControlId=Path.GetFileName(control);bool previousBackupExited=backup==null||backup.Exited,previousBackupEmpty=backup==null||backup.Empty,previousBackupFailed=backup!=null&&backup.Failed;
             if(core!=null){core.Dispose();core=null;}if(backup!=null){backup.Dispose();backup=null;}if(mcp!=null){mcp.Dispose();mcp=null;}
             closeBudget=null;mcpForced=false;mcpExitCode=null;mcpNaturalExit=false;backupForced=false;coreForced=false;databaseExclusive=false;forcedTimeout=false;messageReceiptFailed=false;Interlocked.Exchange(ref exitFinalized,0);
             control=Path.Combine(session,"control-"+Guid.NewGuid().ToString("N"));
             var acl=Directory.GetAccessControl(session);acl.SetAccessRuleProtection(true,true);
             Directory.CreateDirectory(control,acl);
-            finished.Reset();Interlocked.Exchange(ref closing,0);started=false;clean=false;shutdownRequested=false;shutdownCancelled=false;initialize=false;currentReady=false;recoveryPending=false;nextBackup=DateTime.MinValue;
+            if(backupArgs.Length>0){var hostIdentity=Schema6BackupJob.GetIdentity(Process.GetCurrentProcess().Id);WriteNew(Path.Combine(control,"recovery-control-transition.json"),new{format="i-core-control-recovery-transition-v1",evidenceMode="reviewed-live",sessionId=Path.GetFileName(session),previousControlId=previousControlId,controlId=Path.GetFileName(control),hostPid=hostIdentity["pid"],hostStartedTicks=hostIdentity["startedTicks"],sessionWindowSha256=BackupDurable.ShaFile(Path.Combine(session,"session-window.json")),bindingSha256=evidenceBindingHash,approvalSha256=expectedApprovalHash,previousMcpEmpty=mcpEmpty,previousMcpHandlesReleased=mcpHandlesReleased,previousBackupExited=previousBackupExited,previousBackupEmpty=previousBackupEmpty,previousBackupFailed=previousBackupFailed,createdUtc=DateTime.UtcNow.ToString("o")});}
+            backupControlRecovered=true;finished.Reset();Interlocked.Exchange(ref closing,0);started=false;clean=false;shutdownRequested=false;shutdownCancelled=false;initialize=false;currentReady=false;recoveryPending=false;nextBackup=DateTime.MinValue;
           } else if(exitRequested){Close();return;} else return;
         }
         if(Volatile.Read(ref closing)!=0)return;
@@ -241,13 +250,9 @@ public sealed class Schema6SessionWindow : Form {
           BeginClose();return;
         }
         if(mcp!=null && mcp.Exited){mcpFailure=true;reason="mcp_owned_process_exited";exitRequested=true;BeginClose();return;}
-        if(backup!=null && backup.Exited && backup.Empty){
-          uint code=backup.ExitCode;backup.Dispose();backup=null;nextBackup=DateTime.UtcNow.AddSeconds(backupSeconds);
-          BackupStatus(code==0?"backup_completed":"backup_worker_failed",code==0);
-        }
-        if(backup==null && backupArgs.Length>0 && DateTime.UtcNow>=nextBackup && currentReady) {
-          try{backup=new Schema6SessionJob(ps,backupArgs,session);}
-          catch{if(backup!=null){backup.Dispose();backup=null;}nextBackup=DateTime.UtcNow.AddSeconds(backupSeconds);BackupStatus("backup_launch_failed",false);}
+        if(backupArgs.Length>0 && currentReady) {
+          if(backup==null)backup=new Schema6BackupEvidence(ps,release,manifest,session,control,backupPolicyPath,backupPolicyHash,loginConfigurationHash,backupArgs,backupSeconds,BackupObservation,backupControlRecovered,evidenceBindingPath,evidenceBindingHash,expectedApprovalHash);
+          backup.Tick();if(backup.RecoveryCloseRequired){reason="recovery_p4_retained";exitRequested=true;BeginClose();return;}
         }
       }
     } catch {reason="session_start_or_worker_failed";exitRequested=true;BeginClose();}
@@ -312,8 +317,26 @@ public sealed class Schema6SessionWindow : Form {
     }
     databaseExclusive=true;
   }
-  void BackupStatus(string status,bool success) {
-    try{WriteNew(Path.Combine(session,"backup-status-"+Guid.NewGuid().ToString("N")+".json"),new {status=status,success=success,next_attempt_utc=nextBackup.ToString("o")});}catch{}
+  Dictionary<string,object> BackupObservation() {
+    var hashes=new Dictionary<string,object>();var data=new Dictionary<string,Dictionary<string,object>>();
+    foreach(string name in new[]{"session-window","launch","ready","mcp-start"}){
+      string p=Path.Combine(name=="session-window"?session:control,name+".json");
+      using(var lease=BackupDurable.Read(p,null,1048576)){data[name]=BackupStrictJson.Parse(lease.Bytes,1048576);hashes[name]=lease.Hash;}
+    }
+    if(core==null||mcp==null||core.Exited||mcp.Exited||!currentReady)throw new IOException("backup_current_services_required");
+    if(!LaunchBound(data["launch"],core)||!Equal(data["ready"],"token",Convert.ToString(data["launch"]["token"]))||!Equal(data["mcp-start"],"core_token",Convert.ToString(data["launch"]["token"]))||!Equal(data["ready"],"manifest_sha256",manifest))throw new IOException("backup_current_token_mismatch");
+    var processes=new Dictionary<string,object>();
+    string owner=WindowsIdentity.GetCurrent().User.Value;long hostSession=Process.GetCurrentProcess().SessionId;
+    int corePid=Convert.ToInt32(data["ready"]["pid"]);
+    foreach(var item in new[]{new KeyValuePair<string,int>("host",Process.GetCurrentProcess().Id),new KeyValuePair<string,int>("supervisor",(int)core.Pid),new KeyValuePair<string,int>("core",corePid),new KeyValuePair<string,int>("mcp",(int)mcp.Pid)}){
+      var identity=Schema6BackupJob.GetIdentity(item.Value);
+      if((string)identity["ownerSid"]!=owner||(long)identity["sessionId"]!=hostSession)throw new IOException("backup_current_process_owner");
+      string expectedImage=item.Key=="core"?Path.Combine(release,"runtime\\node.exe"):item.Key=="mcp"?(string)mcpConfiguration["executable_path"]:ps;
+      if(!((string)identity["imagePath"]).Equals(expectedImage,StringComparison.OrdinalIgnoreCase))throw new IOException("backup_current_process_image");
+      if(item.Key=="supervisor"&&(string)identity["startedTicks"]!=core.StartedTicks||item.Key=="mcp"&&(string)identity["startedTicks"]!=mcp.StartedTicks)throw new IOException("backup_current_process_reuse");
+      processes[item.Key]=new Dictionary<string,object>{{"pid",identity["pid"]},{"startedTicks",identity["startedTicks"]}};
+    }
+    return new Dictionary<string,object>{{"sessionId",Path.GetFileName(session)},{"controlId",Path.GetFileName(control)},{"tokenEqual",true},{"sessionWindowSha256",hashes["session-window"]},{"launchSha256",hashes["launch"]},{"readySha256",hashes["ready"]},{"mcpStartSha256",hashes["mcp-start"]},{"processes",processes}};
   }
   static string CloseFailure(Exception error) {
     switch(error.Message) {
@@ -326,24 +349,25 @@ public sealed class Schema6SessionWindow : Form {
   void BeginClose() {
     if(Interlocked.Exchange(ref closing,1)!=0)return;
     if(closeBudget==null)closeBudget=Stopwatch.StartNew();
+    if(backup!=null)backup.RequestTerminal();
     ClosePhase("close_queued");
     ThreadPool.QueueUserWorkItem(delegate {
       Stopwatch budget=closeBudget;
       ClosePhase("close_worker_entered");
       try {
-        Schema6SessionJob currentCore,currentBackup;
+        Schema6SessionJob currentCore;Schema6BackupEvidence currentBackup;
         lock(gate){currentCore=core;currentBackup=backup;}
         // One monotonic budget covers MCP, backup, authenticated Core close and cleanup.
-        StopMcp(budget);
-        ClosePhase("mcp_stop_completed");
         Stopwatch backupWatch=Stopwatch.StartNew();
         if(currentBackup!=null && !currentBackup.WaitEmpty(Math.Min(5000,WorkRemaining(budget)))) {
-          backupForced=true;if(!currentBackup.TerminateAndWait(Math.Min(1000,Remaining(budget))))throw new InvalidOperationException("backup_job_empty_unconfirmed");
+          currentBackup.MarkIncomplete();clean=false;
         }
         backupStopElapsed=backupWatch.ElapsedMilliseconds;
+        StopMcp(budget);
+        ClosePhase("mcp_stop_completed");
         Stopwatch coreWatch=Stopwatch.StartNew();
         if(currentCore==null){
-          clean=!forcedTimeout && Volatile.Read(ref exitFinalized)==0 && Remaining(budget)>0;
+          clean=!forcedTimeout && !mcpFailure && (backup==null||(backup.Closed&&backup.RecoveryClosed)) && Volatile.Read(ref exitFinalized)==0 && Remaining(budget)>0;
           reason=clean?"closed_before_start":"session_shutdown_timeout";return;
         }
         Dictionary<string,object> launch=null;
@@ -365,21 +389,21 @@ public sealed class Schema6SessionWindow : Form {
         Protected(Path.Combine(state,"shortcut-mail-relay.runtime.lock"),false);
         using(FileStream probe=new FileStream(Path.Combine(state,"shortcut-mail-relay.runtime.lock"),FileMode.Open,FileAccess.ReadWrite,FileShare.None)){}
         ProbeClosedDatabase();
-        clean=!forcedTimeout&&!mcpFailure;reason=forcedTimeout?"session_shutdown_timeout":mcpFailure?"mcp_start_or_process_failed":"clean_closed";
+        clean=!forcedTimeout&&!mcpFailure&&(backup==null||(backup.Closed&&backup.RecoveryClosed));reason=forcedTimeout?"session_shutdown_timeout":mcpFailure?"mcp_start_or_process_failed":"clean_closed";
       } catch(Exception error) {if(reason!="session_start_gate_failed"&&reason!="session_recovery_retry_exhausted")reason=forcedTimeout?"session_shutdown_timeout":CloseFailure(error);clean=false;}
       finally {
         // Fail closed: recovery must never race surviving readers or writers.
         try {
           if(mcp!=null && !(mcp.Exited&&mcp.Empty)){ObserveMcpExit(mcpForced);mcpForced=true;mcpEmpty=mcp.TerminateAndWait(Math.Min(500,Remaining(budget)));mcpHandlesReleased=mcpEmpty&&mcp.Exited;ObserveMcpExit(true);}
-          if(backup!=null && !(backup.Exited&&backup.Empty)){backupForced=true;backup.TerminateAndWait(Math.Min(500,Remaining(budget)));}
+          if(backup!=null && (!backup.Closed||!backup.RecoveryClosed)){backup.MarkIncomplete();clean=false;}
           if(core!=null && !(core.Exited&&core.Empty)){coreForced=true;core.TerminateAndWait(Remaining(budget));}
           if(core!=null && core.Exited&&core.Empty && mcpHandlesReleased)ProbeClosedDatabase();
-          if(!mcpHandlesReleased || (core!=null&&!(core.Exited&&core.Empty)) || (backup!=null&&!(backup.Exited&&backup.Empty))){clean=false;recoveryPending=false;exitRequested=true;}
+          if(!mcpHandlesReleased || (core!=null&&!(core.Exited&&core.Empty)) || (backup!=null&&(!backup.Closed||!backup.RecoveryClosed))){clean=false;recoveryPending=false;exitRequested=true;}
         } catch{clean=false;recoveryPending=false;exitRequested=true;}
         if(mcpFailure){clean=false;recoveryPending=false;exitRequested=true;if(!forcedTimeout)reason="mcp_start_or_process_failed";}
         if(messageReceiptFailed){clean=false;reason="session_message_receipt_write_failed";}
         if(forcedTimeout || Volatile.Read(ref exitFinalized)!=0){clean=false;reason="session_shutdown_timeout";}
-        try{if(Volatile.Read(ref exitFinalized)==0)WriteCloseReceipt(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_stop_elapsed_ms=mcpStopElapsed,backup_forced=backupForced,backup_stop_elapsed_ms=backupStopElapsed,core_forced=coreForced,core_close_elapsed_ms=coreCloseElapsed,database_exclusive_open_confirmed=databaseExclusive},budget);}
+        try{if(Volatile.Read(ref exitFinalized)==0)WriteCloseReceipt(Path.Combine(control,"session-close.json"),new {clean_closed=clean,reason=reason,manifest_sha256=manifest,completion_confirmed=clean,elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,mcp_stop_elapsed_ms=mcpStopElapsed,recovery_closed_confirmed=backup==null||backup.RecoveryClosed,recovery_state=backup==null?null:backup.RecoveryState,backup_forced=backupForced,backup_capture_complete=backup==null||backup.CaptureComplete,backup_job_empty_confirmed=backup==null||(backup.Exited&&backup.Empty),backup_stop_elapsed_ms=backupStopElapsed,core_forced=coreForced,core_close_elapsed_ms=coreCloseElapsed,database_exclusive_open_confirmed=databaseExclusive},budget);}
         catch{clean=false;reason="session_receipt_write_failed";}
         finally{finished.Set();}
       }
@@ -435,23 +459,23 @@ public sealed class Schema6SessionWindow : Form {
   }
   void FinalizeSessionExit() {
     lock(closePublishGate){if(Interlocked.Exchange(ref exitFinalized,1)!=0)return;}
-    bool coreEmpty=core==null,backupEmpty=backup==null;
+    bool coreEmpty=core==null,backupEmpty=backup==null,backupCaptureComplete=backup==null,recoveryClosed=backup==null,backupDisposed=backup==null;object recoveryState=null;
     Stopwatch budget=closeBudget??Stopwatch.StartNew();
     bool completed=finished.WaitOne(0);
     if(!completed){clean=false;forcedTimeout=true;reason="session_shutdown_timeout";}
     try {
       lock(gate){
         if(mcp!=null){try{ObserveMcpExit(mcpForced);if(!(mcp.Exited&&mcp.Empty)){mcpForced=true;mcpEmpty=mcp.TerminateAndWait(Math.Min(500,Remaining(budget)));}else mcpEmpty=true;mcpHandlesReleased=mcpEmpty&&mcp.Exited;ObserveMcpExit(mcpForced);if(mcpFailure)clean=false;}finally{mcp.Dispose();}}
-        if(backup!=null){try{backupEmpty=backup.Exited&&backup.Empty;if(!backupEmpty){backupForced=true;backupEmpty=backup.TerminateAndWait(Math.Min(500,Remaining(budget)));}}finally{backup.Dispose();}}
+        if(backup!=null){try{backupEmpty=backup.Exited&&backup.Empty;backupCaptureComplete=backup.CaptureComplete;recoveryClosed=backup.RecoveryClosed;recoveryState=backup.RecoveryState;if(!backup.Closed)backup.MarkIncomplete();if(!backup.Closed||!recoveryClosed)clean=false;}finally{backup.Dispose();backupDisposed=backup.Disposed;if(!backupDisposed)clean=false;}}
         if(core!=null){try{coreEmpty=core.Exited&&core.Empty;if(!coreEmpty){coreForced=true;clean=false;coreEmpty=core.TerminateAndWait(Remaining(budget));}}finally{core.Dispose();}}
       }
     } catch{clean=false;reason="session_exit_cleanup_failed";}
-    if(!coreEmpty||!backupEmpty||!mcpEmpty||!mcpHandlesReleased||messageReceiptFailed||coreForced||budget.ElapsedMilliseconds>CloseLimitMs)clean=false;
+    if(!coreEmpty||!backupEmpty||!backupDisposed||!recoveryClosed||!backupCaptureComplete||!mcpEmpty||!mcpHandlesReleased||messageReceiptFailed||coreForced||budget.ElapsedMilliseconds>CloseLimitMs)clean=false;
     if(messageReceiptFailed)reason="session_message_receipt_write_failed";
     try {
       Protected(session,true);
       WriteNew(Path.Combine(session,"session-exit.json"),new {clean_closed=clean&&!forcedTimeout,
-        core_job_empty_confirmed=coreEmpty,backup_job_empty_confirmed=backupEmpty,
+        core_job_empty_confirmed=coreEmpty,backup_job_empty_confirmed=backupEmpty,backup_capture_complete=backupCaptureComplete,backup_handles_released_confirmed=backupDisposed,recovery_closed_confirmed=recoveryClosed,recovery_state=recoveryState,recovery_acceptance=backup!=null&&backup.RecoveryAcceptance,recovery_current_acceptance_valid=backup!=null&&backup.RecoveryCurrentlyValid,recovery_final_references=backup==null?null:backup.RecoveryFinalReferences,host_exit_confirmed=false,
         mcp_job_empty_confirmed=mcpEmpty,mcp_owned_tree_handles_released_confirmed=mcpHandlesReleased,
         mcp_forced=mcpForced,mcp_exit_code=mcpExitCode,mcp_failure=mcpFailure,
         elapsed_ms=budget.ElapsedMilliseconds,budget_ms=CloseLimitMs,forced_timeout=forcedTimeout,
@@ -481,10 +505,13 @@ public sealed class Schema6SessionWindow : Form {
   }
   int HostExitCode(){return clean && !forcedTimeout && !messageReceiptFailed && finished.WaitOne(0)?0:1;}
   public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port) {
-    return Run(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,"");
+    return Run(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,"","","","","","","");
   }
-  public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port,string mcpJson) {
-    using(Schema6SessionWindow window=new Schema6SessionWindow(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,mcpJson)) {Application.Run(window);return window.HostExitCode();}
+  public static int Run(string powerShell,string release,string manifest,string state,string control,string session,string configuration,bool initialize,string[] backupArguments,int interval,int port,string mcpJson,string evidencePolicyPath,string evidencePolicyHash,string loginHash,string bindingPath,string bindingHash,string approvalHash) {
+    using(Schema6SessionWindow window=new Schema6SessionWindow(powerShell,release,manifest,state,control,session,configuration,initialize,backupArguments,interval,port,mcpJson,evidencePolicyPath,evidencePolicyHash,loginHash,bindingPath,bindingHash,approvalHash)) {Application.Run(window);return window.HostExitCode();}
   }
 }
 '@
+$prefix="using System.Windows.Forms;using System.Web.Script.Serialization;using System.Security.AccessControl;`n"
+$sessionSource=[regex]::Replace($sessionSource,'(?m)^using [^\r\n]+;\r?\n','')
+Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing,System.Web.Extensions -TypeDefinition ($prefix+$backupNative+"`n"+$backupCoordinator+"`n"+$sessionSource)

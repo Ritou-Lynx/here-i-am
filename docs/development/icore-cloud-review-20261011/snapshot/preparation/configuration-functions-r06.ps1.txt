@@ -1,0 +1,119 @@
+#requires -Version 5.1
+# Private preparation functions. No work on import; no Task, DB, key, network or process launch.
+function Get-ConfigurationByteHash([byte[]]$Bytes) {
+ $h=[Security.Cryptography.SHA256]::Create()
+ try{return ([BitConverter]::ToString($h.ComputeHash($Bytes))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose()}
+}
+function ConvertTo-ConfigurationBytes($Value) {
+ return ,[Text.UTF8Encoding]::new($false).GetBytes(($Value|ConvertTo-Json -Depth 60)+[char]13+[char]10)
+}
+function Copy-ConfigurationObject($Value) {return ($Value|ConvertTo-Json -Depth 60|ConvertFrom-Json)}
+function Get-ConfigurationChangedFields($Before,$After) {
+ $names=@(@($Before.PSObject.Properties.Name)+@($After.PSObject.Properties.Name)|Select-Object -Unique)
+ return @(foreach($name in $names){
+  $beforeProperty=$Before.PSObject.Properties[$name];$afterProperty=$After.PSObject.Properties[$name]
+  if(($null-eq$beforeProperty)-ne($null-eq$afterProperty)){$name;continue}
+  if(($beforeProperty.Value|ConvertTo-Json -Depth 60 -Compress)-cne($afterProperty.Value|ConvertTo-Json -Depth 60 -Compress)){$name}
+ })
+}
+function Open-AuthorizedConfigurationInputs([string]$ScopePath,[string]$Owner) {
+ if((Get-FileHash -LiteralPath $ScopePath -Algorithm SHA256).Hash.ToLowerInvariant()-cne'20eab0d18754dd7c5b145c826b14494b8dc70184bc5ee53309f2142eb0877c86'){throw 'configuration_scope_changed'}
+ $scope=Get-Content -LiteralPath $ScopePath -Raw -Encoding UTF8|ConvertFrom-Json
+ $records=@{};$held=New-Object 'System.Collections.Generic.List[IDisposable]'
+ try {
+  foreach($entry in $scope.inputs){
+   $p=[IO.Path]::GetFullPath($entry.path);$parent=[IO.Path]::GetDirectoryName($p)
+   Assert-OwnedArtifact $parent $Owner $true
+   if(!(Get-Acl -LiteralPath $parent).AreAccessRulesProtected){throw 'configuration_parent_dacl'}
+   Assert-OwnedArtifact $p $Owner $false
+   $acl=Get-Acl -LiteralPath $p;$rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+   if($acl.AreAccessRulesProtected-ne($entry.role-ne'core')-or$rules.Count-ne2-or@($rules|Where-Object{$_.IdentityReference.Value-notin@($Owner,'S-1-5-18')-or$_.AccessControlType-ne'Allow'-or$_.FileSystemRights-ne'FullControl'}).Count-ne0){throw 'configuration_source_dacl_changed'}
+   $s=[IO.File]::Open($p,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$held.Add($s)
+   $id=[OwnedArtifactNative]::Check($s.SafeFileHandle,$p,$false);[OwnedArtifactNative]::Private($s.SafeFileHandle,$Owner,$false)
+   if($s.Length-gt1048576){throw 'configuration_source_size'}
+   $bytes=New-Object byte[] ([int]$s.Length);$at=0
+   while($at-lt$bytes.Length){$n=$s.Read($bytes,$at,$bytes.Length-$at);if($n-le0){throw 'configuration_source_short_read'};$at+=$n}
+   if((Get-ConfigurationByteHash $bytes)-cne$entry.declaredSha256){throw ('configuration_source_hash_'+$entry.role)}
+   try{$value=[Text.UTF8Encoding]::new($false,$true).GetString($bytes).TrimStart([char]0xFEFF)|ConvertFrom-Json}catch{throw 'configuration_source_json'}
+   $records[$entry.role]=[pscustomobject]@{Path=$p;Sha256=$entry.declaredSha256;Bytes=$bytes;Value=$value;Identity=$id;Stream=$s}
+  }
+  if($records.Count-ne4){throw 'configuration_source_count'}
+  return @{Records=$records;Held=$held}
+ }catch{foreach($s in $held){$s.Dispose()};throw}
+}
+function Close-AuthorizedConfigurationInputs($Inputs) {
+ try{foreach($r in $Inputs.Records.Values){if([OwnedArtifactNative]::Check($r.Stream.SafeFileHandle,$r.Path,$false)-cne$r.Identity){throw 'configuration_source_identity_changed'}}}
+ finally{foreach($s in $Inputs.Held){$s.Dispose()}}
+}
+function Save-PrivateConfiguration([string]$Path,$Value,[string]$Owner,[byte[]]$ExactBytes) {
+ $bytes=if($null-ne$ExactBytes){$ExactBytes}else{ConvertTo-ConfigurationBytes $Value}
+ if([IO.Path]::GetFileName($Path)-ceq'daily-backup-config.json'){
+  Assert-OwnedArtifact ([IO.Path]::GetDirectoryName($Path)) $Owner $true
+  if(Test-Path -LiteralPath $Path){throw 'backup_configuration_create_new'}
+  $security=[Security.AccessControl.FileSecurity]::new();$security.SetAccessRuleProtection($true,$false)
+  foreach($sid in @($Owner,'S-1-5-18')){$security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),[Security.AccessControl.FileSystemRights]::FullControl,[Security.AccessControl.AccessControlType]::Allow))}
+  $stream=[IO.FileStream]::new($Path,[IO.FileMode]::CreateNew,[Security.AccessControl.FileSystemRights]::FullControl,[IO.FileShare]::None,4096,[IO.FileOptions]::WriteThrough,$security)
+  try{$identity=[OwnedArtifactNative]::Check($stream.SafeFileHandle,$Path,$false);[OwnedArtifactNative]::Private($stream.SafeFileHandle,$Owner,$false);$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true);[OwnedArtifactNative]::Readback($stream,$Path,$Owner,$bytes)}finally{$stream.Dispose()}
+  Assert-OwnedArtifact ([IO.Path]::GetDirectoryName($Path)) $Owner $true
+  $readback=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+  try{if([OwnedArtifactNative]::Check($readback.SafeFileHandle,$Path,$false)-cne$identity){throw 'new_backup_identity_changed'};[OwnedArtifactNative]::Readback($readback,$Path,$Owner,$bytes)}finally{$readback.Dispose()}
+  $acl=Get-Acl -LiteralPath $Path;$aces=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+  if(!$acl.AreAccessRulesProtected-or$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value-cne$Owner-or$aces.Count-ne2-or@($aces|Where-Object{$_.IsInherited-or$_.IdentityReference.Value-cnotin@($Owner,'S-1-5-18')-or$_.AccessControlType-ne'Allow'-or$_.FileSystemRights-ne'FullControl'}).Count){throw 'new_backup_acl'}
+ }else{Write-OwnedArtifactBytes $Path $bytes $Owner}
+ return [pscustomobject]@{path=$Path;sha256=Get-ConfigurationByteHash $bytes;bytes=$bytes.Length}
+}
+function New-ThreeBaseConfigurations($Inputs,[string]$Root,[string]$Owner,[string]$ReleaseDirectory,[string]$ManifestSha256) {
+ # Only already-approved release metadata is read. No original referenced store is opened.
+ $manifestPath=Join-Path $ReleaseDirectory 'manifest.json'
+ $mb=[IO.File]::ReadAllBytes($manifestPath)
+ if((Get-ConfigurationByteHash $mb)-cne$ManifestSha256){throw 'configuration_release_manifest_changed'}
+ $manifest=[Text.Encoding]::UTF8.GetString($mb)|ConvertFrom-Json
+ if($manifest.files.Count-lt82-or$manifest.files.Count-gt120){throw 'configuration_release_inventory_bound'}
+ $source=$Inputs.Records
+ $core=Copy-ConfigurationObject $source.core.Value
+ $mcp=Copy-ConfigurationObject $source.mcp.Value
+ $automatic=Copy-ConfigurationObject $source.backup.Value
+ $oldLogin=$source.login.Value
+ if($core.owner_sid-cne$Owner-or$mcp.owner_sid-cne$Owner-or$oldLogin.owner_sid-cne$Owner-or$core.database_path-cne$mcp.database_path-or$core.database_path-cne(Join-Path $oldLogin.state_directory 'i-core.sqlite')){throw 'configuration_data_binding'}
+ if($mcp.executable_path-cne'C:\ReviewFixture\runtime\i-core\releases\schema6-20261007-1552e251\runtime\node.exe'-or$mcp.executable_sha256-cne'58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f'){throw 'configuration_mcp_runtime_changed'}
+ if($oldLogin.core_port-ne47841-or$mcp.listen_port-ne47860-or$mcp.listen_host-cne'127.0.0.1'-or$mcp.environment.I_REMOTE_MCP_PUBLIC_URL-cne'https://mcp.example.invalid'-or$mcp.environment.I_REMOTE_MCP_PHONE_PORT-cne'47862'){throw 'configuration_fixed_endpoint_changed'}
+ $settings=Join-Path $Root 'settings'
+ if(Test-Path -LiteralPath $settings){Assert-OwnedArtifact $settings $Owner $true}else{New-OwnedArtifactDirectory $settings $Owner}
+ $core.manifest_sha256=$ManifestSha256
+ if((Get-ConfigurationChangedFields $source.core.Value $core)-join','-cne'manifest_sha256'){throw 'configuration_core_scope'}
+ $refs=@{}
+ $refs.core=Save-PrivateConfiguration (Join-Path $settings 'core.json') $core $Owner
+ $refs.mcp=Save-PrivateConfiguration (Join-Path $settings 'mcp.json') $mcp $Owner $source.mcp.Bytes
+ $mapping=@{
+  'candidate/settings/core.json'=@{old=$source.core.Path;path=$refs.core.path;sha=$refs.core.sha256}
+  'candidate/settings/mcp.json'=@{old=$source.mcp.Path;path=$refs.mcp.path;sha=$refs.mcp.sha256}
+  'candidate/settings/login.json'=@{old=$source.login.Path;path=(Join-Path $settings 'login.json');sha=$null}
+  'candidate/settings/daily-backup-config.json'=@{old=$source.backup.Path;path=(Join-Path $settings 'daily-backup-config.json');sha=$null}
+ }
+ $kept=@($automatic.specTemplate.entries|Where-Object{$_.role-cne'release'})
+ foreach($name in $mapping.Keys){
+  $matches=@($kept|Where-Object{$_.name-ceq$name})
+  if($matches.Count-ne1-or$matches[0].source_path-cne$mapping[$name].old-or$matches[0].role-cne'configuration'){throw 'configuration_attachment_mapping'}
+  $matches[0].source_path=$mapping[$name].path
+  if($mapping[$name].sha){$matches[0].sha256=$mapping[$name].sha}
+ }
+ $newRelease=@(foreach($f in $manifest.files){[pscustomobject]@{role='release';name=$f.path;source_path=(Join-Path $ReleaseDirectory $f.path.Replace('/','\'));sha256=$f.sha256}})
+ $newRelease += [pscustomobject]@{role='release';name='manifest.json';source_path=$manifestPath;sha256=$ManifestSha256}
+ $automatic.specTemplate.old_release_root=$ReleaseDirectory;$automatic.specTemplate.old_release_manifest_sha256=$ManifestSha256
+ $automatic.specTemplate.entries=@($kept)+@($newRelease)
+ $oldReleaseCount=@($source.backup.Value.specTemplate.entries|Where-Object{$_.role-ceq'release'}).Count
+ $expectedCount=@($source.backup.Value.specTemplate.entries).Count-$oldReleaseCount+@($manifest.files).Count+1
+ if(@($automatic.specTemplate.entries).Count-ne$expectedCount){throw 'configuration_archive_count'}
+ $heads=@($kept|Where-Object{$_.role-ceq'recovery_custody'-and[IO.Path]::GetFileName($_.source_path)-ceq'current-head.json'})
+ if($heads.Count-ne1){throw 'configuration_custody_root_not_unique'}
+ $dynamic=[ordered]@{format='i-core-due-inventory-v1';custodyDirectory=[IO.Path]::GetDirectoryName($heads[0].source_path);tasks=@(
+  [ordered]@{taskPath='\';taskName='HereIAm-iCoreSchema6-cleanclose-20261008-2c01de5b'},
+  [ordered]@{taskPath='\';taskName='HereIAm-iCoreSchema6-chatgpt-20261009-f90058f2'}
+ )}
+ $automatic|Add-Member NoteProperty format 'i-core-automatic-config-v2'
+ $automatic|Add-Member NoteProperty dynamicInventory $dynamic
+ $refs.backup=Save-PrivateConfiguration (Join-Path $settings 'daily-backup-config.json') $automatic $Owner
+ $safe=[ordered]@{format='private-configuration-safe-diff-v1';sourceAnchors=@(foreach($key in @('core','mcp','backup','login')){[pscustomobject]@{role=$key;path=$source[$key].Path;sha256=$source[$key].Sha256}});coreChangedFields=@('manifest_sha256');mcpExactBytesPreserved=$true;automaticChangedFields=@('format','dynamicInventory','specTemplate.old_release_root','specTemplate.old_release_manifest_sha256','specTemplate.entries');oldReleaseCount=$oldReleaseCount;newReleaseCount=$newRelease.Count;staticArchiveEntryCount=$expectedCount;dynamicDueCaptureConfigured=$true;fourConfigurationPathMappings=$true;selfAndLoginTemplateHashesPreserved=$true;nonConfigurationDataReferencesPreserved=$true;backupPolicyPreserved=$true;oldTaskEntriesPreserved=$true;actualNewTaskExportIncluded=$false;dynamicCustodyHistoryComplete=$false;realDataRead=$false;keyUnprotected=$false;originalsModified=$false;productionReady=$false}
+ $refs.safeDiff=Save-PrivateConfiguration (Join-Path $Root 'configuration-safe-diff-r01.json') $safe $Owner
+ return @{Refs=$refs;Manifest=$manifest;Core=$core;Mcp=$mcp;Automatic=$automatic;OldLogin=$oldLogin}
+}

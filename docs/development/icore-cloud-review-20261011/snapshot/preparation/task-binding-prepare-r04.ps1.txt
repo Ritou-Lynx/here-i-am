@@ -1,0 +1,83 @@
+#requires -Version 5.1
+[CmdletBinding()]
+param([ValidateSet('Plan','Prepare')][string]$Mode='Plan',[string]$ReleaseDirectory,[string]$ManifestSha256,[string]$LoginSha256)
+if($Mode-eq'Plan'){[ordered]@{format='task-binding-preparation-plan-v1';mode='Plan';ioPerformed=$false;productionAuthorized=$false;taskApiCalls=0}|ConvertTo-Json -Compress;return}
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2
+$env:PSModulePath='C:\Windows\System32\WindowsPowerShell\v1.0\Modules'
+if($PSVersionTable.PSVersion.Major-ne5-or$PSVersionTable.PSEdition-cne'Desktop'){throw 'native_ps51_required'}
+$stage='C:\ReviewFixture\candidate'
+$eng=Join-Path $stage 'evidence\production-readiness-r01'
+$historicalCandidate=Join-Path $eng 'configuration-candidate-r01';$candidate=Join-Path $historicalCandidate 'r03'
+$owner='S-1-5-21-111111111-222222222-333333333-1001'
+$helper=Join-Path $stage 'maintenance-source-r02\tools\i_core\maintenance\owned_artifacts.ps1'
+if((Get-FileHash -LiteralPath $helper).Hash.ToLowerInvariant()-cne'f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c'){throw 'helper_pin'}
+. $helper
+Assert-OwnedArtifactUnelevatedProcess $owner
+Assert-OwnedArtifact $candidate $owner $true
+$utf8=[Text.UTF8Encoding]::new($false,$true)
+function Hash([byte[]]$b){$h=[Security.Cryptography.SHA256]::Create();try{([BitConverter]::ToString($h.ComputeHash($b))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose()}}
+function Pinned([string]$p,[string]$hash){if($hash-cnotmatch'^[a-f0-9]{64}$'){throw 'pin_format'};$b=[IO.File]::ReadAllBytes($p);if((Hash $b)-cne$hash){throw 'input_hash'};return ,$b}
+$releaseParent=Join-Path $eng 'backup'
+if([IO.Path]::GetDirectoryName($ReleaseDirectory)-cne$releaseParent-or[IO.Path]::GetFileName($ReleaseDirectory)-cnotmatch'^release-candidate-r[0-9]{2}$'){throw 'release_scope'}
+$null=Pinned (Join-Path $ReleaseDirectory 'manifest.json') $ManifestSha256
+$loginPath=Join-Path $candidate 'settings\login.json'
+# Hash only: never decode or print configuration values.
+$null=Pinned $loginPath $LoginSha256
+$evaluator=Join-Path $ReleaseDirectory 'tools\i_core\release_schema6\lifecycle\task-two-slot-evaluator.ps1'
+$evaluatorBytes=Pinned $evaluator '25afb79d2e874073fe981baa5b8c03758f0185be7a3d0197c56226a20bcd3bad'
+. ([scriptblock]::Create($utf8.GetString($evaluatorBytes)))
+$futureBinding=Join-Path $eng 'evidence-contract\production-config-r02\binding.json'
+$inputs=[ordered]@{
+'evidence\phase-b-new-task.registered.disabled-r04.xml'='e3ab9c1a1d2e9a613caae09565158de0ba13961f6566c369f432647e7ad13fce'
+'evidence\phase-b-new-task.definition.disabled-r04.xml'='f32de7b2ac5679d879ad43868fb22dc59c533f640dca9a99afe0fbf91b143bc1'
+'evidence\phase-c-new-task.registered.enabled-r02.xml'='6aae1345fcd4694cbe766a61af3aef5b86360ffbf83d58a255928ddd735b41cf'
+'evidence\phase-c-new-task.definition.enabled-r02.xml'='29f2be92f45e5eefd9b6c4120ab1fb9f49b371eee25660e77d8f8a95af4b46bc'
+}
+$texts=@();$provenance=@()
+foreach($rel in $inputs.Keys){$b=Pinned (Join-Path $stage $rel) $inputs[$rel];$texts+=,$utf8.GetString($b);$provenance+=,[ordered]@{path=(Join-Path $stage $rel);sha256=$inputs[$rel];savedActual=$true;freshObservation=$false}}
+$crlf=[string][char]13+[char]10
+$enabledLine='    <Enabled>false</Enabled>'+$crlf;$hiddenLine='    <Hidden>true</Hidden>'+$crlf
+if($utf8.GetByteCount($enabledLine)-ne30-or$texts[0].Replace($enabledLine,'')-cne$texts[2]-or$texts[1].Replace('<Enabled>false</Enabled>','<Enabled>true</Enabled>')-cne$texts[3]){throw 'saved_enabled_delta'}
+$argsList=@('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',(Join-Path $ReleaseDirectory 'tools\i_core\release_schema6\lifecycle\login_schema6.ps1'),'-ReleaseDirectory',$ReleaseDirectory,'-ManifestSha256',$ManifestSha256,'-LoginConfigurationPath',$loginPath,'-LoginConfigurationSha256',$LoginSha256,'-EvidenceBindingPath',$futureBinding,'-EvidenceBindingSha256',('1'*64),'-ExpectedApprovalSha256',('2'*64))
+foreach($arg in $argsList){if($arg.IndexOfAny([char[]]'"&<>')-ge0){throw 'argument_encoding_not_reviewed'}}
+$action=($argsList|ForEach-Object{'"'+$_+'"'})-join' '
+$old=[regex]::Match($texts[0],'<Arguments>([^<]*)</Arguments>').Groups[1].Value
+if(!$old-or[regex]::Matches($texts[0],'<Arguments>').Count-ne1){throw 'old_action_ambiguous'}
+function Transform([string]$text,[bool]$definition){
+ $needle='<Arguments>'+$old+'</Arguments>'
+ if([regex]::Matches($text,[regex]::Escape($needle)).Count-ne1-or$text.Contains('<WorkingDirectory>')){throw 'base_action_changed'}
+ $x=$text.Replace($needle,'<Arguments>'+$action+'</Arguments>'+$crlf+'      <WorkingDirectory>'+$ReleaseDirectory+'</WorkingDirectory>')
+ if($definition){if([regex]::Matches($x,'<Hidden>true</Hidden>').Count-ne1){throw 'hidden_definition'};$x=$x.Replace('<Hidden>true</Hidden>','<Hidden>false</Hidden>')}
+ else{if([regex]::Matches($x,[regex]::Escape($hiddenLine)).Count-ne1){throw 'hidden_raw'};$x=$x.Replace($hiddenLine,'')}
+ return $x
+}
+$ids=@('task_template_action','task_template_disabled_raw','task_template_enabled_raw','task_template_disabled_definition','task_template_enabled_definition')
+$names=@('action-arguments.template.txt','disabled-raw.template.xml','enabled-raw.template.xml','disabled-definition.template.xml','enabled-definition.template.xml')
+$values=@($action,(Transform $texts[0] $false),(Transform $texts[2] $false),(Transform $texts[1] $true),(Transform $texts[3] $true))
+if($values[1].Replace($enabledLine,'')-cne$values[2]-or$values[3].Replace('<Enabled>false</Enabled>','<Enabled>true</Enabled>')-cne$values[4]){throw 'candidate_enabled_delta'}
+$rules=[ordered]@{format='i-core-task-two-slot-rules-v1';encoding='UTF8-no-BOM';files=@()}
+$assets=@();$payload=@()
+for($i=0;$i-lt5;$i++){
+ $text=$values[$i];$bytes=$utf8.GetBytes($text);$slots=@()
+ foreach($slot in @(@('binding','-EvidenceBindingSha256',('1'*64)),@('approval','-ExpectedApprovalSha256',('2'*64)))){
+  $at=$text.IndexOf($slot[2],[StringComparison]::Ordinal)
+  if($at-lt0-or[regex]::Matches($text,[regex]::Escape($slot[2])).Count-ne1){throw 'slot_ambiguity'}
+  $offset=$utf8.GetByteCount($text.Substring(0,$at));$start=[Math]::Max(0,$offset-40);$suffix=[Math]::Min(40,$bytes.Length-$offset-64)
+  $slots+=,[ordered]@{id=$slot[0];argumentSwitch=$slot[1];offset=$offset;length=64;placeholder=$slot[2];prefixOffset=$start;prefixBase64=[Convert]::ToBase64String($bytes,$start,$offset-$start);suffixBase64=[Convert]::ToBase64String($bytes,$offset+64,$suffix)}
+ }
+ $rule=[ordered]@{id=$ids[$i];templateSha256=(Hash $bytes);byteLength=$bytes.Length;slots=$slots}
+ # Pure deterministic evaluator validation. No expanded bytes are published as actual task evidence.
+ $expanded=Expand-TaskExactTwoSlots -Rule $rule -Template $bytes -BindingSha256 ('a'*64) -ApprovalSha256 ('b'*64)
+ if($expanded.Length-ne$bytes.Length){throw 'expanded_length'}
+ for($n=0;$n-lt$bytes.Length;$n++){if($bytes[$n]-ne$expanded[$n]-and@($slots|Where-Object{$n-ge$_.offset-and$n-lt$_.offset+64}).Count-ne1){throw 'outside_slot_change'}}
+ $rules.files+=,$rule;$payload+=,[ordered]@{name=$names[$i];bytes=$bytes}
+ $assets+=,[ordered]@{id=$ids[$i];path=(Join-Path (Join-Path $candidate 'tasks') $names[$i]);sha256=$rule.templateSha256;bytes=$bytes.Length;role='source';private=$true;exportJson=$false;maxBytes=32768}
+}
+$rulesBytes=$utf8.GetBytes(($rules|ConvertTo-Json -Depth 25 -Compress)+[char]10)
+$out=Join-Path $candidate 'tasks';New-OwnedArtifactDirectory $out $owner
+foreach($p in $payload){Write-OwnedArtifactBytes (Join-Path $out $p.name) $p.bytes $owner}
+Write-OwnedArtifactBytes (Join-Path $out 'exact-two-slot-rules.json') $rulesBytes $owner
+$assets+=,[ordered]@{id='task_template_rules';path=(Join-Path $out 'exact-two-slot-rules.json');sha256=(Hash $rulesBytes);bytes=$rulesBytes.Length;role='source';private=$true;exportJson=$false;maxBytes=32768}
+$receipt=[ordered]@{format='task-template-preparation-receipt-v1';productionAuthorized=$false;actualTaskCalls=0;sourceObservation='saved-actual-only';releaseDirectory=$ReleaseDirectory;manifestSha256=$ManifestSha256;loginPath=$loginPath;loginSha256=$LoginSha256;futureBindingPath=$futureBinding;futureBindingDeployed=$false;evaluatorSha256=(Hash $evaluatorBytes);files=$assets;sourcePins=$provenance;pureExpansionChecks=5;actualExpectedBytesCreated=$false;approvalCreated=$false;claimCreated=$false;enabledRawDeltaBytes=30;rawHiddenOmitted=$true;definitionHiddenFalse=$true;remainingProductionGates=@('fresh-directory-baseline','approved-execution-window','reviewed-package-switch-and-preflight-transition','direct-production-approval','fresh-actual-task-five-file-readback')}
+Write-OwnedArtifactBytes (Join-Path $out 'template-preparation-receipt.json') ($utf8.GetBytes(($receipt|ConvertTo-Json -Depth 25 -Compress)+[char]10)) $owner
+[ordered]@{format=$receipt.format;templates=5;rules=1;pureExpansionChecks=5;productionAuthorized=$false}|ConvertTo-Json -Compress

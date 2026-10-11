@@ -1,3 +1,20 @@
+## 2026-10-11 iCore 切换：转入阶段 A 接力修复
+
+云端审查已完成，r08 不发起第四次调用，原窗口自然过期；生产 Run 仍为 0。后续按 [阶段 A 接力合同](handoffs/RELAY_20261011_icore-stage-a.md) 由 Codex 分 A1→A2→A3 三份 PR 在合成环境修复，云端逐轮审 diff；之后才进入真实 Windows 彩排（B）、本机干跑（C）、单次生产（D）与接入验收（E）。待用户决定 D1/D2。
+
+## 2026-10-11 iCore 切换审查快照
+
+当前审查分支从 d146c51a 建立；远端 v3-lab 已含 PR #20 合并提交 3ce7aacc。最近三次生产入口均失败，实际 Task Run 为 0；r08 完成离线准备审核，未获新生产执行授权，未完成真人验收。此前停用后的服务状态不等于持续健康证明。
+
+用户要求先交云端独立检查，执行端保持暂停。详见 [整体报告与脱敏源码](icore-cloud-review-20261011/README.md)。本条为审查分支的时间点状态，不覆盖其他并行工作区，不表示已部署。
+
+---
+
+## 2026-10-09：ChatGPT接入准备完成静态链，原服务离线仍待本人审批
+
+本窗接手ChatGPT MCP与真人验收，兼容PR21精确f90058f2的六文件/manifest/ZIP已独立核对，PR/push CI各9项及Policy成功；新增维护流程独立于Core换包，固定48项、原Core配置路径/hash、旧MCP不变检查和custody谱系不动。新私有配置已通过原固定PrepareOnly与proposal绑定；六文件三变三不变，flag=1，九类backup静态167→177项且保全10项旧附件。登记入口仅CREATE新disabled，要求完整来源、真实在线六终态/MCP start-stop/闭态树、双锁、旧任务冻结及XML/双SDDL/父SD。新维护head的合成/CI证据另签收，不能继承兼容结果或用COM primitives代替完整wrapper。
+
+只读入场观察原服务discovery 502、固定Core/MCP无进程，最近ready/mcp-start无终态，marker仍listening；不是clean_closed，原因未定。未启停/恢复/冻结生产、未读真实DB或独立凭据内容。精确审批单在本机忽略目录；先待本人批准原现有链恢复与最新九类＋动态custody的本机/T9加密备份、真实隔离还原及只读汇总验证。实际闭态/备份/还原及新维护CI齐备后再填现场登记审批，不造未来证据。ChatGPT OAuth/真人写入同步、正常关机入口/六终态/登录自动启动均未执行，deploymentReady=false。[交接](handoffs/CHATGPT_MCP_DEPLOYMENT_PREPARATION_20261009.md)。本节为入场时点，旧节中的在线/已备份结果不得继承为本次结果。
 ## 2026-10-08：PR20补齐历史布局的精确反向映射，仍不部署
 上一轮三项返修已关闭；新增P1为维护链无法返回原历史备份布局。本轮使用reverseBinding精确引用原已批准正向计划和对应canonical事件，反向双端及四类附件必须与其逐项交换，并重新执行原方向完整绑定。未提交证明、未批准/漂移的原计划、事件错配及任意库存缩减仍拒绝；Native的MAC、当前栈与完整持久状态见证不变。返回旧端只恢复原保留任务，不放宽RegisterOnly的新48项目标检查。
 本轮只改维护源码/专项测试/交接，固定48项、aef68af0 manifest及已复审精确配置/XML/双SDDL/父SD沿用；运行候选来源2c01de5b与本轮维护head分别签收。完整CI以新head为准，不继承旧421/157计数。现役Core/MCP/任务/配置/原库/手机未动，deploymentReady=false；独立维护补充审批完成后仍需本人另行批准换包。

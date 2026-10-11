@@ -19,7 +19,7 @@ param(
  [Parameter(ParameterSetName='Automatic',Mandatory=$true)][string]$ConfigPath,
  [Parameter(ParameterSetName='Automatic',Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ConfigSha256
 )
-$ErrorActionPreference='Stop';$key=$null;$keyLock=$null;$reloaded=$null;$exitCode=2;$before=@{};$passwordBytes=$null;$secretFrame=$null;$schedulerLock=$null;$phase='release_validation'
+$ErrorActionPreference='Stop';$key=$null;$keyLock=$null;$reloaded=$null;$exitCode=2;$before=@{};$passwordBytes=$null;$secretFrame=$null;$schedulerLock=$null;$phase='release_validation';$backupFailureReport=$null;$childCaptures=New-Object Collections.Generic.List[object]
 foreach($entry in [Environment]::GetEnvironmentVariables('Process').GetEnumerator()){$before[$entry.Key]=$entry.Value}
 function Assert-ReleasePath([string]$Path) {
  if(![IO.Path]::IsPathRooted($Path) -or [IO.Path]::GetFullPath($Path) -cne $Path -or $Path.Substring(2).Contains(':')){throw 'release_path_invalid'}
@@ -30,24 +30,43 @@ function Quote-Argument([string]$Value) {
  if($Value.Contains('"') -or $Value.Contains("`n") -or $Value.Contains("`r")){throw 'argument_invalid'}
  return '"'+$Value.TrimEnd('\')+'"'
 }
-function Start-BackupChild([string]$Node,[string[]]$Arguments,[byte[]]$Secret,[byte[]]$Payload) {
- $info=New-Object Diagnostics.ProcessStartInfo;$info.FileName=$Node;$info.Arguments=($Arguments|ForEach-Object {Quote-Argument $_}) -join ' '
- $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardInput=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
- $info.EnvironmentVariables.Clear();foreach($n in @('SYSTEMROOT','WINDIR','TEMP','TMP','COMSPEC')){if($before.ContainsKey($n)){$info.EnvironmentVariables[$n]=$before[$n]}elseif($before.ContainsKey($n.ToLowerInvariant())){$info.EnvironmentVariables[$n]=$before[$n.ToLowerInvariant()]}}
- $process=New-Object Diagnostics.Process;$process.StartInfo=$info
- try {
-  # .NET Framework initializes redirected stdin from Console.InputEncoding;
-  # suppress its preamble before the first binary frame byte is written.
-  $previousInputEncoding=[Console]::InputEncoding
-  try{[Console]::InputEncoding=[Text.UTF8Encoding]::new($false);if(!$process.Start()){throw 'child_start_failed'}}finally{[Console]::InputEncoding=$previousInputEncoding}
-  $outTask=$process.StandardOutput.ReadToEndAsync();$errorTask=$process.StandardError.ReadToEndAsync()
-  if($Secret){$process.StandardInput.BaseStream.Write($Secret,0,$Secret.Length)}
-  if($Payload){$process.StandardInput.BaseStream.Write($Payload,0,$Payload.Length)}
-  $process.StandardInput.Close();$process.WaitForExit();$stdout=$outTask.GetAwaiter().GetResult();$stderr=$errorTask.GetAwaiter().GetResult()
-  if($process.ExitCode -ne 0 -or $stdout.Length -gt 65536){throw 'verified_child_rejected'}
-  return ($stdout|ConvertFrom-Json)
- } finally {$process.Dispose()}
+function Write-BackupJson([object]$Value,[bool]$ErrorStream=$false) {
+ $data=[Text.UTF8Encoding]::new($false,$true).GetBytes(($Value|ConvertTo-Json -Depth 16 -Compress)+"`n")
+ $stream=if($ErrorStream){[Console]::OpenStandardError()}else{[Console]::OpenStandardOutput()}
+ $stream.Write($data,0,$data.Length);$stream.Flush()
 }
+function Start-BackupChild([string]$Node,[string[]]$Arguments,[byte[]]$Secret,[byte[]]$Payload) {
+ $job=New-Object Schema6BackupJob
+ $frame=$null;$scriptLock=$null
+ try {
+  $role=if($Arguments[0] -ceq (Join-Path $PSScriptRoot "cli.mjs")){"cli-verify"}elseif($Arguments[0] -ceq (Join-Path $PSScriptRoot "backup_key_child.mjs")){"key-child"}else{throw "child_script_rejected"}
+  $scriptLock=[IO.File]::Open($Arguments[0],[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+  $sha=[Security.Cryptography.SHA256]::Create();try{$scriptHash=[BitConverter]::ToString($sha.ComputeHash($scriptLock)).Replace("-","").ToLowerInvariant()}finally{$sha.Dispose()}
+  $relative="tools/i_core/release_schema6/"+[IO.Path]::GetFileName($Arguments[0]);$entry=@($manifest.files|Where-Object{$_.path -ceq $relative});if($entry.Count -ne 1 -or $entry[0].sha256 -cne $scriptHash){throw "child_script_hash"}
+  $job.Prepare($Node,$Arguments,$ReleaseDirectory)
+  $length=0;if($Secret){$length+=$Secret.Length};if($Payload){$length+=$Payload.Length}
+  if($length -gt 1048576){throw 'child_input_limit'}
+  $frame=New-Object byte[] $length;$offset=0
+  if($Secret){[Array]::Copy($Secret,0,$frame,0,$Secret.Length);$offset=$Secret.Length}
+  if($Payload){[Array]::Copy($Payload,0,$frame,$offset,$Payload.Length)}
+  $job.Resume($frame);$frame=$null
+  $watch=[Diagnostics.Stopwatch]::StartNew()
+  while(!($job.Exited -and $job.Empty -and $job.CaptureComplete)){
+   if($watch.ElapsedMilliseconds -ge 120000){throw 'child_completion_unknown'}
+   Start-Sleep -Milliseconds 10
+  }
+  if(!$job.Stdout.Eof -or !$job.Stderr.Eof -or !$job.InputComplete -or $job.InputFailed -or $job.Stdout.Overflow -or $job.Stderr.Overflow -or $job.Stdout.Failure -or $job.Stderr.Failure){throw 'child_capture_rejected'}
+  $capture=[BackupChildDiagnostic]::Evidence($job,$role,$scriptHash,$Node,$Arguments[0],$ReleaseDirectory);$script:childCaptures.Add($capture)
+  $value=[BackupStrictJson]::Parse($job.Stdout.Bytes,65536)
+  if($Arguments[0].EndsWith('backup_key_child.mjs') -and $Operation -eq 'Automatic'){
+   $value=[BackupStrictJson]::Report($job.Stdout.Bytes)
+   if($job.ExitCode -ne 0){$script:backupFailureReport=$value;throw 'automatic_child_failed'}
+  }
+  if($job.ExitCode -ne 0 -or $capture.stderrDiagnostic -eq "rejected"){throw 'verified_child_rejected'}
+  return $value
+ } finally {if($frame){[Array]::Clear($frame,0,$frame.Length)};$job.Dispose();if($scriptLock){$scriptLock.Dispose()}}
+}
+
 try {
  if($Operation -ne 'RestorePortable' -and !$KeyDirectory){throw 'key_directory_required'}
  if($Operation -ne $PSCmdlet.ParameterSetName){throw 'operation_parameters_mismatch'}
@@ -70,6 +89,7 @@ try {
  foreach($file in $actual){Assert-ReleasePath $file.FullName;$relative=$file.FullName.Substring($ReleaseDirectory.Length+1).Replace('\','/');if($relative -ne 'manifest.json' -and !$seen.ContainsKey($relative)){throw 'release_inventory_mismatch'}}
  $node=Join-Path $ReleaseDirectory 'runtime\node.exe'
  if((Get-FileHash -LiteralPath $node -Algorithm SHA256).Hash.ToLowerInvariant() -ne '58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f'){throw 'node_hash_mismatch'}
+ Add-Type -TypeDefinition ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'lifecycle\backup_native.cs')))
  foreach($name in @([Environment]::GetEnvironmentVariables('Process').Keys)){if($name.ToUpperInvariant() -notin @('SYSTEMROOT','WINDIR','TEMP','TMP','COMSPEC')){[Environment]::SetEnvironmentVariable($name,$null,'Process')}}
  # Full pinned package validation precedes loading any key material.
  $verified=Start-BackupChild $node @((Join-Path $PSScriptRoot 'cli.mjs'),'verify',$ReleaseDirectory,$ManifestSha256) $null $null
@@ -127,8 +147,8 @@ try {
  $payload=[Text.Encoding]::UTF8.GetBytes(($operationBody|ConvertTo-Json -Compress))
  $phase='verified_child';$report=Start-BackupChild $node @((Join-Path $PSScriptRoot 'backup_key_child.mjs'),$ReleaseDirectory,$ManifestSha256) $secretFrame $payload
  if($report.verified -ne $true -or $report.scope -ne 'inventory_only' -or $report.production_completeness_not_attested -ne $true){throw 'backup_report_invalid'}
- [Console]::Out.WriteLine(($report|ConvertTo-Json -Compress));$exitCode=0
-}catch{[Console]::Error.WriteLine((@{rejected=$true;code='runtime_backup_wrapper_rejected';phase=$phase}|ConvertTo-Json -Compress))}
+ if($Operation -eq "Automatic"){Write-BackupJson ([ordered]@{format="i-core-backup-wrapper-result-v3";passed=$true;report=$report;childCaptures=@($childCaptures.ToArray())})}else{Write-BackupJson $report};$exitCode=0
+}catch{if($Operation -eq "Automatic"){Write-BackupJson ([ordered]@{format="i-core-backup-wrapper-result-v3";passed=$false;report=$backupFailureReport;childCaptures=@($childCaptures.ToArray())})}elseif($backupFailureReport){Write-BackupJson $backupFailureReport};Write-BackupJson @{rejected=$true;code='runtime_backup_wrapper_rejected';phase=$phase} $true}
 finally{
  if($schedulerLock){$schedulerLock.Dispose()}
  if($passwordBytes){[Array]::Clear($passwordBytes,0,$passwordBytes.Length)};if($secretFrame){[Array]::Clear($secretFrame,0,$secretFrame.Length)}

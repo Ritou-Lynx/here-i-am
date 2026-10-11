@@ -114,7 +114,7 @@ function rejects(f,pattern=/^switch_bindings_[a-z_]+$/){
 }
 test('read-only package-switch binding preparation preserves the complete deployment chain',{skip:process.platform!=='win32',timeout:900000},async t=>{
  const f=fixture(t),target=()=>f.sides[1],old=()=>f.sides[0];
- await t.test('exact 47 to 48 packages and real configuration schemas pass without opening DB or separate credential files',()=>{
+ await t.test('exact 47 to 84 packages and real configuration schemas pass without opening DB or separate credential files',()=>{
   const result=validatePackageSwitchBindings(...f.args());
   for(const key of ['validated','corePolicyPreserved','loginPolicyPreserved','mcpProgramAndPolicyPreserved','backupReleaseInventoryBound','backupPolicyPreserved','taskXmlBound'])assert.equal(result[key],true);
   for(const key of ['approved','deploymentReady','credentialFilesRead','databaseRead','registered','started'])assert.equal(result[key],false);
@@ -184,7 +184,7 @@ test('legacy schema4 backup inventory stays complete across a schema6 package sw
   assert.equal(oldEntries().filter(e=>e.role==='release').length,10);
   assert.equal(oldEntries().filter(e=>e.name.startsWith('candidate/release/')).length,48);
   assert.equal(oldEntries().filter(e=>e.role!=='release').length,108);
-  assert.equal(nextEntries().filter(e=>e.role==='release').length,49);
+  assert.equal(nextEntries().filter(e=>e.role==='release').length,85);
   assert.equal(nextEntries().filter(e=>e.name.startsWith(preservedPrefix)).length,10);
   assert.equal(validatePackageSwitchBindings(...f.args()).validated,true);
   assert.equal(existsSync(old().core.database_path),false);
@@ -212,7 +212,7 @@ test('legacy schema4 backup inventory stays complete across a schema6 package sw
   assert.deepEqual(old().backup,before);
   assert.deepEqual(next.specTemplate.entries.filter(e=>e.name.startsWith(preservedPrefix)),oldEntries().filter(e=>e.role==='release').map(e=>({...e,role:'configuration',name:preservedPrefix+e.name})));
   assert.deepEqual(next.specTemplate.entries.filter(e=>e.role!=='release'&&!e.name.startsWith(preservedPrefix)),oldEntries().filter(e=>e.role!=='release'));
-  assert.equal(next.specTemplate.entries.filter(e=>e.role==='release').length,49);
+  assert.equal(next.specTemplate.entries.filter(e=>e.role==='release').length,85);
   assert.deepEqual({...next,specTemplate:null},{...before,specTemplate:null});
  });
  const active=()=>oldEntries().find(e=>e.name==='candidate/release/runtime/node.exe');
@@ -301,10 +301,10 @@ test('legacy schema4 backup inventory stays complete across a schema6 package sw
   const outputDirectory=path.join(outputRoot,'generated-candidate'),before=Object.values(old().files).concat(old().end.configurationPath).map(p=>[p,hash(p)]);
   const input={oldLoginPath:old().files.login,oldLoginSha256:hash(old().files.login),newReleaseDirectory:target().end.releaseDirectory,newManifestSha256:target().end.manifestSha256,outputDirectory,oldTaskXmlPath:old().files.task,taskName:'synthetic-next-task',oldTaskName:'synthetic-old-task'};
   const result=generatePackageSwitchConfigurations(input);
-  assert.equal(result.generated,true);assert.equal(result.preservedLegacyCount,10);assert.equal(result.newReleaseCount,49);
+  assert.equal(result.generated,true);assert.equal(result.preservedLegacyCount,10);assert.equal(result.newReleaseCount,85);
   for(const key of ['productionApproved','registrationAllowed','deploymentReady','fixedPrepareExecuted','databaseRead','separateCredentialFilesRead'])assert.equal(result[key],false);
   const info=JSON.parse(readFileSync(path.join(outputDirectory,'static-inputs.json'))),diff=JSON.parse(readFileSync(path.join(outputDirectory,'configuration-diff-safe.json')));
-  assert.equal(diff.originalNonreleaseCount,108);assert.equal(diff.preservedLegacyCount,10);assert.equal(diff.oldReleaseCount,10);assert.equal(diff.newReleaseCount,49);
+  assert.equal(diff.originalNonreleaseCount,108);assert.equal(diff.preservedLegacyCount,10);assert.equal(diff.oldReleaseCount,10);assert.equal(diff.newReleaseCount,85);
   assert.equal(diff.mcpConfigurationUnchanged,true);assert.equal(diff.backupOutsideSpecUnchanged,true);
   assert.equal(diff.reboundNonreleaseEntries.length,4);
   assert.equal(existsSync(info.preparedXml),false,'only the synthetic test creates XML');

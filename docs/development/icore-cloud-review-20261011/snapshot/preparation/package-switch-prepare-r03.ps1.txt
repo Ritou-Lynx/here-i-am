@@ -1,0 +1,50 @@
+#requires -Version 5.1
+[CmdletBinding()]
+param([ValidateSet('Plan','Prepare')][string]$Mode='Plan',[string]$FactsSha256)
+if($Mode-eq'Plan'){[ordered]@{format='package-switch-preparation-plan-v1';ioPerformed=$false;productionAuthorized=$false}|ConvertTo-Json -Compress;return}
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2
+$env:PSModulePath='C:\Windows\System32\WindowsPowerShell\v1.0\Modules'
+if($PSVersionTable.PSVersion.Major-ne5-or$PSVersionTable.PSEdition-cne'Desktop'){throw 'native_ps51_required'}
+$stage='C:\ReviewFixture\candidate'
+$eng=Join-Path $stage 'evidence\production-readiness-r01';$historicalCandidate=Join-Path $eng 'configuration-candidate-r01';$candidate=Join-Path $historicalCandidate 'r03';$owner='S-1-5-21-111111111-222222222-333333333-1001';$utf8=[Text.UTF8Encoding]::new($false,$true)
+$helper=Join-Path $stage 'maintenance-source-r02\tools\i_core\maintenance\owned_artifacts.ps1'
+if((Get-FileHash -LiteralPath $helper).Hash.ToLowerInvariant()-cne'f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c'){throw 'helper_pin'}
+. $helper
+Assert-OwnedArtifactUnelevatedProcess $owner;Assert-OwnedArtifact $candidate $owner $true
+function Hash([byte[]]$b){$h=[Security.Cryptography.SHA256]::Create();try{([BitConverter]::ToString($h.ComputeHash($b))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose()}}
+function JsonBytes($v){return ,$utf8.GetBytes(($v|ConvertTo-Json -Depth 40 -Compress)+[char]10)}
+function PinnedJson([string]$p,[string]$h){$b=[IO.File]::ReadAllBytes($p);if($h-cnotmatch'^[a-f0-9]{64}$'-or(Hash $b)-cne$h){throw 'pin'};return $utf8.GetString($b)|ConvertFrom-Json}
+function Save([string]$p,$v){if(!$p.StartsWith($candidate+'\',[StringComparison]::Ordinal)){throw 'output_scope'};$b=JsonBytes $v;Write-OwnedArtifactBytes $p $b $owner;return [ordered]@{path=$p;sha256=(Hash $b);bytes=$b.Length}}
+$f=PinnedJson (Join-Path $candidate 'runtime-facts.json') $FactsSha256
+if($f.format-cne'configuration-runtime-facts-v1'-or$f.attemptId-cnotmatch'^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'){throw 'facts_schema'}
+$reg=PinnedJson (Join-Path $stage 'reviews\phase-b-registration.approved-r04.json') '77f71b5f8b6555c67944f7666ad9a7c66b5d8d46b5f983bbc9871e84ba775bbc'
+$release=[IO.Path]::GetFullPath($f.releaseDirectory)
+if([IO.Path]::GetDirectoryName($release)-cne(Join-Path $eng 'backup')-or[IO.Path]::GetFileName($release)-cnotmatch'^release-candidate-r[0-9]{2}$'){throw 'release_scope'}
+$manifest=PinnedJson (Join-Path $release 'manifest.json') $f.manifestSha256
+$receiptPath=Join-Path $candidate 'tasks\template-preparation-receipt.json'
+$template=$utf8.GetString([IO.File]::ReadAllBytes($receiptPath))|ConvertFrom-Json
+if($template.releaseDirectory-cne$release-or$template.manifestSha256-cne$f.manifestSha256-or$template.loginSha256-cne$f.configurations.login.sha256-or$template.actualTaskCalls-ne0){throw 'template_binding'}
+$rules=@($template.files|Where-Object{$_.id-ceq'task_template_rules'});if($rules.Count-ne1){throw 'rules_missing'}
+$rulesBytes=[IO.File]::ReadAllBytes($rules[0].path);if((Hash $rulesBytes)-cne$rules[0].sha256){throw 'rules_hash'}
+$start=@($manifest.files|Where-Object{$_.path-ceq'tools/i_core/release_schema6/lifecycle/start_schema6.ps1'});if($start.Count-ne1){throw 'start_missing'}
+$fromArtifacts=@();$toArtifacts=@()
+foreach($name in @('backup','login','mcp')){
+ $old=$f.originalConfigurations.$name;$new=$f.configurations.$name
+ $fromArtifacts+=,[ordered]@{role=$name;path=[IO.Path]::GetFullPath($old.path);sha256=$old.sha256}
+ $toArtifacts+=,[ordered]@{role=$name;path=[IO.Path]::GetFullPath($new.path);sha256=$new.sha256}
+}
+$fromArtifacts+=,[ordered]@{role='task';path=(Join-Path $stage 'evidence\phase-b-new-task.registered.disabled-r04.xml');sha256='e3ab9c1a1d2e9a613caae09565158de0ba13961f6566c369f432647e7ad13fce'}
+$toArtifacts+=,[ordered]@{role='task';path=$rules[0].path;sha256=$rules[0].sha256}
+$operation='activation-switch-'+$f.attemptId
+$head='bc6d6941bc9d93e4c56d1dd11a7f9d11d66a09f9c83a4afc1f426d4bd24d1ce8';$marker='7ea847cae5b9a1f0d44f7b6f757162d407089a28373fa31bcc28cfc05cffa2cb'
+$plan=[ordered]@{format='schema6-package-switch-approved-v1';approved=$false;operationId=$operation;expectedHeadSha256=$head;expectedMarkerSha256=$marker;rollbackOf=$null;from=[ordered]@{releaseDirectory=[IO.Path]::GetFullPath($reg.releaseDirectory);manifestSha256=$reg.manifestSha256;configurationPath=[IO.Path]::GetFullPath($f.originalConfigurations.core.path);configurationSha256=$f.originalConfigurations.core.sha256};to=[ordered]@{releaseDirectory=$release;manifestSha256=$f.manifestSha256;configurationPath=[IO.Path]::GetFullPath($f.configurations.core.path);configurationSha256=$f.configurations.core.sha256};fromArtifacts=$fromArtifacts;artifacts=$toArtifacts}
+$planRef=Save (Join-Path $candidate 'package-switch-plan.draft.json') $plan
+$policy=[ordered]@{format='i-core-activation-package-switch-policy-v1';evidenceMode='reviewed-live';attemptId=$f.attemptId;planSha256=$f.plan.sha256;switchPlanSha256=$planRef.sha256;operationId=$operation;startScriptSha256=$start[0].sha256;fromTaskEvidence='baseline-actual-task-xml';toTaskEvidence='exact-two-slot-rules-expected-only';expectedGeneration=12;expectedHeadSha256=$head;expectedMarkerSha256=$marker;timeoutMs=120000}
+$policyDir=Join-Path $candidate 'policies';if(Test-Path -LiteralPath $policyDir){Assert-OwnedArtifact $policyDir $owner $true}else{New-OwnedArtifactDirectory $policyDir $owner}
+$policyRef=Save (Join-Path $policyDir 'package-switch-policy.json') $policy
+# Review-only digest of a future authorized change. No approved=true executable bytes are saved.
+$future=$utf8.GetString((JsonBytes $plan))|ConvertFrom-Json;$future.approved=$true
+$futureHash=Hash (JsonBytes $future)
+$recipe=[ordered]@{format='review-only-package-switch-transform-v1';productionAuthorized=$false;source=$planRef;policyDraft=$policyRef;operation='after new direct human production approval, change exactly approved:false to true, UTF8-no-BOM compact ConvertTo-Json Depth40 plus LF';targetSha256=$futureHash;targetExecutableBytesSaved=$false;targetPath=(Join-Path $candidate 'approved-runtime-r01\package-switch-plan.json');targetPathNote='Future CreateNew only, after separate direct production approval; preserve current false draft.';bindingDag=@('primary-plan','recovery-total-backup-login','five-task-templates-and-rules','package-switch-plan','package-switch-policy','activation-policy','binding','direct-human-approval','in-memory-two-slot-expected-task');toTaskArtifactIsActual=$false;historicalHeadAndMarkerOnly=$true;actualSourcePathPreserved=$true;databaseOrCustodyRead=$false}
+$null=Save (Join-Path $candidate 'package-switch-transform.review-only.json') $recipe
+[ordered]@{format='package-switch-preparation-result-v1';approved=$false;planSha256=$planRef.sha256;policySha256=$policyRef.sha256;futureApprovedPlanSha256=$futureHash;executed=$false}|ConvertTo-Json -Compress

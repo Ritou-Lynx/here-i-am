@@ -5,6 +5,9 @@ param(
  [Parameter(Mandatory=$true)][string]$LoginConfigurationPath,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$LoginConfigurationSha256,
  [Parameter(Mandatory=$true)][string]$OutputXml,
+ [Parameter(Mandatory=$true)][string]$EvidenceBindingPath,
+ [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$EvidenceBindingSha256,
+ [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedApprovalSha256,
  [Parameter(Mandatory=$true)][switch]$PrepareOnly
 )
 $ErrorActionPreference='Stop'
@@ -91,7 +94,7 @@ $verified=$raw|ConvertFrom-Json
 if($verified.mcp_managed -ne $true){throw 'managed_mcp_required_for_login_task'}
 if($verified.validated -ne $true -or $verified.core_port -le 0){throw 'fixed_nonzero_production_port_required'}
 function Quote-Argument([string]$value){if($value.Contains('"') -or $value.EndsWith('\') -or $value.Contains("`n") -or $value.Contains("`r")){throw 'task_argument_rejected'};'"'+$value+'"'}
-$arguments=@('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',$login,'-ReleaseDirectory',$ReleaseDirectory,'-ManifestSha256',$ManifestSha256,'-LoginConfigurationPath',$LoginConfigurationPath,'-LoginConfigurationSha256',$LoginConfigurationSha256)
+$arguments=@('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',$login,'-ReleaseDirectory',$ReleaseDirectory,'-ManifestSha256',$ManifestSha256,'-LoginConfigurationPath',$LoginConfigurationPath,'-LoginConfigurationSha256',$LoginConfigurationSha256,'-EvidenceBindingPath',$EvidenceBindingPath,'-EvidenceBindingSha256',$EvidenceBindingSha256,'-ExpectedApprovalSha256',$ExpectedApprovalSha256)
 $argumentText=($arguments|ForEach-Object{Quote-Argument $_}) -join ' '
 $document=New-Object Xml.XmlDocument
 $document.LoadXml('<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>true</Enabled><UserId /></LogonTrigger></Triggers><Principals><Principal id="Owner"><UserId /><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>false</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><Enabled>true</Enabled><Hidden>true</Hidden><UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine><ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings><Actions Context="Owner"><Exec><Command /><Arguments /></Exec></Actions></Task>')

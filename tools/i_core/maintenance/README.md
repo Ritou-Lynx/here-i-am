@@ -61,3 +61,9 @@ Windows CI的schema6-windows job串行纳入maintenance_acl/window/register测�
 单目录入口先随 PR20 合成/CI 通过，执行时必须固定完整维护快照，参数 `-ProposalPath … -ExpectedProposalSha256 … -ReceiptDirectory … -Execute`；全新受保护回执目录不能在目标内，旧输出不复用。真实方案和 SDDL/SID 只在私有文件，源码无现场默认路径。此入口仅目录 DACL，不能代替正式冻结后的144项 owner/ACL Apply。
 
 执行成功后新ID完整 PreflightOnly；用户当前已明确有条件预授权：全套零失败且全部原批准外锚不变才直接用 r02。任何现场失败或偏差停审；原先“演练后另请授权”是此前阶段历史。固定47运行文件/Core/MCP/会话启动器不随新增维护入口变化。详见 `docs/development/handoffs/SCHEMA6_SETTINGS_ACL_AUTHORIZATION_20261007.md`。
+
+## 同 Core 的 ChatGPT MCP 配置维护候选
+
+`generate-mcp-config-switch.mjs` 与 `mcp-config-switch-bindings.mjs` 只允许同一48项Core/原配置路径和hash上的六文件MCP候选，追加唯一flag并保全旧链十项备份附件；不使用或放宽旧package-switch的MCP不变门控。生成器只写全新私有输出，目标backup文件显式owner+SYSTEM保护；实际XML仍由原固定PrepareOnly生成。
+
+`register-mcp-config-switch-login.ps1 -RegisterOnly` 另需精确human approval、真实在线关闭终态、双锁/闭态树/原任务冻结/XML/双SDDL/父SD证据，仅CREATE新disabled任务。生成、合成注册、生产登记、启用及真人验收分别签收；缺现场证据不执行。详见[生成器交接](../../../docs/development/handoffs/CHATGPT_MCP_CONFIG_SWITCH_GENERATOR_20261009.md)、[登记交接](../../../docs/development/handoffs/CHATGPT_MCP_CONFIG_SWITCH_REGISTRATION_20261009.md)与[部署准备交接](../../../docs/development/handoffs/CHATGPT_MCP_DEPLOYMENT_PREPARATION_20261009.md)。

@@ -8,7 +8,8 @@ import { wrapBackupKey, portableEnvelopeSha256, restorePortableBackupForInspecti
 import { runDueAutomaticBackup } from './automatic_backup.mjs';
 const reject = () => { throw new Error('backup_child_rejected'); };
 const here = path.dirname(fileURLToPath(import.meta.url));
-export async function runBackupChild(args, input) {
+// Function-only test injection; the production CLI supplies no exporter override.
+export async function runBackupChild(args, input, taskExporter) {
   const [release,manifestHash]=args;
   if(args.length!==2 || path.resolve(release,'tools/i_core/release_schema6')!==here || sha256(readFileSync(process.execPath))!==PINNED_NODE_SHA256) reject();
   verifyRelease(release,manifestHash);
@@ -28,9 +29,9 @@ export async function runBackupChild(args, input) {
       report=await restorePortableBackupForInspection({envelope,password,binding,artifactPath:operation.artifactPath,outputDirectory:operation.outputDirectory,beforePublish:()=>verifyRelease(release,manifestHash)});
     } else if(operation.operation==='automatic' && Object.keys(operation).sort().join()===['operation','configPath','configSha256'].sort().join()) {
       if(password)reject();const config=readAnchored(operation.configPath,operation.configSha256);
-      if(Object.keys(config).sort().join()!==['policy','specTemplate','sqliteEntryNames','envelopePath','envelopeSha256'].sort().join())reject();
+      if(config.format!=='i-core-automatic-config-v2'||Object.keys(config).sort().join()!==['format','policy','specTemplate','sqliteEntryNames','envelopePath','envelopeSha256','dynamicInventory'].sort().join())reject();
       const envelope=readAnchored(config.envelopePath,config.envelopeSha256);
-      report=await runDueAutomaticBackup({...config,key,envelope});verifyRelease(release,manifestHash);return {...report,scope:'inventory_only',production_completeness_not_attested:true,activation_supported:false};
+      report=await runDueAutomaticBackup({...config,key,envelope},taskExporter);verifyRelease(release,manifestHash);return {...report,reportSchema:'i-core-automatic-result-v2',scope:'inventory_only',production_completeness_not_attested:true,activation_supported:false};
     } else if(operation.operation==='create' && Object.keys(operation).sort().join()===['operation','specPath','specSha256','outputDirectory'].sort().join()) {
       plainPath(operation.specPath); if(lstatSync(operation.specPath).size>1024*1024) reject(); const bytes=readFileSync(operation.specPath);
       if(bytes.length>1024*1024 || !/^[a-f0-9]{64}$/.test(operation.specSha256 ?? '') || sha256(bytes)!==operation.specSha256) reject();
@@ -58,6 +59,6 @@ if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.
    for await (const chunk of process.stdin) { size+=chunk.length;if(size>1024*1024) reject();chunks.push(chunk); }
    input=Buffer.concat(chunks);for(const chunk of chunks) chunk.fill(0);
    process.stdout.write(JSON.stringify(await runBackupChild(process.argv.slice(2),input))+'\n');
- } catch { process.stderr.write('{"rejected":true,"code":"backup_operation_rejected"}\n');process.exitCode=2; }
+ } catch(error) { if(error.effectEvidence){process.stdout.write(JSON.stringify({reportSchema:'i-core-automatic-result-v2',verified:false,status:'failed',scope:'inventory_only',production_completeness_not_attested:true,activation_supported:false,failureCode:'automatic_operation_rejected',effectEvidence:error.effectEvidence})+'\n');} process.stderr.write('{"rejected":true,"code":"backup_operation_rejected"}\n');process.exitCode=2; }
  finally { input?.fill(0); }
 }

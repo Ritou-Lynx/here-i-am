@@ -4,6 +4,9 @@ param(
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ManifestSha256,
  [Parameter(Mandatory=$true)][string]$LoginConfigurationPath,
  [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$LoginConfigurationSha256,
+ [string]$EvidenceBindingPath,
+ [ValidatePattern('^[a-f0-9]{64}$')][string]$EvidenceBindingSha256,
+ [ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedApprovalSha256,
  [switch]$ValidateOnly,
  [switch]$InitializeEmpty
 )
@@ -95,7 +98,7 @@ function Open-BootstrapFile([string]$Target) {
   $locks += (Open-BootstrapFile $LoginConfigurationPath)
   if((Get-FileHash -LiteralPath $LoginConfigurationPath -Algorithm SHA256).Hash -ne $LoginConfigurationSha256){throw 'login_configuration_hash_mismatch'}
   $configuration=Get-Content -LiteralPath $LoginConfigurationPath -Raw | ConvertFrom-Json
-  $expected=@('format','owner_sid','release_directory','manifest_sha256','state_directory','control_root','core_configuration_path','core_configuration_sha256','core_port','backup_configuration_path','backup_configuration_sha256','backup_key_directory','backup_interval_seconds')
+  $expected=@('format','owner_sid','release_directory','manifest_sha256','state_directory','control_root','core_configuration_path','core_configuration_sha256','core_port','backup_configuration_path','backup_configuration_sha256','backup_key_directory','backup_interval_seconds','backup_evidence_policy_path','backup_evidence_policy_sha256')
   $mcpFields=@($configuration.PSObject.Properties.Name|Where-Object{$_ -in @('mcp_configuration_path','mcp_configuration_sha256')})
   if($mcpFields.Count -eq 2){$expected += @('mcp_configuration_path','mcp_configuration_sha256')}
   if(@(Compare-Object ($expected|Sort-Object) ($configuration.PSObject.Properties.Name|Sort-Object)).Count -ne 0 -or $configuration.format -ne 'schema6-login-v1'){throw 'login_configuration_contract_invalid'}
@@ -108,6 +111,9 @@ function Open-BootstrapFile([string]$Target) {
   $locks += (Open-BootstrapFile $configuration.core_configuration_path)
   if($configuration.core_configuration_sha256 -notmatch '^[a-f0-9]{64}$' -or (Get-FileHash -LiteralPath $configuration.core_configuration_path -Algorithm SHA256).Hash -ne $configuration.core_configuration_sha256){throw 'login_core_configuration_hash_mismatch'}
   $null=Get-Content -LiteralPath $configuration.core_configuration_path -Raw | ConvertFrom-Json
+  Assert-ProtectedPath $configuration.backup_evidence_policy_path
+  $locks += (Open-BootstrapFile $configuration.backup_evidence_policy_path)
+  if($configuration.backup_evidence_policy_sha256 -notmatch '^[a-f0-9]{64}$' -or (Get-FileHash -LiteralPath $configuration.backup_evidence_policy_path -Algorithm SHA256).Hash -ne $configuration.backup_evidence_policy_sha256){throw 'backup_evidence_policy_hash_mismatch'}
   $backupArgs=[string[]]@()
   if($configuration.backup_configuration_path){
     foreach($file in @($configuration.backup_configuration_path)){Assert-ProtectedPath $file;$locks += (Open-BootstrapFile $file)}
@@ -119,12 +125,16 @@ function Open-BootstrapFile([string]$Target) {
   . (Join-Path $PSScriptRoot 'mcp_configuration.ps1')
   $mcpConfiguration=Read-Schema6McpConfiguration $configuration ([ref]$locks)
   if($ValidateOnly){@{validated=$true;mcp_managed=([bool]$mcpConfiguration);core_port=$configuration.core_port;owner_sid=$owner}|ConvertTo-Json -Compress;exit 0}
+  if(!$EvidenceBindingPath -or !$EvidenceBindingSha256 -or !$ExpectedApprovalSha256){throw 'evidence_runtime_pins_required'}
+  Assert-ProtectedPath $EvidenceBindingPath
+  $locks += (Open-BootstrapFile $EvidenceBindingPath)
+  if((Get-FileHash -LiteralPath $EvidenceBindingPath -Algorithm SHA256).Hash -ne $EvidenceBindingSha256){throw 'evidence_runtime_binding_hash_mismatch'}
   $session=Join-Path $configuration.control_root ('session-'+[Guid]::NewGuid().ToString('N'))
   [IO.Directory]::CreateDirectory($session)|Out-Null;Protect-NewDirectory $session
   $control=Join-Path $session ('control-'+[Guid]::NewGuid().ToString('N'))
   [IO.Directory]::CreateDirectory($control)|Out-Null;Protect-NewDirectory $control
   . (Join-Path $PSScriptRoot 'session_window.ps1')
-  $result=[Schema6SessionWindow]::Run($ps,$ReleaseDirectory,$ManifestSha256,$configuration.state_directory,$control,$session,$configuration.core_configuration_path,$InitializeEmpty.IsPresent,$backupArgs,$configuration.backup_interval_seconds,$configuration.core_port,$mcpConfiguration)
+  $result=[Schema6SessionWindow]::Run($ps,$ReleaseDirectory,$ManifestSha256,$configuration.state_directory,$control,$session,$configuration.core_configuration_path,$InitializeEmpty.IsPresent,$backupArgs,$configuration.backup_interval_seconds,$configuration.core_port,$mcpConfiguration,$configuration.backup_evidence_policy_path,$configuration.backup_evidence_policy_sha256,$LoginConfigurationSha256,$EvidenceBindingPath,$EvidenceBindingSha256,$ExpectedApprovalSha256)
   exit $result
 } catch {
   [Console]::Error.WriteLine('schema6_login_rejected:configuration_or_release_rejected')

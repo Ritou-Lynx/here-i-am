@@ -28,7 +28,7 @@ test('fixed login XML explicitly enables Unified and preserves all original sett
  }
  assert.match(source,/<LogonTrigger><Enabled>true<\/Enabled><UserId \/><\/LogonTrigger>/);
  assert.match(source,/<LogonType>InteractiveToken<\/LogonType><RunLevel>LeastPrivilege<\/RunLevel>/);
- assert.match(source,/\$arguments=@\('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',\$login,'-ReleaseDirectory',\$ReleaseDirectory,'-ManifestSha256',\$ManifestSha256,'-LoginConfigurationPath',\$LoginConfigurationPath,'-LoginConfigurationSha256',\$LoginConfigurationSha256\)/);
+ assert.match(source,/\$arguments=@\('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',\$login,'-ReleaseDirectory',\$ReleaseDirectory,'-ManifestSha256',\$ManifestSha256,'-LoginConfigurationPath',\$LoginConfigurationPath,'-LoginConfigurationSha256',\$LoginConfigurationSha256,'-EvidenceBindingPath',\$EvidenceBindingPath,'-EvidenceBindingSha256',\$EvidenceBindingSha256,'-ExpectedApprovalSha256',\$ExpectedApprovalSha256\)/);
 });
 test('template fixture extracts actual construction and has no task persistence entry',()=>{
  const text=readFileSync(fixture,'utf8');
