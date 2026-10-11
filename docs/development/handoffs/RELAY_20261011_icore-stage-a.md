@@ -53,6 +53,10 @@
 
 **第 2 轮裁定**：允许修改包清单与来源闭包校验，但条件是：恢复从 git 提交打包，删除私有覆盖层打包方式（它与“候选代码进 git、CI 覆盖”直接矛盾）；清单保持逐项精确比对；本机配置不进包，改由 pin 文件提供。测试只允许更新期望清单、新参数签名和合成配置夹具，不删测试、不加 skip、不放宽运行时检查；引用旧提交的 47/48 项历史夹具不动。
 
+**A1 第 2 轮结果（未推送，blocked）**：git 打包已恢复，清单 84 项（去掉 transport-endpoints）。卡在 Windows 专项 `production backup child preserves binary frames`：旧测试从包装脚本里抽出 `Start-BackupChild` 单独运行；r08 把这个函数改成依赖脚本作用域（`$PSScriptRoot`、manifest、子脚本哈希核对）并改用原生 `Schema6BackupJob` 直接写管道，抽出来就无法运行。
+
+**第 3 轮裁定**：该测试改为直接加载 `lifecycle/backup_native.cs`，用 `Schema6BackupJob` 验证同样的 6 组字节与 3 组启动失败；另加一条源码断言，确认包装脚本的 `Start-BackupChild` 走 `Schema6BackupJob`、不再用 `ProcessStartInfo`。先跑完一次全量，拿到全部失败再一起修；本轮结束无论结果都推送，便于云端看真实 diff。
+
 ## 3. 合同 A2：先只读后消耗、干跑模式、先改任务再切包
 
 ```markdown
