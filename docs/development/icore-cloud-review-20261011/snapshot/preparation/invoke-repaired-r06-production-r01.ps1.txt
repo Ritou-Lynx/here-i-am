@@ -1,0 +1,50 @@
+#requires -Version 5.1
+[CmdletBinding()]param([switch]$Execute,[string]$ConsentSha256,[string]$ReviewSha256,[string]$MaterializationReceiptSha256,[string]$FinalReviewSha256)
+if(!$Execute){'{"format":"r06-repaired-production-launch-plan-v1","ioPerformed":false}';return}
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2;$env:PSModulePath=Join-Path $PSHOME 'Modules'
+$ps='C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+if($PSVersionTable.PSVersion.Major-ne5-or$PSVersionTable.PSEdition-cne'Desktop'-or[Diagnostics.Process]::GetCurrentProcess().MainModule.FileName-ine$ps){throw 'native_ps51_required'}
+$q='C:\ReviewFixture\candidate';$e=Join-Path $q 'evidence\production-readiness-r01';$r=Join-Path $e 'configuration-candidate-r01\r03';$owner='S-1-5-21-111111111-222222222-333333333-1001';$helper=Join-Path $q 'maintenance-source-r02\tools\i_core\maintenance\owned_artifacts.ps1'
+function Hash($p){(Get-FileHash -LiteralPath $p).Hash.ToLowerInvariant()}
+function Window{$now=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();if($now-lt1791647448771-or$now-ge1791733848771){throw 'original_window_expired'}}
+foreach($sha in @($ConsentSha256,$ReviewSha256,$MaterializationReceiptSha256,$FinalReviewSha256)){if($sha-cnotmatch'^[a-f0-9]{64}$'){throw 'receipt_pin_required'}}
+if((Hash $helper)-cne'f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c'){throw 'helper_pin'}
+. $helper
+Assert-OwnedArtifactUnelevatedProcess $owner
+$entry=Join-Path $e 'backup\release-candidate-r08\tools\i_core\release_schema6\lifecycle\continuous-activation-entry.ps1';$binding=Join-Path $e 'evidence-contract\production-config-r02\binding.json';$approval=Join-Path (Split-Path $binding -Parent) 'approval.json';$consentPath=Join-Path $r 'direct-production-consent-r02.json';$reviewPath=Join-Path $q 'evidence\r06-principal-sid-recovery-independent-review-r01.json';$materializationPath=Join-Path $r 'materialization-receipt-r01.json';$finalReviewPath=Join-Path $q 'evidence\r06-principal-sid-materialization-independent-review-r01.json'
+$oldAttempt=Join-Path $e 'identity-p3\activation\00000000-0000-4000-8000-000000000001';$newAttempt=Join-Path $e 'identity-p3\activation\00000000-0000-4000-8000-000000000002';$root=Join-Path $r 'r06-repaired-production-launch-r01'
+$pins=@(@{p=$entry;h='7da06eff9777b589ed9dd5b6dc62be336a9efcefdbcf11816a1e07324459bfde'},@{p=$binding;h='ca2e204b7947a7897731d701f99e38515d759177cef495fc79d194cdd1acfd24'},@{p=$approval;h='6ebfb4168f6938f9c711145697deafd15bae2291771a64bce5a1255c9a373d3a'},@{p=$consentPath;h=$ConsentSha256},@{p=$reviewPath;h=$ReviewSha256},@{p=$materializationPath;h=$MaterializationReceiptSha256},@{p=$finalReviewPath;h=$FinalReviewSha256},@{p=(Join-Path $oldAttempt 'activation-result.json');h='087be8159dfeb426fe506bdb9e24cfe30286a323410a0369c96e7c27a77c15e1'},@{p=(Join-Path $e 'configuration-candidate-r01\r02\r06-production-launch-r03\03-failure-observation.json');h='973b72fcf9483f3a759f995790c904a88fa3d1c7a69757dd31f1d2769210e472'},@{p=(Join-Path $q 'principal-sid-fix-r01\materialize-repaired-r06-approval-r01.ps1');h='29f11e91ddaf5c82135dcb59288a3a939a9f7e99bf2c3d786e523e68f632c9cd'})
+$held=New-Object 'Collections.Generic.List[IDisposable]';$child=$null;$out=$null;$err=$null;$started=$false;$finished=$false
+try{
+ foreach($pin in $pins){Assert-OwnedArtifact $pin.p $owner $false;$f=[IO.File]::Open($pin.p,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$held.Add($f);[void][OwnedArtifactNative]::Check($f.SafeFileHandle,$pin.p,$false);if((Hash $pin.p)-cne$pin.h){throw 'held_pin_changed'}}
+ $consent=Get-Content -Raw $consentPath|ConvertFrom-Json;$review=Get-Content -Raw $reviewPath|ConvertFrom-Json;$mat=Get-Content -Raw $materializationPath|ConvertFrom-Json;$final=Get-Content -Raw $finalReviewPath|ConvertFrom-Json;$b=Get-Content -Raw $binding|ConvertFrom-Json;$a=Get-Content -Raw $approval|ConvertFrom-Json
+ $selfHash=Hash $PSCommandPath
+ if($consent.format-cne'r06-principal-sid-recovery-consent-v1'-or!$consent.directHumanApproval-or$consent.launcherSha256-cne$selfHash-or$consent.independentReviewSha256-cne$ReviewSha256-or$consent.productionAttemptId-cne'00000000-0000-4000-8000-000000000002'-or$consent.runBudget-ne1-or$consent.entryInvocationBudget-ne1-or$consent.entryCallOrdinal-ne4-or$consent.priorEntryCalls-ne3-or$consent.notBeforeUtcMs-ne1791647448771-or$consent.notAfterUtcMs-ne1791733848771-or$consent.windowRefreshAllowed-ne$false){throw 'direct_approval_required'}
+ if(!$review.reviewPassed-or!$review.preparationAccepted-or$review.launcherSha256-cne$selfHash-or!$mat.materialized-or$mat.executionPerformed-or$mat.attemptId-cne$consent.productionAttemptId-or$mat.consentSha256-cne$ConsentSha256-or$mat.notBeforeUtcMs-ne1791647448771-or$mat.notAfterUtcMs-ne1791733848771){throw 'materialization_binding'}
+ if(!$final.reviewPassed-or!$final.materializationAccepted-or$final.materializationReceiptSha256-cne$MaterializationReceiptSha256-or$final.candidateBindingSha256-cne$pins[1].h-or$final.candidateApprovalSha256-cne$pins[2].h){throw 'final_materialization_review_required'}
+ if($b.policy.attemptId-cne$consent.productionAttemptId-or$a.attemptId-cne$consent.productionAttemptId-or!$a.approved-or!$a.directHumanApproval-or$a.runBudget-ne1-or$a.notBeforeUtcMs-ne1791647448771-or$a.notAfterUtcMs-ne1791733848771-or$b.policy.notBeforeUtcMs-ne1791647448771-or$b.policy.notAfterUtcMs-ne1791733848771){throw 'original_scope_window'}
+ $psRef=@($b.artifacts|Where-Object{$_.id-ceq'powershell'});if($psRef.Count-ne1-or$psRef[0].path-cne$ps-or(Hash $ps)-cne$psRef[0].sha256){throw 'image_pin'}
+ Window
+ if((Test-Path (Join-Path $oldAttempt '00-run-consumption.json'))-or(Test-Path $newAttempt)-or(Test-Path $root)){throw 'attempt_or_run_consumed'}
+ Assert-OwnedArtifact (Split-Path $newAttempt -Parent) $owner $true
+ $svc=New-Object -ComObject Schedule.Service;$svc.Connect();$folder=$svc.GetFolder('\')
+ try{foreach($name in @('HereIAm-iCoreSchema6-cleanclose-20261008-2c01de5b','HereIAm-iCoreSchema6-chatgpt-20261009-f90058f2')){$task=$folder.GetTask($name);try{if($task.Enabled-or$task.GetInstances(0).Count-ne0-or[int]$task.State-ne1){throw 'task_not_disabled_stopped'}}finally{[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($task)}}}finally{[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($folder);[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($svc)}
+ if(@(Get-NetTCPConnection -State Listen -ErrorAction Stop|Where-Object{$_.LocalPort-in@(47841,47860,47862)}).Count){throw 'runtime_port_occupied'}
+ New-OwnedArtifactDirectory $root $owner
+ function Save($name,$value){Write-OwnedArtifactBytes (Join-Path $root $name) ([Text.UTF8Encoding]::new($false).GetBytes(($value|ConvertTo-Json -Depth 12 -Compress)+[char]10)) $owner}
+ Save '00-launch-intent.json' @{format='r06-repaired-production-launch-intent-v1';createdUtc=[DateTime]::UtcNow.ToString('o');attemptId=$consent.productionAttemptId;consumed=$true;mayHaveStarted=$true;entryCallOrdinal=4;priorEntryCalls=3;totalTaskRunBudget=1;notBeforeUtcMs=1791647448771;notAfterUtcMs=1791733848771;bindingSha256=$pins[1].h;approvalSha256=$pins[2].h;consentSha256=$ConsentSha256;reviewSha256=$ReviewSha256;materializationSha256=$MaterializationReceiptSha256;finalReviewSha256=$FinalReviewSha256;launcherSha256=$selfHash;retryAllowed=$false;oldAttemptPreserved=$true}
+ $out=New-OwnedArtifactFile (Join-Path $root 'stdout.bin') $owner;$err=New-OwnedArtifactFile (Join-Path $root 'stderr.bin') $owner
+ $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$ps;$psi.Arguments='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$entry+'" -Execute -BindingPath "'+$binding+'" -ExpectedBindingSha256 '+$pins[1].h+' -ExpectedApprovalSha256 '+$pins[2].h;$psi.UseShellExecute=$false;$psi.CreateNoWindow=$true;$psi.WindowStyle='Hidden';$psi.WorkingDirectory=Split-Path $PSCommandPath -Parent;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true;$psi.RedirectStandardInput=$true
+ foreach($pin in $pins){if((Hash $pin.p)-cne$pin.h){throw 'pin_changed_before_start'}};Window
+ if((Test-Path $newAttempt)-or(Test-Path (Join-Path $oldAttempt '00-run-consumption.json'))){throw 'attempt_consumed_before_start'}
+ $child=[Diagnostics.Process]::Start($psi);$started=$true;$stdout=$child.StandardOutput.BaseStream.CopyToAsync($out);$stderr=$child.StandardError.BaseStream.CopyToAsync($err);$child.StandardInput.Close()
+ Save '01-child-started.json' @{pid=$child.Id;startedTicks=$child.StartTime.ToUniversalTime().Ticks.ToString();sessionId=$child.SessionId;hidden=$true;retryAllowed=$false}
+ while(!$child.HasExited-or!$stdout.IsCompleted-or!$stderr.IsCompleted){[Threading.Thread]::Sleep(200)}
+ [void]$stdout.GetAwaiter().GetResult();[void]$stderr.GetAwaiter().GetResult();$child.WaitForExit();$out.Flush($true);$err.Flush($true);$ol=$out.Length;$el=$err.Length;$out.Dispose();$out=$null;$err.Dispose();$err=$null
+ $receipt=@{format='r06-production-child-exit-v1';pid=$child.Id;exitCode=$child.ExitCode;naturalExitObserved=$true;stdoutEof=$true;stderrEof=$true;stdoutByteCount=$ol;stderrByteCount=$el;stdoutSha256=(Hash (Join-Path $root 'stdout.bin'));stderrSha256=(Hash (Join-Path $root 'stderr.bin'));finishedUtc=[DateTime]::UtcNow.ToString('o');productionAcceptance=$false;retryAllowed=$false;entryCallOrdinal=4;totalTaskRunBudget=1}
+ Save '02-child-exit.json' $receipt;$finished=$true;$receipt|ConvertTo-Json -Compress;exit $child.ExitCode
+}finally{
+ if($null-ne$child-and(!$started-or$finished)){$child.Dispose()}
+ if(!$started-or$finished){if($null-ne$out){$out.Dispose()};if($null-ne$err){$err.Dispose()};foreach($f in $held){$f.Dispose()}}
+ # Never kill a child, reuse an attempt, or retry. Unknown remains consumed.
+}

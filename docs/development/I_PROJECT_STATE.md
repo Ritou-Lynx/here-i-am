@@ -1,3 +1,11 @@
+## 2026-10-11 iCore 切换审查快照
+
+当前审查分支从 d146c51a 建立；远端 v3-lab 已含 PR #20 合并提交 3ce7aacc。最近三次生产入口均失败，实际 Task Run 为 0；r08 完成离线准备审核，未获新生产执行授权，未完成真人验收。此前停用后的服务状态不等于持续健康证明。
+
+用户要求先交云端独立检查，执行端保持暂停。详见 [整体报告与脱敏源码](icore-cloud-review-20261011/README.md)。本条为审查分支的时间点状态，不覆盖其他并行工作区，不表示已部署。
+
+---
+
 ## 2026-10-09：ChatGPT接入准备完成静态链，原服务离线仍待本人审批
 
 本窗接手ChatGPT MCP与真人验收，兼容PR21精确f90058f2的六文件/manifest/ZIP已独立核对，PR/push CI各9项及Policy成功；新增维护流程独立于Core换包，固定48项、原Core配置路径/hash、旧MCP不变检查和custody谱系不动。新私有配置已通过原固定PrepareOnly与proposal绑定；六文件三变三不变，flag=1，九类backup静态167→177项且保全10项旧附件。登记入口仅CREATE新disabled，要求完整来源、真实在线六终态/MCP start-stop/闭态树、双锁、旧任务冻结及XML/双SDDL/父SD。新维护head的合成/CI证据另签收，不能继承兼容结果或用COM primitives代替完整wrapper。

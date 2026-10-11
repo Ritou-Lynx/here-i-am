@@ -1,0 +1,116 @@
+#requires -Version 5.1
+[CmdletBinding()]
+param(
+ [ValidateSet('Plan','Prepare')][string]$Mode='Plan',
+ [string]$ReleaseDirectory,[string]$ManifestSha256,[string]$SourceInventoryPath,[string]$SourceInventorySha256,
+ [string]$HealthExpectedPath,[string]$HealthExpectedSha256,[string]$HealthPolicyRelativePath
+)
+if($Mode-eq'Plan'){[ordered]@{format='private-configuration-derivation-plan-v1';mode='Plan';ioPerformed=$false;productionAuthorized=$false}|ConvertTo-Json -Compress;return}
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2
+$env:PSModulePath=Join-Path $PSHOME 'Modules'
+if($PSVersionTable.PSEdition-cne'Desktop'-or$PSVersionTable.PSVersion.Major-ne5){throw 'configuration_native_ps51'}
+$stage='C:\ReviewFixture\candidate'
+$eng=Join-Path $stage 'evidence\production-readiness-r01';$inputCandidate=Join-Path $eng 'configuration-candidate-r01';$candidate=Join-Path $inputCandidate 'r03'
+$owner='S-1-5-21-111111111-222222222-333333333-1001'
+$helper=Join-Path $stage 'maintenance-source-r02\tools\i_core\maintenance\owned_artifacts.ps1'
+if((Get-FileHash -LiteralPath $helper).Hash.ToLowerInvariant()-cne'f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c'){throw 'configuration_writer_pin'}
+. $helper
+Assert-OwnedArtifactUnelevatedProcess $owner
+$functions=Join-Path $stage 'principal-sid-fix-r01\configuration-functions-r06.ps1'
+if((Get-FileHash -LiteralPath $functions).Hash.ToLowerInvariant()-cne'bea34060ec71f9cdd81ee2c2f60c8c0f50c358f451824bb8bc207fb9ac1f9a6b'){throw 'configuration_functions_pin'}
+. $functions
+function PinnedRef([string]$Path,[string]$Sha) {
+ if($Sha-cnotmatch'^[a-f0-9]{64}$'){throw 'configuration_pin_format'}
+ Assert-OwnedArtifact $Path $owner $false
+ $bytes=[IO.File]::ReadAllBytes($Path)
+ if((Get-ConfigurationByteHash $bytes)-cne$Sha){throw 'configuration_input_pin'}
+ return [ordered]@{path=$Path;sha256=$Sha;bytes=$bytes.Length}
+}
+$release=[IO.Path]::GetFullPath($ReleaseDirectory)
+if([IO.Path]::GetDirectoryName($release)-cne(Join-Path $eng 'backup')-or[IO.Path]::GetFileName($release)-cnotmatch'^release-candidate-r[0-9]{2}$'){throw 'configuration_release_scope'}
+$manifestRef=PinnedRef (Join-Path $release 'manifest.json') $ManifestSha256
+$inventoryRef=PinnedRef $SourceInventoryPath $SourceInventorySha256
+if($SourceInventoryPath-cne(Join-Path $candidate 'activation-source-inventory.json')){throw 'configuration_activation_inventory_path'}
+$activationInventory=Get-Content -LiteralPath $SourceInventoryPath -Raw -Encoding UTF8|ConvertFrom-Json
+if($activationInventory.format-cne'i-core-activation-source-inventory-v1'-or$activationInventory.releaseDirectory-cne$release-or$activationInventory.files.Count-ne86){throw 'configuration_activation_inventory_schema'}
+$sourceProvenance=PinnedRef (Join-Path $eng 'backup\release-candidate-r08-source-inventory.json') '5a17dc3a397bd5ff12e73bdec6e9af285973ec0f474b9b603bb25700d11eafaa'
+$healthRef=PinnedRef $HealthExpectedPath $HealthExpectedSha256
+$factsPath=Join-Path $inputCandidate 'source-runtime-facts-r01.json'
+$sourceFactsRef=PinnedRef $factsPath '78cdec37b8214f4ca97a21b258e30cd196409e3ad289b90d1b76cfc66946babb'
+$sourceFacts=Get-Content -LiteralPath $factsPath -Raw -Encoding UTF8|ConvertFrom-Json
+if($sourceFacts.ownerSid-cne$owner-or$sourceFacts.format-cne'source-configuration-runtime-facts-v1'){throw 'configuration_facts_scope'}
+$health=Get-Content -LiteralPath $HealthExpectedPath -Raw -Encoding UTF8|ConvertFrom-Json
+if($health.format-cne'p4-health-expectation-draft-v1'-or$health.contractRevision-cne'p4-dormant-owner-unconfigured-v1'-or$health.productionAuthorized-ne$false-or$health.httpActivity.status-cne'owner_principal_unconfigured'-or$health.httpActivity.control_plane_available-ne$false-or$null-ne$health.httpActivity.runtime_fence){throw 'configuration_health_contract'}
+$attempt='00000000-0000-4000-8000-000000000002'
+$inputs=$null
+try {
+ $inputs=Open-AuthorizedConfigurationInputs (Join-Path $eng 'FUTURE_CONFIGURATION_PREPARATION_SCOPE_R01.json') $owner
+ foreach($role in @('core','mcp','backup','login')){
+  if($inputs.Records[$role].Path-cne$sourceFacts.originalConfigurations.$role.path-or$inputs.Records[$role].Sha256-cne$sourceFacts.originalConfigurations.$role.sha256){throw 'configuration_original_facts_mismatch'}
+ }
+ $manifest=Get-Content -LiteralPath $manifestRef.path -Raw -Encoding UTF8|ConvertFrom-Json
+ $healthRows=@($manifest.files|Where-Object{$_.path-ceq$HealthPolicyRelativePath})
+ if($healthRows.Count-ne1-or$healthRows[0].sha256-cne$health.healthPolicySha256){throw 'configuration_health_source_binding'}
+ $healthCopyBytes=[IO.File]::ReadAllBytes($HealthExpectedPath)
+ if((Get-ConfigurationByteHash $healthCopyBytes)-cne$HealthExpectedSha256){throw 'configuration_health_copy_changed'}
+ $healthRef=Save-PrivateConfiguration (Join-Path $candidate 'health-expectation.draft.json') $null $owner $healthCopyBytes
+ $base=New-ThreeBaseConfigurations $inputs $candidate $owner $release $ManifestSha256
+ function ReleaseRef([string]$Relative) {
+  $rows=@($base.Manifest.files|Where-Object{$_.path-ceq$Relative})
+  if($rows.Count-ne1){throw 'configuration_release_role'}
+  return PinnedRef (Join-Path $release $Relative.Replace('/','\')) $rows[0].sha256
+ }
+ $plan=[ordered]@{
+  format='i-core-remaining-execution-plan-v1';approved=$false;productionAuthorized=$false;attemptId=$attempt
+  preparationConsent=[ordered]@{scopeSha256='20eab0d18754dd7c5b145c826b14494b8dc70184bc5ee53309f2142eb0877c86';directUserAnswer='four-configuration-private-derivation-approved';productionExcluded=$true}
+  manifest=$manifestRef;sourceInventory=$inventoryRef;sourceProvenance=$sourceProvenance;healthExpected=$healthRef
+  configurations=[ordered]@{core=$base.Refs.core;mcp=$base.Refs.mcp;backup=$base.Refs.backup}
+  originalConfigurations=$sourceFacts.originalConfigurations;baselineCore=$sourceFacts.baselineConfigurations.core
+  closedBaseline=[ordered]@{generation=12;headSha256='bc6d6941bc9d93e4c56d1dd11a7f9d11d66a09f9c83a4afc1f426d4bd24d1ce8';markerSha256='7ea847cae5b9a1f0d44f7b6f757162d407089a28373fa31bcc28cfc05cffa2cb';historicalOnly=$true;freshTaskAndClosedPreflightRequired=$true}
+  procedure=@('fresh-exact-off-preflight','original-package-switch-once-with-lock-handoff','authenticate-new-closed-custody','exact-task-update-and-five-byte-readbacks','enable-and-run-once','fresh-P3-process-session-binding','strict-dormant-Core-and-authenticated-MCP-boundaries','first-backup-receipt-and-measured-no-prune-total-gate','direct-user-ChatGPT-authorization-and-real-read-write','real-phone-check','user-physical-shutdown-and-login-recovery','fresh-recovery-P3-P4-backup-and-human-check')
+  gates=[ordered]@{runBudget=1;historicalProductionRuns=2;approvalWindowMaximumMs=86400000;runtimeLeaseRequired=$true;priorRunAllowancesReusable=$false;healthMode='dormant-core-mcp-v1';taskByteEqualityRequired=$true;sourceAndPermissionDrift='stop';automaticRetry=$false;automaticReversePackageSwitch=$false;failureContainment='disable-and-exact-normal-close-preserve-pending'}
+  backupEvidence=[ordered]@{historical334Preserved=$true;historicalRestoreRepeated=$false;newDueDynamicCustodyAndTaskCapture=$true;notDueMeansNewCaptureProven=$false;crossComponentAtomic=$false;retentionPolicyUnchanged=$true;acceptanceMode='measured-effects-no-prune-first-attempt-v1'}
+  finalHumanApprovalMustExplicitlyInclude=@('strict-dormant-health-revision','original-package-switch-and-required-key-database-operations','exact-task-update-enable-run','first-backup-and-dynamic-task-custody-read','public-discovery-requests','recovery-P3-P4-and-one-real-login-cycle')
+  manualPoints=@('ChatGPT account OAuth by user in secure local UI','user-authorized bounded read and synthetic thread write/dedup/end','actual HereIAmV3 phone verification','user says ready before physical shutdown','user boots and logs in then repeats bounded real read and phone check')
+  approvalDerivation='separately freeze approved artifacts, exact two task hash slots, recompute downstream hashes; no existing draft is overwritten'
+  noDownstreamAuthorityHashes=$true
+ }
+ $planRef=Save-PrivateConfiguration (Join-Path $candidate 'execution-plan.draft.json') $plan $owner
+ $policyDir=Join-Path $candidate 'policies'
+ if(Test-Path -LiteralPath $policyDir){Assert-OwnedArtifact $policyDir $owner $true}else{New-OwnedArtifactDirectory $policyDir $owner}
+ $recovery=[ordered]@{format='i-core-recovery-p4-policy-v1';evidenceMode='reviewed-live';attemptId=$attempt;planSha256=$planRef.sha256;allowedPhases=@('login-recovery','host-control-recovery');namespaceVersion='recovery-p4-evidence-namespace-v1';executeRecoveryP4=$true;firstBackupOnly=$true;normalCloseBudgetMs=60000;coordinatorDeadlineMs=300000}
+ $recoveryRef=Save-PrivateConfiguration (Join-Path $policyDir 'recovery-policy.json') $recovery $owner
+ $total=[ordered]@{format='p4-backup-total-policy-v1';evidenceMode='reviewed-live';attemptId=$attempt;planSha256=$planRef.sha256;acceptanceMode='measured-effects-no-prune-first-attempt-v1';allowedPhases=@('initial-activation','login-recovery','host-control-recovery')}
+ $totalRef=Save-PrivateConfiguration (Join-Path $policyDir 'p4-total-policy.json') $total $owner
+ $producer=ReleaseRef 'tools/i_core/release_schema6/lifecycle/p3-permit-producer.ps1'
+ $recoveryEntry=ReleaseRef 'tools/i_core/release_schema6/lifecycle/recovery-p4-entry.ps1'
+ $recoveryCleanup=ReleaseRef 'tools/i_core/release_schema6/lifecycle/recovery-p4-cleanup.ps1'
+ $backup=[ordered]@{format='backup-evidence-policy-v2';evidenceMode='reviewed-live';producerSha256=$producer.sha256;phase='initial-activation';sourceInventorySha256=$inventoryRef.sha256;nodeSha256='58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f';coreConfigSha256=$base.Refs.core.sha256;mcpConfigSha256=$base.Refs.mcp.sha256;automaticConfigSha256=$base.Refs.backup.sha256;recoveryEntrySha256=$recoveryEntry.sha256;recoveryPolicySha256=$recoveryRef.sha256;recoveryCleanupSha256=$recoveryCleanup.sha256}
+ $backupRef=Save-PrivateConfiguration (Join-Path $policyDir 'backup-evidence-policy.json') $backup $owner
+ $login=Copy-ConfigurationObject $base.OldLogin
+ $login.release_directory=$release;$login.manifest_sha256=$ManifestSha256
+ $login.core_configuration_path=$base.Refs.core.path;$login.core_configuration_sha256=$base.Refs.core.sha256
+ $login.mcp_configuration_path=$base.Refs.mcp.path;$login.mcp_configuration_sha256=$base.Refs.mcp.sha256
+ $login.backup_configuration_path=$base.Refs.backup.path;$login.backup_configuration_sha256=$base.Refs.backup.sha256
+ $login|Add-Member NoteProperty backup_evidence_policy_path $backupRef.path
+ $login|Add-Member NoteProperty backup_evidence_policy_sha256 $backupRef.sha256
+ $allowedLogin=@('release_directory','manifest_sha256','core_configuration_path','core_configuration_sha256','mcp_configuration_path','mcp_configuration_sha256','backup_configuration_path','backup_configuration_sha256','backup_evidence_policy_path','backup_evidence_policy_sha256')
+ $changed=@(Get-ConfigurationChangedFields $base.OldLogin $login)
+ if(@($changed|Where-Object{$_-cnotin$allowedLogin}).Count){throw 'configuration_login_scope'}
+ $loginRef=Save-PrivateConfiguration (Join-Path $candidate 'settings\login.json') $login $owner
+ $facts=[ordered]@{
+  format='configuration-runtime-facts-v1';attemptId=$attempt;notBeforeUtcMs=[long]1791647448771;notAfterUtcMs=[long]1791733848771
+  releaseDirectory=$release;manifestSha256=$ManifestSha256;sourceInventory=$inventoryRef;sourceProvenance=$sourceProvenance;plan=$planRef;healthExpected=$healthRef;healthPolicyRelativePath=$HealthPolicyRelativePath;sourceRuntimeFacts=$sourceFactsRef
+  configurations=[ordered]@{core=$base.Refs.core;mcp=$base.Refs.mcp;backup=$base.Refs.backup;login=$loginRef}
+  originalConfigurations=$sourceFacts.originalConfigurations;baselineConfigurations=$sourceFacts.baselineConfigurations
+  policies=[ordered]@{backup=$backupRef;p4Total=$totalRef;recovery=$recoveryRef}
+  nodeId=$sourceFacts.nodeId;windowsSessionId=$sourceFacts.windowsSessionId;ownerSid=$owner;stateDirectory=$sourceFacts.stateDirectory;controlRoot=$sourceFacts.controlRoot;mcpSourceCount=$sourceFacts.mcpSourceCount
+  runtimeFence=$null;healthMode='dormant-core-mcp-v1';activationRoot=(Join-Path $eng 'identity-p3\activation')
+  priorSessionNames=$sourceFacts.priorSessionNames;priorControls=$sourceFacts.priorControls;directoryNamesObservedAtUtc=$sourceFacts.directoryNamesObservedAtUtc;taskStateRefreshed=$false
+ }
+ $factsRef=Save-PrivateConfiguration (Join-Path $candidate 'runtime-facts.json') $facts $owner
+ $receipt=[ordered]@{format='private-configuration-derivation-receipt-v1';approved=$false;productionAuthorized=$false;attemptId=$attempt;runtimeFacts=$factsRef;configurations=$facts.configurations;policies=$facts.policies;plan=$planRef;healthExpected=$healthRef;loginChangedFields=$changed;originalHashesUnchanged=$true;databaseOrKeyOrCustodyBodyRead=$false;taskCalls=0;servicesStarted=0;secretsOutput=$false;newFPlusOneReaderIncluded=$false;timeWindowUnissued=$false;originalWindowInherited=$true;windowRefreshed=$false}
+ Close-AuthorizedConfigurationInputs $inputs;$inputs=$null
+ $receiptRef=Save-PrivateConfiguration (Join-Path $candidate 'configuration-derivation-receipt-r01.json') $receipt $owner
+ [ordered]@{prepared=$true;productionAuthorized=$false;attemptId=$attempt;runtimeFactsSha256=$factsRef.sha256;receiptSha256=$receiptRef.sha256}|ConvertTo-Json -Compress
+}finally{if($null-ne$inputs){Close-AuthorizedConfigurationInputs $inputs}}

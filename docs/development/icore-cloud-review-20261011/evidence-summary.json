@@ -1,0 +1,113 @@
+{
+  "format": "icore-cloud-review-evidence-summary-v1",
+  "asOf": "2026-10-11",
+  "origin": "Curated audit summary; private raw receipts excluded. Not independent cloud proof.",
+  "source": {
+    "base": "d146c51a5e8fc1f2aa5f93b04f931ef77dc2a9f0",
+    "observedRemoteV3Lab": "3ce7aacc75615faf31aab7d4d902598070ffa898",
+    "chatgptCompatibility": "f90058f21049f514f8ab2af407227aee02e2f259"
+  },
+  "state": {
+    "deploymentReady": false,
+    "productionAcceptance": false,
+    "r08ProductionAuthorized": false,
+    "productionEntryCalls": 3,
+    "taskRuns": 0,
+    "oldAttemptConsumed": true,
+    "oldRunClaimPresent": false,
+    "newAttemptPresent": false,
+    "finalSixApprovedFilesPresent": false,
+    "scope": "Latest recorded observation, not continuous monitoring"
+  },
+  "failures": [
+    {
+      "ordinal": 1,
+      "wrapper": "r01",
+      "exitCode": 1,
+      "code": "continuous_activation_rejected",
+      "controllerAttemptCreated": false,
+      "exitReceiptSha256": "b86d11706090a77aa7dd240c6e7ea37a9d4b6c476c20766176b2f3bcafd52d60",
+      "originalExceptionAvailable": false
+    },
+    {
+      "ordinal": 2,
+      "wrapper": "r03",
+      "exitCode": 1,
+      "code": "continuous_activation_rejected",
+      "controllerAttemptCreated": false,
+      "exitReceiptSha256": "944ff3536cf4a4574ca6ea0a397ba92db1ecd7842c44a71f7eb87d9c722a4f45",
+      "observationSha256": "594a5150552dcb57b8f357a71b13250ec153dbd81c66f7a069704cc6e11f298e",
+      "originalExceptionAvailable": false
+    },
+    {
+      "ordinal": 3,
+      "wrapper": "r04",
+      "exitCode": 2,
+      "code": "activation_failed",
+      "controllerAttemptCreated": true,
+      "taskUpdateObserved": false,
+      "taskEnableObserved": false,
+      "taskRuns": 0,
+      "exitReceiptSha256": "1874206ab80b98e3e1914b41cf127a6dc8478023ff9af2234257d981f72bf1a1",
+      "controllerResultSha256": "087be8159dfeb426fe506bdb9e24cfe30286a323410a0369c96e7c27a77c15e1",
+      "observationSha256": "973b72fcf9483f3a759f995790c904a88fa3d1c7a69757dd31f1d2769210e472",
+      "originalExceptionAvailable": false
+    }
+  ],
+  "diagnostics": [
+    {
+      "id": "private_acl_contract_gap",
+      "status": "confirmed blocker; original first thrown exception unknown",
+      "scope": "Backup config SID allowlist and extra private baseline leaves",
+      "extraBaselineFiles": 60
+    },
+    {
+      "id": "missing_activation_parent",
+      "status": "confirmed blocker",
+      "controllerLine": 111,
+      "helperRecursivelyCreatesParents": false,
+      "emptyParentSubsequentlyPrepared": true
+    },
+    {
+      "id": "com_principal_representation",
+      "status": "reproduced with real unregistered COM task; fixed in r08",
+      "controllerLine": 314,
+      "old": "$expected.Principal.UserId-cne$owner",
+      "fixed": "(Convert-TaskSid ([string]$expected.Principal.UserId))-cne$owner",
+      "diagnosticSha256": "618c52009458face6bba55854ca06e050592e3dec1a721692f44b2b9fc86fea3"
+    }
+  ],
+  "r08": {
+    "controllerOriginalSha256": "7e59927cd4914e06c2aff7a14f5f857c7dd45928958abd382bbaa39ea160aaf7",
+    "priorControllerSha256": "a184a8d9b0f1062713171eb2e45a05a2cbbf9a9eb07b7db5fc26374c3d3c5397",
+    "manifestOriginalSha256": "92131036811e62066e6b510ab40f43626029ca80ad99851fd26ca5970bd5d16b",
+    "independentReviewSha256": "128d39d1efa1b07d869b77393a4cb0fe1668256c5ef49d9ef715b37e0042ec9b",
+    "reviewedUtc": "2026-10-11T04:07:48.0011809Z",
+    "reviewPassed": true,
+    "preparationAccepted": true,
+    "productionExecutionAuthorized": false,
+    "focusedCasesPassed": 9,
+    "focusedReceiptSha256": "3d514c4a4bf3014427becda609d068da0e4b463d0328e9e34cde59439e211b2a",
+    "readonlyThroughLine": 321,
+    "readonlyReceiptSha256": "7b5f760a940e2ccd747f643f84b69efb4c19805dc381e44b3730f8b6e374f36b",
+    "checks": {
+      "artifactHashInventoryRows": 117,
+      "privateOwnerProtectedAcl": 115,
+      "extraBaselineFiles": 60,
+      "actualRuntimeFiles": 86,
+      "unchangedRuntimeFiles": 84,
+      "sourceProvenanceFiles": 84,
+      "sourceOnlyControllerRowChanged": true,
+      "originalFourConfigurationsUnchanged": true,
+      "mcpOriginalBytesUnchanged": true,
+      "coreDeltaOnlyManifest": true
+    }
+  },
+  "limits": [
+    "Counts describe different sets; do not equate 48/84/85/86/117.",
+    "Historical CI results do not cover later private scripts by inheritance.",
+    "Source-only readonly adapter does not prove real entry identity or later mutation stages.",
+    "Manifest, real configurations, endpoints, binaries and raw receipts are omitted.",
+    "No production run or human acceptance was performed during publication."
+  ]
+}
