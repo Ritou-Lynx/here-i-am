@@ -14,7 +14,7 @@ function bytes(ref){need(ref&&same(Object.keys(ref).sort(),['path','sha256'])&&h
 const ref=a=>({path:a.path,sha256:a.sha256});
 const json=r=>JSON.parse(bytes(r).toString('utf8').replace(/^\uFEFF/,''));
 const maintained=['register-mcp-config-switch-login.ps1','mcp-config-switch-registration.mjs','mcp-config-switch-bindings.mjs','register_task_primitives.ps1','task_security_policy.ps1','owned_artifacts.ps1','close-schema6-session.ps1','process_image_binding.ps1'];
-export const MCP_REGISTRATION_SOURCES=Object.freeze([...INVENTORY.filter(p=>p!=='runtime/node.exe'),...maintained.map(p=>'tools/i_core/maintenance/'+p)].sort());
+export const MCP_REGISTRATION_SOURCES=Object.freeze([...new Set([...INVENTORY.filter(p=>p!=='runtime/node.exe'),...maintained.map(p=>'tools/i_core/maintenance/'+p)])].sort());
 export const MCP_REGISTRATION_FIELDS=Object.freeze(['format','approved','registerOnly','registerDisabled','registrationDerivation','ownerSid','taskName','oldTask','registrationSddl','expectedRegisteredSddl','parentSddlSha256','taskSecurityPolicyVersion','inheritedReadOnlyPrincipals','releaseDirectory','manifestSha256','proposal','closedMarker','currentHead','originalCloseInput','originalCloseReceipt','mcpStart','fixedPrepareReceipt','preparedXml','approvedXml','registrationXml','maintenanceFiles','registrationReceiptPath','humanApproval']);
 export function validateMcpRegistrationApproval(c,approval){
  need(c&&same(Object.keys(c).sort(),[...MCP_REGISTRATION_FIELDS].sort()),'configuration_shape');

@@ -1,7 +1,7 @@
 // Candidate-only bindings. Reads anchored configuration/source bytes, never databases or keys.
 import path from 'node:path';
 import {readFileSync,readdirSync,lstatSync} from 'node:fs';
-import {verifyRelease,plainPath,sha256,PINNED_NODE_SHA256} from '../release_schema6/package.mjs';
+import {verifyRelease,plainPath,sha256,PINNED_NODE_SHA256,INVENTORY} from '../release_schema6/package.mjs';
 import {parseConfiguration} from '../release_schema6/lifecycle/configuration.mjs';
 import {backupFilePrimitives as f} from '../release_schema6/backup_bundle.mjs';
 
@@ -25,7 +25,7 @@ function scan(root,relative=''){plainPath(root);return readdirSync(path.join(roo
 export function independent(a,b){a=lexical(a).toLowerCase();b=lexical(b).toLowerCase();const nested=(x,y)=>{const r=path.relative(y,x);return r===''||(!path.isAbsolute(r)&&r!=='..'&&!r.startsWith('..'+path.sep));};need(!nested(a,b)&&!nested(b,a),'overlap');}
 export function readCore(core){
  exact(core,['releaseDirectory','manifestSha256','configurationPath','configurationSha256']);
- lexical(core.releaseDirectory);const release=verifyRelease(core.releaseDirectory,core.manifestSha256);need(release.files===48,'core_inventory');
+ lexical(core.releaseDirectory);const release=verifyRelease(core.releaseDirectory,core.manifestSha256);need(release.files===INVENTORY.length,'core_inventory');
  const c=jsonRef({path:core.configurationPath,sha256:core.configurationSha256});
  parseConfiguration(c,{manifest_sha256:core.manifestSha256,database_path:c.database_path,node_id:c.node_id,owner_sid:c.owner_sid});
  need(/^S-1-(?:[0-9]+-)*[0-9]+$/.test(c.owner_sid),'owner');lexical(c.database_path);for(const k of ['grants_path','approvals_path','recovery_custody_directory','recovery_key_path'])lexical(c[k]);

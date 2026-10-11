@@ -173,20 +173,22 @@ test('linked source directory is rejected on every platform',async t=> {
  const {symlinkSync}=await import('node:fs');const f=fixture(t),moved=path.join(f.root,'moved-sources');renameSync(f.sources,moved);symlinkSync(moved,f.sources,'junction');rejected(f.create,'linked_path_rejected');
 });
 
+test('backup wrapper binds its child implementation to the native binary pipe job',()=>{
+ const source=readFileSync(path.resolve('tools/i_core/release_schema6/backup_bundle_schema6.ps1'),'utf8').replaceAll('\r\n','\n');
+ const start=source.indexOf('function Start-BackupChild('),end=source.indexOf('\n}\n',start);
+ assert.ok(start>=0&&end>start);assert.match(source.slice(start,end),/New-Object Schema6BackupJob/);assert.doesNotMatch(source,/ProcessStartInfo/);
+});
+
 test('Windows PS5.1 production backup child preserves binary frames across console encodings and failed start',{skip:process.platform!=='win32'},async t=> {
  const {execFileSync}=await import('node:child_process');
  const root=syntheticRoot('backup-binary-frame-');t.after(()=>rmSync(root,{recursive:true,force:true}));
  const receiver=path.join(root,'receiver.mjs'),probe=path.join(root,'probe.ps1');
- writeFileSync(receiver,`import {createHash} from 'node:crypto';const chunks=[];for await(const c of process.stdin)chunks.push(c);const b=Buffer.concat(chunks);process.stdout.write(JSON.stringify({bytes:b.length,sha256:createHash('sha256').update(b).digest('hex'),portableHeader:b.subarray(32,36).toString('ascii')==='IPW1',portableLength:b.length>=40&&b.readUInt32BE(36)===48,keyPayload:b.subarray(32).toString('utf8')==='{"synthetic":true}',portablePayload:b.subarray(88).toString('utf8')==='{"synthetic":true}'}));`);
- writeFileSync(probe,String.raw`param([string]$Source,[string]$Node,[string]$Receiver,[string]$MissingNode)
+ writeFileSync(receiver,String.raw`import {createHash} from 'node:crypto';const chunks=[];for await(const c of process.stdin)chunks.push(c);const b=Buffer.concat(chunks);process.stdout.write(JSON.stringify({bytes:b.length,sha256:createHash('sha256').update(b).digest('hex'),portableHeader:b.subarray(32,36).toString('ascii')==='IPW1',portableLength:b.length>=40&&b.readUInt32BE(36)===48,keyPayload:b.subarray(32).toString('utf8')==='{"synthetic":true}',portablePayload:b.subarray(88).toString('utf8')==='{"synthetic":true}'}));`);
+ writeFileSync(probe,String.raw`param([string]$NativeSource,[string]$Node,[string]$Receiver,[string]$Root,[string]$MissingNode)
 $ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue'
+$env:PSModulePath=Join-Path $PSHOME 'Modules'
 if($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1){throw 'ps51_required'}
-$tokens=$null;$issues=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($Source,[ref]$tokens,[ref]$issues)
-if($issues.Count){throw 'source_parse_failed'}
-$functions=@($ast.FindAll({param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -in @('Quote-Argument','Start-BackupChild')},$true))
-if($functions.Count -ne 2){throw 'helper_selection_failed'}
-foreach($f in $functions){. ([scriptblock]::Create($f.Extent.Text))}
-$before=@{};foreach($name in @('SYSTEMROOT','WINDIR','TEMP','TMP','COMSPEC')){$before[$name]=[Environment]::GetEnvironmentVariable($name)}
+Add-Type -TypeDefinition ([IO.File]::ReadAllText($NativeSource))
 $original=[Console]::InputEncoding;$key=New-Object byte[] 32;$password=New-Object byte[] 48;$frame=New-Object byte[] 88
 $rng=[Security.Cryptography.RandomNumberGenerator]::Create();try{$rng.GetBytes($key);$rng.GetBytes($password)}finally{$rng.Dispose()}
 [Array]::Copy($key,0,$frame,0,32);[Array]::Copy([Text.Encoding]::ASCII.GetBytes('IPW1'),0,$frame,32,4);[Array]::Copy([byte[]]@(0,0,0,48),0,$frame,36,4);[Array]::Copy($password,0,$frame,40,48)
@@ -195,21 +197,29 @@ try {
  foreach($case in @(@{name='default';encoding=$original},@{name='utf8_bom';encoding=[Text.UTF8Encoding]::new($true)},@{name='utf16_bom';encoding=[Text.UnicodeEncoding]::new($false,$true)})) {
   [Console]::InputEncoding=$case.encoding
   foreach($kind in @('key','portable')) {
-   $secret=if($kind -eq 'key'){$key}else{$frame};$expected=New-Object byte[] ($secret.Length+$payload.Length)
-   [Array]::Copy($secret,0,$expected,0,$secret.Length);[Array]::Copy($payload,0,$expected,$secret.Length,$payload.Length)
-   $sha=[Security.Cryptography.SHA256]::Create();try{$expectedHash=([BitConverter]::ToString($sha.ComputeHash($expected))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose();[Array]::Clear($expected,0,$expected.Length)}
-   $received=Start-BackupChild $Node @($Receiver) $secret $payload
-   $rows+=@{encoding=$case.name;kind=$kind;bytes=$received.bytes;expectedBytes=$secret.Length+$payload.Length;exactBytes=($received.sha256 -eq $expectedHash);headerMatches=($kind -eq 'key' -or ($received.portableHeader -and $received.portableLength));payloadMatches=$(if($kind -eq 'key'){$received.keyPayload}else{$received.portablePayload});encodingRestored=([Console]::InputEncoding.CodePage -eq $case.encoding.CodePage -and [Console]::InputEncoding.GetPreamble().Length -eq $case.encoding.GetPreamble().Length)}
+   $secret=if($kind -eq 'key'){$key}else{$frame};$inputBytes=New-Object byte[] ($secret.Length+$payload.Length)
+   [Array]::Copy($secret,0,$inputBytes,0,$secret.Length);[Array]::Copy($payload,0,$inputBytes,$secret.Length,$payload.Length)
+   $sha=[Security.Cryptography.SHA256]::Create();try{$expectedHash=([BitConverter]::ToString($sha.ComputeHash($inputBytes))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+   $job=New-Object Schema6BackupJob
+   try {
+    $job.Prepare($Node,[string[]]@($Receiver),$Root);$job.Resume($inputBytes);$inputBytes=$null
+    $watch=[Diagnostics.Stopwatch]::StartNew()
+    while(!($job.Exited -and $job.Empty -and $job.CaptureComplete)){if($watch.ElapsedMilliseconds -ge 30000){throw 'synthetic_child_timeout'};Start-Sleep -Milliseconds 10}
+    if($job.ExitCode -ne 0 -or !$job.InputComplete -or $job.InputFailed -or !$job.Stdout.Eof -or !$job.Stderr.Eof -or $job.Stdout.Overflow -or $job.Stderr.Overflow -or $job.Stdout.Failure -or $job.Stderr.Failure){throw 'synthetic_capture_rejected'}
+    $received=[Text.UTF8Encoding]::new($false,$true).GetString($job.Stdout.Bytes)|ConvertFrom-Json
+    $rows+=@{encoding=$case.name;kind=$kind;bytes=$received.bytes;expectedBytes=$secret.Length+$payload.Length;exactBytes=($received.sha256 -eq $expectedHash);headerMatches=($kind -eq 'key' -or ($received.portableHeader -and $received.portableLength));payloadMatches=$(if($kind -eq 'key'){$received.keyPayload}else{$received.portablePayload});encodingRestored=([Console]::InputEncoding.CodePage -eq $case.encoding.CodePage -and [Console]::InputEncoding.GetPreamble().Length -eq $case.encoding.GetPreamble().Length)}
+   }finally{if($inputBytes){[Array]::Clear($inputBytes,0,$inputBytes.Length)};$job.Dispose()}
   }
-  $rejected=$false;try{Start-BackupChild $MissingNode @($Receiver) $key $payload|Out-Null}catch{$rejected=$true}
-  $failures+=@{encoding=$case.name;startRejected=$rejected;encodingRestored=([Console]::InputEncoding.CodePage -eq $case.encoding.CodePage -and [Console]::InputEncoding.GetPreamble().Length -eq $case.encoding.GetPreamble().Length)}
+  $job=New-Object Schema6BackupJob;$rejected=$false;$ended=$false
+  try{try{$job.Prepare($MissingNode,[string[]]@($Receiver),$Root)}catch{$rejected=$true};$ended=$job.PreparationEndedWithoutProcess}finally{$job.Dispose()}
+  $failures+=@{encoding=$case.name;startRejected=$rejected;preparationEndedWithoutProcess=$ended;encodingRestored=([Console]::InputEncoding.CodePage -eq $case.encoding.CodePage -and [Console]::InputEncoding.GetPreamble().Length -eq $case.encoding.GetPreamble().Length)}
  }
  [pscustomobject]@{rows=$rows;failures=$failures}|ConvertTo-Json -Depth 4 -Compress
 }finally{[Console]::InputEncoding=$original;foreach($bytes in @($key,$password,$frame,$payload)){[Array]::Clear($bytes,0,$bytes.Length)}}
 `);
  const ps=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
- const report=JSON.parse(execFileSync(ps,['-NoProfile','-NonInteractive','-File',probe,'-Source',path.resolve('tools/i_core/release_schema6/backup_bundle_schema6.ps1'),'-Node',syntheticFixedNode(root),'-Receiver',receiver,'-MissingNode',path.join(root,'never-created.exe')],{windowsHide:true,encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:60000,maxBuffer:65536}));
+ const report=JSON.parse(execFileSync(ps,['-NoProfile','-NonInteractive','-File',probe,'-NativeSource',path.resolve('tools/i_core/release_schema6/lifecycle/backup_native.cs'),'-Node',syntheticFixedNode(root),'-Receiver',receiver,'-Root',root,'-MissingNode',path.join(root,'never-created.exe')],{windowsHide:true,encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:240000,maxBuffer:65536}));
  assert.equal(report.rows.length,6);assert.equal(report.failures.length,3);
  for(const row of report.rows){assert.equal(row.bytes,row.expectedBytes,`${row.encoding}/${row.kind}`);assert.equal(row.exactBytes,true);assert.equal(row.headerMatches,true);assert.equal(row.payloadMatches,true);assert.equal(row.encodingRestored,true);}
- for(const failure of report.failures){assert.equal(failure.startRejected,true);assert.equal(failure.encodingRestored,true);}
+ for(const failure of report.failures){assert.equal(failure.startRejected,true);assert.equal(failure.preparationEndedWithoutProcess,true);assert.equal(failure.encodingRestored,true);}
 });

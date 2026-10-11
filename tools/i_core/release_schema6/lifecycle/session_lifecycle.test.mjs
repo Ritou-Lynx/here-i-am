@@ -88,7 +88,7 @@ test('Windows hidden session hook: cancel shutdown creates fresh control; shutdo
 
 test('Windows login preparation is hash-bound, rejects dynamic production port and emits only least-privilege InteractiveToken XML',{skip:process.platform!=='win32',timeout:180000},async t=>{
  const l=await createRuntimeLab(t),c=loginConfig(l),out=path.join(path.dirname(c.file),'login-task.xml');
- const prepare=()=>execFileSync(ps,['-NoProfile','-NonInteractive','-File',path.join(l.lifecycle,'prepare_login_schema6.ps1'),'-ReleaseDirectory',l.release,'-ManifestSha256',l.manifestHash,'-LoginConfigurationPath',c.file,'-LoginConfigurationSha256',c.hash,'-OutputXml',out,'-PrepareOnly'],{windowsHide:true,env:cleanEnvironment(),encoding:'utf8'});
+ const prepare=()=>execFileSync(ps,['-NoProfile','-NonInteractive','-File',path.join(l.lifecycle,'prepare_login_schema6.ps1'),'-ReleaseDirectory',l.release,'-ManifestSha256',l.manifestHash,'-LoginConfigurationPath',c.file,'-LoginConfigurationSha256',c.hash,'-OutputXml',out,'-EvidenceBindingPath',path.join(l.root,'synthetic-binding.json'),'-EvidenceBindingSha256','c'.repeat(64),'-ExpectedApprovalSha256','d'.repeat(64),'-PrepareOnly'],{windowsHide:true,env:cleanEnvironment(),encoding:'utf8'});
  assert.throws(prepare);assert.equal(existsSync(out),false);
  c.configuration.core_port=47841;writeFileSync(c.file,JSON.stringify(c.configuration));c.hash=sha256(readFileSync(c.file));
  assert.throws(prepare);assert.equal(existsSync(out),false,'production task requires managed MCP');

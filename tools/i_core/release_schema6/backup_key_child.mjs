@@ -8,7 +8,8 @@ import { wrapBackupKey, portableEnvelopeSha256, restorePortableBackupForInspecti
 import { runDueAutomaticBackup } from './automatic_backup.mjs';
 const reject = () => { throw new Error('backup_child_rejected'); };
 const here = path.dirname(fileURLToPath(import.meta.url));
-export async function runBackupChild(args, input) {
+// Function-only test injection; the production CLI supplies no exporter override.
+export async function runBackupChild(args, input, taskExporter) {
   const [release,manifestHash]=args;
   if(args.length!==2 || path.resolve(release,'tools/i_core/release_schema6')!==here || sha256(readFileSync(process.execPath))!==PINNED_NODE_SHA256) reject();
   verifyRelease(release,manifestHash);
@@ -30,7 +31,7 @@ export async function runBackupChild(args, input) {
       if(password)reject();const config=readAnchored(operation.configPath,operation.configSha256);
       if(config.format!=='i-core-automatic-config-v2'||Object.keys(config).sort().join()!==['format','policy','specTemplate','sqliteEntryNames','envelopePath','envelopeSha256','dynamicInventory'].sort().join())reject();
       const envelope=readAnchored(config.envelopePath,config.envelopeSha256);
-      report=await runDueAutomaticBackup({...config,key,envelope});verifyRelease(release,manifestHash);return {...report,reportSchema:'i-core-automatic-result-v2',scope:'inventory_only',production_completeness_not_attested:true,activation_supported:false};
+      report=await runDueAutomaticBackup({...config,key,envelope},taskExporter);verifyRelease(release,manifestHash);return {...report,reportSchema:'i-core-automatic-result-v2',scope:'inventory_only',production_completeness_not_attested:true,activation_supported:false};
     } else if(operation.operation==='create' && Object.keys(operation).sort().join()===['operation','specPath','specSha256','outputDirectory'].sort().join()) {
       plainPath(operation.specPath); if(lstatSync(operation.specPath).size>1024*1024) reject(); const bytes=readFileSync(operation.specPath);
       if(bytes.length>1024*1024 || !/^[a-f0-9]{64}$/.test(operation.specSha256 ?? '') || sha256(bytes)!==operation.specSha256) reject();

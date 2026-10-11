@@ -27,6 +27,8 @@ if(-not [IO.Path]::IsPathRooted($FixtureRoot) -or -not [IO.Directory]::Exists($F
 $ReleaseDirectory=Join-Path $FixtureRoot 'synthetic release & binding'
 $LoginConfigurationPath=Join-Path $FixtureRoot 'synthetic config & binding.json'
 $ManifestSha256='a'*64;$LoginConfigurationSha256='b'*64
+$EvidenceBindingPath=Join-Path $FixtureRoot 'synthetic evidence & binding.json'
+$EvidenceBindingSha256='c'*64;$ExpectedApprovalSha256='d'*64
 $verified=@{owner_sid='S-1-5-21-111111111-222222222-333333333-1001'}
 $ps=Join-Path $FixtureRoot 'synthetic powershell.exe'
 $login=Join-Path $ReleaseDirectory 'tools/i_core/release_schema6/lifecycle/login_schema6.ps1'
@@ -46,7 +48,7 @@ Assert-Equal (Value '/t:Task/t:Triggers/t:LogonTrigger/t:UserId') $verified.owne
 Assert-Equal (Value '/t:Task/t:Triggers/t:LogonTrigger/t:Enabled') 'true' 'trigger_enabled_changed'
 Assert-Equal (Value '/t:Task/t:Actions/t:Exec/t:Command') $ps 'command_binding_changed'
 # Independent expected argument serialization, not the production quote helper.
-$expectedArguments='"-NoProfile" "-NonInteractive" "-WindowStyle" "Hidden" "-ExecutionPolicy" "Bypass" "-File" "'+$login+'" "-ReleaseDirectory" "'+$ReleaseDirectory+'" "-ManifestSha256" "'+$ManifestSha256+'" "-LoginConfigurationPath" "'+$LoginConfigurationPath+'" "-LoginConfigurationSha256" "'+$LoginConfigurationSha256+'"'
+$expectedArguments='"-NoProfile" "-NonInteractive" "-WindowStyle" "Hidden" "-ExecutionPolicy" "Bypass" "-File" "'+$login+'" "-ReleaseDirectory" "'+$ReleaseDirectory+'" "-ManifestSha256" "'+$ManifestSha256+'" "-LoginConfigurationPath" "'+$LoginConfigurationPath+'" "-LoginConfigurationSha256" "'+$LoginConfigurationSha256+'" "-EvidenceBindingPath" "'+$EvidenceBindingPath+'" "-EvidenceBindingSha256" "'+$EvidenceBindingSha256+'" "-ExpectedApprovalSha256" "'+$ExpectedApprovalSha256+'"'
 Assert-Equal (Value '/t:Task/t:Actions/t:Exec/t:Arguments') $expectedArguments 'argument_binding_changed'
 # NewTask returns an in-memory definition. No folder/task discovery or persistence API.
 $scheduler=$null;$definition=$null

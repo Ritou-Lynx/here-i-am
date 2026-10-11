@@ -16,7 +16,7 @@ async function historical(l){
  l.release=release;l.lifecycle=path.join(release,'tools/i_core/release_schema6/lifecycle');l.manifestHash=result.manifest_sha256;l.configuration.manifest_sha256=l.manifestHash;writeFileSync(l.configPath,JSON.stringify(l.configuration));
  assert.equal(api.INVENTORY.length,47);
 }
-for(const old of [true,false])test('approved bound WM_CLOSE closes '+(old?'unchanged historical 47':'candidate 48')+' hidden session, managed MCP and Core',{skip:process.platform!=='win32',timeout:360000},async t=>{
+for(const old of [true,false])test('approved bound WM_CLOSE closes '+(old?'unchanged historical 47':'candidate 84')+' hidden session, managed MCP and Core',{skip:process.platform!=='win32',timeout:360000},async t=>{
  const l=await createRuntimeLab(t);if(old)await historical(l);
  const c=loginConfig(l);const mcp=await configureManagedMcp(l,c);
  const run=await host(l,c);await run.ready();await connectManaged(run,mcp,{requireMessage:false});
@@ -49,6 +49,6 @@ for(const old of [true,false])test('approved bound WM_CLOSE closes '+(old?'uncha
  assert.equal(receipt.coreForced,false);assert.equal(receipt.custodyAuthenticated,false);assert.equal(receipt.offlineSwitchMustVerifyCustody,true);
  assert.equal(Object.keys(receipt.receiptSha256).length,7);
  assert.equal(run.read('mcp-stop.json').job_empty_confirmed,true);
- t.diagnostic(JSON.stringify({packageFileCount:old?47:48,externalCloseElapsedMs:receipt.externalCloseElapsedMs,budgetMs:receipt.budgetMs}));
+ t.diagnostic(JSON.stringify({packageFileCount:old?47:84,externalCloseElapsedMs:receipt.externalCloseElapsedMs,budgetMs:receipt.budgetMs}));
  l.completed=true;
 });

@@ -35,7 +35,6 @@ export const ASSEMBLY_DEPENDENCIES = Object.freeze([
   "tools/i_core/maintenance/p4/p4-bounded-transport-r05.mjs" ,
   "tools/i_core/maintenance/p4/p4-health-policy-dormant-r01.mjs" ,
   "tools/i_core/maintenance/p4/p4-pinned-entry-r04.mjs" ,
-  "tools/i_core/maintenance/p4/transport-endpoints-r04.json" ,
   "tools/i_core/maintenance/process_image_binding.ps1" ,
   "tools/i_core/maintenance/register_task_primitives.ps1" ,
   "tools/i_core/maintenance/task_security_policy.ps1" ,
@@ -125,7 +124,6 @@ export function verifyInventory(release, expectedManifestHash) {
       || Object.keys(manifest.policy ?? {}).sort().join(',') !== 'activity_enabled,companion_reply_jobs,companion_upload_mode,domain_policy'
       || JSON.stringify(manifest.files?.map(file => file.path).sort()) !== JSON.stringify(INVENTORY)
       || JSON.stringify(files(release)) !== JSON.stringify([...INVENTORY, 'manifest.json'].sort())) fail('manifest_contract_mismatch');
-  verifyOverlayProvenance(manifest);
   for (const file of manifest.files) {
     const bytes = readFileSync(plainPath(path.join(release, file.path)));
     if (bytes.length !== file.bytes || sha256(bytes) !== file.sha256) fail('release_file_changed');
@@ -147,46 +145,28 @@ export function readCommittedSources({ repository, gitPath, sourceCommit = 'HEAD
   const resolvedCommit = execFileSync(gitPath, ['-C', repository, 'rev-parse', '--verify', sourceCommit + '^{commit}'], gitOptions).toString('utf8').trim();
   if (!/^[a-f0-9]{40}$/.test(resolvedCommit)) fail('source_commit_unresolved');
   const content = new Map();
-  for (const name of [...SOURCES, ...WRAPPERS.map(name => 'tools/i_core/release_schema6/' + name)]) {
+  for (const name of [...SOURCES, ...WRAPPERS.map(name => 'tools/i_core/release_schema6/' + name), ...ASSEMBLY_DEPENDENCIES]) {
     content.set(name, execFileSync(gitPath, ['-C', repository, 'show', resolvedCommit + ':' + name], gitOptions));
   }
   validateImports(content);
   return { resolvedCommit, content };
 }
-export function prepareRelease() { fail('private_overlay_assembly_required'); }
-export function inventoryDigest(files) {
-  return sha256(Buffer.from(JSON.stringify(files.map(({path,bytes,sha256})=>({path,bytes,sha256})).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0))));
-}
-export function verifyOverlayProvenance(manifest) {
-  if(manifest.source_tree_kind!=='private-candidate-overlay-v1'
-      ||manifest.base_checkout_context_only!==true
-      ||manifest.base_checkout_commit!==manifest.source_commit
-      ||!/^[a-f0-9]{40}$/.test(manifest.base_checkout_commit??'')
-      ||manifest.actual_files!==INVENTORY.length
-      ||manifest.candidate_inventory_sha256!==inventoryDigest(manifest.files)
-      ||!['base_frozen_source_inventory_sha256','source_patch_sha256','dependency_inventory_sha256'].every(k=>/^[a-f0-9]{64}$/.test(manifest[k]??'')))
-    fail('overlay_provenance_mismatch');
-  const names=new Set();
-  for(const file of manifest.files){
-    if(Object.keys(file).sort().join(',')!=='bytes,path,sha256'||!Number.isSafeInteger(file.bytes)||file.bytes<0
-       ||!/^[a-f0-9]{64}$/.test(file.sha256??'')||names.has(file.path))fail('overlay_inventory_mismatch');
-    names.add(file.path);
+export function prepareRelease({ repository, output, nodePath = process.execPath, gitPath, sourceCommit = 'HEAD' }) {
+  plainPath(repository); plainPath(output, { missing: true }); plainPath(nodePath); plainPath(gitPath);
+  if (existsSync(output)) fail('fresh_output_required');
+  const nodeBytes = readFileSync(nodePath);
+  if (sha256(nodeBytes) !== PINNED_NODE_SHA256) fail('node_hash_mismatch');
+  const { resolvedCommit, content } = readCommittedSources({ repository, gitPath, sourceCommit });
+  content.set('runtime/node.exe', nodeBytes);
+  const manifest = Buffer.from(JSON.stringify({ format: 'i-core-schema6-preflight-candidate-v1', source_commit: resolvedCommit, core_commit: resolvedCommit, wrapper_commit: resolvedCommit,
+    core_schema_version: 6, runtime_profile: 'schema6-owned-lifecycle-v1',
+    pinned_node_sha256: PINNED_NODE_SHA256, node_version: 'v24.14.1',
+    policy: { companion_upload_mode: 'legacy_b3', companion_reply_jobs: false, activity_enabled: false, domain_policy: 'owner_managed' },
+    activation_supported: false, files: INVENTORY.map(name => ({ path: name, bytes: content.get(name).length, sha256: sha256(content.get(name)) })) }, null, 2) + '\n');
+  mkdirSync(output);
+  for (const [name, bytes] of [...content, ['manifest.json', manifest]]) {
+    mkdirSync(path.dirname(path.join(output, name)), { recursive: true });
+    writeFileSync(path.join(output, name), bytes, { flag: 'wx' });
   }
-}
-export function createOverlayManifest(input) {
-  if(Object.keys(input).sort().join(',')!=='baseCheckoutCommit,baseFrozenSourceInventorySha256,dependencyInventorySha256,files,sourcePatchSha256')
-    fail('overlay_input_fields');
-  const files=input.files.map(({path,bytes,sha256})=>({path,bytes,sha256})).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
-  if(JSON.stringify(files.map(x=>x.path))!==JSON.stringify(INVENTORY))fail('overlay_input_inventory');
-  const m={
-    format:'i-core-schema6-preflight-candidate-v1',source_commit:input.baseCheckoutCommit,core_commit:input.baseCheckoutCommit,wrapper_commit:input.baseCheckoutCommit,
-    source_tree_kind:'private-candidate-overlay-v1',base_checkout_commit:input.baseCheckoutCommit,base_checkout_context_only:true,
-    base_frozen_source_inventory_sha256:input.baseFrozenSourceInventorySha256,source_patch_sha256:input.sourcePatchSha256,
-    dependency_inventory_sha256:input.dependencyInventorySha256,candidate_inventory_sha256:inventoryDigest(files),actual_files:files.length,
-    core_schema_version:6,runtime_profile:'schema6-owned-lifecycle-v1',pinned_node_sha256:PINNED_NODE_SHA256,node_version:'v24.14.1',
-    policy:{companion_upload_mode:'legacy_b3',companion_reply_jobs:false,activity_enabled:false,domain_policy:'owner_managed'},
-    activation_supported:false,files
-  };
-  verifyOverlayProvenance(m);
-  return Buffer.from(JSON.stringify(m,null,2)+'\n');
+  return { ...verifyRelease(output, sha256(manifest)), source_commit: resolvedCommit };
 }
