@@ -1,3 +1,5 @@
+import {prepareDueInventory,validateDueInventoryPolicy} from './due_inventory.mjs';
+import { createEffectEvidence, observeEffect, finishEffects } from './backup_effects.mjs';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, openSync, closeSync, writeFileSync, readFileSync, readSync, unlinkSync, rmdirSync, readdirSync, lstatSync, fsyncSync } from 'node:fs';
 import { DatabaseSync, backup } from 'node:sqlite';
@@ -69,41 +71,45 @@ function mac(key,body){return createHmac('sha256',key).update(json(body)).digest
 function readReceipt(dir,key,setId){f.safe(dir,true);const r=JSON.parse(f.small(path.join(dir,'receipt.json'),65536));const {mac:signature,...body}=r;if(body.format!=='i-core-automatic-receipt-v1'||body.backupSetId!==setId||!Number.isSafeInteger(body.completedAt)||!/^[a-f0-9]{64}$/.test(signature??'')||!timingSafeEqual(Buffer.from(signature,'hex'),Buffer.from(mac(key,body),'hex'))||JSON.stringify(Object.keys(body.files).sort())!==JSON.stringify([...managed].sort()))fail('automatic_receipt_rejected');return body;}
 function checkManaged(dir,body){const rootNames=readdirSync(dir).sort();if(JSON.stringify(rootNames)!==JSON.stringify(['artifact','portable-binding.json','portable-key.json','receipt.json']))fail('automatic_unmanaged_files');f.safe(path.join(dir,'artifact'),true);if(JSON.stringify(readdirSync(path.join(dir,'artifact')))!==JSON.stringify(['runtime.aes256gcm']))fail('automatic_unmanaged_files');for(const n of managed)if(f.readStable(path.join(dir,...n.split('/'))).sha256!==body.files[n])fail('automatic_file_changed');}
 function retained(root,key,setId){return readdirSync(root).filter(n=>/^daily-[0-9]{13}-[a-f0-9-]{36}$/.test(n)).flatMap(name=>{try{const dir=path.join(root,name),r=readReceipt(dir,key,setId);return [{name,dir,...r}];}catch{return [];}});}
-function prune(root,key,setId,now,days){let count=0;for(const r of retained(root,key,setId)){if(r.completedAt>=now-days*DAY)continue;checkManaged(r.dir,r);for(const n of [...managed,'receipt.json']){const p=path.join(r.dir,...n.split('/'));f.safe(p);unlinkSync(p);}f.safe(path.join(r.dir,'artifact'),true);rmdirSync(path.join(r.dir,'artifact'));f.safe(r.dir,true);rmdirSync(r.dir);count++;}return count;}
-function mirror(job,body,root,key,setId){
+function prune(root,key,setId,now,days,e,side){e.pruneBranchEntered=true;let count=0;for(const r of retained(root,key,setId)){if(r.completedAt>=now-days*DAY)continue;checkManaged(r.dir,r);for(const n of [...managed,'receipt.json']){const p=path.join(r.dir,...n.split('/'));f.safe(p);observeEffect(e,'delete',()=>unlinkSync(p));}f.safe(path.join(r.dir,'artifact'),true);observeEffect(e,'delete',()=>rmdirSync(path.join(r.dir,'artifact')));f.safe(r.dir,true);observeEffect(e,'delete',()=>rmdirSync(r.dir));e[side==='local'?'localRemovedBackupSets':'mirrorRemovedBackupSets']++;count++;}return count;}
+function mirror(job,body,root,key,setId,e){
  if(!root)return {mirrored:false,mirrorPending:false};
+ e.mirrorAttempted++;
  try{
   f.safe(root,true);
-  for(const prior of retained(root,key,setId)){if(prior.files['artifact/runtime.aes256gcm']===body.files['artifact/runtime.aes256gcm']){checkManaged(prior.dir,prior);return {mirrored:true,mirrorPending:false};}}
+  for(const prior of retained(root,key,setId)){if(prior.files['artifact/runtime.aes256gcm']===body.files['artifact/runtime.aes256gcm']){checkManaged(prior.dir,prior);e.mirrorValidatedReceipts++;e.mirrorAlreadyPresent++;return {mirrored:true,mirrorPending:false};}}
   // Each attempt owns a fresh directory. Interrupted partial copies are never
   // mistaken for complete receipts or overwritten/deleted on a retry.
-  const target=path.join(root,`daily-${String(body.completedAt).padStart(13,'0')}-${randomUUID()}`);fresh(target);fresh(path.join(target,'artifact'));
-  for(const n of managed){const source=path.join(job,...n.split('/')),destination=path.join(target,...n.split('/'));const before=f.readStable(source);const out=openSync(destination,'wx',0o600);try{const during=f.readStable(source,c=>writeFileSync(out,c));if(JSON.stringify(before)!==JSON.stringify(during))fail('mirror_source_changed');fsyncSync(out);}finally{closeSync(out);}if(f.readStable(destination).sha256!==before.sha256)fail('mirror_verification_failed');}
-  writeNew(path.join(target,'receipt.json'),json({...body,mac:mac(key,body)}));checkManaged(target,readReceipt(target,key,setId));return {mirrored:true,mirrorPending:false};
- }catch{return {mirrored:false,mirrorPending:true,mirrorError:'mirror_copy_unavailable_or_rejected'};}
+  const target=path.join(root,`daily-${String(body.completedAt).padStart(13,'0')}-${randomUUID()}`);observeEffect(e,'directory',()=>fresh(target));observeEffect(e,'directory',()=>fresh(path.join(target,'artifact')));
+  for(const n of managed){const source=path.join(job,...n.split('/')),destination=path.join(target,...n.split('/'));const before=f.readStable(source);observeEffect(e,'copy',()=>{const out=openSync(destination,'wx',0o600);try{const during=f.readStable(source,c=>writeFileSync(out,c));if(JSON.stringify(before)!==JSON.stringify(during))fail('mirror_source_changed');fsyncSync(out);}finally{closeSync(out);}if(f.readStable(destination).sha256!==before.sha256)fail('mirror_verification_failed');});}
+  observeEffect(e,'receipt',()=>writeNew(path.join(target,'receipt.json'),json({...body,mac:mac(key,body)})));checkManaged(target,readReceipt(target,key,setId));e.mirrorValidatedReceipts++;e.mirrorCopied++;return {mirrored:true,mirrorPending:false};
+ }catch{e.mirrorPending++;e.partial=true;e.measurementComplete=false;e.failureStage??='mirror_validation';return {mirrored:false,mirrorPending:true,mirrorError:'mirror_copy_unavailable_or_rejected'};}
 }
-export async function runDueAutomaticBackup({policy,specTemplate,sqliteEntryNames=[],key,envelope,nowMs=Date.now()}){
- validatePolicy(policy);if(!Number.isSafeInteger(nowMs)||nowMs<0)fail('automatic_clock_invalid');if(envelope.backupSetId!==policy.backupSetId||envelope.keyId!==sha(key))fail('automatic_key_rotation_requires_setup');portableEnvelopeSha256(envelope);
+export async function runDueAutomaticBackup({policy,specTemplate,sqliteEntryNames=[],key,envelope,dynamicInventory,nowMs=Date.now()},taskExporter){
+ validateDueInventoryPolicy(dynamicInventory,specTemplate);validatePolicy(policy);if(!Number.isSafeInteger(nowMs)||nowMs<0)fail('automatic_clock_invalid');if(envelope.backupSetId!==policy.backupSetId||envelope.keyId!==sha(key))fail('automatic_key_rotation_requires_setup');portableEnvelopeSha256(envelope);
  // Cross-process ownership is the fixed Automatic PowerShell wrapper's OS
  // FileShare.None lock. This set only serializes direct callers in this process.
  const lock=process.platform==='win32'?policy.outputRoot.toLowerCase():policy.outputRoot;
- if(inProcessRuns.has(lock))fail('automatic_in_process_busy');inProcessRuns.add(lock);let job;
+ if(inProcessRuns.has(lock))fail('automatic_in_process_busy');inProcessRuns.add(lock);let job,dueInventory,newSuccessReceiptPublished=false;const effects=createEffectEvidence();
  try{
   const local=retained(policy.outputRoot,key,policy.backupSetId).sort((a,b)=>b.completedAt-a.completedAt),prior=local[0];
   if(prior?.completedAt>nowMs)fail('automatic_clock_rollback');
   let mirrorState={mirrored:false,mirrorPending:false};
   // Retry every still-retained local artifact, including a newly configured or
   // reconnected destination, without recapturing any live database.
-  for(const r of local){checkManaged(r.dir,r);const result=mirror(r.dir,readReceipt(r.dir,key,policy.backupSetId),policy.mirrorRoot,key,policy.backupSetId);mirrorState={...result,mirrorPending:mirrorState.mirrorPending||result.mirrorPending};if(result.mirrorPending)break;}
-  if(prior){if(prior.completedAt>nowMs)fail('automatic_clock_rollback');if(nowMs-prior.completedAt<DAY)return {verified:true,status:mirrorState.mirrorPending?'mirror_pending':'not_due',...mirrorState,nextDueAt:prior.completedAt+DAY};}
+  for(const r of local){checkManaged(r.dir,r);const authenticated=readReceipt(r.dir,key,policy.backupSetId);effects.localValidatedReceipts++;const result=mirror(r.dir,authenticated,policy.mirrorRoot,key,policy.backupSetId,effects);mirrorState={...result,mirrorPending:mirrorState.mirrorPending||result.mirrorPending};if(result.mirrorPending)break;}
+  if(prior){if(prior.completedAt>nowMs)fail('automatic_clock_rollback');if(nowMs-prior.completedAt<DAY)return {verified:true,status:mirrorState.mirrorPending?'mirror_pending':'not_due',...mirrorState,nextDueAt:prior.completedAt+DAY,effectEvidence:finishEffects(effects)};}
   const name=`daily-${String(nowMs).padStart(13,'0')}-${randomUUID()}`;job=path.join(policy.outputRoot,name);
-  const report=await captureOnlineRuntimeBackup({specTemplate,sqliteEntryNames,outputDirectory:job,key});const binding=bindPortableArtifact({key,envelope,report});verifyPortableBinding({key,envelope,binding});
+  dueInventory=await prepareDueInventory({specTemplate,dynamicInventory,outputRoot:policy.outputRoot},taskExporter);
+  const report=await captureOnlineRuntimeBackup({specTemplate:dueInventory.specTemplate,sqliteEntryNames,outputDirectory:job,key});
+  await dueInventory.assertAfter();dueInventory.release();
+  const binding=bindPortableArtifact({key,envelope,report});verifyPortableBinding({key,envelope,binding});
   writeNew(path.join(job,'portable-key.json'),json(envelope));writeNew(path.join(job,'portable-binding.json'),json(binding));
   const body={format:'i-core-automatic-receipt-v1',backupSetId:policy.backupSetId,completedAt:nowMs,files:Object.fromEntries(managed.map(n=>[n,f.readStable(path.join(job,...n.split('/'))).sha256]))};
-  writeNew(path.join(job,'receipt.json'),json({...body,mac:mac(key,body)}));checkManaged(job,body);
-  const copied=mirror(job,body,policy.mirrorRoot,key,policy.backupSetId);mirrorState={...copied,mirrorPending:mirrorState.mirrorPending||copied.mirrorPending};
+  writeNew(path.join(job,'receipt.json'),json({...body,mac:mac(key,body)}));newSuccessReceiptPublished=true;checkManaged(job,readReceipt(job,key,policy.backupSetId));effects.localValidatedReceipts++;
+  const copied=mirror(job,body,policy.mirrorRoot,key,policy.backupSetId,effects);mirrorState={...copied,mirrorPending:mirrorState.mirrorPending||copied.mirrorPending};
   // An offline mirror never causes deletion of the only retained local copy.
-  const pruned=mirrorState.mirrorPending?0:prune(policy.outputRoot,key,policy.backupSetId,nowMs,policy.retentionDays??30)+(policy.mirrorRoot?prune(policy.mirrorRoot,key,policy.backupSetId,nowMs,policy.retentionDays??30):0);
-  return {verified:true,status:mirrorState.mirrorPending?'mirror_pending':'backed_up',localBackupCreated:true,artifactSha256:report.artifactSha256,files:report.files,...mirrorState,pruned,retentionDays:policy.retentionDays??30,crossComponentAtomic:false,activation_supported:false,nextDueAt:nowMs+DAY};
- }finally{inProcessRuns.delete(lock);}
+  const pruned=mirrorState.mirrorPending?0:prune(policy.outputRoot,key,policy.backupSetId,nowMs,policy.retentionDays??30,effects,'local')+(policy.mirrorRoot?prune(policy.mirrorRoot,key,policy.backupSetId,nowMs,policy.retentionDays??30,effects,'mirror'):0);
+  return {verified:true,status:mirrorState.mirrorPending?'mirror_pending':'backed_up',localBackupCreated:true,artifactSha256:report.artifactSha256,files:report.files,...mirrorState,pruned,retentionDays:policy.retentionDays??30,crossComponentAtomic:false,activation_supported:false,nextDueAt:nowMs+DAY,effectEvidence:finishEffects(effects)};
+ }catch(error){dueInventory?.fail(error.code,newSuccessReceiptPublished);effects.partial=true;effects.measurementComplete=false;effects.failureStage??='automatic';error.effectEvidence={...effects};throw error;}finally{inProcessRuns.delete(lock);}
 }

@@ -51,16 +51,34 @@ function Pin-BootstrapFile([string]$Path){
  $h=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
  try{[CloseInputFileIdentity]::Check($h,$Path);$script:handles += $h}catch{$h.Dispose();throw}
 }
+function Assert-CloseOverlayManifest($m){
+ if($m.format-cne'i-core-schema6-preflight-candidate-v1'-or$m.source_tree_kind-cne'private-candidate-overlay-v1'-or$m.base_checkout_context_only-isnot[bool]-or!$m.base_checkout_context_only-or$m.activation_supported-isnot[bool]-or$m.activation_supported){throw 'session_close_overlay_provenance'}
+ if($m.base_checkout_commit-cnotmatch'^[a-f0-9]{40}$'-or$m.base_checkout_commit-cne$m.source_commit-or$m.core_commit-cne$m.source_commit-or$m.wrapper_commit-cne$m.source_commit-or$m.runtime_profile-cne'schema6-owned-lifecycle-v1'){throw 'session_close_overlay_provenance'}
+ foreach($key in @('base_frozen_source_inventory_sha256','source_patch_sha256','dependency_inventory_sha256','candidate_inventory_sha256')){if($m.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'session_close_overlay_provenance'}}
+ if($m.policy.companion_upload_mode-cne'legacy_b3'-or$m.policy.companion_reply_jobs-isnot[bool]-or$m.policy.companion_reply_jobs-or$m.policy.activity_enabled-isnot[bool]-or$m.policy.activity_enabled-or$m.policy.domain_policy-cne'owner_managed'-or(@($m.policy.PSObject.Properties.Name)|Sort-Object)-join','-cne'activity_enabled,companion_reply_jobs,companion_upload_mode,domain_policy'){throw 'session_close_overlay_policy'}
+ if($m.files-isnot[Array]-or$m.files.Count-lt1-or$m.files.Count-gt256-or($m.actual_files-isnot[int]-and$m.actual_files-isnot[long])-or$m.actual_files-ne$m.files.Count){throw 'session_close_release_inventory'}
+ $map=New-Object 'System.Collections.Generic.Dictionary[string,object]' ([StringComparer]::Ordinal)
+ $folded=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+ foreach($entry in $m.files){
+  if((@($entry.PSObject.Properties.Name)|Sort-Object)-join','-cne'bytes,path,sha256'-or$entry.path-isnot[string]-or$entry.path-cnotmatch'^(?:runtime/node\.exe|tools/i_core/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\.[A-Za-z0-9]+)$'-or$entry.path.Contains('..')-or$entry.sha256-cnotmatch'^[a-f0-9]{64}$'-or($entry.bytes-isnot[int]-and$entry.bytes-isnot[long])-or$entry.bytes-lt0-or$entry.bytes-gt134217728-or!$folded.Add($entry.path)){throw 'session_close_release_inventory'}
+  $map.Add($entry.path,$entry)
+ }
+ if(!$map.ContainsKey('runtime/node.exe')-or$map['runtime/node.exe'].sha256-cne'58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f'){throw 'session_close_release_runtime'}
+ [string[]]$orderedNames=@($map.Keys);[Array]::Sort($orderedNames,[StringComparer]::Ordinal)
+ $entries=@(foreach($name in $orderedNames){$entry=$map[$name];[ordered]@{path=$name;bytes=[long]$entry.bytes;sha256=[string]$entry.sha256}})
+ $bytes=[Text.UTF8Encoding]::new($false).GetBytes((ConvertTo-Json -InputObject $entries -Compress -Depth 5))
+ $sha=[Security.Cryptography.SHA256]::Create()
+ try{$digest=([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+ if($digest-cne$m.candidate_inventory_sha256){throw 'session_close_overlay_inventory_hash'}
+ return $orderedNames
+}
 function Assert-BootstrapRelease([string]$Root,[string]$Hash){
  Assert-BootstrapPath $Root -Root
  $mp=Join-Path $Root 'manifest.json';Pin-BootstrapFile $mp
  if($Hash-cnotmatch '^[a-f0-9]{64}$'-or (Hash-File $mp)-cne $Hash){throw 'session_close_release_manifest'}
  $m=Get-Content -LiteralPath $mp -Raw|ConvertFrom-Json
- $fixed=@('runtime/node.exe','tools/i_core/activity_control_plane.mjs','tools/i_core/domain_http.mjs','tools/i_core/domain_migrate.mjs','tools/i_core/domain_schema.mjs','tools/i_core/domain_store.mjs','tools/i_core/i_core_server.mjs','tools/i_core/i_core_store.mjs','tools/i_core/inspection_read_only.mjs','tools/i_core/personal_data_domains.mjs','tools/i_core/release_schema6/README.md','tools/i_core/release_schema6/automatic_backup.mjs','tools/i_core/release_schema6/automatic_recovery.mjs','tools/i_core/release_schema6/backup_bundle.mjs','tools/i_core/release_schema6/backup_bundle_schema6.ps1','tools/i_core/release_schema6/backup_key_child.mjs','tools/i_core/release_schema6/cli.mjs','tools/i_core/release_schema6/key_custody.ps1','tools/i_core/release_schema6/lifecycle/common.mjs','tools/i_core/release_schema6/lifecycle/configuration.mjs','tools/i_core/release_schema6/lifecycle/job_guardian.ps1','tools/i_core/release_schema6/lifecycle/login_schema6.ps1','tools/i_core/release_schema6/lifecycle/mcp_configuration.ps1','tools/i_core/release_schema6/lifecycle/offline_lease.mjs','tools/i_core/release_schema6/lifecycle/offline_probe_client.mjs','tools/i_core/release_schema6/lifecycle/owned_job.ps1','tools/i_core/release_schema6/lifecycle/prepare_login_schema6.ps1','tools/i_core/release_schema6/lifecycle/probe_offline.ps1','tools/i_core/release_schema6/lifecycle/protected_paths.ps1','tools/i_core/release_schema6/lifecycle/request_stop.ps1','tools/i_core/release_schema6/lifecycle/runtime_child.mjs','tools/i_core/release_schema6/lifecycle/session_window.ps1','tools/i_core/release_schema6/lifecycle/start_schema6.ps1','tools/i_core/release_schema6/package.mjs','tools/i_core/release_schema6/package_switch.mjs','tools/i_core/release_schema6/portable_backup_schema6.ps1','tools/i_core/release_schema6/portable_key_custody.mjs','tools/i_core/release_schema6/preflight.mjs','tools/i_core/release_schema6/preflight_schema6.ps1','tools/i_core/release_schema6/raw_state_backup.mjs','tools/i_core/release_schema6/readonly_witness.mjs','tools/i_core/release_schema6/recovery_adapter.mjs','tools/i_core/release_schema6/recovery_witness_worker.mjs','tools/i_core/release_schema6/restore_inspection.mjs','tools/i_core/release_schema6/scheduler_once_schema6.ps1','tools/i_core/send_shortcut_mail.ps1','tools/i_core/shortcut_mail_relay.mjs','tools/i_core/strict_smtp_tls_validation.ps1')
- $old=@($fixed|Where-Object{$_-cne 'tools/i_core/release_schema6/package_switch.mjs'})
- $script:legacyPackage=$m.files.Count-eq $old.Count
- $names=@($m.files.path);$selected=if($names.Count-eq $old.Count){$old}else{$fixed}
- if(@(Compare-Object ($selected|Sort-Object) ($names|Sort-Object)).Count-ne 0-or @($names|Select-Object -Unique).Count-ne $names.Count){throw 'session_close_release_inventory'}
+ $selected=@(Assert-CloseOverlayManifest $m)
+ $script:legacyPackage=$false
  if($m.core_schema_version-ne 6-or $m.node_version-cne 'v24.14.1'-or $m.pinned_node_sha256-cne '58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f'){throw 'session_close_release_contract'}
  $actual=@(Get-ChildItem -LiteralPath $Root -Recurse -Force|ForEach-Object{Assert-BootstrapPath $_.FullName;if(-not $_.PSIsContainer){$_.FullName.Substring($Root.Length+1).Replace('\','/')}})
  if(@(Compare-Object (($selected+@('manifest.json'))|Sort-Object) ($actual|Sort-Object)).Count-ne 0){throw 'session_close_release_inventory'}
