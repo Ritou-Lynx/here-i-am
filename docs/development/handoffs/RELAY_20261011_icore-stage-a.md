@@ -57,6 +57,13 @@
 
 **第 3 轮裁定**：该测试改为直接加载 `lifecycle/backup_native.cs`，用 `Schema6BackupJob` 验证同样的 6 组字节与 3 组启动失败；另加一条源码断言，确认包装脚本的 `Start-BackupChild` 走 `Schema6BackupJob`、不再用 `ProcessStartInfo`。先跑完一次全量，拿到全部失败再一起修；本轮结束无论结果都推送，便于云端看真实 diff。
 
+**A1 第 3 轮结果（899dd171，blocked）**：Linux/Windows 全量仍 31 失败；Windows 全量本机一次约 46 分钟。剩余 29 个叶子失败中 26 个来自 r08 把审批哈希与证据绑定写进运行时：`login_schema6.ps1`、`prepare_login_schema6.ps1` 新增 `EvidenceBinding*`/`ExpectedApprovalSha256`，`session_window.ps1` 构造器与备份协调器同样要求这些值。让它们变绿只能为测试伪造整条合成审批链，而阶段 D 正是要删掉“任务参数里嵌入的审批哈希”。
+
+**改道（2026-10-11）**：PR #23 停在草稿、不合并，r08 仍以审查包快照为参考。改为：
+- **A1b**：从 `v3-lab` 新开分支，只原样迁入 ChatGPT 的 MCP 配置切换路径（生成、绑定、登记、登记脚本、2 个测试、3 个夹具、维护 README 一节，共 10 个文件），运行时保持 48 项不变（与现役同一谱系）。云端已在 Linux 用 v3-lab 加这 10 个文件跑全量：0 失败。
+- **A2'**（取代原 A2/A3）：在 v3-lab 运行时上重写精简激活控制器，落实干跑、attempt 后置、错误可见、ACL 统一为所有者 + SYSTEM + Administrators、任务语义比对，不在任务参数里嵌入审批哈希；r08 控制器只作参考。
+- r08 的动态 custody 备份覆盖改动另开 PR，先把证据策略与审批哈希解耦，不阻塞 ChatGPT。
+
 ## 3. 合同 A2：先只读后消耗、干跑模式、先改任务再切包
 
 ```markdown
