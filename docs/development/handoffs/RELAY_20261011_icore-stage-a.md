@@ -72,6 +72,8 @@
 
 **改为不写代码的切换试运行（S1，需用户在场授权）**：登录任务触发器为登录（type 9），会话窗口处理注销消息并干净关闭。故切换=两条任务只启用 chatgpt 一条 → 注销再登录 → 核对端口、公网 discovery、ChatGPT 连接、Claude 仍可用、有无闪窗；回滚=反向启用 cleanclose → 注销再登录（即今天已验证的恢复路径）。不生成审批/关闭输入、不改包、不动数据库。A2' 推迟到 S1 后按实际需要再定，可能不再需要。中继 watcher 当前不用（手工交接），建议先停用以排除闪窗候选。
 
+**S1 实测（2026-10-11 北京时间 23:40–01:18，用户在场逐步执行）**：停用 AgentRelay 与 cleanclose、启用 chatgpt 后注销再登录。① 注销强制结束 cleanclose 会话（0xC000013A），库留 wal/shm；② 登录触发 chatgpt：Core 进入自动崩溃恢复，23:43:39 写恢复锁存，23:44:06 因 `offline_probe_failed` 中断（登录高峰期，探针 15 秒时限内未完成，推测），`commitStarted=false`、无 s6-copy 残留，原库未替换；③ 手动重跑被锁存拦下（`recovery_interrupted_review_required`）；④ 确认无占用后把锁存移到用户目录留档（未删），再 Start 一次：自动恢复完成，47841/47860 监听，公网 discovery 200，ChatGPT 连接器 OAuth 连接成功。待核：Claude 是否仍可用、观察闪窗。**教训**：注销不是安全停服，切换前须先走正常关闭；登录期自启程序多时恢复探针可能超时，Start 前应等系统空闲；Start 任务时会闪一次 PowerShell 窗口。
+
 ## 3. 合同 A2：先只读后消耗、干跑模式、先改任务再切包
 
 ```markdown
