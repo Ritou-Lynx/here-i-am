@@ -27,12 +27,12 @@
 ## 目标
 把 r08 私有执行链纳入 git、生产 pin 外置到本机文件，并让入口和控制器在失败时输出可定位、已脱敏的阶段与错误码。
 ## 完成标准
-- [ ] 审查包 SOURCE_MAP 所列 r08 程序全部进入仓库原相对路径：31 个仓库中原本没有的文件新建；8 个已有但内容不同的文件，取本机 r08 版本，逐个说明差异是否只是 r08 修复。
-- [ ] 所有硬编码生产 pin 移到一个本机 pin 文件：所有者 SID、T 盘卷与磁盘身份、数据库/head/marker/node 哈希、generation、窗口毫秒数、入口 bootstrap 哈希等。仓库只保留合成示例 `tools/i_core/test_fixtures/release_schema6/activation_pins.example.json`，真实 pin 文件路径已加入 .gitignore。
+- [ ] 以已公开、已脱敏的审查包快照 `snapshot/r08/` 为唯一来源（不读本机私有候选），把程序放回仓库原相对路径（去 .txt）：仓库没有的 31 个新建；与仓库不同的 8 个用快照版本覆盖（r08 是仓库版本的超集），相邻测试按需最小调整；与仓库相同的 43 个不动。
+- [ ] 所有硬编码生产 pin 与脱敏占位（所有者 SID、T 盘卷与磁盘身份、数据库/head/marker/node 哈希、generation、窗口毫秒数、入口 bootstrap 哈希、ReviewFixture 路径、mcp.example.invalid 等）改为从一个 pin 文件读取；仓库只放合成示例 `tools/i_core/test_fixtures/release_schema6/activation_pins.example.json`，真实 pin 文件名加入 .gitignore。本阶段不创建真实 pin 文件（阶段 C 才填）。
 - [ ] 入库源码和审查包快照（去 .txt 后缀）对比，除 pin 外置外没有其他逻辑变化；用 diff 统计在 SUMMARY 里说明。
 - [ ] 入口的 catch 不再只输出 `continuous_activation_rejected`。改为单行 JSON：阶段名、错误码、脚本内行号、异常类型名。错误码只在匹配 `^[a-z0-9_]{3,64}$` 时原样输出，否则只输出类型名，绝不输出 Message、路径或配置值。控制器的 catch 把原始错误码与阶段写入 result 的 `failureStage` / `failureCode`，不再统一改写为 `activation_failed`。
 - [ ] 新增合成测试：每个 throw 的错误码都能原样出现在输出里；构造含路径、SID 和非白名单 Message 的异常时，输出不含它们。
-- [ ] 新测试接入 `run_windows_tests.ps1 -MaintenanceOnly` 和 CI 的 Linux node 测试（按需），本 PR 的 CI 全绿。
+- [ ] 新测试命名为 `tools/i_core/release_schema6/maintenance_activation_*.test.mjs`，自动进入 Linux node、Windows 全量和 MaintenanceOnly 三个 CI 作业，不改 ci.yml；本 PR 的 CI 全绿。
 ## 允许修改的路径
 - tools/i_core/maintenance/
 - tools/i_core/release_schema6/
@@ -41,8 +41,8 @@
 ## 不做 / 边界
 - 见 docs/development/handoffs/RELAY_20261011_icore-stage-a.md 第 0 节止损规则。不改执行顺序和检查语义（那是 A2/A3 的事）。
 ## 验证命令
-- node --test tools/i_core/release_schema6/
-- powershell -NoProfile -File tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1 -MaintenanceOnly
+- 本机：node --test --test-concurrency=1 tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs
+- Windows COM/ACL：以推送后 PR 的 CI 作业 `Schema6 Windows lifecycle and backup` 与 `Schema6 Windows maintenance acceptance` 为准，本机不设合成任务环境变量
 ## 需要真人的部分
 - 无。
 ```
@@ -69,8 +69,8 @@
 ## 不做 / 边界
 - 见 docs/development/handoffs/RELAY_20261011_icore-stage-a.md 第 0 节止损规则。不删除非提权身份、数据库独占锁、head/generation 检查、唯一 Run 预算、P3/P4 和失败收容。
 ## 验证命令
-- node --test tools/i_core/release_schema6/
-- powershell -NoProfile -File tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1 -MaintenanceOnly
+- 本机：node --test --test-concurrency=1 tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs
+- Windows COM/ACL：以推送后 PR 的 CI 作业 `Schema6 Windows lifecycle and backup` 与 `Schema6 Windows maintenance acceptance` 为准，本机不设合成任务环境变量
 ## 需要真人的部分
 - 无。
 ```
@@ -96,8 +96,8 @@
 ## 不做 / 边界
 - 见 docs/development/handoffs/RELAY_20261011_icore-stage-a.md 第 0 节止损规则。不放宽身份比较：不同 SID、非法身份仍须拒绝。
 ## 验证命令
-- node --test tools/i_core/release_schema6/
-- powershell -NoProfile -File tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1 -MaintenanceOnly
+- 本机：node --test --test-concurrency=1 tools/i_core/release_schema6/*.test.mjs tools/i_core/release_schema6/lifecycle/*.test.mjs
+- Windows COM/ACL：以推送后 PR 的 CI 作业 `Schema6 Windows lifecycle and backup` 与 `Schema6 Windows maintenance acceptance` 为准，本机不设合成任务环境变量
 ## 需要真人的部分
 - D1 答复。
 ```
@@ -113,7 +113,9 @@
 
 ## 6. 发起方式
 
-watcher 只认 `codex/`、`claude/` 分支，以及仓库所有者本人发的指令评论。因此每份合同由用户（或有该账户权限的云端会话）完成以下四步：
+**当前采用手动交接**：用户把云端给出的每轮提示词贴进一个**新的** Codex 会话；Codex 在 `codex/` 分支提交、推送并开 draft PR（不加 `agent-relay` 标签，避免 watcher 重复接单）；用户把 Codex 的固定格式回报贴回云端会话，云端读真实 diff 与 CI 后给出下一轮提示词。
+
+以下为改用 watcher 时的做法。watcher 只认 `codex/`、`claude/` 分支，以及仓库所有者本人发的指令评论。因此每份合同由用户（或有该账户权限的云端会话）完成以下四步：
 
 1. 从最新审查分支建 `codex/icore-stage-a1-20261011`；
 2. 开 draft PR，base 为 `v3-lab`，描述最前面放上面的合同块，加标签 `agent-relay`；
