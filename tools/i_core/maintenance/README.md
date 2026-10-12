@@ -90,3 +90,30 @@ Windows CI的schema6-windows job串行纳入maintenance_acl/window/register测�
 Windows CI 的 maintenance 和全量套件均运行 `tools/i_core/test_fixtures/release_schema6/maintenance_safe_switch.test.mjs`：真实合成会话正常停服、A→B、新任务预检错哈希零变更，以及 B 就绪后参数哈希漂移→干净停 B→恢复 A。另在 CI 的合成任务门控下运行 GUID 无触发器无害任务，验证真实 COM 适配层并绑定删除。本机不设置任何合成任务或 owner-probe 环境变量。
 
 “未进入恢复”由真实回执核实：关闭前的 lifecycle 为 `clean_closed` 且无 sidecar，符合 `tools/i_core/release_schema6/automatic_recovery.mjs` 中 `needsStartupRecovery` 返回 false 的条件；`tools/i_core/release_schema6/lifecycle/runtime_child.mjs` 的 `recoveryNeeded` 分支据此不调用 `recoverAtStartup`。测试另核对 custody 的 `*.recovery.json` 事件集不增加（发布点在 `tools/i_core/release_schema6/recovery_adapter.mjs`）、恢复锁缺席及各代干净退出，防止把悄悄恢复当作切换成功。
+
+## 只替换 MCP 六文件源码（合同 C1）
+
+`update-mcp-source.mjs` 以指定的既有登录任务为起点，读取并核对 login、MCP、backup 配置哈希。候选使用 `chatgpt_candidate.mjs` 的目录结构（`manifest.json` 与 `runtime/`），六个文件名必须与现役 `source_files` 完全一致，`entry` 必须等于现役 `entrypoint`，每份源码核对 `result_sha256`。不限定候选提交号、变更文件数，也不添加或移除 ChatGPT 开关；如果旧库存仍带 `tools/` 前缀而候选没有，工具明确拒绝，不能偷偷改 entrypoint。
+
+```powershell
+# 以下是操作示例，真实执行需由用户在场另行授权。
+node tools/i_core/maintenance/update-mcp-source.mjs --from-task Existing-Login --candidate build/mcp-candidate --out private/new-mcp-settings --new-task Candidate-Login --dry-run
+node tools/i_core/maintenance/update-mcp-source.mjs --from-task Existing-Login --candidate build/mcp-candidate --out private/new-mcp-settings --new-task Candidate-Login
+# 登记完成后仍是停用状态；切换沿用合同 A。
+& tools/i_core/maintenance/switch-login-task.ps1 -FromTask Existing-Login -ToTask Candidate-Login -DryRun
+& tools/i_core/maintenance/switch-login-task.ps1 -FromTask Existing-Login -ToTask Candidate-Login
+```
+
+更新工具只接受上面五个选项。候选和输出均拒绝与旧工作目录、状态、控制根相互包含。Windows 预检只读核对候选 runtime 根的受保护 DACL、所有者及全部子项；不替候选修复权限。输出必须全新，失败后保留已有产物，不复用或自动重试。`--dry-run` 完成配置、候选、备份映射、任务定义和 CREATE-only 前置校验，零文件写入、零任务登记。此步骤不做实际切换的就绪验收。
+
+新 MCP 配置仅替换 `working_directory` / `source_files`；新 login 仅替换 MCP 和 backup 两对路径/哈希，其余 JSON 字节（含 BOM）保留。新增值中的非 ASCII 字符使用 JSON Unicode 转义，兼容冻结宿主按系统代码页读取配置。备份通过只导入的 `backupMapping` / `buildMcpSwitchBackup` 替换相关配置、任务与六份源码附件，循环模板摘要沿用既有规则，其他附件/策略不变。上次更新保留的附件原样保留，新保留项使用 `preserved/mcp-source-update/<摘要>/` 独立命名，避免与既有历史冲突。每份配置的字段差异写入私有 `field-diff.json`。
+
+Windows 桥接脚本导入 `Get-Schema6LoginBinding`；使用 `owned_artifacts.ps1` 的原子新目录/私有文件原语写入五份产物，普通用户、SYSTEM、Administrators 的既有 ACL 契约不另造一套。旧任务定义克隆到新任务，仅替换 login 参数和停用设置，`TASK_CREATE=2` 拒绝覆盖；不启动新任务，不启停旧任务，新任务的权限回读复用既有 Convert-TaskSecurity，容纳 Scheduler 合并或补加冗余 allow ACE，额外主体、额外权限以及 owner/group/protected 变化仍拒绝；旧任务 XML 与原始 SDDL 前后严格一致。每步单行 JSON 输出 `step` / `ok` / `detail`，原异常保留，失败退出 2。登记失败不自动删除未知任务，也不自动重试。
+
+新增纯 Node 测试使用临时合成文件和内存任务适配器，本机只运行这份文件：
+
+```text
+node --test tools/i_core/test_fixtures/release_schema6/maintenance_mcp_source.test.mjs
+```
+
+Windows maintenance 与 lifecycle/backup 套件额外运行 `maintenance_mcp_source_windows.test.mjs`，证明合成任务登记为停用、参数正确、旧任务未变、同名拒绝及清理；真实合成会话从 A 经生成/登记切到 B，核对就绪、无恢复事件和干净关闭。这些检查不代表生产部署或备份已成功。
