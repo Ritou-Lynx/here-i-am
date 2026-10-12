@@ -184,3 +184,23 @@ ChatGPT 写回的聊天带 `chatgpt_web` 来源，Claude 保持 `claude_web`。�
 ## 验证
 - Linux 运行 `node --test` 新测试；Windows CI 的 maintenance 和 lifecycle/backup 两项变绿
 ```
+
+## C1 审核（PR #27，HEAD 3f766124）
+
+- 结论：通过，可合并。工具只生成文件、登记停用任务，合并本身不影响生产。
+- 复核：云端 `node --test maintenance_mcp_source.test.mjs` 23/23；改动只在允许路径，`mcp-config-switch-*` 和运行时包未动。
+- 已核对的行为：候选 6 文件与哈希逐一校验，三份配置只改允许字段并输出 field-diff，任务 CREATE-only 且为停用，`--dry-run` 不写入。
+- 部署注意：候选必须先复制到受保护的私有目录（只有所有者可访问、不继承权限），否则 `--dry-run` 会在候选路径检查处拒绝。
+
+## C 部署阻塞：ChatGPT 设备无法配对（审核时发现，原计划遗漏）
+
+- Core 按已认证设备记录消息来源（`origin_device_id` 必须等于认证设备），所以 ChatGPT 要单独显示来源，必须先配对出 `frontend:chatgpt_web` 设备。
+- schema6 运行时打开配对窗口的唯一方式，是 Core 配置里的 `pairing_secret`。App 和管理接口都不能临时打开配对窗口。
+- 修改 Core 配置会改变配置哈希。正常重启时 `validatePrevious` 要求这个哈希与上次关闭时一致，所以改配置只能走离线包切换，无法用 A 或 C1 的工具完成。
+- 如果现在只部署 C1：新 MCP 会让 ChatGPT 返回 `frontend_not_paired:chatgpt_web`，ChatGPT 从“写回但标成 claude_web”变成完全不能写回，这是退步。
+- 决定：C1 暂不部署。ChatGPT 暂时保持现状（能写回，来源标成 claude_web）。
+- 下一次 Core 发布本来就要走离线包切换（关闭回执修复、恢复锁说明），在那次切换中一并处理：
+  1. 新 Core 配置带一次性 `pairing_secret`；
+  2. 切换后执行 `pair-core --frontend chatgpt_web`；
+  3. MCP 源码用 C1 更新；
+  4. 配对用过的口令在再下一次配置更新时清空。
