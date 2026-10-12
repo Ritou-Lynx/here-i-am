@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import os from 'node:os';
-import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,rmSync,existsSync,realpathSync,symlinkSync,linkSync} from 'node:fs';
+import {syntheticRoot} from './synthetic_paths.mjs';
+import {mkdirSync,readFileSync,writeFileSync,rmSync,existsSync,symlinkSync,linkSync} from 'node:fs';
 import {sha256} from '../../release_schema6/package.mjs';
 import {updateMcpSource,replaceJsonFields,fieldDiff,parseArguments} from '../../maintenance/update-mcp-source.mjs';
 const H='a'.repeat(64);
@@ -10,7 +10,7 @@ const names=['i_remote_mcp/server.mjs','i_remote_mcp/oauth.mjs','i_remote_mcp/di
 const put=(p,v)=>{mkdirSync(path.dirname(p),{recursive:true});writeFileSync(p,typeof v==='string'?v:JSON.stringify(v,null,2)+'\n');return sha256(readFileSync(p));};
 const json=p=>JSON.parse(readFileSync(p,'utf8'));
 export function createSourceUpdateFixture(t){
- const root=realpathSync(mkdtempSync(path.join(os.tmpdir(),'mcp-source-c1-')));t.after(()=>{assert.ok(path.basename(root).startsWith('mcp-source-c1-'));rmSync(root,{recursive:true,force:true});});
+ const root=syntheticRoot('mcp-source-c1-');t.after(()=>{assert.ok(path.basename(root).startsWith('mcp-source-c1-'));rmSync(root,{recursive:true,force:true});});
  const oldRoot=path.join(root,'old-source'),candidateDirectory=path.join(root,'candidate'),runtime=path.join(candidateDirectory,'runtime');
  const files=names.map((name,index)=>{const base=put(path.join(oldRoot,name),'// old '+name+'\n');const next=put(path.join(runtime,name),'// '+(index<4?'new':'old')+' '+name+'\n');return {path:name,base_sha256:base,result_sha256:next,changed:index<4};});
  const manifest={entry:names[0],source_commit:'b'.repeat(40),changed_files:4,files};put(path.join(candidateDirectory,'manifest.json'),manifest);

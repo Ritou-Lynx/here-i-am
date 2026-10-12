@@ -104,11 +104,11 @@ node tools/i_core/maintenance/update-mcp-source.mjs --from-task Existing-Login -
 & tools/i_core/maintenance/switch-login-task.ps1 -FromTask Existing-Login -ToTask Candidate-Login
 ```
 
-更新工具只接受上面五个选项。候选和输出均拒绝与旧工作目录、状态、控制根相互包含。输出必须全新，失败后保留已有产物，不复用或自动重试。`--dry-run` 完成配置、候选、备份映射、任务定义和 CREATE-only 前置校验，零文件写入、零任务登记。此步骤不做实际切换的就绪验收。
+更新工具只接受上面五个选项。候选和输出均拒绝与旧工作目录、状态、控制根相互包含。Windows 预检只读核对候选 runtime 根的受保护 DACL、所有者及全部子项；不替候选修复权限。输出必须全新，失败后保留已有产物，不复用或自动重试。`--dry-run` 完成配置、候选、备份映射、任务定义和 CREATE-only 前置校验，零文件写入、零任务登记。此步骤不做实际切换的就绪验收。
 
 新 MCP 配置仅替换 `working_directory` / `source_files`；新 login 仅替换 MCP 和 backup 两对路径/哈希，其余 JSON 字节（含 BOM）保留。新增值中的非 ASCII 字符使用 JSON Unicode 转义，兼容冻结宿主按系统代码页读取配置。备份通过只导入的 `backupMapping` / `buildMcpSwitchBackup` 替换相关配置、任务与六份源码附件，循环模板摘要沿用既有规则，其他附件/策略不变。上次更新保留的附件原样保留，新保留项使用 `preserved/mcp-source-update/<摘要>/` 独立命名，避免与既有历史冲突。每份配置的字段差异写入私有 `field-diff.json`。
 
-Windows 桥接脚本导入 `Get-Schema6LoginBinding`；使用 `owned_artifacts.ps1` 的原子新目录/私有文件原语写入五份产物，普通用户、SYSTEM、Administrators 的既有 ACL 契约不另造一套。旧任务定义克隆到新任务，仅替换 login 参数和停用设置，`TASK_CREATE=2` 拒绝覆盖；不启动新任务，不启停旧任务，回读核对旧任务未变。每步单行 JSON 输出 `step` / `ok` / `detail`，原异常保留，失败退出 2。登记失败不自动删除未知任务，也不自动重试。
+Windows 桥接脚本导入 `Get-Schema6LoginBinding`；使用 `owned_artifacts.ps1` 的原子新目录/私有文件原语写入五份产物，普通用户、SYSTEM、Administrators 的既有 ACL 契约不另造一套。旧任务定义克隆到新任务，仅替换 login 参数和停用设置，`TASK_CREATE=2` 拒绝覆盖；不启动新任务，不启停旧任务，新任务的权限回读复用既有 Convert-TaskSecurity，容纳 Scheduler 合并或补加冗余 allow ACE，额外主体、额外权限以及 owner/group/protected 变化仍拒绝；旧任务 XML 与原始 SDDL 前后严格一致。每步单行 JSON 输出 `step` / `ok` / `detail`，原异常保留，失败退出 2。登记失败不自动删除未知任务，也不自动重试。
 
 新增纯 Node 测试使用临时合成文件和内存任务适配器，本机只运行这份文件：
 

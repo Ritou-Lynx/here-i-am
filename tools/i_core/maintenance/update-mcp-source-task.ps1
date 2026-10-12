@@ -2,6 +2,8 @@
 [CmdletBinding()]
 param()
 . (Join-Path $PSScriptRoot 'stop-schema6-session.ps1')
+. (Join-Path $PSScriptRoot 'register_task_primitives.ps1')
+. (Join-Path $PSScriptRoot '../release_schema6/lifecycle/protected_paths.ps1')
 
 function Get-Schema6UpdateTaskLocation([string]$Name) {
  if([string]::IsNullOrWhiteSpace($Name) -or $Name -match '[\x00-\x1f/]'){throw 'task_name_invalid'}
@@ -91,6 +93,21 @@ function Assert-Schema6UpdateSource($Current,$Source) {
   if(-not $Source -or -not ($Source.PSObject.Properties.Name -contains $key) -or [string]$Current.$key -cne [string]$Source.$key){throw ('source_snapshot_changed:'+ $key)}
  }
 }
+function Assert-Schema6UpdateCandidate([string]$Runtime) {
+ if([string]::IsNullOrWhiteSpace($Runtime)){throw 'candidate_runtime_required'}
+ Assert-ProtectedPath $Runtime -Root
+ if(-not [IO.Directory]::Exists($Runtime)){throw 'candidate_runtime_directory_required'}
+ # Check each child before descending. Never recurse through an unchecked link.
+ $pending=[Collections.Generic.Stack[string]]::new();$pending.Push($Runtime)
+ while($pending.Count -gt 0){
+  $directory=$pending.Pop()
+  Assert-ProtectedPath $directory
+  foreach($item in @(Get-ChildItem -LiteralPath $directory -Force -ErrorAction Stop)){
+   Assert-ProtectedPath $item.FullName
+   if($item.PSIsContainer){$pending.Push($item.FullName)}
+  }
+ }
+}
 function Invoke-Schema6McpSourceTask($Request) {
  $ErrorActionPreference='Stop'
  if($Request.operation -eq 'write'){
@@ -107,6 +124,11 @@ function Invoke-Schema6McpSourceTask($Request) {
  $current=Invoke-Schema6Step 'update.task.read' {Get-Schema6UpdateSource $Request.fromTask $Request.newTask}
  if($Request.operation -eq 'read'){return [pscustomobject]@{loginPath=$current.loginPath;loginSha256=$current.loginSha256;taskXml=$current.taskXml;taskSddl=$current.taskSddl}}
  Invoke-Schema6Step 'update.task.snapshot' {Assert-Schema6UpdateSource $current $Request.source}
+ Invoke-Schema6Step 'update.candidate.paths' {
+  if($Request.PSObject.Properties.Name -notcontains 'candidateRuntime' -or $Request.candidateRuntime -isnot [string]){throw 'candidate_runtime_required'}
+  Assert-Schema6UpdateCandidate $Request.candidateRuntime
+ }
+ Invoke-Schema6Step 'update.task.security' {$null=Convert-TaskSecurity $current.taskSddl}
  $hasLogin=$Request.PSObject.Properties.Name -contains 'loginPath'
  if(-not $hasLogin){if($Request.operation -eq 'register'){throw 'new_login_arguments_required'};return [pscustomobject]@{checked=$true}}
  $arguments=Set-Schema6UpdateLoginArguments $current.Arguments $Request.loginPath $Request.loginSha256
@@ -117,7 +139,13 @@ function Invoke-Schema6McpSourceTask($Request) {
  Invoke-Schema6Step 'update.task.recheck' {Assert-Schema6UpdateSource (Get-Schema6UpdateSource $Request.fromTask $Request.newTask) $Request.source}
  $registered=Invoke-Schema6Step 'update.task.register' {Invoke-Schema6UpdateTaskOperation 'Create' $Request.newTask $data}
  Invoke-Schema6Step 'update.task.readback' {
-  if($registered.Enabled -or $registered.Arguments -cne $arguments -or $registered.Path -cne $current.Path -or $registered.WorkingDirectory -cne $current.WorkingDirectory -or $registered.taskSddl -cne $current.taskSddl){throw 'new_task_readback_failed'}
+  if($registered.Enabled){throw 'new_task_readback_failed:enabled'}
+  if($registered.Arguments -cne $arguments){throw 'new_task_readback_failed:arguments'}
+  if($registered.Path -cne $current.Path){throw 'new_task_readback_failed:path'}
+  if($registered.WorkingDirectory -cne $current.WorkingDirectory){throw 'new_task_readback_failed:working_directory'}
+  # Match the existing registration contract: only redundant equal-SID/flags
+  # allow ACEs collapse. Owner/group/protection and effective rights stay exact.
+  if((Convert-TaskSecurity $registered.taskSddl) -cne (Convert-TaskSecurity $current.taskSddl)){throw 'new_task_readback_failed:security'}
   $binding=Get-Schema6LoginBinding $Request.newTask
   if($binding.ConfigurationPath -cne $Request.loginPath -or $binding.ConfigurationSha256 -cne $Request.loginSha256){throw 'new_login_binding_readback_failed'}
   $old=Invoke-Schema6UpdateTaskOperation 'Snapshot' $Request.fromTask $null

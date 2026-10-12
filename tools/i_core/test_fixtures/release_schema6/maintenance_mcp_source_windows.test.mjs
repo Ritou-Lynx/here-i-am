@@ -53,12 +53,12 @@ test('MCP source update: real A session, real generated files and registration, 
  const argumentsA=loginArgs(l,a).map(v=>'"'+v+'"').join(' ');
  const xml='<Task><Settings><Enabled>true</Enabled></Settings><Actions><Exec><Command>'+esc(ps)+'</Command><Arguments>'+esc(argumentsA)+'</Arguments><WorkingDirectory>'+esc(l.release)+'</WorkingDirectory></Exec></Actions></Task>';
  writeFileSync(taskPath,xml);
- const candidate=l.dir('source-candidate-中文'),runtime=path.join(candidate,'runtime');mkdirSync(runtime);
+ const candidate=l.dir('source-candidate-中文'),runtime=path.join(candidate,'runtime');mkdirSync(runtime);protect(runtime);
  const files=mcp.configuration.source_files.map((e,i)=>{const destination=path.join(runtime,e.path);mkdirSync(path.dirname(destination),{recursive:true});const bytes=readFileSync(path.join(mcp.source,e.path));writeFileSync(destination,Buffer.concat([bytes,Buffer.from(i===0?'\n// Synthetic source-only update.\n':'')]));return {path:e.path,result_sha256:hash(destination)};});
  writeFileSync(path.join(candidate,'manifest.json'),JSON.stringify({entry:mcp.configuration.entrypoint,files}));
  const run=await host(l,a);await run.ready();await connectManaged(run,mcp,{requireMessage:false});
  const recoveryBefore=readdirSync(l.configuration.recovery_custody_directory).filter(n=>n.endsWith('.recovery.json')).sort();
- const oldTask={Name:'Synthetic-A',Path:ps,Arguments:argumentsA,WorkingDirectory:l.release,Enabled:true,State:4,ConfigurationSha256:a.hash,ControlRoot:a.controlRoot,taskXml:xml,taskSddl:'synthetic-unchanged-security'};
+ const oldTask={Name:'Synthetic-A',Path:ps,Arguments:argumentsA,WorkingDirectory:l.release,Enabled:true,State:4,ConfigurationSha256:a.hash,ControlRoot:a.controlRoot,taskXml:xml,taskSddl:'O:'+l.configuration.owner_sid+'G:'+l.configuration.owner_sid+'D:P(A;;FA;;;'+l.configuration.owner_sid+')(A;;FA;;;SY)(A;;FA;;;BA)'};
  const schedulerPath=path.join(l.root,'synthetic-scheduler.json');writeFileSync(schedulerPath,JSON.stringify({tasks:[oldTask]}));
  const calls=[];
  const taskBridge=request=>{
@@ -81,7 +81,7 @@ test('MCP source update: real A session, real generated files and registration, 
  const switched=invoke('safe_switch_session.ps1',['-InputPath',inputPath,'-MaintenanceDirectory',maintenance]);
  assert.equal(switched.status,0,switched.stdout+switched.stderr);
  const report=rows(switched).findLast(r=>r.format==='schema6-safe-switch-test-v1');
- assert.equal(report.code,0);assert.equal(report.error,null);assert.equal(report.cleanup,true);assert.equal(report.enabledA,false);assert.equal(report.enabledB,true);
+ assert.equal(report.code,0,switched.stdout+switched.stderr);assert.equal(report.error,null);assert.equal(report.cleanup,true);assert.equal(report.enabledA,false);assert.equal(report.enabledB,true);
  assert.deepEqual(report.active,['Synthetic-B']);assert.deepEqual(report.mutations,['Disable:Synthetic-A','Enable:Synthetic-B','Start:Synthetic-B']);
  await run.wait();cleanReceipt(run);
  const closed=controls(a.controlRoot);assert.equal(closed.length,2);
@@ -101,7 +101,7 @@ test('MCP source update COM: create disabled, preserve old task and arguments, d
  const invoked=spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(here,'mcp_source_update_com.ps1'),'-Bridge',bridge,'-Root',root],{windowsHide:true,encoding:'utf8',timeout:110000});
  const report=rows(invoked).findLast(r=>r.format==='schema6-mcp-source-com-v1');cleanup=report?.deleted===true;
  assert.equal(invoked.status,0,invoked.stdout+invoked.stderr);assert.ok(report);t.diagnostic(JSON.stringify(report));
- for(const key of ['created','disabled','arguments_preserved','old_unchanged','duplicate_rejected','deleted'])assert.equal(report[key],true,key);
+ for(const key of ['created','disabled','arguments_preserved','old_unchanged','duplicate_rejected','candidate_acl_rejected','security_duplicate_equal','security_extra_principal_rejected','security_changed_rights_rejected','semantic_equal','owner_equal','group_equal','protected_equal','deleted'])assert.equal(report[key],true,key);
 });
 
 test('MCP source bridge preserves UTF-8 stdin and the original Chinese exception across processes',{skip:process.platform!=='win32'},t=>{
