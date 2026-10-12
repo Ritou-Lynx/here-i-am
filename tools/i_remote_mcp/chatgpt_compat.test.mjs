@@ -24,6 +24,7 @@ const PRIVATE = 'SYNTHETIC_PRIVATE_SENTINEL';
 const sourceRuntime = { createApp, openReadModel, createWriteback, openLedger, OAuthServer, setPassphrase, sha256 };
 
 async function createFixture(t, runtime, options = { chatgptEnabled: true }) {
+  const { chatgptPaired = true, claudePaired = true, ...appOptions } = options;
   const { createApp, openReadModel, createWriteback, openLedger, OAuthServer, setPassphrase } = runtime;
   const dir = mkdtempSync(join(tmpdir(), 'i-chatgpt-compat-'));
   const db = new DatabaseSync(join(dir, 'synthetic-core.sqlite'));
@@ -53,28 +54,40 @@ async function createFixture(t, runtime, options = { chatgptEnabled: true }) {
     schema_version: 1, primary_character_id: PRIMARY,
     messages: { default: 'private', shareable_character_ids: [PRIMARY],
       private_message_types: [], private_keywords: [PRIVATE],
-      shareable_message_ids: [], shareable_message_hashes: {}, auto_share_origins: ['claude_web'] },
+      shareable_message_ids: [], shareable_message_hashes: {}, auto_share_origins: ['claude_web', 'chatgpt_web'] },
     memory: { default: 'shareable', private_types: [], private_structured_types: [],
       private_card_ids: [], private_keywords: [] },
   }));
   const readModel = openReadModel({ coreDbPath: join(dir, 'synthetic-core.sqlite'),
     memoryDbPath: join(dir, 'absent-memory.sqlite'), policyPath });
-  const ledger = openLedger(join(dir, 'synthetic-writeback.sqlite'));
-  const writeback = createWriteback({ ledger, coreClient: fakeCore });
+  const routed = [];
+  const writer = frontend => ({ async submit(messages) {
+    assert.ok(messages.every(message => message.origin_device_id === `frontend:${frontend}`));
+    routed.push({ frontend, ids: messages.map(message => message.sync_id) });
+    return fakeCore.submit(messages);
+  } });
+  const writeback = claudePaired ? createWriteback({
+    ledger: openLedger(join(dir, 'synthetic-writeback.sqlite')), coreClient: writer('claude_web'),
+  }) : null;
+  const chatgptWriteback = chatgptPaired ? createWriteback({
+    ledger: openLedger(join(dir, 'synthetic-writeback.sqlite')),
+    frontend: 'chatgpt_web', coreClient: writer('chatgpt_web'),
+  }) : null;
+  await writeback?.remember({ text: 'SYNTHETIC_CLAUDE_ONLY_NOTE' });
   setPassphrase(dir, PASSPHRASE);
   const diagnostics = [];
   const app = createApp({ stateDir: dir, publicUrl: PUBLIC_URL,
-    getReadModel: async () => readModel, writeback, diagnostic: r => diagnostics.push(r),
-    identityLoader: () => ({ name: 'synthetic i' }), ...options });
+    getReadModel: async () => readModel, writeback, chatgptWriteback, diagnostic: r => diagnostics.push(r),
+    identityLoader: () => ({ name: 'synthetic i' }), ...appOptions });
   assert.ok(app.oauth instanceof OAuthServer, 'server must use the selected runtime OAuth implementation');
   t.after(async () => {
     if (app.server.listening) await new Promise(r => app.server.close(r));
-    writeback.close(); readModel.close(); db.close();
+    chatgptWriteback?.close(); writeback?.close(); readModel.close(); db.close();
     // Only this test's newly allocated directory is removed.
     rmSync(dir, { recursive: true, force: true });
   });
   await listenForFetch(app.server);
-  return { ...app, dir, db, submitted, diagnostics,
+  return { ...app, dir, db, submitted, diagnostics, routed,
     base: `http://127.0.0.1:${app.server.address().port}` };
 }
 
@@ -99,11 +112,11 @@ async function register(ctx, origin = ORIGIN, callback = CALLBACK) {
   return r.body;
 }
 
-async function authorize(ctx, client, { origin = ORIGIN, callback = CALLBACK } = {}) {
+async function authorize(ctx, client, { origin = ORIGIN, callback = CALLBACK, scope = 'i.read i.write offline_access' } = {}) {
   const { verifier, challenge } = pkcePair();
   const params = new URLSearchParams({ response_type: 'code', client_id: client.client_id,
     redirect_uri: callback, code_challenge: challenge, code_challenge_method: 'S256',
-    scope: 'i.read i.write offline_access', state: 'synthetic-csrf-state', resource: RESOURCE });
+    scope, state: 'synthetic-csrf-state', resource: RESOURCE });
   const page = await fetch(`${ctx.base}/authorize?${params}`, { headers: { Origin: origin } });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /i\.read|读取/);
@@ -119,21 +132,23 @@ async function authorize(ctx, client, { origin = ORIGIN, callback = CALLBACK } =
   return { verifier, code: location.searchParams.get('code'), params };
 }
 
-async function connect(ctx, origin = ORIGIN, callback = CALLBACK) {
+async function connect(ctx, origin = ORIGIN, callback = CALLBACK, scope = 'i.read i.write') {
   const client = await register(ctx, origin, callback);
-  const grant = await authorize(ctx, client, { origin, callback });
+  const grant = await authorize(ctx, client, { origin, callback, scope: `${scope} offline_access` });
   const issued = await json(ctx, '/token', { origin, fields: {
     grant_type: 'authorization_code', client_id: client.client_id, redirect_uri: callback,
     code: grant.code, code_verifier: grant.verifier, resource: RESOURCE,
   } });
   assert.equal(issued.status, 200);
   assert.equal(issued.headers.get('cache-control'), 'no-store');
-  assert.equal(issued.body.scope, 'i.read i.write');
+  assert.equal(issued.body.scope, scope);
   const peer = { client, origin, ...issued.body };
   const init = await rpc(ctx, peer, 'initialize', { protocolVersion: VERSION,
     capabilities: {}, clientInfo: { name: origin === ORIGIN ? 'ChatGPT' : 'Claude', version: 'synthetic' } });
   assert.equal(init.status, 200, init.text);
   assert.equal(init.body.result.protocolVersion, VERSION);
+  if (callback === CALLBACK) assert.doesNotMatch(init.body.result.instructions, /i_remember/);
+  else assert.match(init.body.result.instructions, /i_remember/);
   peer.sessionId = init.headers.get('mcp-session-id');
   assert.ok(peer.sessionId);
   const notified = await mcpPost(ctx.base, peer.access_token, { jsonrpc: '2.0', method: 'notifications/initialized' },
@@ -191,7 +206,8 @@ function registerCompatSuite(label, loadRuntime) {
       assert.equal(tools.status, 200);
       assert.equal(tools.headers.get('access-control-allow-origin'), ORIGIN);
       assert.match(tools.headers.get('access-control-expose-headers'), /mcp-session-id/i);
-      assert.deepEqual(tools.body.result.tools.map(x => x.name), ['i_context', 'i_recall', 'i_chat_turn', 'i_remember']);
+      assert.deepEqual(tools.body.result.tools.map(x => x.name), ['i_context', 'i_recall', 'i_chat_turn']);
+      assert.match(tools.body.result.tools.find(tool => tool.name === 'i_chat_turn').description, /chatgpt_web/);
       const start = await call(ctx, peer, 'i_chat_turn', { phase: 'start', turns: [{ role: 'user', content: 'Synthetic cat likes rain' }] });
       assert.equal(start.core_status, 'ok');
       assert.equal(start.recorded.new_turns, 1);
@@ -205,10 +221,10 @@ function registerCompatSuite(label, loadRuntime) {
       assert.equal(retry.recorded.new_turns, 0);
       const recall = await call(ctx, peer, 'i_recall', { query: 'Synthetic cat' });
       assert.equal(recall.messages.items.length, 2);
-      assert.ok(recall.messages.items.every(x => x.source === 'claude_web'));
+      assert.ok(recall.messages.items.every(x => x.source === 'chatgpt_web'));
       assert.deepEqual(ctx.submitted.map(x => [x.sender, x.content]), [
         ['user', 'Synthetic cat likes rain'], ['companion', 'Synthetic cat is watching rain']]);
-      assert.ok(ctx.submitted.every(x => x.origin_device_id === 'frontend:claude_web' && x.character_id === PRIMARY));
+      assert.ok(ctx.submitted.every(x => x.origin_device_id === 'frontend:chatgpt_web' && x.character_id === PRIMARY));
       const rotated = await json(ctx, '/token', { fields: { grant_type: 'refresh_token',
         client_id: peer.client.client_id, refresh_token: peer.refresh_token } });
       assert.equal(rotated.status, 200);
@@ -216,6 +232,10 @@ function registerCompatSuite(label, loadRuntime) {
       assert.notEqual(rotated.body.refresh_token, peer.refresh_token);
       const refreshedPeer = { ...peer, ...rotated.body };
       assert.equal((await rpc(ctx, refreshedPeer, 'tools/list')).status, 200, 'same family retains its MCP session');
+      await call(ctx, refreshedPeer, 'i_chat_turn', { phase: 'end', thread_id: start.thread_id,
+        turns: [{ role: 'assistant', content: 'Synthetic refreshed ChatGPT reply' }] });
+      assert.equal(ctx.submitted.at(-1).origin_device_id, 'frontend:chatgpt_web');
+      assert.equal(ctx.oauth.verifyAccessToken(`Bearer ${refreshedPeer.access_token}`).frontend, 'chatgpt_web');
       const replay = await json(ctx, '/token', { fields: { grant_type: 'refresh_token',
         client_id: peer.client.client_id, refresh_token: peer.refresh_token } });
       assert.equal(replay.status, 400);
@@ -240,13 +260,88 @@ function registerCompatSuite(label, loadRuntime) {
       })));
       assert.equal(ctx.submitted.length, 6);
       assert.equal(new Set(ctx.submitted.map(x => x.sync_id)).size, 6);
-      for (const start of starts) {
-        const messages = ctx.submitted.filter(x => x.sync_id.startsWith(`claude_web:${start.thread_id}:`));
+      for (const [index, start] of starts.entries()) {
+        const frontend = index === 1 ? 'claude_web' : 'chatgpt_web';
+        const messages = ctx.submitted.filter(x => x.sync_id.startsWith(`${frontend}:${start.thread_id}:`));
         assert.deepEqual(messages.map(x => x.content), ['same synthetic text', 'same synthetic reply']);
       }
+      for (const [peer, thread_id] of [[chatgpt, starts[1].thread_id], [claude, starts[0].thread_id]]) {
+        const denied = await rpc(ctx, peer, 'tools/call', { name: 'i_chat_turn', arguments: {
+          phase: 'end', thread_id, turns: [{ role: 'assistant', content: 'foreign thread denied' }],
+        } });
+        assert.equal(denied.body.result.isError, true);
+        assert.match(denied.body.result.content[0].text, /thread_frontend_mismatch/);
+      }
+      assert.equal(ctx.submitted.length, 6);
+      assert.deepEqual(new Set(ctx.routed.map(row => row.frontend)), new Set(['claude_web', 'chatgpt_web']));
       assert.equal((await rpc(ctx, { ...claude, sessionId: chatgpt.sessionId }, 'tools/list')).status, 404);
       assert.equal((await rpc(ctx, { ...chatgpt, sessionId: claude.sessionId }, 'tools/list')).status, 404);
       assert.equal((await rpc(ctx, claude, 'tools/list')).status, 200);
+    });
+
+    test('trusted callback identity rejects forged arguments and keeps Claude notes and domain tools unavailable to ChatGPT', async t => {
+      const ctx = await fixture(t);
+      const chatgpt = await connect(ctx);
+      const claude = await connect(ctx, 'https://claude.ai', REDIRECT_URI);
+      for (const [peer, frontend] of [[chatgpt, 'chatgpt_web'], [claude, 'claude_web']]) {
+        const forged = frontend === 'chatgpt_web' ? 'claude_web' : 'chatgpt_web';
+        const changedOrigin = { ...peer, origin: frontend === 'chatgpt_web' ? 'https://claude.ai' : ORIGIN };
+        const denied = await rpc(ctx, changedOrigin, 'tools/call', { name: 'i_chat_turn', arguments: {
+          phase: 'start', frontend: forged, origin_device_id: `frontend:${forged}`,
+          turns: [{ role: 'user', content: `Synthetic forged identity ${frontend}` }],
+        } });
+        assert.equal(denied.body.result.isError, true);
+        assert.equal(denied.body.result.content[0].text, 'invalid_chat_turn_arguments');
+        await call(ctx, changedOrigin, 'i_chat_turn', { phase: 'start',
+          turns: [{ role: 'user', content: `Synthetic identity ${frontend}` }] });
+        assert.equal(ctx.submitted.at(-1).origin_device_id, `frontend:${frontend}`);
+      }
+      const context = await call(ctx, chatgpt, 'i_context', {});
+      const recalled = await call(ctx, chatgpt, 'i_recall', { query: 'CLAUDE_ONLY' });
+      assert.equal(context.remembered_notes, undefined);
+      assert.equal(recalled.notes, undefined);
+      assert.ok(!JSON.stringify([context, recalled]).includes('SYNTHETIC_CLAUDE_ONLY_NOTE'));
+      for (const name of ['i_remember', 'capture_add', 'capture_list', 'sleep_query']) {
+        const denied = await rpc(ctx, chatgpt, 'tools/call', { name, arguments: { text: 'must not write' } });
+        assert.equal(denied.body.error.code, -32602);
+      }
+      const claudeContext = await call(ctx, claude, 'i_context', {});
+      assert.ok(JSON.stringify(claudeContext.remembered_notes).includes('SYNTHETIC_CLAUDE_ONLY_NOTE'));
+    });
+
+    test('unpaired ChatGPT clearly fails without borrowing Claude writer credentials', async t => {
+      const ctx = await fixture(t, { chatgptEnabled: true, chatgptPaired: false });
+      const chatgpt = await connect(ctx);
+      const denied = await rpc(ctx, chatgpt, 'tools/call', { name: 'i_chat_turn', arguments: {
+        phase: 'start', turns: [{ role: 'user', content: 'unpaired ChatGPT' }],
+      } });
+      assert.equal(denied.body.result.isError, true);
+      assert.equal(denied.body.result.content[0].text, 'frontend_not_paired:chatgpt_web');
+      assert.equal(ctx.submitted.length, 0);
+      assert.equal(ctx.routed.length, 0);
+      const claude = await connect(ctx, 'https://claude.ai', REDIRECT_URI);
+      await call(ctx, claude, 'i_chat_turn', { phase: 'start', turns: [{ role: 'user', content: 'paired Claude still works' }] });
+      assert.equal(ctx.submitted[0].origin_device_id, 'frontend:claude_web');
+    });
+
+    test('fully read-only unpaired ChatGPT reports pairing error without advertising write tools or issuing write scope', async t => {
+      const ctx = await fixture(t, { chatgptEnabled: true, chatgptPaired: false, claudePaired: false });
+      const peer = await connect(ctx, ORIGIN, CALLBACK, 'i.read');
+      assert.equal(peer.scope, 'i.read');
+      const metadata = await json(ctx, '/.well-known/oauth-authorization-server', { method: 'GET' });
+      assert.deepEqual(metadata.body.scopes_supported, ['i.read', 'offline_access']);
+      const listed = await rpc(ctx, peer, 'tools/list');
+      assert.deepEqual(listed.body.result.tools.map(tool => tool.name), ['i_context', 'i_recall']);
+      const denied = await rpc(ctx, peer, 'tools/call', { name: 'i_chat_turn', arguments: {
+        phase: 'start', turns: [{ role: 'user', content: 'fully unpaired ChatGPT' }],
+      } });
+      assert.equal(denied.body.result.isError, true);
+      assert.equal(denied.body.result.content[0].text, 'frontend_not_paired:chatgpt_web');
+      assert.equal(ctx.submitted.length, 0);
+      assert.equal(ctx.routed.length, 0);
+      await call(ctx, peer, 'i_context', {});
+      const unrelated = await rpc(ctx, peer, 'tools/call', { name: 'i_remember', arguments: { text: 'blocked' } });
+      assert.equal(unrelated.body.error.code, -32602);
     });
 
     test('ChatGPT preflight is narrow, unauthenticated, and cannot bypass write authorization', async t => {
@@ -341,8 +436,7 @@ function registerCompatSuite(label, loadRuntime) {
       // Synthetic pre-write-enable grant: no production state is loaded or modified.
       ctx.oauth.store.state.access_tokens[runtime.sha256(peer.access_token)].scope = 'i.read';
       ctx.oauth.store.state.refresh_tokens[runtime.sha256(peer.refresh_token)].scope = 'i.read';
-      for (const [name, args] of [['i_chat_turn', { phase: 'start', turns: [{ role: 'user', content: 'blocked write' }] }],
-        ['i_remember', { text: 'blocked note' }]]) {
+      for (const [name, args] of [['i_chat_turn', { phase: 'start', turns: [{ role: 'user', content: 'blocked write' }] }]]) {
         const denied = await rpc(ctx, peer, 'tools/call', { name, arguments: args });
         assert.equal(denied.status, 200);
         assert.equal(denied.body.result.isError, true);

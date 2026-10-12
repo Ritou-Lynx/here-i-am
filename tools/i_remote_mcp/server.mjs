@@ -20,6 +20,7 @@ import {
   WritebackInputError,
   createCoreFrontendClient,
   createWriteback,
+  frontendDefinition,
   issuePhoneToken,
   loadFrontendCredential,
   loadPhoneTokenHash,
@@ -78,16 +79,25 @@ export function createApp({
   log = () => {},
   diagnostic = () => {},
   writeback = null,
+  chatgptWriteback = null,
   coreRemember = null,
   domainTools = null,
 }) {
   if (!publicUrl) throw new Error('publicUrl is required');
   if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');
-  const writeEnabled = Boolean(writeback || coreRemember);
+  const writeEnabled = Boolean(writeback || chatgptWriteback || coreRemember);
   const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled });
   if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');
   const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};
   const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];
+  // These handlers are selected only from the verified OAuth token, never MCP arguments.
+  const chatgptHandlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone,
+    writeback: chatgptWriteback,
+    frontend: 'chatgpt_web' });
+  if (writeEnabled && !chatgptWriteback) {
+    chatgptHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:chatgpt_web'); };
+  }
+  const chatgptTools = listTools({ writeEnabled, frontend: 'chatgpt_web' });
   const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
 
@@ -179,8 +189,10 @@ export function createApp({
     for (const message of messages) {
       let dataSourceFailed = false;
       const response = await handleRpcMessage(message, {
-        handlers,
-        tools,
+        handlers: auth.frontend === 'chatgpt_web' ? chatgptHandlers : handlers,
+        tools: auth.frontend === 'chatgpt_web' ? chatgptTools : tools,
+        unavailableTools: auth.frontend === 'chatgpt_web' && !chatgptWriteback
+          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' } : {},
         scopes: auth.scopes,
         session,
         logError: () => { dataSourceFailed = true; },
@@ -494,11 +506,12 @@ async function main(argv) {
   }
   const coreUrl = String(args['core-url'] ?? process.env.I_CORE_URL ?? DEFAULTS.coreUrl).replace(/\/+$/, '');
   if (command === 'pair-core') {
+    const definition = frontendDefinition(args.frontend);
     // i_core 需临时以 I_CORE_PAIRING_CODE 启动（打开配对窗口）；这里输入同一个一次性配对码。
     const code = (await readSecret('i_core 一次性配对码：')).trim();
     if (!code) throw new Error('配对码为空');
-    const paired = await pairFrontendDevice({ coreUrl, pairingCode: code, stateDir });
-    process.stderr.write(`已配对 ${paired.device_id}；令牌保存在 ${stateDir}/core-frontend.json（勿提交）。\n`);
+    const paired = await pairFrontendDevice({ coreUrl, pairingCode: code, stateDir, frontend: definition.name });
+    process.stderr.write(`已配对 ${paired.device_id}；令牌保存在 ${stateDir}/${definition.credentialFile}（勿提交）。\n`);
     return;
   }
   if (command === 'issue-phone-token') {
@@ -538,6 +551,15 @@ async function main(argv) {
   } else {
     process.stderr.write('写回未启用（未配对 i_core 或 I_REMOTE_MCP_WRITEBACK=0），只开放只读工具。\n');
   }
+  let chatgptWriteback = null;
+  if (chatgptEnabled && process.env.I_REMOTE_MCP_WRITEBACK !== '0') {
+    const credential = loadFrontendCredential(stateDir, 'chatgpt_web');
+    if (credential) chatgptWriteback = createWriteback({
+      ledger: openLedger(resolve(stateDir, 'writeback.sqlite')),
+      frontend: 'chatgpt_web',
+      coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'chatgpt_web' }),
+    });
+  }
   const { server, oauth } = createApp({
     stateDir,
     publicUrl,
@@ -545,6 +567,7 @@ async function main(argv) {
     getReadModel,
     diagnostic,
     writeback,
+    chatgptWriteback,
     ...loadWebDomainOptions(args['domain-config']),
   });
   let phoneServer = null;
@@ -561,7 +584,7 @@ async function main(argv) {
   server.listen(port, host, () => {
     process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\n`);
   });
-  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); };
+  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }

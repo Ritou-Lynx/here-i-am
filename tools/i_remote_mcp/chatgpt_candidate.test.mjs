@@ -30,15 +30,17 @@ function allFiles(root,prefix='') {
   ?allFiles(root,prefix+entry.name+'/'):[prefix+entry.name]).sort();
 }
 
-test('fixed six Git blobs produce only three reviewed changes and preserve three exact buffers',()=>{
+test('fixed six Git blobs produce only four reviewed changes and preserve two exact buffers',()=>{
  const {files,manifest}=constructCandidateSources(input);
  assert.equal(manifest.baseline_commit,BASELINE_COMMIT);
  assert.equal(manifest.status,'not_deployed');
+ assert.equal(manifest.changed_files,4);
+ assert.equal(manifest.unchanged_files,2);
  assert.deepEqual(manifest.chatgpt_flag,{name:'I_REMOTE_MCP_CHATGPT_ENABLED',default:'0'});
- assert.deepEqual(manifest.files.filter(x=>x.changed).map(x=>x.path),['i_remote_mcp/server.mjs','i_remote_mcp/oauth.mjs','i_remote_mcp/mcp.mjs']);
+ assert.deepEqual(manifest.files.filter(x=>x.changed).map(x=>x.path),['i_remote_mcp/server.mjs','i_remote_mcp/oauth.mjs','i_remote_mcp/mcp.mjs','i_remote_mcp/writeback.mjs']);
  for(const item of SOURCE_INVENTORY) {
   assert.equal(sha256(input.baselineFiles[item.path]),item.sha256);
-  if(!/\/(server|oauth|mcp)\.mjs$/.test(item.path))assert.ok(files[item.path].equals(input.baselineFiles[item.path]));
+  if(!/\/(server|oauth|mcp|writeback)\.mjs$/.test(item.path))assert.ok(files[item.path].equals(input.baselineFiles[item.path]));
  }
  assert.equal(files['i_remote_mcp/oauth.mjs'].toString().replaceAll('\r\n','\n'),input.current.oauth.toString().replaceAll('\r\n','\n'));
  assert.ok(!files['i_remote_mcp/oauth.mjs'].toString().replaceAll('\r\n','').includes('\n'),'OAuth candidate retains original CRLF');
@@ -55,7 +57,7 @@ test('construction fails closed for a wrong baseline, altered blob, extra file o
  const path='i_remote_mcp/mcp.mjs';
  assert.throws(()=>constructCandidateSources({...input,baselineFiles:{...input.baselineFiles,[path]:Buffer.from('tampered')}}),/baseline byte mismatch/);
  assert.throws(()=>constructCandidateSources({...input,baselineFiles:{...input.baselineFiles,'i_remote_mcp/domain_tools.mjs':Buffer.from('extra')}}),/exact six-file/);
- for(const name of ['server','oauth','mcp']) {
+ for(const name of ['server','oauth','mcp','writeback']) {
   assert.throws(()=>constructCandidateSources({...input,current:{...input.current,[name]:Buffer.concat([input.current[name],Buffer.from('// unreviewed')])}}),/unexpected current/);
   assert.throws(()=>constructCandidateSources({...input,baselineMain:{...input.baselineMain,[name]:Buffer.from('other baseline')}}),/wrong mainline baseline/);
  }
