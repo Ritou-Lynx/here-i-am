@@ -10,7 +10,7 @@ $nonce=[Guid]::NewGuid().ToString('N');$name='HereIAm-Synthetic-SafeSwitch-'+$no
 $executable=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $arguments='-NoProfile -NonInteractive -WindowStyle Hidden -Command "Start-Sleep -Seconds 20"'
 $definition=$service.NewTask(0);$definition.RegistrationInfo.Source=$nonce
-$definition.Principal.UserId=$sid;$definition.Principal.LogonType=3;$definition.Principal.RunLevel=0
+$definition.Principal.UserId=$sid;$definition.Principal.LogonType=2;$definition.Principal.RunLevel=0
 $definition.Settings.Enabled=$false;$definition.Settings.Hidden=$true
 $definition.Settings.AllowDemandStart=$true;$definition.Settings.ExecutionTimeLimit='PT1M'
 $definition.Settings.DisallowStartIfOnBatteries=$false;$definition.Settings.StopIfGoingOnBatteries=$false
@@ -29,7 +29,7 @@ function Get-OwnedSyntheticTask {
  return $task
 }
 try{
- $null=$folder.RegisterTaskDefinition($name,$definition,2,$sid,$null,3,$null)
+ $null=$folder.RegisterTaskDefinition($name,$definition,2,$sid,$null,2,$null)
  $created=$true;$result.created=$true
  $snapshot=Invoke-Schema6TaskOperation -Operation Read -TaskName $name
  if($snapshot.Arguments-cne $arguments -or $snapshot.Path-cne $executable -or $snapshot.Enabled){throw 'synthetic_com_read_failed'}
