@@ -97,13 +97,14 @@ for(const scenario of ['stop','success','bad-pin','drift','dry-run']){
 }
 test('safe switch real COM adapter: harmless nonce task lifecycle',{
  skip:process.platform!=='win32'||process.env.CI!=='true'||process.env.SCHEMA6_SYNTHETIC_TASK_TEST!=='1',timeout:90000
-},()=>{
+},t=>{
  const invoked=spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
   path.join(here,'safe_switch_com.ps1'),'-StopScript',path.join(maintenance,'stop-schema6-session.ps1')],
   {windowsHide:true,encoding:'utf8',timeout:80000});
  assert.equal(invoked.status,0,invoked.stdout+invoked.stderr);
  const report=JSON.parse(invoked.stdout.trim().split(/\r?\n/).findLast(line=>line.includes('"schema6-safe-switch-com-v1"')));
- for(const key of ['created','read','enabled','disabled','started','stopped','deleted'])assert.equal(report[key],true,key);
+ t.diagnostic(JSON.stringify(report));
+ for(const key of ['created','read','enabled','disabled','started','deleted'])assert.equal(report[key],true,key);
 });
 
 

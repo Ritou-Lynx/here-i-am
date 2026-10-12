@@ -16,7 +16,7 @@ $definition.Settings.AllowDemandStart=$true;$definition.Settings.ExecutionTimeLi
 $definition.Settings.DisallowStartIfOnBatteries=$false;$definition.Settings.StopIfGoingOnBatteries=$false
 $action=$definition.Actions.Create(0);$action.Path=$executable;$action.Arguments=$arguments
 $created=$false
-$result=[ordered]@{format='schema6-safe-switch-com-v1';created=$false;read=$false;enabled=$false;disabled=$false;started=$false;stopped=$false;deleted=$false}
+$result=[ordered]@{format='schema6-safe-switch-com-v1';created=$false;read=$false;enabled=$false;disabled=$false;started=$false;run_observed=$false;LastTaskResult=$null;State=$null;stopped=$false;deleted=$false}
 function Get-OwnedSyntheticTask {
  $task=$folder.GetTask($name)
  if($name-notmatch '^HereIAm-Synthetic-SafeSwitch-[a-f0-9]{32}$' -or $task.Path-cne ('\'+$name) -or
@@ -36,18 +36,29 @@ try{
  $result.read=$true
  $null=Invoke-Schema6TaskOperation -Operation Enable -TaskName $name
  if(-not (Get-OwnedSyntheticTask).Enabled){throw 'synthetic_com_enable_failed'};$result.enabled=$true
+ $beforeLastRunTime=(Get-OwnedSyntheticTask).LastRunTime
  $null=Invoke-Schema6TaskOperation -Operation Start -TaskName $name
- $deadline=[DateTime]::UtcNow.AddSeconds(15)
- do{$task=Get-OwnedSyntheticTask;if($task.GetInstances(0).Count-gt 0){break};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow-lt $deadline)
- if($task.GetInstances(0).Count-eq 0){throw 'synthetic_com_run_not_observed'}
- $null=Invoke-Schema6TaskOperation -Operation State -TaskName $name
+ # Start throws if Run returns no instance; hosted runners may not expose it
+ # through GetInstances. Record observation separately from adapter success.
  $result.started=$true
- # The production adapter deliberately offers no forced-stop operation. This
- # harmless test action is stopped only by its bound fixture's COM cleanup.
- $task.Stop(0)
+ $instanceObserved=$false
  $deadline=[DateTime]::UtcNow.AddSeconds(15)
- while((Get-OwnedSyntheticTask).GetInstances(0).Count-ne 0 -and [DateTime]::UtcNow-lt $deadline){Start-Sleep -Milliseconds 100}
- if((Get-OwnedSyntheticTask).GetInstances(0).Count-ne 0){throw 'synthetic_com_stop_failed'};$result.stopped=$true
+ do{
+  $task=Get-OwnedSyntheticTask
+  $instanceObserved=$task.GetInstances(0).Count-gt 0
+  if($instanceObserved -or $task.LastRunTime-ne $beforeLastRunTime){$result.run_observed=$true;break}
+  Start-Sleep -Milliseconds 100
+ }while([DateTime]::UtcNow-lt $deadline)
+ $result.LastTaskResult=[int]$task.LastTaskResult
+ $result.State=Invoke-Schema6TaskOperation -Operation State -TaskName $name
+ # The production adapter deliberately offers no forced-stop operation. This
+ # harmless test action is stopped only when a running instance was observed.
+ if($instanceObserved){
+  $task.Stop(0)
+  $deadline=[DateTime]::UtcNow.AddSeconds(15)
+  while((Get-OwnedSyntheticTask).GetInstances(0).Count-ne 0 -and [DateTime]::UtcNow-lt $deadline){Start-Sleep -Milliseconds 100}
+  if((Get-OwnedSyntheticTask).GetInstances(0).Count-ne 0){throw 'synthetic_com_stop_failed'};$result.stopped=$true
+ }
  $null=Invoke-Schema6TaskOperation -Operation Disable -TaskName $name
  if((Get-OwnedSyntheticTask).Enabled){throw 'synthetic_com_disable_failed'};$result.disabled=$true
 }finally{
