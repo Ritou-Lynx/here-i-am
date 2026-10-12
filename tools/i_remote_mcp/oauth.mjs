@@ -25,6 +25,18 @@ export const CLAUDE_AI_CALLBACKS = Object.freeze([
   'https://claude.com/api/mcp/auth_callback',
 ]);
 
+function frontendForRedirectUri(redirectUri) {
+  return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';
+}
+
+function frontendForRegisteredClient(client) {
+  return Array.isArray(client?.redirect_uris)
+    && client.redirect_uris.length === 1
+    && client.redirect_uris[0] === CHATGPT_CALLBACK_URI
+    ? 'chatgpt_web'
+    : 'claude_web';
+}
+
 const STATE_SCHEMA_VERSION = 1;
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 32 };
 const MIN_PASSPHRASE_LENGTH = 12;
@@ -338,6 +350,7 @@ export class OAuthServer {
     this.store.state.codes[sha256(code)] = {
       client_id: params.client_id,
       redirect_uri: params.redirect_uri,
+      frontend: frontendForRedirectUri(params.redirect_uri),
       code_challenge: params.code_challenge,
       resource: this.resource,
       scope: this.grantedScope,
@@ -399,7 +412,7 @@ export class OAuthServer {
     const familyId = randomUUID();
     record.used = true;
     record.family_id = familyId;
-    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE);
+    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE, record.frontend ?? frontendForRedirectUri(record.redirect_uri));
     this.store.save();
     return { status: 200, body: tokens };
   }
@@ -426,7 +439,7 @@ export class OAuthServer {
     }
     record.rotated = true;
     // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。
-    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE));
+    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? frontendForRegisteredClient(client));
     this.store.save();
     return { status: 200, body: tokens };
   }
@@ -435,7 +448,7 @@ export class OAuthServer {
     return String(scope).split(' ').filter((s) => this.supportedScopes.includes(s)).join(' ') || SCOPE;
   }
 
-  #issueTokens(clientId, familyId, scope) {
+  #issueTokens(clientId, familyId, scope, frontend = 'claude_web') {
     scope = this.#limitScope(scope);
     const now = this.now();
     const accessToken = newToken('iat');
@@ -445,12 +458,14 @@ export class OAuthServer {
       family_id: familyId,
       resource: this.resource,
       scope,
+      frontend,
       expires_at: now + this.options.accessTokenTtlMs,
     };
     this.store.state.refresh_tokens[sha256(refreshToken)] = {
       client_id: clientId,
       family_id: familyId,
       scope,
+      frontend,
       expires_at: now + this.options.refreshTokenTtlMs,
       rotated: false,
     };
@@ -498,7 +513,13 @@ export class OAuthServer {
     if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };
     // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。
     const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));
-    return { ok: true, familyId: record.family_id, clientId: record.client_id, scopes };
+    return {
+      ok: true,
+      familyId: record.family_id,
+      clientId: record.client_id,
+      frontend: record.frontend ?? frontendForRegisteredClient(this.store.state.clients[record.client_id]),
+      scopes,
+    };
   }
 }
 
