@@ -322,7 +322,7 @@ export function createToolHandlers({ getReadModel, identityLoader = loadIdentity
   }
 
   handlers.i_chat_turn = async (args) => {
-    if (Object.keys(args).some(key => !['thread_id', 'phase', 'turns', 'limit'].includes(key))) {
+    if (Object.keys(args).some(key => ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id'].includes(key))) {
       throw new ToolInputError('invalid_chat_turn_arguments');
     }
     const phase = args.phase ?? 'start';

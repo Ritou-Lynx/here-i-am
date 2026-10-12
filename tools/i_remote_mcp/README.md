@@ -18,9 +18,9 @@
 
 后续获批激活后，在 ChatGPT 添加服务器 URL `https://i.ilynx.date/mcp`，认证选 OAuth，注册方式 DCR，默认 scope 选择 `i.read` 和 `i.write`；基础 scope 留空，OIDC 保持关闭，端点使用自动发现。CIMD/OIDC 不可用提示本身不代表设置错误。仍须真人完成授权和实际工具调用才能验收，合成测试不能替代这一项。
 
-授权码的精确回调绑定写回身份：ChatGPT 为 `chatgpt_web`（设备 `frontend:chatgpt_web`，显示名“ChatGPT 网页端”），Claude 为 `claude_web`（设备 `frontend:claude_web`，显示名“claude.ai 网页端”）。access token 与 refresh 族保存该身份，刷新不能改成另一前端；旧令牌无身份字段时继续按 Claude 处理，ChatGPT 旧连接需重新授权。客户端不能自报身份，线程、sync_id 前缀、去重与待重试队列按前端隔离，互相续写线程会返回 `thread_frontend_mismatch`。
+授权码的精确回调绑定写回身份：ChatGPT 为 `chatgpt_web`（设备 `frontend:chatgpt_web`，显示名“ChatGPT 网页端”），Claude 为 `claude_web`（设备 `frontend:claude_web`，显示名“claude.ai 网页端”）。access token 与 refresh 族保存该身份，刷新不能改成另一前端；旧令牌无身份字段时，按该 client_id 的注册回调推导：仅注册 ChatGPT 精确回调时为 ChatGPT，其余情况（含混合回调）均为 Claude；刷新后的令牌保存推导结果。客户端不能自报身份，线程、sync_id 前缀、去重与待重试队列按前端隔离，互相续写线程会返回 `thread_frontend_mismatch`。
 
-ChatGPT 凭据独立保存在 `core-frontend-chatgpt_web.json`。缺少凭据时 `i_chat_turn` 明确返回 `frontend_not_paired:chatgpt_web`，不会使用 Claude 凭据。随手记、笔记和领域工具继续仅供 Claude；ChatGPT 只开放读取与聊天写回。实际配对、修改真实读取策略及部署切换另行执行。
+ChatGPT 凭据独立保存在 `core-frontend-chatgpt_web.json`。缺少凭据时 `i_chat_turn` 明确返回 `frontend_not_paired:chatgpt_web`，不会使用 Claude 凭据。主线配置领域工具时，ChatGPT 保留只读的 week_get、day_get；同时提供读取与聊天写回。ChatGPT 不提供随手记（capture_add）和笔记（i_remember），这两项仅供 Claude。实际配对、修改真实读取策略及部署切换另行执行。
 
 **生产准备必须使用最小候选，不能直接复制主线 MCP 目录。** 主线同时含尚未激活的 W3 领域工具。`chatgpt_candidate.mjs` 从固定、已核验的旧六文件 Git 库存构建，只应用经过逐项核对的兼容与前端身份补丁（server/oauth/mcp/writeback），diagnostics 和读取层两项逐字节保持；候选仍是六文件闭包，并拒绝其他源码差异。示例：
 

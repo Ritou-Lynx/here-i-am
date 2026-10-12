@@ -29,6 +29,14 @@ function frontendForRedirectUri(redirectUri) {
   return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';
 }
 
+function frontendForRegisteredClient(client) {
+  return Array.isArray(client?.redirect_uris)
+    && client.redirect_uris.length === 1
+    && client.redirect_uris[0] === CHATGPT_CALLBACK_URI
+    ? 'chatgpt_web'
+    : 'claude_web';
+}
+
 const STATE_SCHEMA_VERSION = 1;
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 32 };
 const MIN_PASSPHRASE_LENGTH = 12;
@@ -431,7 +439,7 @@ export class OAuthServer {
     }
     record.rotated = true;
     // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。
-    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? 'claude_web');
+    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? frontendForRegisteredClient(client));
     this.store.save();
     return { status: 200, body: tokens };
   }
@@ -505,7 +513,13 @@ export class OAuthServer {
     if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };
     // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。
     const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));
-    return { ok: true, familyId: record.family_id, clientId: record.client_id, frontend: record.frontend ?? 'claude_web', scopes };
+    return {
+      ok: true,
+      familyId: record.family_id,
+      clientId: record.client_id,
+      frontend: record.frontend ?? frontendForRegisteredClient(this.store.state.clients[record.client_id]),
+      scopes,
+    };
   }
 }
 

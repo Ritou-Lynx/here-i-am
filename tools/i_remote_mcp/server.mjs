@@ -91,13 +91,16 @@ export function createApp({
   const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};
   const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];
   // These handlers are selected only from the verified OAuth token, never MCP arguments.
-  const chatgptHandlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone,
+  const chatgptDomainTools = (domainTools?.tools ?? []).filter(tool => ['week_get', 'day_get'].includes(tool.name));
+  const chatgptHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
     writeback: chatgptWriteback,
-    frontend: 'chatgpt_web' });
+    frontend: 'chatgpt_web' }),
+    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };
   if (writeEnabled && !chatgptWriteback) {
     chatgptHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:chatgpt_web'); };
   }
-  const chatgptTools = listTools({ writeEnabled, frontend: 'chatgpt_web' });
+  const chatgptTools = [...listTools({ writeEnabled, frontend: 'chatgpt_web' }),
+    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
   const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
 

@@ -536,8 +536,8 @@ export function createWriteback({
   return {
     frontend,
     async chatTurn(args, { characterId }) {
-      const allowed = ['thread_id', 'turns', 'phase'];
-      if (Object.keys(args).some(key => !allowed.includes(key))) throw new WritebackInputError('invalid_chat_turn_arguments');
+      const identityFields = ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id'];
+      if (Object.keys(args).some(key => identityFields.includes(key))) throw new WritebackInputError('invalid_chat_turn_arguments');
       if (!coreClient) throw new WritebackInputError('frontend_not_paired:' + frontend);
       const threadId = args.thread_id === undefined || args.thread_id === null || args.thread_id === ''
         ? newId('t') : args.thread_id;

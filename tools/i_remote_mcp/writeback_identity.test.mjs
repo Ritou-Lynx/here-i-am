@@ -74,7 +74,7 @@ test('OAuth callers write distinct Core device identities and read both sources;
     const listed = (await rpc(peers[i], 'tools/list')).result.tools;
     assert.match(listed.find(x => x.name === 'i_chat_turn').description, new RegExp(frontend));
     if (i) assert.ok(!listed.some(x => ['i_remember', 'capture_add', 'week_get', 'day_get'].includes(x.name)));
-    const result = (await call(peers[i], { turns: [{ role: 'user', content: 'same synthetic identity message' }] })).result;
+    const result = (await call(peers[i], { ...(i === 0 ? { unrelated_extra: 'ignored' } : {}), turns: [{ role: 'user', content: 'same synthetic identity message' }] })).result;
     assert.equal(result.isError, false); assert.equal(result.structuredContent.core_status, 'ok');
     threads.push(result.structuredContent.thread_id);
     const end = await call(peers[i], { thread_id: threads[i], phase: 'end', turns: [{ role: 'assistant', content: 'same synthetic identity reply' }] });
@@ -84,7 +84,7 @@ test('OAuth callers write distinct Core device identities and read both sources;
     const denied = (await call(peers[i], { thread_id: threads[1 - i], turns: [{ role: 'user', content: 'spoof attempt' }] })).result;
     assert.equal(denied.isError, true); assert.match(denied.content[0].text, /thread_frontend_mismatch/);
   }
-  for (const field of ['frontend', 'device_id', 'origin_device_id', 'source']) {
+  for (const field of ['frontend', 'device_id', 'origin_device_id', 'source', 'sync_id']) {
     const denied = (await call(peers[1], { [field]: field.includes('device') ? 'frontend:claude_web' : 'claude_web',
       turns: [{ role: 'user', content: 'spoof attempt' }] })).result;
     assert.equal(denied.isError, true); assert.match(denied.content[0].text, /invalid_chat_turn_arguments/);
@@ -151,7 +151,7 @@ test('pairing uses the selected frontend and distinct credential file; missing C
   assert.throws(() => loadFrontendCredential(dir, '../claude_web'), /invalid_frontend/);
 });
 
-test('enabled Claude notes and domain tools remain unreachable to authenticated ChatGPT', async t => {
+test('ChatGPT keeps read-only domain tools while Claude capture and notes stay isolated', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'synthetic-frontend-domains-'));
   let app; let domainCalls = 0, noteCalls = 0;
   const sentinel = 'SYNTHETIC_CLAUDE_NOTE_ONLY';
@@ -183,8 +183,13 @@ test('enabled Claude notes and domain tools remain unreachable to authenticated 
   await rpc(peers[0], 'tools/call', { name: 'capture_add', arguments: {} });
   assert.equal(domainCalls, 1); assert.equal(noteCalls, 1);
   const chatgptTools = (await rpc(peers[1], 'tools/list')).result.tools;
-  assert.deepEqual(chatgptTools.map(tool => tool.name), ['i_context', 'i_recall', 'i_chat_turn']);
-  for (const name of [...names, 'i_remember']) {
+  assert.deepEqual(chatgptTools.map(tool => tool.name), ['i_context', 'i_recall', 'i_chat_turn', 'week_get', 'day_get']);
+  for (const name of ['week_get', 'day_get']) {
+    const response = await rpc(peers[1], 'tools/call', { name, arguments: {} });
+    assert.equal(response.result.isError, false);
+    assert.equal(response.result.structuredContent.synthetic, name);
+  }
+  for (const name of ['capture_add', 'i_remember']) {
     const denied = await rpc(peers[1], 'tools/call', { name, arguments: {} });
     assert.match(denied.error.message, /Unknown tool/);
   }
@@ -193,5 +198,45 @@ test('enabled Claude notes and domain tools remain unreachable to authenticated 
     assert.equal(response.result.isError, false);
     assert.doesNotMatch(JSON.stringify(response), /SYNTHETIC_CLAUDE_NOTE_ONLY|remembered_notes/);
   }
-  assert.equal(domainCalls, 1); assert.equal(noteCalls, 1);
+  assert.equal(domainCalls, 3); assert.equal(noteCalls, 1);
+  const readToken = tokens(app.oauth, CHATGPT_CALLBACK_URI);
+  // A synthetic persisted read-only token exercises call-time scope enforcement.
+  const readRecord = Object.values(app.oauth.store.state.access_tokens).find(record => record.client_id === readToken.client_id);
+  readRecord.scope = 'i.read';
+  const readPeer = { ...readToken, ...(await initSession(base, readToken.access_token)) };
+  const readTools = (await rpc(readPeer, 'tools/list')).result.tools.map(tool => tool.name);
+  assert.deepEqual(readTools, ['i_context', 'i_recall', 'i_chat_turn', 'week_get', 'day_get']);
+  for (const name of ['week_get', 'day_get']) {
+    const response = await rpc(readPeer, 'tools/call', { name, arguments: {} });
+    assert.equal(response.result.isError, false);
+    assert.equal(response.result.structuredContent.synthetic, name);
+  }
+  const writeDenied = await rpc(readPeer, 'tools/call', { name: 'i_chat_turn',
+    arguments: { turns: [{ role: 'user', content: 'synthetic scope denial' }] } });
+  assert.equal(writeDenied.result.isError, true);
+  assert.match(writeDenied.result.content[0].text, /重新授权/);
+  assert.equal(domainCalls, 5); assert.equal(noteCalls, 1);
+});
+
+test('Claude writeback ignores unrelated arguments and rejects only identity overrides', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'synthetic-frontend-args-'));
+  const sent = [];
+  const writer = createWriteback({ ledger: openLedger(join(dir, 'ledger.sqlite')),
+    coreClient: { async submit(messages) {
+      sent.push(...messages);
+      return messages.map(m => ({ sync_id: m.sync_id, status: 'accepted', server_sequence: 1 }));
+    } } });
+  t.after(() => { writer.close(); rmSync(dir, { recursive: true, force: true }); });
+  for (const field of ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id']) {
+    await assert.rejects(writer.chatTurn({ [field]: 'forged', turns: [{ role: 'user', content: 'blocked' }] },
+      { characterId: PRIMARY }), /invalid_chat_turn_arguments/);
+  }
+  assert.equal(sent.length, 0);
+  const result = await writer.chatTurn({ unrelated_extra: { synthetic: true },
+    turns: [{ role: 'user', content: 'synthetic Claude extra argument' }] }, { characterId: PRIMARY });
+  assert.equal(result.core_status, 'ok');
+  assert.equal(result.recorded.new_turns, 1);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].origin_device_id, 'frontend:claude_web');
+  assert.equal(sent[0].unrelated_extra, undefined);
 });

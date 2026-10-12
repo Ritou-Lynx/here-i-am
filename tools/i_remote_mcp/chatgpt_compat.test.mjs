@@ -279,20 +279,22 @@ function registerCompatSuite(label, loadRuntime) {
       assert.equal((await rpc(ctx, claude, 'tools/list')).status, 200);
     });
 
-    test('trusted callback identity rejects forged arguments and keeps Claude notes and domain tools unavailable to ChatGPT', async t => {
+    test('trusted callback identity rejects identity fields, ignores unrelated arguments, and keeps Claude notes private', async t => {
       const ctx = await fixture(t);
       const chatgpt = await connect(ctx);
       const claude = await connect(ctx, 'https://claude.ai', REDIRECT_URI);
       for (const [peer, frontend] of [[chatgpt, 'chatgpt_web'], [claude, 'claude_web']]) {
         const forged = frontend === 'chatgpt_web' ? 'claude_web' : 'chatgpt_web';
         const changedOrigin = { ...peer, origin: frontend === 'chatgpt_web' ? 'https://claude.ai' : ORIGIN };
-        const denied = await rpc(ctx, changedOrigin, 'tools/call', { name: 'i_chat_turn', arguments: {
-          phase: 'start', frontend: forged, origin_device_id: `frontend:${forged}`,
-          turns: [{ role: 'user', content: `Synthetic forged identity ${frontend}` }],
-        } });
-        assert.equal(denied.body.result.isError, true);
-        assert.equal(denied.body.result.content[0].text, 'invalid_chat_turn_arguments');
-        await call(ctx, changedOrigin, 'i_chat_turn', { phase: 'start',
+        for (const field of ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id']) {
+          const denied = await rpc(ctx, changedOrigin, 'tools/call', { name: 'i_chat_turn', arguments: {
+            phase: 'start', [field]: forged,
+            turns: [{ role: 'user', content: `Synthetic forged identity ${frontend}` }],
+          } });
+          assert.equal(denied.body.result.isError, true);
+          assert.equal(denied.body.result.content[0].text, 'invalid_chat_turn_arguments');
+        }
+        await call(ctx, changedOrigin, 'i_chat_turn', { phase: 'start', unrelated_hint: 'ignored',
           turns: [{ role: 'user', content: `Synthetic identity ${frontend}` }] });
         assert.equal(ctx.submitted.at(-1).origin_device_id, `frontend:${frontend}`);
       }
@@ -307,6 +309,34 @@ function registerCompatSuite(label, loadRuntime) {
       }
       const claudeContext = await call(ctx, claude, 'i_context', {});
       assert.ok(JSON.stringify(claudeContext.remembered_notes).includes('SYNTHETIC_CLAUDE_ONLY_NOTE'));
+    });
+
+    test('legacy tokens infer only a uniquely registered ChatGPT callback and preserve identity through refresh', async t => {
+      const ctx = await fixture(t);
+      for (const [callbacks, expected] of [
+        [[CALLBACK], 'chatgpt_web'],
+        [[REDIRECT_URI], 'claude_web'],
+        [[CALLBACK, REDIRECT_URI], 'claude_web'],
+      ]) {
+        const peer = await connect(ctx);
+        // Simulate legacy persisted records in this newly allocated synthetic store.
+        ctx.oauth.store.state.clients[peer.client.client_id].redirect_uris = callbacks;
+        delete ctx.oauth.store.state.access_tokens[runtime.sha256(peer.access_token)].frontend;
+        delete ctx.oauth.store.state.refresh_tokens[runtime.sha256(peer.refresh_token)].frontend;
+        assert.equal(ctx.oauth.verifyAccessToken(`Bearer ${peer.access_token}`).frontend, expected);
+        const start = await call(ctx, peer, 'i_chat_turn', { phase: 'start',
+          turns: [{ role: 'user', content: `Synthetic legacy ${callbacks.join(',')}` }] });
+        assert.equal(ctx.submitted.at(-1).origin_device_id, `frontend:${expected}`);
+        const rotated = await json(ctx, '/token', { fields: { grant_type: 'refresh_token',
+          client_id: peer.client.client_id, refresh_token: peer.refresh_token } });
+        assert.equal(rotated.status, 200);
+        const refreshed = { ...peer, ...rotated.body };
+        assert.equal(ctx.oauth.verifyAccessToken(`Bearer ${refreshed.access_token}`).frontend, expected);
+        assert.equal(ctx.oauth.store.state.refresh_tokens[runtime.sha256(refreshed.refresh_token)].frontend, expected);
+        await call(ctx, refreshed, 'i_chat_turn', { phase: 'end', thread_id: start.thread_id,
+          turns: [{ role: 'assistant', content: `Synthetic legacy reply ${callbacks.join(',')}` }] });
+        assert.equal(ctx.submitted.at(-1).origin_device_id, `frontend:${expected}`);
+      }
     });
 
     test('unpaired ChatGPT clearly fails without borrowing Claude writer credentials', async t => {

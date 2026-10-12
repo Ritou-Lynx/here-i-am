@@ -111,7 +111,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || coreRemember);\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled });\n  if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');\n  const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};\n  const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n  const sessions = new Map();\n",
-        "  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || chatgptWriteback || coreRemember);\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled });\n  if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');\n  const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};\n  const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];\n  // These handlers are selected only from the verified OAuth token, never MCP arguments.\n  const chatgptHandlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: chatgptWriteback,\n    frontend: 'chatgpt_web' });\n  if (writeEnabled && !chatgptWriteback) {\n    chatgptHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:chatgpt_web'); };\n  }\n  const chatgptTools = listTools({ writeEnabled, frontend: 'chatgpt_web' });\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n  const sessions = new Map();\n"
+        "  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || chatgptWriteback || coreRemember);\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled });\n  if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');\n  const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};\n  const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];\n  // These handlers are selected only from the verified OAuth token, never MCP arguments.\n  const chatgptDomainTools = (domainTools?.tools ?? []).filter(tool => ['week_get', 'day_get'].includes(tool.name));\n  const chatgptHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: chatgptWriteback,\n    frontend: 'chatgpt_web' }),\n    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };\n  if (writeEnabled && !chatgptWriteback) {\n    chatgptHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:chatgpt_web'); };\n  }\n  const chatgptTools = [...listTools({ writeEnabled, frontend: 'chatgpt_web' }),\n    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n  const sessions = new Map();\n"
       ],
       [
         "      let dataSourceFailed = false;\n      const response = await handleRpcMessage(message, {\n        handlers,\n        tools,\n        scopes: auth.scopes,\n        session,\n",
@@ -137,7 +137,7 @@ const FRONTEND_PATCHES = {
     "oauth": [
       [
         "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nconst STATE_SCHEMA_VERSION = 1;\n",
-        "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nfunction frontendForRedirectUri(redirectUri) {\n  return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';\n}\n\nconst STATE_SCHEMA_VERSION = 1;\n"
+        "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nfunction frontendForRedirectUri(redirectUri) {\n  return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';\n}\n\nfunction frontendForRegisteredClient(client) {\n  return Array.isArray(client?.redirect_uris)\n    && client.redirect_uris.length === 1\n    && client.redirect_uris[0] === CHATGPT_CALLBACK_URI\n    ? 'chatgpt_web'\n    : 'claude_web';\n}\n\nconst STATE_SCHEMA_VERSION = 1;\n"
       ],
       [
         "      client_id: params.client_id,\n      redirect_uri: params.redirect_uri,\n      code_challenge: params.code_challenge,\n      resource: this.resource,\n",
@@ -149,7 +149,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE));\n    this.store.save();\n    return { status: 200, body: tokens };\n",
-        "    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? 'claude_web');\n    this.store.save();\n    return { status: 200, body: tokens };\n"
+        "    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? frontendForRegisteredClient(client));\n    this.store.save();\n    return { status: 200, body: tokens };\n"
       ],
       [
         "  }\n\n  #issueTokens(clientId, familyId, scope) {\n    scope = this.#limitScope(scope);\n    const now = this.now();\n",
@@ -165,7 +165,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return { ok: true, familyId: record.family_id, clientId: record.client_id, scopes };\n  }\n}\n",
-        "    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return { ok: true, familyId: record.family_id, clientId: record.client_id, frontend: record.frontend ?? 'claude_web', scopes };\n  }\n}\n"
+        "    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return {\n      ok: true,\n      familyId: record.family_id,\n      clientId: record.client_id,\n      frontend: record.frontend ?? frontendForRegisteredClient(this.store.state.clients[record.client_id]),\n      scopes,\n    };\n  }\n}\n"
       ]
     ],
     "mcp": [
@@ -179,7 +179,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "\n  handlers.i_chat_turn = async (args) => {\n    const phase = args.phase ?? 'start';\n    if (phase !== 'start' && phase !== 'end') throw new ToolInputError('phase 只能是 start 或 end');\n",
-        "\n  handlers.i_chat_turn = async (args) => {\n    if (Object.keys(args).some(key => !['thread_id', 'phase', 'turns', 'limit'].includes(key))) {\n      throw new ToolInputError('invalid_chat_turn_arguments');\n    }\n    const phase = args.phase ?? 'start';\n    if (phase !== 'start' && phase !== 'end') throw new ToolInputError('phase 只能是 start 或 end');\n"
+        "\n  handlers.i_chat_turn = async (args) => {\n    if (Object.keys(args).some(key => ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id'].includes(key))) {\n      throw new ToolInputError('invalid_chat_turn_arguments');\n    }\n    const phase = args.phase ?? 'start';\n    if (phase !== 'start' && phase !== 'end') throw new ToolInputError('phase 只能是 start 或 end');\n"
       ],
       [
         "      now: currentTime(now(), timeZone),\n      recent_messages: recent.map(projectMessage),\n      ...await recentNotes(),\n    };\n  };\n",
@@ -249,7 +249,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "\n  return {\n    async chatTurn(args, { characterId }) {\n      const threadId = args.thread_id === undefined || args.thread_id === null || args.thread_id === ''\n        ? newId('t') : args.thread_id;\n",
-        "\n  return {\n    frontend,\n    async chatTurn(args, { characterId }) {\n      const allowed = ['thread_id', 'turns', 'phase'];\n      if (Object.keys(args).some(key => !allowed.includes(key))) throw new WritebackInputError('invalid_chat_turn_arguments');\n      if (!coreClient) throw new WritebackInputError('frontend_not_paired:' + frontend);\n      const threadId = args.thread_id === undefined || args.thread_id === null || args.thread_id === ''\n        ? newId('t') : args.thread_id;\n"
+        "\n  return {\n    frontend,\n    async chatTurn(args, { characterId }) {\n      const identityFields = ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id'];\n      if (Object.keys(args).some(key => identityFields.includes(key))) throw new WritebackInputError('invalid_chat_turn_arguments');\n      if (!coreClient) throw new WritebackInputError('frontend_not_paired:' + frontend);\n      const threadId = args.thread_id === undefined || args.thread_id === null || args.thread_id === ''\n        ? newId('t') : args.thread_id;\n"
       ],
       [
         "      const plan = planTurns(threadId, turns, characterId, phase);\n      const result = await flush();\n      const pending = Number(db.prepare(\"SELECT COUNT(*) AS n FROM turns WHERE status = 'pending'\").get().n);\n      return {\n        thread_id: threadId,\n",
@@ -265,7 +265,7 @@ const FRONTEND_PATCHES = {
     "oauth": [
       [
         "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nconst STATE_SCHEMA_VERSION = 1;\n",
-        "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nfunction frontendForRedirectUri(redirectUri) {\n  return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';\n}\n\nconst STATE_SCHEMA_VERSION = 1;\n"
+        "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nfunction frontendForRedirectUri(redirectUri) {\n  return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';\n}\n\nfunction frontendForRegisteredClient(client) {\n  return Array.isArray(client?.redirect_uris)\n    && client.redirect_uris.length === 1\n    && client.redirect_uris[0] === CHATGPT_CALLBACK_URI\n    ? 'chatgpt_web'\n    : 'claude_web';\n}\n\nconst STATE_SCHEMA_VERSION = 1;\n"
       ],
       [
         "      client_id: params.client_id,\n      redirect_uri: params.redirect_uri,\n      code_challenge: params.code_challenge,\n      resource: this.resource,\n",
@@ -277,7 +277,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE));\n    this.store.save();\n    return { status: 200, body: tokens };\n",
-        "    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? 'claude_web');\n    this.store.save();\n    return { status: 200, body: tokens };\n"
+        "    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? frontendForRegisteredClient(client));\n    this.store.save();\n    return { status: 200, body: tokens };\n"
       ],
       [
         "  }\n\n  #issueTokens(clientId, familyId, scope) {\n    scope = this.#limitScope(scope);\n    const now = this.now();\n",
@@ -293,7 +293,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return { ok: true, familyId: record.family_id, clientId: record.client_id, scopes };\n  }\n}\n",
-        "    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return { ok: true, familyId: record.family_id, clientId: record.client_id, frontend: record.frontend ?? 'claude_web', scopes };\n  }\n}\n"
+        "    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return {\n      ok: true,\n      familyId: record.family_id,\n      clientId: record.client_id,\n      frontend: record.frontend ?? frontendForRegisteredClient(this.store.state.clients[record.client_id]),\n      scopes,\n    };\n  }\n}\n"
       ]
     ],
     "writeback": [
@@ -347,7 +347,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "\n  return {\n    async chatTurn(args, { characterId }) {\n      const threadId = args.thread_id === undefined || args.thread_id === null || args.thread_id === ''\n        ? newId('t') : args.thread_id;\n",
-        "\n  return {\n    frontend,\n    async chatTurn(args, { characterId }) {\n      const allowed = ['thread_id', 'turns', 'phase'];\n      if (Object.keys(args).some(key => !allowed.includes(key))) throw new WritebackInputError('invalid_chat_turn_arguments');\n      if (!coreClient) throw new WritebackInputError('frontend_not_paired:' + frontend);\n      const threadId = args.thread_id === undefined || args.thread_id === null || args.thread_id === ''\n        ? newId('t') : args.thread_id;\n"
+        "\n  return {\n    frontend,\n    async chatTurn(args, { characterId }) {\n      const identityFields = ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id'];\n      if (Object.keys(args).some(key => identityFields.includes(key))) throw new WritebackInputError('invalid_chat_turn_arguments');\n      if (!coreClient) throw new WritebackInputError('frontend_not_paired:' + frontend);\n      const threadId = args.thread_id === undefined || args.thread_id === null || args.thread_id === ''\n        ? newId('t') : args.thread_id;\n"
       ],
       [
         "      const plan = planTurns(threadId, turns, characterId, phase);\n      const result = await flush();\n      const pending = Number(db.prepare(\"SELECT COUNT(*) AS n FROM turns WHERE status = 'pending'\").get().n);\n      return {\n        thread_id: threadId,\n",
@@ -407,7 +407,7 @@ const FRONTEND_PATCHES = {
       ],
       [
         "\n  handlers.i_chat_turn = async (args) => {\n    const phase = args.phase ?? 'start';\n    if (phase !== 'start' && phase !== 'end') throw new ToolInputError('phase 只能是 start 或 end');\n",
-        "\n  handlers.i_chat_turn = async (args) => {\n    if (Object.keys(args).some(key => !['thread_id', 'phase', 'turns', 'limit'].includes(key))) {\n      throw new ToolInputError('invalid_chat_turn_arguments');\n    }\n    const phase = args.phase ?? 'start';\n    if (phase !== 'start' && phase !== 'end') throw new ToolInputError('phase 只能是 start 或 end');\n"
+        "\n  handlers.i_chat_turn = async (args) => {\n    if (Object.keys(args).some(key => ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id'].includes(key))) {\n      throw new ToolInputError('invalid_chat_turn_arguments');\n    }\n    const phase = args.phase ?? 'start';\n    if (phase !== 'start' && phase !== 'end') throw new ToolInputError('phase 只能是 start 或 end');\n"
       ],
       [
         "      now: currentTime(now(), timeZone),\n      recent_messages: recent.map(projectMessage),\n      remembered_notes: writeback.activeNotes(10),\n    };\n  };\n",
