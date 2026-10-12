@@ -132,3 +132,55 @@ ChatGPT 写回的聊天带 `chatgpt_web` 来源，Claude 保持 `claude_web`。�
 - 根因：hosted runner 上，计划任务的 `Run` 返回成功，但 15 秒内观察不到运行实例。改成 S4U 登录方式后依然如此，说明在 CI 上无法证明计划任务真的跑起来了。
 - 处理：使用第 2 轮写好的备用断言。CI 只证明适配层的读取、启用、停用、`Run` 被接受、删除；新任务确实能启动，留到 C 部署时在场验证（先 `-DryRun`，再正式切换，失败自动回滚）。
 - 止损口径说明：同一提交的 push 和 PR 两次运行，算同一次检查的一次失败，不算连续两次。
+
+## 第 3 轮审核（2026-10-12）
+
+**A（PR #26，061fa858）通过。** 第 3 轮只改了两个测试文件。maintenance 288/288、lifecycle/backup 552/552 全部通过。四份报告都是 `run_observed=true`、`State=4`（Running）、`LastTaskResult=267009`（0x41301，`SCHED_S_TASK_RUNNING`），说明 hosted runner 上测试任务确实启动了，只是 `GetInstances` 看不到运行实例。
+
+## C 的路径修正：#24 的生成器不能直接用
+
+核对 `mcp-config-switch-bindings.mjs` 第 59 行发现：`validateCandidate` 把候选写死为 `source_commit=f90058f2`、`changed_files=3`；生成器还要求旧配置**不含** `I_REMOTE_MCP_CHATGPT_ENABLED`。这一行之所以重要，是因为：
+
+- B 的候选改了 4 个文件，提交号也不同；
+- 现在在跑的 chatgpt 配置本来就带这个开关；
+
+所以无论拿哪份配置当起点，#24 的生成器都会拒绝。如果照原计划直接执行，会在真机上报 `candidate_contract` 失败，接着很容易去放宽审批链，重演 10-09 的循环。另外，#24 的登记脚本还要求人工审批、在线关闭终态等一整套材料，C 不再走这条路。
+
+读取策略的路径只出现在 MCP 的启动参数里，不受哈希约束。所以把 `auto_share_origins` 加上 `chatgpt_web` 只需要改文件本身，不需要生成新配置。
+
+## 合同 C1：只换 MCP 源码的轻量更新工具
+
+```markdown
+<!-- relay:contract v1 -->
+## 目标
+以当前运行中的登录任务为起点，只替换 MCP 六文件源码，生成新的私有配置，并以停用状态登记新任务；不需要审批材料。之后用 A 的 switch 脚本切换。
+## 完成标准
+- [ ] 新增 `tools/i_core/maintenance/update-mcp-source.mjs`（必要时配一个 ps1 登记脚本）。输入只有 `--from-task`、`--candidate <目录>`、`--out <新目录>`、`--new-task`，以及 `--dry-run`。
+- [ ] 读取：用 A 的 `Get-Schema6LoginBinding` 或等价逻辑，从任务参数中取得 login.json（核对哈希）。再由 login.json 取得 mcp.json 和备份配置（都核对哈希）。
+- [ ] 候选校验：
+  - 六个文件名与现有 `source_files` 完全一致；
+  - manifest 的 `entry` 等于现有 entrypoint；
+  - 每个文件的 `result_sha256` 与实际字节一致；
+  - 候选目录与现有工作目录、状态目录、控制目录互不包含；
+  - 不再写死 source_commit 和 changed_files。
+- [ ] 生成，只写进全新的私有目录，ACL 沿用现有私有写入原语：
+  - 新 mcp.json：只改 `working_directory` 和 `source_files`，其余字段逐字保留；
+  - 新备份配置：复用 `backupMapping`/`buildMcpSwitchBackup` 的映射，只替换 MCP 相关附件；
+  - 新 login.json：只改 mcp 和 backup 两对路径与哈希。
+  每份新文件都输出一份字段差异，证明没有改动其他字段。
+- [ ] 登记：读取旧任务定义，生成新任务，只替换参数里 login 配置的路径和哈希。新任务创建后为停用状态，CREATE-only（同名任务已存在就失败），不启动，不改旧任务。
+- [ ] `--dry-run`：完成全部校验，但不写文件、不登记任务。
+- [ ] 错误原样输出（沿用 A 的每步一行 JSON），不吞异常。
+- [ ] 测试：
+  - Linux 合成测试：正常生成；候选文件名不一致、哈希不一致、目录重叠、输出目录已存在时都拒绝；差异中只出现允许的字段。
+  - Windows CI：用合成任务验证登记（创建为停用、参数正确、旧任务未变、清理删除）。
+  - 加一个端到端场景：以合成会话 A 为起点，生成 B 的配置并登记，再用 `switch-login-task.ps1` 切过去，断言 B 就绪、没有进入恢复。
+## 允许修改的路径
+- tools/i_core/maintenance/（新文件和 README）
+- tools/i_core/test_fixtures/release_schema6/（新增测试及套件列表）
+## 禁止
+- 改动运行时包（48 项发布清单）、`mcp-config-switch-*` 和审批类脚本
+- 本机真实运行（真实运行放在 C，由用户在场时执行）
+## 验证
+- Linux 运行 `node --test` 新测试；Windows CI 的 maintenance 和 lifecycle/backup 两项变绿
+```
