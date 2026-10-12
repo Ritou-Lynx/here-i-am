@@ -120,3 +120,15 @@ ChatGPT 写回的聊天带 `chatgpt_web` 来源，Claude 保持 `claude_web`。�
 1. 老令牌：现有 ChatGPT 连接是在 B 之前授权的，refresh 记录里没有 `frontend` 字段，刷新时会一直按 `claude_web` 处理，部署后标注仍然错误。
 2. `i_chat_turn` 现在会拒绝任何未知参数。这比合同要求更严，可能让 Claude 现有的调用失败；只需拒绝与身份相关的字段。
 3. ChatGPT 的工具列表丢了只读的领域工具 `week_get`/`day_get`；只应隐藏 `capture_add` 和 `i_remember`。
+
+## 第 2 轮审核（2026-10-12）
+
+**B（PR #25，13f4441c）通过。** 云端复跑 196/196，Windows MCP 检查和六文件候选都正常。
+- 三个返修点都已落实：老令牌按客户端注册的回调地址推断身份；只拒绝与身份有关的参数；ChatGPT 保留只读的 `week_get`/`day_get`。
+- 部署后的影响：B 之前 ChatGPT 建的对话线程在账本里记为 claude_web，在这些旧对话里继续调用会得到 `thread_frontend_mismatch`。部署后在 ChatGPT 开新对话即可，不另改代码。
+
+**A（PR #26，e453fee3）**
+- 两个 Windows 套件各只有一项失败，都是同一个测试夹具：maintenance 287/288，lifecycle/backup 551/552。
+- 根因：hosted runner 上，计划任务的 `Run` 返回成功，但 15 秒内观察不到运行实例。改成 S4U 登录方式后依然如此，说明在 CI 上无法证明计划任务真的跑起来了。
+- 处理：使用第 2 轮写好的备用断言。CI 只证明适配层的读取、启用、停用、`Run` 被接受、删除；新任务确实能启动，留到 C 部署时在场验证（先 `-DryRun`，再正式切换，失败自动回滚）。
+- 止损口径说明：同一提交的 push 和 PR 两次运行，算同一次检查的一次失败，不算连续两次。
