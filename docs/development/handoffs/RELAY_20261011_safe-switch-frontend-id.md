@@ -204,3 +204,4 @@ ChatGPT 写回的聊天带 `chatgpt_web` 来源，Claude 保持 `claude_web`。�
   2. 切换后执行 `pair-core --frontend chatgpt_web`；
   3. MCP 源码用 C1 更新；
   4. 配对用过的口令在再下一次配置更新时清空。
+- 更正（10-12）：配对口令写进配置的方案也走不通，因为离线换包同样不允许配置变化。新方案改为在线配对窗口，见 [RELAY_20261012_core-release-r1.md](RELAY_20261012_core-release-r1.md)。
