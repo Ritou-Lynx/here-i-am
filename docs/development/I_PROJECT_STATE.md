@@ -1,3 +1,8 @@
+## 2026-10-09：ChatGPT 兼容仅做源码准备
+
+PR20已合并，既有授权现场已完成同schema Core换包；当前 Core 固定源码2c01de5b、manifest aef68af0，旧MCP程序仍由会话管理器运行。真实关机验收未完成，deploymentReady=false；本段覆盖下方换包前的历史待批准状态。
+用户新增授权独立准备ChatGPT兼容：默认关闭的精确稳定回调、RFC9207 issuer及窄CORS，旧scope/refresh/B3身份保持。最小六文件候选不夹带未激活W3；源码/合成测试/候选/CI及未来配置链审批说明见 [交接](handoffs/CHATGPT_MCP_COMPATIBILITY_20261009.md)。本轮不合并、不改现役或手机；实际ChatGPT授权、MCP受控换包与真人Gate另行安排，不因用户睡前授权扩大范围。
+
 ## 2026-10-08：PR20补齐历史布局的精确反向映射，仍不部署
 上一轮三项返修已关闭；新增P1为维护链无法返回原历史备份布局。本轮使用reverseBinding精确引用原已批准正向计划和对应canonical事件，反向双端及四类附件必须与其逐项交换，并重新执行原方向完整绑定。未提交证明、未批准/漂移的原计划、事件错配及任意库存缩减仍拒绝；Native的MAC、当前栈与完整持久状态见证不变。返回旧端只恢复原保留任务，不放宽RegisterOnly的新48项目标检查。
 本轮只改维护源码/专项测试/交接，固定48项、aef68af0 manifest及已复审精确配置/XML/双SDDL/父SD沿用；运行候选来源2c01de5b与本轮维护head分别签收。完整CI以新head为准，不继承旧421/157计数。现役Core/MCP/任务/配置/原库/手机未动，deploymentReady=false；独立维护补充审批完成后仍需本人另行批准换包。

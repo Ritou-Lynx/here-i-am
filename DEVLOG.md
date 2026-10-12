@@ -1,3 +1,11 @@
+## 2026-10-09：ChatGPT MCP 兼容源码候选，未激活
+
+用户授权睡前继续无需真人的准备；从 v3-lab@3ce7aacc 隔离开发，严格开关、稳定精确回调、issuer 声明及受限 CORS，保留 Claude/B3 权限和幂等语义。旧只读令牌拒写提示改为中性客户端指引。
+最小候选只改旧 server/oauth 和一条 mcp 提示，另三项库存逐字节保持；不夹带主线 W3。真实 HTTP/合成 SQLite 与实际候选复用验证，新增必跑 Windows CI；结果及授权节点见 [兼容交接](docs/development/handoffs/CHATGPT_MCP_COMPATIBILITY_20261009.md)。
+本轮不改现役 Core/MCP/任务/隧道/原库/手机，不合并；deploymentReady=false。既有 Core 已换包，待新候选的 ChatGPT 实际连接及真人关机验收，不能继承旧候选 Gate。下方仍待部署/已取消备份等条目按各自历史时点理解。
+
+---
+
 ## 2026-10-08 — PR20历史布局认证反向计划返修
 - 复审新增P1：原绑定器只允许历史布局作为from，无法生成返回原精确配置的维护反向计划。
 - 反向计划显式绑定原批准正向计划及对应事件，双端Core和backup/login/MCP/task四附件必须精确交换。
