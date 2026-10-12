@@ -67,3 +67,26 @@ Windows CI的schema6-windows job串行纳入maintenance_acl/window/register测�
 `generate-mcp-config-switch.mjs` 与 `mcp-config-switch-bindings.mjs` 只允许同一48项Core/原配置路径和hash上的六文件MCP候选，追加唯一flag并保全旧链十项备份附件；不使用或放宽旧package-switch的MCP不变门控。生成器只写全新私有输出，目标backup文件显式owner+SYSTEM保护；实际XML仍由原固定PrepareOnly生成。
 
 `register-mcp-config-switch-login.ps1 -RegisterOnly` 另需精确human approval、真实在线关闭终态、双锁/闭态树/原任务冻结/XML/双SDDL/父SD证据，仅CREATE新disabled任务。生成、合成注册、生产登记、启用及真人验收分别签收；缺现场证据不执行。详见[生成器交接](../../../docs/development/handoffs/CHATGPT_MCP_CONFIG_SWITCH_GENERATOR_20261009.md)、[登记交接](../../../docs/development/handoffs/CHATGPT_MCP_CONFIG_SWITCH_REGISTRATION_20261009.md)与[部署准备交接](../../../docs/development/handoffs/CHATGPT_MCP_DEPLOYMENT_PREPARATION_20261009.md)。
+
+## 普通用户正常停服与登录任务切换（合同 A）
+
+这两个维护入口不读取审批文件，不核生产 pin，不改运行时包。它们只在显式调用时操作指定的既有任务；导入脚本不会执行任务。请在普通用户会话中运行。真实部署由用户另行执行，合成 CI 通过不代表生产已切换。
+
+```powershell
+# 停服；无活会话时也检查 sidecar 与恢复锁，再返回 already_stopped。
+& tools/i_core/maintenance/stop-schema6-session.ps1 -TaskName 'Existing-Login'
+# 只读检查两任务的 login 哈希、同一数据根和恢复锁；不停止、不启停任务。
+& tools/i_core/maintenance/switch-login-task.ps1 -FromTask 'Existing-Login' -ToTask 'Candidate-Login' -DryRun
+# 先正常关闭，才切换任务。默认等待就绪 180 秒。
+& tools/i_core/maintenance/switch-login-task.ps1 -FromTask 'Existing-Login' -ToTask 'Candidate-Login' -ReadyTimeoutSeconds 180
+```
+
+可选 `-PublicHealthUrl` 要求指定 HTTP(S) 地址返回 200；不跟随跳转。Core 与 MCP 的本机端口、全新会话的 ready/MCP 回执和任务状态也必须就绪。任务参数使用 `-LoginConfigurationPath` / `-LoginConfigurationSha256`；同时接受短名 `-ConfigurationPath` / `-ConfigurationSha256`，重复或缺失拒绝。任务读、启用、停用、启动与状态读取统一通过 `Invoke-Schema6TaskOperation`；测试只在自身进程替换其适配层。
+
+关闭前以持有的进程句柄验证当前用户、系统 PowerShell 映像、进程创建时间与隐藏顶层窗口身份，随后只发 `WM_CLOSE`，最多等 35 秒。必须确认宿主退出 0、Core/会话/监督器正常关闭、每代 MCP 启停回执成对，以及状态目录没有数据库 sidecar 和 `s6-recovery-pending.json`。不强杀宿主，不删恢复锁或 sidecar，也不读取数据库正文。
+
+每一步输出一行 `step` / `ok` / `detail` JSON，失败保留异常文本。退出码：0 成功（含 already_stopped / DryRun）；1 新任务失败后旧任务已恢复就绪；2 预检拒绝、关闭不干净、存在恢复锁或回滚失败，需人工检查。预检发现目标哈希错误时按第 1 步零变更拒绝，旧会话原样保留。切换后的漂移或启动失败才进入回滚；按预检缓存的控制根关闭新会话，不跟随漂移后的任务参数。新会话关闭不干净或出现恢复锁时，绝不启动旧任务。
+
+Windows CI 的 maintenance 和全量套件均运行 `tools/i_core/test_fixtures/release_schema6/maintenance_safe_switch.test.mjs`：真实合成会话正常停服、A→B、新任务预检错哈希零变更，以及 B 就绪后参数哈希漂移→干净停 B→恢复 A。另在 CI 的合成任务门控下运行 GUID 无触发器无害任务，验证真实 COM 适配层并绑定删除。本机不设置任何合成任务或 owner-probe 环境变量。
+
+“未进入恢复”由真实回执核实：关闭前的 lifecycle 为 `clean_closed` 且无 sidecar，符合 `tools/i_core/release_schema6/automatic_recovery.mjs` 中 `needsStartupRecovery` 返回 false 的条件；`tools/i_core/release_schema6/lifecycle/runtime_child.mjs` 的 `recoveryNeeded` 分支据此不调用 `recoverAtStartup`。测试另核对 custody 的 `*.recovery.json` 事件集不增加（发布点在 `tools/i_core/release_schema6/recovery_adapter.mjs`）、恢复锁缺席及各代干净退出，防止把悄悄恢复当作切换成功。
