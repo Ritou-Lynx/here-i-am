@@ -26,7 +26,9 @@
 |---|---|---|---|
 | R0 | 只读演练换包准备链 | Codex 本机 | 只读生产，只写新私有目录 |
 | R1 | 在线配对窗口 + 换包后不回滚 + 修复 R0 阻塞 | Codex，CI 验证 | 无 |
-| D1 | 构建新包 → 换包 → C1 换 MCP → 切任务 → 配对 chatgpt_web | 用户在场 | 有，逐步同意 |
+| R2 | 关闭输入与登记配置生成器（10-13 复核新增） | Codex，CI 验证 | 无 |
+| D1a | 构建新包、生成配置与 XML、C1 候选 dry-run | Codex 本机 | 只读生产，只写新私有目录 |
+| D1b | 关闭 → 换包 → 登记 P → C1 登记 P′ → 切任务 → 配对 chatgpt_web | 用户在场 | 有，逐步同意 |
 | L | 注销强杀复现（限时） | Codex，CI | 无 |
 
 ## R0 合同：只读演练
@@ -155,23 +157,58 @@
   - CI Windows 日志确认真实会话的两项实跑通过：pair-core `chatgpt_web` 配对后 clean close；从 v3-lab 基线离线换包，再用 NoRollback 切任务。
 - 结论：可以转 ready 并合并。
 
-## D1 拆分
+## 复核发现：D1 原顺序不可执行（10-13）
 
-- **D1a 准备**：做 D1 第 1–4 步，再加 `switch-login-task -DryRun`。只登记停用任务，不碰运行中的会话和真实策略。完成后只读核对一件事：P′ 的 `core_configuration_sha256` 和 manifest 要与 P 一致。
-- **D1b 切换**：做 D1 第 5–10 步，用户在场。
+- `register-package-switch-login.ps1` 要求换包后才有的证据：`switchEvent`、`targetFloor`、`targetMarker`、offline 回执（package-switch-registration.mjs:43–52）。所以登记 P 只能放在离线换包之后，不能提前。
+- 登记还要求原会话的关闭回执，格式是 `schema6-session-close-approved-v1`。这份回执只有 `close-schema6-session.ps1` 会产出，`stop-schema6-session.ps1` 不产出。所以 D1 停服必须用 close 入口。
+- 登记配置约 30 个字段（SDDL、维护文件快照、旧任务 XML、派生 XML 等），仓库里只有测试夹具 `package_switch_registration.mjs:117` 拼过，生产没有生成器。停服期间手拼，正是上次失控的模式，所以先做 R2。
 
-## D1：部署顺序（用户在场，每步单独同意）
+## R2 合同：关闭输入与登记配置生成器
 
-1. 从合并 R1 后的 v3-lab 构建新包，放到受保护的私有目录。
-2. 用换包配置生成器生成新配置，再用新包里的固定 `prepare_login_schema6.ps1 -PrepareOnly` 生成任务 XML，最后用 `preparePackageSwitch` 生成计划。用户审阅后，把计划写成 `approved:true`。
-3. `register-package-switch-login.ps1` 登记新任务 P（停用状态）。
-4. C1：以 P 为 `--from-task` 生成并登记 P′（新 MCP，停用状态）。候选先复制到受保护目录，先 `--dry-run`。
-5. 改真实读取策略，在 `auto_share_origins` 里加入 `chatgpt_web`。需要用户同意。
-6. 用 `stop-schema6-session.ps1` 停当前会话，确认 clean close。
-7. 运行 `start_schema6.ps1 -OfflineOperation package-switch` 完成离线换包。
-8. `switch-login-task.ps1 -FromTask 当前 -ToTask P′ -NoRollback -PublicHealthUrl …`。
-9. `open-pairing-window.ps1 -TaskName P′` → `pair-core --frontend chatgpt_web` → 用 stop 和 start 重启会话，让 MCP 加载新凭据。
-10. 验收：开一个新的 ChatGPT 对话。ChatGPT 和 Claude 各发一轮，App 里来源分别显示。
+### 完成标准
+
+1. 新增 `tools/i_core/maintenance/generate-package-switch-evidence.mjs`，含两个子命令：
+   - `close-input --task <现役任务> --out <新文件>`：只读，从唯一活会话派生 `schema6-session-close-approved-v1`。不加 `--approve` 时 `approved:false`。
+   - `registration ...`：输入为批准计划、关闭输入与回执、offline control 目录、固定 Prepare 回执与 XML、旧/新任务名、维护快照目录、回执路径；输出登记配置和 human-approval 两个文件。写出前必须调用现有 `validatePackageSwitchRegistration` 通过。`--dry-run` 零写入，只打印摘要。
+2. 输出只写全新私有路径，已存在就拒绝；不启动、不登记、不读密钥。
+3. 改造夹具 `package_switch_registration.mjs`，手拼的配置改为调用生成器产出。Windows CI 用生成器产物实际跑通 `register-package-switch-login.ps1 -RegisterOnly`。另外补一个真实会话场景：`close-schema6-session` 用 `close-input` 产物完成关闭。
+4. 顺手修 R1 遗留：`maintenance_safe_switch_r1_no_rollback.test.mjs` 的 byte-for-byte 测试，哈希前统一换行，在 Linux 检出下也要通过。
+5. 维护 README 补 D1 用法。
+
+### 允许修改的路径
+
+`tools/i_core/maintenance/generate-package-switch-evidence.mjs`（新）、`tools/i_core/maintenance/README.md`、`tools/i_core/test_fixtures/release_schema6/` 下相关测试与夹具、`tools/i_core/release_schema6/maintenance_r2_*.test.mjs`（新）。
+
+### 禁止
+
+改 48 项 INVENTORY 内任何文件；改 `register-package-switch-login.ps1`、`package-switch-registration.mjs`、`close-schema6-session.ps1`、`prepare-package-switch.mjs` 的校验逻辑；放宽任何校验；本机真实运行。
+
+### 止损
+
+同 R1。
+
+## D1：部署顺序（更正版）
+
+**D1a 准备**：不停服，与 R2 并行。
+
+1. 从合并 R1 后的 v3-lab 构建新包，放到受保护私有目录；核对 48 项。
+2. 运行换包配置生成器，再运行新包固定 `prepare_login_schema6.ps1 -PrepareOnly`，生成 XML。
+3. 用 `chatgpt_candidate.mjs` 构建 MCP 候选，复制到受保护目录。以现役任务为 `--from-task` 跑 C1 `--dry-run`，只验候选形状；零写入。
+4. 只读定位 `auto_share_origins` 所在文件，报告它是否被任何配置或备份哈希钉住。
+
+**D1b 切换**：用户在场，每步单独同意；在 R2 合并后进行。
+
+1. `close-input` 生成关闭输入；用户批准后，用 `close-schema6-session.ps1` 关闭现役，确认 clean close。从这里开始停服。
+2. `preparePackageSwitch` 生成计划；用户审阅，写入 `approved:true`。
+3. 新包 `start_schema6.ps1 -OfflineOperation package-switch` 完成离线换包。
+4. `registration` 先 `--dry-run`，再生成；`register-package-switch-login.ps1 -RegisterOnly` 登记停用任务 P。
+5. C1：以 P 为 `--from-task`，先 `--dry-run`，再登记 P′（停用）。
+6. 按 D1a 第 4 步结论修改读取策略，加入 `chatgpt_web`。需要用户同意。
+7. 先跑 `switch-login-task.ps1 -FromTask 现役 -ToTask P′ -DryRun`，再加 `-NoRollback` 实切。服务到此恢复。
+8. `open-pairing-window.ps1 -TaskName P′` → `pair-core --frontend chatgpt_web` → 用 stop 和 start 重启会话，让 MCP 加载新凭据。
+9. 验收：开一个新的 ChatGPT 对话。ChatGPT 和 Claude 各写一轮，App 里来源分别显示。
+
+第 3 步之后，失败一律不起旧任务，按反向换包处理。所有 PS 入口都在去掉 `NODE_*` 和 `I_CORE_*` 的 PS 5.1 子进程中运行。
 
 ## L：注销强杀复现（限时，另立合同）
 
