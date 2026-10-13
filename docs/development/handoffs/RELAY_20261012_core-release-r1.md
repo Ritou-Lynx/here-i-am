@@ -36,6 +36,14 @@
 - 预期：Core 在运行时 marker 不是 `clean_closed`，所以最后一步应以 `switch_clean_close_required` 结束。这一步之前的检查（两端配置、包验证、绑定）全部通过，才算 R0 通过。
 - 输出：脱敏报告（路径用角色名代替，不含凭据和正文）。
 
+### R0 第 1 次结果（10-13）
+
+- 生产快照：运行包有 48 项，`source_commit` 为 `2c01de5b`；备份条目 configuration 101 条、task 4 条。
+- 第 2 步被拒绝，错误码 `linked_path_rejected`：传入的 git.exe 硬链接数为 2。
+  - 这是已知的输入问题，`CORE_SCHEMA6_RELEASE_20261006.md` 第 27 行已有记录，不是代码缺陷。
+  - 应改用 Git 安装目录下的 `bin\git.exe`（`git --exec-path` 向上三级再进 `bin`），测试夹具也用这个路径。
+- 第 3、4 步依赖第 2 步，还没执行。R0 需要换用正确的 git.exe 再跑一次。
+
 ## R1 合同：在线配对窗口
 
 ### 完成标准
