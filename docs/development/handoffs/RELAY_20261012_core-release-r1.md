@@ -66,6 +66,19 @@
   - 传入的 `-ReleaseDirectory` 与 login 里的 `release_directory`、实际路径大小写不一致（这里用大小写敏感比较）。
 - R1 附带项：在 Prepare 与 login 的 catch 中，把内部错误码写到 stderr。只输出错误码，不输出路径和值。
 
+### R0 第 4 次结果（10-13）：通过
+
+- 原因：终端继承了 `NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S`，`start_schema6.ps1:17` 因此拒绝（`inherited_runtime_environment_rejected`）。
+  - 这项检查在 try 之外，所以没有输出 JSON 错误码。
+  - 另外三类可能原因（大小写、所有者、受保护路径）都已排除，21 项全部 OK。
+- 在新开的 PS 5.1 子进程里去掉该变量后：
+  - 3b 通过，XML 已生成；
+  - 第 4 步按预期以 `switch_clean_close_required` 结束。
+  - 换包准备链在当前生产形态上验证通过，维护层没有阻塞。
+- 对后续的要求：
+  - D1 部署时，每一步都在去掉 `NODE_*`/`I_CORE_*` 的 PS 5.1 子进程中执行。
+  - R1 附带改进：Prepare、login 的 catch 输出内部错误码；`start_schema6.ps1` 的环境检查放进 try。
+
 ## R1 合同：在线配对窗口
 
 ### 完成标准
@@ -87,7 +100,11 @@
   - **任何配对请求错误只写拒绝回执，绝不触发 `shutdown`。** 现有轮询遇到异常会关闭 Core，配对路径必须单独 try/catch。
 - [ ] `i_core_server.mjs`：新增 `closePairingWindow()`，把 `pairingEndpointEnabled` 设为 false，`activePairingCode` 设为 null。到期由 runtime 调用。窗口关闭后 `/v1/core/devices/pair` 回到 403 `pairing_disabled`。
 - [ ] `switch-login-task.ps1`：新增 `-NoRollback`。失败时停在原地，返回码 2，不启用、不启动旧任务，并在报告里写明“需要反向换包”。不加该参数时，行为与现在逐字节相同。
-- [ ] R0 发现的阻塞：只修维护层（`tools/i_core/maintenance/`）。修法要按 R0 给出的错误码逐条说明。
+- [ ] 错误可诊断（R0 的教训）：
+  - `prepare_login_schema6.ps1` 与 `login_schema6.ps1` 的 catch 改为输出 `schema6_login_prepare_rejected:<内部码>` 和 `schema6_login_rejected:<内部码>`。
+  - 内部码只允许 `^[a-z0-9_]{1,64}$`，不符合时仍输出原通用码，不输出路径或值。
+  - `start_schema6.ps1` 的继承环境检查移到 try 内，输出 JSON code，并附上被拒变量名（只给名字，不给值）。
+  - 退出码和拒绝条件都不变。
 - [ ] `INVENTORY`、配置格式、login/mcp 格式、MCP 源码都不变。
 
 ### 测试
@@ -106,6 +123,7 @@
 ### 允许修改的路径
 
 - `tools/i_core/release_schema6/lifecycle/runtime_child.mjs`
+- `tools/i_core/release_schema6/lifecycle/prepare_login_schema6.ps1`、`login_schema6.ps1`、`start_schema6.ps1`（只改错误输出）
 - `tools/i_core/i_core_server.mjs`
 - `tools/i_core/maintenance/`（新入口、`switch-login-task.ps1`、R0 涉及的修复、README）
 - `tools/i_core/test_fixtures/release_schema6/`，`tools/i_core/release_schema6/**/*.test.mjs`
