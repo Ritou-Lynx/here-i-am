@@ -44,6 +44,16 @@
   - 应改用 Git 安装目录下的 `bin\git.exe`（`git --exec-path` 向上三级再进 `bin`），测试夹具也用这个路径。
 - 第 3、4 步依赖第 2 步，还没执行。R0 需要换用正确的 git.exe 再跑一次。
 
+### R0 第 2 次结果（10-13）
+
+- 三项锚点不变。改用 `bin\git.exe`（硬链接数 1）后，打包和 verify 通过，48 项，新 manifest `8e4e8dc4…`。
+- 第 3 步换包配置生成器通过：三份配置、备份附件重绑，父目录 ACL 合格。
+- 第 4 步 `input_missing_or_aliased`：生成器只记录 prepared XML 的路径（`fixedPrepareExecuted:false`），任务 XML 本应由新包里的固定 `prepare_login_schema6.ps1 -PrepareOnly` 生成。
+  - 这一步漏写在 R0 合同里，是合同缺口，不是代码缺陷。
+- 第 3 次补上 3b：在新包里用固定 Prepare 生成 XML，输出路径取生成器 `static-inputs.json` 的 `preparedXml`。
+  - Prepare 要求新包根目录是受保护目录（只有所有者可访问、不继承权限）。
+  - 给演练自己创建的目录加这个保护是允许的；生产路径一律不碰。
+
 ## R1 合同：在线配对窗口
 
 ### 完成标准
@@ -103,7 +113,7 @@
 ## D1：部署顺序（用户在场，每步单独同意）
 
 1. 从合并 R1 后的 v3-lab 构建新包，放到受保护的私有目录。
-2. 用换包配置生成器生成新配置，再用 `preparePackageSwitch` 生成计划。用户审阅后，把计划写成 `approved:true`。
+2. 用换包配置生成器生成新配置，再用新包里的固定 `prepare_login_schema6.ps1 -PrepareOnly` 生成任务 XML，最后用 `preparePackageSwitch` 生成计划。用户审阅后，把计划写成 `approved:true`。
 3. `register-package-switch-login.ps1` 登记新任务 P（停用状态）。
 4. C1：以 P 为 `--from-task` 生成并登记 P′（新 MCP，停用状态）。候选先复制到受保护目录，先 `--dry-run`。
 5. 改真实读取策略，在 `auto_share_origins` 里加入 `chatgpt_web`。需要用户同意。
