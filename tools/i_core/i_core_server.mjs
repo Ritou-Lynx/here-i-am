@@ -332,6 +332,15 @@ export function createICoreServer({
     ? pairingCode
     : null;
 
+  let singleUsePairingWindow = false;
+  let pairingWindowExpiresAt = null;
+  function closePairingWindow() {
+    pairingEndpointEnabled = false;
+    activePairingCode = null;
+    singleUsePairingWindow = false;
+    pairingWindowExpiresAt = null;
+  }
+
   async function handle(request, response) {
     try {
       const url = new URL(request.url, 'http://core.local');
@@ -447,6 +456,7 @@ export function createICoreServer({
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/devices/pair') {
+        if (pairingWindowExpiresAt !== null && clock() >= pairingWindowExpiresAt) closePairingWindow();
         if (!pairingEndpointEnabled) {
           throw new CoreStoreError(
             'pairing_disabled',
@@ -455,11 +465,17 @@ export function createICoreServer({
           );
         }
         const body = await readJson(request);
+        // A body may arrive across the expiry or another successful pairing.
+        if (pairingWindowExpiresAt !== null && clock() >= pairingWindowExpiresAt) closePairingWindow();
+        if (!pairingEndpointEnabled) {
+          throw new CoreStoreError('pairing_disabled', 'Device pairing is disabled. Start a deliberate pairing window first.', {status: 403});
+        }
         if (!equalSecret(body.pairing_code, activePairingCode)) {
           throw new CoreStoreError('invalid_pairing_code', 'The pairing code is invalid.', { status: 401 });
         }
         const paired = store.pairDevice(body, activePairingCode);
         activePairingCode = null;
+        if (singleUsePairingWindow) closePairingWindow();
         json(response, 200, paired);
         return;
       }
@@ -677,7 +693,11 @@ export function createICoreServer({
   return {
     server,
     store,
-    replacePairingCode(value) {
+    closePairingWindow,
+    hasActivePairingCode() {
+      return activePairingCode !== null;
+    },
+    replacePairingCode(value, {singleUseWindow = false, expiresAtMs = null} = {}) {
       if (typeof value !== 'string' || !value.trim()) {
         throw new Error('pairing code must be a non-empty string');
       }
@@ -691,6 +711,11 @@ export function createICoreServer({
         shortcutMailTokenHash: shortcutMailRelay?.tokenHash ?? null,
         now: clock(),
       });
+      if (expiresAtMs !== null && (!Number.isSafeInteger(expiresAtMs) || expiresAtMs <= clock())) {
+        throw new Error('invalid_pairing_window_expiry');
+      }
+      singleUsePairingWindow = singleUseWindow;
+      pairingWindowExpiresAt = expiresAtMs;
       pairingEndpointEnabled = true;
       activePairingCode = value;
     },

@@ -117,3 +117,15 @@ node --test tools/i_core/test_fixtures/release_schema6/maintenance_mcp_source.te
 ```
 
 Windows maintenance 与 lifecycle/backup 套件额外运行 `maintenance_mcp_source_windows.test.mjs`，证明合成任务登记为停用、参数正确、旧任务未变、同名拒绝及清理；真实合成会话从 A 经生成/登记切到 B，核对就绪、无恢复事件和干净关闭。这些检查不代表生产部署或备份已成功。
+
+## R1 online pairing window and offline switch
+
+Use a Windows PowerShell 5.1 child with inherited `NODE_*` and `I_CORE_*` variables removed. `open-pairing-window.ps1 -TaskName <name>` reads the existing bound live session and never registers, starts or stops a task. It prints one 64-character code on stdout only. Supply that code to the existing `server.mjs pair-core --frontend chatgpt_web` through stdin; do not place it in arguments, environment, transcripts or logs.
+
+The protected control channel authenticates the code hash and a fixed ten-minute deadline with the session stop key. An exclusive, fully written reservation bridges atomic file publication. A valid request is deleted before opening the window; a consumed or expired window closes, and malformed, replayed or abandoned requests only produce redacted pairing receipts. A failed receipt never shuts down Core. No configuration or release inventory format changes.
+
+After an offline package switch, use `switch-login-task.ps1 -NoRollback`: failures stop in place with exit 2 and `reverse_package_switch_required`. Recovery requires an explicitly reviewed reverse package switch. Omitting the switch preserves the existing rollback path and reports.
+
+Prepare/login errors retain their existing prefix and expose only lowercase ASCII codes of 1–64 characters; other exceptions retain the generic rejection. The start validator reports rejected environment variable names, never values, and preserves its existing exit codes.
+
+R1 verification uses pure local protocol tests and hosted Linux/Windows synthetic integration tests. Passing CI is source-candidate evidence, not production deployment or pairing authorization.

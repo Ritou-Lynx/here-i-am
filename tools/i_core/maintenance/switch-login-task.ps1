@@ -2,7 +2,7 @@
 param(
  [string]$FromTask,[string]$ToTask,
  [ValidateRange(1,3600)][int]$ReadyTimeoutSeconds=180,
- [string]$PublicHealthUrl,[switch]$DryRun
+ [string]$PublicHealthUrl,[switch]$DryRun,[switch]$NoRollback
 )
 . (Join-Path $PSScriptRoot 'stop-schema6-session.ps1')
 
@@ -81,7 +81,7 @@ function Wait-Schema6LoginReady {
  throw 'new_session_ready_timeout'
 }
 function Invoke-Schema6LoginSwitch {
- param([string]$FromTask,[string]$ToTask,[ValidateRange(1,3600)][int]$ReadyTimeoutSeconds=180,[string]$PublicHealthUrl,[switch]$DryRun)
+ param([string]$FromTask,[string]$ToTask,[ValidateRange(1,3600)][int]$ReadyTimeoutSeconds=180,[string]$PublicHealthUrl,[switch]$DryRun,[switch]$NoRollback)
  $from=$null;$to=$null;$previous=@()
  try {
   $bindings=Invoke-Schema6Step 'switch.preflight' {
@@ -96,7 +96,7 @@ function Invoke-Schema6LoginSwitch {
   $from=$bindings.From;$to=$bindings.To
   if($DryRun){Write-Schema6Step 'switch.result' $true 'dry_run_passed';return 0}
   $null=Invoke-Schema6Step 'switch.stop_old' {Assert-Schema6TaskUnchanged $FromTask $from;Invoke-Schema6StopBinding $from}
- }catch{Write-Schema6Step 'switch.stopped' $false $_.Exception.Message;return 2}
+ }catch{Write-Schema6Step 'switch.stopped' $false $_.Exception.Message;if($NoRollback){Write-Schema6Step 'switch.stopped_no_rollback' $false 'reverse_package_switch_required:需要反向换包'};return 2}
  try {
   $previous=Get-Schema6SessionDirectories $to
   Invoke-Schema6Step 'switch.disable_old' {Invoke-Schema6TaskOperation -Operation Disable -TaskName $FromTask}
@@ -105,6 +105,7 @@ function Invoke-Schema6LoginSwitch {
   Invoke-Schema6Step 'switch.ready_new' {Wait-Schema6LoginReady -Name $ToTask -Binding $to -PreviousSessions $previous -TimeoutSeconds $ReadyTimeoutSeconds -HealthUrl $PublicHealthUrl}
   Write-Schema6Step 'switch.result' $true 'switched';return 0
  }catch{Write-Schema6Step 'switch.failure' $false $_.Exception.Message}
+ if($NoRollback){Write-Schema6Step 'switch.stopped_no_rollback' $false 'reverse_package_switch_required:需要反向换包';return 2}
  try {
   # Use the read-only preflight snapshot to close the exact new scope even when
   # its task arguments have since drifted. Never follow the changed arguments.
@@ -121,6 +122,6 @@ function Invoke-Schema6LoginSwitch {
 }
 if($MyInvocation.InvocationName -ne '.') {
  $ErrorActionPreference='Stop'
- $code=Invoke-Schema6LoginSwitch -FromTask $FromTask -ToTask $ToTask -ReadyTimeoutSeconds $ReadyTimeoutSeconds -PublicHealthUrl $PublicHealthUrl -DryRun:$DryRun
+ $code=Invoke-Schema6LoginSwitch -FromTask $FromTask -ToTask $ToTask -ReadyTimeoutSeconds $ReadyTimeoutSeconds -PublicHealthUrl $PublicHealthUrl -DryRun:$DryRun -NoRollback:$NoRollback
  exit $code
 }

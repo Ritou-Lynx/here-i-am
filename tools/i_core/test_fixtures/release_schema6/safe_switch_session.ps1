@@ -75,6 +75,48 @@ $script:Schema6TaskAdapter={
   default {throw 'synthetic_operation_rejected'}
  }
 }
+# Keep the real readiness validator unchanged. On its ambiguous process error,
+# capture a read-only synthetic snapshot before orchestration performs rollback.
+$script:r1OriginalReady=(Get-Item -LiteralPath 'Function:\Wait-Schema6LoginReady').ScriptBlock
+function Wait-Schema6LoginReady {
+ param([string]$Name,$Binding,[string[]]$PreviousSessions,[int]$TimeoutSeconds,[string]$HealthUrl)
+ try {& $script:r1OriginalReady @PSBoundParameters}
+ catch {
+  $originalFailure=$_
+  if($inputData.scenario -ceq 'success' -and $originalFailure.Exception.Message -ceq 'new_session_process_not_live'){
+   try {
+   $probe=[ordered]@{format='schema6-ready-post-failure-snapshot-v1';identities=@();probe_error=$false}
+   $sessions=@()
+   try {
+    $sessions=@(Get-Schema6LiveSessions $Binding)
+    foreach($session in $sessions){
+     if($PreviousSessions -contains $session.Directory){continue}
+     $latest=@(Get-ChildItem -LiteralPath $session.Directory -Directory -Filter 'control-*'|Sort-Object LastWriteTimeUtc -Descending|Select-Object -First 1)
+     if($latest.Count -ne 1){continue}
+     $readyPath=Join-Path $latest[0].FullName 'ready.json';$mcpPath=Join-Path $latest[0].FullName 'mcp-start.json'
+     $ready=Read-Schema6Json $readyPath;$mcp=Read-Schema6Json $mcpPath
+     foreach($identity in @(@{Role='core';Pid=$ready.pid;Ticks=$null;Receipt=$readyPath},@{Role='mcp';Pid=$mcp.pid;Ticks=$mcp.started_ticks;Receipt=$mcpPath})){
+      $row=[ordered]@{role=$identity.Role;pid=[int]$identity.Pid;process_found=$false;has_exited=$null;creation_ticks=$null;receipt_ticks=$null;expected_started_ticks=$(if([string]$identity.Ticks -cmatch '\A[0-9]{1,20}\z'){[string]$identity.Ticks}else{$null});started_after_receipt=$null;started_ticks_match=$null;probe_error=$false}
+      $process=$null
+      try {
+       $process=[Diagnostics.Process]::GetProcessById([int]$identity.Pid)
+       $row.process_found=$true;$row.has_exited=$process.HasExited
+       $created=$process.StartTime.ToUniversalTime().Ticks;$written=(Get-Item -LiteralPath $identity.Receipt).LastWriteTimeUtc.Ticks
+       $row.creation_ticks=[string]$created;$row.receipt_ticks=[string]$written
+       $row.started_after_receipt=$created -gt $written
+       if($identity.Ticks){$row.started_ticks_match=$created -eq [long]$identity.Ticks}
+      }catch{$row.probe_error=$true}finally{if($process){try{$process.Dispose()}catch{$row.probe_error=$true}}}
+      $probe.identities+=([pscustomobject]$row)
+     }
+    }
+   }catch{$probe.probe_error=$true}finally{foreach($session in $sessions){try{$session.Lease.Dispose()}catch{$probe.probe_error=$true}}}
+   # No paths, tokens, configuration values, command lines or pairing codes.
+   try{[Console]::Out.WriteLine(($probe|ConvertTo-Json -Depth 5 -Compress))}catch{}
+   }catch{}
+  }
+  throw $originalFailure
+ }
+}
 $result=[ordered]@{format='schema6-safe-switch-test-v1';code=$null;stopStatus=$null;error=$null;cleanup=$false}
 try{
  if($inputData.scenario-eq 'stop'){
