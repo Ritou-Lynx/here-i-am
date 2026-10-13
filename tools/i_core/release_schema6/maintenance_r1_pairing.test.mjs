@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac, randomBytes} from 'node:crypto';
-import {existsSync,mkdtempSync,readFileSync,readdirSync,renameSync,rmdirSync,unlinkSync,writeFileSync} from 'node:fs';
-import {tmpdir} from 'node:os';
+import {existsSync,readFileSync,readdirSync,renameSync,rmdirSync,unlinkSync,writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {INVENTORY,sha256} from './package.mjs';
 import {createPairingRequestPoller} from './lifecycle/runtime_child.mjs';
 import {createICoreServer} from '../i_core_server.mjs';
+import {syntheticRoot} from '../test_fixtures/release_schema6/synthetic_paths.mjs';
 const baselineInventory=[
  "runtime/node.exe",
  "tools/i_core/activity_control_plane.mjs",
@@ -61,7 +61,7 @@ const baselineInventory=[
 const here=path.dirname(fileURLToPath(import.meta.url));
 const code=()=>randomBytes(32).toString('hex');
 function fixture(t,{cleanup=true}={}){
- const root=mkdtempSync(path.join(tmpdir(),'schema6-pairing-unit-'));
+ const root=syntheticRoot('schema6-pairing-unit-');
  const token=code(),manifestSha256=code(),key=code(),receipts=[];
  let time=1700000000000;
  const calls={replace:0,close:0,alive:true,active:false};
@@ -83,8 +83,10 @@ function fixture(t,{cleanup=true}={}){
 }
 test('R1 exact baseline INVENTORY and immutable validators remain unchanged',()=>{
  assert.deepEqual(INVENTORY,baselineInventory);assert.equal(INVENTORY.length,48);
- assert.equal(sha256(readFileSync(path.join(here,'package.mjs'))),'fb8b66b809ecef874900b378405564c7898b56f4ddb65ed5536f3e783ac93bf6');
- assert.equal(sha256(readFileSync(path.join(here,'package_switch.mjs'))),'258d97e960bc569a212c1a847311ec765ff6f1e95ca936d1009ce49d687b65a1');
+ // Git checkout may use CRLF on Windows; compare the unchanged LF source bytes.
+ const sourceHash=name=>sha256(Buffer.from(readFileSync(path.join(here,name),'utf8').replace(/\r\n/g,'\n')));
+ assert.equal(sourceHash('package.mjs'),'0acff4e9b9b4425b66c3492749f45c3bab2e58386b14585ab6462ada452d8199');
+ assert.equal(sourceHash('package_switch.mjs'),'41f0d5c2c25768e55618ec4a69465c084482a87db245da0d31457f070c358173');
 });
 test('authenticated request consumes both inputs before opening and never discloses its code',t=>{
  const f=fixture(t),value=code();f.request(value);assert.doesNotThrow(f.poll);assert.equal(f.calls.replace,1);
