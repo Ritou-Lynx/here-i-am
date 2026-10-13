@@ -54,6 +54,18 @@
   - Prepare 要求新包根目录是受保护目录（只有所有者可访问、不继承权限）。
   - 给演练自己创建的目录加这个保护是允许的；生产路径一律不碰。
 
+### R0 第 3 次结果（10-13）
+
+- 3b 固定 Prepare 退出码 2，只给出通用码 `configuration_or_release_rejected`。Prepare 和 login 的 catch 都会吞掉具体原因。
+- 第 4 次改为逐项诊断：
+  - 先直接运行 `start_schema6.ps1` 的验证模式，它会输出具体错误码；
+  - 再用临时诊断脚本（放在演练目录，不进仓库），按 login `-ValidateOnly` 的顺序逐项检查。
+- 高可能原因：
+  - 子进程继承了 `NODE_*`/`I_CORE_*` 环境变量；
+  - 新包文件的所有者不是当前用户，例如提权会话创建，所有者成了 Administrators；
+  - 传入的 `-ReleaseDirectory` 与 login 里的 `release_directory`、实际路径大小写不一致（这里用大小写敏感比较）。
+- R1 附带项：在 Prepare 与 login 的 catch 中，把内部错误码写到 stderr。只输出错误码，不输出路径和值。
+
 ## R1 合同：在线配对窗口
 
 ### 完成标准
