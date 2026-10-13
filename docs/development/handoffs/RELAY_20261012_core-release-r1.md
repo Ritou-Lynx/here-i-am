@@ -140,6 +140,26 @@
 
 同一检查在连续两个提交上失败，就停止并报告 `blocked`。同一 SHA 的 push 和 PR 两次运行，只算一次。
 
+## R1 审核（10-13，PR #28，HEAD d47ab940）：通过
+
+- 逐文件读了 19 个改动，全部在允许路径内。48 项 INVENTORY、冻结校验器、配置格式、`i_remote_mcp/` 都没动。
+- 配对：
+  - 请求 HMAC 绑定 token、manifest、`sha256(code)` 和到期时间，用 `timingSafeEqual` 比较；有效期不超过 10 分钟，带防重放。
+  - 输入文件先删除，再开窗；首次配对成功即关窗。
+  - 轮询异常不会走到 shutdown；回执里只有哈希前缀。
+  - 配对码只出现在 stdout，不进日志或命令行。
+- `-NoRollback`：不加时，还原后与基线逐字节一致，云端按 CRLF 复算的哈希等于测试常量。加上后，失败时原地停下并提示反向换包。
+- 诊断：`start_schema6` 只报被拒的变量名，退出码保持 1；prepare 和 login 的错误码有白名单正则。
+- 测试：
+  - 云端 Linux 跑 55 项：27 过、27 跳（仅 Windows）、1 败。失败的是 byte-for-byte 那项：它按 CRLF 拼接，Linux 检出是 LF。CI 上只有 Windows 运行器跑它，所以不阻塞，归入下一次合同顺手修，做法是哈希前先统一换行。
+  - CI Windows 日志确认真实会话的两项实跑通过：pair-core `chatgpt_web` 配对后 clean close；从 v3-lab 基线离线换包，再用 NoRollback 切任务。
+- 结论：可以转 ready 并合并。
+
+## D1 拆分
+
+- **D1a 准备**：做 D1 第 1–4 步，再加 `switch-login-task -DryRun`。只登记停用任务，不碰运行中的会话和真实策略。完成后只读核对一件事：P′ 的 `core_configuration_sha256` 和 manifest 要与 P 一致。
+- **D1b 切换**：做 D1 第 5–10 步，用户在场。
+
 ## D1：部署顺序（用户在场，每步单独同意）
 
 1. 从合并 R1 后的 v3-lab 构建新包，放到受保护的私有目录。
