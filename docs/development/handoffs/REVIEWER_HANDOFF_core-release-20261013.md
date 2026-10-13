@@ -20,7 +20,7 @@
 | 项 | 状态 | 下一步 |
 |---|---|---|
 | R2 生成器 | 待 Codex 从 `6a063386` 开分支 | 等报告，审核 PR |
-| D1a 准备 | 第 0 步：PS 5.1 / 提权 / 任务 Running 均正常；第 4 项（owner_sid）待用 `Get-Schema6LoginBinding` 重测 | 等报告，审核 D1a 第 1–4 步结果 |
+| D1a 准备 | 第 0 步通过（`Get-Schema6LoginBinding` 正常，owner_sid 相符）；第 1 步通过，新包 manifest `4e003c0b…`，48 项；第 2 步被 Codex 自写的预检挡住（`backup_task_attachment_required`）：旧任务 XML 应复用 R0 生成器输入中的 `oldTaskXmlPath`，由生成器自己校验 | 等第 2–4 步报告 |
 | D1b 切换 | R2 合并后进行，用户在场 | 逐步写提示词，每步单独同意 |
 | L 注销强杀复现 | 未开始 | 另立合同 |
 | 收尾 | 未开始 | DEVLOG（顶部 ≤15 行）与 I_PROJECT_STATE |
