@@ -132,7 +132,17 @@ R1 verification uses pure local protocol tests and hosted Linux/Windows syntheti
 
 ## R2：D1 关闭输入与换包登记证据
 
-`generate-package-switch-evidence.mjs` 只准备证据，不关闭会话、不登记或启动任务，也不读取密钥。以下命令仅作 D1b 用法说明；真实关闭、离线换包、登记和切换仍按用户在场的逐步授权执行。所有路径必须是绝对规范路径，输出父目录须预先为当前用户所有、禁止继承的私有目录（仅当前用户、SYSTEM、Administrators）；输出文件和后续回执路径必须全新，已有文件拒绝覆盖。Windows 使用固定 Node 与清除 `NODE_*` / `I_CORE_*` 后的 PowerShell 5.1 子进程；多行操作保存为 `.ps1`，以 `-File` 调用。
+`generate-package-switch-evidence.mjs` 只准备证据，不关闭会话、不登记或启动任务，也不读取密钥。以下命令用于 D1a/D1b；真实关闭、离线换包、登记和切换仍按用户在场的逐步授权执行。所有路径必须是绝对规范路径，输出父目录须预先为当前用户所有、禁止继承的私有目录（仅当前用户、SYSTEM、Administrators）；输出文件和后续回执路径必须全新，已有文件拒绝覆盖。Windows 使用固定 Node 与清除 `NODE_*` / `I_CORE_*` 后的 PowerShell 5.1 子进程；普通检查使用私有 `.ps1` 和 `-File`。生成器固定 UTF-8 读取请求及输出 XML，避免系统代码页改变原始内容。
+
+D1a 第 5 步在停服前对现役任务预览安全策略：
+
+```powershell
+node $generator old-task --task $activeTask --preview
+```
+
+`--preview` 只跳过“已停用且无实例”这一项检查，仍执行完整安全推导、往返校验与快照复核。它不要求输出路径；即使传入 `--xml-out` / `--security-out` 也不写入或覆盖。标准输出仅含 XML、security、原始/显式/预期 SDDL、父描述符、只读主体清单的 SHA256，以及 `oldTaskStopped`。生成器自己不创建或修改任何文件、目录，包括临时工件；预览用 `-EncodedCommand` 传递固定仓库检查代码，请求 JSON 通过 UTF-8 标准输入传递，不把请求值拼入代码。
+
+零写入验收比较输出路径、输出父目录、维护目录及任务文件夹的前后状态，并检查进程结束后 `%TEMP%` 无新残留文件。唯一例外是 PowerShell 5.1 宿主为系统策略探测短暂创建、删除的 `__PSScriptPolicyTest_*.ps1/.psm1`：只有名称符合且结束时已不存在的文件可排除。不会为消除这些探测而改变 `TEMP`/`TMP`，或关闭、绕过 AppLocker、WDAC、执行策略检查。
 
 先定位现役任务的唯一活会话，生成默认未批准的关闭输入。生成器复用 `Get-Schema6LoginBinding` / `Get-Schema6LiveSessions`，绑定宿主、窗口、当前控制代和维护快照哈希。`--maintenance-directory` 指向将实际执行 close 的维护目录，`--receipt` 是该入口将写出的全新回执；省略时分别使用生成器目录和 `<out>.receipt.json`。
 
@@ -153,7 +163,9 @@ Invoke-Schema6TaskOperation -TaskName $activeTask -Operation Disable
 node $generator old-task --task $activeTask --xml-out $oldTaskXml --security-out $reviewedSecurity
 ```
 
-`old-task` 本身不停止、不停用、不登记或启动任务。旧任务未停用或实例数不为零时，以 `evidence_inspection_rejected:old_task_not_stopped` 拒绝，输出文件不创建。它原样保存 `$task.Xml`，`oldTaskSddl` 和 `registrationSddl` 均为旧任务的当前安全描述符；父描述符哈希、预期 SDDL 和继承的只读主体由既有 `task_security_policy.ps1` 函数计算，`Assert-TaskAllowedRights` 不通过就拒绝。两个输出均须是全新私有路径，不能复用旧快照。
+`old-task` 本身不停止、不停用、不登记或启动任务。普通生成时，旧任务未停用或实例数不为零，以 `evidence_inspection_rejected:old_task_not_stopped` 拒绝，输出文件不创建。它原样保存 `$task.Xml` 和当前 `oldTaskSddl`；`registrationSddl` 保留 owner/group，仅按原顺序提取不带 INHERITED（0x10）的 DACL 条目，不含 SACL。显式条目带其他标志或主体不是 owner/SYSTEM/Administrators 时直接拒绝，不会过滤掉问题条目；完整旧描述符也须通过 `Assert-TaskAllowedRights`。
+
+父描述符哈希、预期 SDDL 和继承只读主体由既有 `task_security_policy.ps1` 函数计算。用提取的显式 SDDL 与当前父文件夹推导出的预期结果，经现有 `Convert-TaskSecurity` 后必须与完整旧描述符一致，否则报 `evidence_inspection_rejected:old_task_security_not_derivable`；父文件夹或旧任务在快照后改变则拒绝。普通生成的两个输出均须是全新私有路径，不能复用旧快照。
 
 随后才能运行 `preparePackageSwitch`、人工批准计划、新包固定离线 package-switch。登记只能在离线换包完成后进行；`stop-schema6-session.ps1` 的返回结果不能代替 close 的批准输入与关闭回执。固定 `prepare_login_schema6.ps1 -PrepareOnly` 的真实回执和 XML 也必须保留。
 

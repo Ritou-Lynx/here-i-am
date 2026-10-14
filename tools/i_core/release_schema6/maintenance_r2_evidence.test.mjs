@@ -49,7 +49,16 @@ test('real R2 generated close input and registration reject invalid evidence bef
  assert.equal(f.config.oldTask.xml.path,f.oldTaskEvidence.xml);
  assert.equal(f.generatorOptions.security,f.oldTaskEvidence.security);
  assert.equal(oldEvidence.oldTaskSddl,f.oldTaskEvidence.actual.oldTask.sddl);
- assert.equal(oldEvidence.registrationSddl,oldEvidence.oldTaskSddl);
+ assert.notEqual(oldEvidence.registrationSddl,oldEvidence.oldTaskSddl);
+ assert.ok(f.oldTaskEvidence.policy.parentInheritableAceCount>0);
+ assert.ok(f.oldTaskEvidence.policy.oldTaskInheritedAceCount>0);
+ assert.equal(f.oldTaskEvidence.policy.registrationExplicitOnly,true);
+ assert.equal(f.oldTaskEvidence.policy.roundTripEqual,true);
+ assert.equal(f.oldTaskEvidence.policy.oldTaskSecurity,f.oldTaskEvidence.policy.expectedRegisteredSecurity);
+ assert.equal(f.oldTaskEvidence.preview.summary.oldTaskStopped,true);
+ assert.equal(f.oldTaskEvidence.preview.taskFolderUnchanged,true);
+ assert.equal(f.oldTaskEvidence.preview.outputAndMaintenanceTreesUnchanged,true);
+ assert.equal(f.oldTaskEvidence.preview.tempNewResidualCount,0);
  for(const key of ['registrationSddl','expectedRegisteredSddl','parentSddlSha256','taskSecurityPolicyVersion','inheritedReadOnlyPrincipals'])assert.deepEqual(f.config[key],oldEvidence[key]);
  assert.equal(f.closeEvidence.defaultApproved,false);assert.equal(f.closeEvidence.unapprovedExitCode,2);
  const close=JSON.parse(readFileSync(f.closeEvidence.closeReceipt));

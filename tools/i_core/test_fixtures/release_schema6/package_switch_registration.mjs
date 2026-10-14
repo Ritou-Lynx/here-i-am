@@ -146,20 +146,48 @@ export async function registrationLab(t){
   execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',fixture,'-ConfigurationPath',configurationPath,'-Mode',mode,'-OutputPath',output],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:90000});
   return JSON.parse(readFileSync(output));
  };
+ const security=path.join(settings,'old-task-security.json');
  const bootstrap={taskName,oldTask:{name:oldTaskName,xml:{path:oldXml}},switchPlan:ref(switchPlan.p),maintenanceFiles,
-  preparedXml:ref(preparedXml),ownerSid:sid,registrationSddl};
+  preparedXml:ref(preparedXml),ownerSid:sid,registrationSddl,oldTaskSecurity:security};
  writeFileSync(probePath,JSON.stringify(bootstrap));
  cleanupTasks=()=>taskStep('CleanupOld');
  const com=taskStep('BootstrapOld');
  bootstrap.oldTask=com.oldTask;writeFileSync(probePath,JSON.stringify(bootstrap));
+ const taskSnapshot=()=>JSON.parse(execFileSync(ps,['-NoProfile','-NonInteractive','-File',fixture,'-ConfigurationPath',probePath,'-Mode','SnapshotFolder','-OutputPath',path.join(settings,'unused-snapshot-output.json')],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:90000,maxBuffer:16*1024*1024}));
+ const snapshotTree=root=>readdirSync(root,{recursive:true}).sort().map(name=>{
+  const entry=path.join(root,name),stat=lstatSync(entry);
+  return [name,stat.isDirectory()?'directory':hashFile(entry)];
+ });
+ const previewRoots=[settings,maintenance,path.join(snapshot,'tools/i_core/maintenance'),path.join(repository,'tools/i_core/maintenance')];
+ const taskBefore=taskSnapshot(),filesBefore=previewRoots.map(snapshotTree);
+ const tempDirectory=process.env.TEMP;assert.ok(tempDirectory,'actual Windows TEMP is required for preview residue checks');
+ const tempBefore=new Set(readdirSync(tempDirectory,{recursive:true}));
+ assert.equal(existsSync(oldXml),false);assert.equal(existsSync(security),false);
+ const preview=generateOldTaskEvidence({task:oldTaskName,xmlOut:oldXml,securityOut:security,preview:true});
+ // No new residual is excluded, even a host policy-probe name. Permitted
+ // __PSScriptPolicyTest_*.ps1/.psm1 files must already have disappeared.
+ const tempResidual=readdirSync(tempDirectory,{recursive:true}).filter(name=>!tempBefore.has(name));
+ assert.deepEqual(tempResidual,[],'preview must leave no new files or directories in actual TEMP');
+ assert.deepEqual(previewRoots.map(snapshotTree),filesBefore,'preview must preserve output parents and both maintenance trees');
+ assert.equal(existsSync(oldXml),false);assert.equal(existsSync(security),false);
+ assert.deepEqual(taskSnapshot(),taskBefore,'preview must preserve parent SDDL and all root task names/XML/SDDL/Enabled');
+ assert.equal(preview.summary.oldTaskStopped,true);
  // The production inspector reads the actual disabled COM task. Its two
  // artifacts go directly into registration; the fixture supplies no policy.
- const security=path.join(settings,'old-task-security.json');
  generateOldTaskEvidence({task:oldTaskName,xmlOut:oldXml,securityOut:security});
  const inspected=JSON.parse(readFileSync(security));
  assert.equal(readFileSync(oldXml,'utf8'),com.xml);
- assert.equal(inspected.oldTaskSddl,com.oldTask.sddl);assert.equal(inspected.registrationSddl,com.oldTask.sddl);
+ assert.equal(inspected.oldTaskSddl,com.oldTask.sddl);
+ assert.notEqual(inspected.registrationSddl,com.oldTask.sddl,'registration must exclude the actual inherited ACEs');
  assert.equal(inspected.parentSddlSha256,sha256(com.parentSddl));
+ const encoded=value=>Buffer.from(JSON.stringify(value,null,2)+'\n');
+ assert.deepEqual(preview.summary,{xmlSha256:sha256(Buffer.from(com.xml,'utf8')),securitySha256:hashFile(security),oldTaskSddlSha256:sha256(inspected.oldTaskSddl),registrationSddlSha256:sha256(inspected.registrationSddl),expectedRegisteredSddlSha256:sha256(inspected.expectedRegisteredSddl),parentSddlSha256:inspected.parentSddlSha256,inheritedReadOnlyPrincipalsSha256:sha256(encoded(inspected.inheritedReadOnlyPrincipals)),oldTaskStopped:true});
+ const policy=taskStep('VerifyOldEvidence');
+ assert.ok(policy.parentInheritableAceCount>0,'actual task folder must expose object-inherit ACEs');
+ assert.ok(policy.oldTaskInheritedAceCount>0,'actual old task must contain inherited ACEs');
+ assert.equal(policy.registrationExplicitOnly,true);assert.equal(policy.roundTripEqual,true);
+ assert.equal(policy.oldTaskSecurity,policy.expectedRegisteredSecurity);
+ t.diagnostic(JSON.stringify({r2bInheritedTaskSecurity:{parentInheritableAceCount:policy.parentInheritableAceCount,oldTaskInheritedAceCount:policy.oldTaskInheritedAceCount,registrationExplicitOnly:true,roundTripEqual:true}}));
  const baseOptions={switchPlan:switchPlan.p,closeInput:inputPath,closeReceipt:input.outputPath,offlineControl:appliedRun.control,
   prepareReceipt,preparedXml,oldTaskName,taskName,maintenanceSnapshot:snapshot,originalMarkerSnapshot,oldTaskXml:oldXml,security};
  let generation=0;
@@ -199,6 +227,6 @@ export async function registrationLab(t){
  };
  return {l,config,publish,get configurationPath(){return configurationPath;},script:registrationScript,oldApproved:oldApproved.path,
   validate:()=>validatePackageSwitchRegistration(config),invoke,generatorOptions:baseOptions,freshOptions,dryRunSummary:dry,
-  oldTaskEvidence:{xml:oldXml,security,actual:com},
+  oldTaskEvidence:{xml:oldXml,security,actual:com,policy,preview:{summary:preview.summary,taskFolderUnchanged:true,outputAndMaintenanceTreesUnchanged:true,tempNewResidualCount:tempResidual.length}},
   closeEvidence:{defaultApproved:draft.approved,closeReceipt:input.outputPath,unapprovedExitCode:unapproved.status}};
 }
