@@ -188,6 +188,37 @@
 
 同 R1。
 
+## R2 审核（10-14，PR #29，HEAD 94920c9c）：需补一轮 R2b
+
+已通过的部分：
+- C1 选择修复（update-mcp-source.mjs:107）正确；0 条、2 条会话条目和其他条目不变都有测试，Windows CI 已实际执行。
+- R1 换行修复正确；云端 Linux 复跑 R2、C1 和 R1 相关测试，57 通过，28 跳过（仅限 Windows），0 失败。
+- Windows CI 日志确认两项真实执行，不是跳过：“real close and single Native forward feed fixed Prepare and same-schema RegisterOnly”（94 秒），“real R2 generated close input and registration reject invalid evidence before publishing”（64 秒）。夹具已改为调用生成器。
+- 执行方式偏离（多行 shell 写入）不影响结果，不阻塞。
+
+阻塞合并的缺口：
+1. 登记要求的 `--security` JSON 没有生产来源。夹具靠测试专用的 `package_switch_registration.ps1` 计算 SDDL，生产只能手拼。这与 R2 要消除的手拼模式相同。
+2. 登记要求旧任务已停用、无实例，XML 快照与现场一致（register-package-switch-login.ps1:71–74）。D1b 原顺序里没有停用旧任务这一步，也没有生成旧任务快照的工具。
+3. 生成器内部 PowerShell 出错时，统一报 `evidence_inspection_rejected`（generate-package-switch-evidence.mjs:93），真实错误码丢失。R0 曾因此多跑三轮；登记又发生在停服期间，必须能看到原因。
+
+## R2b 合同：旧任务快照与错误码（同 PR #29，同分支）
+
+### 完成标准
+
+1. 生成器新增子命令 `old-task --task <旧任务> --xml-out <新文件> --security-out <新文件>`。只读，不停用任何任务。
+   - 旧任务必须已停用且实例数为 0，否则报 `old_task_not_stopped`。
+   - 写出 `$task.Xml` 原样快照。
+   - 写出 security JSON：`oldTaskSddl` 和 `registrationSddl` 都取旧任务当前描述符；`parentSddlSha256`、`expectedRegisteredSddl`、`inheritedReadOnlyPrincipals` 用现有 `task_security_policy.ps1` 的函数计算，算法与夹具一致；`taskSecurityPolicyVersion` 取现值。`Assert-TaskAllowedRights` 不通过时拒绝。
+   - 输出规则与其他子命令相同：全新私有路径，已存在就拒绝。
+2. `registration` 的 `--old-task-xml` 和 `--security` 可直接使用上一步的产物。Windows CI 的真实登记场景改为由 `old-task` 产出这两项，不再用夹具计算。
+3. 生成器内 PowerShell 的 catch：异常消息匹配 `^[a-z0-9_]{1,64}$` 时原样输出，否则仍输出 `evidence_inspection_rejected`。Node 端报错为 `evidence_inspection_rejected:<code>`。加一条测试，确认至少一个内部错误码（例如 `old_task_not_stopped`）能透出。
+4. 补一个合成测试：旧任务事先已停用时，`switch-login-task -NoRollback` 仍能成功，且只启动新任务。可沿用 R1 的模拟 COM 夹具。
+5. README 的 D1 用法改为下面更正后的 D1b 顺序。
+
+### 允许修改的路径、禁止、止损
+
+同 R2。另外允许修改 `tools/i_core/test_fixtures/release_schema6/` 下的 R1 NoRollback 测试和夹具，仅限第 4 条。
+
 ## D1a 结果（10-13 至 10-14）
 
 - 第 0–2 步通过，三项锚点前后一致。新包 manifest `4e003c0b…`（48 项）；候选 login `e8bdf4fe…`；准备 XML `bc94778d…`；MCP 候选 manifest `f7d4872f…`。
@@ -211,17 +242,18 @@
 
 **D1b 切换**：用户在场，每步单独同意；在 R2 合并后进行。
 
-1. `close-input` 生成关闭输入；用户批准后，用 `close-schema6-session.ps1` 关闭现役，确认 clean close。从这里开始停服。
+1. `close-input` 生成关闭输入；用户批准后，用 `close-schema6-session.ps1` 关闭现役，确认 clean close。从这里开始停服。随后复制原始 clean-close marker 快照。
+   - 1b. dot-source `stop-schema6-session.ps1`，调用 `Invoke-Schema6TaskOperation 现役 Disable` 停用旧任务；再用生成器 `old-task` 产出旧任务 XML 快照和 security JSON（R2b）。
 2. `preparePackageSwitch` 生成计划；用户审阅，写入 `approved:true`。
 3. 新包 `start_schema6.ps1 -OfflineOperation package-switch` 完成离线换包。
-4. `registration` 先 `--dry-run`，再生成；`register-package-switch-login.ps1 -RegisterOnly` 登记停用任务 P。
+4. `registration` 使用第 1b 步的两项产物，先 `--dry-run`，再生成；`register-package-switch-login.ps1 -RegisterOnly` 登记停用任务 P。
 5. C1：以 P 为 `--from-task`，先 `--dry-run`，再登记 P′（停用）。
 6. 按 D1a 第 4 步结论修改读取策略，加入 `chatgpt_web`。需要用户同意。
 7. 先跑 `switch-login-task.ps1 -FromTask 现役 -ToTask P′ -DryRun`，再加 `-NoRollback` 实切。服务到此恢复。
 8. `open-pairing-window.ps1 -TaskName P′` → `pair-core --frontend chatgpt_web` → 用 stop 和 start 重启会话，让 MCP 加载新凭据。
 9. 验收：开一个新的 ChatGPT 对话。ChatGPT 和 Claude 各写一轮，App 里来源分别显示。
 
-第 3 步之后，失败一律不起旧任务，按反向换包处理。所有 PS 入口都在去掉 `NODE_*` 和 `I_CORE_*` 的 PS 5.1 子进程中运行。
+第 1b 至第 2 步失败时，可以重新启用并启动旧任务。第 3 步之后，失败一律不起旧任务，按反向换包处理。所有 PS 入口都在去掉 `NODE_*` 和 `I_CORE_*` 的 PS 5.1 子进程中运行。
 
 ## L：注销强杀复现（限时，另立合同）
 
