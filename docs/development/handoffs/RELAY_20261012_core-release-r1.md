@@ -174,10 +174,11 @@
 3. 改造夹具 `package_switch_registration.mjs`，手拼的配置改为调用生成器产出。Windows CI 用生成器产物实际跑通 `register-package-switch-login.ps1 -RegisterOnly`。另外补一个真实会话场景：`close-schema6-session` 用 `close-input` 产物完成关闭。
 4. 顺手修 R1 遗留：`maintenance_safe_switch_r1_no_rollback.test.mjs` 的 byte-for-byte 测试，哈希前统一换行，在 Linux 检出下也要通过。
 5. 维护 README 补 D1 用法。
+6. 修 C1 的 task 条目选择（D1a 第 3 步发现，见下节）。`update-mcp-source.mjs:107` 改为按精确名 `tasks/HereIAm-CoreSchema6-Session.xml` 选择：非 `preserved/`、role 为 task、恰好 1 条，否则仍报 `backup_task_attachment_required`。其他 task 条目必须逐字节不变，由现有 `unrelated_backup_attachment_changed` 检查保证。测试夹具按生产形态构造：3 条非 preserved 的 task 条目，外加 1 条 `preserved/mcp-config-switch-source/` 条目，其中会话条目的 sha256 与文件内容不一致。覆盖以下情况：通过；会话条目 0 条或 2 条时拒绝；另两条 task 条目不变。现有 MCP 换源的 Windows 真实会话测试也要改用这一形态。
 
 ### 允许修改的路径
 
-`tools/i_core/maintenance/generate-package-switch-evidence.mjs`（新）、`tools/i_core/maintenance/README.md`、`tools/i_core/test_fixtures/release_schema6/` 下相关测试与夹具、`tools/i_core/release_schema6/maintenance_r2_*.test.mjs`（新）。
+`tools/i_core/maintenance/update-mcp-source.mjs`（只改第 6 条涉及的选择逻辑）、`tools/i_core/maintenance/generate-package-switch-evidence.mjs`（新）、`tools/i_core/maintenance/README.md`、`tools/i_core/test_fixtures/release_schema6/` 下相关测试与夹具、`tools/i_core/release_schema6/maintenance_r2_*.test.mjs`（新）。
 
 ### 禁止
 
@@ -186,6 +187,18 @@
 ### 止损
 
 同 R1。
+
+## D1a 结果（10-13 至 10-14）
+
+- 第 0–2 步通过，三项锚点前后一致。新包 manifest `4e003c0b…`（48 项）；候选 login `e8bdf4fe…`；准备 XML `bc94778d…`；MCP 候选 manifest `f7d4872f…`。
+- 第 3 步：C1 dry-run 被拒，错误码 `backup_task_attachment_required`。
+  - 生产备份和候选备份都有 3 条非 preserved 的 task 条目：`tasks/HereIAm-iCore.xml`、`tasks/HereIAm-iRemoteMCP.xml`、`tasks/HereIAm-CoreSchema6-Session.xml`，外加 1 条 `preserved/mcp-config-switch-source/` 条目。
+  - C1 要求恰好 1 条，但测试夹具里只有 1 条，所以 CI 没发现。已并入 R2 第 6 条。
+  - 会话条目的 sha256 与文件内容不一致，这是循环模板哈希，按设计保留原声明值。在线备份对非 release 条目会重新计算哈希（automatic_backup.mjs:39），所以不影响备份。
+- 第 4 步：`messages.auto_share_origins` 位于 MCP `environment.I_MEMORY_POLICY` 指向的策略文件，生产和候选用的是同一个文件。
+  - 两份备份模板都钉了这个文件的哈希（entries[15]）。按上面同样的规则，这只是声明值，不会阻止在线备份。
+  - login、Core、MCP 配置都没有钉它的内容哈希。所以 D1b 改策略文件不会牵动配置链，但要在改前、改后各记一次该文件的哈希作为证据。
+- R2 合并后，用现役任务作为 `--from-task` 重跑 D1a 第 3 步 dry-run。
 
 ## D1：部署顺序（更正版）
 

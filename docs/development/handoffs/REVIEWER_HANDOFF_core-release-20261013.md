@@ -19,8 +19,8 @@
 
 | 项 | 状态 | 下一步 |
 |---|---|---|
-| R2 生成器 | 待 Codex 从 `6a063386` 开分支 | 等报告，审核 PR |
-| D1a 准备 | 第 0–2 步通过：新包 manifest `4e003c0b…`，候选 login `e8bdf4fe…`，准备 XML `bc94778d…`，MCP 候选 `f7d4872f…`。第 3 步 C1 dry-run 被拒，错误码 `backup_task_attachment_required`（update-mcp-source.mjs:107 要求备份中恰有 1 条非 `preserved/` 的 task 条目，生产备份共有 4 条 task 条目） | 让 Codex 只读列出 4 条 task 条目的形状（生产备份与候选备份各一份）；第 4 步可先做。拿到数据后再定是否在 R2 修改 C1 的选择规则 |
+| R2 生成器 + C1 task 选择修复 | 待 Codex 从 `6a063386` 开分支（合同第 1–6 条） | 等报告，审核 PR |
+| D1a 准备 | 第 0–2、4 步通过；第 3 步 C1 dry-run 因备份中有 3 条 task 条目被拒，已并入 R2 第 6 条（详见主合同“D1a 结果”） | R2 合并后重跑第 3 步 dry-run |
 | D1b 切换 | R2 合并后进行，用户在场 | 逐步写提示词，每步单独同意 |
 | L 注销强杀复现 | 未开始 | 另立合同 |
 | 收尾 | 未开始 | DEVLOG（顶部 ≤15 行）与 I_PROJECT_STATE |
