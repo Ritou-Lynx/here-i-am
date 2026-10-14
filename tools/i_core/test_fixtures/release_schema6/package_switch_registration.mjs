@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
 import {execFileSync,spawn,spawnSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
-import {readFileSync,writeFileSync,mkdirSync,copyFileSync,existsSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,copyFileSync,existsSync,readdirSync,lstatSync} from 'node:fs';
 import path from 'node:path';
 import {INVENTORY,sha256,cleanEnvironment} from '../../release_schema6/package.mjs';
 import {createRuntimeLab,repository,ps,until,cleanReceipt,protect} from '../../release_schema6/lifecycle/test-fixture.mjs';
 import {loginConfig,configureManagedMcp,host,connectManaged} from '../../release_schema6/lifecycle/mcp-session-test-fixture.mjs';
 import {allocateSyntheticLoopbackPort} from './mcp_reader/helper.mjs';
 import {preparePackageSwitch} from '../../maintenance/prepare-package-switch.mjs';
+import {generateRegistrationEvidence,generateCloseInput} from '../../maintenance/generate-package-switch-evidence.mjs';
 import {validatePackageSwitchRegistration} from '../../maintenance/package-switch-registration.mjs';
 const BASE='b71799706719b0e603124d108c2795caa0a98933',hashFile=p=>sha256(readFileSync(p));
 const ref=p=>({path:p,sha256:hashFile(p)}),quote=s=>"'"+s.replaceAll("'","''")+"'";
 export async function registrationLab(t){
+ assert.equal(process.env.GITHUB_ACTIONS,'true','r2_fixture_ci_only');
  const l=await createRuntimeLab(t);
  const execPath=execFileSync('git',['--exec-path'],{encoding:'utf8',windowsHide:true}).trim(),gitPath=path.resolve(execPath,'../../../bin/git.exe');
  const oldSource=execFileSync(gitPath,['-C',repository,'show',BASE+':tools/i_core/release_schema6/package.mjs'],{windowsHide:true,env:cleanEnvironment()});
@@ -64,7 +66,8 @@ export async function registrationLab(t){
  // database is referenced; failed scheduled fixture backup is not a success claim.
  const backupPaths=[old,next].map(e=>deployment.get(e.manifestSha256).find(a=>a.role==='backup').path);
  const aclScript='$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=New-Object Security.AccessControl.FileSecurity;$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);foreach($id in @($sid,[Security.Principal.SecurityIdentifier]::new("S-1-5-18"))){$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($id,"FullControl","Allow"))};foreach($p in @('+backupPaths.map(quote).join(',')+')){Set-Acl -LiteralPath $p -AclObject $a}';
- execFileSync(ps,['-NoProfile','-NonInteractive','-Command',aclScript],{env:cleanEnvironment(),windowsHide:true});
+ const aclPath=path.join(settings,'protect-synthetic-backup.ps1');writeFileSync(aclPath,aclScript);
+ execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',aclPath],{env:cleanEnvironment(),windowsHide:true});
  const oldLogin=deployment.get(old.manifestSha256).find(a=>a.role==='login');
  const c={file:oldLogin.path,hash:oldLogin.sha256,configuration:JSON.parse(readFileSync(oldLogin.path)),controlRoot:stagedLogin.controlRoot};
  const run=await host({...l,release:old.releaseDirectory,lifecycle:path.join(old.releaseDirectory,'tools/i_core/release_schema6/lifecycle'),manifestHash:old.manifestSha256,configPath:old.configurationPath,configuration:JSON.parse(readFileSync(old.configurationPath))},c);
@@ -72,18 +75,37 @@ export async function registrationLab(t){
  const maintenance=l.dir('maintenance');
  for(const file of ['close-schema6-session.ps1','process_image_binding.ps1'])copyFileSync(path.join(repository,'tools/i_core/maintenance',file),path.join(maintenance,file));
  const script=path.join(maintenance,'close-schema6-session.ps1'),helper=path.join(maintenance,'process_image_binding.ps1');
- const metadata=JSON.parse(execFileSync(ps,['-NoProfile','NonInteractive','-Command',
-  'Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public static class FixtureWindowThread{[DllImport("user32.dll")]public static extern uint GetWindowThreadProcessId(IntPtr w,out uint p);}\';'+
-  '$p=Get-Process -Id '+run.child.pid+';$windowPid=0;$tid=[FixtureWindowThread]::GetWindowThreadProcessId([IntPtr]::new('+run.window.hwnd+'),[ref]$windowPid);'+
-  '@{startedTicks=$p.StartTime.ToUniversalTime().Ticks.ToString();imagePath=$p.Path;sessionId=$p.SessionId;threadId=$tid;ownerSid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value}|ConvertTo-Json -Compress'
- ].map(a=>a==='NonInteractive'?'-NonInteractive':a),{env:cleanEnvironment(),windowsHide:true,encoding:'utf8'}));
- const input={format:'schema6-session-close-approved-v1',approved:true,releaseDirectory:old.releaseDirectory,manifestSha256:old.manifestSha256,loginConfigurationPath:c.file,loginConfigurationSha256:c.hash,
-  sessionDirectory:run.session,controlDirectory:run.control,windowSha256:hashFile(path.join(run.session,'session-window.json')),launchSha256:hashFile(path.join(run.control,'launch.json')),readySha256:hashFile(path.join(run.control,'ready.json')),
-  maintenanceScriptSha256:hashFile(script),processImageBindingSha256:hashFile(helper),host:{...metadata,pid:run.child.pid,hwnd:run.window.hwnd,imageSha256:hashFile(metadata.imagePath)},outputPath:path.join(maintenance,'close-receipt.json')};
+ // The production inspector uses the existing task boundary's read-only CI
+ // adapter to locate this real live host. No scheduler task is started here.
+ const bindingPath=path.join(maintenance,'synthetic-task-binding.json');
+ const closeTaskName='HereIAm-Synthetic-R1-Pairing-'+randomBytes(16).toString('hex');
+ writeFileSync(bindingPath,JSON.stringify({initialPid:run.child.pid,task:{Name:closeTaskName,Path:ps,WorkingDirectory:'',
+  Arguments:['-LoginConfigurationPath',c.file,'-LoginConfigurationSha256',c.hash].map(v=>'"'+v+'"').join(' ')}}));
+ let inspectionSequence=0;
+ const runPowerShell=(source,request)=>{
+  const wrapper=path.join(maintenance,'close-inspector-'+(++inspectionSequence)+'.ps1');
+  writeFileSync(wrapper,[
+   "$ErrorActionPreference='Stop';Set-StrictMode -Version 2",
+   '. '+quote(path.join(repository,'tools/i_core/test_fixtures/release_schema6/r1_pairing_session.ps1'))+' -InputPath '+quote(bindingPath)+' -MaintenanceDirectory '+quote(path.join(repository,'tools/i_core/maintenance')),
+   '$request=[Console]::In.ReadToEnd()|ConvertFrom-Json',source
+  ].join('\n'));
+  return JSON.parse(execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',wrapper],
+   {env:{...cleanEnvironment(),GITHUB_ACTIONS:'true'},windowsHide:true,encoding:'utf8',timeout:120000,input:JSON.stringify(request)}));
+ };
+ const receiptPath=path.join(maintenance,'close-receipt.json');
+ const draftPath=path.join(maintenance,'close-unapproved.json');
+ generateCloseInput({task:closeTaskName,out:draftPath,maintenanceDirectory:maintenance,receipt:receiptPath},{runPowerShell});
+ const draft=JSON.parse(readFileSync(draftPath));assert.equal(draft.approved,false);
+ const invokeClose=p=>spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',script,'-ConfigurationPath',p,'-ConfigurationSha256',hashFile(p)],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:120000});
+ const unapproved=invokeClose(draftPath);assert.equal(unapproved.status,2,unapproved.stdout+unapproved.stderr);
+ assert.equal(run.closed,false);assert.equal(existsSync(receiptPath),false);
+ const draftHash=hashFile(draftPath);
+ assert.throws(()=>generateCloseInput({task:closeTaskName,out:draftPath,maintenanceDirectory:maintenance,receipt:receiptPath},{runPowerShell}));
+ assert.equal(hashFile(draftPath),draftHash);
  const inputPath=path.join(maintenance,'approved.json');
- const invoke=value=>{writeFileSync(inputPath,JSON.stringify(value));return spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',script,'-ConfigurationPath',inputPath,'-ConfigurationSha256',hashFile(inputPath)],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:120000});};
-
- const stopped=invoke(input);assert.equal(stopped.status,0,stopped.stdout+stopped.stderr);await run.wait();cleanReceipt(run);
+ generateCloseInput({task:closeTaskName,out:inputPath,approve:true,maintenanceDirectory:maintenance,receipt:receiptPath},{runPowerShell});
+ const input=JSON.parse(readFileSync(inputPath));assert.equal(input.approved,true);
+ const stopped=invokeClose(inputPath);assert.equal(stopped.status,0,stopped.stdout+stopped.stderr);await run.wait();cleanReceipt(run);
  const originalMarkerSnapshot=path.join(settings,'original-marker.json');copyFileSync(path.join(l.state,'s6-lifecycle.json'),originalMarkerSnapshot);
  const targetLogin=deployment.get(next.manifestSha256).find(a=>a.role==='login'),targetTask=deployment.get(next.manifestSha256).find(a=>a.role==='task');
  const preparedXml=path.join(settings,'fixed-prepared.xml');
@@ -114,9 +136,54 @@ export async function registrationLab(t){
  writeFileSync(oldXml,readFileSync(oldApproved.path,'utf8').replace('<Enabled>true</Enabled><Hidden>true</Hidden>','<Enabled>false</Enabled><Hidden>true</Hidden>'));
  const sid=l.configuration.owner_sid,registrationSddl='O:'+sid+'G:'+sid+'D:(A;;FA;;;'+sid+')(A;;FA;;;SY)(A;;FA;;;BA)';
  const id=randomBytes(16).toString('hex');
- const config={format:'schema6-package-switch-registration-v1',approved:true,registerOnly:true,registerDisabled:true,registrationDerivation:'fixed_prepare_settings_enabled_false_only',ownerSid:sid,taskName:'HereIAm-Synthetic-Switch-New-'+id,oldTask:{name:'HereIAm-Synthetic-Switch-Old-'+id,xml:ref(oldXml),sddl:registrationSddl,sddlSha256:sha256(registrationSddl)},registrationSddl,expectedRegisteredSddl:registrationSddl,parentSddlSha256:sha256(registrationSddl),taskSecurityPolicyVersion:'windows-file-oi-v1',inheritedReadOnlyPrincipals:[],
- releaseDirectory:next.releaseDirectory,manifestSha256:next.manifestSha256,switchPlan:ref(switchPlan.p),targetMarker:ref(path.join(l.state,'s6-lifecycle.json')),currentHead:ref(path.join(l.configuration.recovery_custody_directory,'current-head.json')),switchEvent:ref(path.join(l.configuration.recovery_custody_directory,marker.package_switch_event_sha256+'.package-switch.json')),targetFloor:ref(path.join(l.configuration.recovery_custody_directory,marker.custody_sha256+'.floor.json')),originalCloseInput:ref(inputPath),originalCloseReceipt:ref(input.outputPath),originalMarkerSnapshot:ref(originalMarkerSnapshot),fixedPrepareReceipt:ref(prepareReceipt),preparedXml:ref(preparedXml),approvedXml:ref(targetTask.path),registrationXml:{path:path.join(settings,'approved-disabled-definition.xml'),sha256:'0'.repeat(64)},offline:Object.fromEntries(['launch','child','guardian','supervisor','operation'].map(n=>[n,ref(path.join(appliedRun.control,n+'.json'))])),maintenanceFiles,registrationReceiptPath:path.join(settings,'registered.json')};
- const approvalPath=path.join(settings,'registration-human-approval.json'),configurationPath=path.join(settings,'registration-approved.json');
- const publish=()=>{const approval={...config,format:'schema6-package-switch-registration-human-approval-v1',action:'create_new_disabled_login_task_only',authorized:true};delete approval.humanApproval;writeFileSync(approvalPath,JSON.stringify(approval));config.humanApproval=ref(approvalPath);writeFileSync(configurationPath,JSON.stringify(config));};publish();
- return {l,config,publish,configurationPath,script:registrationScript,oldApproved:oldApproved.path,validate:()=>validatePackageSwitchRegistration(config),invoke:()=>spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',registrationScript,'-ConfigurationPath',configurationPath,'-ExpectedConfigurationSha256',hashFile(configurationPath),'-RegisterOnly'],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:180000})};
+ const taskName='HereIAm-Synthetic-Switch-New-'+id,oldTaskName='HereIAm-Synthetic-Switch-Old-'+id;
+ const security={registrationSddl,expectedRegisteredSddl:registrationSddl,parentSddlSha256:sha256(registrationSddl),taskSecurityPolicyVersion:'windows-file-oi-v1',inheritedReadOnlyPrincipals:[],oldTaskSddl:registrationSddl};
+ // COM read-only preparation supplies the same canonical disabled XML/security
+ // that the retained caller's Prepare step will check again.
+ const probePath=path.join(settings,'registration-com-probe.json'),probeOutput=path.join(settings,'registration-com-probe-result.json');
+ writeFileSync(probePath,JSON.stringify({taskName,oldTask:{name:oldTaskName},switchPlan:ref(switchPlan.p),maintenanceFiles,
+  preparedXml:ref(preparedXml),registrationXml:{path:path.join(settings,'com-probe-disabled.xml')},ownerSid:sid,registrationSddl}));
+ execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(repository,'tools/i_core/test_fixtures/release_schema6/package_switch_registration.ps1'),
+  '-ConfigurationPath',probePath,'-Mode','Prepare','-OutputPath',probeOutput],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:90000});
+ const com=JSON.parse(readFileSync(probeOutput));
+ for(const key of ['expectedRegisteredSddl','parentSddlSha256','inheritedReadOnlyPrincipals'])security[key]=com[key];
+ const baseOptions={switchPlan:switchPlan.p,closeInput:inputPath,closeReceipt:input.outputPath,offlineControl:appliedRun.control,
+  prepareReceipt,preparedXml,oldTaskName,taskName,maintenanceSnapshot:snapshot,originalMarkerSnapshot,oldTaskXml:oldXml,security};
+ let generation=0;
+ const freshOptions=(changes={})=>{
+  const root=l.dir('generated-registration-'+(++generation));
+  return {...baseOptions,out:path.join(root,'registration-approved.json'),humanApprovalOut:path.join(root,'human-approval.json'),
+   registrationXmlOut:path.join(root,'disabled-definition.xml'),receipt:path.join(root,'registered.json'),...changes};
+ };
+ const initialOptions=freshOptions();
+ const outputRoot=path.dirname(initialOptions.out);
+ const tree=()=>JSON.stringify(readdirSync(outputRoot,{recursive:true}).sort().map(p=>[p,lstatSync(path.join(outputRoot,p)).isDirectory()?'directory':hashFile(path.join(outputRoot,p))]));
+ const anchors=[baseOptions.switchPlan,baseOptions.closeInput,baseOptions.closeReceipt,baseOptions.prepareReceipt,baseOptions.preparedXml,baseOptions.originalMarkerSnapshot,baseOptions.oldTaskXml];
+ const before=tree(),anchorHashes=anchors.map(hashFile),namesBefore=readdirSync(l.root,{recursive:true}).sort();
+ const dry=generateRegistrationEvidence({...initialOptions,dryRun:true});
+ assert.equal(tree(),before,'registration dry-run must not write output bytes');
+ assert.deepEqual(readdirSync(l.root,{recursive:true}).sort(),namesBefore,'registration dry-run must not create any files or directories');
+ assert.deepEqual(anchors.map(hashFile),anchorHashes,'registration dry-run must preserve source evidence');
+ for(const p of [initialOptions.out,initialOptions.humanApprovalOut,initialOptions.registrationXmlOut,initialOptions.receipt])assert.equal(existsSync(p),false);
+ const generated=generateRegistrationEvidence(initialOptions),config=generated.config;
+ let configurationPath=initialOptions.out,approvalPath=initialOptions.humanApprovalOut;
+ assert.equal(validatePackageSwitchRegistration(config).validated,true);
+ const initialHash=hashFile(configurationPath);
+ assert.throws(()=>generateRegistrationEvidence(initialOptions));assert.equal(hashFile(configurationPath),initialHash);
+ // Negative cases intentionally alter reviewed evidence. This helper is not a
+ // generation API and is kept distinct so existing rejection checks stay exact.
+ const publish=()=>{const approval={...config,format:'schema6-package-switch-registration-human-approval-v1',action:'create_new_disabled_login_task_only',authorized:true};delete approval.humanApproval;writeFileSync(approvalPath,JSON.stringify(approval));config.humanApproval=ref(approvalPath);writeFileSync(configurationPath,JSON.stringify(config));};
+ const invoke=()=>{
+  // CreateOld has now captured the real COM task XML and SDDL. Generate fresh
+  // registration artifacts from that snapshot before every actual entry call.
+  const current=freshOptions({oldTaskName:config.oldTask.name,taskName:config.taskName,oldTaskXml:config.oldTask.xml.path,
+   security:{...Object.fromEntries(['registrationSddl','expectedRegisteredSddl','parentSddlSha256','taskSecurityPolicyVersion','inheritedReadOnlyPrincipals'].map(k=>[k,config[k]])),oldTaskSddl:config.oldTask.sddl},
+   receipt:config.registrationReceiptPath});
+  const actual=generateRegistrationEvidence(current);Object.assign(config,actual.config);
+  configurationPath=current.out;approvalPath=current.humanApprovalOut;
+  return spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',registrationScript,'-ConfigurationPath',configurationPath,'-ExpectedConfigurationSha256',hashFile(configurationPath),'-RegisterOnly'],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:180000});
+ };
+ return {l,config,publish,get configurationPath(){return configurationPath;},script:registrationScript,oldApproved:oldApproved.path,
+  validate:()=>validatePackageSwitchRegistration(config),invoke,generatorOptions:baseOptions,freshOptions,dryRunSummary:dry,
+  closeEvidence:{defaultApproved:draft.approved,closeReceipt:input.outputPath,unapprovedExitCode:unapproved.status}};
 }

@@ -12,7 +12,7 @@ const script=readFileSync(path.join(maintenance,'switch-login-task.ps1'),'utf8')
 const marker="Write-Schema6Step 'switch.stopped_no_rollback' $false 'reverse_package_switch_required:需要反向换包'";
 
 test('R1 NoRollback leaves the legacy switch implementation byte-for-byte intact',()=>{
- const restored=script
+ const restored=script.replace(/\r?\n/g,'\r\n')
   .replaceAll(',[switch]$NoRollback','')
   .replace(';if($NoRollback){'+marker+'}','')
   .replace(' if($NoRollback){'+marker+';return 2}\r\n','')

@@ -129,3 +129,39 @@ After an offline package switch, use `switch-login-task.ps1 -NoRollback`: failur
 Prepare/login errors retain their existing prefix and expose only lowercase ASCII codes of 1–64 characters; other exceptions retain the generic rejection. The start validator reports rejected environment variable names, never values, and preserves its existing exit codes.
 
 R1 verification uses pure local protocol tests and hosted Linux/Windows synthetic integration tests. Passing CI is source-candidate evidence, not production deployment or pairing authorization.
+
+## R2：D1 关闭输入与换包登记证据
+
+`generate-package-switch-evidence.mjs` 只准备证据，不关闭会话、不登记或启动任务，也不读取密钥。以下命令仅作 D1b 用法说明；真实关闭、离线换包、登记和切换仍按用户在场的逐步授权执行。所有路径必须是绝对规范路径，输出父目录须预先为当前用户所有、禁止继承的私有目录（仅当前用户、SYSTEM、Administrators）；输出文件和后续回执路径必须全新，已有文件拒绝覆盖。Windows 使用固定 Node 与清除 `NODE_*` / `I_CORE_*` 后的 PowerShell 5.1 子进程；多行操作保存为 `.ps1`，以 `-File` 调用。
+
+先定位现役任务的唯一活会话，生成默认未批准的关闭输入。生成器复用 `Get-Schema6LoginBinding` / `Get-Schema6LiveSessions`，绑定宿主、窗口、当前控制代和维护快照哈希。`--maintenance-directory` 指向将实际执行 close 的维护目录，`--receipt` 是该入口将写出的全新回执；省略时分别使用生成器目录和 `<out>.receipt.json`。
+
+```powershell
+node $generator close-input --task $activeTask --out $closeDraft --maintenance-directory $closeMaintenance --receipt $closeReceipt
+# 审阅后，明确批准并用另一个全新输出重新生成；不要复用草稿路径。
+node $generator close-input --task $activeTask --out $approvedCloseInput --maintenance-directory $closeMaintenance --receipt $closeReceipt --approve
+# 用户同意关闭后，原入口使用生成器产物；此时才会发送 WM_CLOSE。
+& $closeScript -ConfigurationPath $approvedCloseInput -ConfigurationSha256 $approvedCloseInputSha256
+```
+
+保存原始 clean-close marker 快照后，依次运行 `preparePackageSwitch`、人工批准计划、新包固定离线 package-switch。登记只能在离线换包完成后进行；`stop-schema6-session.ps1` 的返回结果不能代替 close 的批准输入与关闭回执。固定 `prepare_login_schema6.ps1 -PrepareOnly` 的真实回执和 XML 也必须保留。
+
+`registration` 从这些实际证据派生配置及 human-approval 文件。维护快照须含当前 48 项库存中除 `runtime/node.exe` 外的文件，以及既有登记入口的八份维护依赖。旧任务 XML 必须是当前已停用任务的实际快照。`--security` 指向已审阅的 JSON，含 `oldTaskSddl`、`registrationSddl`、`expectedRegisteredSddl`、`parentSddlSha256`、`taskSecurityPolicyVersion: "windows-file-oi-v1"`、`inheritedReadOnlyPrincipals`；双 SDDL、父安全描述符和只读主体按既有 `task_security_policy.ps1` 从实际 Scheduler 安全描述符取得，不能自行省略或猜测。
+
+把下面命令保存到 `.ps1`，先在末尾加 `--dry-run` 检查，再去掉该开关生成：
+
+```powershell
+node $generator registration `
+  --switch-plan $approvedPlan --close-input $approvedCloseInput --close-receipt $closeReceipt `
+  --offline-control $offlineControl --prepare-receipt $fixedPrepareReceipt --prepared-xml $fixedPreparedXml `
+  --old-task-name $activeTask --task-name $newTask --old-task-xml $oldTaskXml `
+  --maintenance-snapshot $maintenanceSnapshot --original-marker-snapshot $originalMarkerSnapshot `
+  --security $reviewedSecurity --out $registrationConfig --human-approval-out $humanApproval `
+  --registration-xml-out $disabledXml --receipt $registrationReceipt
+```
+
+`--dry-run` 零文件与目录写入，检查现有绑定及冻结的 `validateSwitchRegistrationEvidence`，只打印脱敏摘要。摘要明确保留 `registrationValidatorPending:true`、`disabledXmlDerivationPending:true` 和 Windows 私有输出 ACL 待检查状态；它不宣称完成全量登记校验。实际生成用 Scheduler 的只读 `NewTask` 序列化仅禁用设置的 XML，暂存批准证据，调用原 `validatePackageSwitchRegistration` 通过后才发布 human-approval 和登记配置；配置发布前再次校验最终引用。它不会执行 `RegisterOnly`。
+
+用户批准实际登记后，用生成配置的真实 SHA 调用原 `register-package-switch-login.ps1 -ConfigurationPath ... -ExpectedConfigurationSha256 ... -RegisterOnly`。新任务保持停用。再按 D1b 顺序对 P 做 C1 dry-run、登记 P′，最终切换使用 `-NoRollback`；失败停在原地，反向换包须另行审阅。
+
+C1 现在只选择非 `preserved/`、`role: task`、精确名 `tasks/HereIAm-CoreSchema6-Session.xml` 的唯一条目。其他任务与历史条目保持原样，循环模板声明哈希沿用既有规则。合成夹具与 Windows 会话测试均覆盖三条现役 task 加一条 preserved task 的形态。R2 本机仅静态/纯合成验证，真实关闭、离线换包和生成产物的 RegisterOnly 验证由 hosted Windows CI 执行。

@@ -15,7 +15,12 @@ $result=@{passed=$true;started=$false}
 function Hash-Text([string]$text){return Get-TaskSecuritySha256 $text}
 if($Mode-eq 'Prepare'){
  $definition=$s.NewTask(0);$definition.XmlText=[IO.File]::ReadAllText($c.preparedXml.path);$definition.Settings.Enabled=$false
- Write-OwnedArtifactBytes $c.registrationXml.path ([Text.UTF8Encoding]::new($false).GetBytes($definition.XmlText)) $c.ownerSid
+ if(Test-Path -LiteralPath $c.registrationXml.path){
+  # Generator already produced this immutable file. The historical caller's
+  # Prepare step may only confirm identical bytes and the private owner ACL.
+  Assert-OwnedArtifact $c.registrationXml.path $c.ownerSid
+  if([IO.File]::ReadAllText($c.registrationXml.path) -cne $definition.XmlText){throw 'synthetic_prepared_xml_changed'}
+ }else{Write-OwnedArtifactBytes $c.registrationXml.path ([Text.UTF8Encoding]::new($false).GetBytes($definition.XmlText)) $c.ownerSid}
  $parent=$folder.GetSecurityDescriptor(7);$expected=Get-TaskPolicyExpectedSecurity $c.registrationSddl $parent $c.ownerSid
  $result.registrationXml=@{path=$c.registrationXml.path;sha256=(Hash-Text $definition.XmlText)}
  $result.expectedRegisteredSddl=$expected;$result.parentSddlSha256=Hash-Text $parent;$result.inheritedReadOnlyPrincipals=Get-TaskInheritedReadOnlyPrincipals $expected $c.ownerSid
