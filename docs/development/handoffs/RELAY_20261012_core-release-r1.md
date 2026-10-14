@@ -219,6 +219,18 @@
 
 同 R2。另外允许修改 `tools/i_core/test_fixtures/release_schema6/` 下的 R1 NoRollback 测试和夹具，仅限第 4 条。
 
+### R2b 修订 1（10-14，HEAD 87de4f1b 报合同冲突后）
+
+第 1 条原写“`registrationSddl` 取旧任务当前描述符”，这是审核方的错误。现役任务的描述符 = 登记时的显式 ACE + 从任务文件夹继承的 ACE；冻结策略 `Get-TaskPolicyExpectedSecurity` 只接受显式 ACE 作为输入。改为：
+
+- `oldTaskSddl`：旧任务当前描述符，原样保存（登记入口用它核对现场）。
+- `registrationSddl`：从 `oldTaskSddl` 提取，保留 owner、group，只留没有 INHERITED 标志（0x10）的 DACL 条目，顺序不变，不含 SACL。显式条目带其他标志，或主体不是 owner/SYSTEM/Administrators，都直接拒绝，不过滤。
+- 往返校验：`Get-TaskPolicyExpectedSecurity(registrationSddl, 当前父文件夹 SDDL, owner)` 经 `Convert-TaskSecurity` 后必须等于 `oldTaskSddl` 经 `Convert-TaskSecurity` 后的结果；不等就报 `old_task_security_not_derivable`。`expectedRegisteredSddl` 用这次推导的结果。
+- 不改 `task_security_policy.ps1` 或任何冻结校验（选项“授权修改策略”不采纳）。
+- 新增 `old-task ... --preview`：跳过“已停用、无实例”这一项，其余推导和往返校验照做，零写入，只打印各项 sha256 和 `oldTaskStopped`。D1a 新增第 5 步：对现役任务跑一次 `--preview`，把 SDDL 问题提前到停服前发现。
+- 测试：任务文件夹带可继承 ACE 时通过；显式条目里有外部 SID 时被拒；父文件夹在快照后改变时报 `old_task_security_not_derivable` 或 `old_task_snapshot_changed`；`--preview` 零写入。
+- XML 编码修复随本轮一起提交。止损计数沿用：87de4f1b 算第 1 个失败提交。
+
 ## D1a 结果（10-13 至 10-14）
 
 - 第 0–2 步通过，三项锚点前后一致。新包 manifest `4e003c0b…`（48 项）；候选 login `e8bdf4fe…`；准备 XML `bc94778d…`；MCP 候选 manifest `f7d4872f…`。
@@ -239,6 +251,7 @@
 2. 运行换包配置生成器，再运行新包固定 `prepare_login_schema6.ps1 -PrepareOnly`，生成 XML。
 3. 用 `chatgpt_candidate.mjs` 构建 MCP 候选，复制到受保护目录。以现役任务为 `--from-task` 跑 C1 `--dry-run`，只验候选形状；零写入。
 4. 只读定位 `auto_share_origins` 所在文件，报告它是否被任何配置或备份哈希钉住。
+5. R2b 合并后：对现役任务跑 `old-task --preview`，确认 SDDL 可推导（零写入）。
 
 **D1b 切换**：用户在场，每步单独同意；在 R2 合并后进行。
 
