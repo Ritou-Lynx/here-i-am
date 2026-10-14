@@ -1,7 +1,7 @@
 ﻿# CI-only, in-memory Task Scheduler boundary. No tasks or Core processes are created.
 param(
  [Parameter(Mandatory=$true)][string]$MaintenanceDirectory,
- [ValidateSet('success','preflight','stop-old','sessions','disable-old','enable-new','start-new','ready-new','rollback-stop','rollback-closed','rollback-ready')][string]$Scenario,
+ [ValidateSet('success','success-old-disabled','preflight','stop-old','sessions','disable-old','enable-new','start-new','ready-new','rollback-stop','rollback-closed','rollback-ready')][string]$Scenario,
  [ValidateSet('absent','false','true')][string]$Mode='absent',
  [switch]$DryRun
 )
@@ -11,7 +11,7 @@ $requestedDryRun=$DryRun
 . (Join-Path $MaintenanceDirectory 'switch-login-task.ps1')
 $script:operations=[Collections.Generic.List[string]]::new()
 $script:events=[Collections.Generic.List[string]]::new()
-$script:enabled=@{'Synthetic-A'=$true;'Synthetic-B'=$false}
+$script:enabled=@{'Synthetic-A'=($Scenario -ne 'success-old-disabled');'Synthetic-B'=$false}
 $script:started=@{'Synthetic-A'=0;'Synthetic-B'=0}
 function Get-Schema6LoginBinding([string]$Name) {
  if($Scenario -eq 'preflight'){throw 'synthetic_preflight_failed'}

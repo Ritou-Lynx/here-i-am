@@ -44,6 +44,13 @@ test('real R2 generated close input and registration reject invalid evidence bef
  skip:process.platform!=='win32'||process.env.GITHUB_ACTIONS!=='true',timeout:900000
 },async t=>{
  const f=await registrationLab(t);
+ const oldEvidence=JSON.parse(readFileSync(f.oldTaskEvidence.security));
+ assert.equal(readFileSync(f.oldTaskEvidence.xml,'utf8'),f.oldTaskEvidence.actual.xml);
+ assert.equal(f.config.oldTask.xml.path,f.oldTaskEvidence.xml);
+ assert.equal(f.generatorOptions.security,f.oldTaskEvidence.security);
+ assert.equal(oldEvidence.oldTaskSddl,f.oldTaskEvidence.actual.oldTask.sddl);
+ assert.equal(oldEvidence.registrationSddl,oldEvidence.oldTaskSddl);
+ for(const key of ['registrationSddl','expectedRegisteredSddl','parentSddlSha256','taskSecurityPolicyVersion','inheritedReadOnlyPrincipals'])assert.deepEqual(f.config[key],oldEvidence[key]);
  assert.equal(f.closeEvidence.defaultApproved,false);assert.equal(f.closeEvidence.unapprovedExitCode,2);
  const close=JSON.parse(readFileSync(f.closeEvidence.closeReceipt));
  assert.equal(close.closed,true);assert.equal(close.coreForced,false);assert.equal(close.originalHostExitConfirmed,true);

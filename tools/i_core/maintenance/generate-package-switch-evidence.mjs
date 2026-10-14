@@ -66,6 +66,27 @@ function Get-PackageSwitchCloseInput($Request) {
 }
 `;
 
+// This inspector only reads Scheduler state. Disabling the reviewed task is a
+// separate, explicit D1b action and is never performed by evidence generation.
+export const OLD_TASK_INSPECTOR=String.raw`
+. $request.policyScript
+$service=New-Object -ComObject 'Schedule.Service';$service.Connect()
+$folder=$service.GetFolder('\');$task=$folder.GetTask($request.task)
+if($task.Enabled -or $task.GetInstances(0).Count -ne 0){throw 'old_task_not_stopped'}
+if($task.Path -cne ('\'+$request.task)){throw 'old_task_path_changed'}
+$owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$xml=[string]$task.Xml;$sddl=[string]$task.GetSecurityDescriptor(7)
+Assert-TaskAllowedRights $sddl $owner
+$parent=[string]$folder.GetSecurityDescriptor(7)
+$expected=Get-TaskPolicyExpectedSecurity $sddl $parent $owner
+$principals=Get-TaskInheritedReadOnlyPrincipals $expected $owner
+$security=[ordered]@{oldTaskSddl=$sddl;registrationSddl=$sddl;parentSddlSha256=(Get-TaskSecuritySha256 $parent);expectedRegisteredSddl=$expected;inheritedReadOnlyPrincipals=@($principals);taskSecurityPolicyVersion='windows-file-oi-v1'}
+$again=$folder.GetTask($request.task)
+if($again.Enabled -or $again.GetInstances(0).Count -ne 0){throw 'old_task_not_stopped'}
+if($again.Path -cne $task.Path -or [string]$again.Xml -cne $xml -or [string]$again.GetSecurityDescriptor(7) -cne $sddl -or [string]$folder.GetSecurityDescriptor(7) -cne $parent){throw 'old_task_snapshot_changed'}
+@{xml=$xml;security=$security}|ConvertTo-Json -Depth 12 -Compress
+`;
+
 const PRIVATE_CHECK=String.raw`
 function Assert-EvidencePrivate([string]$Value){
  if($Value -notmatch '^[A-Za-z]:\\' -or [IO.Path]::GetFullPath($Value) -cne $Value -or $Value.Substring(2).Contains(':')){throw 'evidence_private_path_required'}
@@ -81,6 +102,13 @@ function Assert-EvidencePrivate([string]$Value){
 
 // All PowerShell runs use a private .ps1 file in PS 5.1, never command text or
 // inherited NODE_*/I_CORE_* variables. This path is never reached by dry-run.
+export function evidenceInspectionError(error){
+ const stderr=Buffer.isBuffer(error?.stderr)?error.stderr.toString('utf8'):typeof error?.stderr==='string'?error.stderr:'';
+ const detail=stderr.trim();
+ const code=/^[a-z0-9_]{1,64}$/.test(detail)?detail:/^[a-z0-9_]{1,64}$/.test(error?.code??'')?error.code:'evidence_inspection_rejected';
+ const tagged='evidence_inspection_rejected:'+code;
+ return Object.assign(new Error(tagged),{code:tagged});
+}
 export function runEvidencePowerShell(source,request){
  need(process.platform==='win32','evidence_windows_required');
  const system=path.join(process.env.SystemRoot??'C:\\Windows','System32');
@@ -90,17 +118,32 @@ export function runEvidencePowerShell(source,request){
   const sid=execFileSync(path.join(system,'whoami.exe'),['/user','/fo','csv','/nh'],{encoding:'utf8',windowsHide:true,env:cleanEnvironment()}).match(/S-1-5-[0-9-]+/)?.[0];
   need(sid,'evidence_owner_unavailable');
   execFileSync(path.join(system,'icacls.exe'),[temp,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F'],{windowsHide:true,stdio:'pipe',env:cleanEnvironment()});
-  writeFileSync(script,'param([string]$InputPath)\n$ErrorActionPreference="Stop";Set-StrictMode -Version 2\n$env:PSModulePath=Join-Path $PSHOME "Modules"\ntry {\n$request=Get-Content -LiteralPath $InputPath -Raw|ConvertFrom-Json\n'+source+'\n}catch{[Console]::Error.WriteLine("evidence_inspection_rejected");exit 2}\n',{flag:'wx',mode:0o600});
+  writeFileSync(script,'param([string]$InputPath)\n$ErrorActionPreference="Stop";Set-StrictMode -Version 2\n$env:PSModulePath=Join-Path $PSHOME "Modules"\ntry {\n$request=Get-Content -LiteralPath $InputPath -Raw|ConvertFrom-Json\n'+source+'\n}catch{$code=$_.Exception.Message;if($code -cnotmatch "\\A[a-z0-9_]{1,64}\\z"){$code="evidence_inspection_rejected"};[Console]::Error.WriteLine($code);exit 2}\n',{flag:'wx',mode:0o600});
   writeFileSync(input,encode(request),{flag:'wx',mode:0o600});
   const output=execFileSync(path.join(system,'WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',script,'-InputPath',input],{windowsHide:true,env:cleanEnvironment(),encoding:'utf8',timeout:120000,maxBuffer:4*1024*1024});
   return JSON.parse(output.replace(/^\uFEFF/,'').trim());
- }catch{throw Object.assign(new Error('evidence_inspection_rejected'),{code:'evidence_inspection_rejected'});}
+ }catch(error){throw evidenceInspectionError(error);}
  finally{for(const p of [script,input]){if(existsSync(p))unlinkSync(p);}rmdirSync(temp);}
 }
 function privateParents(paths,runPowerShell){
  const parents=[...new Set(paths.map(p=>path.dirname(p)))];
  if(process.platform==='win32')runPowerShell(PRIVATE_CHECK+'\nforeach($p in $request.parents){Assert-EvidencePrivate $p};@{private=$true}|ConvertTo-Json -Compress',{parents});
  else for(const p of parents){const s=lstatSync(p);need((s.mode&0o077)===0&&(!process.getuid||s.uid===process.getuid()),'evidence_private_acl_required');}
+}
+
+export function generateOldTaskEvidence(options,{runPowerShell=runEvidencePowerShell}={}){
+ const {task,xmlOut,securityOut}=options;
+ need(typeof task==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.-]{0,180}$/.test(task),'old_task_name_required');
+ separate([xmlOut,securityOut]);privateParents([xmlOut,securityOut],runPowerShell);
+ const result=runPowerShell(OLD_TASK_INSPECTOR,{task,policyScript:path.join(directory,'task_security_policy.ps1')});
+ const security=result?.security;
+ need(typeof result?.xml==='string'&&result.xml.length>0&&security&&typeof security.oldTaskSddl==='string'&&security.oldTaskSddl.length>0&&security.registrationSddl===security.oldTaskSddl&&typeof security.expectedRegisteredSddl==='string'&&/^[a-f0-9]{64}$/.test(security.parentSddlSha256??'')&&Array.isArray(security.inheritedReadOnlyPrincipals)&&security.taskSecurityPolicyVersion==='windows-file-oi-v1','old_task_inspection_rejected');
+ const created=[];
+ try{
+  fresh(xmlOut);writeFileSync(xmlOut,Buffer.from(result.xml,'utf8'),{flag:'wx',mode:0o600,flush:true});created.push(xmlOut);
+  fresh(securityOut);writeFileSync(securityOut,encode(security),{flag:'wx',mode:0o600,flush:true});created.push(securityOut);
+  return {xmlPath:xmlOut,securityPath:securityOut,security,summary:{format:'schema6-old-task-evidence-generation-v1',generated:true,registered:false,started:false,oldTasksChanged:false,xmlSha256:ref(xmlOut).sha256,securitySha256:ref(securityOut).sha256}};
+ }catch(error){for(const p of created.reverse()){try{unlinkSync(p);}catch{}}throw error;}
 }
 
 export function generateCloseInput(options,{runPowerShell=runEvidencePowerShell}={}){
@@ -217,15 +260,15 @@ export function generateRegistrationEvidence(options,{runPowerShell=runEvidenceP
 export function parseEvidenceArguments(args){
  const command=args.shift(),flags={};
  const booleans=new Set(['approve','dry-run']);
- const allowed=command==='close-input'?new Set(['task','out','approve','maintenance-directory','receipt']):command==='registration'?new Set(['switch-plan','close-input','close-receipt','offline-control','prepare-receipt','prepared-xml','old-task-name','task-name','maintenance-snapshot','original-marker-snapshot','old-task-xml','security','out','human-approval-out','registration-xml-out','receipt','dry-run']):null;
+ const allowed=command==='close-input'?new Set(['task','out','approve','maintenance-directory','receipt']):command==='old-task'?new Set(['task','xml-out','security-out']):command==='registration'?new Set(['switch-plan','close-input','close-receipt','offline-control','prepare-receipt','prepared-xml','old-task-name','task-name','maintenance-snapshot','original-marker-snapshot','old-task-xml','security','out','human-approval-out','registration-xml-out','receipt','dry-run']):null;
  need(allowed,'evidence_usage');
  while(args.length){const flag=args.shift();need(flag.startsWith('--')&&allowed.has(flag.slice(2))&&!Object.hasOwn(flags,flag.slice(2)),'evidence_usage');const key=flag.slice(2);if(booleans.has(key))flags[key]=true;else{need(args.length>0&&!args[0].startsWith('--'),'evidence_usage');flags[key]=args.shift();}}
  const options=Object.fromEntries(Object.entries(flags).map(([k,v])=>[k.replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),v]));
- const required=command==='close-input'?['task','out']:['switchPlan','closeInput','closeReceipt','offlineControl','prepareReceipt','preparedXml','oldTaskName','taskName','maintenanceSnapshot','originalMarkerSnapshot','oldTaskXml','security','out','humanApprovalOut','registrationXmlOut','receipt'];
+ const required=command==='close-input'?['task','out']:command==='old-task'?['task','xmlOut','securityOut']:['switchPlan','closeInput','closeReceipt','offlineControl','prepareReceipt','preparedXml','oldTaskName','taskName','maintenanceSnapshot','originalMarkerSnapshot','oldTaskXml','security','out','humanApprovalOut','registrationXmlOut','receipt'];
  for(const key of required)need(typeof options[key]==='string'&&options[key].length>0,'evidence_usage');
  return {command,options};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
- try{const {command,options}=parseEvidenceArguments(process.argv.slice(2));const result=command==='close-input'?generateCloseInput(options):generateRegistrationEvidence(options);process.stdout.write(JSON.stringify(result.summary)+'\n');}
- catch(error){const code=/^[a-z0-9_]{1,64}$/.test(error.code??'')?error.code:'package_switch_evidence_rejected';process.stdout.write(JSON.stringify({generated:false,registered:false,started:false,code})+'\n');process.exitCode=2;}
+ try{const {command,options}=parseEvidenceArguments(process.argv.slice(2));const result=command==='close-input'?generateCloseInput(options):command==='old-task'?generateOldTaskEvidence(options):generateRegistrationEvidence(options);process.stdout.write(JSON.stringify(result.summary)+'\n');}
+ catch(error){const code=/^(?:evidence_inspection_rejected:)?[a-z0-9_]{1,64}$/.test(error.code??'')?error.code:'package_switch_evidence_rejected';process.stdout.write(JSON.stringify({generated:false,registered:false,started:false,code})+'\n');process.exitCode=2;}
 }

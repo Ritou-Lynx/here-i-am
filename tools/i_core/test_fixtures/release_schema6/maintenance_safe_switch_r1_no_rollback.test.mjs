@@ -97,6 +97,17 @@ for(const dryRun of [false,true]){
   assert.deepEqual(legacy.rows.at(-1),{step:'switch.result',ok:true,detail:dryRun?'dry_run_passed':'switched'});
  });
 }
+test('R2b NoRollback succeeds when the old task is already disabled',windowsCI,()=>{
+ const report=run('success-old-disabled','true');
+ assert.equal(report.code,0);
+ assert.deepEqual(report.operations,forward);
+ assert.equal(report.enabledA,false,'the already-disabled old task stays disabled');
+ assert.equal(report.enabledB,true);
+ assert.equal(report.startedA,0,'the old task is never started');
+ assert.equal(report.startedB,1,'only the new task is started');
+ assert.ok(!report.events.includes('Start:Synthetic-A'));
+ assert.deepEqual(report.rows.at(-1),{step:'switch.result',ok:true,detail:'switched'});
+});
 for(const scenario of ['rollback-stop','rollback-closed','rollback-ready']){
  test('R1 legacy rollback safety failure stays unchanged: '+scenario,windowsCI,()=>{
   const legacy=run(scenario);

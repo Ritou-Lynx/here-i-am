@@ -144,9 +144,20 @@ node $generator close-input --task $activeTask --out $approvedCloseInput --maint
 & $closeScript -ConfigurationPath $approvedCloseInput -ConfigurationSha256 $approvedCloseInputSha256
 ```
 
-保存原始 clean-close marker 快照后，依次运行 `preparePackageSwitch`、人工批准计划、新包固定离线 package-switch。登记只能在离线换包完成后进行；`stop-schema6-session.ps1` 的返回结果不能代替 close 的批准输入与关闭回执。固定 `prepare_login_schema6.ps1 -PrepareOnly` 的真实回执和 XML 也必须保留。
+关闭成功后先保存原始 clean-close marker 快照。第 **1b** 步由用户单独同意停用旧任务，再运行只读 `old-task`，取得后续登记使用的原样 XML 和 security JSON：
 
-`registration` 从这些实际证据派生配置及 human-approval 文件。维护快照须含当前 48 项库存中除 `runtime/node.exe` 外的文件，以及既有登记入口的八份维护依赖。旧任务 XML 必须是当前已停用任务的实际快照。`--security` 指向已审阅的 JSON，含 `oldTaskSddl`、`registrationSddl`、`expectedRegisteredSddl`、`parentSddlSha256`、`taskSecurityPolicyVersion: "windows-file-oi-v1"`、`inheritedReadOnlyPrincipals`；双 SDDL、父安全描述符和只读主体按既有 `task_security_policy.ps1` 从实际 Scheduler 安全描述符取得，不能自行省略或猜测。
+```powershell
+# 仅在用户已批准真实 D1b 第 1b 步、且已确认 clean close 后执行。
+. $stopScript
+Invoke-Schema6TaskOperation -TaskName $activeTask -Operation Disable
+node $generator old-task --task $activeTask --xml-out $oldTaskXml --security-out $reviewedSecurity
+```
+
+`old-task` 本身不停止、不停用、不登记或启动任务。旧任务未停用或实例数不为零时，以 `evidence_inspection_rejected:old_task_not_stopped` 拒绝，输出文件不创建。它原样保存 `$task.Xml`，`oldTaskSddl` 和 `registrationSddl` 均为旧任务的当前安全描述符；父描述符哈希、预期 SDDL 和继承的只读主体由既有 `task_security_policy.ps1` 函数计算，`Assert-TaskAllowedRights` 不通过就拒绝。两个输出均须是全新私有路径，不能复用旧快照。
+
+随后才能运行 `preparePackageSwitch`、人工批准计划、新包固定离线 package-switch。登记只能在离线换包完成后进行；`stop-schema6-session.ps1` 的返回结果不能代替 close 的批准输入与关闭回执。固定 `prepare_login_schema6.ps1 -PrepareOnly` 的真实回执和 XML 也必须保留。
+
+`registration` 从这些实际证据派生配置及 human-approval 文件。维护快照须含当前 48 项库存中除 `runtime/node.exe` 外的文件，以及既有登记入口的八份维护依赖。`--old-task-xml` 与 `--security` 直接使用第 1b 步 `old-task` 的两个产物，审阅后原样传入，不再手拼 XML 或安全字段。旧任务须继续保持停用和零实例；实际登记入口会再次核对当前 XML、SDDL 与父安全描述符。
 
 把下面命令保存到 `.ps1`，先在末尾加 `--dry-run` 检查，再去掉该开关生成：
 
@@ -162,6 +173,23 @@ node $generator registration `
 
 `--dry-run` 零文件与目录写入，检查现有绑定及冻结的 `validateSwitchRegistrationEvidence`，只打印脱敏摘要。摘要明确保留 `registrationValidatorPending:true`、`disabledXmlDerivationPending:true` 和 Windows 私有输出 ACL 待检查状态；它不宣称完成全量登记校验。实际生成用 Scheduler 的只读 `NewTask` 序列化仅禁用设置的 XML，暂存批准证据，调用原 `validatePackageSwitchRegistration` 通过后才发布 human-approval 和登记配置；配置发布前再次校验最终引用。它不会执行 `RegisterOnly`。
 
-用户批准实际登记后，用生成配置的真实 SHA 调用原 `register-package-switch-login.ps1 -ConfigurationPath ... -ExpectedConfigurationSha256 ... -RegisterOnly`。新任务保持停用。再按 D1b 顺序对 P 做 C1 dry-run、登记 P′，最终切换使用 `-NoRollback`；失败停在原地，反向换包须另行审阅。
+生成器内部 PowerShell 只透出匹配 `^[a-z0-9_]{1,64}$` 的异常码；其余异常统一为 `evidence_inspection_rejected`。Node/CLI 报告 `evidence_inspection_rejected:<code>`，不包含路径、参数值或原始异常正文。
+
+D1b 更正顺序如下。用户在场，每一步单独同意；必须先合并 R2/R2b，才能执行真实切换：
+
+| 步骤 | 动作 |
+|---|---|
+| 1 | `close-input` 生成关闭输入；审阅批准后用 `close-schema6-session.ps1` 关闭现役，确认 clean close，保存原始 clean-close marker 快照。从这里开始停服。 |
+| 1b | dot-source `stop-schema6-session.ps1`，用 `Invoke-Schema6TaskOperation -TaskName ... -Operation Disable` 停用旧任务；再用 `old-task` 生成旧任务 XML 和 security JSON。 |
+| 2 | `preparePackageSwitch` 生成计划；用户审阅后写入 `approved:true`。 |
+| 3 | 新包 `start_schema6.ps1 -OfflineOperation package-switch` 完成离线换包。 |
+| 4 | `registration` 使用第 1b 步产物，先 `--dry-run`，再生成；用真实配置 SHA 调用 `register-package-switch-login.ps1 -RegisterOnly`，登记停用任务 P。 |
+| 5 | C1 以 P 为 `--from-task`，先 `--dry-run`，再登记停用任务 P′。 |
+| 6 | 按 D1a 第 4 步结论修改读取策略，加入 `chatgpt_web`；需用户同意，并记录策略文件改前、改后哈希。 |
+| 7 | 先运行 `switch-login-task.ps1 -FromTask 现役 -ToTask P′ -DryRun`，再加 `-NoRollback` 实切。旧任务已停用的状态受合成测试覆盖；只启动新任务。服务到此恢复。 |
+| 8 | `open-pairing-window.ps1 -TaskName P′` → `pair-core --frontend chatgpt_web` → stop/start 重启会话，让 MCP 加载新凭据。 |
+| 9 | 新开 ChatGPT 对话验收；ChatGPT 与 Claude 各写一轮，App 中来源分别显示。 |
+
+第 1b 至第 2 步失败时，可以重新启用并启动旧任务。第 3 步之后，失败一律不起旧任务，按经审阅的反向换包处理。以上全部是部署用法，本轮只交付源码和 CI 验证，不执行本机真实操作。
 
 C1 现在只选择非 `preserved/`、`role: task`、精确名 `tasks/HereIAm-CoreSchema6-Session.xml` 的唯一条目。其他任务与历史条目保持原样，循环模板声明哈希沿用既有规则。合成夹具与 Windows 会话测试均覆盖三条现役 task 加一条 preserved task 的形态。R2 本机仅静态/纯合成验证，真实关闭、离线换包和生成产物的 RegisterOnly 验证由 hosted Windows CI 执行。

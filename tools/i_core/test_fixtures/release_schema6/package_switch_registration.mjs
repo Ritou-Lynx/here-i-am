@@ -8,12 +8,15 @@ import {createRuntimeLab,repository,ps,until,cleanReceipt,protect} from '../../r
 import {loginConfig,configureManagedMcp,host,connectManaged} from '../../release_schema6/lifecycle/mcp-session-test-fixture.mjs';
 import {allocateSyntheticLoopbackPort} from './mcp_reader/helper.mjs';
 import {preparePackageSwitch} from '../../maintenance/prepare-package-switch.mjs';
-import {generateRegistrationEvidence,generateCloseInput} from '../../maintenance/generate-package-switch-evidence.mjs';
+import {generateRegistrationEvidence,generateCloseInput,generateOldTaskEvidence} from '../../maintenance/generate-package-switch-evidence.mjs';
 import {validatePackageSwitchRegistration} from '../../maintenance/package-switch-registration.mjs';
 const BASE='b71799706719b0e603124d108c2795caa0a98933',hashFile=p=>sha256(readFileSync(p));
 const ref=p=>({path:p,sha256:hashFile(p)}),quote=s=>"'"+s.replaceAll("'","''")+"'";
 export async function registrationLab(t){
  assert.equal(process.env.GITHUB_ACTIONS,'true','r2_fixture_ci_only');
+ assert.equal(process.env.SCHEMA6_SYNTHETIC_TASK_TEST,'1','r2_fixture_synthetic_task_opt_in_required');
+ // Run task cleanup before createRuntimeLab removes its private artifact root.
+ let cleanupTasks=()=>{};t.after(()=>cleanupTasks());
  const l=await createRuntimeLab(t);
  const execPath=execFileSync('git',['--exec-path'],{encoding:'utf8',windowsHide:true}).trim(),gitPath=path.resolve(execPath,'../../../bin/git.exe');
  const oldSource=execFileSync(gitPath,['-C',repository,'show',BASE+':tools/i_core/release_schema6/package.mjs'],{windowsHide:true,env:cleanEnvironment()});
@@ -133,20 +136,30 @@ export async function registrationLab(t){
  const maintenanceFiles=sourceNames.map(n=>{const p=path.join(snapshot,n);mkdirSync(path.dirname(p),{recursive:true});copyFileSync(path.join(repository,n),p);return ref(p);});
  const registrationScript=path.join(snapshot,'tools/i_core/maintenance/register-package-switch-login.ps1');
  const oldXml=path.join(settings,'old-task-snapshot.xml'),oldApproved=deployment.get(old.manifestSha256).find(a=>a.role==='task');
- writeFileSync(oldXml,readFileSync(oldApproved.path,'utf8').replace('<Enabled>true</Enabled><Hidden>true</Hidden>','<Enabled>false</Enabled><Hidden>true</Hidden>'));
  const sid=l.configuration.owner_sid,registrationSddl='O:'+sid+'G:'+sid+'D:(A;;FA;;;'+sid+')(A;;FA;;;SY)(A;;FA;;;BA)';
  const id=randomBytes(16).toString('hex');
  const taskName='HereIAm-Synthetic-Switch-New-'+id,oldTaskName='HereIAm-Synthetic-Switch-Old-'+id;
- const security={registrationSddl,expectedRegisteredSddl:registrationSddl,parentSddlSha256:sha256(registrationSddl),taskSecurityPolicyVersion:'windows-file-oi-v1',inheritedReadOnlyPrincipals:[],oldTaskSddl:registrationSddl};
- // COM read-only preparation supplies the same canonical disabled XML/security
- // that the retained caller's Prepare step will check again.
- const probePath=path.join(settings,'registration-com-probe.json'),probeOutput=path.join(settings,'registration-com-probe-result.json');
- writeFileSync(probePath,JSON.stringify({taskName,oldTask:{name:oldTaskName},switchPlan:ref(switchPlan.p),maintenanceFiles,
-  preparedXml:ref(preparedXml),registrationXml:{path:path.join(settings,'com-probe-disabled.xml')},ownerSid:sid,registrationSddl}));
- execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(repository,'tools/i_core/test_fixtures/release_schema6/package_switch_registration.ps1'),
-  '-ConfigurationPath',probePath,'-Mode','Prepare','-OutputPath',probeOutput],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:90000});
- const com=JSON.parse(readFileSync(probeOutput));
- for(const key of ['expectedRegisteredSddl','parentSddlSha256','inheritedReadOnlyPrincipals'])security[key]=com[key];
+ const fixture=path.join(repository,'tools/i_core/test_fixtures/release_schema6/package_switch_registration.ps1');
+ const probePath=path.join(settings,'registration-com-bootstrap.json');let fixtureSequence=0;
+ const taskStep=(mode,configurationPath=probePath)=>{
+  const output=path.join(settings,'registration-com-'+(++fixtureSequence)+'.json');
+  execFileSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',fixture,'-ConfigurationPath',configurationPath,'-Mode',mode,'-OutputPath',output],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:90000});
+  return JSON.parse(readFileSync(output));
+ };
+ const bootstrap={taskName,oldTask:{name:oldTaskName,xml:{path:oldXml}},switchPlan:ref(switchPlan.p),maintenanceFiles,
+  preparedXml:ref(preparedXml),ownerSid:sid,registrationSddl};
+ writeFileSync(probePath,JSON.stringify(bootstrap));
+ cleanupTasks=()=>taskStep('CleanupOld');
+ const com=taskStep('BootstrapOld');
+ bootstrap.oldTask=com.oldTask;writeFileSync(probePath,JSON.stringify(bootstrap));
+ // The production inspector reads the actual disabled COM task. Its two
+ // artifacts go directly into registration; the fixture supplies no policy.
+ const security=path.join(settings,'old-task-security.json');
+ generateOldTaskEvidence({task:oldTaskName,xmlOut:oldXml,securityOut:security});
+ const inspected=JSON.parse(readFileSync(security));
+ assert.equal(readFileSync(oldXml,'utf8'),com.xml);
+ assert.equal(inspected.oldTaskSddl,com.oldTask.sddl);assert.equal(inspected.registrationSddl,com.oldTask.sddl);
+ assert.equal(inspected.parentSddlSha256,sha256(com.parentSddl));
  const baseOptions={switchPlan:switchPlan.p,closeInput:inputPath,closeReceipt:input.outputPath,offlineControl:appliedRun.control,
   prepareReceipt,preparedXml,oldTaskName,taskName,maintenanceSnapshot:snapshot,originalMarkerSnapshot,oldTaskXml:oldXml,security};
  let generation=0;
@@ -158,7 +171,7 @@ export async function registrationLab(t){
  const initialOptions=freshOptions();
  const outputRoot=path.dirname(initialOptions.out);
  const tree=()=>JSON.stringify(readdirSync(outputRoot,{recursive:true}).sort().map(p=>[p,lstatSync(path.join(outputRoot,p)).isDirectory()?'directory':hashFile(path.join(outputRoot,p))]));
- const anchors=[baseOptions.switchPlan,baseOptions.closeInput,baseOptions.closeReceipt,baseOptions.prepareReceipt,baseOptions.preparedXml,baseOptions.originalMarkerSnapshot,baseOptions.oldTaskXml];
+ const anchors=[baseOptions.switchPlan,baseOptions.closeInput,baseOptions.closeReceipt,baseOptions.prepareReceipt,baseOptions.preparedXml,baseOptions.originalMarkerSnapshot,baseOptions.oldTaskXml,baseOptions.security];
  const before=tree(),anchorHashes=anchors.map(hashFile),namesBefore=readdirSync(l.root,{recursive:true}).sort();
  const dry=generateRegistrationEvidence({...initialOptions,dryRun:true});
  assert.equal(tree(),before,'registration dry-run must not write output bytes');
@@ -167,6 +180,7 @@ export async function registrationLab(t){
  for(const p of [initialOptions.out,initialOptions.humanApprovalOut,initialOptions.registrationXmlOut,initialOptions.receipt])assert.equal(existsSync(p),false);
  const generated=generateRegistrationEvidence(initialOptions),config=generated.config;
  let configurationPath=initialOptions.out,approvalPath=initialOptions.humanApprovalOut;
+ cleanupTasks=()=>taskStep('Cleanup',configurationPath);
  assert.equal(validatePackageSwitchRegistration(config).validated,true);
  const initialHash=hashFile(configurationPath);
  assert.throws(()=>generateRegistrationEvidence(initialOptions));assert.equal(hashFile(configurationPath),initialHash);
@@ -174,16 +188,17 @@ export async function registrationLab(t){
  // generation API and is kept distinct so existing rejection checks stay exact.
  const publish=()=>{const approval={...config,format:'schema6-package-switch-registration-human-approval-v1',action:'create_new_disabled_login_task_only',authorized:true};delete approval.humanApproval;writeFileSync(approvalPath,JSON.stringify(approval));config.humanApproval=ref(approvalPath);writeFileSync(configurationPath,JSON.stringify(config));};
  const invoke=()=>{
-  // CreateOld has now captured the real COM task XML and SDDL. Generate fresh
-  // registration artifacts from that snapshot before every actual entry call.
-  const current=freshOptions({oldTaskName:config.oldTask.name,taskName:config.taskName,oldTaskXml:config.oldTask.xml.path,
-   security:{...Object.fromEntries(['registrationSddl','expectedRegisteredSddl','parentSddlSha256','taskSecurityPolicyVersion','inheritedReadOnlyPrincipals'].map(k=>[k,config[k]])),oldTaskSddl:config.oldTask.sddl},
-   receipt:config.registrationReceiptPath});
+  // Positive calls consume fresh generator artifacts from the real old-task
+  // files. Preserve the retained caller's explicit bad-parent negative case.
+  const parentHash=config.parentSddlSha256;
+  const current=freshOptions({taskName:config.taskName,receipt:config.registrationReceiptPath});
   const actual=generateRegistrationEvidence(current);Object.assign(config,actual.config);
   configurationPath=current.out;approvalPath=current.humanApprovalOut;
+  if(parentHash!==inspected.parentSddlSha256){config.parentSddlSha256=parentHash;publish();}
   return spawnSync(ps,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',registrationScript,'-ConfigurationPath',configurationPath,'-ExpectedConfigurationSha256',hashFile(configurationPath),'-RegisterOnly'],{env:cleanEnvironment(),windowsHide:true,encoding:'utf8',timeout:180000});
  };
  return {l,config,publish,get configurationPath(){return configurationPath;},script:registrationScript,oldApproved:oldApproved.path,
   validate:()=>validatePackageSwitchRegistration(config),invoke,generatorOptions:baseOptions,freshOptions,dryRunSummary:dry,
+  oldTaskEvidence:{xml:oldXml,security,actual:com},
   closeEvidence:{defaultApproved:draft.approved,closeReceipt:input.outputPath,unapprovedExitCode:unapproved.status}};
 }
