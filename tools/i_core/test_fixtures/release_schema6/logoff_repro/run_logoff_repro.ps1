@@ -105,12 +105,14 @@ $userCreated = $false
 $credentialCreated = $false
 $firewallCreated = $false
 function Set-JobRegistry([string]$Path, [string]$Name, $Value, [string]$Kind) {
-    $key = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+    $keyExisted = Test-Path -LiteralPath $Path
+    $key = $null
+    if ($keyExisted) { $key = Get-Item -LiteralPath $Path }
     $existed = $null -ne $key -and $key.GetValueNames() -contains $Name
     $oldValue = $null; $oldKind = $null
-    if ($existed) { $oldValue = $key.GetValue($Name); $oldKind = $key.GetValueKind($Name).ToString() }
-    $registryChanges.Add(@{ path = $Path; name = $Name; existed = $existed; oldValue = $oldValue; oldKind = $oldKind })
-    $null = New-Item -Path $Path -Force
+    if ($existed) { $oldValue = $key.GetValue($Name, $null, 'DoNotExpandEnvironmentNames'); $oldKind = $key.GetValueKind($Name).ToString() }
+    $registryChanges.Add(@{ path = $Path; name = $Name; keyExisted = $keyExisted; existed = $existed; oldValue = $oldValue; oldKind = $oldKind })
+    if (-not $keyExisted) { $null = New-Item -Path $Path -Force }
     $null = New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType $Kind -Force
 }
 function Test-Session([int]$Id) {
@@ -158,7 +160,7 @@ try {
         $membership = @(Get-LocalGroupMember -SID $groupSid | Where-Object { $_.SID.Value -eq $user.SID.Value })
         if ($membership.Count -eq 0) { Add-LocalGroupMember -SID $groupSid -Member $user }
     }
-    Record 'test_user_created' @{ username = $testUser; sid = $user.SID.Value; administrator = $false }
+    Record 'test_user_created' @{ username = $testUser; rid = $user.SID.Value.Split('-')[-1] }
 
     $stage = 'enable_loopback_rdp'
     Set-JobRegistry 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' 'fDenyTSConnections' 0 'DWord'
@@ -277,8 +279,17 @@ try {
         Start-Sleep -Milliseconds 250
     } while ([DateTime]::UtcNow -lt $deadline)
 } catch {
-    # Do not serialize exception messages or invocation details: native arguments may contain credentials.
-    $failure = @{ stage = $stage; errorType = $_.Exception.GetType().FullName; errorId = $_.FullyQualifiedErrorId.Split(',')[0] }
+    # Keep only the command name; invocation text can contain credentials.
+    $failure = @{ stage = $stage; errorType = $_.Exception.GetType().FullName; errorId = $_.FullyQualifiedErrorId.Split(',')[0];
+        line = $_.InvocationInfo.ScriptLineNumber; command = $_.InvocationInfo.MyCommand.Name }
+    if ($stage -ne 'mstsc_connect') {
+        $message = $_.Exception.Message -replace '(?i)/pass:\S+', '***'
+        if (-not [string]::IsNullOrEmpty($env:HIA_LOGOFF_PASSWORD)) {
+            $message = $message -replace [regex]::Escape($env:HIA_LOGOFF_PASSWORD), '***'
+        }
+        # Redact before truncation so a password crossing the limit cannot leak a prefix.
+        $failure.message = $message.Substring(0, [Math]::Min(200, $message.Length))
+    }
     Record 'experiment_incomplete' $failure
 } finally {
     # Snapshot BEFORE cleanup so stopping tasks cannot masquerade as a logoff result.
@@ -326,7 +337,8 @@ try {
     for ($n = $registryChanges.Count - 1; $n -ge 0; $n--) {
         $change = $registryChanges[$n]
         try {
-            if ($change.existed) { $null = New-ItemProperty -Path $change.path -Name $change.name -Value $change.oldValue -PropertyType $change.oldKind -Force }
+            if (-not $change.keyExisted) { Remove-Item -LiteralPath $change.path -Recurse -Force -ErrorAction SilentlyContinue }
+            elseif ($change.existed) { $null = New-ItemProperty -Path $change.path -Name $change.name -Value $change.oldValue -PropertyType $change.oldKind -Force }
             else { Remove-ItemProperty -Path $change.path -Name $change.name -ErrorAction SilentlyContinue }
         } catch { Record 'cleanup_warning' @{ operation = 'restore_job_registry' } }
     }
