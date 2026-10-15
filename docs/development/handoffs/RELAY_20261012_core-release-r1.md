@@ -232,6 +232,13 @@
 - XML 编码修复随本轮一起提交。止损计数沿用：87de4f1b 算第 1 个失败提交。
 - “零写入”的定义（10-14 补充）：生成器自己不创建、不修改任何文件或目录，包括临时工件。PowerShell 5.1 宿主在 `%TEMP%` 中为策略探测短暂创建并删除的 `__PSScriptPolicyTest_*.ps1/.psm1` 不算违反。不得为消除它们而改 `TEMP`/`TMP`、关闭或绕过 AppLocker/WDAC/执行策略检查。测试断言范围：输出路径、输出父目录、维护目录、任务文件夹在前后一致，并且进程结束后 `%TEMP%` 中没有新残留文件；只有符合该名称模式、且结束时已不存在的文件，才可排除在比对之外。
 
+### R2b 第 2 轮审核（10-15，HEAD 6a593a58）
+
+- 唯一失败是测试断言问题，不是生成器问题。CI 日志：`maintenance_r2_old_task.test.mjs:144` 期望字面 `O:S-1-5-21-…-500…`，实际为 `O:LA…`。CI 的 runneradmin 是本机 RID 500 账户，`GetSddlForm` 会把它缩写成 `LA`。第 146 行（`expectedRegisteredSddl`）修好第 144 行后会以同样原因失败。
+- 生产校验都用 `Convert-TaskSecurity` 做语义比较，不受影响。真实继承权限下的 RegisterOnly、preview、外部 SID 拒绝、父目录变化拒绝、NoRollback 预停用等场景均已在 Windows CI 通过。
+- 止损判定：止损按“同一测试名或同一错误码”计，不按 job 计。上一提交的失败是 SDDL 合同冲突和 XML 编码，本次是另一个测试，所以未触发止损。Codex 停下是保守做法，没有问题。
+- 授权第 3 轮，只改 `maintenance_r2_old_task.test.mjs`：在 `policyFixture()` 中，先把 `explicit` 和 `explicit+inherited` 经 `[Security.AccessControl.RawSecurityDescriptor]::new(x).GetSddlForm('All')` 规范化，再继续使用字面比较。不得改为模糊或语义比较，不得改生成器。这一提交上任何 R2b 测试失败即停。
+
 ## D1a 结果（10-13 至 10-14）
 
 - 第 0–2 步通过，三项锚点前后一致。新包 manifest `4e003c0b…`（48 项）；候选 login `e8bdf4fe…`；准备 XML `bc94778d…`；MCP 候选 manifest `f7d4872f…`。
