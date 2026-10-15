@@ -245,6 +245,24 @@
 - 判定：这不是生成器造成的。测试监测的是共享的用户 `%TEMP%`，开发机上其他进程（Codex、浏览器等）随时会增删文件；同一测试在 6a593a58 的干净 CI runner 上已经通过。本轮改动只涉及 `policyFixture()`，与这条测试的路径无关。
 - 处理：不改测试，不放宽 TEMP 断言。按原样提交那一个文件并推送，以 CI 为准。这条 TEMP 测试在开发机上只作参考，权威结果以 hosted runner 为准。CI 中任何 R2b 测试失败即停。
 
+### R2b 审核（10-15，PR #29，HEAD 010988b8，审核方 Claude Code）：通过
+
+- diff：`git diff 6a593a58..010988b8` 只改 `maintenance_r2_old_task.test.mjs`（+2/−1）。`policyFixture()` 中 `explicit` 与 `explicit+inherited` 先经 `GetSddlForm('All')` 规范化；原第 144、146 行仍为字面 `assert.equal`。生成器未动。
+- PR 全量（v3-lab...HEAD）12 个文件，全部在 R2/R2b 允许路径内；48 项 INVENTORY、冻结校验器、`i_remote_mcp/` 未动。
+- CI：push 与 PR 两次运行各 9/9 全绿。
+  - 维护 job：391 项，0 失败；7 项跳过均为 Linux 配对测试。
+  - 生命周期 job：655 项，0 失败；7 项跳过同上。
+  - 两个 job 中 R2b 各项均为 ✔：inherited round-trip、preview TEMP（只出现已消失的 `__PSScriptPolicyTest_*`）、外部 SID 拒绝、父目录变化拒绝、preview 只跳过停用检查、NoRollback 预停用；真实会话 RegisterOnly ✔（91–102 秒，诊断 `roundTripEqual:true`）。
+- 云端 Linux 复跑 R2/R2b 两个测试文件：18 项，8 过，10 跳（仅 Windows），0 失败。
+- 第三视角补查：生产路径比较 owner 均用 `.Owner.Value` 或 `Convert-TaskSecurity`，不按字面解析 SDDL，所以 `LA` 一类缩写只影响测试字面比较，不影响生产。
+- 止损：未触发。
+- 结论：可以转 ready，由用户合并 #29。
+
+### 流程改进（10-15）
+
+- Codex 回合以“推送 + 报告”结束，不在本机等待 CI；CI 由审核方直接读 job 日志核对。
+- 仅以 hosted runner 为准的测试（如 preview TEMP 监测），在提示词中事先列明，不在回合中临时改合同。
+
 ## D1a 结果（10-13 至 10-14）
 
 - 第 0–2 步通过，三项锚点前后一致。新包 manifest `4e003c0b…`（48 项）；候选 login `e8bdf4fe…`；准备 XML `bc94778d…`；MCP 候选 manifest `f7d4872f…`。
@@ -256,6 +274,16 @@
   - 两份备份模板都钉了这个文件的哈希（entries[15]）。按上面同样的规则，这只是声明值，不会阻止在线备份。
   - login、Core、MCP 配置都没有钉它的内容哈希。所以 D1b 改策略文件不会牵动配置链，但要在改前、改后各记一次该文件的哈希作为证据。
 - R2 合并后，用现役任务作为 `--from-task` 重跑 D1a 第 3 步 dry-run。
+
+## D1a 收尾合同（10-15，#29 合并后执行）
+
+- 范围：只做 D1a 第 3 步（以现役任务为 `--from-task` 的 C1 `--dry-run`）和第 5 步（对现役任务 `old-task --preview`）。工具取自合并 #29 后的 v3-lab 干净检出。
+- 复用：#29 未改 48 项 INVENTORY 和 `i_remote_mcp/`，D1a 已构建的新包（`4e003c0b…`）和 MCP 候选（`f7d4872f…`）继续有效；执行前复核候选 manifest 哈希。
+- 零写入：两步都不创建 `--out` 和任何输出文件；候选目录、D1a 私有目录、任务文件夹前后快照一致；任务数量与状态不变。preview 的 TEMP 例外同“R2b 修订 1”。
+- 三项锚点在开始前、结束后各复核一次。
+- 禁止：停服、停用、登记、启动任何任务；改生产文件；被拒后自行修改重试。
+- 预期：C1 dry-run 通过；preview 输出各项 sha256，`oldTaskStopped:false`。任何拒绝都只报错误码并停下。
+- 回合以报告结束，不等 CI。
 
 ## D1：部署顺序（更正版）
 
