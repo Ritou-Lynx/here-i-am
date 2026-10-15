@@ -326,4 +326,4 @@
 - 已确认：hosted runner 在 console 会话 2（Active），TermService 运行中，rdp-tcp 处于监听。
 - 结论：A0 既没有复现，也没有被否定。保留“注销前手动停服”；D1b 停服本来就用 close 入口。
 - 选项：1）L 到此为止（推荐），PR #30 保持 draft；2）用户明确同意后追加 1 轮，改用固定版本、校验 sha256 的 FreeRDP 命令行客户端。
-
+- 用户决定（10-15）：L 到此为止。PR #30 保持 draft，不合并；以后重启时一并修 StrictMode 失败记录 bug。注销或重启前继续先手动停服。
