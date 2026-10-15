@@ -104,7 +104,7 @@ export function updateMcpSource({fromTask,candidateDirectory,outputDirectory,new
   for(const e of manifest.files){need(hex(e.result_sha256),'candidate_hash_invalid');read(path.join(runtimeDirectory,e.path),e.result_sha256,16*1024*1024);}
   for(const e of old.source_files)read(path.join(old.working_directory,e.path),e.sha256,16*1024*1024);
   f.validate(backup.specTemplate);
-  const tasks=backup.specTemplate.entries.filter(e=>e.role==='task'&&!e.name.startsWith('preserved/'));need(tasks.length===1,'backup_task_attachment_required');
+  const tasks=backup.specTemplate.entries.filter(e=>e.role==='task'&&!e.name.startsWith('preserved/')&&e.name==='tasks/HereIAm-CoreSchema6-Session.xml');need(tasks.length===1,'backup_task_attachment_required');
   const from={mcp:mcpRef,backup:backupRef,login:loginRef,task:{path:tasks[0].source_path,sha256:tasks[0].sha256}};
   const to=Object.fromEntries(Object.entries({mcp:'mcp.json',backup:'daily-backup-config.json',login:'login.json',task:'login-task.xml'}).map(([role,name])=>[role,{path:path.join(outputDirectory,name)}]));
   const nextMcpText=replaceJsonFields(mcpRef.text,{working_directory:runtimeDirectory,source_files:manifest.files.map(e=>({path:e.path,sha256:e.result_sha256}))});

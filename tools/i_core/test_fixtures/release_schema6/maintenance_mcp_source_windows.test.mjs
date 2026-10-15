@@ -39,12 +39,16 @@ test('MCP source update: real A session, real generated files and registration, 
  // An unpublished synthetic portable envelope causes the existing backup worker's
  // normal isolated failure path; no backup or envelope validation is bypassed.
  const manifest=json(path.join(l.release,'manifest.json'));
+ writeFileSync(path.join(settings,'icore-task.xml'),'<Task name="iCore"/>');writeFileSync(path.join(settings,'iremote-task.xml'),'<Task name="iRemoteMCP"/>');writeFileSync(path.join(settings,'previous-session.xml'),'<Task name="preserved"/>');
  const backup={policy:{format:'i-core-automatic-backup-v1',outputRoot:l.configuration.backup_directory,retentionDays:30,backupSetId:H},envelopePath:path.join(settings,'unpublished-synthetic-envelope.json'),envelopeSha256:H,sqliteEntryNames:['core.sqlite'],specTemplate:{format:'i-core-runtime-backup-spec-v1',source_schema:6,node_id:l.configuration.node_id,canonical_database_path:l.configuration.database_path,old_release_root:l.release,old_release_manifest_sha256:l.manifestHash,entries:[
   {role:'database',name:'core.sqlite',source_path:l.configuration.database_path,sha256:H},
   ...manifest.files.map(e=>({role:'release',name:e.path,source_path:path.join(l.release,e.path),sha256:e.sha256})),
   {role:'release',name:'manifest.json',source_path:path.join(l.release,'manifest.json'),sha256:l.manifestHash},
   ...[[l.configPath,'core.json'],[mcp.file,'mcp.json'],[backupPath,'daily-backup-config.json'],[a.file,'login.json']].map(([p,name])=>({role:'configuration',name,source_path:p,sha256:p===mcp.file?hash(p):H})),
-  {role:'task',name:'login-task.xml',source_path:taskPath,sha256:H},
+  {role:'task',name:'tasks/HereIAm-iCore.xml',source_path:path.join(settings,'icore-task.xml'),sha256:H},
+  {role:'task',name:'tasks/HereIAm-iRemoteMCP.xml',source_path:path.join(settings,'iremote-task.xml'),sha256:H},
+  {role:'task',name:'tasks/HereIAm-CoreSchema6-Session.xml',source_path:taskPath,sha256:H},
+  {role:'task',name:'preserved/mcp-config-switch-source/session.xml',source_path:path.join(settings,'previous-session.xml'),sha256:H},
   ...mcp.configuration.source_files.map(e=>({role:'configuration',name:'mcp-source/'+e.path,source_path:path.join(mcp.source,e.path),sha256:e.sha256})),
   ...['credentials','domain_policy','transcript_grants','replay_approvals','recovery_custody'].map(role=>({role,name:role+'.bin',source_path:path.join(settings,role+'.bin'),sha256:H}))
  ]}};

@@ -17,7 +17,13 @@ export function createSourceUpdateFixture(t){
  const p=Object.fromEntries(['mcp','backup','login','task'].map(role=>[role,path.join(root,'settings',role+(role==='task'?'.xml':'.json'))]));
  const old={format:'schema6-mcp-v1',owner_sid:'S-1-5-21-100-200-300-1001',working_directory:oldRoot,entrypoint:names[0],source_files:files.map(e=>({path:e.path,sha256:e.base_sha256})),environment:{I_REMOTE_MCP_CHATGPT_ENABLED:'1',I_REMOTE_MCP_STATE_DIR:path.join(root,'mcp-state'),I_HOME:path.join(root,'home'),I_MEMORY_DB:path.join(root,'private','memory.sqlite'),I_MEMORY_POLICY:path.join(root,'private','policy.json')},database_path:path.join(root,'state','i-core.sqlite'),arguments:['serve','--public-url','https://synthetic.invalid'],listen_port:47862,unknown_future:{preserve:'verbatim'}};
  const mcpHash=put(p.mcp,old);
- const entries=[{role:'database',name:'core.sqlite',source_path:old.database_path,sha256:H},{role:'release',name:'manifest.json',source_path:path.join(root,'release','manifest.json'),sha256:H},...Object.entries(p).map(([role,filename])=>({role:role==='task'?'task':'configuration',name:role+(role==='task'?'.xml':'.json'),source_path:filename,sha256:role==='mcp'?mcpHash:H})),...files.map(e=>({role:'configuration',name:'mcp-source/'+e.path,source_path:path.join(oldRoot,e.path),sha256:e.base_sha256})),...['credentials','domain_policy','transcript_grants','replay_approvals','recovery_custody'].map(role=>({role,name:role+'.bin',source_path:path.join(root,'private',role+'.bin'),sha256:H}))];
+ put(path.join(root,'tasks','icore.xml'),'<Task name="iCore"/>');put(path.join(root,'tasks','iremote.xml'),'<Task name="iRemoteMCP"/>');put(p.task,'<Task name="CoreSchema6-Session"/>');put(path.join(root,'previous','session.xml'),'<Task name="preserved"/>');
+ const entries=[{role:'database',name:'core.sqlite',source_path:old.database_path,sha256:H},{role:'release',name:'manifest.json',source_path:path.join(root,'release','manifest.json'),sha256:H},...Object.entries(p).filter(([role])=>role!=='task').map(([role,filename])=>({role:'configuration',name:role+'.json',source_path:filename,sha256:role==='mcp'?mcpHash:H})),
+  {role:'task',name:'tasks/HereIAm-iCore.xml',source_path:path.join(root,'tasks','icore.xml'),sha256:H},
+  {role:'task',name:'tasks/HereIAm-iRemoteMCP.xml',source_path:path.join(root,'tasks','iremote.xml'),sha256:H},
+  {role:'task',name:'tasks/HereIAm-CoreSchema6-Session.xml',source_path:p.task,sha256:H},
+  {role:'task',name:'preserved/mcp-config-switch-source/session.xml',source_path:path.join(root,'previous','session.xml'),sha256:H},
+  ...files.map(e=>({role:'configuration',name:'mcp-source/'+e.path,source_path:path.join(oldRoot,e.path),sha256:e.base_sha256})),...['credentials','domain_policy','transcript_grants','replay_approvals','recovery_custody'].map(role=>({role,name:role+'.bin',source_path:path.join(root,'private',role+'.bin'),sha256:H}))];
  const backup={policy:{outputRoot:path.join(root,'backups'),retentionDays:30},sqliteEntryNames:['core.sqlite'],envelopePath:path.join(root,'private','envelope.json'),envelopeSha256:H,specTemplate:{format:'i-core-runtime-backup-spec-v1',source_schema:6,node_id:'synthetic-node',canonical_database_path:old.database_path,old_release_root:path.join(root,'release'),old_release_manifest_sha256:H,entries}};
  const backupHash=put(p.backup,backup);
  const login={format:'schema6-login-v1',owner_sid:old.owner_sid,state_directory:path.join(root,'state'),control_root:path.join(root,'sessions'),core_configuration_path:path.join(root,'settings','core.json'),core_configuration_sha256:H,core_port:47861,backup_key_directory:path.join(root,'keys'),mcp_configuration_path:p.mcp,mcp_configuration_sha256:mcpHash,backup_configuration_path:p.backup,backup_configuration_sha256:backupHash,unknown_future:'preserve'};
@@ -47,6 +53,20 @@ test('C1 generates six-source configuration and registers disabled with only per
 test('C1 dry-run completes prospective mapping and task validation with zero writes',t=>{
  const f=createSourceUpdateFixture(t);const result=updateMcpSource({...f.input,dryRun:true},{taskBridge:f.taskBridge,writeBundle:()=>assert.fail('write during dry-run')});
  assert.equal(result.generated,false);assert.equal(result.registered,false);assert.equal(existsSync(f.input.outputDirectory),false);assert.deepEqual(f.operations.map(e=>e.operation),['read','check']);
+});
+
+for(const count of [0,2])test('C1 rejects '+count+' exact session task entries',t=>{
+ const f=createSourceUpdateFixture(t);f.backup.specTemplate.entries=f.backup.specTemplate.entries.filter(e=>e.name!=='tasks/HereIAm-CoreSchema6-Session.xml');
+ if(count===2)f.backup.specTemplate.entries.push({role:'task',name:'tasks/HereIAm-CoreSchema6-Session.xml',source_path:f.p.task,sha256:H},{role:'task',name:'tasks/HereIAm-CoreSchema6-Session.xml',source_path:f.p.task,sha256:H});f.save();
+ assert.throws(()=>updateMcpSource(f.input,{taskBridge:f.taskBridge,writeBundle:()=>assert.fail('write before validation')}),count===2?/duplicate_inventory_entry/:/backup_task_attachment_required/);
+});
+
+test('C1 leaves unrelated task attachments byte-identical',t=>{
+ const f=createSourceUpdateFixture(t);const unrelatedNames=['tasks/HereIAm-iCore.xml','tasks/HereIAm-iRemoteMCP.xml','preserved/mcp-config-switch-source/session.xml'];const before=f.backup.specTemplate.entries.filter(e=>unrelatedNames.includes(e.name)).map(e=>({entry:structuredClone(e),bytes:readFileSync(e.source_path)}));assert.equal(before.length,3);
+ f.save();updateMcpSource(f.input,{taskBridge:f.taskBridge,writeBundle:f.writeBundle});const next=json(path.join(f.input.outputDirectory,'daily-backup-config.json'));
+ assert.deepEqual(next.specTemplate.entries.filter(e=>unrelatedNames.includes(e.name)),before.map(e=>e.entry));
+ for(const e of before)assert.deepEqual(readFileSync(e.entry.source_path),e.bytes);
+ assert.notEqual(f.backup.specTemplate.entries.find(e=>e.name==='tasks/HereIAm-CoreSchema6-Session.xml').sha256,sha256(readFileSync(f.p.task)));
 });
 
 for(const kind of ['file-name','missing-file','extra-file','hash','entry','overlap','output-exists','login-hash','mcp-hash','backup-hash','backup-attachment','source-drift']){
