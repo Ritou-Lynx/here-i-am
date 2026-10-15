@@ -239,6 +239,12 @@
 - 止损判定：止损按“同一测试名或同一错误码”计，不按 job 计。上一提交的失败是 SDDL 合同冲突和 XML 编码，本次是另一个测试，所以未触发止损。Codex 停下是保守做法，没有问题。
 - 授权第 3 轮，只改 `maintenance_r2_old_task.test.mjs`：在 `policyFixture()` 中，先把 `explicit` 和 `explicit+inherited` 经 `[Security.AccessControl.RawSecurityDescriptor]::new(x).GetSddlForm('All')` 规范化，再继续使用字面比较。不得改为模糊或语义比较，不得改生成器。这一提交上任何 R2b 测试失败即停。
 
+### R2b 第 3 轮（10-15）：本机 TEMP 噪声，以 CI 为准
+
+- 规范化改动本机通过。唯一失败是 preview 测试的 TEMP 监测：一个改动前就存在、名称不在白名单内的 `.tmp` 文件在监测窗口内被删除。
+- 判定：这不是生成器造成的。测试监测的是共享的用户 `%TEMP%`，开发机上其他进程（Codex、浏览器等）随时会增删文件；同一测试在 6a593a58 的干净 CI runner 上已经通过。本轮改动只涉及 `policyFixture()`，与这条测试的路径无关。
+- 处理：不改测试，不放宽 TEMP 断言。按原样提交那一个文件并推送，以 CI 为准。这条 TEMP 测试在开发机上只作参考，权威结果以 hosted runner 为准。CI 中任何 R2b 测试失败即停。
+
 ## D1a 结果（10-13 至 10-14）
 
 - 第 0–2 步通过，三项锚点前后一致。新包 manifest `4e003c0b…`（48 项）；候选 login `e8bdf4fe…`；准备 XML `bc94778d…`；MCP 候选 manifest `f7d4872f…`。
