@@ -257,11 +257,13 @@
 - 第三视角补查：生产路径比较 owner 均用 `.Owner.Value` 或 `Convert-TaskSecurity`，不按字面解析 SDDL，所以 `LA` 一类缩写只影响测试字面比较，不影响生产。
 - 止损：未触发。
 - 结论：可以转 ready，由用户合并 #29。
+- Codex 第 3 轮报告（10-15）与上述核对一致：同一 SHA、单文件、两次运行计数相同，无偏离。
 
 ### 流程改进（10-15）
 
 - Codex 回合以“推送 + 报告”结束，不在本机等待 CI；CI 由审核方直接读 job 日志核对。
 - 仅以 hosted runner 为准的测试（如 preview TEMP 监测），在提示词中事先列明，不在回合中临时改合同。
+- 交接方式：源码工作（含 L、后续返修、收尾文档）改走 GitHub relay（`tools/agent_relay/PROTOCOL.md`），Claude 与 Codex 在 PR 评论里直接交接，用户只合并。生产操作（D1a 收尾、D1b）不走 relay：watcher 以 `--sandbox workspace-write` 运行，不能提权；协议“永不”条款排除生产执行；结果会公开贴到 PR。这两段仍由用户转贴，D1b 本来就需要用户在场。
 
 ## D1a 结果（10-13 至 10-14）
 
