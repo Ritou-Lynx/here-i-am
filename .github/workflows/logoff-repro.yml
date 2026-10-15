@@ -1,0 +1,33 @@
+name: Logoff reproduction (optional)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [v3-lab]
+    paths:
+      - '.github/workflows/logoff-repro.yml'
+      - 'tools/i_core/test_fixtures/release_schema6/logoff_repro/**'
+      - 'docs/development/handoffs/RELAY_20261015_l-logoff-repro.md'
+
+permissions:
+  contents: read
+
+jobs:
+  logoff-repro:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real interactive logon and logoff (hosted runner only)
+        shell: powershell
+        run: >-
+          & ./tools/i_core/test_fixtures/release_schema6/logoff_repro/run_logoff_repro.ps1
+          -EvidenceDirectory "$env:RUNNER_TEMP/logoff-repro-evidence"
+      - name: Upload evidence even when session establishment fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logoff-repro-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/logoff-repro-evidence/
+          if-no-files-found: warn
+          retention-days: 14
