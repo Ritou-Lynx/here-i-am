@@ -317,3 +317,13 @@
 - 只做 CI 复现：在 hosted Windows 上建立真实交互会话，例如本机回环 RDP，然后真实注销，断言会话宿主拿到 `WM_QUERYENDSESSION`。
 - 两轮内拿不到可复现的场景就停，保留“注销前手动停服”的做法。
 - 能复现后再定修复。候选修法：宿主启动时 `FreeConsole` 并用 `ShutdownBlockReasonCreate` 阻止关机；子进程改为 `DETACHED_PROCESS`。修复跟随再下一次换包。
+
+### L 结果（10-15，relay PR #30，2 轮已用完）：停下，待用户决定
+
+- 第 1 轮未执行：本机 watcher 找不到 codex（`spawn codex ENOENT`），属环境问题，不计轮数。已修：VBS 启动器 PATH 加入当前 codex 目录；计划任务改为 `conhost --headless` 包装，不闪窗。codex 目录名随版本变化，以后还会失效，另立小合同让 watcher 自己解析 codex 路径。
+- 第 2 轮（f7aa188）：在 `enable_loopback_rdp` 报 `ArgumentException`，原因是对已存在的注册表键用了 `New-Item -Force`。
+- 第 3 轮（1bebda7）：注册表、防火墙、RDP 监听、计划任务都通过。等了 5 分钟仍没有测试用户的交互会话，说明 mstsc 回环建不起会话。失败记录处有一个 StrictMode 小 bug，导致没有输出结论。
+- 已确认：hosted runner 在 console 会话 2（Active），TermService 运行中，rdp-tcp 处于监听。
+- 结论：A0 既没有复现，也没有被否定。保留“注销前手动停服”；D1b 停服本来就用 close 入口。
+- 选项：1）L 到此为止（推荐），PR #30 保持 draft；2）用户明确同意后追加 1 轮，改用固定版本、校验 sha256 的 FreeRDP 命令行客户端。
+
