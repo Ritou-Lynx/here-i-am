@@ -123,8 +123,9 @@ function policyFixture(){
  // extraction preserves the old descriptor instead of replacing it with a preset.
  const explicit='O:'+owner+'G:BAD:(A;;FA;;;BA)(A;;FA;;;'+owner+')(A;;FA;;;SY)';
  const inherited='(A;ID;FR;;;BU)(A;ID;FR;;;SY)';
+ const normalized=runEvidencePowerShell("@{explicit=[Security.AccessControl.RawSecurityDescriptor]::new($request.explicit).GetSddlForm('All');sddl=[Security.AccessControl.RawSecurityDescriptor]::new($request.sddl).GetSddlForm('All')}|ConvertTo-Json -Compress",{explicit,sddl:explicit+inherited});
  const parentSddl='O:SYG:SYD:(A;OI;FR;;;BU)(A;OI;FR;;;SY)';
- return {enabled:false,instanceCount:0,xml:'<?xml version="1.0"?>\r\n<Task>stopped 原样</Task>\r\n',sddl:explicit+inherited,parentSddl,explicit,inherited};
+ return {enabled:false,instanceCount:0,xml:'<?xml version="1.0"?>\r\n<Task>stopped 原样</Task>\r\n',sddl:normalized.sddl,parentSddl,explicit:normalized.explicit,inherited};
 }
 const adapter=readFileSync(new URL('../test_fixtures/release_schema6/r2_old_task_adapter.ps1',import.meta.url),'utf8');
 function inspectFixture(fixture,{onRun=()=>{}}={}){
