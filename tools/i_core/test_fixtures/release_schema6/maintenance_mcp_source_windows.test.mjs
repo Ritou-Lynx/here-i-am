@@ -49,8 +49,11 @@ test('MCP source update: real A session, real generated files and registration, 
   {role:'task',name:'tasks/HereIAm-iRemoteMCP.xml',source_path:path.join(settings,'iremote-task.xml'),sha256:H},
   {role:'task',name:'tasks/HereIAm-CoreSchema6-Session.xml',source_path:taskPath,sha256:H},
   {role:'task',name:'preserved/mcp-config-switch-source/session.xml',source_path:path.join(settings,'previous-session.xml'),sha256:H},
+  ...['mcp.json','login.json'].map(name=>({role:'configuration',name:'preserved/mcp-config-switch-source/'+name,source_path:path.join(settings,'previous-'+name),sha256:H})),
   ...mcp.configuration.source_files.map(e=>({role:'configuration',name:'mcp-source/'+e.path,source_path:path.join(mcp.source,e.path),sha256:e.sha256})),
-  ...['credentials','domain_policy','transcript_grants','replay_approvals','recovery_custody'].map(role=>({role,name:role+'.bin',source_path:path.join(settings,role+'.bin'),sha256:H}))
+  ...['credentials','domain_policy','transcript_grants','replay_approvals'].map(role=>({role,name:'preserved/'+role+'-history/'+role+'.bin',source_path:path.join(settings,role+'.bin'),sha256:H})),
+  {role:'recovery_custody',name:'recovery_custody.bin',source_path:path.join(settings,'recovery_custody.bin'),sha256:H,custody_context:true},
+  {role:'recovery_custody',name:'preserved/custody-history/recovery.bin',source_path:path.join(settings,'previous-recovery.bin'),sha256:H}
  ]}};
  writeFileSync(backupPath,JSON.stringify(backup));
  Object.assign(a.configuration,{backup_configuration_path:backupPath,backup_configuration_sha256:hash(backupPath),backup_key_directory:path.dirname(l.configuration.backup_key_path)});refreshLogin(a);

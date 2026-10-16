@@ -6,7 +6,7 @@ import {existsSync,lstatSync,mkdirSync,openSync,closeSync,writeFileSync,fsyncSyn
 import {execFileSync} from 'node:child_process';
 import {sha256,plainPath,cleanEnvironment} from '../release_schema6/package.mjs';
 import {backupFilePrimitives as f} from '../release_schema6/backup_bundle.mjs';
-import {backupMapping,buildMcpSwitchBackup,PRESERVED_PREFIX,same} from './mcp-config-switch-bindings.mjs';
+import {backupMapping,mapMcpSwitchBackup,PRESERVED_PREFIX,same} from './mcp-config-switch-bindings.mjs';
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const need=(condition,code)=>{if(!condition)throw new Error(code);};
@@ -73,7 +73,7 @@ function backupUpdate(original,map,tag){
  const history=original.specTemplate.entries.filter(e=>e.name.startsWith('preserved/'));
  const active=original.specTemplate.entries.filter(e=>!e.name.startsWith('preserved/'));
  const view={...original,specTemplate:{...original.specTemplate,entries:active}};
- const next=buildMcpSwitchBackup(view,map);
+ const next=mapMcpSwitchBackup(view,map);
  const replacements=new Map(next.specTemplate.entries.slice(0,active.length).map(e=>[e.name,e]));
  const added=next.specTemplate.entries.slice(active.length).map(e=>({...e,name:'preserved/mcp-source-update/'+tag+'/'+e.name.slice(PRESERVED_PREFIX.length)}));
  next.specTemplate.entries=original.specTemplate.entries.map(e=>replacements.get(e.name)??e).concat(added);
