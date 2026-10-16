@@ -340,3 +340,10 @@
 - 代码定位：`update-mcp-source.mjs` 的 `backupUpdate` 先去掉全部 `preserved/` 条目，再把剩余条目交给 `buildMcpSwitchBackup`，后者内部调用 `f.validate` 检查。`validate` 要求 9 种角色都至少有一条。如果生产模板中某种角色只出现在 `preserved/` 条目里，就会在这一步被拒。生产模板本身在此之前已通过 `f.validate`。CI 夹具的 `preserved/` 只有 1 条 task，覆盖不到这种情况。
 - 下一步：先只读诊断各角色在活动和 `preserved/` 条目中的数量，确认推测后再开代码合同修复（走 relay）。
 
+### C1 preserved-only 角色修复审核（10-16，relay PR #31，HEAD 3f871e76）：通过
+
+- 诊断确认：生产模板共 177 条，其中活动条目 128 条、preserved 49 条；`credentials`、`domain_policy`、`transcript_grants`、`replay_approvals` 4 种角色只出现在 preserved 中。完整模板校验 ok，只看活动条目时报 `inventory_role_missing`。
+- 修复：拆出 `mapMcpSwitchBackup`，`backupUpdate` 改调它；完整模板的最终校验仍保留。没有放宽任何校验。
+- 验证：云端 Linux 跑 88 项，79 过、0 失败、9 项因仅限 Windows 而跳过；CI 9/9 ×2 全绿；新增 3 项用例 ✔；Windows 真实会话 C1 测试实际执行并 ✔。
+- 一轮完成，等用户合并。合并后重跑 D1a 收尾（同 10-16 的提示词，基线改为 #31 的合并提交）。
+
