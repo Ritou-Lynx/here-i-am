@@ -334,3 +334,9 @@
 - 中止原因：Codex 自写的前快照脚本对 `Get-ScheduledTask` 返回的 CIM 对象调用了 `GetInstances()`（`MethodNotFound`）。仓库工具没有问题，第 3、5 步都还没执行。
 - 处理：实例数改用 COM `Schedule.Service` 读取（`GetTask(...).GetInstances(0).Count`），从前快照处续跑。不计入止损。
 
+### D1a 收尾第 2 次（10-16）：C1 dry-run 被拒，错误码 `inventory_role_missing`；零写入
+
+- 前快照、零写入检查和三项锚点都通过；第 5 步按停止规则没有执行。
+- 代码定位：`update-mcp-source.mjs` 的 `backupUpdate` 先去掉全部 `preserved/` 条目，再把剩余条目交给 `buildMcpSwitchBackup`，后者内部调用 `f.validate` 检查。`validate` 要求 9 种角色都至少有一条。如果生产模板中某种角色只出现在 `preserved/` 条目里，就会在这一步被拒。生产模板本身在此之前已通过 `f.validate`。CI 夹具的 `preserved/` 只有 1 条 task，覆盖不到这种情况。
+- 下一步：先只读诊断各角色在活动和 `preserved/` 条目中的数量，确认推测后再开代码合同修复（走 relay）。
+
