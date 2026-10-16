@@ -327,3 +327,10 @@
 - 结论：A0 既没有复现，也没有被否定。保留“注销前手动停服”；D1b 停服本来就用 close 入口。
 - 选项：1）L 到此为止（推荐），PR #30 保持 draft；2）用户明确同意后追加 1 轮，改用固定版本、校验 sha256 的 FreeRDP 命令行客户端。
 - 用户决定（10-15）：L 到此为止。PR #30 保持 draft，不合并；以后重启时一并修 StrictMode 失败记录 bug。注销或重启前继续先手动停服。
+
+### D1a 收尾第 1 次（10-16）：前快照阶段中止，零写入
+
+- 基线 `fa652c29` 一致，worktree 干净；三项锚点前后一致；MCP 候选 `f7d4872f` 六文件校验通过，DACL 和所有者未变。
+- 中止原因：Codex 自写的前快照脚本对 `Get-ScheduledTask` 返回的 CIM 对象调用了 `GetInstances()`（`MethodNotFound`）。仓库工具没有问题，第 3、5 步都还没执行。
+- 处理：实例数改用 COM `Schedule.Service` 读取（`GetTask(...).GetInstances(0).Count`），从前快照处续跑。不计入止损。
+
