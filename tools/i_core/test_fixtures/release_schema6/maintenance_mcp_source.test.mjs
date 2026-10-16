@@ -4,12 +4,13 @@ import path from 'node:path';
 import {syntheticRoot} from './synthetic_paths.mjs';
 import {mkdirSync,readFileSync,writeFileSync,rmSync,existsSync,symlinkSync,linkSync} from 'node:fs';
 import {sha256} from '../../release_schema6/package.mjs';
+import {backupFilePrimitives} from '../../release_schema6/backup_bundle.mjs';
 import {updateMcpSource,replaceJsonFields,fieldDiff,parseArguments} from '../../maintenance/update-mcp-source.mjs';
 const H='a'.repeat(64);
 const names=['i_remote_mcp/server.mjs','i_remote_mcp/oauth.mjs','i_remote_mcp/diagnostics.mjs','i_remote_mcp/mcp.mjs','i_remote_mcp/writeback.mjs','i_memory/i_memory_read.mjs'];
 const put=(p,v)=>{mkdirSync(path.dirname(p),{recursive:true});writeFileSync(p,typeof v==='string'?v:JSON.stringify(v,null,2)+'\n');return sha256(readFileSync(p));};
 const json=p=>JSON.parse(readFileSync(p,'utf8'));
-export function createSourceUpdateFixture(t){
+export function createSourceUpdateFixture(t,{preservedOnlyRoles=false}={}){
  const root=syntheticRoot('mcp-source-c1-');t.after(()=>{assert.ok(path.basename(root).startsWith('mcp-source-c1-'));rmSync(root,{recursive:true,force:true});});
  const oldRoot=path.join(root,'old-source'),candidateDirectory=path.join(root,'candidate'),runtime=path.join(candidateDirectory,'runtime');
  const files=names.map((name,index)=>{const base=put(path.join(oldRoot,name),'// old '+name+'\n');const next=put(path.join(runtime,name),'// '+(index<4?'new':'old')+' '+name+'\n');return {path:name,base_sha256:base,result_sha256:next,changed:index<4};});
@@ -24,6 +25,12 @@ export function createSourceUpdateFixture(t){
   {role:'task',name:'tasks/HereIAm-CoreSchema6-Session.xml',source_path:p.task,sha256:H},
   {role:'task',name:'preserved/mcp-config-switch-source/session.xml',source_path:path.join(root,'previous','session.xml'),sha256:H},
   ...files.map(e=>({role:'configuration',name:'mcp-source/'+e.path,source_path:path.join(oldRoot,e.path),sha256:e.base_sha256})),...['credentials','domain_policy','transcript_grants','replay_approvals','recovery_custody'].map(role=>({role,name:role+'.bin',source_path:path.join(root,'private',role+'.bin'),sha256:H}))];
+ if(preservedOnlyRoles){
+  for(const e of entries)if(['credentials','domain_policy','transcript_grants','replay_approvals'].includes(e.role))e.name='preserved/'+e.role+'-history/'+e.name;
+  entries.find(e=>e.role==='recovery_custody').custody_context=true;
+  entries.push({role:'recovery_custody',name:'preserved/custody-history/recovery.bin',source_path:path.join(root,'previous','recovery.bin'),sha256:H});
+  for(const name of ['mcp.json','login.json'])entries.push({role:'configuration',name:'preserved/mcp-config-switch-source/'+name,source_path:path.join(root,'previous',name),sha256:put(path.join(root,'previous',name),{synthetic:name})});
+ }
  const backup={policy:{outputRoot:path.join(root,'backups'),retentionDays:30},sqliteEntryNames:['core.sqlite'],envelopePath:path.join(root,'private','envelope.json'),envelopeSha256:H,specTemplate:{format:'i-core-runtime-backup-spec-v1',source_schema:6,node_id:'synthetic-node',canonical_database_path:old.database_path,old_release_root:path.join(root,'release'),old_release_manifest_sha256:H,entries}};
  const backupHash=put(p.backup,backup);
  const login={format:'schema6-login-v1',owner_sid:old.owner_sid,state_directory:path.join(root,'state'),control_root:path.join(root,'sessions'),core_configuration_path:path.join(root,'settings','core.json'),core_configuration_sha256:H,core_port:47861,backup_key_directory:path.join(root,'keys'),mcp_configuration_path:p.mcp,mcp_configuration_sha256:mcpHash,backup_configuration_path:p.backup,backup_configuration_sha256:backupHash,unknown_future:'preserve'};
@@ -53,6 +60,41 @@ test('C1 generates six-source configuration and registers disabled with only per
 test('C1 dry-run completes prospective mapping and task validation with zero writes',t=>{
  const f=createSourceUpdateFixture(t);const result=updateMcpSource({...f.input,dryRun:true},{taskBridge:f.taskBridge,writeBundle:()=>assert.fail('write during dry-run')});
  assert.equal(result.generated,false);assert.equal(result.registered,false);assert.equal(existsSync(f.input.outputDirectory),false);assert.deepEqual(f.operations.map(e=>e.operation),['read','check']);
+});
+
+test('C1 dry-run accepts required roles found only in preserved history',t=>{
+ const f=createSourceUpdateFixture(t,{preservedOnlyRoles:true});
+ assert.doesNotThrow(()=>backupFilePrimitives.validate(f.backup.specTemplate));
+ for(const role of ['credentials','domain_policy','transcript_grants','replay_approvals']){
+  const entries=f.backup.specTemplate.entries.filter(e=>e.role===role);assert.equal(entries.length,1);assert.ok(entries[0].name.startsWith('preserved/'+role+'-history/'));
+ }
+ const result=updateMcpSource({...f.input,dryRun:true},{taskBridge:f.taskBridge,writeBundle:()=>assert.fail('write during dry-run')});
+ assert.equal(result.dryRun,true);assert.equal(result.generated,false);assert.equal(result.registered,false);
+ assert.equal(existsSync(f.input.outputDirectory),false);assert.deepEqual(f.operations.map(e=>e.operation),['read','check']);
+});
+
+test('C1 generates a fully valid backup with preserved-only roles and byte-identical history entries',t=>{
+ const f=createSourceUpdateFixture(t,{preservedOnlyRoles:true}),before=readFileSync(f.p.backup);
+ const history=f.backup.specTemplate.entries.flatMap((e,index)=>e.name.startsWith('preserved/')?[{index,bytes:Buffer.from(JSON.stringify(e)),source:existsSync(e.source_path)?readFileSync(e.source_path):null}]:[]);
+ const result=updateMcpSource(f.input,{taskBridge:f.taskBridge,writeBundle:f.writeBundle});
+ assert.equal(result.generated,true);assert.equal(result.registered,true);
+ const next=json(path.join(f.input.outputDirectory,'daily-backup-config.json'));
+ assert.doesNotThrow(()=>backupFilePrimitives.validate(next.specTemplate));
+ assert.equal(next.specTemplate.entries.length,f.backup.specTemplate.entries.length+10);
+ for(const {index,bytes,source} of history){
+  const entry=next.specTemplate.entries[index];assert.deepEqual(Buffer.from(JSON.stringify(entry)),bytes);
+  if(source)assert.deepEqual(readFileSync(entry.source_path),source);
+ }
+ assert.deepEqual(readFileSync(f.p.backup),before);
+});
+
+test('C1 rejects a role missing from the full template before mapping or writes',t=>{
+ const f=createSourceUpdateFixture(t,{preservedOnlyRoles:true});
+ f.backup.specTemplate.entries=f.backup.specTemplate.entries.filter(e=>e.role!=='replay_approvals');f.save();
+ assert.throws(()=>updateMcpSource(f.input,{taskBridge:f.taskBridge,writeBundle:()=>assert.fail('write before validation')}),error=>{
+  assert.equal(error.message,'inventory_role_missing');assert.doesNotMatch(error.stack,/backupUpdate|mapMcpSwitchBackup/);return true;
+ });
+ assert.equal(existsSync(f.input.outputDirectory),false);assert.deepEqual(f.operations.map(e=>e.operation),['read']);
 });
 
 for(const count of [0,2])test('C1 rejects '+count+' exact session task entries',t=>{
