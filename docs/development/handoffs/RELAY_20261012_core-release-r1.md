@@ -347,3 +347,11 @@
 - 验证：云端 Linux 跑 88 项，79 过、0 失败、9 项因仅限 Windows 而跳过；CI 9/9 ×2 全绿；新增 3 项用例 ✔；Windows 真实会话 C1 测试实际执行并 ✔。
 - 一轮完成，等用户合并。合并后重跑 D1a 收尾（同 10-16 的提示词，基线改为 #31 的合并提交）。
 
+### D1a 收尾第 3 次（10-16，基线 `302a62c0`）：通过，D1a 完成
+
+- 三项锚点前后一致；MCP 候选 `f7d4872f` 未变；前后快照（私有目录、任务列表、COM 实例数、任务文件夹 SDDL）一致。
+- 第 3 步 C1 `dry_run_passed`，零写入。field-diff 只涉及允许的字段：MCP 为 `source_files`、`working_directory`；backup 为 `specTemplate.entries`；login 为 mcp/backup 两对路径和哈希。
+- 第 5 步 old-task preview 通过，`oldTaskStopped:false`。摘要前 8 位：xml `6aae1345`、security `538b42e8`、oldTaskSddl `c97927ee`、registrationSddl `f39a0cea`、expectedRegisteredSddl `4a5b6ba6`、parentSddl `330eb3ab`、inheritedReadOnlyPrincipals `37517e5f`。D1b 第 1b 步生成的 security JSON 应与这些值一致（停用会改变 XML 中的 Enabled，所以 xml 哈希可以不同）。
+- TEMP：只看到两个已消失的策略探测文件；其余变化来自开发机共享 TEMP 的噪声，按约定不判失败。扫描有 4 处错误，覆盖不完整。生成器零写入以 hosted CI 为准（R2b 已验证）。
+- 下一步：D1b，用户在场，每步单独同意；开始前暂停 relay watcher。
+
