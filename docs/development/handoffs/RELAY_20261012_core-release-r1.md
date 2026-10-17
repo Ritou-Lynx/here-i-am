@@ -364,3 +364,11 @@
 - 三项锚点不变。新包 `4e003c0b` 自身 verify 48 项通过，source_commit 为 `6a063386`；`6a063386..302a62c0` 在 48 个 INVENTORY 路径上的 diff 为空。候选 login `e8bdf4fe`、准备 XML `bc94778d`、MCP `f7d4872f` 的哈希和 ACL 不变。
 - 读取策略文件改前哈希 `3ecf6202`。没有待处理的控制请求，没有正在运行的备份。D1b 私有输出父目录已建立。
 
+### 第 1 步（10-17）：clean close 完成，开始停服
+
+- 第 1 次关闭被拒，报 `approved_session_close_rejected`，服务未受影响。只读诊断确认原因：worktree 中的 close 脚本和 process_image_binding 两个文件 ACL 含 Users、Authenticated Users，未通过 `Assert-BootstrapPath`（`protected_acl_required`）。close 入口的 catch 吞掉了内部错误码，与 R0 是同一类问题；记为后续改进项，不在本次修改。
+- 处理：把 `tools/i_core` 按字节复制到 `<OUT>\tools-302a62c0`（208 个文件，继承受保护 ACL）。校验三项全部通过：`git hash-object --path` 与 302a62c0 的 blob 一致；副本与 worktree 逐字节一致；worktree 干净。D1b 后续步骤都从这份副本运行。首次校验误用原始 blob 字节比较（autocrlf 导致必然不一致），已更正。
+- 生成器在 `%TEMP%\schema6-evidence-*` 中的私有临时目录属于既定行为，允许使用；每次运行前后核对无残留。只有 `--preview` 要求零写入。
+- 关闭：approved-2 `6a6cb404`；退出码 0，`closed=true`、`wmCloseOnly=true`，用时 12.5 秒。回执 `012b5d3f`，marker 为 clean_closed，锁已释放，进程和端口都已退出。现役任务状态 Ready、启用、实例数 0。原始 marker 快照 `e830854d`。
+- 停服开始：北京时间 2026-10-17 23:29:57。
+
