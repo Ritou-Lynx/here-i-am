@@ -355,3 +355,12 @@
 - TEMP：只看到两个已消失的策略探测文件；其余变化来自开发机共享 TEMP 的噪声，按约定不判失败。扫描有 4 处错误，覆盖不完整。生成器零写入以 hosted CI 为准（R2b 已验证）。
 - 下一步：D1b，用户在场，每步单独同意；开始前暂停 relay watcher。
 
+## D1b 执行记录
+
+### 第 0 步（10-17）：通过，未停服
+
+- 接力任务 HereIAm-AgentRelay 已从 Ready 改为 Disabled；Action 和触发器不变。
+- 工具基线为 `302a62c0`（第一次 fetch 遇 TLS 握手失败，重试成功），专用 detached worktree 干净，8 个入口齐全。
+- 三项锚点不变。新包 `4e003c0b` 自身 verify 48 项通过，source_commit 为 `6a063386`；`6a063386..302a62c0` 在 48 个 INVENTORY 路径上的 diff 为空。候选 login `e8bdf4fe`、准备 XML `bc94778d`、MCP `f7d4872f` 的哈希和 ACL 不变。
+- 读取策略文件改前哈希 `3ecf6202`。没有待处理的控制请求，没有正在运行的备份。D1b 私有输出父目录已建立。
+
