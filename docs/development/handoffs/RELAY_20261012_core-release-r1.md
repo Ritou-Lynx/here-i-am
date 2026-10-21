@@ -402,3 +402,8 @@
 - c1-out 中各文件哈希：mcp `c282597a`、backup `fab3df5c`、login `d49f6010`、task xml `9d2b4170`、field-diff `9b9340c8`。五个文件均为 owned artifact ACL（受保护；当前用户、SYSTEM、Administrators 显式 FullControl）。
 - P′ 为 Disabled、实例数 0，Definition XML `86a0da8d`，login 指向 c1-out。P、旧任务、marker、head 均未变。
 
+### 第 6 步（10-22）：读取策略已加入 chatgpt_web
+
+- `messages.auto_share_origins`：`["claude_web"]` → `["claude_web","chatgpt_web"]`。策略文件 `3ecf6202` → `fef558af`。只替换了数组片段，原地写回，所有者和 ACL 不变。备份放在 `<OUT>\policy-backup`（`3ecf6202`）。
+- 校验使用 MCP 候选（即 P′ 实际运行的版本）中 `i_memory_read.mjs` 的 `loadPolicy`，未打开数据库。修改前返回 `["frontend:claude_web"]`，修改后返回 `["frontend:claude_web","frontend:chatgpt_web"]`。
+
