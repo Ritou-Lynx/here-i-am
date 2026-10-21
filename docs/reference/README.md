@@ -6,6 +6,7 @@
 |---|---|
 | [SIYUAN_MCP.md](SIYUAN_MCP.md) | 思源 3.8.6：连接与鉴权（含 OAuth 2.1）、对外暴露策略、30 个工具逐个动作分读写、数据库写法、客户端配置、思源 Agent 作为 MCP 客户端 |
 | [FLEXNOTE_MCP.md](FLEXNOTE_MCP.md) | FlexNote 1.1.57：开启与连接、官方能力分类、只读模式、已知工具名、限制与易错点 |
+| [FEISHU_NOTES_RESEARCH_20261021.md](FEISHU_NOTES_RESEARCH_20261021.md) | 调研稿（未决定）：用飞书替代思源做学习笔记——容量、CLI 与 MCP 三条接入路、学习导师映射、隐私边界、实测清单 |
 
 ## 一页对比
 
