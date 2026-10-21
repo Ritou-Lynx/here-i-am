@@ -386,3 +386,12 @@
 - 新包 start_schema6 `-OfflineOperation package-switch` 退出码 0：child `package_switch_completed`，custody generation 18；marker clean_closed，manifest `4e003c0b`、配置 `f5c3318d`、文件 `a91b97e1`；head `05c0fb1d`；锁已释放，无 sidecar，未启动任何进程或任务。
 - 完成时间：北京时间 2026-10-21 23:37:04。此后出问题只能走反向换包。
 
+### 第 4 步（10-21 至 10-22）：P 已登记（停用）
+
+- P = `HereIAm-iCoreSchema6-d1a-20261013-6a063386`。
+- 固定 Prepare 回执沿用 D1a 的 `215c6c40`，XML 为 `bc94778d`。登记配置 `fbac42a7`，human-approval `879c1e48`，停用 XML `4cf3d435`。
+- 第一次登记被拒（`package_switch_registration_rejected`，入口吞掉了内部码）。只读复现第 1–126 行检查：129 项中只有 1 项失败，即第 64 行 `backup_acl_rejected`，原因是新侧备份配置 `98d9239d` 没有禁止继承。该检查只允许当前用户和 SYSTEM，并且要求显式 FullControl。
+- 修正：把旧侧 `3d198572` 的 ACL 复制到新侧这一个文件，内容哈希不变。
+- 第二次登记退出码 0，状态码 `package_switch_registered_only`：P Disabled，实例数 0，started=false，旧任务未变，数据库未变。回执 `e6a5daa9`；P 的 Definition XML `afd60d9f` 与回执一致。
+- 后续改进项：close、register 两个入口都应透出内部错误码；D1a 的换包配置生成器应直接产出受保护的 backup 配置。
+
