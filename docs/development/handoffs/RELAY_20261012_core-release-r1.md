@@ -379,3 +379,10 @@
 - 本步有两次 Codex 自写启动脚本出错（PS 5.1 不支持 `StandardInputEncoding`；首次只读比较漏掉了 Enabled 元素可省略的情况），都已修正后重做，生成器未重试。
 - 截至 10-21，服务从 10-17 23:29 起一直停着。第 3 步之前仍可回退：重新启用旧任务并启动即可。
 
+### 第 2、3 步（10-21）：计划已批准，离线换包完成（此后不可简单回退）
+
+- 计划 prepared `4050d6ce`，operationId `d1b-99b67db08bf1c98e`；from 为 `aef68af0`/`6eff3291`，to 为 `4e003c0b`/`f5c3318d`；新侧 artifacts：login `e8bdf4fe`、backup `98d9239d`、mcp `8b90dd40`（两侧相同）、task `bc94778d`；7 项 binding 全部为 true。用户批准后生成批准版 `1e135c37`（与 prepared 相比只有 approved 不同）。
+- 第一次在 offline-control 处停下：继承 ACL 不满足 `-Root` 的受保护根要求。只对这个空目录复制了 `<OUT>` 的 ACL 后通过。
+- 新包 start_schema6 `-OfflineOperation package-switch` 退出码 0：child `package_switch_completed`，custody generation 18；marker clean_closed，manifest `4e003c0b`、配置 `f5c3318d`、文件 `a91b97e1`；head `05c0fb1d`；锁已释放，无 sidecar，未启动任何进程或任务。
+- 完成时间：北京时间 2026-10-21 23:37:04。此后出问题只能走反向换包。
+
