@@ -372,3 +372,10 @@
 - 关闭：approved-2 `6a6cb404`；退出码 0，`closed=true`、`wmCloseOnly=true`，用时 12.5 秒。回执 `012b5d3f`，marker 为 clean_closed，锁已释放，进程和端口都已退出。现役任务状态 Ready、启用、实例数 0。原始 marker 快照 `e830854d`。
 - 停服开始：北京时间 2026-10-17 23:29:57。
 
+### 第 1b 步（10-17 至 10-21）：通过
+
+- 旧任务已停用：Disabled、实例数 0；任务及任务文件夹 SDDL 前后一致。
+- old-task 证据：5 项 SDDL 摘要和 security `538b42e8` 与 D1a preview 完全一致；xml `e3ab9c1a`，与 preview 的差异只有 `Settings/Enabled`（还原该项后恢复 `6aae1345`）；`oldTaskStopped:true`。
+- 本步有两次 Codex 自写启动脚本出错（PS 5.1 不支持 `StandardInputEncoding`；首次只读比较漏掉了 Enabled 元素可省略的情况），都已修正后重做，生成器未重试。
+- 截至 10-21，服务从 10-17 23:29 起一直停着。第 3 步之前仍可回退：重新启用旧任务并启动即可。
+
