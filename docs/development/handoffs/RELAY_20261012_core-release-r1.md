@@ -395,3 +395,10 @@
 - 第二次登记退出码 0，状态码 `package_switch_registered_only`：P Disabled，实例数 0，started=false，旧任务未变，数据库未变。回执 `e6a5daa9`；P 的 Definition XML `afd60d9f` 与回执一致。
 - 后续改进项：close、register 两个入口都应透出内部错误码；D1a 的换包配置生成器应直接产出受保护的 backup 配置。
 
+### 第 5 步（10-22）：P′ 已登记（停用）
+
+- P′ = `HereIAm-iCoreSchema6-d1a-mcp-20261013-6a063386`。dry-run 与正式运行退出码均为 0，结果为 `registered_disabled`。
+- field-diff 与 D1a 演练一致：MCP 变更 source_files、working_directory；backup 变更 specTemplate.entries；login 变更 mcp/backup 两对路径和哈希。
+- c1-out 中各文件哈希：mcp `c282597a`、backup `fab3df5c`、login `d49f6010`、task xml `9d2b4170`、field-diff `9b9340c8`。五个文件均为 owned artifact ACL（受保护；当前用户、SYSTEM、Administrators 显式 FullControl）。
+- P′ 为 Disabled、实例数 0，Definition XML `86a0da8d`，login 指向 c1-out。P、旧任务、marker、head 均未变。
+
