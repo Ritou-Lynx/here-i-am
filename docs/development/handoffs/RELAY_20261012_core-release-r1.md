@@ -485,3 +485,13 @@
     1. 我要求配对码不得进入文件，但 `open-pairing-window.ps1` 的设计本来就把 `pair.code` 写进受保护的控制目录，由 Core 消费后删除，属于正常通道。
     2. MCP 的 state-dir 来自配置注入的环境变量，core-url 由宿主注入（127.0.0.1:47841，与 login core_port 一致），所以命令行里本来就没有这两项。
   - 裁定：两条都放行。pair-core 显式传入按配置核实的 `--state-dir` 和 `--core-url`。
+
+### 第 8 步（10-22）：chatgpt_web 已配对，会话已重启
+
+- 配对：open-pairing-window 与 pair-core 退出码都是 0，device_id 为 `frontend:chatgpt_web`，结果 paired。pair.code、pair.request 及两份 .pending 均已被消费。
+- 凭据：208 字节，字段为 device_id、device_token、core_node_id、paired_at；DACL 继承自上级，只有本人、SYSTEM、Administrators。claude_web 凭据 `34549aec` 不变。
+- 重启：stop 的 wm_close、host_exit、receipts 都 ok，closed_files 报 `database_sidecars_present`（预期例外）。关闭后 marker 为 clean_closed，状态树 `8a46526e` 与新 marker 一致。
+- 15:39:01 Start，15:39:27 ready，中断约 44 秒。
+- 重启后核对：P′ 为 Running，只有一个 live session；marker 为 listening，manifest `4e003c0b`；MCP 配置 `c282597a`、策略 `fef558af` 不变；公网 OAuth discovery 返回 200。
+- 未核对项：MCP stderr 没有持久化，无法确认有没有“写回未启用”提示。改由第 9 步实际写入来验证。
+- 下一步：第 9 步真人验收；完成后恢复 relay watcher，并做 DEVLOG 与 I_PROJECT_STATE 收尾。
