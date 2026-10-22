@@ -437,3 +437,9 @@
 - 后续改进项：stop/close 的 sidecar 检查范围应该统一；shortcut-mail relay 关闭时应确认 WAL 已 checkpoint。
 - 处置第 1 次（10-22）：停在第 1 步 `new_directory_acl_mismatch`。备份目录 `journal-backup-4dd18fa7` 已建好且为空，已设保护、所有者正确，但 SDDL 与 `<OUT>` 逐字不一致。没有运行 node，也没有动日志库；i-core `82d55176`、marker `a91b97e1`、三份文件的哈希均未变。
 - 审核判断：“与 `<OUT>` 的 SDDL 逐字一致”是我写的验收条件，过严，组、ACE 顺序或继承标志都可能造成差异。实际只需要满足：受保护；所有者是当前用户；只有当前用户、SYSTEM、Administrators 三个 Allow FullControl。改用这一条件复用该目录续跑。
+- 处置第 2 次（10-22）：完成。
+  - 两个 DACL 只差 `AI` 标志位，三条显式 FullControl 相同，备份目录按实质条件验收通过，未改 ACL。备份目录为 `journal-backup-4dd18fa7`，三份副本哈希一致，保留不删。
+  - 用新包 Node v24.14.1 先在副本上演练，再操作现网。两次结果相同：integrity ok；`shortcut_mail_journal` 表 3 行；`wal_checkpoint(TRUNCATE)` 返回 0/0/0；关闭后 sidecar 消失。
+  - 现网主库 `2fb9e76b`（4096 字节）→ `9a9e18af`（20480 字节），与演练结果一致，ACL 不变。
+  - STATE 顶层 sidecar 为 0；i-core `82d55176` 与 marker `a91b97e1` 未变；三个任务仍为 Disabled、实例数 0。
+- 下一步：原样重跑第 7 步（DryRun 后 `-NoRollback` 实切，不传 `-PublicHealthUrl`）。
