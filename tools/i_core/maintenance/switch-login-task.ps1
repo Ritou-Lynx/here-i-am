@@ -34,14 +34,39 @@ function Test-Schema6PublicHealth([string]$Url,[int]$TimeoutMilliseconds) {
   return $false
  }finally{if($response){$response.Close()};$request.Abort()}
 }
+function Get-Schema6NewSessionChildError($Binding,[string[]]$PreviousSessions) {
+ # Diagnostics are best-effort and must never replace the readiness failure.
+ try {
+  $controls=@(foreach($directory in @(Get-Schema6SessionDirectories $Binding)){
+   if($PreviousSessions -contains $directory){continue}
+   Get-ChildItem -LiteralPath $directory -Directory -Filter 'control-*' -ErrorAction Stop
+  })
+  $latest=@($controls|Sort-Object LastWriteTimeUtc -Descending|Select-Object -First 1)
+  if($latest.Count -eq 0){return 'none'}
+  $childPath=Join-Path $latest[0].FullName 'child.json'
+  if(-not (Test-Path -LiteralPath $childPath)){return 'none'}
+  $child=Read-Schema6Json $childPath
+  if($null -eq $child){return 'none'}
+  $errorProperty=$child.PSObject.Properties['error_code']
+  if($null -eq $errorProperty -or $null -eq $errorProperty.Value){return 'none'}
+  if($child.error_code -is [string] -and $child.error_code -cmatch '^[a-z0-9_]{1,64}\z'){return $child.error_code}
+  return 'unreadable'
+ }catch{return 'unreadable'}
+}
 function Wait-Schema6LoginReady {
  param([string]$Name,$Binding,[string[]]$PreviousSessions,[int]$TimeoutSeconds,[string]$HealthUrl)
+ try {
  $watch=[Diagnostics.Stopwatch]::StartNew()
  while($watch.Elapsed.TotalSeconds -lt $TimeoutSeconds){
   Assert-Schema6TaskUnchanged $Name $Binding
   $taskState=Invoke-Schema6TaskOperation -Operation State -TaskName $Name
   $sessions=@(Get-Schema6LiveSessions $Binding)
   try {
+   $liveDirectories=@($sessions|ForEach-Object {$_.Directory})
+   foreach($directory in @(Get-Schema6SessionDirectories $Binding)){
+    if($PreviousSessions -contains $directory){continue}
+    if($liveDirectories -notcontains $directory -and (Test-Path -LiteralPath (Join-Path $directory 'session-exit.json'))){throw 'new_session_ended_before_ready'}
+   }
    if($sessions.Count -gt 1){throw 'multiple_live_sessions_manual_review_required'}
    foreach($s in $sessions){
     if($PreviousSessions -contains $s.Directory){continue}
@@ -79,6 +104,11 @@ function Wait-Schema6LoginReady {
   if($remaining -gt 0){Start-Sleep -Milliseconds ([Math]::Min(200,$remaining))}
  }
  throw 'new_session_ready_timeout'
+ }catch{
+  $original=$_.Exception.Message
+  $childError=Get-Schema6NewSessionChildError $Binding $PreviousSessions
+  throw ($original+';child_error_code='+$childError)
+ }
 }
 function Invoke-Schema6LoginSwitch {
  param([string]$FromTask,[string]$ToTask,[ValidateRange(1,3600)][int]$ReadyTimeoutSeconds=180,[string]$PublicHealthUrl,[switch]$DryRun,[switch]$NoRollback)

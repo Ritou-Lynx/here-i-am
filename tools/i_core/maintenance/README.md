@@ -83,7 +83,10 @@ Windows CI的schema6-windows job串行纳入maintenance_acl/window/register测�
 
 可选 `-PublicHealthUrl` 要求指定 HTTP(S) 地址返回 200；不跟随跳转。Core 与 MCP 的本机端口、全新会话的 ready/MCP 回执和任务状态也必须就绪。任务参数使用 `-LoginConfigurationPath` / `-LoginConfigurationSha256`；同时接受短名 `-ConfigurationPath` / `-ConfigurationSha256`，重复或缺失拒绝。任务读、启用、停用、启动与状态读取统一通过 `Invoke-Schema6TaskOperation`；测试只在自身进程替换其适配层。
 
-关闭前以持有的进程句柄验证当前用户、系统 PowerShell 映像、进程创建时间与隐藏顶层窗口身份，随后只发 `WM_CLOSE`，最多等 35 秒。必须确认宿主退出 0、Core/会话/监督器正常关闭、每代 MCP 启停回执成对，以及状态目录没有数据库 sidecar 和 `s6-recovery-pending.json`。不强杀宿主，不删恢复锁或 sidecar，也不读取数据库正文。
+关闭前以持有的进程句柄验证当前用户、系统 PowerShell 映像、进程创建时间与隐藏顶层窗口身份，随后只发 `WM_CLOSE`，最多等 35 秒。必须确认宿主退出 0、Core/会话/监督器正常关闭、每代 MCP 启停回执成对，以及状态目录没有 `i-core.sqlite-wal/-shm/-journal` 和 `s6-recovery-pending.json`。不强杀宿主，不删恢复锁或 sidecar，也不读取数据库正文。
+
+closed_files 只扫描 STATE 顶层且不改文件：其他 sidecar 按序数排序，仅以文件名记录 `stop.closed_files_other_sidecars`；relay lock 独占打开失败（IOException）报告 `relay_lock_held`，未被占用时通过。
+宿主窗口已消失时，最多等待进程退出 10 秒；新会话已有退出回执且无活会话时立即报告 `new_session_ended_before_ready`。ready 的任何失败均附 `;child_error_code=<值>`，取新会话最新控制代的 child 错误码；缺失为 `none`，非法或不可读为 `unreadable`。
 
 每一步输出一行 `step` / `ok` / `detail` JSON，失败保留异常文本。退出码：0 成功（含 already_stopped / DryRun）；1 新任务失败后旧任务已恢复就绪；2 预检拒绝、关闭不干净、存在恢复锁或回滚失败，需人工检查。预检发现目标哈希错误时按第 1 步零变更拒绝，旧会话原样保留。切换后的漂移或启动失败才进入回滚；按预检缓存的控制根关闭新会话，不跟随漂移后的任务参数。新会话关闭不干净或出现恢复锁时，绝不启动旧任务。
 

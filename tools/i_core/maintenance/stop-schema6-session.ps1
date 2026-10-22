@@ -105,7 +105,11 @@ public sealed class Schema6MaintenanceHost:IDisposable {
    try{using(var identity=new WindowsIdentity(token)){if(identity.User.Value!=owner)throw new InvalidOperationException("session_host_owner_mismatch");}}finally{CloseHandle(token);}
    uint actualSession;if(!ProcessIdToSessionId((uint)id,out actualSession)||actualSession!=(uint)System.Diagnostics.Process.GetCurrentProcess().SessionId||(session>=0&&actualSession!=(uint)session))throw new InvalidOperationException("session_host_session_mismatch");
    uint actual;lease.thread=GetWindowThreadProcessId(new IntPtr(hwnd),out actual);
-   if(lease.thread==0||actual!=(uint)id||(tid!=0&&tid!=lease.thread)||GetAncestor(new IntPtr(hwnd),2)!=new IntPtr(hwnd)||IsWindowVisible(new IntPtr(hwnd)))throw new InvalidOperationException("session_host_window_mismatch");
+   if(lease.thread==0){
+    if(WaitForSingleObject(handle,10000)==0){lease.Dispose();return null;}
+    throw new InvalidOperationException("session_host_window_mismatch");
+   }
+   if(actual!=(uint)id||(tid!=0&&tid!=lease.thread)||GetAncestor(new IntPtr(hwnd),2)!=new IntPtr(hwnd)||IsWindowVisible(new IntPtr(hwnd)))throw new InvalidOperationException("session_host_window_mismatch");
    return lease;
   }catch{lease.Dispose();throw;}
  }
@@ -153,11 +157,17 @@ function Assert-Schema6NoRecovery($Binding) {
 function Assert-Schema6ClosedFiles($Binding) {
  Assert-Schema6NoRecovery $Binding
  $sidecars=@(Get-ChildItem -LiteralPath $Binding.Login.state_directory -File -Force -ErrorAction Stop|Where-Object {$_.Name -match '-(wal|shm|journal)$'})
- if($sidecars.Count -gt 0){throw 'database_sidecars_present'}
+ if(@($sidecars|Where-Object {$_.Name -match '^i-core\.sqlite-(wal|shm|journal)$'}).Count -gt 0){throw 'database_sidecars_present'}
+ if($sidecars.Count -gt 0){
+  [string[]]$names=@($sidecars|ForEach-Object {$_.Name})
+  [Array]::Sort($names,[StringComparer]::Ordinal)
+  Write-Schema6Step 'stop.closed_files_other_sidecars' $true ($names -join ',')
+ }
  $lockPath=Join-Path $Binding.Login.state_directory 'shortcut-mail-relay.runtime.lock'
  if(Test-Path -LiteralPath $lockPath){
   $null=Assert-Schema6PlainPath $lockPath
-  $probe=[IO.File]::Open($lockPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::None)
+  try {$probe=[IO.File]::Open($lockPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::None)}
+  catch [IO.IOException] {throw 'relay_lock_held'}
   $probe.Dispose()
  }
 }

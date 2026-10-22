@@ -26,7 +26,8 @@ test('R2 NoRollback legacy hash is identical for LF and CRLF checkouts',()=>{
   const checkout=source.replace(/\r?\n/g,ending);
   const restored=checkout.replace(/\r?\n/g,'\r\n').replaceAll(',[switch]$NoRollback','')
    .replace(';if($NoRollback){'+marker+'}','').replace(' if($NoRollback){'+marker+';return 2}\r\n','').replace(' -NoRollback:$NoRollback','');
-  assert.equal(createHash('sha256').update(restored).digest('hex'),'ecffd302a41f423f7109a4b66a0c27d7fd94385690d5d04d3d33aa23c0185510');
+  // 基线：A2 合同（PR #33）；还原规则与 R1 相同。
+  assert.equal(createHash('sha256').update(restored).digest('hex'),'9756d2c91c6d558ed78b234cfe7c0c76d7e9bb354f5405f79d9f95c292cd0df9');
  }
 });
 

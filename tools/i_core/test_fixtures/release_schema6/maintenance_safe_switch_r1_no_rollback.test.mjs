@@ -17,9 +17,9 @@ test('R1 NoRollback leaves the legacy switch implementation byte-for-byte intact
   .replace(';if($NoRollback){'+marker+'}','')
   .replace(' if($NoRollback){'+marker+';return 2}\r\n','')
   .replace(' -NoRollback:$NoRollback','');
- // Exact BOM + CRLF source at contract baseline 69d9eb0d.
+ // Exact BOM + CRLF source; 基线：A2 合同（PR #33）
  assert.equal(createHash('sha256').update(restored).digest('hex'),
-  'ecffd302a41f423f7109a4b66a0c27d7fd94385690d5d04d3d33aa23c0185510');
+  '9756d2c91c6d558ed78b234cfe7c0c76d7e9bb354f5405f79d9f95c292cd0df9');
  assert.equal(script.match(/\[switch\]\$NoRollback/g)?.length,2,'CLI and function expose the switch');
  assert.match(script,/-DryRun:\$DryRun -NoRollback:\$NoRollback\r?\n/,'CLI forwards the switch');
  assert.ok(script.indexOf('if($NoRollback){'+marker+';return 2}')<script.indexOf("'rollback.stop_new'"));
