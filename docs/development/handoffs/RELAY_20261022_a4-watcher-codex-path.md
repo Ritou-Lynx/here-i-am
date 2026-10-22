@@ -59,3 +59,10 @@
 - 已在云端复跑 `node --test tools/agent_relay/relay_watcher.test.mjs tools/agent_relay/relay_core.test.mjs`：62 项全部通过。
 - 合同修订：Codex 只读核对后发现，本机的 codex 目录名是 16 位十六进制散列（`^[0-9a-f]{16}$`），按名字中的数字段排序选不出最新版本。选择规则改为“取 exe 修改时间最新的那个”，第 2 轮实现。
 - 其余各项（领取评论前解析、路径校验、`result.json` 元数据、headless 安装、`-ShowAction`、`-CodexPath` 提示）对照合同核对通过。
+
+### 第 2 轮（10-22）：通过
+- 提交 `3669362`：`codexSearch` 先校验候选，再按 exe 修改时间取最新的，时间相同时按目录名取字典序最大的；删除了 `compareVersions`。配置示例改为散列目录的写法。
+- 新增散列目录、无效候选回退、同时间结果确定三项测试。云端复跑 relay_watcher + relay_core，67/67 通过。
+- Codex 本机只读核对：选中的目录与正在运行的 codex 一致。
+- #35 第一次 push CI 中 `Flutter full suite (Linux)` 有一项白板 UI 测试失败（`_pumpUntilGone` 超时）。同一提交的 pull_request CI 中该 job 通过；本 PR 没有改 Dart 代码，判为偶发。
+- 结论：完成标准全部达标，可以合并。合并后的本机迁移见“需要真人的部分”。
