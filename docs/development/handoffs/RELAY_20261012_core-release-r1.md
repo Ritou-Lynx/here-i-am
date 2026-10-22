@@ -469,3 +469,12 @@
   2. 用库函数复核状态树为 `873c6c06`，不符就停，不启动。
   3. 记录已有的 session 目录后 Start P′，用 switch-login-task.ps1 中的 `Wait-Schema6LoginReady`（dot-source）等待 ready。
   4. 按 D.7–D.11 核对，含公网 OAuth discovery。
+- 恢复执行（10-22）：**服务已恢复。**
+  - 三份文件按备份还原，哈希一致。主库 ACL 不变；新建的 -wal、-shm 继承 STATE 的 ACL，只有本人、SYSTEM、Administrators。
+  - 状态树 `873c6c06`、db `82d55176` 复核通过。
+  - 14:46:58 Start P′，14:47:47 Wait-Schema6LoginReady 返回 ready。总停服 4 天 15 小时 17 分 51 秒（从 10-17 23:29:57 起算）。
+  - D 段：Core 与 MCP 都在运行，来源为新包，端口归属正确；ready 和 mcp-start 回执 manifest 为 `4e003c0b`；marker 为 listening（`4e003c0b`/`f5c3318d`）；无 pending；公网 OAuth discovery 返回 200。
+  - 唯一未过的是 D.7：COM 实例数为 0，预期 1。但 State=Running，进程与端口都核对通过，判为观测口径问题，不阻塞。第 8 步前用 schtasks 和 Get-ScheduledTaskInfo 交叉核对。
+- 第 8 步预告：
+  - 重启会话时，`stop-schema6-session.ps1` 会在会话已经干净关闭之后，因 shortcut-mail sidecar 在 `stop.closed_files` 报 `database_sidecars_present`。前面的 `stop.receipts` 通过即视为干净关闭，这一失败属于预期。
+  - 新的 marker 由 Core 关闭时写入，其状态树包含 sidecar，所以下次启动闸门能通过。
