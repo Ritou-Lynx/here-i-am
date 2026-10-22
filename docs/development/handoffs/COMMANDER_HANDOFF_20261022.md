@@ -10,7 +10,7 @@
 
 ## 现状
 - 生产：schema6 Core 已上线（D1b，10-22 完成）。现役登录任务为 P′（`HereIAm-iCoreSchema6-d1a-mcp-20261013-6a063386`），旧任务和 P 停用保留。claude_web 和 chatgpt_web 都已配对，真人验收通过。全过程见 `RELAY_20261012_core-release-r1.md` 的“D1b 执行记录”。
-- relay watcher：10-22 已恢复（Enabled），VBS PATH 指向当前 codex 目录。Codex 更新后路径会再次失效（见 A4）。
+- relay watcher：10-23 已按 A4 迁移。计划任务改为 `conhost --headless` 启动，codex 由配置里的 `codexSearch` 每轮查找（取 exe 修改时间最新的），Codex 更新后不需要重新注册。旧 VBS 已删除，备份留在本机 STATE 的 migration-a4 目录。
 - 运维注意：STATE 中有旧 shortcut-mail 日志库的 -wal/-shm。stop 最后一步会报 `database_sidecars_present`，只要 `stop.receipts` 已通过，就说明会话已干净关闭。不要绕过闸门去改 STATE 内的文件（教训：第 7 步做了 checkpoint，状态树指纹随之改变，导致启动被拒）。注销前先手动停服。
 
 ## 计划（按顺序）
@@ -33,5 +33,5 @@
 |---|---|---|
 | PR #32（文档合入） | 已合并 | — |
 | A1+A2 | PR #33 已合并（10-22） | 生产换用新工具副本由用户决定 |
-| A4 | PR #34 只合入了合同；代码在 PR #35，审核通过、待用户合并 | 合并后迁移本机 watcher 任务（手动），然后开 A3 |
-| A3 | 合同草稿已获用户确认，排在 A4 之后 | A4 合并后开 relay PR |
+| A4 | PR #34（合同）与 #35（代码）都已合并；本机 watcher 已迁移，手动触发一次结果为 0 | — |
+| A3 | 合同 `RELAY_20261022_a3-error-codes-backup-acl.md`，relay PR 第 1 轮 | 审核；合并后生产换用新工具副本由用户决定 |
