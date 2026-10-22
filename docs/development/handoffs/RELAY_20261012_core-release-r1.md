@@ -443,3 +443,13 @@
   - 现网主库 `2fb9e76b`（4096 字节）→ `9a9e18af`（20480 字节），与演练结果一致，ACL 不变。
   - STATE 顶层 sidecar 为 0；i-core `82d55176` 与 marker `a91b97e1` 未变；三个任务仍为 Disabled、实例数 0。
 - 下一步：原样重跑第 7 步（DryRun 后 `-NoRollback` 实切，不传 `-PublicHealthUrl`）。
+- 第 7 步重跑（10-22）：DryRun 退出码 0。实切依次通过 preflight、stop_old、disable_old、enable_new、start_new，之后 `switch.ready_new` 抛出 `session_host_window_mismatch`，退出码 2，没有回退。
+- 失败后现场：
+  - P′ 为 **Enabled**、Ready，实例数 0；旧任务和 P 都是 Disabled。
+  - 没有 Core/MCP 进程；marker 仍为 `a91b97e1`（clean_closed），说明新 Core 没有进入 listening。
+  - 无 sidecar，也无 recovery pending。
+- 审核判断：
+  - 该错误来自 `Schema6MaintenanceHost.Open` 的窗口校验：hwnd 所属线程或进程与记录不符，或窗口不是顶层窗口，或窗口可见。这说明新会话宿主写了 session-window.json 后，在 ready 检查时窗口已经失效。最可能是宿主正在退出或已经退出，因为现在实例数为 0。
+  - `Get-Schema6LiveSessions` 碰到这种情况直接抛错，不返回 null，因此 ready 等待直接中止，看不到真正的退出原因。这一点列入后续改进项。
+  - P′ 处于 Enabled，下次登录会自动再试一次。排查结束前用户不要注销或重启。
+- 下一步：只读收集新会话目录下的回执（session-window、session-exit、session-phase-*、control-* 下各 json、日志）、P′ 的 LastTaskResult 和计划任务事件，以确定宿主退出原因。
