@@ -460,3 +460,12 @@
   1. 用 `journal-backup-4dd18fa7` 按字节还原那三份文件，让状态树回到 `873c6c06`；
   2. P′ 已是 Enabled，旧任务已停，直接 Start P′，再手动做 ready 与 D.7–D.11 核对。不再走 switch 脚本，因为它的 stop_old 会再次被 sidecar 拦下。
   - 前提：只读核实“还原后的模拟状态树 = 873c6c06”，同时确认 marker 的其他字段（config、db、node_id、manifest）都能通过 validatePrevious。如果第 6 步的策略文件也在 STATE 内，还要一并评估。
+- 恢复前只读核实（10-22）：
+  - 当前状态树为 `d284dcca`。模拟把三份文件按备份还原后为 `873c6c06`，与 marker 完全一致。
+  - db `82d55176`、manifest `4e003c0b`、config `f5c3318d`、custody 格式、supervisor 四个字段、database_path 均满足 validatePrevious。
+  - 独立遍历与库函数结果一致。
+- 恢复方案（需用户同意）：
+  1. 主库按字节原地覆盖，保留 ACL；`-wal`、`-shm` 从备份新建。
+  2. 用库函数复核状态树为 `873c6c06`，不符就停，不启动。
+  3. 记录已有的 session 目录后 Start P′，用 switch-login-task.ps1 中的 `Wait-Schema6LoginReady`（dot-source）等待 ready。
+  4. 按 D.7–D.11 核对，含公网 OAuth discovery。
