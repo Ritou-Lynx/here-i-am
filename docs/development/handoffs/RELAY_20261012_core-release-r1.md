@@ -453,3 +453,10 @@
   - `Get-Schema6LiveSessions` 碰到这种情况直接抛错，不返回 null，因此 ready 等待直接中止，看不到真正的退出原因。这一点列入后续改进项。
   - P′ 处于 Enabled，下次登录会自动再试一次。排查结束前用户不要注销或重启。
 - 下一步：只读收集新会话目录下的回执（session-window、session-exit、session-phase-*、control-* 下各 json、日志）、P′ 的 LastTaskResult 和计划任务事件，以确定宿主退出原因。
+- 只读排查结果（10-22）：P′ 在 13:26:50 启动，会话宿主 PID 9300 于 13:27:17 写入 session-window。13:27:35，Core 子进程报出 `rejected_before_store / error_code=recovery_required`，退出码 1，没有尝试构造 store。宿主随后进入 `session_start_gate_failed` 正常收尾（无强制、无超时）并退出。`session_host_window_mismatch` 是 ready 检查碰上宿主正在退出时抛出的，只是表象。
+- 根因（审核判断）：`common.mjs` 的 `validatePrevious` 要求 `marker.state_tree_sha256 === stateDigest(STATE)`。`closedStateSnapshot` 会遍历 STATE 下全部文件（只排除 marker 和 relay lock），并对每个文件取哈希。上一轮的 checkpoint 改了 `shortcut-mail-journal.sqlite`，删掉了 `-wal/-shm`，状态树指纹因此与 marker 的 `873c6c06` 不符，启动闸门判为 recovery_required。**这是我在处置方案里漏掉的影响，责任在审核方。**
+- 由此引出一个设计矛盾：维护脚本 `stop.closed_files` 不允许 STATE 顶层存在任何 sidecar，而启动闸门不允许 STATE 有任何改动。旧系统带着这两份 sidecar 运行了一个多月，一直能正常启动，到 D1b 才两头冲突。列入后续改进项。
+- 候选恢复路径（待只读核实后再申请同意）：
+  1. 用 `journal-backup-4dd18fa7` 按字节还原那三份文件，让状态树回到 `873c6c06`；
+  2. P′ 已是 Enabled，旧任务已停，直接 Start P′，再手动做 ready 与 D.7–D.11 核对。不再走 switch 脚本，因为它的 stop_old 会再次被 sidecar 拦下。
+  - 前提：只读核实“还原后的模拟状态树 = 873c6c06”，同时确认 marker 的其他字段（config、db、node_id、manifest）都能通过 validatePrevious。如果第 6 步的策略文件也在 STATE 内，还要一并评估。
