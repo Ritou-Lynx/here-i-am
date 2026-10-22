@@ -420,3 +420,18 @@
   - 这一步还没改动任何任务。只要 sidecar 能安全消除，就可以原样重跑第 7 步，不需要反向换包。脚本输出的“需要反向换包”是 `-NoRollback` 的通用提示。
   - 有内容的 `-wal` 可能含有未 checkpoint 的已提交事务，不能直接删除。
 - 下一步：只读排查 sidecar 的文件名、大小、时间、是否被占用，并与各步时间线对照。处置方案另行审批。
+- 只读排查结果（10-22）：
+  - 命中的是旧的 shortcut-mail 日志库，不是 `i-core.sqlite`。
+    - `shortcut-mail-journal.sqlite`：4096 字节，`2fb9e76b`，最后写入 08-30。
+    - `-wal`：86552 字节，`13a317e8`，magic `0x377f0682`，ckpt seq 0，最后写入 09-01。
+    - `-shm`：32768 字节，`1ccf132c`，最后写入 10-17 17:19。
+  - 两份 sidecar 均未被占用。创建时间是 08-30，早于停服和第 3–6 步，所以与 D1b 无关。
+- 审核判断：
+  - `shortcut_mail_relay.mjs` 打开数据库时设置 `journal_mode=WAL`。主库只有一页，说明数据基本都在没有 checkpoint 的 WAL 里，最后一个连接没有正常关闭，WAL 才残留下来。所以绝不能删除。
+  - D1a 的 close 和第 3 步换包时报的“无 sidecar”只检查了 `i-core.sqlite`。stop 的 `closed_files` 会扫描 STATE 顶层全部文件，所以到这里才被拦下。
+- 处置方案（需用户同意）：
+  1. 先把三份文件备份到 `<OUT>` 下的受保护目录。
+  2. 在副本上演练：用 Core 同版本的 node:sqlite 做 `wal_checkpoint(TRUNCATE)` 并正常关闭。
+  3. 演练通过条件：integrity 为 ok，各表行数前后一致，sidecar 消失。通过后才对现网文件做同样操作。
+  4. 完成后复核 STATE 顶层无 sidecar，再原样重跑第 7 步。
+- 后续改进项：stop/close 的 sidecar 检查范围应该统一；shortcut-mail relay 关闭时应确认 WAL 已 checkpoint。
