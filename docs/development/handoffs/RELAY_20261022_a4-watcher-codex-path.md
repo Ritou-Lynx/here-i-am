@@ -13,7 +13,7 @@
 **解析 codex：`relay_watcher.mjs`**
 - [ ] 配置新增两个可选字段（`validateConfig` 校验，`relay.config.example.json` 补示例，示例中用占位路径）：
   - `codexPath`：codex 可执行文件的绝对路径。
-  - `codexSearch`：`{ "root": <绝对目录>, "dirPattern": <锚定正则字符串>, "relativeExe": <相对路径> }`。在 `root` 下列出名字匹配 `dirPattern` 的目录（不递归），按名字中的数字段做版本序降序，取第一个 `root/<dir>/<relativeExe>` 存在且是普通文件的。
+  - `codexSearch`：`{ "root": <绝对目录>, "dirPattern": <锚定正则字符串>, "relativeExe": <相对路径> }`。在 `root` 下列出名字匹配 `dirPattern` 的目录（不递归），在 `root/<dir>/<relativeExe>` 通过校验的候选中，取 exe 修改时间最新的一个；时间相同时按目录名排序，保证结果确定（第 1 轮审核后修订，见文末）。
 - [ ] 解析顺序：`codexSearch` → `codexPath` → PATH 上的 `codex`（保持现有行为）。前两者找到的结果必须是绝对路径、普通文件、不是符号链接或目录联接、不在 `repoPath` 或 `worktreeRoot` 内；Windows 上扩展名必须是 `.exe`（`shell:false` 无法直接运行 `.cmd`）。不满足即视为未找到，不回退到下一种来源以外的位置。
 - [ ] 解析在领取评论之前完成（早于加 👀 反应和写 `in_progress` 回执）。都找不到时：不加反应、不写回执、不回帖，日志写一行 `codex_not_found`（不含路径），`runOnce` 返回 `{ status: 'codex-not-found' }`，`--once` 退出码非零。下一次轮询照常重试。
 - [ ] 找到后用解析出的绝对路径 spawn（仍是 `shell:false`），并在每轮 `result.json` 中记录 `codexSource`（`search`/`path`/`PATH`）和 codex 所在目录名（只写目录名，不写完整路径）。`--dry-run` 预览中的命令显示解析结果。
@@ -51,3 +51,11 @@
 ## 需要真人的部分
 - 合并由用户进行。
 - 合并后迁移本机任务（手动粘贴给 Codex，粘贴即同意）：主仓库拉到最新 v3-lab；在 `.state/config.json` 填 `codexSearch`；`-Remove` 旧任务后用新脚本注册；手动触发一次，确认 `task-last.log` 为“无待处理”且 LastTaskResult 为 0；确认后删除旧 VBS 启动器。
+
+## 审核记录
+
+### 第 1 轮（10-22）：返修
+- PR #34 在只有合同时就被合并了，代码没能合入。第 1 轮提交（`d1f916e`）已接到合并后的 v3-lab 上，在新 PR 中继续。
+- 已在云端复跑 `node --test tools/agent_relay/relay_watcher.test.mjs tools/agent_relay/relay_core.test.mjs`：62 项全部通过。
+- 合同修订：Codex 只读核对后发现，本机的 codex 目录名是 16 位十六进制散列（`^[0-9a-f]{16}$`），按名字中的数字段排序选不出最新版本。选择规则改为“取 exe 修改时间最新的那个”，第 2 轮实现。
+- 其余各项（领取评论前解析、路径校验、`result.json` 元数据、headless 安装、`-ShowAction`、`-CodexPath` 提示）对照合同核对通过。
