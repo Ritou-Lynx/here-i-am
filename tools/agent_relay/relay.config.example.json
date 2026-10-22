@@ -5,6 +5,12 @@
   "allowedAuthors": ["Ritou-Lynx"],
   "repoPath": "C:\\source\\here-i-am",
   "worktreeRoot": "C:\\relay-worktrees",
+  "codexPath": "C:\\placeholder\\codex\\codex.exe",
+  "codexSearch": {
+    "root": "C:\\placeholder\\codex-packages",
+    "dirPattern": "^[0-9a-f]{16}$",
+    "relativeExe": "codex.exe"
+  },
   "maxRounds": 4,
   "codexTimeoutMinutes": 60,
   "codexArgs": ["--sandbox", "workspace-write"],

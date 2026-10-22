@@ -53,14 +53,13 @@
 
 在**本仓库目录**里启动 Codex，按顺序发下面两段。
 
-### 第一步：实现 watcher
+### 第一步：检查源码与工具
 
 ```text
-拉取分支 claude/wonderful-carson-a26i9d，读 tools/agent_relay/BUILD_BRIEF.md、PROTOCOL.md、CODEX_ROUND_PROMPT.md 和根目录 AGENTS.md。
-按 BUILD_BRIEF 在 tools/agent_relay/ 实现 watcher，零 npm 依赖，测试清单 12 项全部写成 node --test 用例。
-先运行 codex exec --help、gh --version，把 codex exec 的实际参数对齐到本机版本。
-完成后：node --test tools/agent_relay/ 全部通过；更新 docs/development/I_PROJECT_STATE.md 和 DEVLOG.md 顶部各一小段；提交并推送到同一分支（不 force）。
-把测试结果和本机 codex / gh / node 版本告诉我。
+确认运行 watcher 的主仓库已包含最新合并的 relay 实现，停在 v3-lab 或 detached HEAD，不占用 PR 分支。
+读根目录 AGENTS.md 和 tools/agent_relay/PROTOCOL.md、README.md。
+检查 node、gh、git 可用，核对 Codex 实际 exe 的安装布局；无需 npm install。
+运行 node --test tools/agent_relay/relay_watcher.test.mjs tools/agent_relay/relay_core.test.mjs。
 ```
 
 ### 第二步：本机配置和计划任务
@@ -70,9 +69,9 @@
 
 1. 确认 gh auth status 和 codex login status 都是当前用户已登录；没登录就停下告诉我怎么登。
 2. 用 gh 在 Ritou-Lynx/here-i-am 建三个标签（已存在就跳过）：agent-relay、relay-paused、relay-needs-human。
-3. 复制 tools/agent_relay/relay.config.example.json 为 tools/agent_relay/.state/config.json，填本机 repoPath 和仓库外的 worktreeRoot。
+3. 复制 tools/agent_relay/relay.config.example.json 为 tools/agent_relay/.state/config.json，填本机 repoPath 和仓库外的 worktreeRoot；按实际安装布局填写 codexSearch，或用 codexPath 指向实际 exe，删除不用的占位字段。
 4. 运行 node tools/agent_relay/relay_watcher.mjs --dry-run，贴输出。
-5. 用 install_relay_task.ps1 注册计划任务（当前用户、每 3 分钟），确认任务存在且上次运行结果为 0。
+5. 先用 install_relay_task.ps1 -ShowAction 只读预览，再注册计划任务（当前用户、每 3 分钟、conhost headless）；手动触发一次，核对 task-last.log 和实际 LastTaskResult。
 6. 告诉我已经可以冒烟了。
 ```
 
@@ -106,6 +105,10 @@ node tools/agent_relay/relay_watcher.mjs --loop --config tools/agent_relay/.stat
 
 `--once` 是默认模式。`--loop` 使用 `pollSeconds`（默认 180）。`--dry-run` 只做读取和打印：没有本机配置时用当前仓库及默认白名单查询 PR，不创建配置、锁、日志或 state，不加反应、不运行 Codex、不推送和回帖。安装前应核对 `allowedAuthors`。
 
+每次发现待处理评论后，watcher 在领取之前按 `codexSearch` → `codexPath` → PATH 解析 Codex，并用解析出的绝对路径启动。`codexSearch` 只列出 `root` 的直接子目录，`dirPattern` 必须以 `^` 开头、以 `$` 结尾；先校验每个候选，再用 `lstat` 读取通过校验的 exe 修改时间，选取 `mtimeMs` 最大的文件，时间相同时按目录名字典序取最大的。`relativeExe` 是不含 `..` 的相对路径。示例以 `^[0-9a-f]{16}$` 匹配散列目录，目录内为 `codex.exe`；路径仍是占位，须按实际安装布局替换或删除不用的字段。
+
+`codexSearch` 和 `codexPath` 的候选必须为普通文件；文件及父目录中的符号链接或目录联接、主仓库和 worktreeRoot 内的路径都会被拒绝。PATH 保持通常的可执行文件查找行为。Windows 只接受 `.exe`，不能填 `.cmd`/`.ps1` shim。都找不到时只记录 `codex_not_found`，返回 `codex-not-found`：不领取、不计轮数、不回帖，下一次轮询重试；`--once` 和 dry-run 对该状态返回非零。dry-run 命令预览显示实际解析路径。每轮本机 `result.json` 记录 `codexSource`（`search`/`path`/`PATH`）和 `codexDir`（仅 exe 所在目录名）。
+
 ### 本机实际版本
 
 2026-10-07 核对：
@@ -136,15 +139,28 @@ codex exec --cd <PR-worktree> --sandbox workspace-write --json --output-last-mes
 
 ### Windows 计划任务脚本
 
-`install_relay_task.ps1` 默认注册当前用户的 Interactive/Limited 任务，每 3 分钟 `--once`，登录后执行，重叠触发忽略；无需保存密码或管理员运行级别。可用 `-NodePath`、`-GhPath`、`-CodexPath` 指定稳定的可执行文件；脚本把这些工具目录加入任务自身的 PATH，避免计划任务缺少终端 PATH。已有同名任务不会被覆盖；`-Remove` 只移除该任务，`-WhatIf` 可预览注册动作。Codex 程序路径随桌面应用更新变化时，应移除并重新注册以刷新路径。已显式传入 gh/Codex 实际 exe 路径注册本机任务，确认 Interactive/Limited、PT3M、真实运行结束且结果为 0；任务日志已固定 UTF-8 的外部程序解码，中文输出正常。注册默认值不作为运行证据。
+`install_relay_task.ps1` 默认注册当前用户的 Interactive/Limited 任务，每 3 分钟 `--once`，登录后执行，重叠触发忽略；无需保存密码或管理员运行级别。Action 为 `%SystemRoot%\System32\conhost.exe --headless <powershell.exe> -NoProfile -NonInteractive -EncodedCommand ...`，缺少 conhost 时直接报错。可用 `-NodePath`、`-GhPath` 指定可执行文件；node、gh、git 的目录加入任务 PATH，继承 PATH 中含 `codex.exe` 的目录会被剔除。注册时不要求 Codex 存在；`-CodexPath` 已移除，传入会提示使用配置里的 `codexPath`/`codexSearch`。
+
+`-ShowAction` 仅打印 Execute 和解码后的命令，不注册、不创建配置或日志，也不访问现役任务；尚未创建配置时同样可预览。已有同名任务仍拒绝覆盖，须先 `-Remove`；`-WhatIf` 保留注册/删除预览。脚本保存为带 BOM 的 UTF-8，以便 Windows PowerShell 5.1 正确读取中文。任务日志固定 UTF-8 解码，注册默认 LastTaskResult 不作为运行证据。
 
 ```powershell
+powershell -NoProfile -File tools/agent_relay/install_relay_task.ps1 -ShowAction
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/agent_relay/install_relay_task.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/agent_relay/install_relay_task.ps1 -Remove
 ```
+
+### 更新与旧 VBS 方式迁移（合并后，经用户授权执行）
+
+1. 主仓库拉到最新 `v3-lab`；更新运行目录才会使用新的 watcher。
+2. 在现有 `.state/config.json` 填写实际 `codexSearch`，保留原 state、回执和日志。候选按 exe 修改时间选取，支持散列目录名；时间相同时按目录名字典序取最大的。用 dry-run 核对选中结果。
+3. 用 `-ShowAction` 核对 headless 命令。用 `-Remove` 删除旧任务，再用新脚本注册，直接由 conhost 包装 PowerShell，无需 VBS。
+4. 手动触发一次，确认 `task-last.log` 为“无待处理”，且这次运行的 `LastTaskResult` 为 0。
+5. 确认后删除旧 VBS 启动器。以上是迁移步骤，源码测试或 ShowAction 通过不代表现役任务已迁移。
+
+后续 Codex 更新由每轮解析处理；只要搜索目录布局仍符合配置，就无需重新注册任务。
 
 ### 新提交职责（2026-10-07，8877a50 规格）
 
 Codex 只实现和验证，不提交；最后消息增加 `COMMIT: 一行中文提交信息`。watcher 在确认原分支与起始历史、且 Codex 成功并给出最后消息后，执行 `git add -A`，然后用 COMMIT 内容及 `relay: PR #<n> 第 N 轮` 两段信息提交，设置 `SKIP_PROJECT_STATE=1`。COMMIT 缺失、空白或为“无”时默认 `relay: 第 N 轮`。提交失败返回 failed、附工作区状态且不推送；移除 dirty 结果状态。Codex 已自行提交的兼容路径仍保留。原本就存在的脏工作区继续拒绝执行，避免提交其他人的改动。
 
-48 项离线测试覆盖提交信息与默认值、blocked 的部分改动、暂存/提交 hook 失败、无改动、Codex 自行提交及既有恢复保护。`--once` 的 failed / cleanup-blocked 返回非零，计划任务 action 对程序启动错误也返回非零，输出保存在忽略目录 `.state/logs/task-last.log`，不以注册时的默认 LastTaskResult 当作执行证据。
+离线测试覆盖提交信息与默认值、blocked 的部分改动、暂存/提交 hook 失败、无改动、Codex 自行提交、既有恢复保护及 Codex 路径解析。`--once` 的 failed / cleanup-blocked / codex-not-found 返回非零，计划任务 action 对程序启动错误也返回非零，输出保存在忽略目录 `.state/logs/task-last.log`，不以注册时的默认 LastTaskResult 当作执行证据。

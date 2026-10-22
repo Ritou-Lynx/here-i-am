@@ -1,3 +1,12 @@
+## 2026-10-22 A4：relay watcher 自己解析 codex 路径，安装脚本直接注册 headless 任务（PR #35）
+
+- 合同 docs/development/handoffs/RELAY_20261022_a4-watcher-codex-path.md，经 relay 由 Codex 实现（第 1 轮在 #34，#34 合并时只带了合同，代码在 #35 续做），云端审核。
+- watcher：新增可选配置 `codexSearch`（root/dirPattern/relativeExe）和 `codexPath`，查找顺序为 search → path → PATH。候选必须是普通文件、不是链接、不在主仓库或 worktree 下，Windows 上必须是 .exe；`codexSearch` 在候选中取 exe 修改时间最新的（本机 codex 目录名是散列）。
+- 解析在领取评论之前完成；找不到时返回 `codex-not-found`，不加反应、不回帖、不改 state，下次轮询重试，不再浪费一轮。`result.json` 记录 `codexSource`/`codexDir`。
+- 安装脚本：Action 改为 `conhost.exe --headless powershell ...`，不再把 codex 目录写进 PATH；移除 `-CodexPath`（传入时报错并提示改法）；新增只读 `-ShowAction`。
+- 云端复跑 relay_watcher + relay_core 测试，67/67 通过；Codex 本机只读确认选中的是正在使用的 codex 目录。
+- 未迁移：本机计划任务仍为旧 VBS 方式，合并后由用户手动迁移（见合同“需要真人的部分”）。
+
 ## 2026-10-22 A1+A2：stop 的 sidecar 规则与启动闸门统一，ready 失败报真实原因（PR #33）
 
 - 合同 docs/development/handoffs/RELAY_20261022_a1a2-closed-files-ready.md，经 relay 由 Codex 实现，云端审核。
