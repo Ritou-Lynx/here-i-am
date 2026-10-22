@@ -196,5 +196,5 @@ public sealed class ApprovedSessionCloseLease:IDisposable {
  $out=[IO.File]::Open($c.outputPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
  try{$out.Write($bytes,0,$bytes.Length);$out.Flush($true)}finally{$out.Dispose()}
  $report|ConvertTo-Json -Depth 6 -Compress
-}catch{[Console]::Error.WriteLine('approved_session_close_rejected');exit 2}
+}catch{$code=$_.Exception.Message;if($code -cnotmatch '\A[a-z0-9_]{1,64}\z'){$code='unclassified'};[Console]::Error.WriteLine('approved_session_close_rejected:'+$code);exit 2}
 finally{if($hostLease){$hostLease.Dispose()};if($imageLease){$imageLease.lease.Dispose()};foreach($h in $handles){$h.Dispose()}}

@@ -2,6 +2,7 @@
 // operations, service changes, XML fabrication or production activation.
 import {existsSync,mkdirSync,readFileSync,writeFileSync,openSync,fsyncSync,closeSync} from 'node:fs';
 import path from 'node:path';
+import {execFileSync} from 'node:child_process';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {plainPath,sha256,verifyRelease} from '../release_schema6/package.mjs';
 import {backupFilePrimitives as f} from '../release_schema6/backup_bundle.mjs';
@@ -20,6 +21,16 @@ function writeNew(p,value){
  plainPath(p,{missing:true});const b=Buffer.from(JSON.stringify(value,null,2)+'\n');
  const fd=openSync(p,'wx',0o600);try{writeFileSync(fd,b);fsyncSync(fd);}finally{closeSync(fd);}
  f.safe(p);
+}
+function protectBackupFile(p){
+ if(process.platform!=='win32')return;
+ try{
+  const system=process.env.SystemRoot;
+  if(!system||!path.isAbsolute(system))throw new Error('windows_acl_unavailable');
+  const ps=path.join(system,'System32','WindowsPowerShell','v1.0','powershell.exe');
+  const script="$ErrorActionPreference='Stop';$p=[Console]::In.ReadToEnd();$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$acl=New-Object Security.AccessControl.FileSecurity;$acl.SetOwner($sid);$acl.SetAccessRuleProtection($true,$false);foreach($id in @($sid.Value,'S-1-5-18')){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]$id,'FullControl','Allow'))};Set-Acl -LiteralPath $p -AclObject $acl;$v=Get-Acl -LiteralPath $p;if(!$v.AreAccessRulesProtected -or $v.GetOwner([Security.Principal.SecurityIdentifier]).Value-ne $sid.Value){throw 'backup_acl_rejected'};$seen=@{};foreach($r in $v.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])){$id=$r.IdentityReference.Value;if($r.IsInherited -or $id-notin @($sid.Value,'S-1-5-18') -or $r.AccessControlType-ne 'Allow' -or $r.FileSystemRights-ne [Security.AccessControl.FileSystemRights]::FullControl){throw 'backup_acl_rejected'};$seen[$id]=$true};if(!$seen.ContainsKey($sid.Value)-or !$seen.ContainsKey('S-1-5-18')){throw 'backup_acl_rejected'}";
+  execFileSync(ps,['-NoProfile','-NonInteractive','-Command',script],{input:p,windowsHide:true,env:{SystemRoot:system,WINDIR:system},stdio:['pipe','pipe','pipe'],maxBuffer:65536});
+ }catch{fail('configuration_generation_backup_acl_rejected');}
 }
 function newDirectory(p){f.safe(path.dirname(p),true);plainPath(p,{missing:true});if(existsSync(p))fail('configuration_generation_fresh_output_required');mkdirSync(p);f.protect(p);f.safe(p,true);}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
@@ -80,6 +91,7 @@ export function generatePackageSwitchConfigurations(input){
  });
  f.validate(backup.specTemplate);
  writeNew(bp,backup);
+ protectBackupFile(bp);
  l.release_directory=newReleaseDirectory;l.manifest_sha256=newManifestSha256;l.core_configuration_path=cp;l.core_configuration_sha256=hash(cp);l.backup_configuration_path=bp;l.backup_configuration_sha256=hash(bp);writeNew(lp,l);
  const coreChanges=changedKeys(originalCore,core),loginChanges=changedKeys(originalLogin,l);
  if(!same(coreChanges,['manifest_sha256'])||!same([...loginChanges].sort(),['release_directory','manifest_sha256','core_configuration_path','core_configuration_sha256','backup_configuration_path','backup_configuration_sha256'].sort()))fail('configuration_generation_policy_changed');
