@@ -137,16 +137,6 @@ export function validateConfig(input) {
   return config;
 }
 
-// Numeric segments are compared without Number precision loss; ties are deterministic.
-function compareVersions(a, b) {
-  const left = a.match(/\d+/g) ?? [], right = b.match(/\d+/g) ?? [];
-  for (let i = 0; i < Math.max(left.length, right.length); i++) {
-    const x = BigInt(left[i] ?? 0), y = BigInt(right[i] ?? 0);
-    if (x !== y) return x > y ? -1 : 1;
-  }
-  return a < b ? 1 : a > b ? -1 : 0;
-}
-
 export async function resolveCodex(config, { platform = process.platform, fs = nodeFs, env = process.env } = {}) {
   const inside = (root, file) => {
     const relative = path.relative(root, file);
@@ -185,11 +175,17 @@ export async function resolveCodex(config, { platform = process.platform, fs = n
   if (config.codexSearch) {
     const { root, dirPattern, relativeExe } = config.codexSearch;
     let directories = [];
-    try { directories = (await fs.readdir(root, { withFileTypes: true })).filter(entry => entry.isDirectory() && new RegExp(dirPattern).test(entry.name)).map(entry => entry.name).sort(compareVersions); } catch {}
+    try { directories = (await fs.readdir(root, { withFileTypes: true })).filter(entry => entry.isDirectory() && new RegExp(dirPattern).test(entry.name)).map(entry => entry.name); } catch {}
+    let selected;
     for (const directory of directories) {
       const found = await candidate(path.join(root, directory, relativeExe), 'search');
-      if (found) return found;
+      if (!found) continue;
+      try {
+        const { mtimeMs } = await fs.lstat(found.path);
+        if (!selected || mtimeMs > selected.mtimeMs || (mtimeMs === selected.mtimeMs && directory > selected.directory)) selected = { found, mtimeMs, directory };
+      } catch {}
     }
+    if (selected) return selected.found;
   }
   if (config.codexPath) {
     const found = await candidate(config.codexPath, 'path');

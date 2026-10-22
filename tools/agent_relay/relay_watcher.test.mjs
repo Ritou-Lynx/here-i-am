@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm, access, symlink, realpath, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, access, symlink, realpath, chmod, utimes } from 'node:fs/promises';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -555,12 +555,14 @@ async function fakeExe(file) {
 }
 const offline = { env: {} };
 
-test('codexSearch compares numeric segments and selects the highest version before codexPath and PATH', async t => {
+test('codexSearch selects the newest exe before codexPath and PATH regardless of version numbers', async t => {
   const f = await fixture(t);
   const root = path.join(f.root, 'packages');
   f.config.codexSearch = { root, dirPattern: '^Codex_[0-9.]+$', relativeExe: 'bin/codex.exe' };
-  await fakeExe(path.join(root, 'Codex_2.9', 'bin', 'codex.exe'));
+  const older = await fakeExe(path.join(root, 'Codex_20.0', 'bin', 'codex.exe'));
   const expected = await fakeExe(path.join(root, 'Codex_2.10', 'bin', 'codex.exe'));
+  await utimes(older, NOW / 1000, NOW / 1000);
+  await utimes(expected, NOW / 1000 + 60, NOW / 1000 + 60);
   await fakeExe(path.join(root, 'Ignore_99', 'bin', 'codex.exe'));
   assert.deepEqual(await resolveCodex(f.config, { env: { PATH: path.dirname(f.config.codexPath) } }), { path: expected, codexSource: 'search', codexDir: 'bin' });
   assert.equal((await f.once()).status, 'done');
@@ -568,6 +570,51 @@ test('codexSearch compares numeric segments and selects the highest version befo
   const result = JSON.parse(await readFile(path.join(f.stateDir, 'logs', 'pr-71-round-1.result.json'), 'utf8'));
   assert.equal(result.codexSource, 'search');
   assert.equal(result.codexDir, 'bin');
+});
+
+test('codexSearch selects hash directories by exe mtime rather than directory name or mtime', async t => {
+  const f = await fixture(t);
+  const root = path.join(f.root, 'packages');
+  f.config.codexSearch = { root, dirPattern: '^[0-9a-f]{16}$', relativeExe: 'codex.exe' };
+  const older = await fakeExe(path.join(root, 'ffffffffffffffff', 'codex.exe'));
+  const expected = await fakeExe(path.join(root, '0123456789abcdef', 'codex.exe'));
+  await utimes(older, NOW / 1000, NOW / 1000);
+  await utimes(expected, NOW / 1000 + 60, NOW / 1000 + 60);
+  await utimes(path.dirname(older), NOW / 1000 + 120, NOW / 1000 + 120);
+  await utimes(path.dirname(expected), NOW / 1000, NOW / 1000);
+  assert.deepEqual(await resolveCodex(f.config, offline), { path: expected, codexSource: 'search', codexDir: '0123456789abcdef' });
+});
+
+test('codexSearch falls back to the next newest valid exe when the newest is missing or a symlink', async t => {
+  for (const invalid of ['missing', 'symlink']) await t.test(invalid, async t => {
+    const f = await fixture(t);
+    const root = path.join(f.root, 'packages');
+    f.config.codexSearch = { root, dirPattern: '^[0-9a-f]{16}$', relativeExe: 'codex.exe' };
+    const older = await fakeExe(path.join(root, 'ffffffffffffffff', 'codex.exe'));
+    const expected = await fakeExe(path.join(root, 'bbbbbbbbbbbbbbbb', 'codex.exe'));
+    const newest = await fakeExe(path.join(root, 'aaaaaaaaaaaaaaaa', 'codex.exe'));
+    await utimes(older, NOW / 1000, NOW / 1000);
+    await utimes(expected, NOW / 1000 + 60, NOW / 1000 + 60);
+    await utimes(newest, NOW / 1000 + 120, NOW / 1000 + 120);
+    if (invalid === 'missing') await rm(newest);
+    await utimes(path.dirname(newest), NOW / 1000 + 120, NOW / 1000 + 120);
+    // Simulate a file symlink without requiring Windows symlink privileges.
+    const candidateFs = invalid === 'symlink' ? { ...fs, lstat: async file => file === newest ? { isSymbolicLink: () => true } : fs.lstat(file) } : fs;
+    assert.equal((await resolveCodex(f.config, { ...offline, fs: candidateFs })).path, expected);
+  });
+});
+
+test('codexSearch breaks equal exe mtimes by greatest directory name regardless of listing order', async t => {
+  const f = await fixture(t);
+  const root = path.join(f.root, 'packages');
+  f.config.codexSearch = { root, dirPattern: '^[0-9a-f]{16}$', relativeExe: 'codex.exe' };
+  const smaller = await fakeExe(path.join(root, 'aaaaaaaaaaaaaaaa', 'codex.exe'));
+  const expected = await fakeExe(path.join(root, 'bbbbbbbbbbbbbbbb', 'codex.exe'));
+  await utimes(smaller, NOW / 1000, NOW / 1000);
+  await utimes(expected, NOW / 1000, NOW / 1000);
+  assert.equal((await resolveCodex(f.config, offline)).path, expected);
+  const reversedFs = { ...fs, readdir: async (...args) => (await fs.readdir(...args)).reverse() };
+  assert.equal((await resolveCodex(f.config, { ...offline, fs: reversedFs })).path, expected);
 });
 
 test('codexSearch skips missing executables and does not recurse or accept directory executables', async t => {

@@ -105,7 +105,7 @@ node tools/agent_relay/relay_watcher.mjs --loop --config tools/agent_relay/.stat
 
 `--once` 是默认模式。`--loop` 使用 `pollSeconds`（默认 180）。`--dry-run` 只做读取和打印：没有本机配置时用当前仓库及默认白名单查询 PR，不创建配置、锁、日志或 state，不加反应、不运行 Codex、不推送和回帖。安装前应核对 `allowedAuthors`。
 
-每次发现待处理评论后，watcher 在领取之前按 `codexSearch` → `codexPath` → PATH 解析 Codex，并用解析出的绝对路径启动。`codexSearch` 只列出 `root` 的直接子目录，`dirPattern` 必须以 `^` 开头、以 `$` 结尾；按目录名中的数字段逐段降序排列，跳过缺少 `relativeExe` 的版本。`relativeExe` 是不含 `..` 的相对路径。示例配置中的路径和目录模式都是占位，必须替换或删除。
+每次发现待处理评论后，watcher 在领取之前按 `codexSearch` → `codexPath` → PATH 解析 Codex，并用解析出的绝对路径启动。`codexSearch` 只列出 `root` 的直接子目录，`dirPattern` 必须以 `^` 开头、以 `$` 结尾；先校验每个候选，再用 `lstat` 读取通过校验的 exe 修改时间，选取 `mtimeMs` 最大的文件，时间相同时按目录名字典序取最大的。`relativeExe` 是不含 `..` 的相对路径。示例以 `^[0-9a-f]{16}$` 匹配散列目录，目录内为 `codex.exe`；路径仍是占位，须按实际安装布局替换或删除不用的字段。
 
 `codexSearch` 和 `codexPath` 的候选必须为普通文件；文件及父目录中的符号链接或目录联接、主仓库和 worktreeRoot 内的路径都会被拒绝。PATH 保持通常的可执行文件查找行为。Windows 只接受 `.exe`，不能填 `.cmd`/`.ps1` shim。都找不到时只记录 `codex_not_found`，返回 `codex-not-found`：不领取、不计轮数、不回帖，下一次轮询重试；`--once` 和 dry-run 对该状态返回非零。dry-run 命令预览显示实际解析路径。每轮本机 `result.json` 记录 `codexSource`（`search`/`path`/`PATH`）和 `codexDir`（仅 exe 所在目录名）。
 
@@ -152,7 +152,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/agent_relay/install_re
 ### 更新与旧 VBS 方式迁移（合并后，经用户授权执行）
 
 1. 主仓库拉到最新 `v3-lab`；更新运行目录才会使用新的 watcher。
-2. 在现有 `.state/config.json` 填写实际 `codexSearch`，保留原 state、回执和日志。目录按数字段排序，并非按安装时间；若安装目录是散列名而非版本号，应核对选中结果，必要时改用 `codexPath`。
+2. 在现有 `.state/config.json` 填写实际 `codexSearch`，保留原 state、回执和日志。候选按 exe 修改时间选取，支持散列目录名；时间相同时按目录名字典序取最大的。用 dry-run 核对选中结果。
 3. 用 `-ShowAction` 核对 headless 命令。用 `-Remove` 删除旧任务，再用新脚本注册，直接由 conhost 包装 PowerShell，无需 VBS。
 4. 手动触发一次，确认 `task-last.log` 为“无待处理”，且这次运行的 `LastTaskResult` 为 0。
 5. 确认后删除旧 VBS 启动器。以上是迁移步骤，源码测试或 ShowAction 通过不代表现役任务已迁移。

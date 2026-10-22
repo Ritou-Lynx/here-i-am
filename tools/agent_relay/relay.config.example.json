@@ -8,8 +8,8 @@
   "codexPath": "C:\\placeholder\\codex\\codex.exe",
   "codexSearch": {
     "root": "C:\\placeholder\\codex-packages",
-    "dirPattern": "^OpenAI\\.Codex_[0-9.]+_x64__example$",
-    "relativeExe": "app/resources/codex.exe"
+    "dirPattern": "^[0-9a-f]{16}$",
+    "relativeExe": "codex.exe"
   },
   "maxRounds": 4,
   "codexTimeoutMinutes": 60,
