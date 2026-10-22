@@ -478,3 +478,10 @@
 - 第 8 步预告：
   - 重启会话时，`stop-schema6-session.ps1` 会在会话已经干净关闭之后，因 shortcut-mail sidecar 在 `stop.closed_files` 报 `database_sidecars_present`。前面的 `stop.receipts` 通过即视为干净关闭，这一失败属于预期。
   - 新的 marker 由 Core 关闭时写入，其状态树包含 sidecar，所以下次启动闸门能通过。
+- 第 8 步预检（10-22）：
+  - P′ 为 Running，schtasks 结果一致；LastTaskResult `0x00041301`（SCHED_S_TASK_RUNNING）；宿主 PID 43612，父进程为 svchost。D.7 的 COM 实例数为 0，确认为口径问题，结案。
+  - chatgpt_web 凭据不存在；claude_web 凭据 `34549aec`。
+  - Codex 因两条冲突停下，两条都是我的提示词写得过严：
+    1. 我要求配对码不得进入文件，但 `open-pairing-window.ps1` 的设计本来就把 `pair.code` 写进受保护的控制目录，由 Core 消费后删除，属于正常通道。
+    2. MCP 的 state-dir 来自配置注入的环境变量，core-url 由宿主注入（127.0.0.1:47841，与 login core_port 一致），所以命令行里本来就没有这两项。
+  - 裁定：两条都放行。pair-core 显式传入按配置核实的 `--state-dir` 和 `--core-url`。
