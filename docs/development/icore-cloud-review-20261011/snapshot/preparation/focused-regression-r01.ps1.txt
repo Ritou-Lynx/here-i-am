@@ -1,0 +1,29 @@
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2;$env:PSModulePath=Join-Path $PSHOME 'Modules'
+$q='C:\ReviewFixture\candidate';$e=Join-Path $q 'evidence\production-readiness-r01';$dir=Join-Path $q 'principal-sid-fix-r01';$owner='S-1-5-21-111111111-222222222-333333333-1001';$h=Join-Path $q 'maintenance-source-r02\tools\i_core\maintenance\owned_artifacts.ps1'
+function Hash($p){(Get-FileHash $p).Hash.ToLowerInvariant()}
+if((Hash $h)-cne'f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c'){throw 'helper_pin'}
+. $h
+Assert-OwnedArtifactUnelevatedProcess $owner
+$candidate=Join-Path $dir 'continuous-activation.ps1';if((Hash $candidate)-cne'7e59927cd4914e06c2aff7a14f5f857c7dd45928958abd382bbaa39ea160aaf7'){throw 'candidate_pin'}
+$binding=Join-Path $e 'evidence-contract\production-config-r01\binding.json';if((Hash $binding)-cne'1d43e25cec55e1d406e2976a174d0a4dff55a215a6df8b621a530e99dae564f1'){throw 'binding_pin'}
+$b=Get-Content -Raw $binding|ConvertFrom-Json;$ref=@($b.artifacts|Where-Object{$_.id-ceq'task_primitives'});if($ref.Count-ne1-or(Hash $ref[0].path)-cne$ref[0].sha256){throw 'primitives_pin'}
+$t=$null;$err=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($ref[0].path,[ref]$t,[ref]$err);$f=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-ceq'Convert-TaskSid'},$true));if($err.Count-or$f.Count-ne1){throw 'function_ast'}
+. ([scriptblock]::Create($f[0].Extent.Text))
+$ast=[Management.Automation.Language.Parser]::ParseFile($candidate,[ref]$t,[ref]$err);$if=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Extent.StartLineNumber-eq314},$true));if($err.Count-or$if.Count-ne1){throw 'condition_ast'}
+$condition=[scriptblock]::Create($if[0].Clauses[0].Item1.Extent.Text)
+function Make($id){[pscustomobject]@{Settings=[pscustomobject]@{Enabled=$false;Hidden=$false};Principal=[pscustomobject]@{UserId=$id;RunLevel=0;LogonType=3};Actions=[pscustomobject]@{Count=1}}}
+function Rejected($obj){$expected=$obj;[bool](& $condition)}
+$results=@();$service=$null;$task=$null
+try{
+ $xmlPath=Join-Path $e 'identity-p3\activation\00000000-0000-4000-8000-000000000001\expected-task-disabledDefinition.txt';if((Hash $xmlPath)-cne'ef6932ba08cd24873e3d440937080898fefc09a77e103084423bbf4bdd16fbd3'){throw 'definition_pin'}
+ $service=New-Object -ComObject Schedule.Service;$service.Connect();$task=$service.NewTask(0);$task.XmlText=[IO.File]::ReadAllText($xmlPath)
+ $sameCom=!(Rejected $task);$results+=@{case='actual_unregistered_com_same_sid';passed=$sameCom}
+ $results+=@{case='same_sid_text';passed=(!(Rejected (Make $owner)))}
+ $results+=@{case='different_sid';passed=(Rejected (Make 'S-1-5-18'))}
+ $badRejected=$false;try{$null=Rejected (Make 'S-1-invalid')}catch{$badRejected=$true};$results+=@{case='unparseable_identity';passed=$badRejected}
+ foreach($name in @('enabled','hidden','run_level','logon_type','action_count')){$x=Make $owner;switch($name){enabled{$x.Settings.Enabled=$true}hidden{$x.Settings.Hidden=$true}run_level{$x.Principal.RunLevel=1}logon_type{$x.Principal.LogonType=5}action_count{$x.Actions.Count=2}};$results+=@{case=$name+'_still_rejected';passed=(Rejected $x)}}
+}finally{foreach($c in @($task,$service)){if($null-ne$c-and[Runtime.InteropServices.Marshal]::IsComObject($c)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($c)}}}
+$passed=@($results|Where-Object{!$_.passed}).Count-eq0
+$result=@{format='r06-principal-sid-focused-regression-v1';utc=[DateTime]::UtcNow.ToString('o');candidateControllerSha256=(Hash $candidate);conditionExtractedFromOriginalLine=314;cases=$results;passed=$passed;taskMutationCalls=0;productionEntryInvoked=$false}
+$path=Join-Path $dir 'focused-regression-r01.json';Write-OwnedArtifactBytes $path ([Text.UTF8Encoding]::new($false).GetBytes(($result|ConvertTo-Json -Depth 8 -Compress))) $owner
+@{passed=$passed;cases=$results;receiptSha256=(Hash $path)}|ConvertTo-Json -Depth 8 -Compress

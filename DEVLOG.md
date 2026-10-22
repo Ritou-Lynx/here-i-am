@@ -1,3 +1,43 @@
+## 2026-10-22 D1b 完成：schema6 Core 换包上线，ChatGPT 与 Claude 分来源写入
+
+- 按主合同 docs/development/handoffs/RELAY_20261012_core-release-r1.md 第 0–9 步执行。现役任务为 P′（d1a-mcp），旧任务和 P 处于停用。
+- 停服从 10-17 23:29:57 起，到 10-22 14:47:47 恢复，共 4 天 15 小时 18 分。第 8 步为加载新凭据重启了一次，中断 44 秒。
+- 第 7 步曾两次失败：
+  - 第一次：维护脚本 stop 不允许 STATE 顶层存在任何 sidecar，旧 shortcut-mail 日志库 08-30 起残留的 -wal/-shm 被拦下。
+  - 第二次：对这个日志库做 checkpoint 后，状态树指纹与 marker 不符，启动闸门判为 recovery_required。
+  - 处理：从备份按字节还原这三份文件，状态树回到 873c6c06 后直接启动 P′。数据没有丢失。
+- 第 8 步为 chatgpt_web 配对，claude_web 凭据不变；读取策略加入了 chatgpt_web。
+- 第 9 步真人验收通过：ChatGPT 和 Claude 各写一轮，App 中分别显示来源。
+- 后续改进项：
+  - stop 的 sidecar 检查范围要与启动闸门统一；
+  - close/register 入口应透出内部错误码；
+  - ready 检查碰上宿主退出时，应返回 null，不能直接抛出 window_mismatch；
+  - shortcut-mail relay 关闭时要确认 checkpoint；
+  - relay watcher 应自行解析 codex 路径。
+- L（注销强杀复现）暂停；保留做法：注销前先手动停服。
+
+## 2026-10-11 iCore 阶段 A 接力合同（云端审核、Codex 执行）
+
+- 云端审查结论：失败主因是错误被通用 catch 吞掉、attempt 先于只读检查消耗、每次小修触发整条哈希/审批链重建；另有两项未排除 P0（ACL 规则自相矛盾、任务按预测字节比对且发生在包切换后）。
+- 新增合同 docs/development/handoffs/RELAY_20261011_icore-stage-a.md：A1 入库与错误可见、A2 先只读后消耗+干跑+先改任务再切包、A3 统一 ACL+语义比对+按实际读依赖生成前置；阶段 B–E 门槛。
+- Codex 轮次提示加止损：同一验证连续两次失败即 blocked；禁止生产入口、真实任务与新审批材料。
+- 生产切换仍暂停，原窗口自然过期，不发起第四次调用。用户已定：D1 允许 Administrators；D2 现在恢复旧服务供 Claude 使用：已只启用并运行 10-08 cleanclose 登录任务一次，Claude 调用成功、未见弹窗；ChatGPT 仍被来源/回调白名单拒绝，留到阶段 E。
+- A1 第 1 轮（PR #23）blocked：r08 改为私有覆盖层打包、清单 48→85 项。裁定恢复 git 打包、删除覆盖层、本机配置移出包，测试只调期望与夹具。
+- A1 第 3 轮仍 31 失败，其中 26 个源于 r08 把审批哈希写进登录/会话/备份运行时；改道：PR #23 不合并，A1b 只从 v3-lab 迁入 ChatGPT MCP 配置切换路径（云端 Linux 全量 0 失败），A2' 在 v3-lab 运行时上重写精简控制器。
+- A1b（PR #24）完成：10 文件与快照字节一致，17/17 检查通过；取代 #22。#21 ChatGPT 兼容复核通过。下一步本机只读诊断 10-09 chatgpt 任务失败与闪窗原因，再写 A2' 精简切换。
+- R1 只读诊断：chatgpt 与 cleanclose 任务只差 login.json；10-09 只跑过 1 次、6 分钟后干净关闭，否定“失败重启循环”推测；502 与服务未运行一致；闪窗候选改为每 3 分钟的 AgentRelay 任务（未证实）。下一步 S1：只启用 chatgpt 任务、注销再登录试运行，可同法回滚，不写代码。
+- S1 实测：注销强杀旧会话→登录时自动恢复因探针超时中断并锁存；确认 commitStarted=false 后移走锁存重跑，Core/MCP 起来，公网 200，ChatGPT 连接成功。注销不是安全停服，后续切换先正常关闭。
+- 三端互通、停 AgentRelay 后无闪窗；遗留 ChatGPT 写回标 claude_web。后续合同见 docs/development/handoffs/RELAY_20261011_safe-switch-frontend-id.md：A 安全停服+带回滚切换、B 按 OAuth 回调绑定写回身份、C 部署、D 收尾。
+
+## 2026-10-11 iCore 切换云端独立审查交接
+
+- 按用户授权发布独立审查分支，基于维护提交 d146c51a；不修改生产候选。
+- 整理三次入口失败、ACL/父目录/COM 身份阻塞、r08 离线证据与未验项。
+- 附 93 份脱敏程序快照、源码双哈希和云端审查任务；排除真实配置、数据库、凭据和原始回执。
+- 确认远端 v3-lab 已含 PR #20；源码合并不等于部署。生产 Run 仍为 0，继续暂停。
+- 入口：docs/development/icore-cloud-review-20261011/README.md。
+
+---
 ## 2026-10-09：ChatGPT MCP 兼容源码候选，未激活
 
 用户授权睡前继续无需真人的准备；从 v3-lab@3ce7aacc 隔离开发，严格开关、稳定精确回调、issuer 声明及受限 CORS，保留 Claude/B3 权限和幂等语义。旧只读令牌拒写提示改为中性客户端指引。

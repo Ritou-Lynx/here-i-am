@@ -1,0 +1,103 @@
+#requires -Version 5.1
+[CmdletBinding()]
+param([ValidateSet('Plan','Materialize')][string]$Mode='Plan',[string]$ConsentSha256,[string]$ReviewSha256)
+if($Mode-eq'Plan'){[ordered]@{format='r06-approval-materialization-plan-v1';mode='Plan';ioPerformed=$false;materialized=$false;taskApiCalls=0;networkCalls=0}|ConvertTo-Json -Compress;return}
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2
+$env:PSModulePath='C:\Windows\System32\WindowsPowerShell\v1.0\Modules'
+if($PSVersionTable.PSVersion.Major-ne5-or$PSVersionTable.PSEdition-cne'Desktop'){throw 'ps51_required'}
+$stage='C:\ReviewFixture\candidate'
+$eng=Join-Path $stage 'evidence\production-readiness-r01';$root=Join-Path $eng 'configuration-candidate-r01\r03'
+$future=Join-Path $root 'approved-runtime-r01';$bindingRoot=Join-Path $eng 'evidence-contract\production-config-r02'
+$owner='S-1-5-21-111111111-222222222-333333333-1001';$utf8=[Text.UTF8Encoding]::new($false,$true)
+$held=[Collections.Generic.List[IO.FileStream]]::new()
+function Hash([byte[]]$bytes){$h=[Security.Cryptography.SHA256]::Create();try{([BitConverter]::ToString($h.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose()}}
+function ReadHeld([string]$path,[string]$sha,[long]$size=-1){
+$f=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$held.Add($f)
+if($f.Length-gt1048576-or($size-ge0-and$f.Length-ne$size)){throw 'input_size'}
+$m=[IO.MemoryStream]::new();try{$f.CopyTo($m);$b=$m.ToArray()}finally{$m.Dispose()}
+if($sha-cnotmatch'^[a-f0-9]{64}$'-or(Hash $b)-cne$sha){throw 'input_hash'};return ,$b
+}
+function JB($v){return ,$utf8.GetBytes(($v|ConvertTo-Json -Depth 60 -Compress)+[char]10)}
+function Decode([byte[]]$b){$utf8.GetString($b)|ConvertFrom-Json}
+function Clone($v){Decode (JB $v)}
+function Eq($a,$b){if((Hash (JB $a))-cne(Hash (JB $b))){throw 'reverse_transform_changed_unapproved_fields'}}
+function Window{$now=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();if($now-lt1791647448771-or$now-ge1791733848771){throw 'approval_window_closed'}}
+function ReadRef($r){Decode (ReadHeld $r.path $r.sha256 $r.bytes)}
+function Item($b,[string]$id){$x=@($b.artifacts|Where-Object{$_.id-ceq$id});if($x.Count-ne1){throw 'artifact_id'};return $x[0]}
+function ArtifactJson($b,[string]$id){$a=Item $b $id;Decode (ReadHeld $a.path $a.sha256)}
+function NullSlots($b){
+foreach($n in @('bindingSha256','approvalSha256','p3ReceiptSha256','runLedgerSha256','identity')){if($b.policy.PSObject.Properties.Name-cnotcontains$n-or$null-ne$b.policy.$n){throw 'raw_dynamic_slot'}}
+if($null-ne$b.documents.approval.sha256){throw 'approval_dynamic_slot'}
+foreach($n in @('p3','ledger','frames','claim','returned','enabled')){if($b.documents.PSObject.Properties.Name-cnotcontains$n-or$null-ne$b.documents.$n){throw 'runtime_document'}}
+if($null-ne$b.p4Expected.bindingSha256-or$null-ne$b.p4Expected.identity-or$null-ne$b.runIdentity){throw 'runtime_identity'}
+}
+try{
+Window
+$helper=Join-Path $stage 'maintenance-source-r02\tools\i_core\maintenance\owned_artifacts.ps1'
+$null=ReadHeld $helper 'f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c'
+. $helper
+Assert-OwnedArtifactUnelevatedProcess $owner;Assert-OwnedArtifact $root $owner $true
+$selfBytes=[IO.File]::ReadAllBytes($PSCommandPath);$selfHash=Hash $selfBytes
+$null=ReadHeld $PSCommandPath $selfHash $selfBytes.Length
+$recipe=Decode (ReadHeld (Join-Path $root 'approval-transform.review-only.json') 'a8971e335d2aa527d1905eba55fccfd00f28a5d0d3f065d77ecb885acf59cd6c')
+$consent=Decode (ReadHeld (Join-Path $root 'direct-production-consent-r02.json') $ConsentSha256)
+$review=Decode (ReadHeld (Join-Path $stage 'evidence\r06-principal-sid-recovery-independent-review-r01.json') $ReviewSha256)
+if(!$review.reviewPassed-or!$review.preparationAccepted-or$review.materializerSha256-cne$selfHash-or$review.candidateBindingSha256-cne'ca2e204b7947a7897731d701f99e38515d759177cef495fc79d194cdd1acfd24'-or$review.candidateApprovalSha256-cne'6ebfb4168f6938f9c711145697deafd15bae2291771a64bce5a1255c9a373d3a'){throw 'new_candidate_review_binding'}
+if($consent.format-cne'r06-principal-sid-recovery-consent-v1'-or$consent.directHumanApproval-ne$true-or$consent.threadId-cne'01a1268e-f1ff-7193-b47a-7a4b95bf11a5'-or$consent.notBeforeUtcMs-ne1791647448771-or$consent.notAfterUtcMs-ne1791733848771-or$consent.windowRefreshAllowed-ne$false-or$consent.runBudget-ne1-or$consent.entryInvocationBudget-ne1-or$consent.productionAttemptId-cne'00000000-0000-4000-8000-000000000002'-or$consent.originalR06ScopeSha256-cne'e57448af1774fe6e86db4fb1aee63131741195cb7c236d05422a4ebfb92c0f4b'-or$consent.independentReviewSha256-cne$ReviewSha256-or$consent.materializerSha256-cne$selfHash-or$consent.launcherSha256-cne$review.launcherSha256-or$consent.recipeSha256-cne'a8971e335d2aa527d1905eba55fccfd00f28a5d0d3f065d77ecb885acf59cd6c'-or$consent.entryCallOrdinal-ne4-or$consent.priorEntryCalls-ne3){throw 'new_consent_binding'}
+$sourceTime=[DateTimeOffset]::Parse($consent.sourceTimestampUtc).ToUnixTimeMilliseconds()
+if($sourceTime-lt1791690000000-or$sourceTime-gt[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()-or$sourceTime-ge1791733848771-or[string]::IsNullOrWhiteSpace($consent.sourceMessageId)-or$consent.sourceRecordSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'new_consent_source'}
+$paths=@((Join-Path $future 'package-switch-plan.json'),(Join-Path $future 'package-switch-policy.json'),(Join-Path $future 'activation-policy.json'),(Join-Path $bindingRoot 'binding.json'),(Join-Path $future 'approval.json'),(Join-Path $bindingRoot 'approval.json'))
+if($recipe.targets.Count-ne5-or$recipe.approvalSecondTarget.path-cne$paths[5]-or!$recipe.approvalSecondTarget.identicalBytesRequired){throw 'recipe_targets'}
+for($i=0;$i-lt5;$i++){if($recipe.targets[$i].path-cne$paths[$i]){throw 'recipe_target_path'}}
+if($recipe.sourceBinding.path-cne(Join-Path $root 'binding.draft.json')-or$recipe.sourceApproval.path-cne(Join-Path $root 'approval.draft.json')){throw 'draft_path'}
+$b0=ReadRef $recipe.sourceBinding;$a0=ReadRef $recipe.sourceApproval
+if($b0.policy.attemptId-cne$consent.productionAttemptId-or$a0.attemptId-cne$consent.productionAttemptId-or$a0.planSha256-cne$b0.policy.planSha256-or$a0.approved-isnot[bool]-or$a0.approved-or$a0.directHumanApproval-isnot[bool]-or$a0.directHumanApproval-or$a0.runBudget-ne1){throw 'draft_authority'}
+foreach($v in @($b0.policy,$a0)){if($v.notBeforeUtcMs-ne1791647448771-or$v.notAfterUtcMs-ne1791733848771){throw 'draft_window_not_inherited'}}
+if($b0.artifacts.Count-ne117-or$b0.policy.inventory.Count-ne117-or@($b0.artifacts.id|Select-Object -Unique).Count-ne117){throw 'inventory_count'}
+foreach($x in $b0.artifacts){$row=@($b0.policy.inventory|Where-Object{$_.id-ceq$x.id});if($row.Count-ne1-or$row[0].sha256-cne$x.sha256-or$row[0].role-cne$x.role-or$row[0].maxBytes-ne$x.maxBytes){throw 'inventory_binding'}}
+NullSlots $b0
+$p0=ArtifactJson $b0 'package_switch_plan';$s0=ArtifactJson $b0 'package_switch_policy';$t0=ArtifactJson $b0 'activation_policy'
+if($p0.approved-isnot[bool]-or$p0.approved){throw 'switch_draft'}
+$launcher=Item $b0 'evidence_launcher';$lt=$utf8.GetString((ReadHeld $launcher.path $launcher.sha256))
+$tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput($lt,[ref]$tokens,[ref]$errors)
+$fns=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-ceq'ConvertTo-P4CanonicalJson'},$true))
+if($errors.Count-or$fns.Count-ne1){throw 'canonical_function'}
+. ([scriptblock]::Create($fns[0].Extent.Text))
+function InventoryHash($v){Hash ($utf8.GetBytes((ConvertTo-P4CanonicalJson $v)+[char]10))}
+if((InventoryHash $b0.policy.inventory)-cne$a0.inventorySha256){throw 'source_inventory_hash'}
+$p=Clone $p0;$p.approved=$true;$s=Clone $s0;$s.switchPlanSha256=Hash (JB $p)
+$t=Clone $t0
+foreach($x in $t.artifacts){if($x.id-ceq'package_switch_plan'){$x.sha256=Hash (JB $p)}elseif($x.id-ceq'package_switch_policy'){$x.sha256=Hash (JB $s)}}
+$vals=@($p,$s,$t)
+for($i=0;$i-lt3;$i++){$bytes=JB $vals[$i];if((Hash $bytes)-cne$recipe.targets[$i].sha256-or$bytes.Length-ne$recipe.targets[$i].bytes){throw 'conditional_static_digest'}}
+$b=Clone $b0;$a=Clone $a0;$ids=@('package_switch_plan','package_switch_policy','activation_policy')
+for($i=0;$i-lt3;$i++){(Item $b $ids[$i]).path=$paths[$i];(Item $b $ids[$i]).sha256=Hash (JB $vals[$i]);foreach($row in $b.policy.inventory){if($row.id-ceq$ids[$i]){$row.sha256=Hash (JB $vals[$i])}}}
+$a.approved=$true;$a.directHumanApproval=$true;$a.inventorySha256=InventoryHash $b.policy.inventory
+if((Hash (JB $b))-cne$recipe.targets[3].sha256-or(Hash (JB $a))-cne$recipe.targets[4].sha256){throw 'conditional_dynamic_digest'}
+$b.policy.notBeforeUtcMs=[long]1791647448771;$b.policy.notAfterUtcMs=[long]1791733848771
+$a.notBeforeUtcMs=[long]1791647448771;$a.notAfterUtcMs=[long]1791733848771
+NullSlots $b
+$pr=Clone $p;$pr.approved=$false;Eq $pr $p0
+$sr=Clone $s;$sr.switchPlanSha256=$s0.switchPlanSha256;Eq $sr $s0
+$tr=Clone $t;foreach($x in $tr.artifacts){foreach($old in $t0.artifacts){if($x.id-ceq$old.id){$x.sha256=$old.sha256}}};Eq $tr $t0
+$br=Clone $b;for($i=0;$i-lt3;$i++){$old=Item $b0 $ids[$i];(Item $br $ids[$i]).path=$old.path;(Item $br $ids[$i]).sha256=$old.sha256;foreach($row in $br.policy.inventory){if($row.id-ceq$ids[$i]){$row.sha256=$old.sha256}}}
+$br.policy.notBeforeUtcMs=$b0.policy.notBeforeUtcMs;$br.policy.notAfterUtcMs=$b0.policy.notAfterUtcMs;Eq $br $b0
+$ar=Clone $a;$ar.approved=$false;$ar.directHumanApproval=$false;$ar.inventorySha256=$a0.inventorySha256;$ar.notBeforeUtcMs=$a0.notBeforeUtcMs;$ar.notAfterUtcMs=$a0.notAfterUtcMs;Eq $ar $a0
+$bb=JB $b;$ab=JB $a;$bindingHash=Hash $bb;$approvalHash=Hash $ab
+$eval=Item $b0 'task_template_evaluator'
+if($eval.sha256-cne'25afb79d2e874073fe981baa5b8c03758f0185be7a3d0197c56226a20bcd3bad'){throw 'evaluator_pin'}
+. ([scriptblock]::Create($utf8.GetString((ReadHeld $eval.path $eval.sha256))))
+$rules=ArtifactJson $b0 'task_template_rules';$expected=@()
+if($rules.files.Count-ne5){throw 'task_template_count'}
+foreach($rule in $rules.files){$asset=Item $b0 $rule.id;$raw=ReadHeld $asset.path $asset.sha256;$expanded=Expand-TaskExactTwoSlots -Rule $rule -Template $raw -BindingSha256 $bindingHash -ApprovalSha256 $approvalHash;$expected+=,[ordered]@{id=$rule.id;sha256=(Hash $expanded);bytes=$expanded.Length;actualTaskExport=$false}}
+$receiptPath=Join-Path $root 'materialization-receipt-r01.json'
+foreach($path in @($paths)+@($receiptPath)){if(Test-Path -LiteralPath $path){throw 'output_already_exists'}}
+Window
+foreach($dir in @($future,$bindingRoot)){if(Test-Path -LiteralPath $dir){Assert-OwnedArtifact $dir $owner $true}else{Assert-OwnedArtifact ([IO.Path]::GetDirectoryName($dir)) $owner $true;New-OwnedArtifactDirectory $dir $owner}}
+$payloads=[Collections.Generic.List[byte[]]]::new();foreach($v in $vals){$payloads.Add((JB $v))};$payloads.Add($bb);$payloads.Add($ab);$payloads.Add($ab)
+$refs=@()
+for($i=0;$i-lt6;$i++){Window;$data=$payloads[$i];Write-OwnedArtifactBytes $paths[$i] $data $owner;$sha=Hash $data;$null=ReadHeld $paths[$i] $sha $data.Length;Window;$refs+=,[ordered]@{path=$paths[$i];sha256=$sha;bytes=$data.Length}}
+$receipt=[ordered]@{format='r06-approval-materialization-receipt-v1';materialized=$true;executionPerformed=$false;productionAcceptance=$false;attemptId=$consent.productionAttemptId;consentSha256=$ConsentSha256;originalR06ScopeSha256=$consent.originalR06ScopeSha256;candidatePlanSha256=$b0.policy.planSha256;independentReviewSha256=$consent.independentReviewSha256;recipeSha256='a8971e335d2aa527d1905eba55fccfd00f28a5d0d3f065d77ecb885acf59cd6c';scriptSha256=$selfHash;directApprovalTimeIsSeparateFromOriginalWindow=$true;priorEntryCalls=3;totalTaskRunBudget=1;sourceTimestampUtc=$consent.sourceTimestampUtc;threadId=$consent.threadId;notBeforeUtcMs=$a.notBeforeUtcMs;notAfterUtcMs=$a.notAfterUtcMs;windowRefreshAllowed=$false;refs=$refs;taskExpectedHashes=$expected;inventoryCount=117;reverseNormalizedComparisonPassed=$true;rawDynamicSlotsNull=$true;conditionalHashesUsedAsFinalDynamicHashes=$false;taskApiCalls=0;databaseRead=$false;keyRead=$false;networkCalls=0;aclChanged=$false;independentMaterializationReviewRequired=$true;createdUtc=[DateTime]::UtcNow.ToString('o')}
+Window;$rb=JB $receipt;Write-OwnedArtifactBytes $receiptPath $rb $owner;$null=ReadHeld $receiptPath (Hash $rb) $rb.Length;Window
+[ordered]@{format=$receipt.format;receiptPath=$receiptPath;receiptSha256=(Hash $rb);materialized=$true;executionPerformed=$false}|ConvertTo-Json -Compress
+}finally{foreach($f in $held){$f.Dispose()}}

@@ -1,0 +1,89 @@
+#requires -Version 5.1
+[CmdletBinding()]param([switch]$Diagnose)
+if(!$Diagnose){'{"format":"r06-readonly-lease-plan-v1","ioPerformed":false}';return}
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2
+$env:PSModulePath=Join-Path $PSHOME 'Modules'
+if($PSVersionTable.PSVersion.Major-ne5-or$PSVersionTable.PSEdition-cne'Desktop'-or[Diagnostics.Process]::GetCurrentProcess().MainModule.FileName-ine'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'){throw 'native_ps51_required'}
+$q='C:\ReviewFixture\candidate'
+$e=Join-Path $q 'evidence\production-readiness-r01'
+$helper=Join-Path $q 'maintenance-source-r02\tools\i_core\maintenance\owned_artifacts.ps1'
+function Hash([string]$p){(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}
+if((Hash $helper)-cne'f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c'){throw 'helper_pin'}
+. $helper
+$owner='S-1-5-21-111111111-222222222-333333333-1001';Assert-OwnedArtifactUnelevatedProcess $owner
+$receiptPath=Join-Path $q 'principal-sid-fix-r01\readonly-task-preflight-after-fix-r01.json'
+if(Test-Path -LiteralPath $receiptPath){throw 'diagnostic_receipt_exists'}
+$entry=Join-Path $e 'backup\release-candidate-r07\tools\i_core\release_schema6\lifecycle\continuous-activation-entry.ps1'
+$launcher=Join-Path (Split-Path $entry -Parent) 'evidence-pinned-launch.ps1'
+$binding=Join-Path $e 'evidence-contract\production-config-r01\binding.json'
+$approval=Join-Path $e 'evidence-contract\production-config-r01\approval.json'
+$pins=@(@{path=$entry;sha256='7da06eff9777b589ed9dd5b6dc62be336a9efcefdbcf11816a1e07324459bfde'},@{path=$launcher;sha256='c2a98c4a0c939a1709ef59c3efd378b44a5dc1e91a339b708ad13c956e1ac22a'},@{path=$binding;sha256='1d43e25cec55e1d406e2976a174d0a4dff55a215a6df8b621a530e99dae564f1'},@{path=$approval;sha256='5af7f19ff83e7c3198f69b7bdd1c40e574bc2c9c7e091178c2feabf185d5dfce'})
+$held=New-Object 'Collections.Generic.List[IDisposable]';$script:DiagnosticThrowCodes=@();$script:DiagnosticControllerLine=$null;$script:DiagnosticPrefixCompleted=$false;$lease=$null;$failure=$null;$stage='pins';$constructed=$false;$disposed=$false;$stages=New-Object 'Collections.Generic.List[object]'
+try{
+ foreach($pin in $pins){Assert-OwnedArtifact $pin.path $owner $false;$h=[IO.File]::Open($pin.path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$held.Add($h);if((Hash $pin.path)-cne$pin.sha256){throw 'diagnostic_pin'}}
+ $t=$null;$err=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($entry,[ref]$t,[ref]$err);if($err.Count){throw 'diagnostic_parse'}
+ foreach($name in @('Initialize-P4EvidenceNative','Read-P4StrictJson','Get-P4ByteHash')){$f=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]},$false)|Where-Object{$_.Name-ceq$name});if($f.Count-ne1){throw 'diagnostic_function'};. ([scriptblock]::Create($f[0].Extent.Text))}
+ $stage='native_initialize';Initialize-P4EvidenceNative;$stages.Add(@{stage=$stage;passed=$true})
+ $stage='launcher_pure_definitions';$a=[Management.Automation.Language.Parser]::ParseFile($launcher,[ref]$t,[ref]$err);if($err.Count-or@($a.EndBlock.Statements|Where-Object{$_-isnot[Management.Automation.Language.FunctionDefinitionAst]}).Count){throw 'diagnostic_launcher_top_level'}
+ . ([scriptblock]::Create([IO.File]::ReadAllText($launcher)));$stages.Add(@{stage=$stage;passed=$true})
+ $stage='readonly_construct';$lease=Get-ReviewedEvidenceLease -BindingPath $binding -ExpectedBindingSha256 $pins[2].sha256 -ExpectedApprovalSha256 $pins[3].sha256 -ForIdentity -ObservationPhase 'pre-p3' -LifecyclePhase 'initial-activation'
+ $constructed=$true;$stages.Add(@{stage=$stage;passed=$true})
+ $stage='entry_static_path_adapter'
+ if($lease.Mode-cne'reviewed-live'-or$lease.Path('activation_entrypoint')-cne$entry-or$lease.Hash('evidence_native')-cne'fdd9e0fa8345597f8530fe28e28c3b873851a7a96b98e9aa8d49a264036ce8df'-or$lease.Hash('evidence_launcher')-cne'c2a98c4a0c939a1709ef59c3efd378b44a5dc1e91a339b708ad13c956e1ac22a'){throw 'diagnostic_entry_source'}
+ $a=$lease.ReadJson('approval');if($a.scope-cne'task-update-enable-run-attach-p3-p4-normal-close-once'){throw 'diagnostic_entry_scope'}
+ $stages.Add(@{stage=$stage;passed=$true})
+ $stage='controller_ast_boundary'
+ $bindingMetadata=Get-Content -Raw -LiteralPath $binding|ConvertFrom-Json
+ $controllerRef=@($bindingMetadata.artifacts|Where-Object{$_.id-ceq'activation_controller'})
+ if($controllerRef.Count-ne1-or$controllerRef[0].sha256-cne'a184a8d9b0f1062713171eb2e45a05a2cbbf9a9eb07b7db5fc26374c3d3c5397'){throw 'diagnostic_controller_pin'}
+ $controllerText=[Text.UTF8Encoding]::new($false,$true).GetString($lease.Bytes('activation_controller'))
+ $candidatePath=Join-Path $q 'principal-sid-fix-r01\continuous-activation.ps1'
+ if((Hash $candidatePath)-cne'7e59927cd4914e06c2aff7a14f5f857c7dd45928958abd382bbaa39ea160aaf7'){throw 'diagnostic_candidate_pin'}
+ $candidateText=[IO.File]::ReadAllText($candidatePath)
+ $oldExpression='$expected.Principal.UserId-cne$owner';$newExpression='(Convert-TaskSid ([string]$expected.Principal.UserId))-cne$owner'
+ if($candidateText.Replace($newExpression,$oldExpression)-cne$controllerText){throw 'diagnostic_candidate_reverse_patch'}
+ $controllerText=$candidateText
+ $ct=$null;$ce=$null;$controllerAst=[Management.Automation.Language.Parser]::ParseInput($controllerText,[ref]$ct,[ref]$ce)
+ if($ce.Count-or@($controllerAst.EndBlock.Statements|Where-Object{$_-isnot[Management.Automation.Language.FunctionDefinitionAst]}).Count){throw 'diagnostic_controller_ast'}
+ $func=@($controllerAst.EndBlock.Statements|Where-Object{$_.Name-ceq'Invoke-ReviewedContinuousActivation'})
+ if($func.Count-ne1){throw 'diagnostic_controller_function'}
+ $statements=@($func[0].Body.EndBlock.Statements)
+ $boundary=@($statements|Where-Object{$_.Extent.Text.Trim()-ceq'New-OwnedArtifactDirectory $attempt $owner'})
+ if($boundary.Count-ne1-or$boundary[0].Extent.StartLineNumber-ne111){throw 'diagnostic_cutoff'}
+ $pre=@($statements|Where-Object{$_.Extent.EndLineNumber-le109})
+ if(!$pre.Count-or$pre[-1].Extent.EndLineNumber-ne109-or@($pre|Where-Object{$_.Extent.StartLineNumber-ge111}).Count){throw 'diagnostic_prefix_range'}
+ $start=$func[0].Body.Extent.StartOffset+1
+ $header=$controllerText.Substring($start,$pre[0].Extent.StartOffset-$start)
+ $prefix='function Invoke-R06PreAttemptReadOnly {'+[char]10+$header
+ foreach($stmt in $pre){$prefix+='$script:DiagnosticControllerLine='+$stmt.Extent.StartLineNumber+[char]10+$stmt.Extent.Text+[char]10}
+ $stopped=@($statements|Where-Object{$_-is[Management.Automation.Language.FunctionDefinitionAst]-and$_.Name-ceq'AssertObservedStopped'})
+ $bodyTry=@($statements|Where-Object{$_-is[Management.Automation.Language.TryStatementAst]-and$_.Extent.StartLineNumber-eq260})
+ if($stopped.Count-ne1-or$bodyTry.Count-ne1){throw 'diagnostic_task_boundary'}
+ $inner=@($bodyTry[0].Body.Statements)
+ $proof=@($inner|Where-Object{$_.Extent.StartLineNumber-ge261-and$_.Extent.EndLineNumber-le262})
+ $checks=@($inner|Where-Object{$_.Extent.StartLineNumber-ge297-and$_.Extent.EndLineNumber-le321})
+ if($proof.Count-ne2-or!$checks.Count-or$checks[0].Extent.StartLineNumber-ne297-or$checks[-1].Extent.EndLineNumber-ne321){throw 'diagnostic_task_range'}
+ $prefix+=$stopped[0].Extent.Text+[char]10+'$task=$null;$folder=$null;$service=$null;try {'+[char]10
+ foreach($stmt in @($proof)+@($checks)){$prefix+='$script:DiagnosticControllerLine='+$stmt.Extent.StartLineNumber+[char]10+$stmt.Extent.Text+[char]10}
+ $prefix+='}finally{foreach($com in @($task,$folder,$service)){if($null-ne$com-and[Runtime.InteropServices.Marshal]::IsComObject($com)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($com)}}}'+[char]10
+ $prefix+='$script:DiagnosticPrefixCompleted=$true'+[char]10+'}'
+ $pt=$null;$pe=$null;[void][Management.Automation.Language.Parser]::ParseInput($prefix,[ref]$pt,[ref]$pe);if($pe.Count){throw 'diagnostic_prefix_parse'}
+ $script:DiagnosticThrowCodes=@([regex]::Matches($controllerText,"throw\s+'([a-z0-9_]+)'",'IgnoreCase')|ForEach-Object{$_.Groups[1].Value}|Sort-Object -Unique)
+ . ([scriptblock]::Create($controllerText))
+ . ([scriptblock]::Create($prefix))
+ $stage='controller_pre_attempt_prefix';$script:DiagnosticControllerLine=63;$script:DiagnosticPrefixCompleted=$false
+ [void](Invoke-R06PreAttemptReadOnly -Mode Execute -Lease $lease)
+ if(!$script:DiagnosticPrefixCompleted){throw 'diagnostic_prefix_incomplete'}
+ $stages.Add(@{stage=$stage;passed=$true;firstControllerLine=63;lastControllerLine=321;excludedCreateLine=111;skippedConsumedCheckLine=110;taskProofReadLine=261;taskReadOnlyRange='297-321'})
+}catch{
+ $chain=New-Object 'Collections.Generic.List[object]';$x=$_.Exception
+ while($null-ne$x-and$chain.Count-lt6){$safe='unknown';if($x.Message-match'\b(evidence_[a-z_]+)\b'){$safe=$Matches[1]}elseif($x.Message-cin@('diagnostic_pin','diagnostic_parse','diagnostic_function','diagnostic_launcher_top_level')){$safe=$x.Message};$native=$null;$dir=$null;if($x.PSObject.Properties.Name-ccontains'NativeErrorCode'){$native=[int]$x.NativeErrorCode};if($x.PSObject.Properties.Name-ccontains'Directory'){$dir=[bool]$x.Directory};foreach($allowedCode in @($script:DiagnosticThrowCodes)+@('registered_actions','registered_principals','registered_triggers','registered_settings_changed')){if($x.Message-match (''+[regex]::Escape($allowedCode)+'')){$safe=$allowedCode;break}};$chain.Add(@{type=$x.GetType().FullName;hresult=$x.HResult;code=$safe;nativeErrorCode=$native;directory=$dir});$x=$x.InnerException}
+ $failure=@{stage=$stage;originalControllerLine=$script:DiagnosticControllerLine;exceptionChain=$chain.ToArray()}
+}finally{
+ if($null-ne$lease){$lease.Dispose();$disposed=$true}
+ foreach($h in $held){$h.Dispose()}
+}
+$registryCount=0;if('P4EvidenceRegistry'-as[type]){$registryCount=[P4EvidenceRegistry]::Items.Count}
+$result=[ordered]@{format='r06-readonly-task-preflight-after-fix-v1';sourceOnlyAdapter=$true;candidateControllerSha256='7e59927cd4914e06c2aff7a14f5f857c7dd45928958abd382bbaa39ea160aaf7';originalLeaseUnchanged=$true;runtimeCandidateMaterialized=$false;observedUtc=[DateTime]::UtcNow.ToString('o');scriptSha256=(Hash $PSCommandPath);constructed=$constructed;disposed=$disposed;registryCountAfter=$registryCount;passed=($constructed-and$disposed-and$registryCount-eq0-and$null-eq$failure);stages=$stages.ToArray();failure=$failure;controllerDefinitionsLoaded=$true;completeControllerCalled=$false;prefixOnly=$true;prefixCompleted=$script:DiagnosticPrefixCompleted;entryPathAdapter='Fixed original entry path comparison, not real self identity';discoveryOrAttachmentCalled=$false;entryExecuted=$false;taskMutationCalls=0;taskObservationCallsPerformed=$true;databaseRead=$false;keyRead=$false;networkCalls=0;productionRetried=$false}
+Write-OwnedArtifactBytes $receiptPath ([Text.UTF8Encoding]::new($false).GetBytes(($result|ConvertTo-Json -Depth 12 -Compress)+[char]10)) $owner
+[ordered]@{passed=$result.passed;lastStage=$stage;constructed=$constructed;disposed=$disposed;registryCountAfter=$registryCount;receiptSha256=(Hash $receiptPath)}|ConvertTo-Json -Compress

@@ -1,0 +1,38 @@
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2;$env:PSModulePath=Join-Path $PSHOME 'Modules'
+$q='C:\ReviewFixture\candidate';$e=Join-Path $q 'evidence\production-readiness-r01';$dir=Join-Path $q 'principal-sid-fix-r01';$old=Join-Path $e 'backup\release-candidate-r07';$output=Join-Path $e 'backup\release-candidate-r08';$owner='S-1-5-21-111111111-222222222-333333333-1001';$helper=Join-Path $q 'maintenance-source-r02\tools\i_core\maintenance\owned_artifacts.ps1'
+function Hash($p){(Get-FileHash -LiteralPath $p).Hash.ToLowerInvariant()}
+function ByteHash([byte[]]$b){$h=[Security.Cryptography.SHA256]::Create();try{([BitConverter]::ToString($h.ComputeHash($b))).Replace('-','').ToLowerInvariant()}finally{$h.Dispose()}}
+if((Hash $helper)-cne'f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c'){throw 'helper_pin'}
+. $helper
+Assert-OwnedArtifactUnelevatedProcess $owner
+$enc=[Text.UTF8Encoding]::new($false,$true)
+function Save($p,$v){Write-OwnedArtifactBytes $p ($enc.GetBytes(($v|ConvertTo-Json -Depth 30 -Compress)+[char]10)) $owner}
+$manifestPath=Join-Path $old 'manifest.json';if((Hash $manifestPath)-cne'6c9a92f1ef1b3b88377d477e0b6c237604081efcc6cc5f5b080c28bcb774ccc8'){throw 'manifest_pin'}
+$m=Get-Content -Raw $manifestPath|ConvertFrom-Json
+if($m.files.Count-ne85-or(Test-Path $output)){throw 'fresh_package_required'}
+$controller=Join-Path $dir 'continuous-activation.ps1';if((Hash $controller)-cne'7e59927cd4914e06c2aff7a14f5f857c7dd45928958abd382bbaa39ea160aaf7'){throw 'controller_pin'}
+$module=Join-Path $e 'backup\assembly-inputs\package-overlay-r08.mjs';$adapter=Join-Path $e 'backup\assembly-inputs\assembly-adapter-r01.mjs';$node='C:\ReviewFixture\node\node.exe'
+foreach($pin in @(@{p=$module;h='a0445197569aa72ea9329926a91929fdf1293286676e8ea0cd16c0e5cdb82c46'},@{p=$adapter;h='b8e057012ad8ed82494ba6d3cfc8d3d7090893e50d4f0d4b2c9495b980bd216f'},@{p=$node;h='58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f'})){if((Hash $pin.p)-cne$pin.h){throw 'tool_pin'}}
+$files=@();$inputs=@();$content=New-Object 'Collections.Generic.Dictionary[string,byte[]]' ([StringComparer]::Ordinal);$changed=0
+foreach($row in $m.files){$rel=[string]$row.path;if($rel-cnotmatch'^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$'-or$rel.Split('/')-contains'..'){throw 'source_scope'};$source=Join-Path $old $rel.Replace('/','\');Assert-OwnedArtifact $source $owner $false;if((Hash $source)-cne$row.sha256-or(Get-Item $source).Length-ne$row.bytes){throw 'baseline_file_pin'}
+ if($rel-ceq'tools/i_core/release_schema6/lifecycle/continuous-activation.ps1'){$source=$controller;$changed++}
+ $bytes=[IO.File]::ReadAllBytes($source);$sha=ByteHash $bytes;$content.Add($rel,$bytes);$files+=@{path=$rel;bytes=$bytes.Length;sha256=$sha};$inputs+=@{path=$rel;source=$source;sha256=$sha;bytes=$bytes.Length;baselineSha256=$row.sha256}
+}
+if($changed-ne1){throw 'one_source_only'}
+$delta="--- a/tools/i_core/release_schema6/lifecycle/continuous-activation.ps1`n+++ b/tools/i_core/release_schema6/lifecycle/continuous-activation.ps1`n@@ -314,1 +314,1 @@`n-  if(`$expected.Settings.Enabled-or`$expected.Settings.Hidden-or`$expected.Principal.RunLevel-ne0-or`$expected.Principal.UserId-cne`$owner-or`$expected.Principal.LogonType-ne3-or`$expected.Actions.Count-ne1){throw 'new_definition_principal'}`n+  if(`$expected.Settings.Enabled-or`$expected.Settings.Hidden-or`$expected.Principal.RunLevel-ne0-or(Convert-TaskSid ([string]`$expected.Principal.UserId))-cne`$owner-or`$expected.Principal.LogonType-ne3-or`$expected.Actions.Count-ne1){throw 'new_definition_principal'}`n"
+$deltaPath=Join-Path $dir 'principal-sid-source.diff';Write-OwnedArtifactBytes $deltaPath ($enc.GetBytes($delta)) $owner
+$priorPatch=Join-Path $e 'backup\release-candidate-r07-source.diff';if((Hash $priorPatch)-cne$m.source_patch_sha256){throw 'prior_patch_pin'}
+$combinedPath=Join-Path $dir 'combined-source.diff';Write-OwnedArtifactBytes $combinedPath ($enc.GetBytes(([IO.File]::ReadAllText($priorPatch)+[char]10+$delta))) $owner
+$depPath=Join-Path $dir 'package-source-inputs-r01.json';Save $depPath @{format='r06-principal-sid-overlay-inputs-v1';baselineManifestSha256=(Hash $manifestPath);baselineDependencyInventorySha256=$m.dependency_inventory_sha256;candidateControllerSha256=(Hash $controller);sourceOnlyDeltaCount=1;files=$inputs;productionAuthorized=$false}
+$input=@{baseCheckoutCommit=$m.base_checkout_commit;baseFrozenSourceInventorySha256=$m.base_frozen_source_inventory_sha256;sourcePatchSha256=(Hash $combinedPath);dependencyInventorySha256=(Hash $depPath);files=$files}
+function NodeCall($arguments){$psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$node;$psi.Arguments=$arguments;$psi.UseShellExecute=$false;$psi.CreateNoWindow=$true;$psi.WindowStyle='Hidden';$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true;$c=[Diagnostics.Process]::Start($psi);try{$o=$c.StandardOutput.ReadToEndAsync();$er=$c.StandardError.ReadToEndAsync();$c.WaitForExit();$text=$o.GetAwaiter().GetResult();$errorText=$er.GetAwaiter().GetResult();if($c.ExitCode-ne0-or$errorText.Length){throw 'offline_package_node_rejected'};return $text}finally{$c.Dispose()}}
+$base64=[Convert]::ToBase64String($enc.GetBytes(($input|ConvertTo-Json -Depth 20 -Compress)))
+$encoded=NodeCall ('"'+$adapter+'" build "'+$module+'" '+$base64);$manifestBytes=[Convert]::FromBase64String($encoded)
+New-OwnedArtifactDirectory $output $owner
+function Ensure($path){if(Test-Path $path){Assert-OwnedArtifact $path $owner $true;return};if(!$path.StartsWith($output+'\',[StringComparison]::Ordinal)){throw 'output_directory_scope'};Ensure (Split-Path $path -Parent);New-OwnedArtifactDirectory $path $owner}
+foreach($row in $files){$target=Join-Path $output $row.path.Replace('/','\');Ensure (Split-Path $target -Parent);Write-OwnedArtifactBytes $target $content[$row.path] $owner}
+Write-OwnedArtifactBytes (Join-Path $output 'manifest.json') $manifestBytes $owner
+$manifestSha=ByteHash $manifestBytes;$verified=NodeCall ('"'+$adapter+'" verify "'+(Join-Path $output 'tools\i_core\release_schema6\package.mjs')+'" "'+$output+'" '+$manifestSha)|ConvertFrom-Json
+$receipt=@{format='r06-principal-sid-package-assembly-v1';utc=[DateTime]::UtcNow.ToString('o');releaseDirectory=$output;manifestSha256=$manifestSha;files=85;filesIncludingManifest=86;changedRuntimeFiles=1;candidateControllerSha256=(Hash $controller);inputInventorySha256=(Hash $depPath);combinedSourcePatchSha256=(Hash $combinedPath);verified=$verified;deployed=$false;taskCalls=0;runCalls=0;originalPackageUnchanged=$true;productionAuthorized=$false}
+$receiptPath=Join-Path $dir 'package-assembly-r01.json';Save $receiptPath $receipt
+@{manifestSha256=$manifestSha;receiptSha256=(Hash $receiptPath);verified=$verified;deployed=$false}|ConvertTo-Json -Depth 8 -Compress

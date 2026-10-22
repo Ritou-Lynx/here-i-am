@@ -1,0 +1,750 @@
+{
+  "format": "sanitized-cloud-review-source-v1",
+  "files": [
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/activity_control_plane.mjs.txt",
+      "originalSha256": "ebfa5732d3727ffe24a5ff5cb8ff594cf82da74694ad6279ed7092f9e7b3300e",
+      "reviewSha256": "ebfa5732d3727ffe24a5ff5cb8ff594cf82da74694ad6279ed7092f9e7b3300e",
+      "originalBytes": 217135,
+      "reviewBytes": 217135,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/domain_http.mjs.txt",
+      "originalSha256": "3ff57a91eb9b8bcea9dac72396eb76efbdadc54586b7620474581397cb71fc31",
+      "reviewSha256": "3ff57a91eb9b8bcea9dac72396eb76efbdadc54586b7620474581397cb71fc31",
+      "originalBytes": 11320,
+      "reviewBytes": 11320,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/domain_migrate.mjs.txt",
+      "originalSha256": "d7ca990c080590b3543e4c80dd6e78dddd12e2394b1548d114eb0362213cca02",
+      "reviewSha256": "d7ca990c080590b3543e4c80dd6e78dddd12e2394b1548d114eb0362213cca02",
+      "originalBytes": 35169,
+      "reviewBytes": 35169,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/domain_schema.mjs.txt",
+      "originalSha256": "692d5d67c9d222bd207eb15b56669f7a0ed85ba3cfbef2a6b7f3d68ae020c7d8",
+      "reviewSha256": "692d5d67c9d222bd207eb15b56669f7a0ed85ba3cfbef2a6b7f3d68ae020c7d8",
+      "originalBytes": 5245,
+      "reviewBytes": 5245,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/domain_store.mjs.txt",
+      "originalSha256": "3e81285ee499a05f30637fc554d22ce98ccaeffe3e465000cf9806f6f8222668",
+      "reviewSha256": "3e81285ee499a05f30637fc554d22ce98ccaeffe3e465000cf9806f6f8222668",
+      "originalBytes": 69895,
+      "reviewBytes": 69895,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/i_core_server.mjs.txt",
+      "originalSha256": "d1c9a018afa2866e56925e06ec0ec2ca554b9cd4f37fa040b4b3b96613467ef8",
+      "reviewSha256": "d1c9a018afa2866e56925e06ec0ec2ca554b9cd4f37fa040b4b3b96613467ef8",
+      "originalBytes": 30701,
+      "reviewBytes": 30701,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/i_core_store.mjs.txt",
+      "originalSha256": "9a0174451920235075fed98270c0400ba974524b521ec9328386ac8d0f140086",
+      "reviewSha256": "9a0174451920235075fed98270c0400ba974524b521ec9328386ac8d0f140086",
+      "originalBytes": 89708,
+      "reviewBytes": 89708,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/inspection_read_only.mjs.txt",
+      "originalSha256": "31d59f62703269a6b8e2008b1ca9fb6308e97ad2433c63acb04aa1f5b9641d09",
+      "reviewSha256": "31d59f62703269a6b8e2008b1ca9fb6308e97ad2433c63acb04aa1f5b9641d09",
+      "originalBytes": 6976,
+      "reviewBytes": 6976,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/activation-preflight.mjs.txt",
+      "originalSha256": "503eb06fc65f932b07c36018410986dac553586bca464f8ce65234e89b4f7029",
+      "reviewSha256": "503eb06fc65f932b07c36018410986dac553586bca464f8ce65234e89b4f7029",
+      "originalBytes": 24363,
+      "reviewBytes": 24363,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/close-schema6-session.ps1.txt",
+      "originalSha256": "62b7c71c4356d43622ab16422f045a78971f36f7d532c00e1743057d118b1e6c",
+      "reviewSha256": "7d46eea4d2d230fde991c329fa50d5c67a96eced7270e691eada7dfb6a4a83e8",
+      "originalBytes": 22079,
+      "reviewBytes": 21884,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/owned_artifacts.ps1.txt",
+      "originalSha256": "f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c",
+      "reviewSha256": "1d21b01235f6345031e0b823acd42afa97c415bd75b58422b6c9b5ee986cfc1f",
+      "originalBytes": 12621,
+      "reviewBytes": 12530,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/p4/evidence-context-r09.mjs.txt",
+      "originalSha256": "4b5d315042b6afba29d28c8ce7f7dbe3796e972f68264007da3a6deae7df4fa8",
+      "reviewSha256": "4b5d315042b6afba29d28c8ce7f7dbe3796e972f68264007da3a6deae7df4fa8",
+      "originalBytes": 3177,
+      "reviewBytes": 3177,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/p4/evidence-contract-r08.mjs.txt",
+      "originalSha256": "630e5def202edaa06e0c4ba623744bff1d718b5ba7fc733535ecccb78013012f",
+      "reviewSha256": "75af38a60dfafa904760681d37e9ba24d0c3cb2ec616af5a5b9f6d5ed4c42fb1",
+      "originalBytes": 21933,
+      "reviewBytes": 21939,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/p4/evidence-parent-bridge-r09.mjs.txt",
+      "originalSha256": "461b2d09409c04d58db2d21cda06b546add60dc35db14318886f6043dded8106",
+      "reviewSha256": "461b2d09409c04d58db2d21cda06b546add60dc35db14318886f6043dded8106",
+      "originalBytes": 3304,
+      "reviewBytes": 3304,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/p4/p4-bounded-transport-r05.mjs.txt",
+      "originalSha256": "69b7470f9f61824a04124655a51632b5ed9b24d9d1823025ed3c6f1a23a44e19",
+      "reviewSha256": "c46c6168b9f4eb4ab02f2a1950cc3902086a1c00ec9984a3f5b27865e1244197",
+      "originalBytes": 14075,
+      "reviewBytes": 14082,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/p4/p4-health-policy-dormant-r01.mjs.txt",
+      "originalSha256": "6c713289b194a76f5a056da26cc7e9e69c8a98f82623bdf6c0a07309d2992087",
+      "reviewSha256": "5d9ee1c6b69b23426ae42178e2e1f80a0bdf84a92cdb17a8560ea75456f738ad",
+      "originalBytes": 15907,
+      "reviewBytes": 15914,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/p4/p4-pinned-entry-r04.mjs.txt",
+      "originalSha256": "c61d1916d6dbbacace15a0ee247623b112ed15059f172dc7a228e7fef5a68432",
+      "reviewSha256": "c61d1916d6dbbacace15a0ee247623b112ed15059f172dc7a228e7fef5a68432",
+      "originalBytes": 2480,
+      "reviewBytes": 2480,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/process_image_binding.ps1.txt",
+      "originalSha256": "e9e28e877d7680aad826c06e5bb362caef8e4ed5b7c9b46b6b1addcc3f90848d",
+      "reviewSha256": "fbbebbfab0a396ee26eea84fe7e198370e170db898efac4c4c1d7b3fcaffcc52",
+      "originalBytes": 8286,
+      "reviewBytes": 8176,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/register_task_primitives.ps1.txt",
+      "originalSha256": "814d50374f867e215e36d982a15e215dacf80d80fd8a27fa050f27974787fd85",
+      "reviewSha256": "0b68b65ae95243a51dbaa4124ab1478370043c065b1c832488fe7060bb46bf21",
+      "originalBytes": 6903,
+      "reviewBytes": 6814,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/maintenance/task_security_policy.ps1.txt",
+      "originalSha256": "469af7afdb23305c27adc049da72d93aea5da3caa3abfdf6a40c547d498b3d31",
+      "reviewSha256": "d73ebd53b4d9fa0c4d5e339d3f295e54d52d4ab1049cdaa237b86c116e28df97",
+      "originalBytes": 6938,
+      "reviewBytes": 6843,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/personal_data_domains.mjs.txt",
+      "originalSha256": "5cebafa58e7607315b16f320e0d10c1839fbf3b0ed5f0c56b7aa81aec12fa6e2",
+      "reviewSha256": "5cebafa58e7607315b16f320e0d10c1839fbf3b0ed5f0c56b7aa81aec12fa6e2",
+      "originalBytes": 18471,
+      "reviewBytes": 18471,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/automatic_backup.mjs.txt",
+      "originalSha256": "31c5ebe7a910b91e8a27f2decc29ed57face11d39a18e09a346bbdce54ed1eb6",
+      "reviewSha256": "31c5ebe7a910b91e8a27f2decc29ed57face11d39a18e09a346bbdce54ed1eb6",
+      "originalBytes": 15692,
+      "reviewBytes": 15692,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/automatic_recovery.mjs.txt",
+      "originalSha256": "ff6cf0e6a0c5dbbf6571dd4ac317be96964c98623e6d0f922afa9ae2e163ae29",
+      "reviewSha256": "ff6cf0e6a0c5dbbf6571dd4ac317be96964c98623e6d0f922afa9ae2e163ae29",
+      "originalBytes": 1490,
+      "reviewBytes": 1490,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/backup_bundle.mjs.txt",
+      "originalSha256": "137c5d2bce626a18ed5c535db3641fd4a945d01f718157b9d3c7fc36397f9a97",
+      "reviewSha256": "137c5d2bce626a18ed5c535db3641fd4a945d01f718157b9d3c7fc36397f9a97",
+      "originalBytes": 24718,
+      "reviewBytes": 24718,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/backup_bundle_schema6.ps1.txt",
+      "originalSha256": "2080f400430f5d143e84641a8fe3d36dfe874cba2a54b806929981a6ea6fbe9f",
+      "reviewSha256": "2080f400430f5d143e84641a8fe3d36dfe874cba2a54b806929981a6ea6fbe9f",
+      "originalBytes": 16064,
+      "reviewBytes": 16064,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/backup_effects.mjs.txt",
+      "originalSha256": "5e753f2c4b4b14409e92b51a2f514448bf5ba5fde79affc1bd15b8b19df55b23",
+      "reviewSha256": "5e753f2c4b4b14409e92b51a2f514448bf5ba5fde79affc1bd15b8b19df55b23",
+      "originalBytes": 1236,
+      "reviewBytes": 1236,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/backup_key_child.mjs.txt",
+      "originalSha256": "31194cbc52ddb17916104f51e13d08f5c8c386d260f4bbffa08e80c4643e94b2",
+      "reviewSha256": "31194cbc52ddb17916104f51e13d08f5c8c386d260f4bbffa08e80c4643e94b2",
+      "originalBytes": 7026,
+      "reviewBytes": 7026,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/cli.mjs.txt",
+      "originalSha256": "d54211ee5f844de5d87463284789c9d7dfcb27bf512064f81d768829aac439d6",
+      "reviewSha256": "d54211ee5f844de5d87463284789c9d7dfcb27bf512064f81d768829aac439d6",
+      "originalBytes": 1523,
+      "reviewBytes": 1523,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/custody_inventory.mjs.txt",
+      "originalSha256": "3951fcc36cbed5a95ef56213a09341b23dabd209033d1b522f2280f61e4109a8",
+      "reviewSha256": "8f48256298ef44a39980eb02621a195fdf04df9cccefa6a0165e6928baa5ac82",
+      "originalBytes": 13496,
+      "reviewBytes": 13330,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/due_inventory.mjs.txt",
+      "originalSha256": "4a14c947f60d7a7795464e31221902ba6c4d74b5a9b54b326e6f97bafb219181",
+      "reviewSha256": "4a14c947f60d7a7795464e31221902ba6c4d74b5a9b54b326e6f97bafb219181",
+      "originalBytes": 9778,
+      "reviewBytes": 9778,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/export_backup_tasks.ps1.txt",
+      "originalSha256": "9ed65d55d69c048db6eb441188f37ec17852215d4be1ad488724063cd3883616",
+      "reviewSha256": "9ed65d55d69c048db6eb441188f37ec17852215d4be1ad488724063cd3883616",
+      "originalBytes": 2985,
+      "reviewBytes": 2985,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/key_custody.ps1.txt",
+      "originalSha256": "a622178f1802385b017ce5a4127c9e4659b4b9ff423de3cbd2309f20d016516b",
+      "reviewSha256": "a622178f1802385b017ce5a4127c9e4659b4b9ff423de3cbd2309f20d016516b",
+      "originalBytes": 6191,
+      "reviewBytes": 6191,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/backup_evidence.cs.txt",
+      "originalSha256": "4928c92c8f3ed0020c1e22b59665cb5808a07b0b450b699d0374a5d3313ca725",
+      "reviewSha256": "4928c92c8f3ed0020c1e22b59665cb5808a07b0b450b699d0374a5d3313ca725",
+      "originalBytes": 54835,
+      "reviewBytes": 54835,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/backup_native.cs.txt",
+      "originalSha256": "a574c6567999b84272851afbbbb0bf50197f716845eceeef21096510ae502bc4",
+      "reviewSha256": "8ea7caba1c3ca5b053a68ac250c9664056c457cf29ec75a443f69ae09a175101",
+      "originalBytes": 33349,
+      "reviewBytes": 33348,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/backup_owned_artifacts.ps1.txt",
+      "originalSha256": "f285b79b8d2060391569a41c6a7fea3040a37cd7c73fcceaa39355c279ff8c7c",
+      "reviewSha256": "1d21b01235f6345031e0b823acd42afa97c415bd75b58422b6c9b5ee986cfc1f",
+      "originalBytes": 12621,
+      "reviewBytes": 12530,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/common.mjs.txt",
+      "originalSha256": "68a29efdc9e0e2bf3771f32a88494f049b3d6e4fc3056c3f879254116dedeeaf",
+      "reviewSha256": "68a29efdc9e0e2bf3771f32a88494f049b3d6e4fc3056c3f879254116dedeeaf",
+      "originalBytes": 14666,
+      "reviewBytes": 14666,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/configuration.mjs.txt",
+      "originalSha256": "01562b04f1d19aa855b0c6bf0c5b7cfaad283cb9a9e6df38837cb3131ee9bfab",
+      "reviewSha256": "01562b04f1d19aa855b0c6bf0c5b7cfaad283cb9a9e6df38837cb3131ee9bfab",
+      "originalBytes": 4908,
+      "reviewBytes": 4908,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/continuous-activation-entry.ps1.txt",
+      "originalSha256": "7da06eff9777b589ed9dd5b6dc62be336a9efcefdbcf11816a1e07324459bfde",
+      "reviewSha256": "a0864d583be8e97a4919117cd584ae3a1c9a4d8d1a140cab2ebf45bbf702370c",
+      "originalBytes": 17344,
+      "reviewBytes": 17342,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/continuous-activation.ps1.txt",
+      "originalSha256": "7e59927cd4914e06c2aff7a14f5f857c7dd45928958abd382bbaa39ea160aaf7",
+      "reviewSha256": "7e59927cd4914e06c2aff7a14f5f857c7dd45928958abd382bbaa39ea160aaf7",
+      "originalBytes": 54366,
+      "reviewBytes": 54366,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/evidence-native.ps1.txt",
+      "originalSha256": "fdd9e0fa8345597f8530fe28e28c3b873851a7a96b98e9aa8d49a264036ce8df",
+      "reviewSha256": "9182b058111b8d24a4d654870f7dcc6c1e0fdd751316f911e85a38af39769394",
+      "originalBytes": 14011,
+      "reviewBytes": 14010,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/evidence-pinned-launch.ps1.txt",
+      "originalSha256": "c2a98c4a0c939a1709ef59c3efd378b44a5dc1e91a339b708ad13c956e1ac22a",
+      "reviewSha256": "06e49b12e737bd682f880f7bb9c959fc2506abcbc652235da39721d4b05c8dc0",
+      "originalBytes": 51809,
+      "reviewBytes": 51650,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/fresh-identity-native.ps1.txt",
+      "originalSha256": "54ea3e765649f31a6b8638930434a5147e610ed304985a589b8ae94a6ff59311",
+      "reviewSha256": "54ea3e765649f31a6b8638930434a5147e610ed304985a589b8ae94a6ff59311",
+      "originalBytes": 19017,
+      "reviewBytes": 19017,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/identity-activation-proof.ps1.txt",
+      "originalSha256": "4f65b13c51165022bd316b3d355815376f28d418499460c94c3cc0c86ab3126c",
+      "reviewSha256": "4f65b13c51165022bd316b3d355815376f28d418499460c94c3cc0c86ab3126c",
+      "originalBytes": 12458,
+      "reviewBytes": 12458,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/identity-native.cs.txt",
+      "originalSha256": "ecae6f552d428f51774d13d38f3ec3f86db092a130b24a76dbe71cfbbdadeb0b",
+      "reviewSha256": "ecae6f552d428f51774d13d38f3ec3f86db092a130b24a76dbe71cfbbdadeb0b",
+      "originalBytes": 5408,
+      "reviewBytes": 5408,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/identity-sampler.ps1.txt",
+      "originalSha256": "dc9882e53f1bb628c570a2cddf83a371c52610767cea4f885bf410b8f7ade2b9",
+      "reviewSha256": "dc9882e53f1bb628c570a2cddf83a371c52610767cea4f885bf410b8f7ade2b9",
+      "originalBytes": 7870,
+      "reviewBytes": 7870,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/job_guardian.ps1.txt",
+      "originalSha256": "27373b1fead7ec57d09e0da21b8e685228c999a037f9274943e031f33b37938b",
+      "reviewSha256": "27373b1fead7ec57d09e0da21b8e685228c999a037f9274943e031f33b37938b",
+      "originalBytes": 1970,
+      "reviewBytes": 1970,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/login_schema6.ps1.txt",
+      "originalSha256": "7f53f512e102ecd828e05c3417d3e121d7b0a6934c98d6a964608256df535eb7",
+      "reviewSha256": "02926bf6ab0dd91c74b7541facf0ce2a19c06517058c3f3356c327935cf0d044",
+      "originalBytes": 12228,
+      "reviewBytes": 12227,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/mcp_configuration.ps1.txt",
+      "originalSha256": "ebb412b25ef8e31a5523951e2a5feeeec8680eb164b70e51a64d92e02c9a48a3",
+      "reviewSha256": "ebb412b25ef8e31a5523951e2a5feeeec8680eb164b70e51a64d92e02c9a48a3",
+      "originalBytes": 5136,
+      "reviewBytes": 5136,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/offline_lease.mjs.txt",
+      "originalSha256": "0939c298615a0a9c503c40cc353606adde66a05ec3a28bba711a195afd9856a4",
+      "reviewSha256": "0939c298615a0a9c503c40cc353606adde66a05ec3a28bba711a195afd9856a4",
+      "originalBytes": 8412,
+      "reviewBytes": 8412,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/offline_probe_client.mjs.txt",
+      "originalSha256": "3e40745d48a24c347155e1bd352a845d54305c93dc3a110eee5f30c05d767c65",
+      "reviewSha256": "3e40745d48a24c347155e1bd352a845d54305c93dc3a110eee5f30c05d767c65",
+      "originalBytes": 10060,
+      "reviewBytes": 10060,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/owned_job.ps1.txt",
+      "originalSha256": "725bf1b62177914a3a3d6dbdbc255249932b69d33a5389d72f4ec1e698284581",
+      "reviewSha256": "725bf1b62177914a3a3d6dbdbc255249932b69d33a5389d72f4ec1e698284581",
+      "originalBytes": 19491,
+      "reviewBytes": 19491,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/p3-permit-library.ps1.txt",
+      "originalSha256": "c38b9f74ef52adb8644feba1be55157caea11d630f0803edd8ccb1c78fbd0f63",
+      "reviewSha256": "c38b9f74ef52adb8644feba1be55157caea11d630f0803edd8ccb1c78fbd0f63",
+      "originalBytes": 15456,
+      "reviewBytes": 15456,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/p3-permit-producer.ps1.txt",
+      "originalSha256": "6812a8b3ea74e2a9ba904b6cf4c03ed30be7d24afce2e51f9808fe360074dd63",
+      "reviewSha256": "616db5b6ad050ff05408a9fade62cfdeeabb12e14df250e7bc6bbf31bc7912f6",
+      "originalBytes": 18237,
+      "reviewBytes": 18235,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/p4-backup-total-gate.ps1.txt",
+      "originalSha256": "f402b4d8db503052a94581a9d18b700322e34b56902dedb26c9520ca444957f7",
+      "reviewSha256": "f402b4d8db503052a94581a9d18b700322e34b56902dedb26c9520ca444957f7",
+      "originalBytes": 46536,
+      "reviewBytes": 46536,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/prepare_login_schema6.ps1.txt",
+      "originalSha256": "d0a424e091735a94687bd455452bcb9ebbbd0211364a2cd691122938421a1771",
+      "reviewSha256": "d0a424e091735a94687bd455452bcb9ebbbd0211364a2cd691122938421a1771",
+      "originalBytes": 8896,
+      "reviewBytes": 8896,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/probe_offline.ps1.txt",
+      "originalSha256": "43f545a4ede28b0db13e871f863d81e119b3f5948de56de3e165f97d536d3c54",
+      "reviewSha256": "43f545a4ede28b0db13e871f863d81e119b3f5948de56de3e165f97d536d3c54",
+      "originalBytes": 12143,
+      "reviewBytes": 12143,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/protected_paths.ps1.txt",
+      "originalSha256": "12136ce04e29b5205de27c4e9a845bdf331130464ee0e01b299896ff3f84f1ca",
+      "reviewSha256": "12136ce04e29b5205de27c4e9a845bdf331130464ee0e01b299896ff3f84f1ca",
+      "originalBytes": 3054,
+      "reviewBytes": 3054,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/recovery-p4-cleanup.ps1.txt",
+      "originalSha256": "664a6df82af027ddef934ae765307636dbec9a08c361b2ff286877e27a590821",
+      "reviewSha256": "ce87368d92ee8825c8e7d758e5f04951de2f5877b8ba19cf64f50f2952232023",
+      "originalBytes": 21461,
+      "reviewBytes": 21459,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/recovery-p4-entry.ps1.txt",
+      "originalSha256": "fb7cab49e4ae8662101df00de3806bb0677931549753ecc4447f222b020e50ab",
+      "reviewSha256": "7674459e6ed8800b9fdd0eaa84769ef1265315bcdd3a868fffc6828cb3cd4e60",
+      "originalBytes": 21427,
+      "reviewBytes": 21425,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/recovery-p4-helper.ps1.txt",
+      "originalSha256": "54d8aef87752b8987819b61325ac0e848edfe4ea13f80987895e4233bb2d45af",
+      "reviewSha256": "54d8aef87752b8987819b61325ac0e848edfe4ea13f80987895e4233bb2d45af",
+      "originalBytes": 45205,
+      "reviewBytes": 45205,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/request_stop.ps1.txt",
+      "originalSha256": "a8bd9b07f1727202b6b48c0af82a9ec82bf75d84cc94d2daabf2dcce861b51e1",
+      "reviewSha256": "a8bd9b07f1727202b6b48c0af82a9ec82bf75d84cc94d2daabf2dcce861b51e1",
+      "originalBytes": 2008,
+      "reviewBytes": 2008,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/runtime_child.mjs.txt",
+      "originalSha256": "104cfa603f6b1e4766a222c8b7263b2f07915868fdb0970da860cb462193d307",
+      "reviewSha256": "104cfa603f6b1e4766a222c8b7263b2f07915868fdb0970da860cb462193d307",
+      "originalBytes": 13452,
+      "reviewBytes": 13452,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/session_window.ps1.txt",
+      "originalSha256": "b4a349b92602f2b259f768c5fad31f85ca425a9e35f1c0df4c0d07b4d641038b",
+      "reviewSha256": "64e59db9726a8494e7b15f0216e12a368b271d372bed584445fa3ecc04bebb57",
+      "originalBytes": 45738,
+      "reviewBytes": 45734,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/start_schema6.ps1.txt",
+      "originalSha256": "293e4fc9e5317b242ecb00f430139170070d22e296eedcb57cab3822d7fceaad",
+      "reviewSha256": "293e4fc9e5317b242ecb00f430139170070d22e296eedcb57cab3822d7fceaad",
+      "originalBytes": 18547,
+      "reviewBytes": 18547,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/task-caller-context.ps1.txt",
+      "originalSha256": "15a42e5293483eeb1f7e1a14983f21353564d2bd86dc80b1ff033f2b34f0f924",
+      "reviewSha256": "15a42e5293483eeb1f7e1a14983f21353564d2bd86dc80b1ff033f2b34f0f924",
+      "originalBytes": 2885,
+      "reviewBytes": 2885,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/task-instance-projection.ps1.txt",
+      "originalSha256": "a03c21f89835acdbb504949c03bd8dd6432db0c2a9f7c6b4b14ec485e62d0894",
+      "reviewSha256": "a03c21f89835acdbb504949c03bd8dd6432db0c2a9f7c6b4b14ec485e62d0894",
+      "originalBytes": 3968,
+      "reviewBytes": 3968,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/lifecycle/task-two-slot-evaluator.ps1.txt",
+      "originalSha256": "25afb79d2e874073fe981baa5b8c03758f0185be7a3d0197c56226a20bcd3bad",
+      "reviewSha256": "25afb79d2e874073fe981baa5b8c03758f0185be7a3d0197c56226a20bcd3bad",
+      "originalBytes": 9512,
+      "reviewBytes": 9512,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/package.mjs.txt",
+      "originalSha256": "a0445197569aa72ea9329926a91929fdf1293286676e8ea0cd16c0e5cdb82c46",
+      "reviewSha256": "da170c673b7efd3a33a945525ecce9353ddf3fc39e7b4c7ab6c6b74d298411b8",
+      "originalBytes": 12908,
+      "reviewBytes": 12876,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/package_switch.mjs.txt",
+      "originalSha256": "41f0d5c2c25768e55618ec4a69465c084482a87db245da0d31457f070c358173",
+      "reviewSha256": "41f0d5c2c25768e55618ec4a69465c084482a87db245da0d31457f070c358173",
+      "originalBytes": 8353,
+      "reviewBytes": 8353,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/portable_backup_schema6.ps1.txt",
+      "originalSha256": "41aa948b88cc8d9aa1c77680d2319a68ed32a769b6451fdaf86706d2366e7a0f",
+      "reviewSha256": "41aa948b88cc8d9aa1c77680d2319a68ed32a769b6451fdaf86706d2366e7a0f",
+      "originalBytes": 1345,
+      "reviewBytes": 1345,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/portable_key_custody.mjs.txt",
+      "originalSha256": "6c6b336e3678a24c07727aff88841746a2fb3911263e534f944a7d343ba29e2c",
+      "reviewSha256": "6c6b336e3678a24c07727aff88841746a2fb3911263e534f944a7d343ba29e2c",
+      "originalBytes": 5737,
+      "reviewBytes": 5737,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/preflight.mjs.txt",
+      "originalSha256": "bad525dca960dc83edc2451a4ff7a4f95e70db41305f144e5615b0916a330303",
+      "reviewSha256": "bad525dca960dc83edc2451a4ff7a4f95e70db41305f144e5615b0916a330303",
+      "originalBytes": 12027,
+      "reviewBytes": 12027,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/preflight_schema6.ps1.txt",
+      "originalSha256": "8bcb147b4fe43197e839d1e5a217f627af3392368d2745af981d21b4d4d08f08",
+      "reviewSha256": "8bcb147b4fe43197e839d1e5a217f627af3392368d2745af981d21b4d4d08f08",
+      "originalBytes": 1877,
+      "reviewBytes": 1877,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/raw_state_backup.mjs.txt",
+      "originalSha256": "81198d58e132180758d830ee24e8895a3da3c6197e2c05544b3f5c45a8c56455",
+      "reviewSha256": "81198d58e132180758d830ee24e8895a3da3c6197e2c05544b3f5c45a8c56455",
+      "originalBytes": 7975,
+      "reviewBytes": 7975,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/readonly_witness.mjs.txt",
+      "originalSha256": "e1a89e99d51463a63268d2b44eedd7a43e342e8d7b3a3df4db4e77faa3e892f5",
+      "reviewSha256": "e1a89e99d51463a63268d2b44eedd7a43e342e8d7b3a3df4db4e77faa3e892f5",
+      "originalBytes": 2984,
+      "reviewBytes": 2984,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/recovery_adapter.mjs.txt",
+      "originalSha256": "3d12dc099d827d2d4f349700845916d8888145062fc7d2add5f547704687ce1a",
+      "reviewSha256": "3d12dc099d827d2d4f349700845916d8888145062fc7d2add5f547704687ce1a",
+      "originalBytes": 59373,
+      "reviewBytes": 59373,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/recovery_witness_worker.mjs.txt",
+      "originalSha256": "d28a0ace05b308825a51e66eee7cb00510c89a7533a151f3d7ae4c138752b4e9",
+      "reviewSha256": "d28a0ace05b308825a51e66eee7cb00510c89a7533a151f3d7ae4c138752b4e9",
+      "originalBytes": 4178,
+      "reviewBytes": 4178,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/restore_inspection.mjs.txt",
+      "originalSha256": "aa0f445b5d51005d4941cdaf8991c31bc7f2bdce438bcfbbd65f7620f795852c",
+      "reviewSha256": "aa0f445b5d51005d4941cdaf8991c31bc7f2bdce438bcfbbd65f7620f795852c",
+      "originalBytes": 5242,
+      "reviewBytes": 5242,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/release_schema6/scheduler_once_schema6.ps1.txt",
+      "originalSha256": "92b29e3a86dc6f41413c724cf65b0fe69776546dce26ce144cd4241da861626d",
+      "reviewSha256": "92b29e3a86dc6f41413c724cf65b0fe69776546dce26ce144cd4241da861626d",
+      "originalBytes": 760,
+      "reviewBytes": 760,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/send_shortcut_mail.ps1.txt",
+      "originalSha256": "0766737642349896379d545a22ca974ef0933ef514261ab9079642fc35d70919",
+      "reviewSha256": "0766737642349896379d545a22ca974ef0933ef514261ab9079642fc35d70919",
+      "originalBytes": 15003,
+      "reviewBytes": 15003,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/shortcut_mail_relay.mjs.txt",
+      "originalSha256": "841756bb88cee7eb406e9dd682e8eb547dc3c144d7bb8c1e68659e3c55cf9185",
+      "reviewSha256": "841756bb88cee7eb406e9dd682e8eb547dc3c144d7bb8c1e68659e3c55cf9185",
+      "originalBytes": 18170,
+      "reviewBytes": 18170,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r08/tools/i_core/strict_smtp_tls_validation.ps1.txt",
+      "originalSha256": "395e1c810f186a4136ad8b16ee4734e32322a4ba8064508f034ee0f21b6812ed",
+      "reviewSha256": "395e1c810f186a4136ad8b16ee4734e32322a4ba8064508f034ee0f21b6812ed",
+      "originalBytes": 29384,
+      "reviewBytes": 29384,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/r07/continuous-activation.ps1.txt",
+      "originalSha256": "a184a8d9b0f1062713171eb2e45a05a2cbbf9a9eb07b7db5fc26374c3d3c5397",
+      "reviewSha256": "a184a8d9b0f1062713171eb2e45a05a2cbbf9a9eb07b7db5fc26374c3d3c5397",
+      "originalBytes": 54338,
+      "reviewBytes": 54338,
+      "transformed": false
+    },
+    {
+      "reviewPath": "snapshot/preparation/assemble-package-r01.ps1.txt",
+      "originalSha256": "e13fbe929b6cb2b864df318a76df4d5081959d264cdddea26bc8be960d85a236",
+      "reviewSha256": "29c9b804e2bdfb2b4184cf04ac2caf6103c1d04479795a65e19de7accf10f517",
+      "originalBytes": 6869,
+      "reviewBytes": 6795,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/configuration-derive-r09.ps1.txt",
+      "originalSha256": "75a4f1f48a3e1d736e5d5e271413d9008a9387a1c326fe8efa052eb6670e1881",
+      "reviewSha256": "db8dc1559937550960b44f4d7cd30515a7bd78aec7c98fffa17232f839554fee",
+      "originalBytes": 13544,
+      "reviewBytes": 13458,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/configuration-functions-r06.ps1.txt",
+      "originalSha256": "bea34060ec71f9cdd81ee2c2f60c8c0f50c358f451824bb8bc207fb9ac1f9a6b",
+      "reviewSha256": "407f5d0fa17fdb1170dad20362e36129aa90fd196b35ec09ba4732869794b3dd",
+      "originalBytes": 11484,
+      "reviewBytes": 11498,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/focused-regression-r01.ps1.txt",
+      "originalSha256": "a61f889e666bbe63dd5c84f94812fdd3e640ab52de0ed0a9fc88ae3cf9735093",
+      "reviewSha256": "6ae58f1d58e3ec54172f17369482d2ba3d9ebf13cb56f3e5e6437425bc20b57c",
+      "originalBytes": 4060,
+      "reviewBytes": 3974,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/invoke-repaired-r06-production-r01.ps1.txt",
+      "originalSha256": "f565faf98546f071a69150b571ecaebb79b62ed6a1df5a55c2a43e93f5859dce",
+      "reviewSha256": "23e86eb5a77c3b44379b9a132d705bec3c4714de64163484743e99aeec96fefc",
+      "originalBytes": 9809,
+      "reviewBytes": 9723,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/materialize-repaired-r06-approval-r01.ps1.txt",
+      "originalSha256": "29f11e91ddaf5c82135dcb59288a3a939a9f7e99bf2c3d786e523e68f632c9cd",
+      "reviewSha256": "db65a1fbcbcc4cacc548254e1d268011a05fcc95f97b63245f8f4d36129e1d3f",
+      "originalBytes": 12753,
+      "reviewBytes": 12568,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/package-switch-prepare-r03.ps1.txt",
+      "originalSha256": "69df701de6b4f59ed8b7fab1b543eee3141ff7b4c1f779881c034ad71e2a900e",
+      "reviewSha256": "f613f94604d701829754a75caaaa06b74a86b59331464a3ae769d1c0a9b26141",
+      "originalBytes": 7000,
+      "reviewBytes": 6914,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/readonly-task-preflight-after-fix-r01.ps1.txt",
+      "originalSha256": "ae4977575f85ae20aa5ec0307eeb83ec13e72f89ddac291b97274919d2ca6780",
+      "reviewSha256": "b019e18f87ca078735bff9a99e428fe54231e9a412519ea29ebe6a5008afb5f6",
+      "originalBytes": 11168,
+      "reviewBytes": 11080,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/task-binding-finalize-r07.ps1.txt",
+      "originalSha256": "547cc2d38318c13c8941462e1713fa0a1a45fb41cb01c8bcb747611a1101a443",
+      "reviewSha256": "8fc3104f472dd27002bf117f0a22f43537445563405793f155ae519dfe03f16c",
+      "originalBytes": 30566,
+      "reviewBytes": 30499,
+      "transformed": true
+    },
+    {
+      "reviewPath": "snapshot/preparation/task-binding-prepare-r04.ps1.txt",
+      "originalSha256": "cfbb956dfa9b30f7befd047806eb42ec240c32cfa08729be86a6d94ef761b8ee",
+      "reviewSha256": "e03a91c8be5774bf6482dfe3e47375ae65e2871d450c8efc78a4cbea3ffe0aef",
+      "originalBytes": 8980,
+      "reviewBytes": 8894,
+      "transformed": true
+    }
+  ],
+  "note": "Review text only. Original hashes identify private evidence; redacted copies do not satisfy production pins. No production configs, manifests, binaries or raw receipts included."
+}
