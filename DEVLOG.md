@@ -1,3 +1,13 @@
+## 2026-10-22 A1+A2：stop 的 sidecar 规则与启动闸门统一，ready 失败报真实原因（PR #33）
+
+- 合同 docs/development/handoffs/RELAY_20261022_a1a2-closed-files-ready.md，经 relay 由 Codex 实现，云端审核。
+- A1：`Assert-Schema6ClosedFiles` 只拒绝 `i-core.sqlite-wal/-shm/-journal`；其他顶层 sidecar 只记 `stop.closed_files_other_sidecars`；relay lock 被占用报 `relay_lock_held`。与 close 入口规则一致，不再与启动闸门冲突。
+- A2：宿主窗口已消失时 `Open` 最多等 10 秒进程退出，退出则返回 null；新会话已有 session-exit 立即报 `new_session_ended_before_ready`；ready 的任何失败附 `;child_error_code=<值>`。
+- R1 时期的 switch-login-task 旧版哈希钉子改为新基线 9756d2c9。
+- CI 全绿。其中 R1 换包后 NoRollback 的真实会话用例在一次 lifecycle 运行中返回 2，同一提交另一运行与重跑均通过，原因未定位（夹具输出被脱敏）。
+- 已知小尾巴：`safe_switch_session.ps1` 的就绪失败诊断分支仍按旧消息全等匹配，因后缀不再触发；只影响测试诊断输出，留待下次顺手改。
+- 未部署。生产使用需按 D1b 做法从受保护的 tools 副本运行，由用户决定时机。
+
 ## 2026-10-22 D1b 完成：schema6 Core 换包上线，ChatGPT 与 Claude 分来源写入
 
 - 按主合同 docs/development/handoffs/RELAY_20261012_core-release-r1.md 第 0–9 步执行。现役任务为 P′（d1a-mcp），旧任务和 P 处于停用。
