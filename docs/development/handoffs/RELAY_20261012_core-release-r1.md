@@ -495,3 +495,8 @@
 - 重启后核对：P′ 为 Running，只有一个 live session；marker 为 listening，manifest `4e003c0b`；MCP 配置 `c282597a`、策略 `fef558af` 不变；公网 OAuth discovery 返回 200。
 - 未核对项：MCP stderr 没有持久化，无法确认有没有“写回未启用”提示。改由第 9 步实际写入来验证。
 - 下一步：第 9 步真人验收；完成后恢复 relay watcher，并做 DEVLOG 与 I_PROJECT_STATE 收尾。
+
+### 第 9 步（10-22）：真人验收通过
+
+- 用户确认验收通过：ChatGPT 与 Claude 各写了一轮，App 中按来源分别显示。**D1b 完成。**
+- 收尾：DEVLOG 与 I_PROJECT_STATE 已更新。relay watcher（HereIAm-AgentRelay）待 Codex 恢复启用并核对。后续改进项汇总见 DEVLOG 同日条目。

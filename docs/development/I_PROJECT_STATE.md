@@ -1,3 +1,13 @@
+## 2026-10-22 iCore schema6 已上线（D1b 完成）
+
+- 现役：登录任务 P′（`HereIAm-iCoreSchema6-d1a-mcp-20261013-6a063386`），运行新包 Core 和 MCP（manifest `4e003c0b`）。旧任务和 P 已停用，保留不删。
+- 前端：claude_web、chatgpt_web 都已与 Core 配对。读取策略 `auto_share_origins` 为 `["claude_web","chatgpt_web"]`。真人验收通过，两端写入在 App 中按来源分别显示。
+- 运维注意：
+  - STATE 中保留有旧 shortcut-mail 日志库的 -wal/-shm，备份在 `<OUT>` 的 journal-backup 目录。它们会让 `stop-schema6-session.ps1` 最后一步报 `database_sidecars_present`；只要 `stop.receipts` 已通过，就说明会话已干净关闭。
+  - 任何时候都不要绕过闸门去改 STATE 内的文件。
+  - 注销前先手动停服（L 未完成）。
+- 后续改进项见主合同 D1b 执行记录与 DEVLOG 同日条目。relay watcher 在 D1b 期间停用，恢复情况以交接文档为准。
+
 ## 2026-10-11 iCore 切换：转入阶段 A 接力修复
 
 云端审查已完成，r08 不发起第四次调用，原窗口自然过期；生产 Run 仍为 0。后续按 [阶段 A 接力合同](handoffs/RELAY_20261011_icore-stage-a.md) 由 Codex 分 A1→A2→A3 三份 PR 在合成环境修复，云端逐轮审 diff；之后才进入真实 Windows 彩排（B）、本机干跑（C）、单次生产（D）与接入验收（E）。待用户决定 D1/D2。

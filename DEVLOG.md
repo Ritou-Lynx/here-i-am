@@ -1,3 +1,21 @@
+## 2026-10-22 D1b 完成：schema6 Core 换包上线，ChatGPT 与 Claude 分来源写入
+
+- 按主合同 docs/development/handoffs/RELAY_20261012_core-release-r1.md 第 0–9 步执行。现役任务为 P′（d1a-mcp），旧任务和 P 处于停用。
+- 停服从 10-17 23:29:57 起，到 10-22 14:47:47 恢复，共 4 天 15 小时 18 分。第 8 步为加载新凭据重启了一次，中断 44 秒。
+- 第 7 步曾两次失败：
+  - 第一次：维护脚本 stop 不允许 STATE 顶层存在任何 sidecar，旧 shortcut-mail 日志库 08-30 起残留的 -wal/-shm 被拦下。
+  - 第二次：对这个日志库做 checkpoint 后，状态树指纹与 marker 不符，启动闸门判为 recovery_required。
+  - 处理：从备份按字节还原这三份文件，状态树回到 873c6c06 后直接启动 P′。数据没有丢失。
+- 第 8 步为 chatgpt_web 配对，claude_web 凭据不变；读取策略加入了 chatgpt_web。
+- 第 9 步真人验收通过：ChatGPT 和 Claude 各写一轮，App 中分别显示来源。
+- 后续改进项：
+  - stop 的 sidecar 检查范围要与启动闸门统一；
+  - close/register 入口应透出内部错误码；
+  - ready 检查碰上宿主退出时，应返回 null，不能直接抛出 window_mismatch；
+  - shortcut-mail relay 关闭时要确认 checkpoint；
+  - relay watcher 应自行解析 codex 路径。
+- L（注销强杀复现）暂停；保留做法：注销前先手动停服。
+
 ## 2026-10-11 iCore 阶段 A 接力合同（云端审核、Codex 执行）
 
 - 云端审查结论：失败主因是错误被通用 catch 吞掉、attempt 先于只读检查消耗、每次小修触发整条哈希/审批链重建；另有两项未排除 P0（ACL 规则自相矛盾、任务按预测字节比对且发生在包切换后）。
