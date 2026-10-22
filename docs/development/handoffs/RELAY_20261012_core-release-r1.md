@@ -435,3 +435,5 @@
   3. 演练通过条件：integrity 为 ok，各表行数前后一致，sidecar 消失。通过后才对现网文件做同样操作。
   4. 完成后复核 STATE 顶层无 sidecar，再原样重跑第 7 步。
 - 后续改进项：stop/close 的 sidecar 检查范围应该统一；shortcut-mail relay 关闭时应确认 WAL 已 checkpoint。
+- 处置第 1 次（10-22）：停在第 1 步 `new_directory_acl_mismatch`。备份目录 `journal-backup-4dd18fa7` 已建好且为空，已设保护、所有者正确，但 SDDL 与 `<OUT>` 逐字不一致。没有运行 node，也没有动日志库；i-core `82d55176`、marker `a91b97e1`、三份文件的哈希均未变。
+- 审核判断：“与 `<OUT>` 的 SDDL 逐字一致”是我写的验收条件，过严，组、ACE 顺序或继承标志都可能造成差异。实际只需要满足：受保护；所有者是当前用户；只有当前用户、SYSTEM、Administrators 三个 Allow FullControl。改用这一条件复用该目录续跑。
