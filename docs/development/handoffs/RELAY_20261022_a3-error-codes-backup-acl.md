@@ -41,6 +41,7 @@
 - `tools/i_core/maintenance/README.md`（只补错误输出格式和 backup ACL 说明）
 - `tools/i_core/test_fixtures/release_schema6/safe_switch_session.ps1`（只改第 86 行附近匹配）
 - 新建 `tools/i_core/test_fixtures/release_schema6/maintenance_error_codes*`；`tools/i_core/release_schema6/maintenance_package_switch_bindings.test.mjs`（只新增用例）
+- `tools/i_core/test_fixtures/release_schema6/run_windows_tests.ps1`（第 2 轮追加：只新增一行，把 `maintenance_error_codes*.test.mjs` 选入套件）
 - `docs/development/handoffs/RELAY_20261022_a3-error-codes-backup-acl.md`（只由 Claude 改）
 
 ## 不做 / 边界
@@ -60,3 +61,13 @@
 ## 需要真人的部分
 - 合并由用户进行。
 - 生产上使用同 A1+A2：复制成 `<OUT>` 下受保护的工具副本再运行；何时换用由用户决定。
+
+## 审核记录
+### 第 1 轮（b8000c4）：返修
+- 代码与合同一致：close/register/Node 错误码白名单、`validatorReason`、回执字段、backup ACL 设置与复核、诊断匹配、README 都按合同实现；仓库内没有因此失效的哈希钉子。
+- 云端 Linux：`node --test tools/i_core/release_schema6/maintenance_*.test.mjs` 129 通过、0 失败。
+- Hosted Windows CI：maintenance acceptance 417 通过、0 失败、7 跳过，新增的 backup ACL 用例通过；R1 NoRollback 本轮未复现返回 2。Codex 本机报的 `r2_fixture_ci_only`、TEMP 残留和 `host_guard` 都是本机环境所致，CI 上通过，不计为止损。
+- 返修原因：`run_windows_tests.ps1` 只选 `test_fixtures/` 下的 `maintenance_safe_switch*`、`maintenance_mcp_source*`，新建的 `maintenance_error_codes.test.mjs` 没有进 Windows CI。其中 close、register 边界和 CI-only 的真实夹具用例在 CI 上从未运行。
+- 第 2 轮范围：
+  1. 在 runner 中追加一行，选入 `maintenance_error_codes*.test.mjs`，并保证现有检查 runner 文本的测试仍通过。
+  2. `protectBackupFile` 的 `execFileSync` 加超时（例如 60000 ms），超时同样报 `configuration_generation_backup_acl_rejected`。
