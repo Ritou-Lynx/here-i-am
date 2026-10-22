@@ -14,9 +14,6 @@ param(
 $ErrorActionPreference = 'Stop'
 # Reject injected Node/Core settings before the first Node. Explicit config is authoritative.
 $env:PSModulePath = "$PSHOME\Modules"
-Get-ChildItem Env: | Where-Object { $_.Name -like 'I_CORE_*' -or $_.Name -like 'NODE_*' -or $_.Name -in @(
-  'NODE_OPTIONS','NODE_PATH','NODE_EXTRA_CA_CERTS','OPENSSL_CONF','SSL_CERT_FILE','SSL_CERT_DIR'
-) } | ForEach-Object { throw 'inherited_runtime_environment_rejected' }
 $env:PATHEXT = '.EXE'
 $env:PATH = "$PSHOME;$env:SystemRoot\System32;$env:SystemRoot"
 $lifecycle = [IO.Path]::GetFullPath($PSScriptRoot)
@@ -52,7 +49,12 @@ $lock = $null
 $custodyLock = $null
 $configHandle = $null
 $externalHandles = @()
+$rejectedEnvironmentNames = @()
 try {
+  $rejectedEnvironmentNames = @( Get-ChildItem Env: | Where-Object { $_.Name -like 'I_CORE_*' -or $_.Name -like 'NODE_*' -or $_.Name -in @(
+  'NODE_OPTIONS','NODE_PATH','NODE_EXTRA_CA_CERTS','OPENSSL_CONF','SSL_CERT_FILE','SSL_CERT_DIR'
+) } | Select-Object -ExpandProperty Name )
+  if ($rejectedEnvironmentNames.Count -ne 0) { throw 'inherited_runtime_environment_rejected' }
   if ((-not $Start) -and ($InitializeEmpty -or $OfflineOperation -or $PackageSwitchPlan -or $PackageSwitchSha256 -or $StateDirectory -or $ControlDirectory -or $PSBoundParameters.ContainsKey('CorePort') -or $ConfigurationFile)) { throw 'start_required_for_runtime_arguments' }
   Assert-Tree $release
   $manifestPath = Join-Path $release 'manifest.json'
@@ -243,6 +245,13 @@ try {
       -not $receipt.job_empty_confirmed -or -not $childReceiptConfirmed -or $receipt.child_exit_code -ne 0 -or $receipt.termination_requested -or ($receipt.reason -notin @('completed','cancelled'))) { exit 1 }
   exit 0
 } catch {
-  [Console]::Error.WriteLine((@{status='rejected';code=$_.Exception.Message} | ConvertTo-Json -Compress))
+  $rejection = @{status='rejected';code=$_.Exception.Message}
+  if ($rejection.code -ceq 'inherited_runtime_environment_rejected' -and $rejectedEnvironmentNames.Count -ne 0) {
+    $rejection.rejected_environment_names = @($rejectedEnvironmentNames)
+    [Console]::Error.WriteLine(($rejection | ConvertTo-Json -Compress))
+    # Preserve the original uncaught -File rejection exit code.
+    exit 1
+  }
+  [Console]::Error.WriteLine(($rejection | ConvertTo-Json -Compress))
   exit 2
 } finally { if ($null -ne $custodyLock) { $custodyLock.Dispose() }; if ($null -ne $lock) { $lock.Dispose() }; if ($null -ne $configHandle) { $configHandle.Dispose() }; foreach($handle in $externalHandles) { $handle.Dispose() } }

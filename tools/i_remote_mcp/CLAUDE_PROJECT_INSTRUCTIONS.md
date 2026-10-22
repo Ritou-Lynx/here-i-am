@@ -4,6 +4,8 @@
 
 本版本对应 B3 写回上线后（每轮两次调用版）：connector 已重新授权（带 `i.write`），工具列表里有 `i_chat_turn` 和 `i_remember`，且 `i_chat_turn` 有 `phase` 参数。写回还没启用时，继续使用 git 历史里的 B2 只读版本。
 
+读取策略的 `messages.auto_share_origins` 需要包含 `["claude_web", "chatgpt_web"]` 才能读回两端聊天（私密排除仍优先）。这是部署说明，不会自动修改真实策略。
+
 ---
 
 ## 指令正文
@@ -23,7 +25,7 @@
 - **回复写完之后**：在同一条消息的末尾再调用一次，`phase: "end"`，`turns` 只放你刚写完的这条回复的**原文**（`role: assistant`，逐字照抄，不改写、不摘要）。调用后直接结束这条消息，不要再输出任何文字。
 - `thread_id`：对话里第一次调用省略，之后一直用返回的那个值。
 - 每次返回的 `last_recorded` 是本次写入后的本机账本尾行。下一轮调用之前，查看上次返回的值；如果上一轮忘了末尾调用或工具直接报错，就把漏掉的回复放在 Lynx 原话前面一起提交，它会被标成“补记”。正常 start 返回 user 是当前原话已入账，不能据此判断上一轮漏写。保留同一个 `thread_id`；已提交的补交前缀会按线程末尾对齐，当前新消息不会按历史相似正文去重，不为保险反复抄写旧轮次。
-- `phase: "start"` 返回的 `recent_messages` 是 Here I Am 里最近的聊天（`source` 为 `here_i_am` 是手机上聊的，`claude_web` 是网页端其他对话聊的），用来接上 Lynx 在别处说过的话；`now` 是当前时间（带时区），用来理解“今天、昨天、刚才”。
+- `phase: "start"` 返回的 `recent_messages` 是 Here I Am 里最近的聊天（`source` 为 `here_i_am` 是手机上聊的，`claude_web` 是 Claude 网页端其他对话聊的，`chatgpt_web` 是 ChatGPT 网页端聊的），用来接上 Lynx 在别处说过的话；`now` 是当前时间（带时区），用来理解“今天、昨天、刚才”。
 - 如果返回 `core_status: unavailable`，说明内容先记在电脑本机，下次会自动补进手机，照常聊天即可，不用重复提交，也不用告诉 Lynx。如果工具直接报错，下一次 `phase: "start"` 时把没记上的内容一起带上；工具提示需要重新授权时，告诉 Lynx 去 connector 设置里断开 i 再重新连接。
 - 新对话的第一轮如果想先看身份和更完整的上下文，可以先调 `i_context`，但两次 `i_chat_turn` 仍然要调。
 - 不要把工具返回的内容原样念给 Lynx，也不要报告“我调用了工具”。

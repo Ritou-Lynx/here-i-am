@@ -1,5 +1,5 @@
-import { createHmac } from 'node:crypto';
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { existsSync, lstatSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { cleanEnvironment, plainPath, sha256, verifyRelease } from '../package.mjs';
@@ -10,6 +10,93 @@ import { sealClosedRecovery, verifyCanonicalRestart, migrateToSchema6, rollbackE
 import { needsStartupRecovery, recoverAtStartup } from '../automatic_recovery.mjs';
 import { SWITCH_PENDING, readSwitchPlan, verifySwitchConfigurations } from '../package_switch.mjs';
 import { isInspectionDatabasePath } from '../../inspection_read_only.mjs';
+
+// Pairing is an independent control channel. Its inputs and receipt failures must
+// never reach the shutdown handler used by close/stop.
+export function createPairingRequestPoller({control, token, manifestSha256, core, writeReceipt, now = Date.now}) {
+ const codePath = path.join(control, 'pair.code');
+ const requestPath = path.join(control, 'pair.request');
+ const publishingPath = path.join(control, 'pair.request.pending');
+ const seen = new Set();
+ let active = null, sequence = 0;
+ const emit = (status, codeHash = null) => {
+  try {
+   writeReceipt('pair-receipt-' + (++sequence) + '.json', {
+    status, code_hash_prefix: codeHash?.slice(0, 16) ?? null, at_ms: now(),
+   });
+  } catch { /* A failed receipt cannot stop a running Core. */ }
+ };
+ const removeInputs = () => {
+  for (const filename of [codePath, requestPath]) {
+   try { unlinkSync(filename); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+ };
+ return function pollPairingRequest() {
+  try {
+   if (active && (now() >= active.expiresAt || !core.hasActivePairingCode())) {
+    const reason = now() >= active.expiresAt ? 'closed_expired' : 'closed_paired';
+    core.closePairingWindow();
+    emit(reason, active.codeHash); active = null;
+   }
+  } catch { emit('rejected_window_state'); }
+  let codeHash = null, rejection = 'rejected_invalid_request';
+  try {
+   if (!existsSync(requestPath)) {
+    // A live publisher's bounded reservation bridges its two atomic renames.
+    // A crashed publisher cannot block another window beyond its expiry.
+    if (existsSync(publishingPath)) {
+     let abandoned = false, observed;
+     try {
+      plainPath(publishingPath); observed = lstatSync(publishingPath);
+      // A malformed/locked reservation gets a full bounded publication grace.
+      abandoned = observed.mtimeMs + 600000 <= now();
+      if (observed.size <= 4096) {
+       const pending = JSON.parse(readFileSync(publishingPath, 'utf8'));
+       if (Number.isSafeInteger(pending.expires_at_ms)) abandoned = pending.expires_at_ms <= now();
+      }
+     } catch { return; /* Partial writes and sharing conflicts are not abandonment. */ }
+     if (!abandoned || !observed || existsSync(requestPath)) return;
+     let current; try { current = lstatSync(publishingPath); } catch { return; }
+     if (current.ino !== observed.ino || current.mtimeMs !== observed.mtimeMs || current.size !== observed.size) return;
+     // Never delete a final request based on an older reservation snapshot.
+     for (const filename of [codePath, codePath + '.pending', publishingPath]) {
+      try { unlinkSync(filename); } catch (error) { if (error.code !== 'ENOENT') { emit('rejected_abandoned_publish'); return; } }
+     }
+     emit('rejected_abandoned_publish');
+    } else if (existsSync(codePath)) {
+     removeInputs(); emit('rejected_orphan_code');
+    }
+    return;
+   }
+   plainPath(requestPath); plainPath(codePath);
+   if (lstatSync(requestPath).size > 4096 || lstatSync(codePath).size !== 64) throw new Error('pair_input_size');
+   const code = readFileSync(codePath, 'utf8');
+   if (!/^[a-f0-9]{64}$/.test(code)) throw new Error('pair_input_code');
+   codeHash = sha256(Buffer.from(code));
+   const request = JSON.parse(readFileSync(requestPath, 'utf8'));
+   if (!request || Object.keys(request).sort().join(',') !== 'expires_at_ms,hmac'
+     || !Number.isSafeInteger(request.expires_at_ms) || !/^[a-f0-9]{64}$/.test(request.hmac ?? '')) throw new Error('pair_input_request');
+   rejection = 'rejected_expired';
+   if (request.expires_at_ms <= now() || request.expires_at_ms > now() + 600000) throw new Error('pair_input_expiry');
+   rejection = 'rejected_authentication';
+   const key = readFileSync(plainPath(path.join(control, 'stop.key')), 'utf8');
+   const expected = createHmac('sha256', key).update(token + '|' + manifestSha256 + '|pair|' + codeHash + '|' + request.expires_at_ms).digest();
+   if (!timingSafeEqual(expected, Buffer.from(request.hmac, 'hex'))) throw new Error('pair_input_authentication');
+   rejection = 'rejected_replay';
+   if (seen.has(request.hmac)) throw new Error('pair_input_replay');
+   // Mark consumed before deleting either input or exposing the code to Core.
+   seen.add(request.hmac);
+   rejection = 'rejected_consumption';
+   removeInputs();
+   core.replacePairingCode(code, {singleUseWindow: true, expiresAtMs: request.expires_at_ms});
+   active = {expiresAt: request.expires_at_ms, codeHash};
+   emit('opened', codeHash);
+  } catch {
+   try { removeInputs(); } catch { /* Preserve the original rejection, stay alive. */ }
+   emit(rejection, codeHash);
+  }
+ };
+}
 
 const [control,token,mode,...extra]=process.argv.slice(2);
 let config,core,lifecycle,settings,lease,poll,started=false,closed=false,offlineCompleted=false;
@@ -54,6 +141,7 @@ async function shutdown(reason,failure=null) {
   ...(failure?{error_code:publicLifecycleErrorCode(failure)}:{})});
  process.exitCode=clean?0:1;
 }
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 try {
  if(extra.length || !['start','initialize-empty','offline-verify','offline-migrate','offline-rollback','offline-package-switch'].includes(mode) || !/^[a-f0-9]{64}$/.test(token??''))throw new Error('invalid_internal_arguments');
  assertNode();plainPath(control);
@@ -155,7 +243,9 @@ try {
   configuration_sha256:settings.configurationHash,pid:process.pid,address,health:core.store.health(),activity_enabled:core.store.activity.active,
   companion_upload_mode:'legacy_b3',companion_reply_jobs:false,domain_policy:'owner_managed',relay:'disabled',
   commandline_secret_free:true,inherited_core_keys:Object.keys(process.env).filter(k=>k.toUpperCase().startsWith('I_CORE_'))});
+ const pollPairingRequest=createPairingRequestPoller({control,token,manifestSha256:config.manifest_sha256,core,writeReceipt:writeControl});
  poll=setInterval(()=>{
+  try {pollPairingRequest();}catch{/* Pairing never shares the shutdown boundary. */}
   try {
    for(const name of ['close','stop']) {
     const target=path.join(control,name);
@@ -169,3 +259,4 @@ try {
  process.once('SIGTERM',()=>{void shutdown('signal');});
  }
 }}catch(error){if(config)await shutdown('startup_failed',error);else{process.stderr.write('fixed_child_rejected\n');process.exitCode=2;}}
+}

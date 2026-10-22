@@ -127,6 +127,9 @@ function Open-BootstrapFile([string]$Target) {
   $result=[Schema6SessionWindow]::Run($ps,$ReleaseDirectory,$ManifestSha256,$configuration.state_directory,$control,$session,$configuration.core_configuration_path,$InitializeEmpty.IsPresent,$backupArgs,$configuration.backup_interval_seconds,$configuration.core_port,$mcpConfiguration)
   exit $result
 } catch {
-  [Console]::Error.WriteLine('schema6_login_rejected:configuration_or_release_rejected')
+  $code = $_.Exception.Message
+  # Absolute end anchor also rejects a trailing newline; matching is case-sensitive.
+  if ($code -cnotmatch '\A[a-z0-9_]{1,64}\z') { $code = 'configuration_or_release_rejected' }
+  [Console]::Error.WriteLine('schema6_login_rejected:' + $code)
   exit 2
 } finally {foreach($handle in $locks){$handle.Dispose()}}

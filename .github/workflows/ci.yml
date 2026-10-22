@@ -92,6 +92,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # ChatGPT's minimal candidate is built from reviewed historical Git blobs.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -116,6 +119,32 @@ jobs:
       - name: chatgpt_android_bridge
         working-directory: tools/chatgpt_android_bridge
         run: node --test $(find . -name '*.test.mjs' | sort)
+
+  chatgpt-mcp-windows:
+    name: MCP ChatGPT compatibility (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Synthetic OAuth, MCP and minimal candidate regression
+        shell: pwsh
+        run: |
+          $tests = @(Get-ChildItem tools/i_remote_mcp -Filter '*.test.mjs' | ForEach-Object { $_.FullName })
+          $tests += @(Get-ChildItem tools/i_memory -Filter '*.test.mjs' | ForEach-Object { $_.FullName })
+          node --test @tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build the isolated six-file MCP candidate
+        run: node tools/i_remote_mcp/chatgpt_candidate.mjs --out build/ci/chatgpt-mcp-candidate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-mcp-candidate-windows
+          path: build/ci/chatgpt-mcp-candidate/
+          if-no-files-found: error
 
   windows:
     name: Windows build + whiteboard integration

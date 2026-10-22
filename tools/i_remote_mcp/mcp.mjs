@@ -127,8 +127,12 @@ export const WRITE_TOOLS = Object.freeze([
   },
 ]);
 
-export function listTools({ writeEnabled = false, coreRemember = false } = {}) {
-  return writeEnabled ? [...TOOLS, ...WRITE_TOOLS.map(tool=>coreRemember&&tool.name==='i_remember'?CORE_REMEMBER_TOOL:tool)] : [...TOOLS,...(coreRemember?[CORE_REMEMBER_TOOL]:[])];
+export function listTools({ writeEnabled = false, coreRemember = false, frontend = 'claude_web' } = {}) {
+  const writes = WRITE_TOOLS.filter(tool => frontend === 'claude_web' || tool.name === 'i_chat_turn')
+    .map(tool => tool.name === 'i_chat_turn'
+      ? { ...tool, description: tool.description.replace('claude_web', frontend) }
+      : coreRemember ? CORE_REMEMBER_TOOL : tool);
+  return writeEnabled ? [...TOOLS, ...writes] : [...TOOLS, ...(coreRemember && frontend === 'claude_web' ? [CORE_REMEMBER_TOOL] : [])];
 }
 
 function publicTool(tool) {
@@ -265,8 +269,8 @@ export function currentTime(now, timeZone) {
 
 // ---------- 工具实现 ----------
 
-export function createToolHandlers({ getReadModel, identityLoader = loadIdentity, now = () => Date.now(), timeZone, writeback = null, coreRemember = null }) {
-  const notes = coreRemember ?? writeback;
+export function createToolHandlers({ getReadModel, identityLoader = loadIdentity, now = () => Date.now(), timeZone, writeback = null, coreRemember = null, frontend = 'claude_web' }) {
+  const notes = frontend === 'claude_web' ? coreRemember ?? writeback : null;
   async function readNotes(method,...args) {
     if(!coreRemember)return {items:await notes[method](...args)};
     try{return {items:await coreRemember[method](...args)};}
@@ -318,6 +322,9 @@ export function createToolHandlers({ getReadModel, identityLoader = loadIdentity
   }
 
   handlers.i_chat_turn = async (args) => {
+    if (Object.keys(args).some(key => ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id'].includes(key))) {
+      throw new ToolInputError('invalid_chat_turn_arguments');
+    }
     const phase = args.phase ?? 'start';
     if (phase !== 'start' && phase !== 'end') throw new ToolInputError('phase 只能是 start 或 end');
     const limit = clampInt(args.limit, 0, 50, 10);
@@ -352,7 +359,7 @@ export function createToolHandlers({ getReadModel, identityLoader = loadIdentity
       ...hint,
       now: currentTime(now(), timeZone),
       recent_messages: recent.map(projectMessage),
-      ...await recentNotes(),
+      ...(notes ? await recentNotes() : {}),
     };
   };
   handlers.i_remember = async (args) => ({
@@ -392,7 +399,7 @@ export function negotiateProtocolVersion(requested) {
 
 // 处理一条 JSON-RPC 消息；通知/响应返回 null。
 export async function handleRpcMessage(message, {
-  handlers, session, logError = () => {}, tools = TOOLS, scopes = [READ_SCOPE], instructions = null,
+  handlers, session, logError = () => {}, tools = TOOLS, scopes = [READ_SCOPE], instructions = null, unavailableTools = {},
 }) {
   if (!message || typeof message !== 'object' || message.jsonrpc !== '2.0') {
     return rpcError(message?.id, -32600, 'Invalid Request');
@@ -419,7 +426,9 @@ export async function handleRpcMessage(message, {
           title: tools.length > TOOLS.length ? '林埃 i' : '林埃 i（只读）',
           version: SERVER_VERSION,
         },
-        instructions: instructions ?? (tools.length > TOOLS.length ? SERVER_INSTRUCTIONS_WRITE : SERVER_INSTRUCTIONS),
+        instructions: instructions ?? (tools.some(tool => tool.name === 'i_remember') ? SERVER_INSTRUCTIONS_WRITE
+          : tools.some(tool => tool.name === 'i_chat_turn') ? SERVER_INSTRUCTIONS_WRITE.replace('用户明确说“帮我记一下”时用 i_remember。', '')
+          : SERVER_INSTRUCTIONS),
       });
     }
     case 'ping':
@@ -431,10 +440,12 @@ export async function handleRpcMessage(message, {
       const args = message.params?.arguments ?? {};
       const tool = tools.find((t) => t.name === name);
       const handler = tool && Object.hasOwn(handlers, name) ? handlers[name] : null;
-      if (!handler) return rpcError(id, -32602, `Unknown tool: ${String(name).slice(0, 64)}`);
+      if (!handler) return Object.hasOwn(unavailableTools, name)
+        ? rpcResult(id, toolError(unavailableTools[name]))
+        : rpcError(id, -32602, `Unknown tool: ${String(name).slice(0, 64)}`);
       if (typeof args !== 'object' || args === null || Array.isArray(args)) return rpcError(id, -32602, 'arguments must be an object');
       if (tool.requiredScope && !scopes.includes(tool.requiredScope)) {
-        return rpcResult(id, toolError('写回需要重新授权：请告诉用户在 claude.ai 的 connector 设置里断开 i 再重新连接。这一轮没有写回，下次调用时把这一轮一起带上。'));
+        return rpcResult(id, toolError('写回需要重新授权：请告诉用户在当前客户端的连接器设置里断开 i 再重新连接。这一轮没有写回，下次调用时把这一轮一起带上。'));
       }
       try {
         return rpcResult(id, toolResult(await handler(args)));

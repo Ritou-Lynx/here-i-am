@@ -5,7 +5,16 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSy
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
+export const FRONTENDS = Object.freeze({
+  claude_web: Object.freeze({ name: 'claude_web', deviceId: 'frontend:claude_web', displayName: 'claude.ai 网页端', credentialFile: 'core-frontend.json' }),
+  chatgpt_web: Object.freeze({ name: 'chatgpt_web', deviceId: 'frontend:chatgpt_web', displayName: 'ChatGPT 网页端', credentialFile: 'core-frontend-chatgpt_web.json' }),
+});
 export const FRONTEND_NAME = 'claude_web';
+
+export function frontendDefinition(frontend = FRONTEND_NAME) {
+  if (!Object.hasOwn(FRONTENDS, frontend)) throw new WritebackInputError('invalid_frontend');
+  return FRONTENDS[frontend];
+}
 export const FRONTEND_DEVICE_ID = `frontend:${FRONTEND_NAME}`;
 export const FRONTEND_PLATFORM = 'external-frontend';
 export const CORE_PROTOCOL_VERSION = '0.1';
@@ -169,6 +178,7 @@ export function openLedger(path) {
     );
     CREATE INDEX IF NOT EXISTS notes_active_idx ON notes(status, updated_at_ms);
   `);
+  db.exec("CREATE TABLE IF NOT EXISTS thread_frontends (thread_id TEXT PRIMARY KEY, frontend TEXT NOT NULL)");
   const columns = new Set(db.prepare('PRAGMA table_info(turns)').all().map((c) => c.name));
   if (!columns.has('sketch')) db.exec('ALTER TABLE turns ADD COLUMN sketch TEXT');
   if (!columns.has('backfilled')) db.exec('ALTER TABLE turns ADD COLUMN backfilled INTEGER NOT NULL DEFAULT 0');
@@ -246,12 +256,13 @@ export class CoreRejectedError extends Error {
   }
 }
 
-export function loadFrontendCredential(stateDir) {
-  const path = join(stateDir, 'core-frontend.json');
+export function loadFrontendCredential(stateDir, frontend = FRONTEND_NAME) {
+  const definition = frontendDefinition(frontend);
+  const path = join(stateDir, definition.credentialFile);
   if (!existsSync(path)) return null;
   const parsed = JSON.parse(readFileSync(path, 'utf8'));
-  if (parsed?.device_id !== FRONTEND_DEVICE_ID || typeof parsed.device_token !== 'string') {
-    throw new Error('core-frontend.json is invalid');
+  if (parsed?.device_id !== definition.deviceId || typeof parsed.device_token !== 'string' || !parsed.device_token) {
+    throw new Error(definition.credentialFile + ' is invalid');
   }
   return parsed;
 }
@@ -264,13 +275,14 @@ export function saveJsonPrivate(path, value) {
   try { chmodSync(path, 0o600); } catch { /* Windows */ }
 }
 
-export async function pairFrontendDevice({ coreUrl, pairingCode, stateDir, fetchImpl = fetch }) {
+export async function pairFrontendDevice({ coreUrl, pairingCode, stateDir, frontend = FRONTEND_NAME, fetchImpl = fetch }) {
+  const definition = frontendDefinition(frontend);
   const res = await fetchImpl(`${coreUrl}/v1/core/devices/pair`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      device_id: FRONTEND_DEVICE_ID,
-      display_name: 'claude.ai 网页端',
+      device_id: definition.deviceId,
+      display_name: definition.displayName,
       platform: FRONTEND_PLATFORM,
       client_version: '0.1',
       pairing_code: pairingCode,
@@ -281,16 +293,17 @@ export async function pairFrontendDevice({ coreUrl, pairingCode, stateDir, fetch
   if (!res.ok || typeof body?.device_token !== 'string') {
     throw new Error(`pairing failed: ${body?.error?.code ?? res.status}`);
   }
-  saveJsonPrivate(join(stateDir, 'core-frontend.json'), {
-    device_id: FRONTEND_DEVICE_ID,
+  saveJsonPrivate(join(stateDir, definition.credentialFile), {
+    device_id: definition.deviceId,
     device_token: body.device_token,
     core_node_id: body.core_node_id ?? null,
     paired_at: new Date().toISOString(),
   });
-  return { device_id: FRONTEND_DEVICE_ID, core_node_id: body.core_node_id ?? null };
+  return { device_id: definition.deviceId, core_node_id: body.core_node_id ?? null };
 }
 
-export function createCoreFrontendClient({ coreUrl, deviceToken, fetchImpl = fetch, timeoutMs = 10_000 }) {
+export function createCoreFrontendClient({ coreUrl, deviceToken, frontend = FRONTEND_NAME, fetchImpl = fetch, timeoutMs = 10_000 }) {
+  const definition = frontendDefinition(frontend);
   return {
     async submit(messages) {
       let res;
@@ -302,7 +315,7 @@ export function createCoreFrontendClient({ coreUrl, deviceToken, fetchImpl = fet
             'x-core-protocol': CORE_PROTOCOL_VERSION,
             authorization: `Bearer ${deviceToken}`,
           },
-          body: JSON.stringify({ device_id: FRONTEND_DEVICE_ID, messages }),
+          body: JSON.stringify({ device_id: definition.deviceId, messages }),
           signal: AbortSignal.timeout(timeoutMs),
         });
       } catch {
@@ -323,10 +336,12 @@ export function createCoreFrontendClient({ coreUrl, deviceToken, fetchImpl = fet
 export function createWriteback({
   ledger,
   coreClient,
+  frontend = FRONTEND_NAME,
   now = () => Date.now(),
   rateLimiter = new RateLimiter(DEFAULT_RATE_LIMITS, now),
 }) {
   const db = ledger;
+  const definition = frontendDefinition(frontend);
 
   function validateTurns(args) {
     const { turns } = args;
@@ -351,9 +366,13 @@ export function createWriteback({
   function planTurns(threadId, turns, characterId, phase) {
     const t = now();
     return transaction(db, () => {
-      const thread = db.prepare('SELECT thread_id FROM threads WHERE thread_id = ?').get(threadId);
+      const thread = db.prepare("SELECT thread_id, COALESCE(thread_frontends.frontend, 'claude_web') AS frontend FROM threads LEFT JOIN thread_frontends USING (thread_id) WHERE thread_id = ?").get(threadId);
+      if (thread && thread.frontend !== frontend) throw new WritebackInputError('thread_frontend_mismatch');
       if (thread) db.prepare('UPDATE threads SET last_seen_ms = ? WHERE thread_id = ?').run(t, threadId);
-      else db.prepare('INSERT INTO threads(thread_id, created_at_ms, last_seen_ms) VALUES (?, ?, ?)').run(threadId, t, t);
+      else {
+        db.prepare('INSERT INTO threads(thread_id, created_at_ms, last_seen_ms) VALUES (?, ?, ?)').run(threadId, t, t);
+        db.prepare('INSERT INTO thread_frontends(thread_id, frontend) VALUES (?, ?)').run(threadId, frontend);
+      }
       const existingRows = db.prepare(`
         SELECT role, turn_key, sketch, created_at_ms FROM turns WHERE thread_id = ? ORDER BY seq DESC LIMIT ?
       `).all(threadId, LIMITS.alignWindow).reverse();
@@ -361,7 +380,7 @@ export function createWriteback({
       const known = new Set(existing);
       if (!thread || existing.length === 0) {
         // 新线程（Claude 丢了 thread_id 或新对话）：用最近 24 小时的全局轮次识别重传。
-        for (const row of db.prepare('SELECT turn_key FROM turns WHERE created_at_ms >= ?').all(t - LIMITS.globalDedupWindowMs)) {
+        for (const row of db.prepare("SELECT turn_key FROM turns LEFT JOIN thread_frontends USING (thread_id) WHERE COALESCE(frontend, 'claude_web') = ? AND turns.created_at_ms >= ?").all(frontend, t - LIMITS.globalDedupWindowMs)) {
           known.add(row.turn_key);
         }
       }
@@ -421,7 +440,7 @@ export function createWriteback({
         else if (threadLast !== null) {
           created = threadLast + Math.max(1, Math.floor((current - threadLast) * (index + 1) / (backfillCount + 1)));
         } else created = current - (backfillCount - index);
-        insert.run(threadId, seq, turn.role, keys[start + index], `${FRONTEND_NAME}:${threadId}:${seq}`,
+        insert.run(threadId, seq, turn.role, keys[start + index], `${frontend}:${threadId}:${seq}`,
           nextOriginSequence(db, t), characterId, created, turn.content, sketches[start + index], isCurrent ? 0 : 1);
       });
       return { added: fresh.length, skipped: start, backfilled: Math.max(0, fresh.length - 1) };
@@ -453,7 +472,7 @@ export function createWriteback({
   function toCoreMessage(row) {
     return {
       sync_id: row.sync_id,
-      origin_device_id: FRONTEND_DEVICE_ID,
+      origin_device_id: definition.deviceId,
       origin_sequence: Number(row.origin_sequence),
       character_id: row.character_id,
       sender: row.role === 'user' ? 'user' : 'companion',
@@ -468,8 +487,8 @@ export function createWriteback({
   // 把所有待提交轮次（包括以前失败的）按顺序交给 i_core。
   async function flush() {
     const rows = db.prepare(`
-      SELECT * FROM turns WHERE status = 'pending' ORDER BY origin_sequence LIMIT ?
-    `).all(LIMITS.maxPendingFlush);
+      SELECT turns.* FROM turns LEFT JOIN thread_frontends USING (thread_id) WHERE status = 'pending' AND COALESCE(frontend, 'claude_web') = ? ORDER BY origin_sequence LIMIT ?
+    `).all(frontend, LIMITS.maxPendingFlush);
     let rejected = 0;
     for (let i = 0; i < rows.length; i += LIMITS.coreBatch) {
       const batch = rows.slice(i, i + LIMITS.coreBatch);
@@ -515,7 +534,11 @@ export function createWriteback({
   }
 
   return {
+    frontend,
     async chatTurn(args, { characterId }) {
+      const identityFields = ['frontend', 'source', 'device_id', 'origin_device_id', 'sync_id'];
+      if (Object.keys(args).some(key => identityFields.includes(key))) throw new WritebackInputError('invalid_chat_turn_arguments');
+      if (!coreClient) throw new WritebackInputError('frontend_not_paired:' + frontend);
       const threadId = args.thread_id === undefined || args.thread_id === null || args.thread_id === ''
         ? newId('t') : args.thread_id;
       if (typeof threadId !== 'string' || !THREAD_ID.test(threadId)) {
@@ -534,7 +557,7 @@ export function createWriteback({
       rateLimiter.take('i_chat_turn');
       const plan = planTurns(threadId, turns, characterId, phase);
       const result = await flush();
-      const pending = Number(db.prepare("SELECT COUNT(*) AS n FROM turns WHERE status = 'pending'").get().n);
+      const pending = Number(db.prepare("SELECT COUNT(*) AS n FROM turns LEFT JOIN thread_frontends USING (thread_id) WHERE status = 'pending' AND COALESCE(frontend, 'claude_web') = ?").get(frontend).n);
       return {
         thread_id: threadId,
         recorded: {
@@ -550,6 +573,7 @@ export function createWriteback({
     },
 
     remember(args) {
+      if (frontend !== FRONTEND_NAME) throw new WritebackInputError('frontend_forbidden:' + frontend);
       const action = args.action ?? 'add';
       if (!['add', 'update', 'delete', 'list'].includes(action)) {
         throw new WritebackInputError('action 只能是 add、update、delete 或 list');

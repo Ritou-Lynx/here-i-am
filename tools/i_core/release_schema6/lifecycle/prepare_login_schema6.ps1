@@ -104,6 +104,9 @@ try{$document.Save($stream);$stream.Flush($true)}finally{$stream.Dispose()}
 @{prepared=$true;registered=$false;started=$false;manifest_sha256=$ManifestSha256;login_configuration_sha256=$LoginConfigurationSha256}|ConvertTo-Json -Compress
 
 } catch {
- [Console]::Error.WriteLine('schema6_login_prepare_rejected:configuration_or_release_rejected')
+ $code = $_.Exception.Message
+  # Absolute end anchor also rejects a trailing newline; matching is case-sensitive.
+  if ($code -cnotmatch '\A[a-z0-9_]{1,64}\z') { $code = 'configuration_or_release_rejected' }
+  [Console]::Error.WriteLine('schema6_login_prepare_rejected:' + $code)
  exit 2
 } finally {foreach($handle in $locks){$handle.Dispose()}}

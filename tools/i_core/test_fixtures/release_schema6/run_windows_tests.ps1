@@ -124,6 +124,9 @@ try {
   $testExitCode = Invoke-Schema6HostedModuleScope -Body {
    Invoke-Schema6GatedSuites -Probe {Invoke-Schema6NativeProbe $nodePath} -Suites {
     $suiteFiles=if($MaintenanceOnly){@(Get-ChildItem -LiteralPath tools/i_core/release_schema6 -Filter 'maintenance_*.test.mjs' -File|Sort-Object Name|ForEach-Object {$_.FullName})}else{@('tools/i_core/release_schema6/*.test.mjs','tools/i_core/release_schema6/lifecycle/*.test.mjs')}
+    # Contract A integration fixtures are included in both maintenance and full runs.
+    $suiteFiles += @(Get-ChildItem -LiteralPath tools/i_core/test_fixtures/release_schema6 -Filter 'maintenance_safe_switch*.test.mjs' -File|Sort-Object Name|ForEach-Object {$_.FullName})
+    $suiteFiles += @(Get-ChildItem -LiteralPath tools/i_core/test_fixtures/release_schema6 -Filter 'maintenance_mcp_source*.test.mjs' -File|Sort-Object Name|ForEach-Object {$_.FullName})
     if($suiteFiles.Count-eq 0){throw 'ci_suite_missing'}
     & $nodePath --test --test-concurrency=1 --test-reporter=spec --test-reporter=tap --test-reporter-destination=stdout --test-reporter-destination=build/ci/schema6-windows.tap @suiteFiles | ForEach-Object {Write-Host $_}
     return $LASTEXITCODE

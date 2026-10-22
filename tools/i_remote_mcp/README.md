@@ -7,6 +7,31 @@
 - 内置单用户 OAuth 2.1：DCR、口令授权页、PKCE S256、refresh token 轮换；令牌、授权码和口令只存哈希。
 - 只用 Node 22 内置模块，无 npm 依赖。
 
+## ChatGPT 兼容（源码候选，默认关闭）
+
+只有显式设置 `I_REMOTE_MCP_CHATGPT_ENABLED=1` 才增加 ChatGPT 回调和 Origin；未设置或 `0` 保持 Claude 默认，其他值直接拒绝启动。配置在创建 OAuth 实例时固定，不随进程环境后续变化切换。
+
+- OAuth metadata 声明 `authorization_response_iss_parameter_supported: true`；成功及 OAuth 错误重定向都返回与 issuer 完全一致的 `iss`。
+- 只增加稳定精确回调 `https://chatgpt.com/connector_platform_oauth_redirect`，不开放 `/connector/oauth/*`、通配地址、近似域名或任意子域。
+- `/mcp` 只对精确 `https://chatgpt.com` Origin 提供受限 CORS：POST/DELETE，以及 accept、authorization、content-type、mcp-session-id、mcp-protocol-version。OPTIONS 不读取业务数据，实际请求仍需 OAuth；不开启 credentials CORS。
+- DCR 使用 public client、`token_endpoint_auth_method=none`、PKCE S256；scope、refresh 轮换、MCP session 家族绑定和现有 B3 去重规则不变。CIMD/OIDC 没有实现，也没有虚假声明支持。
+
+后续获批激活后，在 ChatGPT 添加服务器 URL `https://i.ilynx.date/mcp`，认证选 OAuth，注册方式 DCR，默认 scope 选择 `i.read` 和 `i.write`；基础 scope 留空，OIDC 保持关闭，端点使用自动发现。CIMD/OIDC 不可用提示本身不代表设置错误。仍须真人完成授权和实际工具调用才能验收，合成测试不能替代这一项。
+
+授权码的精确回调绑定写回身份：ChatGPT 为 `chatgpt_web`（设备 `frontend:chatgpt_web`，显示名“ChatGPT 网页端”），Claude 为 `claude_web`（设备 `frontend:claude_web`，显示名“claude.ai 网页端”）。access token 与 refresh 族保存该身份，刷新不能改成另一前端；旧令牌无身份字段时，按该 client_id 的注册回调推导：仅注册 ChatGPT 精确回调时为 ChatGPT，其余情况（含混合回调）均为 Claude；刷新后的令牌保存推导结果。客户端不能自报身份，线程、sync_id 前缀、去重与待重试队列按前端隔离，互相续写线程会返回 `thread_frontend_mismatch`。
+
+ChatGPT 凭据独立保存在 `core-frontend-chatgpt_web.json`。缺少凭据时 `i_chat_turn` 明确返回 `frontend_not_paired:chatgpt_web`，不会使用 Claude 凭据。主线配置领域工具时，ChatGPT 保留只读的 week_get、day_get；同时提供读取与聊天写回。ChatGPT 不提供随手记（capture_add）和笔记（i_remember），这两项仅供 Claude。实际配对、修改真实读取策略及部署切换另行执行。
+
+**生产准备必须使用最小候选，不能直接复制主线 MCP 目录。** 主线同时含尚未激活的 W3 领域工具。`chatgpt_candidate.mjs` 从固定、已核验的旧六文件 Git 库存构建，只应用经过逐项核对的兼容与前端身份补丁（server/oauth/mcp/writeback），diagnostics 和读取层两项逐字节保持；候选仍是六文件闭包，并拒绝其他源码差异。示例：
+
+```powershell
+node tools/i_remote_mcp/chatgpt_candidate.mjs --out build/chatgpt-mcp-candidate
+```
+
+输出只允许当前 checkout 的全新 `build` 子目录，包含六文件、非运行时 manifest，并标明 `not_deployed`；不会改现役环境、MCP 状态或登录配置。现役启动器锁定 MCP 源码库存，未来激活还需要独立审批新的 MCP 配置、备份覆盖及 login/XML 哈希链；本分支不改 Core 运行包、维护工具或生命周期。
+
+依据：[OpenAI 身份验证文档](https://developers.openai.com/plugins/build/auth)、[自定义 MCP 指南](https://developers.openai.com/api/docs/guides/custom-mcp-server)。详细证据及上线节点见 [ChatGPT 兼容交接](../../docs/development/handoffs/CHATGPT_MCP_COMPATIBILITY_20261009.md)。
+
 ## W3 领域工具（源码候选，默认未启用）
 
 `domain_tools.mjs` 仅通过 schema6 Core 的领域 HTTP API 访问 captures、plan_items、plan_weeks、plan_days。没有数据库连接、worker 密钥、聊天读取或授权签发能力。Core 注册/模式、受信授权 verifier 和 scoped principal 由 owner 配置；本模块不升级/注册/启用领域。
@@ -49,7 +74,7 @@ i_memory 的 v2 policy 增加必填 `domains:["chat","memory_v3"]`，可选其�
 | `fixtures.mjs` | 测试用 fake readModel 与服务启动器（合成数据） |
 | `*.test.mjs` | `node --test` 测试 |
 | `CLAUDE_PROJECT_INSTRUCTIONS.md` | 给 claude.ai「林埃」Project 的指令（B2.2） |
-| `.state/` | 运行时状态（`oauth.json`、`core-frontend.json`、`writeback.sqlite`、`phone-feed.json`），已 gitignore |
+| `.state/` | 运行时状态（`oauth.json`、`core-frontend.json`、`core-frontend-chatgpt_web.json`、`writeback.sqlite`、`phone-feed.json`），已 gitignore |
 
 ## 数据来源
 
@@ -92,7 +117,8 @@ OAuth 参数：access token 1 小时、refresh token 30 天（每次使用后轮
 
 ```powershell
 # 1. i_core 临时打开配对窗口（一次性配对码，不写进常驻启动项），然后：
-node tools/i_remote_mcp/server.mjs pair-core            # 输入同一个配对码；令牌写入 .state/core-frontend.json
+node tools/i_remote_mcp/server.mjs pair-core            # 默认 claude_web，写入 .state/core-frontend.json
+node tools/i_remote_mcp/server.mjs pair-core --frontend chatgpt_web # 单独配对，写入 .state/core-frontend-chatgpt_web.json
 #    i_core 地址默认 http://127.0.0.1:47841，可用 --core-url 或 I_CORE_URL 指定
 # 2. 签发手机拉取令牌（只显示一次；再次运行即轮换）
 node tools/i_remote_mcp/server.mjs issue-phone-token
@@ -108,11 +134,11 @@ node tools/i_remote_mcp/server.mjs revoke-all
 | `--phone-port` | `I_REMOTE_MCP_PHONE_PORT` | `47862` |
 | — | `I_REMOTE_MCP_WRITEBACK=0` | 临时关闭写回（只读工具照常） |
 
-- `i_chat_turn`：每轮两次——回答前 `phase=start` 交用户原话并取上下文，回复写完后在同一条消息末尾 `phase=end` 交回复原文，最后一条回复也当场写回。按内容对齐去重，长文本另做近似去重（不可还原的 MinHash 指纹）；漏调的轮次下次补上，带 `addenda: [{type: frontend_backfill, approximate_time: true}]` 并在前后两条之间估算时间；i_core 不可达时记在本机账本、下次自动补交。写进 i_core 的消息 `origin_device_id = frontend:claude_web`，手机 feed 可据此标注“网页端”。
+- `i_chat_turn`：每轮两次——回答前 `phase=start` 交用户原话并取上下文，回复写完后在同一条消息末尾 `phase=end` 交回复原文，最后一条回复也当场写回。按内容对齐去重，长文本另做近似去重（不可还原的 MinHash 指纹）；漏调的轮次下次补上，带 `addenda: [{type: frontend_backfill, approximate_time: true}]` 并在前后两条之间估算时间；i_core 不可达时记在本机账本、下次自动补交。写进 i_core 的消息按令牌身份使用 `origin_device_id = frontend:claude_web` 或 `frontend:chatgpt_web`，读取返回的 `source` 分别为 `claude_web` 或 `chatgpt_web`。
 - `i_remember`：add / update / delete / list。记录只在本机账本，删除会清掉正文。手机经本机拉取通道 `GET /v1/remember/changes`、`POST /v1/remember/ack` 取走，进入 Record 流程直接成卡。
 - 手机拉取通道只监听本机，**不要**接到 Cloudflare 隧道上；手机经 Tailscale Serve 访问。
 - 限流、大小限制、scope 与重新授权规则见设计文档。
-- 读取层需在 policy 里设 `messages.auto_share_origins: ["claude_web"]`，网页端写回的消息才会在其他对话里被读回（私密规则仍优先）。
+- 读取层需在 policy 里设 `messages.auto_share_origins: ["claude_web", "chatgpt_web"]`，网页端写回的消息才会在其他对话里被读回（私密规则仍优先）。
 
 ## Tailscale Funnel 示例（历史参考，已弃用）
 

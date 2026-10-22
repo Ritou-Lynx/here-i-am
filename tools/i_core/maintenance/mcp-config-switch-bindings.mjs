@@ -89,10 +89,13 @@ export function backupMapping(old,from,to,candidateManifest,candidate){
  for(const e of candidateManifest.files)map.set(path.join(old.working_directory,'tools/'+e.path),{path:path.join(candidate.runtimeDirectory,e.path),sha256:e.result_sha256,oldSha256:e.base_sha256,role:'configuration',preserved:'runtime/tools/'+e.path});
  return map;
 }
-export function buildMcpSwitchBackup(original,map){
+export function mapMcpSwitchBackup(original,map){
  const b=structuredClone(original),entries=b.specTemplate.entries;need(!entries.some(e=>e.name.toLowerCase().startsWith('preserved/mcp-config-switch-source')||PRESERVED_PREFIX.toLowerCase().startsWith(e.name.toLowerCase()+'/')),'backup_preserved_collision');
  const preserved=[];for(const [p,m] of map){const found=entries.filter(e=>e.source_path===p);need(found.length===1&&found[0].role===m.role&&found[0].state!=='disabled','backup_attachment');const e=found[0];need(!m.oldSha256||e.sha256===m.oldSha256,'backup_source_hash');preserved.push({...e,name:PRESERVED_PREFIX+m.preserved});}
- b.specTemplate.entries=entries.map(e=>{const m=map.get(e.source_path);return m?{...e,source_path:m.path,sha256:m.sha256??e.sha256}:e;}).concat(preserved);f.validate(b.specTemplate);return b;
+ b.specTemplate.entries=entries.map(e=>{const m=map.get(e.source_path);return m?{...e,source_path:m.path,sha256:m.sha256??e.sha256}:e;}).concat(preserved);return b;
+}
+export function buildMcpSwitchBackup(original,map){
+ const b=mapMcpSwitchBackup(original,map);f.validate(b.specTemplate);return b;
 }
 export function validateMcpConfigSwitch(p){
  try{
