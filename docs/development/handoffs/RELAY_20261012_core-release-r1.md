@@ -407,3 +407,16 @@
 - `messages.auto_share_origins`：`["claude_web"]` → `["claude_web","chatgpt_web"]`。策略文件 `3ecf6202` → `fef558af`。只替换了数组片段，原地写回，所有者和 ACL 不变。备份放在 `<OUT>\policy-backup`（`3ecf6202`）。
 - 校验使用 MCP 候选（即 P′ 实际运行的版本）中 `i_memory_read.mjs` 的 `loadPolicy`，未打开数据库。修改前返回 `["frontend:claude_web"]`，修改后返回 `["frontend:claude_web","frontend:chatgpt_web"]`。
 
+
+### 第 7 步（10-22）：实切被拒，停在 stop_old，服务仍未恢复
+
+- 第一次因权限自动审核超时而停止，没有执行任何命令。
+- 第二次的复核结果：三个任务都是 Disabled，实例数 0；没有 Core/MCP 进程，端口无监听；marker 为 `a91b97e1`。全程未传 `-PublicHealthUrl`。
+- DryRun 退出码 0（preflight completed，结果 dry_run_passed）。
+- 实切（`-NoRollback`）退出码 2：`switch.stop_old` → `database_sidecars_present`。失败来自 `stop.closed_files` 检查：state_directory 下有文件名以 `-wal`、`-shm` 或 `-journal` 结尾。流程没有进入 disable_old/enable_new，任务状态未改动。
+- 失败后现场：三个任务仍为 Disabled、实例数 0；marker 为 clean_closed（`a91b97e1`）；没有 recovery pending。
+- 审核判断：
+  - 第 3 步换包完成时记录过“无 sidecar”，所以 sidecar 是在第 4–6 步之间或之后出现的，来源待查。
+  - 这一步还没改动任何任务。只要 sidecar 能安全消除，就可以原样重跑第 7 步，不需要反向换包。脚本输出的“需要反向换包”是 `-NoRollback` 的通用提示。
+  - 有内容的 `-wal` 可能含有未 checkpoint 的已提交事务，不能直接删除。
+- 下一步：只读排查 sidecar 的文件名、大小、时间、是否被占用，并与各步时间线对照。处置方案另行审批。
