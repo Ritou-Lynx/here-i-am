@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
+import * as nodeFs from 'node:fs/promises';
 import { access, mkdir, open, readFile, realpath, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -112,7 +113,7 @@ async function acquireLock(stateDir, pid, isProcessAlive) {
   }
   return null;
 }
-function validateConfig(input) {
+export function validateConfig(input) {
   const config = { ...defaults, ...input };
   if (config.repo !== REPO || config.baseBranch !== 'v3-lab') throw new Error('只允许协议指定仓库和 v3-lab base');
   for (const field of ['allowedAuthors', 'headPrefixes', 'codexArgs']) if (!Array.isArray(config[field]) || !config[field].every(x => typeof x === 'string')) throw new Error(`${field} 必须是字符串数组`);
@@ -120,6 +121,14 @@ function validateConfig(input) {
   for (const field of ['maxRounds', 'codexTimeoutMinutes', 'summaryMaxChars', 'pollSeconds']) if (!Number.isFinite(config[field]) || config[field] <= 0) throw new Error(`${field} 必须大于零`);
   if (!Number.isInteger(config.maxRounds) || config.maxRounds > 4) throw new Error('最多允许 4 轮');
   if (!config.repoPath || !config.worktreeRoot || !path.isAbsolute(config.repoPath) || !path.isAbsolute(config.worktreeRoot)) throw new Error('repoPath 与 worktreeRoot 必须是绝对路径');
+  if (config.codexPath !== undefined && (typeof config.codexPath !== 'string' || !path.isAbsolute(config.codexPath))) throw new Error('codexPath 必须是绝对路径');
+  if (config.codexSearch !== undefined) {
+    const search = config.codexSearch;
+    if (!search || typeof search.root !== 'string' || !path.isAbsolute(search.root)) throw new Error('codexSearch.root 必须是绝对路径');
+    if (typeof search.dirPattern !== 'string' || !search.dirPattern.startsWith('^') || !search.dirPattern.endsWith('$')) throw new Error('codexSearch.dirPattern 必须是锚定正则');
+    try { new RegExp(search.dirPattern); } catch { throw new Error('codexSearch.dirPattern 正则无效'); }
+    if (typeof search.relativeExe !== 'string' || !search.relativeExe || path.posix.isAbsolute(search.relativeExe) || path.win32.isAbsolute(search.relativeExe) || /^[a-z]:/i.test(search.relativeExe) || search.relativeExe.split(/[\\/]/).includes('..')) throw new Error('codexSearch.relativeExe 必须是相对路径且不含 ..');
+  }
   const relative = path.relative(config.repoPath, config.worktreeRoot);
   if (!relative || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) throw new Error('worktreeRoot 必须位于主仓库外');
   // Configuration cannot replace the dedicated cwd/output/stdin boundary or bypass sandboxing.
@@ -128,7 +137,75 @@ function validateConfig(input) {
   return config;
 }
 
-export async function runOnce({ config: input, stateDir = path.join(here, '.state'), run: execute = run, now = Date.now, pid = process.pid, isProcessAlive = alive, log = console.log, template, dryRun = false } = {}) {
+// Numeric segments are compared without Number precision loss; ties are deterministic.
+function compareVersions(a, b) {
+  const left = a.match(/\d+/g) ?? [], right = b.match(/\d+/g) ?? [];
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const x = BigInt(left[i] ?? 0), y = BigInt(right[i] ?? 0);
+    if (x !== y) return x > y ? -1 : 1;
+  }
+  return a < b ? 1 : a > b ? -1 : 0;
+}
+
+export async function resolveCodex(config, { platform = process.platform, fs = nodeFs, env = process.env } = {}) {
+  const inside = (root, file) => {
+    const relative = path.relative(root, file);
+    return !relative || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  };
+  const candidate = async (file, source) => {
+    if (!path.isAbsolute(file) || (platform === 'win32' && path.extname(file).toLowerCase() !== '.exe')) return null;
+    try {
+      // PATH keeps normal executable lookup semantics, including installed links.
+      if (source === 'PATH') {
+        if (!(await fs.stat(file)).isFile()) return null;
+        const resolved = await fs.realpath(file);
+        if (platform === 'win32' && path.extname(resolved).toLowerCase() !== '.exe') return null;
+        if (platform !== 'win32') await fs.access(resolved, 1); // X_OK
+        return { path: resolved, codexSource: source, codexDir: path.basename(path.dirname(resolved)) };
+      }
+      // Check every component: lstat(file) alone follows parent symlinks/junctions.
+      let current = path.normalize(file), leaf = true;
+      for (;;) {
+        const stat = await fs.lstat(current);
+        if (stat.isSymbolicLink() || (leaf ? !stat.isFile() : !stat.isDirectory())) return null;
+        const parent = path.dirname(current);
+        if (parent === current) break;
+        current = parent; leaf = false;
+      }
+      const resolved = await fs.realpath(file);
+      for (const root of [config.repoPath, config.worktreeRoot]) {
+        let canonicalRoot;
+        try { canonicalRoot = await fs.realpath(root); }
+        catch (error) { if (error.code !== 'ENOENT') throw error; canonicalRoot = path.resolve(root); }
+        if (inside(path.resolve(root), file) || inside(canonicalRoot, resolved)) return null;
+      }
+      return { path: resolved, codexSource: source, codexDir: path.basename(path.dirname(resolved)) };
+    } catch { return null; }
+  };
+  if (config.codexSearch) {
+    const { root, dirPattern, relativeExe } = config.codexSearch;
+    let directories = [];
+    try { directories = (await fs.readdir(root, { withFileTypes: true })).filter(entry => entry.isDirectory() && new RegExp(dirPattern).test(entry.name)).map(entry => entry.name).sort(compareVersions); } catch {}
+    for (const directory of directories) {
+      const found = await candidate(path.join(root, directory, relativeExe), 'search');
+      if (found) return found;
+    }
+  }
+  if (config.codexPath) {
+    const found = await candidate(config.codexPath, 'path');
+    if (found) return found;
+  }
+  const searchPath = Object.entries(env).find(([key]) => platform === 'win32' ? key.toUpperCase() === 'PATH' : key === 'PATH')?.[1] ?? '';
+  for (const directory of searchPath.split(platform === 'win32' ? ';' : ':')) {
+    const unquoted = directory.replace(/^"(.*)"$/, '$1');
+    if (!path.isAbsolute(unquoted)) continue;
+    const found = await candidate(path.join(unquoted, platform === 'win32' ? 'codex.exe' : 'codex'), 'PATH');
+    if (found) return found;
+  }
+  return null;
+}
+
+export async function runOnce({ config: input, stateDir = path.join(here, '.state'), run: execute = run, now = Date.now, pid = process.pid, isProcessAlive = alive, log = console.log, template, dryRun = false, codexOptions } = {}) {
   const config = validateConfig(input);
   let release;
   if (!dryRun) {
@@ -186,12 +263,14 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
       const comment = comments[0];
       if (!comment) continue;
       const { round, instruction } = parseInstruction(comment.body);
+      const codex = await resolveCodex(config, codexOptions);
+      if (!codex) { log('codex_not_found'); return { status: 'codex-not-found' }; }
       const worktree = path.join(config.worktreeRoot, `pr-${pr.number}`);
       const codexArgs = ['exec', '--cd', worktree, ...config.codexArgs, '--json', '--output-last-message', path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.last.txt`), '-'];
       const contract = JSON.parse(await gh(['pr', 'view', String(pr.number), '--repo', config.repo, '--json', 'body'])).body ?? '';
       const prompt = renderPrompt(promptTemplate, { pr_number: pr.number, branch: pr.headRefName, round, contract, instruction });
       if (dryRun) {
-        const preview = { status: 'dry-run', pr: pr.number, commentId: comment.id, round, prompt, commands: round > config.maxRounds ? [['gh', 'pr', 'edit', String(pr.number), '--add-label', 'relay-needs-human'], ['gh', 'pr', 'comment', String(pr.number)]] : [['gh', 'api', '-X', 'POST', '.../reactions', '-f', 'content=eyes'], ['git', 'fetch', 'origin', pr.headRefName], ['git', 'worktree', 'add', worktree], ['codex', ...codexArgs], ['git', 'push', 'origin', `HEAD:refs/heads/${pr.headRefName}`], ['gh', 'pr', 'comment', String(pr.number)]] };
+        const preview = { status: 'dry-run', pr: pr.number, commentId: comment.id, round, prompt, commands: round > config.maxRounds ? [['gh', 'pr', 'edit', String(pr.number), '--add-label', 'relay-needs-human'], ['gh', 'pr', 'comment', String(pr.number)]] : [['gh', 'api', '-X', 'POST', '.../reactions', '-f', 'content=eyes'], ['git', 'fetch', 'origin', pr.headRefName], ['git', 'worktree', 'add', worktree], [codex.path, ...codexArgs], ['git', 'push', 'origin', `HEAD:refs/heads/${pr.headRefName}`], ['gh', 'pr', 'comment', String(pr.number)]] };
         log(JSON.stringify(preview, null, 2));
         return preview;
       }
@@ -241,7 +320,7 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         await mkdir(path.dirname(last), { recursive: true });
         // Never accept a leftover answer from an earlier interrupted run.
         try { await unlink(last); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-        const result = await invoke('codex', codexArgs, { cwd: worktree, input: prompt, env: { SKIP_PROJECT_STATE: '1' }, timeoutMs: config.codexTimeoutMinutes * 60000, stdoutFile });
+        const result = await invoke(codex.path, codexArgs, { cwd: worktree, input: prompt, env: { SKIP_PROJECT_STATE: '1' }, timeoutMs: config.codexTimeoutMinutes * 60000, stdoutFile });
         if (result.stdout) await writeFile(stdoutFile, result.stdout, { mode: 0o600 });
         await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.stderr.txt`), result.stderr, { mode: 0o600 });
         details = result.stderr;
@@ -299,7 +378,7 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         if (!details) details = error.message.split(/\r?\n/).slice(1).join('\n');
       }
       await mkdir(path.join(stateDir, 'logs'), { recursive: true });
-      await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.result.json`), JSON.stringify({ status, sha, startSha, commitCount, files, summary, reason, details }, null, 2) + '\n', { mode: 0o600 });
+      await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.result.json`), JSON.stringify({ status, sha, startSha, commitCount, files, summary, reason, details, codexSource: codex.codexSource, codexDir: codex.codexDir }, null, 2) + '\n', { mode: 0o600 });
       const body = formatReply({ round, status, sha, startSha: startSha.slice(0, 12), commitCount, files, summary, reason, details, summaryMaxChars: config.summaryMaxChars });
       state.comments[comment.id] = { ...state.comments[comment.id], status, sha, finishedAt: timestamp(now), notification: { pending: true, body, reaction: ['done', 'blocked'].includes(status) ? 'rocket' : 'confused' } };
       await saveState(stateFile, state);
@@ -330,8 +409,8 @@ export async function main(argv = process.argv.slice(2), { executeOnce = runOnce
   const config = validateConfig(input);
   do {
     const result = await executeOnce({ config, stateDir: path.dirname(configFile), dryRun, log });
-    if (!['idle', 'locked', 'dry-run'].includes(result.status)) log(redact(`PR #${result.pr ?? '-'}: ${result.status}${result.reason ? ` - ${result.reason}` : ''}`).text);
-    if (!loop || dryRun) return ['failed', 'cleanup-blocked'].includes(result.status) ? 1 : 0;
+    if (!['idle', 'locked', 'dry-run', 'codex-not-found'].includes(result.status)) log(redact(`PR #${result.pr ?? '-'}: ${result.status}${result.reason ? ` - ${result.reason}` : ''}`).text);
+    if (!loop || dryRun) return ['failed', 'cleanup-blocked', 'codex-not-found'].includes(result.status) ? 1 : 0;
     if (loop && !dryRun) await new Promise(resolve => setTimeout(resolve, config.pollSeconds * 1000));
   } while (loop && !dryRun);
 }

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm, access } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, access, symlink, realpath, chmod } from 'node:fs/promises';
+import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { main, runOnce } from './relay_watcher.mjs';
+import { main, runOnce, resolveCodex, validateConfig } from './relay_watcher.mjs';
 
 const START = 'a'.repeat(40);
 const END = 'b'.repeat(40);
@@ -26,11 +27,15 @@ async function fixture(t, scenario = {}) {
     await rm(root, { recursive: true, force: true });
   });
   const stateDir = path.join(root, 'state');
+  const codexPath = path.join(root, 'tools', 'codex.exe');
+  await mkdir(path.dirname(codexPath), { recursive: true });
+  await writeFile(codexPath, 'fake executable');
   const config = {
     repo: 'Ritou-Lynx/here-i-am', baseBranch: 'v3-lab', headPrefixes: ['claude/', 'codex/'],
     allowedAuthors: ['Ritou-Lynx'], repoPath: path.join(root, 'clone'), worktreeRoot: path.join(root, 'worktrees'),
     maxRounds: 4, codexTimeoutMinutes: 60, codexArgs: ['--sandbox', 'workspace-write'], summaryMaxChars: 6000,
     mention: '@Ritou-Lynx',
+    codexPath,
   };
   await mkdir(path.join(config.repoPath, '.git'), { recursive: true });
   if (scenario.wrongCommonDir) await mkdir(path.join(root, 'unrelated-repo', '.git'), { recursive: true });
@@ -108,7 +113,7 @@ async function fixture(t, scenario = {}) {
         return scenario.rejectPush && pushes === 1 ? { code: 1, stdout: '', stderr: 'rejected (fetch first)' } : ok();
       }
     }
-    if (cmd === 'codex') {
+    if (path.isAbsolute(cmd) && /^codex(?:\.exe)?$/.test(path.basename(cmd))) {
       executed = true;
       hasNewCommit = scenario.newCommit !== false;
       head = hasNewCommit ? END : START;
@@ -127,12 +132,12 @@ async function fixture(t, scenario = {}) {
     throw new Error(`Unexpected subprocess: ${cmd} ${JSON.stringify(args)}`);
   };
   return {
-    config, stateDir, calls, posts, output, worktree,
-    once: (extra = {}) => runOnce({ config, stateDir, run, now: () => NOW, pid: 424242, isProcessAlive: () => Boolean(scenario.liveLock), log: (...args) => output.push(args), template, ...extra }),
+    config, stateDir, calls, posts, output, worktree, root,
+    once: (extra = {}) => runOnce({ config, stateDir, run, now: () => NOW, pid: 424242, isProcessAlive: () => Boolean(scenario.liveLock), log: (...args) => output.push(args), template, codexOptions: { env: {} }, ...extra }),
     state: async () => JSON.parse(await readFile(path.join(stateDir, 'state.json'), 'utf8')),
   };
 }
-const isCodex = call => call.cmd === 'codex';
+const isCodex = call => path.isAbsolute(call.cmd) && /^codex(?:\.exe)?$/.test(path.basename(call.cmd));
 const isPush = call => call.cmd === 'git' && call.args[0] === 'push';
 const isCommit = call => call.cmd === 'git' && call.args[0] === 'commit';
 const isAdd = call => call.cmd === 'git' && call.args[0] === 'add';
@@ -495,7 +500,7 @@ test('timeout cleanup: latched run still retries pending failure notification wi
   const callsBeforeRetry = f.calls.length;
   assert.equal((await f.once()).status, 'cleanup-blocked');
   assert.equal(f.calls.filter(isCodex).length, 1);
-  assert.equal(f.calls.slice(callsBeforeRetry).some(call => call.cmd === 'git' || call.cmd === 'codex'), false);
+  assert.equal(f.calls.slice(callsBeforeRetry).some(call => call.cmd === 'git' || isCodex(call)), false);
   assert.equal(f.posts.length, 1);
   assert.match(f.posts[0], /^<!-- relay:to-claude round=1 status=failed sha=none -->/);
   assert.equal(f.calls.filter(call => isReaction(call, 'confused')).length, 1);
@@ -541,4 +546,168 @@ test('CLI maps failed and cleanup-blocked to exit 1 and other terminal states to
     assert.equal(process.exitCode, previousExitCode, 'imported CLI wrapper must not mutate global exitCode');
   }
   assert.deepEqual(f.calls, [], 'CLI tests must not invoke any subprocess');
+});
+
+async function fakeExe(file) {
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, 'fake executable', { mode: 0o700 });
+  return await realpath(file);
+}
+const offline = { env: {} };
+
+test('codexSearch compares numeric segments and selects the highest version before codexPath and PATH', async t => {
+  const f = await fixture(t);
+  const root = path.join(f.root, 'packages');
+  f.config.codexSearch = { root, dirPattern: '^Codex_[0-9.]+$', relativeExe: 'bin/codex.exe' };
+  await fakeExe(path.join(root, 'Codex_2.9', 'bin', 'codex.exe'));
+  const expected = await fakeExe(path.join(root, 'Codex_2.10', 'bin', 'codex.exe'));
+  await fakeExe(path.join(root, 'Ignore_99', 'bin', 'codex.exe'));
+  assert.deepEqual(await resolveCodex(f.config, { env: { PATH: path.dirname(f.config.codexPath) } }), { path: expected, codexSource: 'search', codexDir: 'bin' });
+  assert.equal((await f.once()).status, 'done');
+  assert.equal(f.calls.find(isCodex).cmd, expected);
+  const result = JSON.parse(await readFile(path.join(f.stateDir, 'logs', 'pr-71-round-1.result.json'), 'utf8'));
+  assert.equal(result.codexSource, 'search');
+  assert.equal(result.codexDir, 'bin');
+});
+
+test('codexSearch skips missing executables and does not recurse or accept directory executables', async t => {
+  const f = await fixture(t);
+  const root = path.join(f.root, 'packages');
+  f.config.codexSearch = { root, dirPattern: '^Codex_[0-9.]+$', relativeExe: 'codex.exe' };
+  await mkdir(path.join(root, 'Codex_20', 'codex.exe'), { recursive: true });
+  await mkdir(path.join(root, 'Codex_10'), { recursive: true });
+  const expected = await fakeExe(path.join(root, 'Codex_9', 'codex.exe'));
+  await fakeExe(path.join(root, 'nested', 'Codex_100', 'codex.exe'));
+  assert.equal((await resolveCodex(f.config, offline)).path, expected);
+});
+
+test('codexPath supplies an absolute spawn path and directory-only result metadata', async t => {
+  const f = await fixture(t);
+  f.config.codexSearch = { root: path.join(f.root, 'missing'), dirPattern: '^Codex_.*$', relativeExe: 'codex.exe' };
+  const expected = await realpath(f.config.codexPath);
+  assert.deepEqual(await resolveCodex(f.config, offline), { path: expected, codexSource: 'path', codexDir: 'tools' });
+  assert.equal((await f.once()).status, 'done');
+  assert.equal(f.calls.find(isCodex).cmd, expected);
+  const result = JSON.parse(await readFile(path.join(f.stateDir, 'logs', 'pr-71-round-1.result.json'), 'utf8'));
+  assert.equal(result.codexSource, 'path');
+  assert.equal(result.codexDir, 'tools');
+  assert.equal(path.isAbsolute(result.codexDir), false);
+});
+
+test('PATH fallback resolves codex to an absolute path and ignores cmd shims on win32', async t => {
+  const f = await fixture(t);
+  delete f.config.codexPath;
+  const root = path.join(f.root, 'path-tools');
+  await fakeExe(path.join(root, 'codex.cmd'));
+  assert.equal(await resolveCodex(f.config, { platform: 'win32', env: { Path: root } }), null);
+  const exe = await fakeExe(path.join(root, 'codex.exe'));
+  assert.deepEqual(await resolveCodex(f.config, { platform: 'win32', env: { Path: root } }), { path: exe, codexSource: 'PATH', codexDir: 'path-tools' });
+  const nativeExe = await fakeExe(path.join(root, 'codex'));
+  await chmod(nativeExe, 0o700);
+  assert.equal((await resolveCodex(f.config, { platform: 'linux', env: { PATH: root } })).path, nativeExe);
+  assert.equal((await f.once({ codexOptions: { platform: 'win32', env: { PATH: root } } })).status, 'done');
+  assert.equal(f.calls.find(isCodex).cmd, exe);
+  const result = JSON.parse(await readFile(path.join(f.stateDir, 'logs', 'pr-71-round-1.result.json'), 'utf8'));
+  assert.equal(result.codexSource, 'PATH');
+});
+
+test('resolver rejects executable symlinks and parent directory symlinks or junctions', async t => {
+  const f = await fixture(t);
+  const target = f.config.codexPath;
+  const linkedFile = path.join(f.root, 'linked.exe');
+  // Inject lstat for a file symlink: creating these on Windows may require admin.
+  const linkedFs = { ...fs, lstat: async file => file === linkedFile ? { isSymbolicLink: () => true } : fs.lstat(file) };
+  assert.equal(await resolveCodex({ ...f.config, codexPath: linkedFile }, { ...offline, fs: linkedFs }), null);
+  const linkedDir = path.join(f.root, 'junction');
+  await symlink(path.dirname(target), linkedDir, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(await resolveCodex({ ...f.config, codexPath: path.join(linkedDir, 'codex.exe') }, offline), null);
+  assert.equal((await resolveCodex({ ...f.config, codexPath: undefined }, { platform: 'win32', env: { PATH: linkedDir } })).codexSource, 'PATH', 'PATH retains installed-link lookup semantics');
+  const searchRoot = path.join(f.root, 'packages');
+  await mkdir(searchRoot);
+  await symlink(path.dirname(target), path.join(searchRoot, 'Codex_99'), process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(await resolveCodex({ ...f.config, codexPath: undefined, codexSearch: { root: searchRoot, dirPattern: '^Codex_.*$', relativeExe: 'codex.exe' } }, offline), null);
+});
+
+test('resolver rejects repo/worktree executables, directories and non-exe files on win32', async t => {
+  const f = await fixture(t);
+  for (const file of [path.join(f.config.repoPath, 'codex.exe'), path.join(f.config.worktreeRoot, 'bin', 'codex.exe'), path.join(f.root, 'tools', 'codex.cmd')]) {
+    await fakeExe(file);
+    assert.equal(await resolveCodex({ ...f.config, codexPath: file }, { ...offline, platform: 'win32' }), null);
+  }
+  const directory = path.join(f.root, 'directory.exe');
+  await mkdir(directory);
+  assert.equal(await resolveCodex({ ...f.config, codexPath: directory }, offline), null);
+  // A lexical sibling is outside the protected root.
+  const sibling = await fakeExe(path.join(`${f.config.repoPath}-tools`, 'codex.exe'));
+  assert.equal((await resolveCodex({ ...f.config, codexPath: sibling }, offline)).path, sibling);
+});
+
+test('invalid search candidate falls back only to the configured codexPath then PATH', async t => {
+  const f = await fixture(t);
+  const root = path.join(f.config.worktreeRoot, 'packages');
+  const invalid = await fakeExe(path.join(root, 'Codex_99', 'codex.exe'));
+  const search = { root, dirPattern: '^Codex_.*$', relativeExe: 'codex.exe' };
+  assert.equal((await resolveCodex({ ...f.config, codexSearch: search }, offline)).codexSource, 'path');
+  assert.equal(await resolveCodex({ ...f.config, codexSearch: search, codexPath: invalid }, offline), null);
+});
+
+test('codex-not-found leaves pending comment and state unchanged, writes no GitHub effects, and retries next poll', async t => {
+  const f = await fixture(t, { state: { comments: {}, retained: 'unchanged' } });
+  const file = path.join(f.stateDir, 'state.json');
+  const before = await readFile(file, 'utf8');
+  await rm(f.config.codexPath);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    assert.deepEqual(await f.once(), { status: 'codex-not-found' });
+    assert.equal(await readFile(file, 'utf8'), before);
+    assert.equal((await f.state()).comments['101'], undefined);
+  }
+  assert.equal(f.calls.some(call => call.cmd === 'gh' && (call.args.includes('POST') || ['comment', 'edit'].includes(call.args[1]))), false);
+  assert.deepEqual(f.posts, []);
+  assert.equal(f.calls.some(isCodex), false);
+  assert.equal(f.calls.some(call => call.cmd === 'git'), false);
+  assert.deepEqual(f.output, [['codex_not_found'], ['codex_not_found']]);
+  await fakeExe(f.config.codexPath);
+  assert.equal((await f.once()).status, 'done');
+});
+
+test('codex-not-found creates no receipt or logs and dry-run also reports failure without writes', async t => {
+  const f = await fixture(t);
+  await rm(f.config.codexPath);
+  assert.deepEqual(await f.once({ dryRun: true }), { status: 'codex-not-found' });
+  assert.equal(await exists(f.stateDir), false);
+  assert.deepEqual(await f.once(), { status: 'codex-not-found' });
+  assert.equal(await exists(path.join(f.stateDir, 'state.json')), false);
+  assert.equal(await exists(path.join(f.stateDir, 'logs')), false);
+  assert.equal(await exists(path.join(f.stateDir, 'lock')), false);
+  assert.deepEqual(f.posts, []);
+});
+
+test('dry-run previews the resolved absolute command without invoking it', async t => {
+  const f = await fixture(t);
+  const preview = await f.once({ dryRun: true });
+  assert.equal(preview.status, 'dry-run');
+  assert.equal(preview.commands.find(cmd => cmd[1] === 'exec')[0], await realpath(f.config.codexPath));
+  assert.equal(f.calls.some(isCodex), false);
+  assert.equal(await exists(f.stateDir), false);
+});
+
+test('validateConfig rejects relative codex roots/paths, invalid or unanchored regex, and escaping relativeExe', async t => {
+  const f = await fixture(t);
+  const valid = { root: f.root, dirPattern: '^Codex_[0-9.]+$', relativeExe: 'bin/codex.exe' };
+  assert.equal(validateConfig({ ...f.config, codexSearch: valid }).codexSearch, valid);
+  for (const change of [
+    { codexPath: 'codex.exe' }, { codexPath: null },
+    { codexSearch: null }, { codexSearch: { ...valid, root: 'relative' } },
+    ...['^[invalid$', 'Codex_.*$', '^Codex_.*'].map(dirPattern => ({ codexSearch: { ...valid, dirPattern } })),
+    ...['../codex.exe', 'bin/../codex.exe', 'bin\\..\\codex.exe', '/codex.exe', 'C:\\codex.exe', 'C:codex.exe', ''].map(relativeExe => ({ codexSearch: { ...valid, relativeExe } })),
+  ]) assert.throws(() => validateConfig({ ...f.config, ...change }), /codex/);
+});
+
+test('CLI codex-not-found returns exit 1 including dry-run', async t => {
+  const f = await fixture(t);
+  const configFile = path.join(f.root, 'cli.json');
+  await writeFile(configFile, JSON.stringify(f.config));
+  for (const flag of ['--once', '--dry-run']) {
+    assert.equal(await main(['--config', configFile, flag], { executeOnce: async () => ({ status: 'codex-not-found' }), log: () => {} }), 1);
+  }
 });
