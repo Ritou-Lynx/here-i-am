@@ -71,3 +71,9 @@
 - 第 2 轮范围：
   1. 在 runner 中追加一行，选入 `maintenance_error_codes*.test.mjs`，并保证现有检查 runner 文本的测试仍通过。
   2. `protectBackupFile` 的 `execFileSync` 加超时（例如 60000 ms），超时同样报 `configuration_generation_backup_acl_rejected`。
+
+### 第 2 轮（e21e4de）：通过
+- diff 只有两处：runner 选入 `maintenance_error_codes*.test.mjs`；`protectBackupFile` 加 `timeout: 60000`。
+- 云端 Linux 复跑 maintenance 全量和 runner 文本测试：133 通过、0 失败。
+- Hosted Windows maintenance acceptance：434 项测试中 427 通过、0 失败、7 跳过。新增的 close、register 边界、Node 校验器和 CI-only 真实夹具用例都已实际运行并通过。
+- 结论：符合合同，可以交用户合并。
