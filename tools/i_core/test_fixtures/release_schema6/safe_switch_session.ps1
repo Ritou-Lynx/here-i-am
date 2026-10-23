@@ -83,7 +83,7 @@ function Wait-Schema6LoginReady {
  try {& $script:r1OriginalReady @PSBoundParameters}
  catch {
   $originalFailure=$_
-  if($inputData.scenario -ceq 'success' -and $originalFailure.Exception.Message -ceq 'new_session_process_not_live'){
+  if($inputData.scenario -ceq 'success' -and ($originalFailure.Exception.Message -split ';',2)[0] -ceq 'new_session_process_not_live'){
    try {
    $probe=[ordered]@{format='schema6-ready-post-failure-snapshot-v1';identities=@();probe_error=$false}
    $sessions=@()

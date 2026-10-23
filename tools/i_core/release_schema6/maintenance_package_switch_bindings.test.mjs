@@ -3,6 +3,7 @@ import {copyFileSync,existsSync,mkdirSync,readFileSync,writeFileSync,unlinkSync,
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import test from 'node:test';
+import {execFileSync} from 'node:child_process';
 import {buildPackageSwitchBackupTemplate,validatePackageSwitchBindings} from '../maintenance/package-switch-bindings.mjs';
 import {generatePackageSwitchConfigurations} from '../maintenance/generate-package-switch-configurations.mjs';
 import {preparePackageSwitch} from '../maintenance/prepare-package-switch.mjs';
@@ -37,6 +38,25 @@ function xml(end,loginPath,loginHash){
  return '<?xml version="1.0" encoding="utf-8"?>\r\n'+xmlTemplate.replaceAll('<UserId />','<UserId>'+SID+'</UserId>').replace('<Command />','<Command>'+esc(ps)+'</Command>').replace('<Arguments />','<Arguments>'+esc(args.map(s=>'"'+s+'"').join(' '))+'</Arguments>');
 }
 const preservedPrefix='preserved/legacy-v4-release/';
+test('generated backup file has explicit owner and SYSTEM FullControl under protected or inheriting output parents',{skip:process.platform!=='win32',timeout:180000},t=>{
+ const f=fixture(t),old=f.sides[0],target=f.sides[1];
+ const ps=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
+ const powershell=(script,input)=>execFileSync(ps,['-NoProfile','-NonInteractive','-Command',"$ErrorActionPreference='Stop';$env:PSModulePath=Join-Path $PSHOME 'Modules';"+script],{input:JSON.stringify(input),encoding:'utf8',windowsHide:true,timeout:30000});
+ for(const inherited of [false,true]){
+  const outputRoot=syntheticRoot('switch-bindings-');t.after(()=>removeOwned(outputRoot,'switch-bindings-'));
+  powershell("$p=[Console]::In.ReadToEnd()|ConvertFrom-Json;$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=New-Object Security.AccessControl.DirectorySecurity;$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);foreach($id in @($sid.Value,'S-1-5-18')){$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]$id,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))};Set-Acl -LiteralPath $p.root -AclObject $a;New-Item -ItemType Directory -Path $p.parent|Out-Null;$a=Get-Acl -LiteralPath $p.parent;$a.SetAccessRuleProtection(!$p.inherited,$true);Set-Acl -LiteralPath $p.parent -AclObject $a;if((Get-Acl -LiteralPath $p.parent).AreAccessRulesProtected-eq $p.inherited){throw 'parent_acl_fixture_rejected'}",{root:outputRoot,parent:path.join(outputRoot,'parent'),inherited});
+  const outputDirectory=path.join(outputRoot,'parent','candidate');
+  const result=generatePackageSwitchConfigurations({oldLoginPath:old.files.login,oldLoginSha256:hash(old.files.login),newReleaseDirectory:target.end.releaseDirectory,newManifestSha256:target.end.manifestSha256,outputDirectory,oldTaskXmlPath:old.files.task,taskName:'synthetic-next-task',oldTaskName:'synthetic-old-task'});
+  assert.equal(result.generated,true);
+  const backupPath=path.join(outputDirectory,'settings/daily-backup-config.json'),before=hash(backupPath);
+  // Execute the registration's actual ACL assertion, plus explicit-ACE checks.
+  const checked=powershell("$p=[Console]::In.ReadToEnd()|ConvertFrom-Json;$tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($p.entry,[ref]$tokens,[ref]$errors);if($errors.Count){throw 'entry_parse_rejected'};foreach($name in @('Assert-Private','Assert-BackupPrivateAcl')){$fn=$ast.Find({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst]-and $n.Name-ceq $name},$false);. ([ScriptBlock]::Create($fn.Extent.Text))};Assert-BackupPrivateAcl $p.backup;$a=Get-Acl -LiteralPath $p.backup;$rules=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]));if($rules.Count-ne 2-or @($rules|Where-Object{$_.IsInherited-or $_.InheritanceFlags-ne 'None'-or $_.PropagationFlags-ne 'None'}).Count){throw 'explicit_file_acl_required'};[Console]::Out.WriteLine('verified')",{entry:path.join(repository,'tools/i_core/maintenance/register-package-switch-login.ps1'),backup:backupPath});
+  assert.equal(checked.trim(),'verified');assert.equal(hash(backupPath),before);
+  const login=JSON.parse(readFileSync(path.join(outputDirectory,'settings/login.json')));
+  assert.equal(login.backup_configuration_sha256,before);
+  assert.equal(existsSync(path.join(outputDirectory,'login-task.prepared.xml')),false);
+ }
+});
 function legacyRelease(root,{patched=true}={}){
  const names=['i_core_server.mjs','i_core_store.mjs','shortcut_mail_relay.mjs','send_shortcut_mail.ps1','strict_smtp_tls_validation.ps1','start_i_core_service.ps1'].map(n=>'tools/i_core/'+n).concat(['start_pinned_i_core.ps1','verify_v4_state.mjs','runtime/node.exe']);
  const end=release(root,'legacy-v4',names),filename=path.join(end.releaseDirectory,'manifest.json');

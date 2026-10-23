@@ -96,7 +96,7 @@ function Invoke-SwitchRegistrationValidator([string]$Node,[string]$Script){
  $p=New-Object Diagnostics.Process;$p.StartInfo=New-Object Diagnostics.ProcessStartInfo
  $p.StartInfo.FileName=$Node;$p.StartInfo.Arguments=$args -join ' ';$p.StartInfo.UseShellExecute=$false;$p.StartInfo.CreateNoWindow=$true;$p.StartInfo.RedirectStandardOutput=$true;$p.StartInfo.RedirectStandardError=$true;$p.StartInfo.EnvironmentVariables.Clear()
  foreach($key in @('SystemRoot','WINDIR','TEMP','TMP')){$v=[Environment]::GetEnvironmentVariable($key);if($v){$p.StartInfo.EnvironmentVariables[$key]=$v}}
- try{$null=$p.Start();$out=$p.StandardOutput.ReadToEndAsync();$err=$p.StandardError.ReadToEndAsync();if(!$p.WaitForExit(120000)){$p.Kill();throw 'validator_timeout'};$null=$err.GetAwaiter().GetResult();if($p.ExitCode-ne 0){throw 'registration_proof_rejected'};return ($out.GetAwaiter().GetResult()|ConvertFrom-Json)}finally{$p.Dispose()}
+ try{$null=$p.Start();$out=$p.StandardOutput.ReadToEndAsync();$err=$p.StandardError.ReadToEndAsync();if(!$p.WaitForExit(120000)){$p.Kill();throw 'validator_timeout'};$null=$err.GetAwaiter().GetResult();if($p.ExitCode-ne 0){$script:validatorReason='none';try{$v=$out.GetAwaiter().GetResult()|ConvertFrom-Json;$property=$v.PSObject.Properties['reason'];if($null-ne $property){$reason=$property.Value;if($reason -is [string] -and $reason -cmatch '\A[a-z0-9_]{1,64}\z'){$script:validatorReason=$reason}else{$script:validatorReason='unclassified'}}}catch{};throw 'registration_proof_rejected'};return ($out.GetAwaiter().GetResult()|ConvertFrom-Json)}finally{$p.Dispose()}
 }
 function Write-SwitchRegistrationReceipt {
  $b=[Text.UTF8Encoding]::new($false).GetBytes(($report|ConvertTo-Json -Depth 8))
@@ -170,8 +170,12 @@ try{
  $report.passed=$true;$report.createdTaskDisabled=(!$actual.Enabled);$report.registrationXmlSha256=$config.registrationXml.sha256;$report.actualDefinitionSha256=Get-TaskSecuritySha256 $actual.Definition.XmlText;$report.instancesZero=$true;$report.proposalSha256=$config.proposal.sha256;$report.closedMarkerSha256=$config.closedMarker.sha256;$report.coreUnchanged=$true;$report.custodyUnchanged=$true;$report.currentHeadSha256=$config.currentHead.sha256;$report.parentSddlSha256=$policy.parentSddlSha256;$report.registrationSddlSha256=$policy.registrationSddlSha256;$report.expectedRegisteredSddlSha256=$policy.expectedRegisteredSddlSha256
  Write-SwitchRegistrationReceipt;$exitCode=0
 }catch{
- $report.passed=$false;$report.code='mcp_config_switch_registration_rejected'
+ $reason=$_.Exception.Message;if($reason -cnotmatch '\A[a-z0-9_]{1,64}\z'){$reason='unclassified'}
+ $report.passed=$false;$report.code='mcp_config_switch_registration_rejected';$report.reason=$reason
+ if(Get-Variable -Name validatorReason -Scope Script -ErrorAction SilentlyContinue){$report.validatorReason=$script:validatorReason}
  if($created-and $null-ne $registered){try{$registered.Enabled=$false;$report.createdTaskDisabled=(!$registered.Enabled);$report.instancesZero=($registered.GetInstances(0).Count-eq 0)}catch{$report.disableUnconfirmed=$true}}
  if($outputReady){try{if(!(Test-Path -LiteralPath $config.registrationReceiptPath)){Write-SwitchRegistrationReceipt}}catch{$report.receiptUnconfirmed=$true}}
 }finally{foreach($h in $locks){$h.Dispose()}}
-[Console]::Out.WriteLine((@{passed=$report.passed;registered=$report.registered;started=$false;code=if($exitCode-eq 0){'mcp_config_switch_registered_only'}else{'mcp_config_switch_registration_rejected'}}|ConvertTo-Json -Compress));exit $exitCode
+$result=@{passed=$report.passed;registered=$report.registered;started=$false;code=if($exitCode-eq 0){'mcp_config_switch_registered_only'}else{'mcp_config_switch_registration_rejected'}}
+if($exitCode-ne 0){$result.reason=$report.reason;if($report.Contains('validatorReason')){$result.validatorReason=$report.validatorReason}}
+[Console]::Out.WriteLine(($result|ConvertTo-Json -Compress));exit $exitCode

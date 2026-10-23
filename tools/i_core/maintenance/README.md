@@ -135,6 +135,10 @@ R1 verification uses pure local protocol tests and hosted Linux/Windows syntheti
 
 ## R2：D1 关闭输入与换包登记证据
 
+`close-schema6-session.ps1` 拒绝时在 stderr 输出 `approved_session_close_rejected:<reason>`，退出码仍为 2。两个 `register-*-switch-login.ps1` 的失败 stdout JSON 保留原 `code`，增加 `reason`；Node 登记校验器的失败 JSON 同样增加 `reason`。这些内部码只允许 1–64 位小写 ASCII 字母、数字和下划线，其他异常统一为 `unclassified`，不输出异常原文。校验器非零退出时，登记入口的 `reason` 为 `registration_proof_rejected`，另以 `validatorReason` 转交校验器的内部码（读不到为 `none`，非法为 `unclassified`）。私有登记回执同步记录这些失败字段；成功输出和回执不增加这些字段。
+
+`generate-package-switch-configurations.mjs` 在 Windows 上为新生成的 backup 配置单独设置受保护的文件 ACL：当前用户为所有者，禁止继承，仅当前用户与 SYSTEM 的显式 Allow FullControl。写入后立即按登记入口的 backup ACL 规则复核，失败报 `configuration_generation_backup_acl_rejected` 并保留候选输出。ACL 操作不改变配置内容和哈希；非 Windows 跳过此步骤。
+
 `generate-package-switch-evidence.mjs` 只准备证据，不关闭会话、不登记或启动任务，也不读取密钥。以下命令用于 D1a/D1b；真实关闭、离线换包、登记和切换仍按用户在场的逐步授权执行。所有路径必须是绝对规范路径，输出父目录须预先为当前用户所有、禁止继承的私有目录（仅当前用户、SYSTEM、Administrators）；输出文件和后续回执路径必须全新，已有文件拒绝覆盖。Windows 使用固定 Node 与清除 `NODE_*` / `I_CORE_*` 后的 PowerShell 5.1 子进程；普通检查使用私有 `.ps1` 和 `-File`。生成器固定 UTF-8 读取请求及输出 XML，避免系统代码页改变原始内容。
 
 D1a 第 5 步在停服前对现役任务预览安全策略：

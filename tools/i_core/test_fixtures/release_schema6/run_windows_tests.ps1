@@ -127,6 +127,7 @@ try {
     # Contract A integration fixtures are included in both maintenance and full runs.
     $suiteFiles += @(Get-ChildItem -LiteralPath tools/i_core/test_fixtures/release_schema6 -Filter 'maintenance_safe_switch*.test.mjs' -File|Sort-Object Name|ForEach-Object {$_.FullName})
     $suiteFiles += @(Get-ChildItem -LiteralPath tools/i_core/test_fixtures/release_schema6 -Filter 'maintenance_mcp_source*.test.mjs' -File|Sort-Object Name|ForEach-Object {$_.FullName})
+    $suiteFiles += @(Get-ChildItem -LiteralPath tools/i_core/test_fixtures/release_schema6 -Filter 'maintenance_error_codes*.test.mjs' -File|Sort-Object Name|ForEach-Object {$_.FullName})
     if($suiteFiles.Count-eq 0){throw 'ci_suite_missing'}
     & $nodePath --test --test-concurrency=1 --test-reporter=spec --test-reporter=tap --test-reporter-destination=stdout --test-reporter-destination=build/ci/schema6-windows.tap @suiteFiles | ForEach-Object {Write-Host $_}
     return $LASTEXITCODE

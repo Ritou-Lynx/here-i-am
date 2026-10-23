@@ -82,5 +82,5 @@ export function validateMcpConfigSwitchRegistration(c){
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
  try{need(process.argv.length===4,'usage');const c=json({path:process.argv[2],sha256:process.argv[3]});process.stdout.write(JSON.stringify(validateMcpConfigSwitchRegistration(c))+'\n');}
- catch{process.stdout.write(JSON.stringify({validated:false,registered:false,started:false,code:'mcp_config_switch_registration_rejected'})+'\n');process.exitCode=2;}
+ catch(error){const value=error?.code??error?.message;const reason=typeof value==='string'&&/^[a-z0-9_]{1,64}$/.test(value)?value:'unclassified';process.stdout.write(JSON.stringify({reason,validated:false,registered:false,started:false,code:'mcp_config_switch_registration_rejected'})+'\n');process.exitCode=2;}
 }

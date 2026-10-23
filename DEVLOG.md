@@ -1,3 +1,13 @@
+## 2026-10-22 A3：close/register 透出内部错误码，换包生成器产出受保护的 backup 配置（PR #36）
+
+- 合同 docs/development/handoffs/RELAY_20261022_a3-error-codes-backup-acl.md，经 relay 由 Codex 实现（2 轮），云端审核。
+- 错误码：`close-schema6-session.ps1` stderr 改为 `approved_session_close_rejected:<code>`；两个 register 入口的失败 JSON 和私有回执增加 `reason`，校验器失败时另记 `validatorReason`；两个 Node 校验器的失败 JSON 增加 `reason`。内部码过白名单 `[a-z0-9_]{1,64}`，不符合的记为 `unclassified`。公开码和退出码不变。
+- backup ACL：`generate-package-switch-configurations.mjs` 写出 backup 配置后，在 Windows 上把它设为受保护的私有 ACL，并按登记入口的同一规则复核（子进程超时 60 s）；失败报 `configuration_generation_backup_acl_rejected`。内容和哈希不变。
+- `safe_switch_session.ps1` 的诊断分支改为只匹配 `;` 之前的码。
+- 新增 `test_fixtures/release_schema6/maintenance_error_codes.test.mjs`，第 2 轮把它选入 Windows runner。Hosted Windows maintenance 434 项测试中 427 通过、0 失败，含 CI-only 真实夹具用例；R1 NoRollback 未复现返回 2。
+- 只读结论：`update-mcp-source.mjs` 已用显式私有 ACL，没有同样的继承缺口（允许 Administrators），本次不改。
+- 生产仍用 D1b 的工具副本；换用新副本由用户决定。
+
 ## 2026-10-22 A4：relay watcher 自己解析 codex 路径，安装脚本直接注册 headless 任务（PR #35）
 
 - 合同 docs/development/handoffs/RELAY_20261022_a4-watcher-codex-path.md，经 relay 由 Codex 实现（第 1 轮在 #34，#34 合并时只带了合同，代码在 #35 续做），云端审核。

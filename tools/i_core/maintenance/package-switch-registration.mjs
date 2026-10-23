@@ -73,5 +73,5 @@ export function validatePackageSwitchRegistration(c){
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
  try{need(process.argv.length===4,'registration_usage');const p=process.argv[2],hash=process.argv[3];const c=json({path:p,sha256:hash});process.stdout.write(JSON.stringify(validatePackageSwitchRegistration(c))+'\n');}
- catch{process.stdout.write(JSON.stringify({validated:false,registered:false,started:false,code:'package_switch_registration_rejected'})+'\n');process.exitCode=2;}
+ catch(error){const value=error?.code??error?.message;const reason=typeof value==='string'&&/^[a-z0-9_]{1,64}$/.test(value)?value:'unclassified';process.stdout.write(JSON.stringify({reason,validated:false,registered:false,started:false,code:'package_switch_registration_rejected'})+'\n');process.exitCode=2;}
 }
