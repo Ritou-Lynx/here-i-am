@@ -68,6 +68,7 @@ import 'package:memex/data/services/reading/transient_fetch_cache.dart';
 import 'package:memex/ui/character/widgets/addenda/message_addendum_renderer.dart';
 import 'package:memex/ui/character/widgets/voice_input_button.dart';
 import 'package:memex/ui/character/widgets/chat_task_capsule.dart';
+import 'package:memex/ui/character/widgets/chat_message_source_label.dart';
 import 'package:memex/ui/companion/widgets/companion_media_tray.dart';
 import 'package:memex/ui/core/themes/chat_view_mode_controller.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
@@ -6044,6 +6045,10 @@ only after you have written the goodbye you want the user to hear.''',
                                       children: [
                                         if (showDate)
                                           _buildDateDivider(msg.timestamp),
+                                        ChatMessageSourceLabel(
+                                          message: msg,
+                                          color: _personaTextMuted,
+                                        ),
                                         if (msg.messageType == 'action')
                                           _buildActionMessage(
                                             text: msg.content,
@@ -6072,6 +6077,10 @@ only after you have written the goodbye you want the user to hear.''',
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 if (showDate) _buildDateDivider(msg.timestamp),
+                                ChatMessageSourceLabel(
+                                  message: msg,
+                                  color: _personaTextMuted,
+                                ),
                                 if (msg.messageType == 'action')
                                   _buildActionMessage(
                                     text: msg.content,
