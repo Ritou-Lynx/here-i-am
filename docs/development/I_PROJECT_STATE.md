@@ -6,7 +6,7 @@
   - STATE 中保留有旧 shortcut-mail 日志库的 -wal/-shm，备份在 `<OUT>` 的 journal-backup 目录。它们会让 `stop-schema6-session.ps1` 最后一步报 `database_sidecars_present`；只要 `stop.receipts` 已通过，就说明会话已干净关闭。
   - 任何时候都不要绕过闸门去改 STATE 内的文件。
   - 注销前先手动停服（L 未完成）。
-- A1+A2（stop sidecar 规则、ready 宿主退出诊断）已在 PR #33 合并；A4（relay watcher 自己解析 codex 路径、headless 安装）已在 PR #35 合并，本机 watcher 已迁移；A3（close/register 透出内部错误码、换包 backup 配置 ACL）已在 PR #36 合并。10-23 生产维护工具副本换为 `<OUT>\tools-3baf72d`；旧副本 `tools-302a62c0` 保留，作为 D1b 的记录。C1（App 聊天时间线按来源设备显示 ChatGPT / Claude）在 PR #38 审核通过，待合并后构建安装 App 并真人验收。 relay 微信 / Bark 通知在 PR #41 审核通过（重做旧 #17；旧 #17/#19/#23 已关闭），合并后需用户配置 token 并运行 `--test-notify`。其余后续改进项见主合同 D1b 执行记录与 DEVLOG 同日条目。relay watcher 在 D1b 期间停用，恢复情况以交接文档为准。
+- A1+A2（stop sidecar 规则、ready 宿主退出诊断）已在 PR #33 合并；A4（relay watcher 自己解析 codex 路径、headless 安装）已在 PR #35 合并，本机 watcher 已迁移；A3（close/register 透出内部错误码、换包 backup 配置 ACL）已在 PR #36 合并。10-23 生产维护工具副本换为 `<OUT>\tools-3baf72d`；旧副本 `tools-302a62c0` 保留，作为 D1b 的记录。C1（App 聊天时间线按来源设备显示 ChatGPT / Claude）在 PR #38 审核通过，待合并后构建安装 App 并真人验收。 relay 飞书 / Bark 通知在 PR #41 进行中（重做旧 #17；旧 #17/#19/#23 已关闭），合并后需用户配置飞书 webhook 并运行 `--test-notify`。其余后续改进项见主合同 D1b 执行记录与 DEVLOG 同日条目。relay watcher 在 D1b 期间停用，恢复情况以交接文档为准。
 
 ## 2026-10-11 iCore 切换：转入阶段 A 接力修复
 

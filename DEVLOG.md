@@ -1,10 +1,10 @@
-## 2026-10-23 relay 微信 / Bark 通知（PR #41，重做旧 #17）
+## 2026-10-23 relay 飞书 / Bark 通知（PR #41，重做旧 #17）
 
 - 旧 PR #17/#19/#23 经用户同意关闭：#17 写在 A4 之前，与 watcher 冲突，在本 PR 按合同 docs/development/handoffs/RELAY_20261023_relay-notify.md 重做；#19 分支保留，待 D1/D2 后拆分重做；#23 路线已被 R1/D1a/D1b 取代，不重做。
 - 经 relay 由 Codex 实现（1 轮），云端审核，`node --test tools/agent_relay/` 104/104（含原有 67 项）。
-- 新增 `relay_notify.mjs`（PushPlus、可选 Bark，各 10 秒超时，失败隔离）。watcher 在资格过滤前扫描全部接力 PR 的 `done` / `to-human`，watcher 的 failed 回帖也会提醒；顶层 `notified` 去重，全部通道失败最多重试 3 次；首次启用只记基线。
+- 新增 `relay_notify.mjs`（飞书机器人、可选 Bark；第 2 轮按用户决定由 PushPlus 改为飞书，各 10 秒超时，失败隔离）。watcher 在资格过滤前扫描全部接力 PR 的 `done` / `to-human`，watcher 的 failed 回帖也会提醒；顶层 `notified` 去重，全部通道失败最多重试 3 次；首次启用只记基线。
 - token/key 从日志、回帖、Codex 提示词与 stdout 日志中脱敏。新增 `--test-notify`。
-- 合并后由用户取 PushPlus token（可选 Bark key），填本机 `.state/config.json`，运行 `--test-notify` 验证真实送达。
+- 合并后由用户建飞书群机器人取 webhook（可选 Bark key），填本机 `.state/config.json`，运行 `--test-notify` 验证真实送达。
 
 ## 2026-10-23 C1：App 聊天时间线按来源设备显示 ChatGPT / Claude（PR #38）
 
