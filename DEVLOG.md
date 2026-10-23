@@ -1,3 +1,13 @@
+## 2026-10-23 D3：MCP 接入 Gemini 网页端 gemini_web（PR #44）
+
+- 调研 docs/reference/GEMINI_REMOTE_MCP_RESEARCH_20261023.md：消费者版 Gemini 支持自定义应用（远程 MCP），限美国、英文、个人账号、开 Keep Activity；用户实测能添加。
+- 合同 docs/development/handoffs/RELAY_20261023_d3-gemini-frontend.md，经 relay 由 Codex 实现（2 轮，第 1 轮因候选测试固定 4 个改动而 blocked，合同修订后放开），云端审核。
+- `oauth.mjs` 新增 `FRONTEND_CALLBACK_PATTERNS`：Gemini 回调只认两台 Google 中转主机的规范 https 地址加 `/r/user_bound_custom-mcp-` 前缀；注册最多 8 个，过滤无效项后至少留一个，混入 Claude/ChatGPT 回调则拒绝；忽略 Gemini 附带的 client secret，仍为 public client。
+- 开关 `I_REMOTE_MCP_GEMINI_ENABLED`：未设即开、`0` 关（用户决定，因为 update-mcp-source 不能改环境变量）。工具集同 ChatGPT，独立凭据 `core-frontend-gemini_web.json`，未配对时 `frontend_not_paired:gemini_web`。
+- `diagnostics.mjs` 新增 `callback_class`、`callback_count`、`gemini_kept_count`，不输出回调原文。App 来源映射加“Gemini”。
+- 候选仍六文件，改动 5 个（新增 diagnostics，保留 CRLF）。云端复跑 230/230。
+- 未部署。合并后按 update-mcp-source 换源码、`pair-core --frontend gemini_web`、真人验收（每步单独同意）。
+
 ## 2026-10-23 D1：MCP 前端身份注册表，未知回调与身份默认拒绝（PR #40）
 
 - 合同 docs/development/handoffs/RELAY_20261023_d1-frontend-registry.md，经 relay 由 Codex 实现（3 轮，前两轮因既有测试与新规则冲突而 blocked，合同修订后放开指定断言），云端审核。

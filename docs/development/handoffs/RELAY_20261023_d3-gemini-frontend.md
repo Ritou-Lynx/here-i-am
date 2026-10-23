@@ -96,3 +96,9 @@
 - Codex 指出 `chatgpt_candidate.test.mjs` 第 37–38、40、43 行（以及第 66–69 行的同类断言）固定“四个改动、diagnostics 字节不变”，与本合同要求的五个改动冲突；本机没有 Flutter。
 - Claude 云端复跑：失败全部在 `chatgpt_candidate.test.mjs`（`unexpected current server source delta`，因为还没加 `GEMINI_PATCHES`），其余通过。已读 `oauth.mjs`、`diagnostics.mjs` 改动：回调模式、过滤式注册、Basic 头只对 Gemini client 取 client_id、诊断只输出固定分类，符合合同。
 - 处理：允许改 `chatgpt_candidate.test.mjs` 中上述断言（改动数 4→5、保持原字节的文件 2→1、改动列表和第 43 行正则加入 `diagnostics`，测试名同步）。生产候选里的 diagnostics 是 legacy 版本（与 v3-lab 只差换行符），补丁需保留原 CRLF。Flutter 不在本机跑，由 CI 的 Flutter 全量测试覆盖。
+
+### 第 2 轮（10-23）：通过
+- 提交 `fb4c2de` 只改 4 个允许路径：`chatgpt_candidate.mjs` 加 Gemini 补丁组（diagnostics 纳入正反向字节校验并保留 CRLF）、候选测试按修订放开的断言、新建 `gemini_frontend.test.mjs`、README Gemini 一节。
+- Claude 云端核对 `origin/v3-lab...fb4c2de` 全部 diff：只动允许路径；回调模式要求规范拼写（拒绝默认端口、空 query 等别名）；Basic 头只在 Gemini client 上补 client_id，Gemini 关闭时 Basic 也恢复不了；server 显式 `gemini_web` 分支，未配对不借用 Claude 写回；诊断只输出固定分类和计数。
+- 复跑 `node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs` 230/230；本地生成候选六文件、`changed_files: 5`、`unchanged_files: 1`，diagnostics 为 CRLF，产物含 `gemini_web`、`geminiEnabledFromEnv`、`gemini_kept_count`。
+- Flutter 本机未跑，以 CI 为准。结论：完成标准全部达标，可以合并。部署另行确认。
