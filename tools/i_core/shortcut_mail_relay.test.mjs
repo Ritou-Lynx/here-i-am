@@ -12,6 +12,7 @@ import { createServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import {
   ShortcutMailRelay,
@@ -208,6 +209,51 @@ test('five-minute and daily limits count send_started attempts', async () => {
   } finally {
     relay.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('close checkpoints the journal and leaves no SQLite sidecars', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'shortcut-mail-relay-'));
+  const databasePath = path.join(dir, 'journal.sqlite');
+  const options = {
+    databasePath,
+    tokenHash: tokenHash('scoped-token'),
+    receiverHint: 'r***@example.test',
+    dispatcher: async () => ({ accepted: true, providerReceiptId: 'smtp-ok' }),
+    now: () => 1_700_000_000_000,
+  };
+  const sidecars = () => ['-wal', '-shm', '-journal'].filter((suffix) => existsSync(databasePath + suffix));
+  let relay = new ShortcutMailRelay(options);
+  try {
+    await relay.send(request(KEY_ONE));
+    assert.deepEqual(sidecars(), ['-wal', '-shm']);
+    relay.close();
+    assert.deepEqual(sidecars(), []);
+    relay.close();
+
+    relay = new ShortcutMailRelay(options);
+    assert.equal(relay.db.prepare('PRAGMA journal_mode').get().journal_mode, 'wal');
+    assert.equal(relay.getReceipt({ token: 'scoped-token', idempotency_key: KEY_ONE }).status, 'provider_accepted');
+    relay.close();
+    assert.deepEqual(sidecars(), []);
+  } finally {
+    relay.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('close still releases the journal when the checkpoint cannot complete', () => {
+  const { relay, dispose } = fixture();
+  const reader = new DatabaseSync(relay.db.location());
+  try {
+    reader.exec('BEGIN');
+    reader.prepare('SELECT COUNT(*) FROM shortcut_mail_journal').get();
+    assert.throws(() => relay.close(), /shortcut_mail_checkpoint_busy|locked/);
+    assert.equal(relay.db.isOpen, false);
+  } finally {
+    reader.exec('ROLLBACK');
+    reader.close();
+    dispose();
   }
 });
 
