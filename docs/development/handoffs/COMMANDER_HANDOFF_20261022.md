@@ -36,4 +36,4 @@
 | A1+A2 | PR #33 已合并（10-22）；生产已换用新副本 `tools-3baf72d`（10-23） | — |
 | A4 | PR #34（合同）与 #35（代码）都已合并；本机 watcher 已迁移，手动触发一次结果为 0 | — |
 | A3 | PR #36 已合并（10-23）；生产已换用新副本 `tools-3baf72d` | — |
-| C1 | 合同已定（`RELAY_20261023_c1-chat-source-label.md`），relay PR 已开 | 等 Codex 第 1 轮 |
+| C1 | PR #38 第 1 轮审核通过，CI 全绿（10-23） | 用户合并；用 v3-lab 构建并安装 App，真人验收 ChatGPT/Claude 标签 |

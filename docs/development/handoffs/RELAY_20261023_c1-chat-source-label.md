@@ -62,3 +62,13 @@ D1b 之后，ChatGPT 和 Claude 分别以 `frontend:chatgpt_web`、`frontend:cla
 ## 需要真人的部分
 - 合并由用户进行。Codex 回帖并收到 `relay:done` 前不要合并。
 - 合并后用户自行构建并安装 App，真人验收：ChatGPT 和 Claude 各写一轮，手机时间线分别显示“ChatGPT”“Claude”，手机本机消息无标签。
+
+## 审核记录
+
+### 第 1 轮（10-23）：通过
+- 提交 `68869e2`，只改 6 个允许路径：新建 `chat_message_source_label.dart`（`_knownChatSources` 映射表 + `chatSourceLabelFor` + 组件），手机 `persona_chat_screen.dart` 两处只插入标签，桌面 `desktop_persona_chat_view.dart` 外包一层 `Column` 放标签（工作台动作卡片不显示，`ValueKey` 不变，标签在 `SelectionArea` 之外）。
+- 映射：Claude、ChatGPT 精确匹配；其他非空名 `frontend:*` 显示“网页端”；`frontend:`（空名）、大小写不同的前缀、`core-companion:*`、`v3-history-*`、安装 ID 都不显示。
+- 测试：新增 `test/ui/core/widgets/chat_message_source_label_test.dart`（映射表、对齐、对比度）、`test/ui/character/widgets/persona_chat_source_label_test.dart`（手机聊天屏 seed 三条消息）、`test/ui/desktop/desktop_chat_source_label_test.dart`（桌面列表、动作卡片、复制选区）。Codex 本机：UI 测试 106/0，同步回归 70/0；analyze 的 19 项诊断都在未改动行。
+- CI（`68869e2`）：Flutter full suite 等全部通过。`Schema6 Windows maintenance acceptance` 第一次因 job 20 分钟上限被取消（已跑用例全过，本 PR 未改 `tools/`），重跑一次 13 分 35 秒通过。这个 job 在 v3-lab 上也要 15 分钟左右，建议另开小改动把上限调到 30 分钟。
+- 结论：完成标准全部达标，可以合并。合并后由用户构建、安装 App 并做真人验收。
+
