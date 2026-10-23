@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { FRONTEND_CALLBACKS, CLAUDE_AI_CALLBACKS, CHATGPT_CALLBACK_URI, frontendForRedirectUri } from './oauth.mjs';
+import { FRONTEND_CALLBACKS, FRONTEND_CALLBACK_PATTERNS, CLAUDE_AI_CALLBACKS, CHATGPT_CALLBACK_URI, frontendForRedirectUri } from './oauth.mjs';
 import { FRONTENDS } from './writeback.mjs';
 import { mcpPost, startTestServer } from './fixtures.mjs';
 
 test('registry is frozen, exact and assigns every callback to one frontend', () => {
   assert.ok(Object.isFrozen(FRONTEND_CALLBACKS));
   assert.deepEqual(FRONTEND_CALLBACKS, { claude_web: CLAUDE_AI_CALLBACKS, chatgpt_web: [CHATGPT_CALLBACK_URI] });
+  assert.ok(Object.isFrozen(FRONTEND_CALLBACK_PATTERNS));
+  assert.deepEqual(Object.keys(FRONTEND_CALLBACK_PATTERNS), ['gemini_web']);
   const callbacks = Object.values(FRONTEND_CALLBACKS).flat();
   assert.equal(new Set(callbacks).size, callbacks.length);
   for (const [frontend, uris] of Object.entries(FRONTEND_CALLBACKS)) {
@@ -20,7 +22,7 @@ test('registry is frozen, exact and assigns every callback to one frontend', () 
 });
 
 test('registry names equal writeback definitions and App known source keys', () => {
-  const names = Object.keys(FRONTEND_CALLBACKS).sort();
+  const names = [...Object.keys(FRONTEND_CALLBACKS), ...Object.keys(FRONTEND_CALLBACK_PATTERNS)].sort();
   assert.deepEqual(Object.keys(FRONTENDS).sort(), names);
   const dart = readFileSync(new URL('../../lib/ui/character/widgets/chat_message_source_label.dart', import.meta.url), 'utf8');
   const map = /\b_knownChatSources\s*=\s*\{([^}]+)\}/s.exec(dart);

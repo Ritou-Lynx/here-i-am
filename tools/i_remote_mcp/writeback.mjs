@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 export const FRONTENDS = Object.freeze({
   claude_web: Object.freeze({ name: 'claude_web', deviceId: 'frontend:claude_web', displayName: 'claude.ai 网页端', credentialFile: 'core-frontend.json' }),
   chatgpt_web: Object.freeze({ name: 'chatgpt_web', deviceId: 'frontend:chatgpt_web', displayName: 'ChatGPT 网页端', credentialFile: 'core-frontend-chatgpt_web.json' }),
+  gemini_web: Object.freeze({ name: 'gemini_web', deviceId: 'frontend:gemini_web', displayName: 'Gemini 网页端', credentialFile: 'core-frontend-gemini_web.json' }),
 });
 export const FRONTEND_NAME = 'claude_web';
 

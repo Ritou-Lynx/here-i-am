@@ -4,6 +4,7 @@ import 'package:memex/db/app_database.dart';
 const Map<String, String> _knownChatSources = {
   'frontend:claude_web': 'Claude',
   'frontend:chatgpt_web': 'ChatGPT',
+  'frontend:gemini_web': 'Gemini',
 };
 
 /// Resolves only exact, case-sensitive device provenance. Empty frontend IDs
