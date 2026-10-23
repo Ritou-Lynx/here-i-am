@@ -180,6 +180,21 @@ curl https://<机器名>.<tailnet>.ts.net/.well-known/oauth-authorization-server
 4. 在 connector 的工具设置里把 `i_context`、`i_recall` 设为“始终允许”；启用写回后再把 `i_chat_turn`、`i_remember` 设为“始终允许”（否则每轮都会弹确认）。
 5. 新建「林埃」Project，把 [CLAUDE_PROJECT_INSTRUCTIONS.md](CLAUDE_PROJECT_INSTRUCTIONS.md) 中“指令正文”一节粘贴到 Project 指令里，并在该 Project 中启用这个 connector。
 
+## Antigravity（D4）
+
+Antigravity 的本机 MCP 代理以 `MCP CLI Proxy` 注册 public client（`token_endpoint_auth_method: none`），使用 PKCE S256、`authorization_code` / `refresh_token`，可请求 `i.read i.write offline_access`。`antigravity` 只精确接受以下两个回调；可同时注册，也可只注册其中一个：
+
+- `http://127.0.0.1:32014/oauth/callback`
+- `http://localhost:32014/oauth/callback`
+
+不接受其他端口、路径、`::1`、HTTPS、大小写或 query / fragment 变体，也不接受与 Claude、ChatGPT、Gemini 的回调混合注册。不新增回调模式或允许的 Origin；代理预计不带 Origin，如实际发送其他 Origin 则仍拒绝。
+
+`I_REMOTE_MCP_ANTIGRAVITY_ENABLED` 未设置或为 `1` 时开启，`0` 时关闭，其他值抛出 `invalid_antigravity_mode`。关闭后注册、授权、换令牌、refresh 和既有访问令牌均被拒绝。口令要求、失败锁定和令牌有效期保持原有规则；持有口令的人可以在任意机器上使用这两个回环回调授权。
+
+配对命令支持 `pair-core --frontend antigravity`，独立凭据文件为 `core-frontend-antigravity.json`，设备 ID 为 `frontend:antigravity`。写回启用时只加载该前端自己的凭据；缺少配对时 `i_chat_turn` 返回 `frontend_not_paired:antigravity`，不借用其他前端凭据。工具集同 Gemini：`i_context`、`i_recall`、`i_chat_turn`，配置规划只读工具后另有 `week_get`、`day_get`；不开放 `capture_add` 或 `i_remember`。App 将来源显示为 `Antigravity`。
+
+诊断仅记录固定 `callback_class: antigravity`，不记录回调原文。候选构建器的 `ANTIGRAVITY_PATCHES` 分别校验 mainline 与 legacy 的正反向精确字节，运行时仍为六文件、`changed_files: 5`，diagnostics 保留 CRLF。本节只说明接线；部署、真实配对和真人验收另行授权。
+
 ## 协议与安全要点
 
 - 未授权访问 `/mcp`（任意方法）返回 `401` 与 `WWW-Authenticate: Bearer resource_metadata=…`；无效或过期令牌带 `error="invalid_token"`。

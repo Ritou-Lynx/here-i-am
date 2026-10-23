@@ -19,6 +19,7 @@ export function callbackClass(value) {
   if (frontend === 'claude_web') return 'claude';
   if (frontend === 'chatgpt_web') return 'chatgpt';
   if (frontend === 'gemini_web') return 'gemini_pattern';
+  if (frontend === 'antigravity') return 'antigravity';
   try {
     const url = new URL(value);
     if (['oauth-redirect.googleusercontent.com', 'oauth-redirect-sandbox.googleusercontent.com'].includes(url.hostname)) return 'google_relay_other';
@@ -79,7 +80,7 @@ export function createRequestDiagnostics(req, { issuer, resource, diagnostic = (
     registration(values, kept) {
       const callbacks = Array.isArray(values) ? values : [];
       const classes = callbacks.map(callbackClass);
-      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'google_relay_other', 'other', 'absent']
+      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'antigravity', 'google_relay_other', 'other', 'absent']
         .find(value => classes.includes(value)) ?? 'absent';
       base.callback_count = callbacks.length;
       base.gemini_kept_count = kept.filter(value => frontendForRedirectUri(value) === 'gemini_web').length;

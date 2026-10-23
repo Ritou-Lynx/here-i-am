@@ -195,3 +195,32 @@ for(const enabled of [false,true])test('actual candidate CLI OAuth, issuer and r
   for(const item of built.manifest.files)assert.equal(sha256(readFileSync(join(built.root,item.path))),item.result_sha256);
  } finally {if(child)await stopOwned(child);rmSync(syntheticRoot,{recursive:true,force:true});}
 });
+
+test('Antigravity candidate keeps the six-file closure, exact callbacks and dedicated frontend routing', async t => {
+ const built=candidate(t);
+ assert.equal(allFiles(built.root).length,6);
+ assert.equal(built.manifest.changed_files,5);
+ const { pathToFileURL } = await import('node:url');
+ const oauth = await import(pathToFileURL(join(built.root,'i_remote_mcp/oauth.mjs')));
+ const diagnostics = await import(pathToFileURL(join(built.root,'i_remote_mcp/diagnostics.mjs')));
+ assert.deepEqual(oauth.ANTIGRAVITY_CALLBACKS, [
+  'http://127.0.0.1:32014/oauth/callback', 'http://localhost:32014/oauth/callback',
+ ]);
+ assert.equal(oauth.antigravityEnabledFromEnv({}),true);
+ assert.equal(oauth.antigravityEnabledFromEnv({I_REMOTE_MCP_ANTIGRAVITY_ENABLED:'0'}),false);
+ assert.throws(()=>oauth.antigravityEnabledFromEnv({I_REMOTE_MCP_ANTIGRAVITY_ENABLED:'2'}),/invalid_antigravity_mode/);
+ for (const uri of oauth.ANTIGRAVITY_CALLBACKS) {
+  assert.equal(oauth.frontendForRedirectUri(uri),'antigravity');
+  assert.equal(oauth.isAllowedRedirectUri(uri,true,true,false),false);
+  assert.equal(diagnostics.callbackClass(uri),'antigravity');
+ }
+ const server=readFileSync(join(built.root,'i_remote_mcp/server.mjs'),'utf8');
+ assert.match(server,/else if \(auth\.frontend === 'antigravity'\)/);
+ assert.match(server,/loadFrontendCredential\(stateDir, 'antigravity'\)/);
+ assert.match(server,/frontend_not_paired:antigravity/);
+ assert.match(server,/antigravityWriteback\?\.close\(\)/);
+ const writeback=readFileSync(join(built.root,'i_remote_mcp/writeback.mjs'),'utf8');
+ assert.match(writeback,/credentialFile: 'core-frontend-antigravity\.json'/);
+ const bytes=readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'),'utf8');
+ assert.ok(!bytes.replaceAll('\r\n','').includes('\n'),'Antigravity diagnostics retain CRLF');
+});
