@@ -138,6 +138,19 @@ export function createApp({
       return sendJson(res, 401, { error: auth.error ?? 'unauthorized', error_description: 'Bearer token required' });
     }
 
+    let frontendHandlers;
+    let frontendTools;
+    if (auth.frontend === 'claude_web') {
+      frontendHandlers = handlers;
+      frontendTools = tools;
+    } else if (auth.frontend === 'chatgpt_web') {
+      frontendHandlers = chatgptHandlers;
+      frontendTools = chatgptTools;
+    } else {
+      res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));
+      return sendJson(res, 401, { error: 'invalid_token' });
+    }
+
     const versionHeader = req.headers['mcp-protocol-version'];
     if (versionHeader && !SUPPORTED_PROTOCOL_VERSIONS.includes(versionHeader)) {
       return sendJson(res, 400, rpcErr(null, -32600, `Unsupported MCP-Protocol-Version: ${String(versionHeader).slice(0, 32)}`));
@@ -192,8 +205,8 @@ export function createApp({
     for (const message of messages) {
       let dataSourceFailed = false;
       const response = await handleRpcMessage(message, {
-        handlers: auth.frontend === 'chatgpt_web' ? chatgptHandlers : handlers,
-        tools: auth.frontend === 'chatgpt_web' ? chatgptTools : tools,
+        handlers: frontendHandlers,
+        tools: frontendTools,
         unavailableTools: auth.frontend === 'chatgpt_web' && !chatgptWriteback
           ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' } : {},
         scopes: auth.scopes,
