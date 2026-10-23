@@ -65,6 +65,12 @@ for(const scenario of ['stop','success','bad-pin','drift','dry-run']){
   const steps=lines.filter(v=>Object.hasOwn(v,'step'));
   assert.ok(steps.length>0,'native stop/switch emits machine-readable steps');
   for(const step of steps){assert.equal(typeof step.ok,'boolean');assert.ok(Object.hasOwn(step,'detail'));}
+  // Step names and reviewed error codes only; any other detail text is withheld.
+  if(result.code!==({stop:0,success:0,'bad-pin':2,drift:1,'dry-run':0})[scenario]){
+   const code=detail=>String(detail??'').split(';').map(part=>part.replace(/:.*$/s,'')).filter(part=>/^[a-z0-9_]{1,64}(=[a-z0-9_]{1,64})?$/.test(part)).join(';')||'unreadable';
+   t.diagnostic('safe_switch_steps '+scenario+' '+steps.filter(row=>typeof row.step==='string'&&/^[a-z0-9_.]{1,64}$/.test(row.step))
+    .map(row=>row.step+':'+(row.ok===true?'ok':code(row.detail))).join(' '));
+  }
   if(scenario==='stop'){
    assert.equal(result.code,0);assert.equal(result.stopStatus,'clean_closed');assert.equal(result.secondStopStatus,'already_stopped');
    assert.deepEqual(result.active,[]);assert.equal(sessions(b.controlRoot).length,0);
