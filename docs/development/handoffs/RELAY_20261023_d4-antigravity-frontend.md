@@ -84,3 +84,13 @@
 - 部署每一步单独同意。
 
 ## 审核记录
+
+### 第 1 轮（10-23）：未执行
+- watcher 建 worktree 失败：本机 D1 留下的 `relay-worktrees/pr-40` 仍检出同名分支。用户核对干净后删除，未改分支。
+
+### 第 2 轮（10-23）：通过
+- 提交 `0a7fe62` 只改 11 个允许路径。
+- Claude 云端核对 `origin/v3-lab...0a7fe62` 全部 diff：`ANTIGRAVITY_CALLBACKS` 精确两项、冻结，无模式规则；开关贯穿注册、授权、换令牌、refresh、令牌校验；`/register` 错误文案去掉 https，错误码不变；server 显式 `antigravity` 分支，未配对返回 `frontend_not_paired:antigravity`，不借用其他凭据；诊断只输出固定 `antigravity` 分类；App 映射表与 Dart 测试各加一行；`frontend_registry.test.mjs` 只改第 10 行（及 import）。
+- 新测试覆盖：变体回调（端口、`::1`、https、尾斜杠、query/fragment、大小写、userinfo）全部拒绝；单回调注册、与 Claude/ChatGPT/Gemini 混合拒绝；全流程与 refresh 后写回均记为 `frontend:antigravity`，无 `capture_add`、`i_remember`；开关关闭时注册、授权、未用授权码、refresh、已签令牌全部拒绝。
+- 复跑 `node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs` 240/240；本地生成候选六文件、`changed_files: 5`、`unchanged_files: 1`，diagnostics 为 CRLF；候选哈希前 8 位 server `c1926ef7`、oauth `7c82a07d`、diagnostics `2b461c32`、mcp `0ae610bf`、writeback `783e8fd0`、i_memory_read `cee18518`。
+- Flutter 本机未跑，以 CI 为准。结论：完成标准全部达标，CI 全绿后可以合并。部署另行确认。
