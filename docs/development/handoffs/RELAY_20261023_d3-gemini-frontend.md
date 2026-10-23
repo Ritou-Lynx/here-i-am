@@ -53,7 +53,7 @@
 ## 允许修改的路径
 - `tools/i_remote_mcp/oauth.mjs`、`server.mjs`、`writeback.mjs`、`mcp.mjs`（仅工具清单需要时）、`diagnostics.mjs`
 - `tools/i_remote_mcp/chatgpt_candidate.mjs` 及其测试
-- `tools/i_remote_mcp/*.test.mjs`（只追加；新建 `gemini_frontend.test.mjs`）。允许改动的既有断言只有：`frontend_registry.test.mjs` 第 10 行（改为断言精确表仍只有 Claude、ChatGPT，模式表只有 Gemini）、第 22–23 行（注册表名改为两张表的并集）；`chatgpt_candidate.test.mjs` 中 `changed_files`/`unchanged_files` 的数值。
+- `tools/i_remote_mcp/*.test.mjs`（只追加；新建 `gemini_frontend.test.mjs`）。允许改动的既有断言只有：`frontend_registry.test.mjs` 第 10 行（改为断言精确表仍只有 Claude、ChatGPT，模式表只有 Gemini）、第 22–23 行（注册表名改为两张表的并集）；`chatgpt_candidate.test.mjs` 中“四个改动、两个文件保持原字节”的断言（第 33–43 行、第 66–69 行：数值、改动列表、第 43 行正则、测试名，第 1 轮修订）。
 - `lib/ui/character/widgets/chat_message_source_label.dart`、`test/ui/core/widgets/chat_message_source_label_test.dart`
 - `tools/i_remote_mcp/README.md`
 - `docs/development/handoffs/RELAY_20261023_d3-gemini-frontend.md`（只由 Claude 改）
@@ -66,7 +66,7 @@
 
 ## 验证命令
 - `node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs`
-- `flutter test test/ui/core/widgets/chat_message_source_label_test.dart test/ui/character/widgets/persona_chat_source_label_test.dart test/ui/desktop/desktop_chat_source_label_test.dart`
+- （CI 执行，本机无 Flutter 时可跳过）`flutter test test/ui/core/widgets/chat_message_source_label_test.dart test/ui/character/widgets/persona_chat_source_label_test.dart test/ui/desktop/desktop_chat_source_label_test.dart`
 - `node tools/i_remote_mcp/chatgpt_candidate.mjs --out build/d3-candidate`（成功，六文件；输出不提交）
 - CI 全绿。
 
@@ -88,3 +88,11 @@
 ## 需要真人的部分
 - 合并由用户进行，收到 `relay:done` 前不要合并。
 - 部署每一步单独同意。
+
+## 审核记录
+
+### 第 1 轮（10-23）：blocked，合同修订
+- 提交 `7d4ce8c` 改 7 个允许路径（oauth、server、writeback、diagnostics、frontend_registry 测试、App 映射表及测试）；候选构建器、`gemini_frontend.test.mjs`、README 未做。
+- Codex 指出 `chatgpt_candidate.test.mjs` 第 37–38、40、43 行（以及第 66–69 行的同类断言）固定“四个改动、diagnostics 字节不变”，与本合同要求的五个改动冲突；本机没有 Flutter。
+- Claude 云端复跑：失败全部在 `chatgpt_candidate.test.mjs`（`unexpected current server source delta`，因为还没加 `GEMINI_PATCHES`），其余通过。已读 `oauth.mjs`、`diagnostics.mjs` 改动：回调模式、过滤式注册、Basic 头只对 Gemini client 取 client_id、诊断只输出固定分类，符合合同。
+- 处理：允许改 `chatgpt_candidate.test.mjs` 中上述断言（改动数 4→5、保持原字节的文件 2→1、改动列表和第 43 行正则加入 `diagnostics`，测试名同步）。生产候选里的 diagnostics 是 legacy 版本（与 v3-lab 只差换行符），补丁需保留原 CRLF。Flutter 不在本机跑，由 CI 的 Flutter 全量测试覆盖。
