@@ -103,6 +103,7 @@ function Write-SwitchRegistrationReceipt {
  Write-OwnedArtifactBytes $config.registrationReceiptPath $b $config.ownerSid
 }
 try{
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  if(!$RegisterOnly){throw 'register_only_required'}
  Pin-File $ConfigurationPath $ExpectedConfigurationSha256;$config=Get-Content -LiteralPath $ConfigurationPath -Raw|ConvertFrom-Json
  if($config.format-cne 'schema6-mcp-config-switch-registration-v1'-or $config.approved-ne $true-or $config.registerOnly-ne $true-or $config.registerDisabled-ne $true-or $config.registrationDerivation-cne 'fixed_prepare_settings_enabled_false_only'-or $config.ownerSid-cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value){throw 'registration_approval_rejected'}

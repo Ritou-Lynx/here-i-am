@@ -70,6 +70,7 @@ function Invoke-VerifiedPrepare([string]$Node,[string]$Prepare){
  }finally{$child.Dispose()}
 }
 try{
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  if(!$RegisterOnly){throw 'register_only_required'}
  Pin-File $ConfigurationPath $ExpectedConfigurationSha256; $config=Get-Content -LiteralPath $ConfigurationPath -Raw|ConvertFrom-Json
  if($config.ownerSid-cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value){throw 'owner_mismatch'}

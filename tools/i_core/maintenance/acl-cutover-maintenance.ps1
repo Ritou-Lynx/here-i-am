@@ -280,6 +280,7 @@ function Invoke-AclMaintenance {
  param([Parameter(Mandatory=$true)][string]$ConfigPath,[Parameter(Mandatory=$true)][string]$ExpectedConfigSha256,[Parameter(Mandatory=$true)][ValidatePattern("^[a-f0-9]{64}$")][string]$ExpectedOwnedArtifactsSha256,[Parameter(Mandatory=$true)][ValidateSet("Audit","Apply","Rollback")][string]$Mode,[switch]$ConfirmFrozen)
  Set-StrictMode -Version 2
  $ErrorActionPreference="Stop"
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  $artifactHelper=Join-Path $PSScriptRoot 'owned_artifacts.ps1'
  Initialize-CutoverAclNative
  $artifactLease=$null;$artifactIdentity=$null;$artifactParents=[Collections.Generic.List[IDisposable]]::new()
