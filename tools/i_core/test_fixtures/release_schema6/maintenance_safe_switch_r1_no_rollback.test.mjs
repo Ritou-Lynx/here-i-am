@@ -18,12 +18,17 @@ test('R1 NoRollback leaves the legacy switch implementation byte-for-byte intact
   .replace(' if($NoRollback){'+marker+';return 2}\r\n','')
   .replace(' -NoRollback:$NoRollback','')
   .replace("   if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}\r\n",'');
- // Exact BOM + CRLF source; 基线：A2 合同（PR #33）
+ // Exact BOM + CRLF source; 基线：ready 检查启动时间 1 秒容差（在 A2 合同 PR #33 之上）
  assert.equal(createHash('sha256').update(restored).digest('hex'),
-  '9756d2c91c6d558ed78b234cfe7c0c76d7e9bb354f5405f79d9f95c292cd0df9');
+  'e45458cfcff001a5b01f6da1be09ecb4a6093f22ba86d8bd2d073b5ce8e2ed8a');
  assert.equal(script.match(/\[switch\]\$NoRollback/g)?.length,2,'CLI and function expose the switch');
  assert.match(script,/-DryRun:\$DryRun -NoRollback:\$NoRollback\r?\n/,'CLI forwards the switch');
  assert.ok(script.indexOf('if($NoRollback){'+marker+';return 2}')<script.indexOf("'rollback.stop_new'"));
+});
+
+test('ready check tolerates receipt timestamps up to one second before process start',()=>{
+ // 文件时间精度低于进程启动时间：CI 实测 mcp 进程比 mcp-start.json 晚 0.66ms。
+ assert.match(script,/StartTime\.ToUniversalTime\(\)\.Ticks -gt \(Get-Item -LiteralPath \$identity\.Receipt\)\.LastWriteTimeUtc\.Ticks\+10000000 -or/);
 });
 
 test('R1 NoRollback regression suite is selected by the existing Windows runners',()=>{
