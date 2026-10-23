@@ -37,3 +37,4 @@
 | A4 | PR #34（合同）与 #35（代码）都已合并；本机 watcher 已迁移，手动触发一次结果为 0 | — |
 | A3 | PR #36 已合并（10-23）；生产已换用新副本 `tools-3baf72d` | — |
 | C1 | PR #38 第 1 轮审核通过，CI 全绿（10-23） | 用户合并；用 v3-lab 构建并安装 App，真人验收 ChatGPT/Claude 标签 |
+| D1 | 合同 `RELAY_20261023_d1-frontend-registry.md`，用户 10-23 确认三项决定（删 extra 回调、App 显示名保留映射表、旧令牌仅纯 Claude client 认） | Codex 实现；收到 relay:done 前勿合并 |
