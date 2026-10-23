@@ -4,7 +4,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { main, runOnce, resolveCodex, validateConfig } from './relay_watcher.mjs';
+import { main, runOnce, resolveCodex, validateConfig, run as runProcess } from './relay_watcher.mjs';
 
 const START = 'a'.repeat(40);
 const END = 'b'.repeat(40);
@@ -12,7 +12,7 @@ const NOW = Date.parse('2026-10-07T02:00:00.000Z');
 const template = '# Test template\n---\nPR {{pr_number}} branch {{branch}} round {{round}}\nCONTRACT\n{{contract}}\nINSTRUCTION\n{{instruction}}\n---\n';
 const contract = '<!-- relay:contract v1 -->\nOnly change tools/agent_relay/.';
 const instruction = 'Run the requested tests and leave the scoped change for the watcher to commit.';
-const basePr = { number: 71, headRefName: 'claude/relay-test', baseRefName: 'v3-lab', headRefOid: START, isCrossRepository: false, labels: [{ name: 'agent-relay' }] };
+const basePr = { number: 71, title: 'Synthetic relay PR', headRefName: 'claude/relay-test', baseRefName: 'v3-lab', headRefOid: START, isCrossRepository: false, labels: [{ name: 'agent-relay' }] };
 const baseComment = { id: 101, user: { login: 'Ritou-Lynx' }, body: `<!-- relay:to-codex round=1 -->\n${instruction}`, created_at: '2026-10-07T01:00:00Z' };
 
 async function exists(file) {
@@ -63,7 +63,11 @@ async function fixture(t, scenario = {}) {
     if (cmd === 'gh') {
       if (args[0] === 'pr' && args[1] === 'list') return ok(JSON.stringify(scenario.prs ?? [basePr]));
       if (args[0] === 'pr' && args[1] === 'view') return ok(JSON.stringify({ body: contract }));
-      if (args[0] === 'api' && args.some(arg => /\/issues\/\d+\/comments$/.test(arg))) return ok(JSON.stringify(scenario.comments ?? [baseComment]));
+      if (args[0] === 'api' && args.some(arg => /\/issues\/\d+\/comments$/.test(arg))) {
+        const number = Number(args.find(arg => /\/issues\/\d+\/comments$/.test(arg)).match(/issues\/(\d+)/)[1]);
+        if (scenario.failScanPr === number) throw new Error('synthetic scan failure');
+        return ok(JSON.stringify(scenario.commentsByPr?.[number] ?? scenario.comments ?? [baseComment]));
+      }
       if (args[0] === 'api' && args.some(arg => arg.endsWith('/reactions'))) return ok('{}');
       if (args[0] === 'pr' && args[1] === 'edit') return ok();
       if (args[0] === 'pr' && args[1] === 'comment') {
@@ -133,7 +137,7 @@ async function fixture(t, scenario = {}) {
   };
   return {
     config, stateDir, calls, posts, output, worktree, root,
-    once: (extra = {}) => runOnce({ config, stateDir, run, now: () => NOW, pid: 424242, isProcessAlive: () => Boolean(scenario.liveLock), log: (...args) => output.push(args), template, codexOptions: { env: {} }, ...extra }),
+    once: (extra = {}) => runOnce({ config, stateDir, run, now: () => NOW, pid: 424242, isProcessAlive: () => Boolean(scenario.liveLock), log: (...args) => output.push(args), template, codexOptions: { env: {} }, fetchImpl: async () => { throw new Error('fetch must be explicitly faked'); }, ...extra }),
     state: async () => JSON.parse(await readFile(path.join(stateDir, 'state.json'), 'utf8')),
   };
 }
@@ -712,7 +716,7 @@ test('codex-not-found leaves pending comment and state unchanged, writes no GitH
   assert.deepEqual(f.posts, []);
   assert.equal(f.calls.some(isCodex), false);
   assert.equal(f.calls.some(call => call.cmd === 'git'), false);
-  assert.deepEqual(f.output, [['codex_not_found'], ['codex_not_found']]);
+  assert.deepEqual(f.output, [['未配置通知通道'], ['codex_not_found'], ['未配置通知通道'], ['codex_not_found']]);
   await fakeExe(f.config.codexPath);
   assert.equal((await f.once()).status, 'done');
 });
@@ -757,4 +761,240 @@ test('CLI codex-not-found returns exit 1 including dry-run', async t => {
   for (const flag of ['--once', '--dry-run']) {
     assert.equal(await main(['--config', configFile, flag], { executeOnce: async () => ({ status: 'codex-not-found' }), log: () => {} }), 1);
   }
+});
+
+const mobileConfig = { pushplusToken: 'synthetic-push-token', barkKey: 'synthetic-bark-key' };
+const mobileState = () => ({ comments: {}, notifyEnabledAt: '2026-10-06T00:00:00Z', notified: {} });
+const mobileComment = (id, kind = 'done') => ({ id, user: { login: 'Ritou-Lynx' }, body: `<!-- relay:${kind} -->\nReady for review`, html_url: `https://github.com/example/repo/pull/71#issuecomment-${id}` });
+const fakeSuccess = async () => ({ status: 200, json: async () => ({ code: 200 }) });
+
+async function mobileFixture(t, scenario = {}) {
+  const f = await fixture(t, { state: mobileState(), comments: [], ...scenario });
+  f.config.notify = { ...mobileConfig };
+  f.sent = [];
+  f.fetchImpl = async (url, opts) => { f.sent.push({ url, body: JSON.parse(opts.body) }); return fakeSuccess(); };
+  f.mobileOnce = extra => f.once({ fetchImpl: f.fetchImpl, ...extra });
+  return f;
+}
+
+test('mobile: done and to-human notify once, including paused and needs-human PRs, and reuse comments', async t => {
+  const prs = [basePr, { ...basePr, number: 72, labels: ['agent-relay', 'relay-paused'] }, { ...basePr, number: 73, labels: ['agent-relay', 'relay-needs-human'] }];
+  const f = await mobileFixture(t, { prs, commentsByPr: { 71: [mobileComment(201)], 72: [mobileComment(202, 'to-human')], 73: [mobileComment(203)] } });
+  for (let i = 0; i < 2; i++) assert.equal((await f.mobileOnce()).status, 'idle');
+  assert.equal(f.sent.length, 6);
+  assert.equal(f.sent[0].body.title, '接力 PR #71：完成，等你验收');
+  assert.equal(f.sent[2].body.title, '接力 PR #72：需要你决定');
+  assert.match(f.sent[0].body.content, /Synthetic relay PR\nhttps:\/\/.*issuecomment-201\nReady for review/);
+  for (const id of [201, 202, 203]) assert.equal((await f.state()).notified[id].status, 'sent');
+  assert.equal(f.calls.filter(call => call.args.some(arg => /\/issues\/\d+\/comments$/.test(arg))).length, 6, 'one fetch per PR per pass');
+  assert.match(f.calls.find(call => call.args[1] === 'list').args.at(-1), /title/);
+});
+
+test('mobile: unapproved authors, later-line markers, to-codex and done/blocked replies never notify', async t => {
+  const f = await mobileFixture(t, { comments: [
+    { ...mobileComment(201), user: { login: 'untrusted' } },
+    { ...mobileComment(202), body: 'prefix\n<!-- relay:done -->' },
+    { ...mobileComment(203), body: '<!-- relay:to-claude round=1 status=done sha=abc -->\nDone' },
+    { ...mobileComment(204), body: '<!-- relay:to-claude round=1 status=blocked sha=none -->\nBlocked' },
+    { ...mobileComment(205), body: '<!-- relay:to-claude round=1 status=failed sha=none -->\nNot a watcher receipt' },
+    baseComment,
+  ] });
+  assert.equal((await f.mobileOnce()).status, 'done');
+  assert.deepEqual(f.sent, []);
+  assert.equal(f.calls.filter(call => call.args.some(arg => /\/issues\/\d+\/comments$/.test(arg))).length, 1);
+});
+
+test('mobile: first enable records the baseline, not historical notifications; old state remains readable', async t => {
+  const comments = [mobileComment(201), mobileComment(202, 'to-human')];
+  const f = await mobileFixture(t, { comments, state: { comments: {} } });
+  assert.equal((await f.mobileOnce()).status, 'idle');
+  assert.deepEqual(f.sent, []);
+  const state = await f.state();
+  assert.equal(state.notifyEnabledAt, new Date(NOW).toISOString());
+  assert.deepEqual(state.notified[201], { status: 'sent', attempts: 0, at: new Date(NOW).toISOString() });
+  comments.push(mobileComment(203));
+  await f.mobileOnce();
+  await f.mobileOnce();
+  assert.equal(f.sent.length, 2);
+  assert.equal((await f.state()).notified[203].attempts, 1);
+});
+
+test('mobile: all channels failing retry three times, then give up without changing relay status', async t => {
+  const f = await mobileFixture(t, { comments: [mobileComment(201)] });
+  let attempts = 0;
+  const fetchImpl = async () => { attempts++; throw new Error(`${mobileConfig.pushplusToken} ${mobileConfig.barkKey}`); };
+  for (let i = 1; i <= 4; i++) {
+    assert.equal((await f.mobileOnce({ fetchImpl })).status, 'idle');
+    const receipt = (await f.state()).notified[201];
+    assert.equal(receipt.attempts, Math.min(i, 3));
+    assert.equal(receipt.status, i < 3 ? 'pending' : 'gave_up');
+  }
+  assert.equal(attempts, 6);
+  assert.deepEqual((await f.state()).comments, {});
+  assert.doesNotMatch(JSON.stringify(f.output), /synthetic-push-token|synthetic-bark-key/);
+});
+
+test('mobile: any successful enabled channel marks sent despite the other failing or off', async t => {
+  for (const both of [true, false]) await t.test(String(both), async t => {
+    const f = await mobileFixture(t, { comments: [mobileComment(201)] });
+    if (!both) delete f.config.notify.barkKey;
+    let calls = 0;
+    const fetchImpl = async url => { calls++; if (url.includes('day.app')) throw new Error('Bark unavailable'); return fakeSuccess(); };
+    await f.mobileOnce({ fetchImpl });
+    await f.mobileOnce({ fetchImpl });
+    assert.equal(calls, both ? 2 : 1);
+    assert.equal((await f.state()).notified[201].status, 'sent');
+  });
+});
+
+test('mobile: fresh watcher failure notifies only after reply delivery, once per instruction ID', async t => {
+  const f = await mobileFixture(t, { comments: [baseComment], codexCode: 1, codexError: 'Synthetic execution failure' });
+  const fetchImpl = async (...args) => { assert.equal(f.posts.length, 1); return f.fetchImpl(...args); };
+  assert.equal((await f.mobileOnce({ fetchImpl })).status, 'failed');
+  await f.mobileOnce();
+  assert.equal(f.sent.length, 2);
+  assert.equal(f.sent[0].body.title, '接力 PR #71：第 1 轮失败');
+  assert.match(f.sent[0].body.content, /Synthetic relay PR/);
+  assert.equal((await f.state()).notified['failed:101'].status, 'sent');
+  assert.equal((await f.state()).comments[101].notification.pending, false);
+});
+
+test('mobile: stale in_progress failure notifies after timeout report delivery', async t => {
+  const state = mobileState();
+  state.comments[101] = { status: 'in_progress', pr: 71, round: 1, startedAt: '2026-10-06T00:00:00Z' };
+  const f = await mobileFixture(t, { state });
+  await f.mobileOnce();
+  await f.mobileOnce();
+  assert.equal(f.sent.length, 2);
+  assert.equal(f.posts.length, 1);
+  assert.equal(f.sent[0].body.title, '接力 PR #71：第 1 轮失败');
+});
+
+test('mobile: pending GitHub reply is delivered before failure notification and execution never replays', async t => {
+  const f = await mobileFixture(t, { comments: [baseComment], codexCode: 1, failFirstComment: true });
+  await assert.rejects(f.mobileOnce(), /comment delivery temporarily failed/);
+  assert.deepEqual(f.sent, []);
+  await f.mobileOnce();
+  await f.mobileOnce();
+  assert.equal(f.sent.length, 2);
+  assert.equal(f.calls.filter(isCodex).length, 1);
+});
+
+test('mobile: failed watcher notification retries without replay or repost', async t => {
+  const f = await mobileFixture(t, { comments: [baseComment], codexCode: 1 });
+  await f.mobileOnce({ fetchImpl: async () => { throw new Error('synthetic network error'); } });
+  assert.equal((await f.state()).notified['failed:101'].status, 'pending');
+  await f.mobileOnce();
+  assert.equal(f.posts.length, 1);
+  assert.equal(f.calls.filter(isCodex).length, 1);
+  assert.equal((await f.state()).notified['failed:101'].status, 'sent');
+});
+
+test('mobile: scanning completes for every PR before codex-not-found returns', async t => {
+  const f = await mobileFixture(t, { prs: [basePr, { ...basePr, number: 72 }], commentsByPr: { 71: [baseComment], 72: [mobileComment(201)] } });
+  await rm(f.config.codexPath);
+  assert.equal((await f.mobileOnce()).status, 'codex-not-found');
+  assert.equal(f.sent.length, 2);
+  assert.equal(f.sent[0].body.title, '接力 PR #72：完成，等你验收');
+  assert.equal((await f.state()).comments[101], undefined);
+});
+
+test('mobile: cleanup-blocked prevents scans and HTTP; the lock covers HTTP delivery', async t => {
+  const f = await mobileFixture(t, { comments: [mobileComment(201)] });
+  await f.mobileOnce({ fetchImpl: async () => {
+    assert.equal(await exists(path.join(f.stateDir, 'lock')), true);
+    return fakeSuccess();
+  } });
+  await writeFile(path.join(f.stateDir, 'cleanup-blocked.json'), '{}');
+  const calls = f.calls.length;
+  assert.equal((await f.mobileOnce()).status, 'cleanup-blocked');
+  assert.equal(f.calls.length, calls);
+  assert.deepEqual(f.sent, []);
+});
+
+test('mobile: dry-run previews notifications but performs no fetch or state write, including first enable', async t => {
+  for (const enabledBefore of [true, false]) await t.test(String(enabledBefore), async t => {
+    const f = await mobileFixture(t, { comments: [mobileComment(201)], state: enabledBefore ? mobileState() : { comments: {} } });
+    const file = path.join(f.stateDir, 'state.json');
+    const before = await readFile(file, 'utf8');
+    await f.mobileOnce({ dryRun: true });
+    assert.deepEqual(f.sent, []);
+    assert.equal(await readFile(file, 'utf8'), before);
+    assert.equal(await exists(path.join(f.stateDir, 'lock')), false);
+    assert.match(JSON.stringify(f.output), enabledBefore ? /将要通知.*201/ : /首次启用通知/);
+  });
+});
+
+test('mobile: scan failure does not block other PRs or advance a partial first-enable baseline', async t => {
+  const f = await mobileFixture(t, { state: { comments: {} }, prs: [basePr, { ...basePr, number: 72 }], failScanPr: 71, comments: [mobileComment(201)] });
+  assert.equal((await f.mobileOnce()).status, 'idle');
+  assert.deepEqual(f.sent, []);
+  assert.equal(await exists(path.join(f.stateDir, 'state.json')), true);
+  assert.equal((await f.state()).notifyEnabledAt, undefined);
+});
+
+test('mobile: configured secrets are absent from logs, replies, prompt and errors', async t => {
+  const secretText = Object.values(mobileConfig).join(' ');
+  const f = await mobileFixture(t, { comments: [{ ...baseComment, body: `${baseComment.body}\n${secretText}` }], codexCode: 1, codexError: secretText, lastMessage: `STATUS: done\n${secretText}` });
+  f.config.summaryMaxChars = 20;
+  await f.mobileOnce();
+  const prompt = f.calls.find(isCodex).opts.input;
+  const logs = await fs.readdir(path.join(f.stateDir, 'logs'));
+  const text = [prompt, ...f.posts, JSON.stringify(f.output), ...await Promise.all(logs.map(file => readFile(path.join(f.stateDir, 'logs', file), 'utf8')))].join('\n');
+  assert.doesNotMatch(text, /synthetic-push-token|synthetic-bark-key/);
+  assert.match(prompt, /\[已隐藏\]/);
+});
+
+test('mobile: stdout log redaction handles secrets and Unicode split across chunks', async t => {
+  const f = await fixture(t, { comments: [] });
+  const stdoutFile = path.join(f.root, 'synthetic-output.txt');
+  const result = await runProcess(process.execPath, ['-e', "process.stdout.write('头 synthetic-'); setTimeout(() => process.stdout.end('push-token 尾'), 10)"], { stdoutFile, secrets: [mobileConfig.pushplusToken], timeoutMs: 5000 });
+  assert.equal(result.code, 0);
+  assert.equal(await readFile(stdoutFile, 'utf8'), '头 [已隐藏] 尾');
+});
+
+test('mobile: validateConfig permits off/default channels and only HTTPS Bark servers without leaking input', async t => {
+  const f = await fixture(t);
+  assert.equal(validateConfig(f.config).notify, undefined);
+  for (const notify of [{}, mobileConfig, { barkKey: '', barkServer: '' }, { barkServer: 'https://bark.example.test/base/' }]) assert.deepEqual(validateConfig({ ...f.config, notify }).notify, notify);
+  for (const notify of [null, [], 'invalid', { pushplusToken: 3 }, { barkServer: 'http://synthetic-bark-key.test' }, { barkServer: 'https://' }, { barkServer: 'https://user:synthetic-bark-key@example.test' }]) {
+    assert.throws(() => validateConfig({ ...f.config, notify }), error => { assert.doesNotMatch(error.message, /synthetic-bark-key/); return true; });
+  }
+});
+
+test('mobile: --test-notify returns 0 for any success and 1 for all-failed or all-off; dry-run never sends', async t => {
+  const f = await fixture(t, { comments: [] });
+  const configFile = path.join(f.root, 'test-config.json');
+  for (const [notify, succeeds, expected] of [[mobileConfig, true, 0], [mobileConfig, false, 1], [{}, false, 1]]) {
+    await writeFile(configFile, JSON.stringify({ ...f.config, notify }));
+    let calls = 0;
+    const output = [];
+    const fetchImpl = async () => { calls++; if (!succeeds) throw new Error(mobileConfig.pushplusToken); return fakeSuccess(); };
+    assert.equal(await main(['--config', configFile, '--test-notify'], { fetchImpl, log: text => output.push(text), executeOnce: () => assert.fail('ran watcher') }), expected);
+    assert.equal(calls, notify.pushplusToken ? 2 : 0);
+    assert.doesNotMatch(output.join('\n'), /synthetic-push-token/);
+    assert.match(output.join('\n'), /pushplus.*bark/);
+    calls = 0;
+    assert.equal(await main(['--config', configFile, '--test-notify', '--dry-run'], { fetchImpl, log: () => {} }), 0);
+    assert.equal(calls, 0);
+  }
+});
+
+test('mobile: CLI and runOnce errors hide configured credentials, including invalid config JSON', async t => {
+  const f = await mobileFixture(t);
+  const configFile = path.join(f.root, 'test-config.json');
+  await writeFile(configFile, JSON.stringify(f.config));
+  await assert.rejects(main(['--config', configFile], { executeOnce: () => { throw new Error(mobileConfig.pushplusToken); }, log: () => {} }), error => {
+    assert.doesNotMatch(error.message, /synthetic-push-token/);
+    return true;
+  });
+  await assert.rejects(f.once({ run: async () => { throw new Error(mobileConfig.barkKey); } }), error => {
+    assert.doesNotMatch(error.message, /synthetic-bark-key/);
+    return true;
+  });
+  await writeFile(configFile, `{"notify":{"pushplusToken":"${mobileConfig.pushplusToken}"} invalid`);
+  await assert.rejects(main(['--config', configFile], { log: () => {} }), error => {
+    assert.doesNotMatch(error.message, /synthetic-push-token/);
+    return true;
+  });
 });

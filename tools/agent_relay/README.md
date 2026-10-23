@@ -23,7 +23,7 @@
 
 ## 做出来以后的效果
 
-**你做的事只剩三件**：在 claude.ai/code 开会话说目标；手机上收到 GitHub 通知时看一眼；最后自己验收并点合并。
+**你做的事只剩三件**：在 claude.ai/code 开会话说目标；手机收到通知时看一眼；最后自己验收并点合并。
 
 一次典型接力：
 
@@ -34,7 +34,7 @@
 | ≤3 分后 | watcher 接单，指令评论出现 👀 | — |
 | +10~40 分 | Codex 实现、跑测试；watcher 提交、推送并回帖，评论变 🚀 | PR 里多了提交和一条 [to-claude] |
 | +几分钟 | Claude 被唤醒，读 diff 审阅；不过关就发第 2 轮返修，循环 | PR 里一来一回的指令和结果 |
-| 结束 | Claude 发 [done] 并 @你，列出需要你亲自做的事（构建、装机、真人体验） | **手机收到 GitHub 通知** |
+| 结束 | Claude 发 [done] 并 @你，列出需要你亲自做的事（构建、装机、真人体验） | **配置后通过微信 / Bark 收到提醒** |
 
 中途 Codex 卡在需要你拍板的问题上，Claude 能按合同和仓库规则回答的就直接答；涉及产品取舍、权限、真实数据的才 @你。
 
@@ -85,7 +85,26 @@
 
 > 用接力做：<目标>。
 
-Claude 会按 SKILL 手册开 PR、发指令、订阅 PR。之后你可以关掉网页，等 GitHub 通知。想插话就在 PR 里直接评论，或回到那个会话说。
+Claude 会按 SKILL 手册开 PR、发指令、订阅 PR。之后你可以关掉网页，等手机通知。想插话就在 PR 里直接评论，或回到那个会话说。
+
+## 手机通知
+
+接力评论使用自己的 GitHub 账号发送，GitHub 不会通知自己。watcher 可用 PushPlus 推到微信，也可给 iPhone 加一份 Bark。
+
+1. 在 [PushPlus](https://www.pushplus.plus/) 用微信扫码，取得自己的 token。可选：安装 iPhone Bark，复制设备 key；默认服务器为 `https://api.day.app`，自建服务器必须使用 HTTPS。
+2. 仅在已忽略的 `tools/agent_relay/.state/config.json` 中添加 `notify`，填写 `pushplusToken`，可选填写 `barkKey` 和 `barkServer`。不使用的字段留空串；真实 token/key 不写进示例、PR、评论或提示词。
+3. 合并并更新本机运行目录后，由用户执行测试并确认手机收到：
+
+```powershell
+node tools/agent_relay/relay_watcher.mjs --test-notify
+```
+
+命令打印各通道的 `ok` / `failed` / `off`。至少一个成功返回 0，全部失败或关闭返回 1。`--dry-run`（包括与 `--test-notify` 同用）只预览，不发通知、不写 state。
+
+通知涵盖白名单作者的 `done`、`to-human` 第一行标记和 watcher 已投递的 failed 回帖；暂停或待人工处理的 open 接力 PR 仍会提醒。`to-codex` 以及 done/blocked 的 `to-claude` 不提醒。每个通道独立超时 10 秒，通知失败不改变接力结果。
+
+首次启用只建立历史基线，不补发旧评论。新通知至少一个启用通道成功即视为送达；全部失败下次轮询补发，累计 3 次后停止。手机通知记录在顶层 `notified` / `notifyEnabledAt`，与 GitHub 回帖的 `comments[id].notification` 分开。两个通道都留空时输出“未配置通知通道”。源码验证全部使用假 fetch，不发送真实通知；手机实际送达留给合并后的用户验证。
+
 ## 已知坑（冒烟所得）
 
 - 运行 watcher 的目录不能检出任何 PR 分支，否则 watcher 建不了 PR 专用 worktree（报 `already used by worktree`）。主仓库停在 `v3-lab`，或用 detached HEAD。

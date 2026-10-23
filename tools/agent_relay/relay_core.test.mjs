@@ -1,11 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply } from './relay_core.mjs';
+import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply, parseNotification, formatNotification } from './relay_core.mjs';
 
 test('parseInstruction requires exact first line and safe positive round', () => {
   assert.deepEqual(parseInstruction('<!-- relay:to-codex round=2 -->\nDo it'), { round: 2, instruction: 'Do it' });
   for (const body of ['x\n<!-- relay:to-codex round=2 -->', ' <!-- relay:to-codex round=2 -->\nx', '<!-- relay:to-codex round=0 -->\nx', '<!-- relay:to-codex round=x -->\nx', '<!-- relay:to-codex  round=2 -->\nx', '<!-- relay:to-claude round=2 -->\nx']) assert.equal(parseInstruction(body), null);
   assert.deepEqual(parseInstruction('<!-- relay:to-codex round=9007199254740991 -->\r\nX'), { round: 9007199254740991, instruction: 'X' });
+});
+
+test('parseNotification only recognizes done and to-human on the first line', () => {
+  for (const kind of ['done', 'to-human']) assert.deepEqual(parseNotification(`<!-- relay:${kind} -->\r\nbody`), { kind });
+  for (const body of [null, 1, '', ' <!-- relay:done -->', 'text\n<!-- relay:done -->', '<!-- relay:to-codex round=1 -->', '<!-- relay:to-claude round=1 status=failed sha=none -->']) assert.equal(parseNotification(body), null);
+});
+
+test('formatNotification titles, excerpt, marker removal and literal-secret redaction', () => {
+  const secret = 'synthetic.*+?token';
+  for (const [kind, suffix] of [['done', '完成，等你验收'], ['to-human', '需要你决定'], ['failed', '第 2 轮失败']]) {
+    const message = formatNotification({ kind, pr: 71, round: 2, title: `PR ${secret}`, url: 'https://github.com/x/y/pull/71', body: `<!-- relay:${kind} -->\n${secret}\n${'a'.repeat(400)}` }, [secret]);
+    assert.equal(message.title, `接力 PR #71：${suffix}`);
+    assert.match(message.content, /^PR \[已隐藏\]\nhttps:\/\/github.com/);
+    assert.doesNotMatch(message.content, /relay:|synthetic/);
+    assert.equal(message.content.split('\n').slice(2).join('\n').length, 300);
+  }
+  assert.equal(redact(`short ${secret} tail`, 100, ['', secret]).text, 'short [已隐藏] tail');
+  assert.equal(redact('abcdef', 100, ['abc', 'abcdef']).text, '[已隐藏]');
+});
+
+test('secret redaction precedes excerpt and reply truncation', () => {
+  const secret = 'synthetic-token-crossing-limit';
+  const message = formatNotification({ kind: 'done', pr: 1, body: `<!-- relay:done -->\n${'a'.repeat(295)}${secret}` }, [secret]);
+  assert.doesNotMatch(message.content, /synt/);
+  assert.doesNotMatch(formatReply({ round: 1, status: 'failed', reason: secret, summaryMaxChars: 5, secrets: [secret] }), /synt/);
 });
 
 test('isEligiblePr enforces protocol conditions', () => {
