@@ -37,7 +37,7 @@ D1b 之后，ChatGPT 和 Claude 分别以 `frontend:chatgpt_web`、`frontend:cla
 - `lib/ui/character/widgets/persona_chat_screen.dart`（只插入标签）
 - `lib/ui/desktop/widgets/desktop_persona_chat_view.dart`（只插入标签）
 - `test/ui/core/widgets/chat_message_source_label_test.dart`（新建）
-- 聊天屏 widget 测试文件（新建或在现有文件追加用例）
+- `test/ui/character/widgets/persona_chat_screen_test.dart`（只追加用例）或同目录新建的聊天屏测试；`test/ui/desktop/` 下新建的桌面来源标签测试
 - `docs/development/handoffs/RELAY_20261023_c1-chat-source-label.md`（只由 Claude 改）
 
 ## 不做 / 边界
