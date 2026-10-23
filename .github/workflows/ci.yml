@@ -119,6 +119,10 @@ jobs:
       - name: chatgpt_android_bridge
         working-directory: tools/chatgpt_android_bridge
         run: node --test $(find . -name '*.test.mjs' | sort)
+      - name: agent_relay
+        working-directory: tools/agent_relay
+        # Win32 codex resolution is simulated via options, so the suite is platform-neutral.
+        run: node --test *.test.mjs
 
   chatgpt-mcp-windows:
     name: MCP ChatGPT compatibility (Windows)
