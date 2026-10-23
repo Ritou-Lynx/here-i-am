@@ -16,7 +16,8 @@ test('R1 NoRollback leaves the legacy switch implementation byte-for-byte intact
   .replaceAll(',[switch]$NoRollback','')
   .replace(';if($NoRollback){'+marker+'}','')
   .replace(' if($NoRollback){'+marker+';return 2}\r\n','')
-  .replace(' -NoRollback:$NoRollback','');
+  .replace(' -NoRollback:$NoRollback','')
+  .replace("   if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}\r\n",'');
  // Exact BOM + CRLF source; 基线：ready 检查启动时间 1 秒容差（在 A2 合同 PR #33 之上）
  assert.equal(createHash('sha256').update(restored).digest('hex'),
   'e45458cfcff001a5b01f6da1be09ecb4a6093f22ba86d8bd2d073b5ce8e2ed8a');

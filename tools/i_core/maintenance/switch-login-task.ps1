@@ -116,6 +116,7 @@ function Invoke-Schema6LoginSwitch {
  $from=$null;$to=$null;$previous=@()
  try {
   $bindings=Invoke-Schema6Step 'switch.preflight' {
+   if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
    if([string]::IsNullOrWhiteSpace($FromTask) -or [string]::IsNullOrWhiteSpace($ToTask) -or $FromTask.TrimStart('\').Equals($ToTask.TrimStart('\'),[StringComparison]::OrdinalIgnoreCase)){throw 'two_distinct_tasks_required'}
    if($PublicHealthUrl){$uri=[Uri]$PublicHealthUrl;if(-not $uri.IsAbsoluteUri -or $uri.Scheme -notin @('http','https') -or $uri.UserInfo -or $uri.Fragment){throw 'public_health_url_invalid'}}
    $old=Get-Schema6LoginBinding $FromTask;$next=Get-Schema6LoginBinding $ToTask

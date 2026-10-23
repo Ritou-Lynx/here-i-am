@@ -27,6 +27,12 @@ function report(result,format){
  const rows=result.stdout.trim().split(/\r?\n/).filter(Boolean).map(safeJson);
  const found=rows.findLast(row=>row.format===format);assert.ok(found,'fixture result missing');return found;
 }
+// Step names and reviewed error codes only; any other detail text is withheld.
+function stepCodes(stdout){
+ const code=detail=>String(detail??'').split(';').map(part=>part.replace(/:.*$/s,'')).filter(part=>/^[a-z0-9_]{1,64}(=[a-z0-9_]{1,64})?$/.test(part)).join(';')||'unreadable';
+ return stdout.trim().split(/\r?\n/).filter(Boolean).map(safeJson).filter(row=>typeof row.step==='string'&&/^[a-z0-9_.]{1,64}$/.test(row.step))
+  .map(row=>row.step+':'+(row.ok===true?'ok':code(row.detail))).join(' ');
+}
 function controlDirectories(root){
  return readdirSync(root,{withFileTypes:true}).filter(e=>e.isDirectory()).flatMap(e=>{
   const session=path.join(root,e.name);
@@ -125,7 +131,8 @@ test('R1 exact v3-lab baseline package switches offline to candidate then NoRoll
  assert.equal(stopped.stopStatus,'clean_closed');assert.deepEqual(stopped.mutations,[]);
  await run.wait();cleanReceipt(run);
  const offline=await f.apply();assert.equal(offline.read('operation.json').event_sha256.length,64);
- const switched=report(invoke('r1_package_switch_session.ps1',inputPath,'Switch'),'r1-switch-session-v1');
+ const switchRun=invoke('r1_package_switch_session.ps1',inputPath,'Switch'),switched=report(switchRun,'r1-switch-session-v1');
+ if(switched.code!==0)t.diagnostic('r1_no_rollback_steps '+stepCodes(switchRun.stdout));
  assert.equal(switched.code,0);assert.equal(switched.ready,true);assert.equal(switched.cleanup,true);
  assert.equal(switched.enabledOld,false);assert.equal(switched.enabledNew,true);
  assert.deepEqual(switched.mutations,['Disable:R1-Old','Enable:R1-New','Start:R1-New']);

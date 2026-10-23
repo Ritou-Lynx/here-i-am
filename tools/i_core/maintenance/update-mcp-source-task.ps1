@@ -158,6 +158,7 @@ if($MyInvocation.InvocationName -ne '.'){
  [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
  try{
   $ErrorActionPreference='Stop'
+  if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
   $request=[Console]::In.ReadToEnd()|ConvertFrom-Json -ErrorAction Stop
   $result=Invoke-Schema6McpSourceTask $request
   [Console]::Out.WriteLine((@{step='update.task.result';ok=$true;detail='completed';result=$result}|ConvertTo-Json -Depth 12 -Compress))
