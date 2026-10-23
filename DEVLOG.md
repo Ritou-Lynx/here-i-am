@@ -1,3 +1,13 @@
+## 2026-10-23 D1：MCP 前端身份注册表，未知回调与身份默认拒绝（PR #40）
+
+- 合同 docs/development/handoffs/RELAY_20261023_d1-frontend-registry.md，经 relay 由 Codex 实现（3 轮，前两轮因既有测试与新规则冲突而 blocked，合同修订后放开指定断言），云端审核。
+- 原问题：非 ChatGPT 回调一律归为 `claude_web`，路由也是“否则走 Claude”；放宽回调就会记错来源并拿到 Claude 写权限。
+- `oauth.mjs` 新增 `FRONTEND_CALLBACKS` 注册表；注册要求全部回调属于同一已启用前端；授权码、refresh、access 校验遇到未知或缺失身份时拒绝。旧令牌（无 `frontend`）只在 client 回调全部属于同一已启用前端时沿用该身份。删除 `I_REMOTE_MCP_EXTRA_REDIRECT_URIS`（生产未使用）。
+- `server.mjs` 按前端显式选处理器，未知身份 401。`chatgpt_candidate.mjs` 新增补丁组，候选仍六文件、改动 4 个。
+- 用户决定：App 显示名继续用映射表，不改读 Core；新增测试校验注册表、写回定义与 App 映射表三者一致。
+- 云端复跑 221/221；候选 result_sha256 前 8 位 server `7fd7c66e`、oauth `319b91f2`，其余四个不变。
+- 未部署。合并后按 update-mcp-source 流程换 MCP 源码（每步单独同意）。
+
 ## 2026-10-23 C1：App 聊天时间线按来源设备显示 ChatGPT / Claude（PR #38）
 
 - 合同 docs/development/handoffs/RELAY_20261023_c1-chat-source-label.md，经 relay 由 Codex 实现（1 轮），云端审核。

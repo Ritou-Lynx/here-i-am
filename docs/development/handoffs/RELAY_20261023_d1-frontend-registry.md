@@ -88,3 +88,9 @@
 ### 第 2 轮（10-23）：blocked，合同修订
 - 提交 `06a61eb` 改 8 个允许路径；Claude 云端复跑 219 通过、2 失败，失败都在 `chatgpt_compat.test.mjs` 第 319 行混合 client 旧令牌仍要求归为 `claude_web`（源码与六文件候选各一次）。候选六文件、`changed_files: 4`。
 - 处理：允许改该用例的混合 client 一项，改为全部拒绝。
+
+### 第 3 轮（10-23）：通过
+- 提交 `1671219` 只改 `chatgpt_compat.test.mjs` 混合 client 一项：access 校验 `invalid_token`、RPC 401 且不写 Core、refresh `invalid_grant` 且未轮换。
+- Claude 云端核对 `origin/v3-lab...1671219` 全部 diff：只动允许路径；`oauth.mjs` 注册表、`frontendForRecord`（仅字段缺失视为旧令牌，`null`/空串/未知值一律拒绝）、ChatGPT 关闭时 `chatgpt_web` 令牌也被拒；`server.mjs` 未知身份 401 且不建会话。
+- 复跑 `node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs` 221/221；本地生成候选六文件、`changed_files: 4`，产物中无 extra 回调和 Claude 兜底，result_sha256 与 Codex 一致（server `7fd7c66e`、oauth `319b91f2`）。
+- 结论：完成标准全部达标，可以合并。部署另行确认。
