@@ -18,7 +18,8 @@
   "mention": "@Ritou-Lynx",
   "pollSeconds": 180,
   "notify": {
-    "pushplusToken": "",
+    "feishuWebhook": "",
+    "feishuSecret": "",
     "barkKey": "",
     "barkServer": ""
   }

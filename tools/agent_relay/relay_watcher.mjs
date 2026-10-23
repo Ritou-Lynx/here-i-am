@@ -146,7 +146,10 @@ export function validateConfig(input) {
   if (!Number.isInteger(config.maxRounds) || config.maxRounds > 4) throw new Error('最多允许 4 轮');
   if (config.notify !== undefined) {
     if (!config.notify || typeof config.notify !== 'object' || Array.isArray(config.notify)) throw new Error('notify 必须是对象');
-    for (const field of ['pushplusToken', 'barkKey', 'barkServer']) if (config.notify[field] !== undefined && typeof config.notify[field] !== 'string') throw new Error(`notify.${field} 必须是字符串`);
+    const fields = ['feishuWebhook', 'feishuSecret', 'barkKey', 'barkServer'];
+    if (Object.keys(config.notify).some(field => !fields.includes(field))) throw new Error('notify 含未知字段；通知已改用飞书，请使用 feishuWebhook / feishuSecret');
+    for (const field of fields) if (config.notify[field] !== undefined && typeof config.notify[field] !== 'string') throw new Error(`notify.${field} 必须是字符串`);
+    if (config.notify.feishuWebhook && !/^https:\/\/open\.(?:feishu\.cn|larksuite\.com)\/open-apis\/bot\/v2\/hook\/[^/?#\s\\]+$(?![\s\S])/.test(config.notify.feishuWebhook)) throw new Error('notify.feishuWebhook 必须是飞书或 Lark HTTPS 机器人地址（hook 非空，无查询或片段）');
     if (config.notify.barkServer) {
       let server;
       try { server = new URL(config.notify.barkServer); } catch { throw new Error('notify.barkServer 必须是 https:// URL'); }
@@ -234,13 +237,17 @@ export async function resolveCodex(config, { platform = process.platform, fs = n
   return null;
 }
 
+function notificationSecrets(notify = {}) {
+  return [notify.feishuWebhook, notify.feishuWebhook?.split('/hook/')[1], notify.feishuSecret, notify.barkKey];
+}
+
 export async function runOnce({ config: input, stateDir = path.join(here, '.state'), run: execute = run, now = Date.now, pid = process.pid, isProcessAlive = alive, log = console.log, template, dryRun = false, codexOptions, fetchImpl = fetch } = {}) {
   const config = validateConfig(input);
-  const secrets = [config.notify?.pushplusToken, config.notify?.barkKey];
+  const secrets = notificationSecrets(config.notify);
   const safe = text => redact(text, Number.MAX_SAFE_INTEGER, secrets).text;
   const logger = log;
   log = text => logger(safe(text));
-  const notifyEnabled = Boolean(config.notify?.pushplusToken || config.notify?.barkKey);
+  const notifyEnabled = Boolean(config.notify?.feishuWebhook || config.notify?.barkKey);
   if (!notifyEnabled) log('未配置通知通道');
   let release;
   if (!dryRun) {
@@ -511,7 +518,7 @@ export async function main(argv = process.argv.slice(2), { executeOnce = runOnce
     input = { ...defaults, repoPath: path.resolve(here, '../..'), worktreeRoot: path.join(os.homedir(), 'relay-worktrees') };
   }
   const config = validateConfig(input);
-  const secrets = [config.notify?.pushplusToken, config.notify?.barkKey];
+  const secrets = notificationSecrets(config.notify);
   const logger = log;
   log = text => logger(redact(text, Number.MAX_SAFE_INTEGER, secrets).text);
   if (testNotify) {

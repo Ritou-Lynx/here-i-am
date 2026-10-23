@@ -34,7 +34,7 @@
 | ≤3 分后 | watcher 接单，指令评论出现 👀 | — |
 | +10~40 分 | Codex 实现、跑测试；watcher 提交、推送并回帖，评论变 🚀 | PR 里多了提交和一条 [to-claude] |
 | +几分钟 | Claude 被唤醒，读 diff 审阅；不过关就发第 2 轮返修，循环 | PR 里一来一回的指令和结果 |
-| 结束 | Claude 发 [done] 并 @你，列出需要你亲自做的事（构建、装机、真人体验） | **配置后通过微信 / Bark 收到提醒** |
+| 结束 | Claude 发 [done] 并 @你，列出需要你亲自做的事（构建、装机、真人体验） | **配置后通过飞书 / Bark 收到提醒** |
 
 中途 Codex 卡在需要你拍板的问题上，Claude 能按合同和仓库规则回答的就直接答；涉及产品取舍、权限、真实数据的才 @你。
 
@@ -89,11 +89,12 @@ Claude 会按 SKILL 手册开 PR、发指令、订阅 PR。之后你可以关掉
 
 ## 手机通知
 
-接力评论使用自己的 GitHub 账号发送，GitHub 不会通知自己。watcher 可用 PushPlus 推到微信，也可给 iPhone 加一份 Bark。
+接力评论使用自己的 GitHub 账号发送，GitHub 不会通知自己。watcher 可用飞书自定义机器人推送，也可给 iPhone 加一份 Bark。
 
-1. 在 [PushPlus](https://www.pushplus.plus/) 用微信扫码，取得自己的 token。可选：安装 iPhone Bark，复制设备 key；默认服务器为 `https://api.day.app`，自建服务器必须使用 HTTPS。
-2. 仅在已忽略的 `tools/agent_relay/.state/config.json` 中添加 `notify`，填写 `pushplusToken`，可选填写 `barkKey` 和 `barkServer`。不使用的字段留空串；真实 token/key 不写进示例、PR、评论或提示词。
-3. 合并并更新本机运行目录后，由用户执行测试并确认手机收到：
+1. 在飞书建一个只有自己的群 → 群设置 → 群机器人 → 添加“自定义机器人” → 复制 webhook。安全设置推荐“签名校验”，把密钥填进 `feishuSecret`；或者用“自定义关键词”填“接力”（所有通知标题都含这个词）。
+2. 可选：安装 iPhone Bark，复制设备 key；默认服务器为 `https://api.day.app`，自建服务器必须使用 HTTPS。
+3. 仅在已忽略的 `tools/agent_relay/.state/config.json` 中添加 `notify`，填写 `feishuWebhook`、可选 `feishuSecret`，以及可选的 `barkKey` 和 `barkServer`。不使用的字段留空串；真实 webhook、密钥和 key 不写进示例、PR、评论或提示词。
+4. 合并并更新本机运行目录后，由用户执行测试并确认手机收到：
 
 ```powershell
 node tools/agent_relay/relay_watcher.mjs --test-notify

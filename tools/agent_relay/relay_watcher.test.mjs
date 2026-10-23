@@ -763,16 +763,19 @@ test('CLI codex-not-found returns exit 1 including dry-run', async t => {
   }
 });
 
-const mobileConfig = { pushplusToken: 'synthetic-push-token', barkKey: 'synthetic-bark-key' };
+const mobileConfig = { feishuWebhook: 'https://open.feishu.cn/open-apis/bot/v2/hook/synthetic-hook', feishuSecret: 'synthetic-sign-secret', barkKey: 'synthetic-bark-key' };
+const mobileSecrets = [...Object.values(mobileConfig), 'synthetic-hook'];
+const assertNoSecrets = text => { for (const secret of mobileSecrets) assert.equal(text.includes(secret), false); };
 const mobileState = () => ({ comments: {}, notifyEnabledAt: '2026-10-06T00:00:00Z', notified: {} });
 const mobileComment = (id, kind = 'done') => ({ id, user: { login: 'Ritou-Lynx' }, body: `<!-- relay:${kind} -->\nReady for review`, html_url: `https://github.com/example/repo/pull/71#issuecomment-${id}` });
-const fakeSuccess = async () => ({ status: 200, json: async () => ({ code: 200 }) });
+const fakeSuccess = async () => ({ status: 200, json: async () => ({ code: 0, StatusCode: 0 }) });
+const fakeChannelSuccess = url => url.includes('/hook/') ? fakeSuccess() : Promise.resolve({ status: 200, json: async () => ({ code: 200 }) });
 
 async function mobileFixture(t, scenario = {}) {
   const f = await fixture(t, { state: mobileState(), comments: [], ...scenario });
   f.config.notify = { ...mobileConfig };
   f.sent = [];
-  f.fetchImpl = async (url, opts) => { f.sent.push({ url, body: JSON.parse(opts.body) }); return fakeSuccess(); };
+  f.fetchImpl = async (url, opts) => { f.sent.push({ url, body: JSON.parse(opts.body) }); return fakeChannelSuccess(url); };
   f.mobileOnce = extra => f.once({ fetchImpl: f.fetchImpl, ...extra });
   return f;
 }
@@ -782,9 +785,9 @@ test('mobile: done and to-human notify once, including paused and needs-human PR
   const f = await mobileFixture(t, { prs, commentsByPr: { 71: [mobileComment(201)], 72: [mobileComment(202, 'to-human')], 73: [mobileComment(203)] } });
   for (let i = 0; i < 2; i++) assert.equal((await f.mobileOnce()).status, 'idle');
   assert.equal(f.sent.length, 6);
-  assert.equal(f.sent[0].body.title, '接力 PR #71：完成，等你验收');
-  assert.equal(f.sent[2].body.title, '接力 PR #72：需要你决定');
-  assert.match(f.sent[0].body.content, /Synthetic relay PR\nhttps:\/\/.*issuecomment-201\nReady for review/);
+  assert.equal(f.sent[0].body.content.text.split('\n')[0], '接力 PR #71：完成，等你验收');
+  assert.equal(f.sent[2].body.content.text.split('\n')[0], '接力 PR #72：需要你决定');
+  assert.match(f.sent[0].body.content.text, /Synthetic relay PR\nhttps:\/\/.*issuecomment-201\nReady for review/);
   for (const id of [201, 202, 203]) assert.equal((await f.state()).notified[id].status, 'sent');
   assert.equal(f.calls.filter(call => call.args.some(arg => /\/issues\/\d+\/comments$/.test(arg))).length, 6, 'one fetch per PR per pass');
   assert.match(f.calls.find(call => call.args[1] === 'list').args.at(-1), /title/);
@@ -822,7 +825,7 @@ test('mobile: first enable records the baseline, not historical notifications; o
 test('mobile: all channels failing retry three times, then give up without changing relay status', async t => {
   const f = await mobileFixture(t, { comments: [mobileComment(201)] });
   let attempts = 0;
-  const fetchImpl = async () => { attempts++; throw new Error(`${mobileConfig.pushplusToken} ${mobileConfig.barkKey}`); };
+  const fetchImpl = async () => { attempts++; throw new Error(`${mobileConfig.feishuWebhook} ${mobileConfig.barkKey}`); };
   for (let i = 1; i <= 4; i++) {
     assert.equal((await f.mobileOnce({ fetchImpl })).status, 'idle');
     const receipt = (await f.state()).notified[201];
@@ -831,7 +834,7 @@ test('mobile: all channels failing retry three times, then give up without chang
   }
   assert.equal(attempts, 6);
   assert.deepEqual((await f.state()).comments, {});
-  assert.doesNotMatch(JSON.stringify(f.output), /synthetic-push-token|synthetic-bark-key/);
+  assertNoSecrets(JSON.stringify(f.output));
 });
 
 test('mobile: any successful enabled channel marks sent despite the other failing or off', async t => {
@@ -853,8 +856,8 @@ test('mobile: fresh watcher failure notifies only after reply delivery, once per
   assert.equal((await f.mobileOnce({ fetchImpl })).status, 'failed');
   await f.mobileOnce();
   assert.equal(f.sent.length, 2);
-  assert.equal(f.sent[0].body.title, '接力 PR #71：第 1 轮失败');
-  assert.match(f.sent[0].body.content, /Synthetic relay PR/);
+  assert.equal(f.sent[0].body.content.text.split('\n')[0], '接力 PR #71：第 1 轮失败');
+  assert.match(f.sent[0].body.content.text, /Synthetic relay PR/);
   assert.equal((await f.state()).notified['failed:101'].status, 'sent');
   assert.equal((await f.state()).comments[101].notification.pending, false);
 });
@@ -867,7 +870,7 @@ test('mobile: stale in_progress failure notifies after timeout report delivery',
   await f.mobileOnce();
   assert.equal(f.sent.length, 2);
   assert.equal(f.posts.length, 1);
-  assert.equal(f.sent[0].body.title, '接力 PR #71：第 1 轮失败');
+  assert.equal(f.sent[0].body.content.text.split('\n')[0], '接力 PR #71：第 1 轮失败');
 });
 
 test('mobile: pending GitHub reply is delivered before failure notification and execution never replays', async t => {
@@ -895,7 +898,7 @@ test('mobile: scanning completes for every PR before codex-not-found returns', a
   await rm(f.config.codexPath);
   assert.equal((await f.mobileOnce()).status, 'codex-not-found');
   assert.equal(f.sent.length, 2);
-  assert.equal(f.sent[0].body.title, '接力 PR #72：完成，等你验收');
+  assert.equal(f.sent[0].body.content.text.split('\n')[0], '接力 PR #72：完成，等你验收');
   assert.equal((await f.state()).comments[101], undefined);
 });
 
@@ -934,31 +937,56 @@ test('mobile: scan failure does not block other PRs or advance a partial first-e
 });
 
 test('mobile: configured secrets are absent from logs, replies, prompt and errors', async t => {
-  const secretText = Object.values(mobileConfig).join(' ');
+  const secretText = mobileSecrets.join(' ');
   const f = await mobileFixture(t, { comments: [{ ...baseComment, body: `${baseComment.body}\n${secretText}` }], codexCode: 1, codexError: secretText, lastMessage: `STATUS: done\n${secretText}` });
   f.config.summaryMaxChars = 20;
   await f.mobileOnce();
   const prompt = f.calls.find(isCodex).opts.input;
   const logs = await fs.readdir(path.join(f.stateDir, 'logs'));
   const text = [prompt, ...f.posts, JSON.stringify(f.output), ...await Promise.all(logs.map(file => readFile(path.join(f.stateDir, 'logs', file), 'utf8')))].join('\n');
-  assert.doesNotMatch(text, /synthetic-push-token|synthetic-bark-key/);
+  assertNoSecrets(text);
   assert.match(prompt, /\[已隐藏\]/);
 });
 
 test('mobile: stdout log redaction handles secrets and Unicode split across chunks', async t => {
   const f = await fixture(t, { comments: [] });
   const stdoutFile = path.join(f.root, 'synthetic-output.txt');
-  const result = await runProcess(process.execPath, ['-e', "process.stdout.write('头 synthetic-'); setTimeout(() => process.stdout.end('push-token 尾'), 10)"], { stdoutFile, secrets: [mobileConfig.pushplusToken], timeoutMs: 5000 });
+  const script = `const text = ${JSON.stringify('头 ' + mobileSecrets.join(' ') + ' 尾')}; let i = 0; function next() { if (i < text.length) { process.stdout.write(text[i++]); setTimeout(next, 1); } } next();`;
+  const result = await runProcess(process.execPath, ['-e', script], { stdoutFile, secrets: mobileSecrets, timeoutMs: 5000 });
   assert.equal(result.code, 0);
-  assert.equal(await readFile(stdoutFile, 'utf8'), '头 [已隐藏] 尾');
+  assert.equal(await readFile(stdoutFile, 'utf8'), '头 [已隐藏] [已隐藏] [已隐藏] [已隐藏] 尾');
 });
 
-test('mobile: validateConfig permits off/default channels and only HTTPS Bark servers without leaking input', async t => {
+test('mobile: validateConfig accepts Feishu and Lark, off channels and HTTPS Bark without leaking invalid input', async t => {
   const f = await fixture(t);
   assert.equal(validateConfig(f.config).notify, undefined);
-  for (const notify of [{}, mobileConfig, { barkKey: '', barkServer: '' }, { barkServer: 'https://bark.example.test/base/' }]) assert.deepEqual(validateConfig({ ...f.config, notify }).notify, notify);
-  for (const notify of [null, [], 'invalid', { pushplusToken: 3 }, { barkServer: 'http://synthetic-bark-key.test' }, { barkServer: 'https://' }, { barkServer: 'https://user:synthetic-bark-key@example.test' }]) {
-    assert.throws(() => validateConfig({ ...f.config, notify }), error => { assert.doesNotMatch(error.message, /synthetic-bark-key/); return true; });
+  for (const notify of [
+    {}, mobileConfig, { feishuWebhook: '', feishuSecret: '', barkKey: '', barkServer: '' },
+    { feishuWebhook: mobileConfig.feishuWebhook.replace('feishu.cn', 'larksuite.com') },
+    { barkServer: 'https://bark.example.test/base/' },
+  ]) assert.deepEqual(validateConfig({ ...f.config, notify }).notify, notify);
+  for (const notify of [
+    null, [], 'invalid', ...['feishuWebhook', 'feishuSecret', 'barkKey', 'barkServer'].map(field => ({ [field]: 3 })),
+    ...[
+      'http://open.feishu.cn/open-apis/bot/v2/hook/synthetic-hook',
+      'https://open.feishu.cn.evil.test/open-apis/bot/v2/hook/synthetic-hook',
+      'https://open.larksuite.com/open-apis/bot/v2/hook/',
+      'https://open.feishu.cn/open-apis/bot/v2/hook/',
+      mobileConfig.feishuWebhook + '?secret=synthetic-sign-secret',
+      mobileConfig.feishuWebhook + '#synthetic-sign-secret',
+      mobileConfig.feishuWebhook + '/extra', mobileConfig.feishuWebhook + '\n',
+    ].map(feishuWebhook => ({ feishuWebhook })),
+    { barkServer: 'http://synthetic-bark-key.test' }, { barkServer: 'https://' },
+    { barkServer: 'https://user:synthetic-bark-key@example.test' },
+  ]) assert.throws(() => validateConfig({ ...f.config, notify }), error => { assertNoSecrets(error.message); return true; });
+  // Construct the removed field to keep the source free of obsolete provider names.
+  const legacyField = ['push', 'plus', 'Token'].join('');
+  for (const field of [legacyField, 'unknown-synthetic-hook']) {
+    assert.throws(() => validateConfig({ ...f.config, notify: { [field]: mobileConfig.feishuSecret } }), error => {
+      assert.match(error.message, /未知字段.*已改用飞书/);
+      assertNoSecrets(error.message);
+      return true;
+    });
   }
 });
 
@@ -969,11 +997,11 @@ test('mobile: --test-notify returns 0 for any success and 1 for all-failed or al
     await writeFile(configFile, JSON.stringify({ ...f.config, notify }));
     let calls = 0;
     const output = [];
-    const fetchImpl = async () => { calls++; if (!succeeds) throw new Error(mobileConfig.pushplusToken); return fakeSuccess(); };
+    const fetchImpl = async url => { calls++; if (!succeeds) throw new Error(mobileSecrets.join(' ')); return fakeChannelSuccess(url); };
     assert.equal(await main(['--config', configFile, '--test-notify'], { fetchImpl, log: text => output.push(text), executeOnce: () => assert.fail('ran watcher') }), expected);
-    assert.equal(calls, notify.pushplusToken ? 2 : 0);
-    assert.doesNotMatch(output.join('\n'), /synthetic-push-token/);
-    assert.match(output.join('\n'), /pushplus.*bark/);
+    assert.equal(calls, notify.feishuWebhook ? 2 : 0);
+    assertNoSecrets(output.join('\n'));
+    assert.match(output.join('\n'), /feishu.*bark/);
     calls = 0;
     assert.equal(await main(['--config', configFile, '--test-notify', '--dry-run'], { fetchImpl, log: () => {} }), 0);
     assert.equal(calls, 0);
@@ -984,17 +1012,19 @@ test('mobile: CLI and runOnce errors hide configured credentials, including inva
   const f = await mobileFixture(t);
   const configFile = path.join(f.root, 'test-config.json');
   await writeFile(configFile, JSON.stringify(f.config));
-  await assert.rejects(main(['--config', configFile], { executeOnce: () => { throw new Error(mobileConfig.pushplusToken); }, log: () => {} }), error => {
-    assert.doesNotMatch(error.message, /synthetic-push-token/);
-    return true;
-  });
-  await assert.rejects(f.once({ run: async () => { throw new Error(mobileConfig.barkKey); } }), error => {
-    assert.doesNotMatch(error.message, /synthetic-bark-key/);
-    return true;
-  });
-  await writeFile(configFile, `{"notify":{"pushplusToken":"${mobileConfig.pushplusToken}"} invalid`);
+  for (const secret of mobileSecrets) {
+    await assert.rejects(main(['--config', configFile], { executeOnce: () => { throw new Error(secret); }, log: () => {} }), error => {
+      assertNoSecrets(error.message);
+      return true;
+    });
+    await assert.rejects(f.once({ run: async () => { throw new Error(secret); } }), error => {
+      assertNoSecrets(error.message);
+      return true;
+    });
+  }
+  await writeFile(configFile, `{"notify":{"feishuWebhook":"${mobileConfig.feishuWebhook}"} invalid`);
   await assert.rejects(main(['--config', configFile], { log: () => {} }), error => {
-    assert.doesNotMatch(error.message, /synthetic-push-token/);
+    assertNoSecrets(error.message);
     return true;
   });
 });
