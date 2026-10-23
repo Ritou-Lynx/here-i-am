@@ -38,4 +38,4 @@
 | A3 | PR #36 已合并（10-23）；生产已换用新副本 `tools-3baf72d` | — |
 | C1 | PR #38 第 1 轮审核通过，CI 全绿（10-23） | 用户合并；用 v3-lab 构建并安装 App，真人验收 ChatGPT/Claude 标签 |
 | D1 | PR #40 第 3 轮审核通过（10-23），云端 221/221，候选六文件、改动 4 个 | 用户合并；按 update-mcp-source 流程部署，每步单独同意 |
-| D3 | 调研 `docs/reference/GEMINI_REMOTE_MCP_RESEARCH_20261023.md`；用户实测能添加自定义应用；合同 `RELAY_20261023_d3-gemini-frontend.md`（工具集同 ChatGPT、接受 Keep Activity） | 用户确认开关默认值后发第 1 轮；收到 relay:done 前勿合并 |
+| D3 | 调研 `docs/reference/GEMINI_REMOTE_MCP_RESEARCH_20261023.md`；用户实测能添加自定义应用；合同 `RELAY_20261023_d3-gemini-frontend.md`（工具集同 ChatGPT、接受 Keep Activity、开关默认开） | 第 1 轮已发给 Codex；收到 relay:done 前勿合并 |
