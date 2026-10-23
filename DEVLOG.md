@@ -1,3 +1,12 @@
+## 2026-10-23 C1：App 聊天时间线按来源设备显示 ChatGPT / Claude（PR #38）
+
+- 合同 docs/development/handoffs/RELAY_20261023_c1-chat-source-label.md，经 relay 由 Codex 实现（1 轮），云端审核。
+- 调研发现 v3-lab 的聊天界面原本不读 `originDeviceId`；旧的“网页端”标签只在未合入的 b3 分支上。
+- 新增 `chat_message_source_label.dart`：映射表 `frontend:claude_web`→Claude、`frontend:chatgpt_web`→ChatGPT，其他 `frontend:*`→“网页端”，非 frontend 来源不显示。手机聊天屏和桌面聊天视图都显示，标签不进入消息内容和复制选区。
+- 以后加 Sesame、Gemini 只需在映射表加一行；是否改为读取 Core 登记的设备显示名，留到 D1 再定。
+- 新增三组 widget 测试；CI 全绿（Windows maintenance job 首次 20 分钟超时被取消，重跑通过，与本改动无关）。
+- 未构建、未安装。合并后由用户用 v3-lab 构建 App 替换现装版本，并真人验收。
+
 ## 2026-10-23 生产维护工具副本换为 3baf72d（A1–A3）
 
 - 用户同意后，由 Codex 在本机执行，未停服。新副本为 `<OUT>\tools-3baf72d`：313 个文件，逐文件 `git hash-object --path` 与目标树一致，与 worktree 逐字节一致；五处 ACL 抽查都是受保护、当前用户所有，且不含 Users。
