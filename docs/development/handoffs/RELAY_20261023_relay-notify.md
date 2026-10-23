@@ -31,3 +31,4 @@
 - 合并后在 pushplus.plus 用微信扫码取 token（可选 Bark key），填进本机 `tools/agent_relay/.state/config.json` 的 `notify`，运行 `node tools/agent_relay/relay_watcher.mjs --test-notify`，确认手机收到。
 
 ## 审核记录
+- 10-23 第 1 轮（946880b）：通过。只改合同允许的 9 个文件；云端复跑 `node --test tools/agent_relay/` 104/104。逐条核对：扫描在资格过滤与 codex-not-found 之前完成，单个 PR 评论读取失败不再阻断其他 PR；`notified` 与回帖投递字段分开；首次启用只记基线，扫描不完整时不推进基线；token/key 在日志、回帖、提示词、stdout 日志和错误信息中均被隐藏。Codex 沙箱内 `--dry-run` 因无 GitHub 认证退出 1，属环境限制。
