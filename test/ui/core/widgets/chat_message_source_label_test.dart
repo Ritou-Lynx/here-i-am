@@ -19,6 +19,7 @@ void main() {
   const cases = <String?, String?>{
     'frontend:claude_web': 'Claude',
     'frontend:chatgpt_web': 'ChatGPT',
+    'frontend:gemini_web': 'Gemini',
     'frontend:sesame': '网页端',
     'frontend:claude_web:extra': '网页端',
     'frontend:CLAUDE_WEB': '网页端',

@@ -8,6 +8,7 @@ import {sha256,cleanEnvironment} from '../../release_schema6/package.mjs';
 import {createRuntimeLab,repository,ps,cleanReceipt} from '../../release_schema6/lifecycle/test-fixture.mjs';
 import {loginConfig,loginArgs,configureManagedMcp,host,connectManaged} from '../../release_schema6/lifecycle/mcp-session-test-fixture.mjs';
 import {allocateSyntheticLoopbackPort} from './mcp_reader/helper.mjs';
+import {stepCodes,readySnapshot} from './safe_switch_diagnostics.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url));
 const maintenance=path.join(repository,'tools/i_core/maintenance');
 const options={skip:process.platform!=='win32',timeout:720000};
@@ -65,6 +66,11 @@ for(const scenario of ['stop','success','bad-pin','drift','dry-run']){
   const steps=lines.filter(v=>Object.hasOwn(v,'step'));
   assert.ok(steps.length>0,'native stop/switch emits machine-readable steps');
   for(const step of steps){assert.equal(typeof step.ok,'boolean');assert.ok(Object.hasOwn(step,'detail'));}
+  // Step names and reviewed error codes only; any other detail text is withheld.
+  if(result.code!==({stop:0,success:0,'bad-pin':2,drift:1,'dry-run':0})[scenario]){
+   t.diagnostic('safe_switch_steps '+scenario+' '+stepCodes(steps));
+   t.diagnostic('safe_switch_ready_snapshot '+scenario+' '+readySnapshot(lines));
+  }
   if(scenario==='stop'){
    assert.equal(result.code,0);assert.equal(result.stopStatus,'clean_closed');assert.equal(result.secondStopStatus,'already_stopped');
    assert.deepEqual(result.active,[]);assert.equal(sessions(b.controlRoot).length,0);

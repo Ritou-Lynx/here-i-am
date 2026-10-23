@@ -80,9 +80,10 @@ function Wait-Schema6LoginReady {
      $launch=Read-Schema6Json $launchPath;$ready=Read-Schema6Json $readyPath;$mcp=Read-Schema6Json $mcpPath
      $marker=Read-Schema6Json (Join-Path $Binding.Login.state_directory 's6-lifecycle.json')
      if($marker.phase -cne 'listening' -or $marker.token -cne $launch.token -or $marker.configuration_sha256 -cne $Binding.Login.core_configuration_sha256){throw 'new_session_lifecycle_not_listening'}
+     # 文件写入时间的精度低于进程启动时间，收据可能比进程启动早不到 1 秒；晚于收据 1 秒以上才算 PID 被复用。
      foreach($identity in @(@{Pid=$ready.pid;Ticks=$null;Receipt=$readyPath},@{Pid=$mcp.pid;Ticks=$mcp.started_ticks;Receipt=$mcpPath})){
       $process=[Diagnostics.Process]::GetProcessById([int]$identity.Pid)
-      try{if($process.HasExited -or $process.StartTime.ToUniversalTime().Ticks -gt (Get-Item -LiteralPath $identity.Receipt).LastWriteTimeUtc.Ticks -or ($identity.Ticks -and $process.StartTime.ToUniversalTime().Ticks -ne [long]$identity.Ticks)){throw 'new_session_process_not_live'}}finally{$process.Dispose()}
+      try{if($process.HasExited -or $process.StartTime.ToUniversalTime().Ticks -gt (Get-Item -LiteralPath $identity.Receipt).LastWriteTimeUtc.Ticks+10000000 -or ($identity.Ticks -and $process.StartTime.ToUniversalTime().Ticks -ne [long]$identity.Ticks)){throw 'new_session_process_not_live'}}finally{$process.Dispose()}
      }
      if($launch.token -cne $ready.token -or $launch.token -cne $mcp.core_token -or $ready.pid -ne $mcp.core_pid -or $mcp.core_ready_bound -ne $true -or $ready.configuration_sha256 -cne $Binding.Login.core_configuration_sha256 -or $ready.manifest_sha256 -cne $s.Window.manifest_sha256 -or $launch.configuration_file -ine $Binding.Login.core_configuration_path -or $launch.state -ine $Binding.Login.state_directory -or $mcp.listen_port -ne $Binding.McpPort){throw 'new_session_ready_binding_mismatch'}
      if($taskState -ne 4){continue}
@@ -115,6 +116,7 @@ function Invoke-Schema6LoginSwitch {
  $from=$null;$to=$null;$previous=@()
  try {
   $bindings=Invoke-Schema6Step 'switch.preflight' {
+   if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
    if([string]::IsNullOrWhiteSpace($FromTask) -or [string]::IsNullOrWhiteSpace($ToTask) -or $FromTask.TrimStart('\').Equals($ToTask.TrimStart('\'),[StringComparison]::OrdinalIgnoreCase)){throw 'two_distinct_tasks_required'}
    if($PublicHealthUrl){$uri=[Uri]$PublicHealthUrl;if(-not $uri.IsAbsoluteUri -or $uri.Scheme -notin @('http','https') -or $uri.UserInfo -or $uri.Fragment){throw 'public_health_url_invalid'}}
    $old=Get-Schema6LoginBinding $FromTask;$next=Get-Schema6LoginBinding $ToTask

@@ -16,7 +16,7 @@
 | register-approved-login.ps1 / register_task_primitives.ps1 / task_security_policy.ps1 | RegisterOnly，TASK_CREATE=2，真实COM回读，没有任务启动入口。 |
 | precutover_validate_copy.mjs / online_preflight_input_guard.mjs | PR16只读在线复制和唯一的在线SHM例外。 |
 
-使用Windows PowerShell 5.1和固定Node24.14.1。先从批准提交固定维护源码的完整依赖闭包，再在受保护私有根中pin源码/配置外锚；不能只复制入口或执行可变checkout。各入口的准确参数和字段见三个工作包交接。
+使用Windows PowerShell 5.1和固定Node24.14.1。各维护入口在执行任何动作前检查宿主，pwsh 7 等非 5.1 Desktop 宿主直接报 `windows_powershell_51_required`。先从批准提交固定维护源码的完整依赖闭包，再在受保护私有根中pin源码/配置外锚；不能只复制入口或执行可变checkout。各入口的准确参数和字段见三个工作包交接。
 
 本次计划入口名为enter-maintenance-window.ps1；预留新WindowId为cutover-retry-20261007-r02。本轮没有创建现场窗口。若该ID以后被使用，即使失败也改选下一个ID，不能删锁重跑。旧目录/entry.lock/回执/guard字节保留，已关闭句柄的旧guard不会挡新ID；同ID拒绝。后续阶段只重新取得guard，不重复进入entry。
 

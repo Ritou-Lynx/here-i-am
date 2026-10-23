@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { OAuthServer, chatgptEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
+import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
 import { readFileSync } from 'node:fs';
 import { createDomainClient, createDomainTools, createCoreRemember, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
 import { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';
@@ -76,17 +76,19 @@ export function createApp({
   timeZone = process.env.I_REMOTE_MCP_TIMEZONE,
   allowedOrigins = DEFAULT_ALLOWED_ORIGINS,
   chatgptEnabled = chatgptEnabledFromEnv(),
+  geminiEnabled = geminiEnabledFromEnv(),
   log = () => {},
   diagnostic = () => {},
   writeback = null,
   chatgptWriteback = null,
+  geminiWriteback = null,
   coreRemember = null,
   domainTools = null,
 }) {
   if (!publicUrl) throw new Error('publicUrl is required');
   if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');
-  const writeEnabled = Boolean(writeback || chatgptWriteback || coreRemember);
-  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled });
+  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || coreRemember);
+  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled });
   if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');
   const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};
   const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];
@@ -100,6 +102,15 @@ export function createApp({
     chatgptHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:chatgpt_web'); };
   }
   const chatgptTools = [...listTools({ writeEnabled, frontend: 'chatgpt_web' }),
+    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
+  const geminiHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
+    writeback: geminiWriteback,
+    frontend: 'gemini_web' }),
+    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };
+  if (writeEnabled && !geminiWriteback) {
+    geminiHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:gemini_web'); };
+  }
+  const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),
     ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
   const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
@@ -136,6 +147,22 @@ export function createApp({
     if (!auth.ok) {
       res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate(auth.error));
       return sendJson(res, 401, { error: auth.error ?? 'unauthorized', error_description: 'Bearer token required' });
+    }
+
+    let frontendHandlers;
+    let frontendTools;
+    if (auth.frontend === 'claude_web') {
+      frontendHandlers = handlers;
+      frontendTools = tools;
+    } else if (auth.frontend === 'chatgpt_web') {
+      frontendHandlers = chatgptHandlers;
+      frontendTools = chatgptTools;
+    } else if (auth.frontend === 'gemini_web') {
+      frontendHandlers = geminiHandlers;
+      frontendTools = geminiTools;
+    } else {
+      res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));
+      return sendJson(res, 401, { error: 'invalid_token' });
     }
 
     const versionHeader = req.headers['mcp-protocol-version'];
@@ -192,10 +219,12 @@ export function createApp({
     for (const message of messages) {
       let dataSourceFailed = false;
       const response = await handleRpcMessage(message, {
-        handlers: auth.frontend === 'chatgpt_web' ? chatgptHandlers : handlers,
-        tools: auth.frontend === 'chatgpt_web' ? chatgptTools : tools,
+        handlers: frontendHandlers,
+        tools: frontendTools,
         unavailableTools: auth.frontend === 'chatgpt_web' && !chatgptWriteback
-          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' } : {},
+          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' }
+          : auth.frontend === 'gemini_web' && !geminiWriteback
+            ? { i_chat_turn: 'frontend_not_paired:gemini_web' } : {},
         scopes: auth.scopes,
         session,
         logError: () => { dataSourceFailed = true; },
@@ -207,9 +236,10 @@ export function createApp({
     return sendJson(res, 200, Array.isArray(payload) ? responses : responses[0]);
   }
 
-  async function handleAuthorize(req, res, url) {
+  async function handleAuthorize(req, res, url, diagnostics) {
     if (req.method === 'GET') {
       const query = Object.fromEntries(url.searchParams);
+      diagnostics.callbacks(query.redirect_uri);
       const v = oauth.validateAuthorizeRequest(query);
       if (!v.ok) return v.redirect ? redirect(res, v.redirect) : sendHtml(res, v.status, errorPage(v.error));
       return sendHtml(res, 200, authorizePage(v.params, oauth.hasPassphrase() ? null : '尚未设置口令，请先在本机运行 set-passphrase。'));
@@ -221,6 +251,7 @@ export function createApp({
       } catch {
         return sendHtml(res, 400, errorPage('请求无效'));
       }
+      diagnostics.callbacks(form.redirect_uri);
       const r = oauth.submitPassphrase(form);
       if (r.redirect) return redirect(res, r.redirect);
       if (r.params) return sendHtml(res, r.status, authorizePage(r.params, r.error));
@@ -247,9 +278,10 @@ export function createApp({
         return sendJson(res, 400, { error: 'invalid_client_metadata', error_description: 'invalid JSON' });
       }
       const r = oauth.register(body);
+      diagnostics.registration(body?.redirect_uris, r.status === 201 ? r.body.redirect_uris : []);
       return sendJson(res, r.status, r.body, { 'Cache-Control': 'no-store' });
     }
-    if (path === '/authorize') return handleAuthorize(req, res, url);
+    if (path === '/authorize') return handleAuthorize(req, res, url, diagnostics);
     if (path === '/token') {
       if (req.method !== 'POST') return sendJson(res, 405, { error: 'method_not_allowed' });
       let form;
@@ -258,7 +290,7 @@ export function createApp({
       } catch {
         return sendJson(res, 400, { error: 'invalid_request' });
       }
-      const r = oauth.token(form);
+      const r = oauth.token(form, req.headers.authorization);
       return sendJson(res, r.status, r.body, { 'Cache-Control': 'no-store', Pragma: 'no-cache' });
     }
     return sendJson(res, 404, { error: 'not_found' });
@@ -531,6 +563,7 @@ async function main(argv) {
   const port = Number(args.port ?? process.env.I_REMOTE_MCP_PORT ?? DEFAULTS.port);
   const publicUrl = args['public-url'] ?? process.env.I_REMOTE_MCP_PUBLIC_URL ?? `http://${host}:${port}`;
   const chatgptEnabled = chatgptEnabledFromEnv();
+  const geminiEnabled = geminiEnabledFromEnv();
   if (!publicUrl.startsWith('https://')) {
     process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\n`);
   }
@@ -563,14 +596,25 @@ async function main(argv) {
       coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'chatgpt_web' }),
     });
   }
+  let geminiWriteback = null;
+  if (geminiEnabled && process.env.I_REMOTE_MCP_WRITEBACK !== '0') {
+    const credential = loadFrontendCredential(stateDir, 'gemini_web');
+    if (credential) geminiWriteback = createWriteback({
+      ledger: openLedger(resolve(stateDir, 'writeback.sqlite')),
+      frontend: 'gemini_web',
+      coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'gemini_web' }),
+    });
+  }
   const { server, oauth } = createApp({
     stateDir,
     publicUrl,
     chatgptEnabled,
+    geminiEnabled,
     getReadModel,
     diagnostic,
     writeback,
     chatgptWriteback,
+    geminiWriteback,
     ...loadWebDomainOptions(args['domain-config']),
   });
   let phoneServer = null;
@@ -587,7 +631,7 @@ async function main(argv) {
   server.listen(port, host, () => {
     process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\n`);
   });
-  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); };
+  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }

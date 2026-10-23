@@ -6,6 +6,32 @@
 - token/key 从日志、回帖、Codex 提示词与 stdout 日志中脱敏。新增 `--test-notify`。
 - 合并后由用户建飞书群机器人取 webhook（可选 Bark key），填本机 `.state/config.json`，运行 `--test-notify` 验证真实送达。
 
+## 2026-10-23 D3：MCP 接入 Gemini 网页端 gemini_web（PR #44）
+
+- 调研 docs/reference/GEMINI_REMOTE_MCP_RESEARCH_20261023.md：消费者版 Gemini 支持自定义应用（远程 MCP），限美国、英文、个人账号、开 Keep Activity；用户实测能添加。
+- 合同 docs/development/handoffs/RELAY_20261023_d3-gemini-frontend.md，经 relay 由 Codex 实现（2 轮，第 1 轮因候选测试固定 4 个改动而 blocked，合同修订后放开），云端审核。
+- `oauth.mjs` 新增 `FRONTEND_CALLBACK_PATTERNS`：Gemini 回调只认两台 Google 中转主机的规范 https 地址加 `/r/user_bound_custom-mcp-` 前缀；注册最多 8 个，过滤无效项后至少留一个，混入 Claude/ChatGPT 回调则拒绝；忽略 Gemini 附带的 client secret，仍为 public client。
+- 开关 `I_REMOTE_MCP_GEMINI_ENABLED`：未设即开、`0` 关（用户决定，因为 update-mcp-source 不能改环境变量）。工具集同 ChatGPT，独立凭据 `core-frontend-gemini_web.json`，未配对时 `frontend_not_paired:gemini_web`。
+- `diagnostics.mjs` 新增 `callback_class`、`callback_count`、`gemini_kept_count`，不输出回调原文。App 来源映射加“Gemini”。
+- 候选仍六文件，改动 5 个（新增 diagnostics，保留 CRLF）。云端复跑 230/230。
+- 未部署。合并后按 update-mcp-source 换源码、`pair-core --frontend gemini_web`、真人验收（每步单独同意）。
+
+## 2026-10-23 项目状态文档瘦身
+
+- `docs/development/I_PROJECT_STATE.md` 改为“当前状态 + 历史归档”两部分，只写现状；原全文按原样移到 `docs/development/archive/I_PROJECT_STATE_HISTORY_20261023.md`，相对链接改为从归档目录出发。
+- 根目录过时的 `SESSION_HANDOFF.md`（Memory V3 旧交接）移到 `docs/development/archive/SESSION_HANDOFF_MEMORY_V3_20260703.md`，本机路径改为占位。
+- 总指挥交接表 C1、D1 行改为已合并。只改文档。
+
+## 2026-10-23 D1：MCP 前端身份注册表，未知回调与身份默认拒绝（PR #40）
+
+- 合同 docs/development/handoffs/RELAY_20261023_d1-frontend-registry.md，经 relay 由 Codex 实现（3 轮，前两轮因既有测试与新规则冲突而 blocked，合同修订后放开指定断言），云端审核。
+- 原问题：非 ChatGPT 回调一律归为 `claude_web`，路由也是“否则走 Claude”；放宽回调就会记错来源并拿到 Claude 写权限。
+- `oauth.mjs` 新增 `FRONTEND_CALLBACKS` 注册表；注册要求全部回调属于同一已启用前端；授权码、refresh、access 校验遇到未知或缺失身份时拒绝。旧令牌（无 `frontend`）只在 client 回调全部属于同一已启用前端时沿用该身份。删除 `I_REMOTE_MCP_EXTRA_REDIRECT_URIS`（生产未使用）。
+- `server.mjs` 按前端显式选处理器，未知身份 401。`chatgpt_candidate.mjs` 新增补丁组，候选仍六文件、改动 4 个。
+- 用户决定：App 显示名继续用映射表，不改读 Core；新增测试校验注册表、写回定义与 App 映射表三者一致。
+- 云端复跑 221/221；候选 result_sha256 前 8 位 server `7fd7c66e`、oauth `319b91f2`，其余四个不变。
+- 未部署。合并后按 update-mcp-source 流程换 MCP 源码（每步单独同意）。
+
 ## 2026-10-23 C1：App 聊天时间线按来源设备显示 ChatGPT / Claude（PR #38）
 
 - 合同 docs/development/handoffs/RELAY_20261023_c1-chat-source-label.md，经 relay 由 Codex 实现（1 轮），云端审核。

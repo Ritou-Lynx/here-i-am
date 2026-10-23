@@ -25,16 +25,53 @@ export const CLAUDE_AI_CALLBACKS = Object.freeze([
   'https://claude.com/api/mcp/auth_callback',
 ]);
 
-function frontendForRedirectUri(redirectUri) {
-  return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';
+export const FRONTEND_CALLBACKS = Object.freeze({
+  claude_web: CLAUDE_AI_CALLBACKS,
+  chatgpt_web: Object.freeze([CHATGPT_CALLBACK_URI]),
+});
+
+// Exact relay hosts only; canonical spelling also excludes explicit default ports,
+// empty query/fragment delimiters and URL-parser normalization aliases.
+export const FRONTEND_CALLBACK_PATTERNS = Object.freeze({
+  gemini_web: (value) => {
+    if (typeof value !== 'string' || value.length > 2048) return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:'
+        && ['oauth-redirect.googleusercontent.com', 'oauth-redirect-sandbox.googleusercontent.com'].includes(url.hostname)
+        && !url.port && !url.username && !url.password && !url.search && !url.hash
+        && /^\/r\/user_bound_custom-mcp-[A-Za-z0-9-]{1,200}$/.test(url.pathname)
+        && value === `${url.origin}${url.pathname}`;
+    } catch { return false; }
+  },
+});
+
+export function frontendForRedirectUri(redirectUri) {
+  return Object.keys(FRONTEND_CALLBACKS)
+    .find((frontend) => FRONTEND_CALLBACKS[frontend].includes(redirectUri))
+    ?? Object.keys(FRONTEND_CALLBACK_PATTERNS)
+      .find((frontend) => FRONTEND_CALLBACK_PATTERNS[frontend](redirectUri)) ?? null;
 }
 
-function frontendForRegisteredClient(client) {
-  return Array.isArray(client?.redirect_uris)
-    && client.redirect_uris.length === 1
-    && client.redirect_uris[0] === CHATGPT_CALLBACK_URI
-    ? 'chatgpt_web'
-    : 'claude_web';
+function isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled) {
+  return (Object.hasOwn(FRONTEND_CALLBACKS, frontend) || Object.hasOwn(FRONTEND_CALLBACK_PATTERNS, frontend))
+    && (frontend !== 'chatgpt_web' || chatgptEnabled === true)
+    && (frontend !== 'gemini_web' || geminiEnabled === true);
+}
+
+function frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled) {
+  const uris = client?.redirect_uris;
+  if (!Array.isArray(uris) || uris.length === 0) return null;
+  const frontend = frontendForRedirectUri(uris[0]);
+  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled)
+    && uris.every((uri) => frontendForRedirectUri(uri) === frontend) ? frontend : null;
+}
+
+function frontendForRecord(record, client, chatgptEnabled, geminiEnabled) {
+  // Only an absent field is legacy; null, empty and unknown values fail closed.
+  const frontend = Object.hasOwn(record, 'frontend')
+    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled);
+  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled) ? frontend : null;
 }
 
 const STATE_SCHEMA_VERSION = 1;
@@ -141,11 +178,7 @@ export function revokeAll(stateDir) {
 }
 
 // 单用户服务：默认只接受 claude.ai 的回调，防止他人注册自己的回调后诱导用户在授权页输入口令。
-// ChatGPT 使用独立开关和稳定精确回调；其他客户端仍可显式追加精确 HTTPS 地址。
-export function extraRedirectUris(env = process.env) {
-  return String(env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS ?? '')
-    .split(',').map((value) => value.trim()).filter(Boolean);
-}
+// ChatGPT 使用独立开关；只接受注册表中的精确回调。
 
 export function chatgptEnabledFromEnv(env = process.env) {
   const value = env.I_REMOTE_MCP_CHATGPT_ENABLED;
@@ -154,14 +187,16 @@ export function chatgptEnabledFromEnv(env = process.env) {
   throw new Error('invalid_chatgpt_mode');
 }
 
-export function isAllowedRedirectUri(value, extra = extraRedirectUris(), chatgptEnabled = chatgptEnabledFromEnv()) {
+export function geminiEnabledFromEnv(env = process.env) {
+  const value = env.I_REMOTE_MCP_GEMINI_ENABLED;
+  if (value === undefined || value === '1') return true;
+  if (value === '0') return false;
+  throw new Error('invalid_gemini_mode');
+}
+
+export function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv()) {
   if (typeof value !== 'string' || value.length > 2048) return false;
-  if (CLAUDE_AI_CALLBACKS.includes(value)) return true;
-  if (chatgptEnabled === true && value === CHATGPT_CALLBACK_URI) return true;
-  if (!extra.includes(value)) return false;
-  let url;
-  try { url = new URL(value); } catch { return false; }
-  return url.protocol === 'https:' && !url.hash && !url.username && !url.password;
+  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled, geminiEnabled);
 }
 
 function normalizeResource(value) {
@@ -169,9 +204,11 @@ function normalizeResource(value) {
 }
 
 export class OAuthServer {
-  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv() }) {
+  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv() }) {
     if (typeof chatgptEnabled !== 'boolean') throw new Error('invalid_chatgpt_mode');
+    if (typeof geminiEnabled !== 'boolean') throw new Error('invalid_gemini_mode');
     this.chatgptEnabled = chatgptEnabled;
+    this.geminiEnabled = geminiEnabled;
     this.store = new OAuthStateStore(stateDir);
     // 单用户服务：启用写回后，每次授权都签发全部支持的 scope（授权页会写明），
     // 避免客户端只请求 i.read 导致写回永远不可用。旧令牌没有 i.write，需要重新授权。
@@ -232,11 +269,20 @@ export class OAuthServer {
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return oauthError(400, 'invalid_client_metadata', 'JSON object required');
     }
-    const redirectUris = body.redirect_uris;
-    if (!Array.isArray(redirectUris) || redirectUris.length === 0 || redirectUris.length > MAX_REDIRECT_URIS) {
+    let redirectUris = body.redirect_uris;
+    if (!Array.isArray(redirectUris) || redirectUris.length === 0) {
       return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be a non-empty array');
     }
-    if (!redirectUris.every((uri) => isAllowedRedirectUri(uri, extraRedirectUris(), this.chatgptEnabled))) {
+    const frontends = redirectUris.map(frontendForRedirectUri);
+    const exactFrontend = frontends[0];
+    if (Object.hasOwn(FRONTEND_CALLBACKS, exactFrontend) && frontends.every(frontend => frontend === exactFrontend)) {
+      if (redirectUris.length > MAX_REDIRECT_URIS || !isEnabledFrontend(exactFrontend, this.chatgptEnabled, this.geminiEnabled)) {
+        return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');
+      }
+    } else if (this.geminiEnabled && redirectUris.length <= 8 && frontends.includes('gemini_web')
+      && !frontends.some(frontend => Object.hasOwn(FRONTEND_CALLBACKS, frontend))) {
+      redirectUris = redirectUris.filter((uri, index) => frontends[index] === 'gemini_web');
+    } else {
       return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');
     }
     const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];
@@ -280,7 +326,7 @@ export class OAuthServer {
     const client = clientId ? this.store.state.clients[clientId] : undefined;
     if (!client) return { ok: false, status: 400, error: '未知的 client_id' };
     const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);
-    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, extraRedirectUris(), this.chatgptEnabled)) {
+    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled, this.geminiEnabled)) {
       return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };
     }
     const state = get('state');
@@ -367,7 +413,20 @@ export class OAuthServer {
 
   // ---------- /token ----------
 
-  token(form) {
+  token(form, authorizationHeader) {
+    if (!form.client_id && typeof authorizationHeader === 'string') {
+      const basic = /^Basic\s+([A-Za-z0-9+/]+={0,2})$/i.exec(authorizationHeader);
+      if (basic) {
+        const decoded = Buffer.from(basic[1], 'base64').toString('utf8');
+        const colon = decoded.indexOf(':');
+        let clientId;
+        try { clientId = colon < 0 ? null : decodeURIComponent(decoded.slice(0, colon)); } catch { /* invalid public identifier */ }
+        const client = this.store.state.clients[clientId];
+        if (frontendForRegisteredClient(client, this.chatgptEnabled, this.geminiEnabled) === 'gemini_web') {
+          form = { ...form, client_id: clientId };
+        }
+      }
+    }
     const grantType = form.grant_type;
     if (grantType === 'authorization_code') return this.#exchangeCode(form);
     if (grantType === 'refresh_token') return this.#refresh(form);
@@ -398,6 +457,12 @@ export class OAuthServer {
     if (form.redirect_uri !== record.redirect_uri) {
       return oauthError(400, 'invalid_grant', 'redirect_uri mismatch');
     }
+    const frontend = frontendForRedirectUri(record.redirect_uri);
+    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled, this.geminiEnabled)
+      || !client.redirect_uris.includes(record.redirect_uri)
+      || frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled) !== frontend) {
+      return oauthError(400, 'invalid_grant', 'invalid frontend');
+    }
     if (form.resource !== undefined && normalizeResource(form.resource) !== this.resource) {
       return oauthError(400, 'invalid_target', 'unknown resource');
     }
@@ -412,7 +477,7 @@ export class OAuthServer {
     const familyId = randomUUID();
     record.used = true;
     record.family_id = familyId;
-    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE, record.frontend ?? frontendForRedirectUri(record.redirect_uri));
+    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE, frontend);
     this.store.save();
     return { status: 200, body: tokens };
   }
@@ -437,9 +502,11 @@ export class OAuthServer {
       this.store.save();
       return oauthError(400, 'invalid_grant', 'refresh_token expired');
     }
+    const frontend = frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled);
+    if (!frontend) return oauthError(400, 'invalid_grant', 'invalid frontend');
     record.rotated = true;
     // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。
-    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? frontendForRegisteredClient(client));
+    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), frontend);
     this.store.save();
     return { status: 200, body: tokens };
   }
@@ -448,7 +515,7 @@ export class OAuthServer {
     return String(scope).split(' ').filter((s) => this.supportedScopes.includes(s)).join(' ') || SCOPE;
   }
 
-  #issueTokens(clientId, familyId, scope, frontend = 'claude_web') {
+  #issueTokens(clientId, familyId, scope, frontend) {
     scope = this.#limitScope(scope);
     const now = this.now();
     const accessToken = newToken('iat');
@@ -511,13 +578,15 @@ export class OAuthServer {
     if (!record) return { ok: false, error: 'invalid_token' };
     if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };
     if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };
+    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled, this.geminiEnabled);
+    if (!frontend) return { ok: false, error: 'invalid_token' };
     // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。
     const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));
     return {
       ok: true,
       familyId: record.family_id,
       clientId: record.client_id,
-      frontend: record.frontend ?? frontendForRegisteredClient(this.store.state.clients[record.client_id]),
+      frontend,
       scopes,
     };
   }

@@ -30,17 +30,17 @@ function allFiles(root,prefix='') {
   ?allFiles(root,prefix+entry.name+'/'):[prefix+entry.name]).sort();
 }
 
-test('fixed six Git blobs produce only four reviewed changes and preserve two exact buffers',()=>{
+test('fixed six Git blobs produce only five reviewed changes and preserve one exact buffer',()=>{
  const {files,manifest}=constructCandidateSources(input);
  assert.equal(manifest.baseline_commit,BASELINE_COMMIT);
  assert.equal(manifest.status,'not_deployed');
- assert.equal(manifest.changed_files,4);
- assert.equal(manifest.unchanged_files,2);
+ assert.equal(manifest.changed_files,5);
+ assert.equal(manifest.unchanged_files,1);
  assert.deepEqual(manifest.chatgpt_flag,{name:'I_REMOTE_MCP_CHATGPT_ENABLED',default:'0'});
- assert.deepEqual(manifest.files.filter(x=>x.changed).map(x=>x.path),['i_remote_mcp/server.mjs','i_remote_mcp/oauth.mjs','i_remote_mcp/mcp.mjs','i_remote_mcp/writeback.mjs']);
+ assert.deepEqual(manifest.files.filter(x=>x.changed).map(x=>x.path),['i_remote_mcp/server.mjs','i_remote_mcp/oauth.mjs','i_remote_mcp/diagnostics.mjs','i_remote_mcp/mcp.mjs','i_remote_mcp/writeback.mjs']);
  for(const item of SOURCE_INVENTORY) {
   assert.equal(sha256(input.baselineFiles[item.path]),item.sha256);
-  if(!/\/(server|oauth|mcp|writeback)\.mjs$/.test(item.path))assert.ok(files[item.path].equals(input.baselineFiles[item.path]));
+  if(!/\/(server|oauth|diagnostics|mcp|writeback)\.mjs$/.test(item.path))assert.ok(files[item.path].equals(input.baselineFiles[item.path]));
  }
  assert.equal(files['i_remote_mcp/oauth.mjs'].toString().replaceAll('\r\n','\n'),input.current.oauth.toString().replaceAll('\r\n','\n'));
  assert.ok(!files['i_remote_mcp/oauth.mjs'].toString().replaceAll('\r\n','').includes('\n'),'OAuth candidate retains original CRLF');
@@ -63,10 +63,45 @@ test('construction fails closed for a wrong baseline, altered blob, extra file o
  }
 });
 
+test('registry candidate has six files, five changes and no extra callback or Claude fallback', () => {
+ const {files,manifest}=constructCandidateSources(input); // Includes both forward/reverse byte checks.
+ assert.equal(Object.keys(files).length,6);
+ assert.equal(manifest.changed_files,5);
+ for(const bytes of Object.values(files)) {
+  assert.doesNotMatch(bytes.toString(),/I_REMOTE_MCP_EXTRA_REDIRECT_URIS|extraRedirectUris/);
+  assert.doesNotMatch(bytes.toString(),/return redirectUri === CHATGPT_CALLBACK_URI \? 'chatgpt_web' : 'claude_web'|\? 'chatgpt_web'\s*: 'claude_web'/);
+ }
+ const oauth=files['i_remote_mcp/oauth.mjs'].toString();
+ assert.match(oauth,/export const FRONTEND_CALLBACKS = Object\.freeze/);
+ assert.doesNotMatch(oauth,/frontend = 'claude_web'|record\.frontend \?\?/);
+ const server=files['i_remote_mcp/server.mjs'].toString();
+ assert.doesNotMatch(server,/auth\.frontend === 'chatgpt_web' \? chatgpt(?:Handlers|Tools) :/);
+ assert.match(server,/if \(auth\.frontend === 'claude_web'\)/);
+ assert.match(server,/else if \(auth\.frontend === 'chatgpt_web'\)/);
+ assert.match(server,/return sendJson\(res, 401, \{ error: 'invalid_token' \}\)/);
+});
+
 test('LF and CRLF checkouts yield the same pinned candidate without rewriting legacy bytes',()=>{
  const lf={...input,current:Object.fromEntries(Object.entries(input.current).map(([k,v])=>[k,Buffer.from(v.toString().replaceAll('\r\n','\n'))]))};
  const a=constructCandidateSources(input),b=constructCandidateSources(lf);
  for(const item of SOURCE_INVENTORY)assert.ok(a.files[item.path].equals(b.files[item.path]));
+});
+
+test('Gemini candidate preserves diagnostics CRLF and guards its current and baseline bytes', () => {
+ const { files, manifest } = constructCandidateSources(input);
+ const path = 'i_remote_mcp/diagnostics.mjs';
+ assert.equal(files[path].toString().replaceAll('\r\n','\n'), input.current.diagnostics.toString().replaceAll('\r\n','\n'));
+ assert.ok(!files[path].toString().replaceAll('\r\n','').includes('\n'), 'diagnostics candidate retains original CRLF');
+ assert.equal(manifest.source_sha256.diagnostics, sha256(input.current.diagnostics));
+ assert.throws(() => constructCandidateSources({ ...input, current: { ...input.current,
+  diagnostics: Buffer.concat([input.current.diagnostics, Buffer.from('// unreviewed')]) } }), /unexpected current diagnostics/);
+ assert.throws(() => constructCandidateSources({ ...input, baselineMain: { ...input.baselineMain,
+  diagnostics: Buffer.from('other baseline') } }), /wrong mainline baseline/);
+ assert.throws(() => constructCandidateSources({ ...input, baselineFiles: { ...input.baselineFiles,
+  [path]: Buffer.from('tampered diagnostics') } }), /baseline byte mismatch/);
+ for (const name of ['server', 'oauth', 'writeback']) assert.match(files[`i_remote_mcp/${name}.mjs`].toString(), /gemini_web/);
+ assert.match(files['i_remote_mcp/oauth.mjs'].toString(), /geminiEnabledFromEnv/);
+ assert.match(files[path].toString(), /gemini_kept_count/);
 });
 
 test('builder separates the six-file runtime closure from manifest and refuses overwrites',t=>{

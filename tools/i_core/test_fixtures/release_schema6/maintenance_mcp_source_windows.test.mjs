@@ -9,6 +9,7 @@ import {createRuntimeLab,repository,ps,cleanReceipt,protect,removeOwned} from '.
 import {loginConfig,loginArgs,refreshLogin,configureManagedMcp,host,connectManaged} from '../../release_schema6/lifecycle/mcp-session-test-fixture.mjs';
 import {allocateSyntheticLoopbackPort} from './mcp_reader/helper.mjs';
 import {syntheticRoot} from './synthetic_paths.mjs';
+import {stepCodes,readySnapshot} from './safe_switch_diagnostics.mjs';
 import {updateMcpSource,windowsTaskBridge} from '../../maintenance/update-mcp-source.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url));
 const maintenance=path.join(repository,'tools/i_core/maintenance'),bridge=path.join(maintenance,'update-mcp-source-task.ps1');
@@ -87,8 +88,9 @@ test('MCP source update: real A session, real generated files and registration, 
  const inputPath=path.join(l.root,'switch-input.json');writeFileSync(inputPath,'\uFEFF'+JSON.stringify({scenario:'success',from:'Synthetic-A',to:'Synthetic-B',initialPid:run.child.pid,tasks:registered.tasks}));
  const switched=invoke('safe_switch_session.ps1',['-InputPath',inputPath,'-MaintenanceDirectory',maintenance]);
  assert.equal(switched.status,0,switched.stdout+switched.stderr);
- const report=rows(switched).findLast(r=>r.format==='schema6-safe-switch-test-v1');
- assert.equal(report.code,0,switched.stdout+switched.stderr);assert.equal(report.error,null);assert.equal(report.cleanup,true);assert.equal(report.enabledA,false);assert.equal(report.enabledB,true);
+ const switchRows=rows(switched),report=switchRows.findLast(r=>r.format==='schema6-safe-switch-test-v1');
+ if(report.code!==0){t.diagnostic('mcp_source_switch_steps '+stepCodes(switchRows));t.diagnostic('mcp_source_ready_snapshot '+readySnapshot(switchRows));}
+ assert.equal(report.code,0,'switch code '+report.code);assert.equal(report.error,null);assert.equal(report.cleanup,true);assert.equal(report.enabledA,false);assert.equal(report.enabledB,true);
  assert.deepEqual(report.active,['Synthetic-B']);assert.deepEqual(report.mutations,['Disable:Synthetic-A','Enable:Synthetic-B','Start:Synthetic-B']);
  await run.wait();cleanReceipt(run);
  const closed=controls(a.controlRoot);assert.equal(closed.length,2);

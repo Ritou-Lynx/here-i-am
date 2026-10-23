@@ -257,19 +257,26 @@ void main() {
       expect(_tierCount(tester, 'full'), greaterThan(400),
           reason: 'all cards visible and in full tier at zoom 1.0');
 
-      final swFull = Stopwatch()..start();
-      vm.panViewport(0, 1);
-      await tester.pump();
-      final fullMs = swFull.elapsedMicroseconds / 1000;
+      // One wall-clock sample is noisy on shared CI runners; compare the
+      // fastest of several 1px pans per tier instead.
+      Future<double> fastestPanMs() async {
+        var best = double.infinity;
+        for (var i = 0; i < 5; i++) {
+          final sw = Stopwatch()..start();
+          vm.panViewport(0, i.isEven ? 1 : -1);
+          await tester.pump();
+          best = math.min(best, sw.elapsedMicroseconds / 1000);
+        }
+        return best;
+      }
+
+      final fullMs = await fastestPanMs();
 
       vm.zoomViewport(0.25, const math.Point(0, 0));
       await tester.pumpAndSettle();
       expect(_tierCount(tester, 'minimal'), greaterThan(400));
 
-      final swMin = Stopwatch()..start();
-      vm.panViewport(0, 1);
-      await tester.pump();
-      final minimalMs = swMin.elapsedMicroseconds / 1000;
+      final minimalMs = await fastestPanMs();
 
       debugPrint('LOD_BENCH fullMs=$fullMs minimalMs=$minimalMs');
       expect(minimalMs, lessThanOrEqualTo(fullMs + 10),

@@ -6,6 +6,7 @@
 |---|---|
 | [SIYUAN_MCP.md](SIYUAN_MCP.md) | 思源 3.8.6：连接与鉴权（含 OAuth 2.1）、对外暴露策略、30 个工具逐个动作分读写、数据库写法、客户端配置、思源 Agent 作为 MCP 客户端 |
 | [FLEXNOTE_MCP.md](FLEXNOTE_MCP.md) | FlexNote 1.1.57：开启与连接、官方能力分类、只读模式、已知工具名、限制与易错点 |
+| [GEMINI_REMOTE_MCP_RESEARCH_20261023.md](GEMINI_REMOTE_MCP_RESEARCH_20261023.md) | 调研稿（D3）：消费者版 Gemini 能否接自定义远程 MCP、资格限制、OAuth 兼容差距、Gems 迁移 Skills 的影响 |
 
 ## 一页对比
 

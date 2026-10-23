@@ -77,13 +77,14 @@ $script:Schema6TaskAdapter={
 }
 # Keep the real readiness validator unchanged. On its ambiguous process error,
 # capture a read-only synthetic snapshot before orchestration performs rollback.
+# drift covers rollback.ready_old, where the restarted A session meets the same check.
 $script:r1OriginalReady=(Get-Item -LiteralPath 'Function:\Wait-Schema6LoginReady').ScriptBlock
 function Wait-Schema6LoginReady {
  param([string]$Name,$Binding,[string[]]$PreviousSessions,[int]$TimeoutSeconds,[string]$HealthUrl)
  try {& $script:r1OriginalReady @PSBoundParameters}
  catch {
   $originalFailure=$_
-  if($inputData.scenario -ceq 'success' -and ($originalFailure.Exception.Message -split ';',2)[0] -ceq 'new_session_process_not_live'){
+  if($inputData.scenario -cin @('success','drift') -and ($originalFailure.Exception.Message -split ';',2)[0] -ceq 'new_session_process_not_live'){
    try {
    $probe=[ordered]@{format='schema6-ready-post-failure-snapshot-v1';identities=@();probe_error=$false}
    $sessions=@()

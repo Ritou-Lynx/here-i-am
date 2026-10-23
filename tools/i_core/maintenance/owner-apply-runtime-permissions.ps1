@@ -14,6 +14,7 @@ function Invoke-OwnerAclMaintenance {
  )
  Set-StrictMode -Version 2
  $ErrorActionPreference='Stop'
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  if(!$ConfirmFrozen){throw 'explicit_frozen_confirmation_required'}
  if($ExpectedScriptSha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'sha256_anchor_required'}
  if($ScriptPath -notmatch '^[A-Za-z]:\\' -or [IO.Path]::GetFullPath($ScriptPath) -cne $ScriptPath -or $ScriptPath.Substring(2).Contains(':')){throw 'canonical_path_required'}
