@@ -1,3 +1,9 @@
+## 2026-10-23 项目状态文档瘦身
+
+- `docs/development/I_PROJECT_STATE.md` 改为“当前状态 + 历史归档”两部分，只写现状；原全文按原样移到 `docs/development/archive/I_PROJECT_STATE_HISTORY_20261023.md`，相对链接改为从归档目录出发。
+- 根目录过时的 `SESSION_HANDOFF.md`（Memory V3 旧交接）移到 `docs/development/archive/SESSION_HANDOFF_MEMORY_V3_20260703.md`，本机路径改为占位。
+- 总指挥交接表 C1 行改为“已合并，待装机验收”。只改文档。
+
 ## 2026-10-23 C1：App 聊天时间线按来源设备显示 ChatGPT / Claude（PR #38）
 
 - 合同 docs/development/handoffs/RELAY_20261023_c1-chat-source-label.md，经 relay 由 Codex 实现（1 轮），云端审核。

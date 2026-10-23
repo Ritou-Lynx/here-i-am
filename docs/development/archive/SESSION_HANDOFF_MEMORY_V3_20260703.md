@@ -1,4 +1,4 @@
-> 历史交接说明（2026-10-01 标注）：下文保留旧阶段事实，其中的工作区、分支、数据库版本与自动预查询描述不能作为当前接线依据。当前入口为 [本地开发交接](docs/development/LOCAL_DEVELOPMENT_20261001.md) 与 [项目状态](docs/development/I_PROJECT_STATE.md)。
+> 历史交接说明（2026-10-01 标注；2026-10-23 从仓库根目录移入归档）：下文保留旧阶段事实，其中的工作区、分支、数据库版本与自动预查询描述不能作为当前接线依据。当前入口为 [本地开发交接](../LOCAL_DEVELOPMENT_20261001.md) 与 [项目状态](../I_PROJECT_STATE.md)。
 
 # Memory V3 — 下次交接提示词
 
@@ -7,7 +7,7 @@
 ```
 继续 Memory V3 工作。
 
-repo: D:\鱼\here-i-am
+repo: <本机仓库目录>
 branch: claude/elastic-varahamihira-c6d4aa
 latest: 06de960 test(memory_v3): add query benchmark
 
