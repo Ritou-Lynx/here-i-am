@@ -311,12 +311,11 @@ function registerCompatSuite(label, loadRuntime) {
       assert.ok(JSON.stringify(claudeContext.remembered_notes).includes('SYNTHETIC_CLAUDE_ONLY_NOTE'));
     });
 
-    test('legacy tokens infer only a uniquely registered ChatGPT callback and preserve identity through refresh', async t => {
+    test('legacy tokens preserve a unique frontend through refresh and reject mixed callbacks', async t => {
       const ctx = await fixture(t);
       for (const [callbacks, expected] of [
         [[CALLBACK], 'chatgpt_web'],
         [[REDIRECT_URI], 'claude_web'],
-        [[CALLBACK, REDIRECT_URI], 'claude_web'],
       ]) {
         const peer = await connect(ctx);
         // Simulate legacy persisted records in this newly allocated synthetic store.
@@ -337,6 +336,24 @@ function registerCompatSuite(label, loadRuntime) {
           turns: [{ role: 'assistant', content: `Synthetic legacy reply ${callbacks.join(',')}` }] });
         assert.equal(ctx.submitted.at(-1).origin_device_id, `frontend:${expected}`);
       }
+      const peer = await connect(ctx);
+      ctx.oauth.store.state.clients[peer.client.client_id].redirect_uris = [CALLBACK, REDIRECT_URI];
+      delete ctx.oauth.store.state.access_tokens[runtime.sha256(peer.access_token)].frontend;
+      delete ctx.oauth.store.state.refresh_tokens[runtime.sha256(peer.refresh_token)].frontend;
+      const verified = ctx.oauth.verifyAccessToken(`Bearer ${peer.access_token}`);
+      assert.equal(verified.ok, false);
+      assert.equal(verified.error, 'invalid_token');
+      const submittedBefore = ctx.submitted.length;
+      const denied = await rpc(ctx, peer, 'tools/call', { name: 'i_chat_turn', arguments: {
+        phase: 'start', turns: [{ role: 'user', content: 'Synthetic legacy mixed callbacks denied' }],
+      } });
+      assert.equal(denied.status, 401);
+      assert.equal(ctx.submitted.length, submittedBefore);
+      const refresh = await json(ctx, '/token', { fields: { grant_type: 'refresh_token',
+        client_id: peer.client.client_id, refresh_token: peer.refresh_token } });
+      assert.equal(refresh.status, 400);
+      assert.equal(refresh.body.error, 'invalid_grant');
+      assert.equal(ctx.oauth.store.state.refresh_tokens[runtime.sha256(peer.refresh_token)].rotated, false);
     });
 
     test('unpaired ChatGPT clearly fails without borrowing Claude writer credentials', async t => {
