@@ -195,10 +195,10 @@ describe('安全失败分支', () => {
     const res = await registerClient(ctx.base, ['https://evil.example/cb']);
     assert.equal(res.status, 400);
     assert.equal(res.body.error, 'invalid_redirect_uri');
-    assert.ok(isAllowedRedirectUri('https://claude.ai/api/mcp/auth_callback', []));
-    assert.ok(!isAllowedRedirectUri('https://evil.example/cb', []));
-    assert.ok(isAllowedRedirectUri('https://chatgpt.com/connector/cb', ['https://chatgpt.com/connector/cb']));
-    assert.ok(!isAllowedRedirectUri('http://chatgpt.com/connector/cb', ['http://chatgpt.com/connector/cb']));
+    assert.ok(isAllowedRedirectUri('https://claude.ai/api/mcp/auth_callback'));
+    assert.ok(!isAllowedRedirectUri('https://evil.example/cb'));
+    assert.ok(!isAllowedRedirectUri('https://chatgpt.com/connector/cb'));
+    assert.ok(!isAllowedRedirectUri('http://chatgpt.com/connector/cb'));
   });
 
   test('redirect_uri 篡改：授权页与令牌端点都拒绝，注册只收 https', async () => {
@@ -391,26 +391,33 @@ describe('ChatGPT 回调开关与精确匹配', () => {
   });
 
   test('仅显式布尔 true 接受稳定回调，不归一化近似 URI', () => {
-    assert.equal(isAllowedRedirectUri(CHATGPT_CALLBACK_URI, [], false), false);
-    assert.equal(isAllowedRedirectUri(CHATGPT_CALLBACK_URI, [], true), true);
-    assert.equal(isAllowedRedirectUri(CHATGPT_CALLBACK_URI, [], 'true'), false);
+    assert.equal(isAllowedRedirectUri(CHATGPT_CALLBACK_URI, false), false);
+    assert.equal(isAllowedRedirectUri(CHATGPT_CALLBACK_URI, true), true);
+    assert.equal(isAllowedRedirectUri(CHATGPT_CALLBACK_URI, 'true'), false);
     for (const uri of CHATGPT_NEAR_MISSES) {
-      assert.equal(isAllowedRedirectUri(uri, [], true), false, uri);
+      assert.equal(isAllowedRedirectUri(uri, true), false, uri);
     }
     for (const uri of CLAUDE_AI_CALLBACKS) {
-      assert.equal(isAllowedRedirectUri(uri, [], false), true);
-      assert.equal(isAllowedRedirectUri(uri, [], true), true);
+      assert.equal(isAllowedRedirectUri(uri, false), true);
+      assert.equal(isAllowedRedirectUri(uri, true), true);
     }
   });
 
-  test('extra 保持显式精确 HTTPS 匹配，不引入通配或放宽凭据/fragment', () => {
-    const extra = ['https://example.test/callback?client=synthetic'];
-    assert.equal(isAllowedRedirectUri(extra[0], extra, false), true);
-    assert.equal(isAllowedRedirectUri('https://example.test/callback', extra, true), false);
-    assert.equal(isAllowedRedirectUri(extra[0] + '&x=1', extra, true), false);
-    assert.equal(isAllowedRedirectUri(CHATGPT_CALLBACK_URI, [CHATGPT_CALLBACK_URI], false), true);
-    for (const uri of ['http://example.test/callback', 'https://user@example.test/callback', 'https://example.test/callback#x']) {
-      assert.equal(isAllowedRedirectUri(uri, [uri], true), false, uri);
+  test('extra 机制已移除，设置环境变量也不放行额外回调', () => {
+    const saved = process.env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS;
+    try {
+      process.env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS = 'https://example.test/callback,' + CHATGPT_CALLBACK_URI;
+      for (const enabled of [false, true]) {
+        assert.equal(isAllowedRedirectUri('https://example.test/callback', enabled), false);
+        assert.equal(isAllowedRedirectUri('https://example.test/callback?client=synthetic', enabled), false);
+        for (const uri of ['http://example.test/callback', 'https://user@example.test/callback', 'https://example.test/callback#x']) {
+          assert.equal(isAllowedRedirectUri(uri, enabled), false, uri);
+        }
+      }
+      assert.equal(isAllowedRedirectUri(CHATGPT_CALLBACK_URI, false), false);
+    } finally {
+      if (saved === undefined) delete process.env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS;
+      else process.env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS = saved;
     }
   });
 
@@ -544,4 +551,76 @@ describe('ChatGPT HTTP OAuth 合成回归', () => {
       }
     }
   });
+});
+import { sha256 as registryTokenHash } from './oauth.mjs';
+
+describe('D1 registry HTTP authorization gates', () => {
+  let ctx;
+  before(async () => { ctx = await startTestServer({ chatgptEnabled: true }); });
+  after(() => ctx.close());
+
+  test('unknown HTTPS and mixed frontend registration fail without creating clients', async () => {
+    const count = Object.keys(ctx.oauth.store.state.clients).length;
+    const saved = process.env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS;
+    try {
+      process.env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS = 'https://unknown.example/callback';
+      for (const uris of [['https://unknown.example/callback'], [REDIRECT_URI, CHATGPT_CALLBACK_URI]]) {
+        const result = await registerClient(ctx.base, uris);
+        assert.equal(result.status, 400);
+        assert.equal(result.body.error, 'invalid_redirect_uri');
+      }
+    } finally {
+      if (saved === undefined) delete process.env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS;
+      else process.env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS = saved;
+    }
+    assert.equal(Object.keys(ctx.oauth.store.state.clients).length, count);
+  });
+
+  test('unknown stored callback displays local GET/POST error and never redirects', async () => {
+    const { body: client } = await registerClient(ctx.base);
+    const redirectUri = 'https://unknown.example/callback';
+    ctx.oauth.store.state.clients[client.client_id].redirect_uris = [redirectUri];
+    const params = authorizeParams({ clientId: client.client_id, challenge: pkcePair().challenge, redirectUri });
+    const codesBefore = Object.keys(ctx.oauth.store.state.codes);
+    for (const method of ['GET', 'POST']) {
+      const result = method === 'GET'
+        ? await fetch(ctx.base + '/authorize?' + params, { redirect: 'manual' })
+        : await submitPassphrase(ctx.base, params);
+      assert.equal(result.status, 400);
+      assert.equal(result.headers.get('location'), null);
+      assert.match(result.headers.get('content-type'), /text\/html/);
+    }
+    assert.deepEqual(Object.keys(ctx.oauth.store.state.codes), codesBefore);
+  });
+
+  for (const mutation of ['unknown_callback', 'disabled_callback', 'sesame', '', 'Claude_web', null]) {
+    test(`authorization code refuses invalid binding ${JSON.stringify(mutation)}`, async () => {
+      const { body: client } = await registerClient(ctx.base);
+      const { verifier, challenge } = pkcePair();
+      const result = await submitPassphrase(ctx.base, authorizeParams({ clientId: client.client_id, challenge }));
+      assert.equal(result.status, 302);
+      const code = new URL(result.headers.get('location')).searchParams.get('code');
+      const record = ctx.oauth.store.state.codes[registryTokenHash(code)];
+      let redirectUri = REDIRECT_URI;
+      if (mutation === 'unknown_callback' || mutation === 'disabled_callback') {
+        redirectUri = mutation === 'unknown_callback' ? 'https://unknown.example/callback' : CHATGPT_CALLBACK_URI;
+        record.redirect_uri = redirectUri;
+        delete record.frontend;
+        ctx.oauth.store.state.clients[client.client_id].redirect_uris = [redirectUri];
+      } else record.frontend = mutation;
+      if (mutation === 'disabled_callback') ctx.oauth.chatgptEnabled = false;
+      const before = [Object.keys(ctx.oauth.store.state.access_tokens), Object.keys(ctx.oauth.store.state.refresh_tokens)];
+      try {
+        const token = await postToken(ctx.base, {
+          grant_type: 'authorization_code', code, client_id: client.client_id,
+          redirect_uri: redirectUri, code_verifier: verifier,
+        });
+        assert.equal(token.status, 400);
+        assert.equal(token.body.error, 'invalid_grant');
+        assert.equal(token.body.access_token, undefined);
+        assert.equal(record.used, false);
+        assert.deepEqual([Object.keys(ctx.oauth.store.state.access_tokens), Object.keys(ctx.oauth.store.state.refresh_tokens)], before);
+      } finally { ctx.oauth.chatgptEnabled = true; }
+    });
+  }
 });

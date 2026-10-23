@@ -117,6 +117,7 @@ function Write-BackupConfigReceipt([string]$Name,$Value) {
 function Invoke-BackupConfigProtection {
  param([string]$Path,[string]$ExpectedContentSha256,[string]$ExpectedOwnerSid,[string]$ExpectedOriginalDaclSha256,[string]$ExpectedProposedDaclSha256,[string]$ReceiptDirectory,[string]$ExpectedOwnedArtifactsSha256,[switch]$Execute)
  Set-StrictMode -Version 2;$ErrorActionPreference='Stop'
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  if(!$Execute){throw 'explicit_execute_required'}
  foreach($hash in @($ExpectedContentSha256,$ExpectedOriginalDaclSha256,$ExpectedProposedDaclSha256,$ExpectedOwnedArtifactsSha256)){if($hash -cnotmatch '^[a-f0-9]{64}$'){throw 'sha256_required'}}
  Initialize-BackupConfigAclNative

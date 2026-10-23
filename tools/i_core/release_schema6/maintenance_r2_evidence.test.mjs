@@ -25,7 +25,8 @@ test('R2 NoRollback legacy hash is identical for LF and CRLF checkouts',()=>{
  for(const ending of ['\n','\r\n']){
   const checkout=source.replace(/\r?\n/g,ending);
   const restored=checkout.replace(/\r?\n/g,'\r\n').replaceAll(',[switch]$NoRollback','')
-   .replace(';if($NoRollback){'+marker+'}','').replace(' if($NoRollback){'+marker+';return 2}\r\n','').replace(' -NoRollback:$NoRollback','');
+   .replace(';if($NoRollback){'+marker+'}','').replace(' if($NoRollback){'+marker+';return 2}\r\n','').replace(' -NoRollback:$NoRollback','')
+   .replace("   if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}\r\n",'');
   // 基线：A2 合同（PR #33）；还原规则与 R1 相同。
   assert.equal(createHash('sha256').update(restored).digest('hex'),'9756d2c91c6d558ed78b234cfe7c0c76d7e9bb354f5405f79d9f95c292cd0df9');
  }

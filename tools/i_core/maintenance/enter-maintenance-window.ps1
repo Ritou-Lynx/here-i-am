@@ -29,6 +29,7 @@ function Assert-EntryPrivate($Handle,[string]$Owner){
 }
 $configLease=$null;$freezeLease=$null
 try {
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  if($Execute.IsPresent-eq $PreflightOnly.IsPresent){throw 'exactly_one_maintenance_mode_required'}
  Assert-EntryPlain $ConfigPath
  $configLease=[IO.File]::Open($ConfigPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
