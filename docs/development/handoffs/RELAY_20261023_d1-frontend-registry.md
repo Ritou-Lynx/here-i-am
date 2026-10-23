@@ -40,6 +40,7 @@
   - `oauth.test.mjs` 第 198–201 行、第 393–404 行：`isAllowedRedirectUri` 改签名后同步去掉 extra 参数，断言语义不变；第 200–201 行改为断言 extra 地址被拒。
   - `oauth.test.mjs` 第 406–415 行“extra 保持显式精确 HTTPS 匹配”整条用例：改为断言 extra 机制已移除（`I_REMOTE_MCP_EXTRA_REDIRECT_URIS` 设了也不放行任何地址）。
   - `oauth_identity.test.mjs` 第 98 行（混合回调 client 的旧令牌归为 `claude_web`）：改为断言混合 client 注册被拒，并用直接改 store 构造的混合 client 断言旧令牌被拒。第 96–97 行保持不变。
+  - `chatgpt_compat.test.mjs` 第 314–339 行（第 3 轮修订）：纯 ChatGPT、纯 Claude 两种 client 的断言不变；混合 client 一项拆出，改为断言 access 校验、RPC（401，不写 Core）和 refresh 全部被拒。
 - [ ] 新建 `tools/i_remote_mcp/frontend_registry.test.mjs`：注册表无重复回调、与 `FRONTENDS` 键一致、与 App 映射表一致、`server.mjs` 未知 frontend 返回 401。
 - [ ] `chatgpt_candidate.test.mjs`：候选生成成功、六文件、四个改动、正反向补丁可还原，以及上面的字符串断言。
 
@@ -47,6 +48,7 @@
 - `tools/i_remote_mcp/oauth.mjs`、`tools/i_remote_mcp/server.mjs`
 - `tools/i_remote_mcp/chatgpt_candidate.mjs`、`tools/i_remote_mcp/chatgpt_candidate.test.mjs`
 - `tools/i_remote_mcp/oauth.test.mjs`、`tools/i_remote_mcp/oauth_identity.test.mjs`（只追加；“允许改动的既有断言”所列行例外）
+- `tools/i_remote_mcp/chatgpt_compat.test.mjs`（只限第 314–339 行混合 client 一项）
 - `tools/i_remote_mcp/frontend_registry.test.mjs`（新建）
 - `tools/i_remote_mcp/README.md`（删除 extra 回调说明，写明“新增前端 = 注册表加一项 + 配对 + App 映射表加一行”）
 - `docs/development/handoffs/RELAY_20261023_d1-frontend-registry.md`（只由 Claude 改）
@@ -82,3 +84,7 @@
 ### 第 1 轮（10-23）：blocked，合同修订
 - Codex 未改源码，指出合同“只追加”与既有测试冲突：`oauth_identity.test.mjs` 第 96–98 行要求纯 ChatGPT 与混合 client 的旧令牌有效；`oauth.test.mjs` 第 393–415 行用旧签名并要求保留 extra。基线 196/196 通过，候选六文件、`changed_files: 4`。
 - 处理：Claude 修订合同，列出允许改动的既有断言；旧令牌规则改为“回调全部属于同一已启用前端才认”。
+
+### 第 2 轮（10-23）：blocked，合同修订
+- 提交 `06a61eb` 改 8 个允许路径；Claude 云端复跑 219 通过、2 失败，失败都在 `chatgpt_compat.test.mjs` 第 319 行混合 client 旧令牌仍要求归为 `claude_web`（源码与六文件候选各一次）。候选六文件、`changed_files: 4`。
+- 处理：允许改该用例的混合 client 一项，改为全部拒绝。
