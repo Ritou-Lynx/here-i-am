@@ -1,10 +1,9 @@
-<<<<<<< HEAD
 ## 2026-10-23 项目状态文档瘦身
 
 - `docs/development/I_PROJECT_STATE.md` 改为“当前状态 + 历史归档”两部分，只写现状；原全文按原样移到 `docs/development/archive/I_PROJECT_STATE_HISTORY_20261023.md`，相对链接改为从归档目录出发。
 - 根目录过时的 `SESSION_HANDOFF.md`（Memory V3 旧交接）移到 `docs/development/archive/SESSION_HANDOFF_MEMORY_V3_20260703.md`，本机路径改为占位。
 - 总指挥交接表 C1、D1 行改为已合并。只改文档。
-=======
+
 ## 2026-10-23 D1：MCP 前端身份注册表，未知回调与身份默认拒绝（PR #40）
 
 - 合同 docs/development/handoffs/RELAY_20261023_d1-frontend-registry.md，经 relay 由 Codex 实现（3 轮，前两轮因既有测试与新规则冲突而 blocked，合同修订后放开指定断言），云端审核。
@@ -14,7 +13,6 @@
 - 用户决定：App 显示名继续用映射表，不改读 Core；新增测试校验注册表、写回定义与 App 映射表三者一致。
 - 云端复跑 221/221；候选 result_sha256 前 8 位 server `7fd7c66e`、oauth `319b91f2`，其余四个不变。
 - 未部署。合并后按 update-mcp-source 流程换 MCP 源码（每步单独同意）。
->>>>>>> origin/v3-lab
 
 ## 2026-10-23 C1：App 聊天时间线按来源设备显示 ChatGPT / Claude（PR #38）
 
