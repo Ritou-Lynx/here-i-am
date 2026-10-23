@@ -11,6 +11,7 @@
 ## 现状
 - 生产：schema6 Core 已上线（D1b，10-22 完成）。现役登录任务为 P′（`HereIAm-iCoreSchema6-d1a-mcp-20261013-6a063386`），旧任务和 P 停用保留。claude_web 和 chatgpt_web 都已配对，真人验收通过。全过程见 `RELAY_20261012_core-release-r1.md` 的“D1b 执行记录”。
 - relay watcher：10-23 已按 A4 迁移。计划任务改为 `conhost --headless` 启动，codex 由配置里的 `codexSearch` 每轮查找（取 exe 修改时间最新的），Codex 更新后不需要重新注册。旧 VBS 已删除，备份留在本机 STATE 的 migration-a4 目录。
+- 维护工具副本：10-23 起改为 `<OUT>\tools-3baf72d`（v3-lab `3baf72d`，含 A1–A3，313 个文件，三项校验和 ACL 抽查都通过）。旧副本 `tools-302a62c0` 保留，D1b 的回执和登记配置钉的是它，不能拿到新副本上复用。以后要登记时，从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1 运行：pwsh 7 的 ConvertFrom-Json 会把数字读成 Int64，`-isnot [int]` 一类检查会误报。
 - 运维注意：STATE 中有旧 shortcut-mail 日志库的 -wal/-shm。stop 最后一步会报 `database_sidecars_present`，只要 `stop.receipts` 已通过，就说明会话已干净关闭。不要绕过闸门去改 STATE 内的文件（教训：第 7 步做了 checkpoint，状态树指纹随之改变，导致启动被拒）。注销前先手动停服。
 
 ## 计划（按顺序）
@@ -32,6 +33,6 @@
 | 项 | 状态 | 下一步 |
 |---|---|---|
 | PR #32（文档合入） | 已合并 | — |
-| A1+A2 | PR #33 已合并（10-22） | 生产换用新工具副本由用户决定 |
+| A1+A2 | PR #33 已合并（10-22）；生产已换用新副本 `tools-3baf72d`（10-23） | — |
 | A4 | PR #34（合同）与 #35（代码）都已合并；本机 watcher 已迁移，手动触发一次结果为 0 | — |
-| A3 | PR #36 两轮审核通过，待用户合并 | 合并后生产换用新工具副本由用户决定 |
+| A3 | PR #36 已合并（10-23）；生产已换用新副本 `tools-3baf72d` | — |
