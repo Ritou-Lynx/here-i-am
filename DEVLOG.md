@@ -1,3 +1,10 @@
+## 2026-10-23 D1+D3 部署到生产；Gemini 回调模式补下划线
+
+- 部署（用户逐段同意，Codex 在本机执行）：工具副本换为 `<OUT>\tools-dddff0f1`；v3-lab `dddff0f` 生成六文件候选（改动 5 个），update-mcp-source 登记新任务 `HereIAm-iCoreSchema6-d1d3-mcp-20261023-dddff0f1`，switch-login-task 切换（不加 NoRollback，中断约 40 秒）；两种非法回调注册均 400。读取策略加入 gemini_web，配对 gemini_web，重启约 67 秒。Claude、ChatGPT 真人验收通过。
+- Gemini 添加应用时提示“服务器拒绝了 Google 重定向网址”。实际回调为 `/r/user_bound_custom-mcp-<编号>-<主机名，点换成下划线>`，D3 的路径模式只允许字母、数字和连字符。本次把下划线加入模式（oauth.mjs 与候选构建器两侧补丁），去掉把下划线当作非法的旧断言，加实测形状的合成样例与注册测试。云端 231/231。
+- 执行中的教训（已写进部署提示词）：Codex 的 shell 是 pwsh 7，调 5.1 必须用 `-File`；维护工具每步一行 JSON，要按行解析；不要自加观测器或包装函数。
+- 待办：合并后重新生成候选，再走一次 update-mcp-source 与切换，然后 Gemini 真人验收。
+
 ## 2026-10-23 relay 飞书 / Bark 通知（PR #41，重做旧 #17）
 
 - 旧 PR #17/#19/#23 经用户同意关闭：#17 写在 A4 之前，与 watcher 冲突，在本 PR 按合同 docs/development/handoffs/RELAY_20261023_relay-notify.md 重做；#19 分支保留，待 D1/D2 后拆分重做；#23 路线已被 R1/D1a/D1b 取代，不重做。

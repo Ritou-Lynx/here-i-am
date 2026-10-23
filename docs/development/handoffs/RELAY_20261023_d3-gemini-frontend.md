@@ -102,3 +102,7 @@
 - Claude 云端核对 `origin/v3-lab...fb4c2de` 全部 diff：只动允许路径；回调模式要求规范拼写（拒绝默认端口、空 query 等别名）；Basic 头只在 Gemini client 上补 client_id，Gemini 关闭时 Basic 也恢复不了；server 显式 `gemini_web` 分支，未配对不借用 Claude 写回；诊断只输出固定分类和计数。
 - 复跑 `node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs` 230/230；本地生成候选六文件、`changed_files: 5`、`unchanged_files: 1`，diagnostics 为 CRLF，产物含 `gemini_web`、`geminiEnabledFromEnv`、`gemini_kept_count`。
 - Flutter 本机未跑，以 CI 为准。结论：完成标准全部达标，可以合并。部署另行确认。
+
+### 部署后修订（10-23）
+- 10-23 与 D1 一起部署后，Gemini 添加应用被拒。真人验收拿到的实际回调路径为 `/r/user_bound_custom-mcp-<编号>-<主机名，点换成下划线>`，主机在白名单内，但路径含下划线，不符合 `[A-Za-z0-9-]`。
+- 修订：路径模式改为 `^/r/user_bound_custom-mcp-[A-Za-z0-9_-]{1,200}$`（oauth.mjs 与 `chatgpt_candidate.mjs` 两侧补丁同步）；`gemini_frontend.test.mjs` 去掉把下划线视为非法的样例，加入实测形状的合成样例（编号与主机均为合成值）和单回调注册测试。Claude 直接修改，未走 relay。

@@ -40,7 +40,7 @@ export const FRONTEND_CALLBACK_PATTERNS = Object.freeze({
       return url.protocol === 'https:'
         && ['oauth-redirect.googleusercontent.com', 'oauth-redirect-sandbox.googleusercontent.com'].includes(url.hostname)
         && !url.port && !url.username && !url.password && !url.search && !url.hash
-        && /^\/r\/user_bound_custom-mcp-[A-Za-z0-9-]{1,200}$/.test(url.pathname)
+        && /^\/r\/user_bound_custom-mcp-[A-Za-z0-9_-]{1,200}$/.test(url.pathname)
         && value === `${url.origin}${url.pathname}`;
     } catch { return false; }
   },

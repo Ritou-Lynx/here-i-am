@@ -15,6 +15,8 @@ import { authorizeParams, createFakeReadModel, initSession, mcpPost, pkcePair,
 const hosts = ['oauth-redirect.googleusercontent.com', 'oauth-redirect-sandbox.googleusercontent.com'];
 const callback = (id = 'synthetic-123', host = hosts[0]) => `https://${host}/r/user_bound_custom-mcp-${id}`;
 const valid = [callback('A'), callback('b-2'), callback('C', hosts[1]), callback('D', hosts[1])];
+// Google 把 MCP 主机名中的点换成下划线拼在编号后面（10-23 真人验收实测形状，编号为合成值）。
+const observed = callback('100000000000000000001-i_example_test');
 const invalid = [
   callback('A', `evil-${hosts[0]}`), callback('A', `${hosts[0]}.evil.example`),
   callback().replace('https:', 'http:'), callback().replace(hosts[0], `${hosts[0]}:443`),
@@ -22,7 +24,7 @@ const invalid = [
   callback() + '?', callback() + '#', callback().replace('/r/', '/R/'),
   callback().replace('user_bound_custom-mcp-', 'User_bound_custom-mcp-'),
   `https://${hosts[0]}/r/other-project`, callback(''), callback('a'.repeat(201)),
-  callback().replace(hosts[0], `user:password@${hosts[0]}`), callback('bad_underscore'),
+  callback().replace(hosts[0], `user:password@${hosts[0]}`),
   callback('%41'), callback().replace('/r/', '/other/../r/'),
 ];
 
@@ -97,7 +99,7 @@ const rpc = (ctx, peer, method, params) => mcpPost(ctx.base, peer.access_token,
   { jsonrpc: '2.0', id: 2, method, params }, { sessionId: peer.sessionId });
 
 test('Gemini callback patterns accept only canonical HTTPS relays and never overlap exact callbacks', () => {
-  for (const uri of [...valid, callback('a'.repeat(200))]) {
+  for (const uri of [...valid, observed, callback('a'.repeat(200))]) {
     assert.equal(frontendForRedirectUri(uri), 'gemini_web', uri);
     assert.equal(isAllowedRedirectUri(uri, false, true), true);
     assert.equal(isAllowedRedirectUri(uri, true, false), false);
@@ -111,6 +113,13 @@ test('Gemini callback patterns accept only canonical HTTPS relays and never over
       + Object.values(FRONTEND_CALLBACK_PATTERNS).filter(match => match(uri)).length;
     assert.ok(matches <= 1, uri);
   }
+});
+
+test('Gemini registers the observed underscore host-slug callback', async t => {
+  const ctx = await synthetic(t);
+  const registered = await register(ctx, [observed]);
+  assert.equal(registered.status, 201);
+  assert.deepEqual(registered.body.redirect_uris, [observed]);
 });
 
 test('Gemini registers six callbacks by keeping only four valid entries; exact frontend rules stay strict', async t => {
