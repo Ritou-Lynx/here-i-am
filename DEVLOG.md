@@ -1,3 +1,9 @@
+## 2026-10-23 项目状态文档瘦身
+
+- `docs/development/I_PROJECT_STATE.md` 改为“当前状态 + 历史归档”两部分，只写现状；原全文按原样移到 `docs/development/archive/I_PROJECT_STATE_HISTORY_20261023.md`，相对链接改为从归档目录出发。
+- 根目录过时的 `SESSION_HANDOFF.md`（Memory V3 旧交接）移到 `docs/development/archive/SESSION_HANDOFF_MEMORY_V3_20260703.md`，本机路径改为占位。
+- 总指挥交接表 C1、D1 行改为已合并。只改文档。
+
 ## 2026-10-23 D1：MCP 前端身份注册表，未知回调与身份默认拒绝（PR #40）
 
 - 合同 docs/development/handoffs/RELAY_20261023_d1-frontend-registry.md，经 relay 由 Codex 实现（3 轮，前两轮因既有测试与新规则冲突而 blocked，合同修订后放开指定断言），云端审核。
