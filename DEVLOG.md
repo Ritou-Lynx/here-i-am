@@ -1,3 +1,11 @@
+## 2026-10-23 生产维护工具副本换为 3baf72d（A1–A3）
+
+- 用户同意后，由 Codex 在本机执行，未停服。新副本为 `<OUT>\tools-3baf72d`：313 个文件，逐文件 `git hash-object --path` 与目标树一致，与 worktree 逐字节一致；五处 ACL 抽查都是受保护、当前用户所有，且不含 Users。
+- 预检：48 项 INVENTORY 在 302a62c0..3baf72d 之间无差异；现役 P′ 的 Action 和 login/MCP 配置都没有引用旧副本；三个任务的状态、定义和 SDDL 前后不变。
+- 六个维护入口的哈希与 3baf72d 的 CRLF 检出一致，已在云端复核。
+- 第一次预检时，Codex 在 pwsh 7 下调用 `Get-Schema6LoginBinding`，误报 `login_core_port_invalid`（ConvertFrom-Json 把数字读成 Int64），按规则停下。改用纯文本检查并统一使用 PS 5.1 后通过。
+- 没有重算任何 register/prepare 配置。旧配置钉的是旧副本，以后登记时从新副本重新生成。
+
 ## 2026-10-22 A3：close/register 透出内部错误码，换包生成器产出受保护的 backup 配置（PR #36）
 
 - 合同 docs/development/handoffs/RELAY_20261022_a3-error-codes-backup-acl.md，经 relay 由 Codex 实现（2 轮），云端审核。
