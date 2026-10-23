@@ -55,7 +55,7 @@ D1b 之后，ChatGPT 和 Claude 分别以 `frontend:chatgpt_web`、`frontend:cla
 - Claude 在云端核对 diff 与 CI（云端没有 Flutter，Dart 测试以 PR 的 CI 结果为准）。
 
 ## 用户决定（10-23）
-- 合并后用 v3-lab 构建 App，替换手机上现装的版本（现装版本来自未合入的 b3 分支）。
+- 合并后用 v3-lab 构建 App，替换手机上现装的版本（推测现装版本来自未合入的 b3 分支或本机分支）。
 - 未知前端兜底显示“网页端”；手机和桌面都显示标签。
 - 显示名先写在 App 的映射表里；是否改为读取 Core 登记的设备显示名，留到 D1 再定。
 
