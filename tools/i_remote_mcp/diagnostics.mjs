@@ -1,6 +1,7 @@
 // Privacy boundary for operational diagnostics: never pass request/response objects to a sink.
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { frontendForRedirectUri } from './oauth.mjs';
 
 const PATHS = new Set(['/mcp', '/authorize', '/token', '/register',
   '/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp',
@@ -10,6 +11,20 @@ const RPC_METHODS = new Set(['initialize', 'ping', 'tools/list', 'tools/call', '
 const TOOL_NAMES = new Set(['i_context', 'i_recall', 'i_chat_turn', 'i_remember']);
 const RPC_CODES = new Set([-32700, -32600, -32601, -32602, -32603, -32001]);
 const CALLBACKS = ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback'];
+
+// Fixed classifications only: never emit any part of an unrecognized callback.
+export function callbackClass(value) {
+  if (value === undefined || value === null || value === '') return 'absent';
+  const frontend = frontendForRedirectUri(value);
+  if (frontend === 'claude_web') return 'claude';
+  if (frontend === 'chatgpt_web') return 'chatgpt';
+  if (frontend === 'gemini_web') return 'gemini_pattern';
+  try {
+    const url = new URL(value);
+    if (['oauth-redirect.googleusercontent.com', 'oauth-redirect-sandbox.googleusercontent.com'].includes(url.hostname)) return 'google_relay_other';
+  } catch { /* untrusted input */ }
+  return 'other';
+}
 
 // User agents are self-reported and are not evidence of client identity.
 export function userAgentFamily(value) {
@@ -60,6 +75,15 @@ export function createRequestDiagnostics(req, { issuer, resource, diagnostic = (
     } catch { /* Logging failures cannot change protocol behavior. */ }
   }
   return {
+    callbacks(value) { base.callback_class = callbackClass(value); },
+    registration(values, kept) {
+      const callbacks = Array.isArray(values) ? values : [];
+      const classes = callbacks.map(callbackClass);
+      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'google_relay_other', 'other', 'absent']
+        .find(value => classes.includes(value)) ?? 'absent';
+      base.callback_count = callbacks.length;
+      base.gemini_kept_count = kept.filter(value => frontendForRedirectUri(value) === 'gemini_web').length;
+    },
     rpc(message, response, { dataSourceFailed = false } = {}) {
       const method = RPC_METHODS.has(message?.method) ? message.method : 'other';
       const fields = { rpc_method: method };

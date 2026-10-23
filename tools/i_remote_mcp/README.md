@@ -22,7 +22,7 @@
 
 ChatGPT 凭据独立保存在 `core-frontend-chatgpt_web.json`。缺少凭据时 `i_chat_turn` 明确返回 `frontend_not_paired:chatgpt_web`，不会使用 Claude 凭据。主线配置领域工具时，ChatGPT 保留只读的 week_get、day_get；同时提供读取与聊天写回。ChatGPT 不提供随手记（capture_add）和笔记（i_remember），这两项仅供 Claude。实际配对、修改真实读取策略及部署切换另行执行。
 
-**生产准备必须使用最小候选，不能直接复制主线 MCP 目录。** 主线同时含尚未激活的 W3 领域工具。`chatgpt_candidate.mjs` 从固定、已核验的旧六文件 Git 库存构建，只应用经过逐项核对的兼容与前端身份补丁（server/oauth/mcp/writeback），diagnostics 和读取层两项逐字节保持；候选仍是六文件闭包，并拒绝其他源码差异。示例：
+**生产准备必须使用最小候选，不能直接复制主线 MCP 目录。** 主线同时含尚未激活的 W3 领域工具。`chatgpt_candidate.mjs` 从固定、已核验的旧六文件 Git 库存构建，只应用经过逐项核对的兼容、前端身份与 Gemini 补丁（server/oauth/diagnostics/mcp/writeback），读取层逐字节保持；候选仍是六文件闭包（五项修改、一项不变），并拒绝其他源码差异。示例：
 
 ```powershell
 node tools/i_remote_mcp/chatgpt_candidate.mjs --out build/chatgpt-mcp-candidate
@@ -31,6 +31,18 @@ node tools/i_remote_mcp/chatgpt_candidate.mjs --out build/chatgpt-mcp-candidate
 输出只允许当前 checkout 的全新 `build` 子目录，包含六文件、非运行时 manifest，并标明 `not_deployed`；不会改现役环境、MCP 状态或登录配置。现役启动器锁定 MCP 源码库存，未来激活还需要独立审批新的 MCP 配置、备份覆盖及 login/XML 哈希链；本分支不改 Core 运行包、维护工具或生命周期。
 
 依据：[OpenAI 身份验证文档](https://developers.openai.com/plugins/build/auth)、[自定义 MCP 指南](https://developers.openai.com/api/docs/guides/custom-mcp-server)。详细证据及上线节点见 [ChatGPT 兼容交接](../../docs/development/handoffs/CHATGPT_MCP_COMPATIBILITY_20261009.md)。
+
+## Gemini 网页端（gemini_web，源码接入）
+
+`I_REMOTE_MCP_GEMINI_ENABLED` 未设置或为 `1` 时开启，为 `0` 时关闭；其他值启动报错 `invalid_gemini_mode`。关闭后，Gemini 的注册、授权、换令牌、刷新和已有 access token 使用均被拒绝。配置在创建 OAuth 实例时固定。
+
+Gemini 使用 `FRONTEND_CALLBACK_PATTERNS`，只接受 HTTPS、无端口/用户信息/query/fragment 的两个精确主机：`oauth-redirect.googleusercontent.com`、`oauth-redirect-sandbox.googleusercontent.com`；路径限 `/r/user_bound_custom-mcp-` 加 1–200 个英文字母、数字或连字符。注册最多八个回调，过滤无效项后至少留一个 Gemini 回调；混入 Claude 或 ChatGPT 回调则整体拒绝。Claude、ChatGPT 仍使用 `FRONTEND_CALLBACKS` 精确地址表，上限五个，任一无效项都会拒绝。
+
+配对命令为 `node tools/i_remote_mcp/server.mjs pair-core --frontend gemini_web`，独立凭据文件为 `core-frontend-gemini_web.json`。缺少配对凭据时 `i_chat_turn` 返回 `frontend_not_paired:gemini_web`。写回设备为 `frontend:gemini_web`，App 来源显示为“Gemini”。
+
+工具集同 ChatGPT：`i_context`、`i_recall`、聊天写回 `i_chat_turn`，主线配置领域读取时另有只读 `week_get`、`day_get`；不提供 `capture_add` 或 `i_remember`。最小六文件候选保持原读取闭包，不加入 W3 领域运行文件。DCR 即使收到 `client_secret_basic`/`client_secret_post`，响应仍如实声明 public client `token_endpoint_auth_method: none`；Gemini 换令牌时忽略附带 secret，授权仍要求口令与 PKCE。不新增 Gemini Origin 放行。
+
+`/register` 和 `/authorize` 额外输出固定分类 `callback_class`：`claude`、`chatgpt`、`gemini_pattern`、`google_relay_other`、`other`、`absent`。注册另记 `callback_count`、`gemini_kept_count`；不输出 Gemini 回调原文、路径或编号，原 `callback` 脱敏规则保持。真实接入、配对与部署验收另行授权。
 
 ## W3 领域工具（源码候选，默认未启用）
 
@@ -172,7 +184,7 @@ curl https://<机器名>.<tailnet>.ts.net/.well-known/oauth-authorization-server
 
 - 未授权访问 `/mcp`（任意方法）返回 `401` 与 `WWW-Authenticate: Bearer resource_metadata=…`；无效或过期令牌带 `error="invalid_token"`。
 - 元数据：`/.well-known/oauth-protected-resource`（及 `/.well-known/oauth-protected-resource/mcp`）、`/.well-known/oauth-authorization-server`。
-- `/register` 默认只接受 claude.ai 的回调（`https://claude.ai/api/mcp/auth_callback` 与 `https://claude.com/api/mcp/auth_callback`），防止他人注册自己的回调后诱导你在授权页输入口令；只接受 `oauth.mjs` 的 `FRONTEND_CALLBACKS` 注册表中已启用的精确回调，且同一 client 的回调必须属于同一个前端。新增前端 = 注册表加一项 + 配对 + App 映射表加一行；一致性测试会校验注册表、写回定义与 App 显示名映射。注册为 public client（`token_endpoint_auth_method: none`）。客户端最多保留 50 个，超出淘汰最早的。
+- `/register` 只接受 `oauth.mjs` 的 `FRONTEND_CALLBACKS` 精确表或 `FRONTEND_CALLBACK_PATTERNS` 模式表中已启用的回调，且同一 client 保留的回调必须属于同一个前端。Claude 默认开启、ChatGPT 显式开启、Gemini 未设开关即开启；过滤与上限见 Gemini 一节。新增前端需更新对应注册表、独立配对与 App 映射；一致性测试会校验两表并集、写回定义与 App 显示名映射。注册为 public client（`token_endpoint_auth_method: none`）。客户端最多保留 50 个，超出淘汰最早的。
 - `/authorize`：`client_id` 未知或 `redirect_uri` 与注册不一致时直接显示错误页，不重定向；只接受 `code_challenge_method=S256`；带 `resource` 时必须等于本服务的 `/mcp` 地址。
 - `/token`：`application/x-www-form-urlencoded`；错误码遵循 RFC 6749（失效的 refresh token 返回 `invalid_grant`）。授权码被重放会吊销由它签发的令牌。
 - 会话：`initialize` 响应带 `Mcp-Session-Id`，后续请求必须带上；会话绑定令牌家族（刷新后仍可用，换一次授权则不行）；`DELETE /mcp` 结束会话；服务重启后会话失效，客户端收到 404 会重新 initialize。

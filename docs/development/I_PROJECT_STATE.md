@@ -21,12 +21,15 @@
 
 - D1（#40，10-23 合并）：MCP 前端身份注册表，未知回调与身份默认拒绝。**尚未部署**，待按 update-mcp-source 流程换 MCP 源码（每步单独同意）。
 
+### 待合并
+- D3（#44）：MCP 接入 Gemini 网页端 `gemini_web`（含调研），审核通过、CI 全绿。合并后与 D1 一起部署、`pair-core --frontend gemini_web`、真人验收（每步单独同意）。
+
 ### 进行中
 - relay 微信通知（重做旧 #17）：PR #41。
 - CI：maintenance job 超时与 R1 诊断（#39）；agent_relay 测试进 CI（#42）。
 
 ### 之后
-- D2 接入 Sesame（D1 部署之后）；D3 Gemini 远程 MCP 先调研。
+- D2 接入 Sesame（D1 部署之后）。
 - R1 shortcut-mail 关闭前 checkpoint，留到下次换包一起做。
 - 数据中枢 P1：旧 #19 已关闭，分支 `codex/hub-golive-src-20261007` 保留作参考，D1/D2 之后拆分重做。
 
