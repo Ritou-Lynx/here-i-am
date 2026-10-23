@@ -428,6 +428,122 @@ const FRONTEND_PATCHES = {
     ]
   }
 };
+// Literal D1 registry patches, independently checked on mainline and legacy bytes.
+const REGISTRY_PATCHES = {
+  "mainline": {
+    "oauth": [
+      [
+        "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nfunction frontendForRedirectUri(redirectUri) {\n  return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';\n}\n\nfunction frontendForRegisteredClient(client) {\n  return Array.isArray(client?.redirect_uris)\n    && client.redirect_uris.length === 1\n    && client.redirect_uris[0] === CHATGPT_CALLBACK_URI\n    ? 'chatgpt_web'\n    : 'claude_web';\n}\n\nconst STATE_SCHEMA_VERSION = 1;\n",
+        "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nexport const FRONTEND_CALLBACKS = Object.freeze({\n  claude_web: CLAUDE_AI_CALLBACKS,\n  chatgpt_web: Object.freeze([CHATGPT_CALLBACK_URI]),\n});\n\nexport function frontendForRedirectUri(redirectUri) {\n  return Object.keys(FRONTEND_CALLBACKS)\n    .find((frontend) => FRONTEND_CALLBACKS[frontend].includes(redirectUri)) ?? null;\n}\n\nfunction isEnabledFrontend(frontend, chatgptEnabled) {\n  return Object.hasOwn(FRONTEND_CALLBACKS, frontend)\n    && (frontend !== 'chatgpt_web' || chatgptEnabled === true);\n}\n\nfunction frontendForRegisteredClient(client, chatgptEnabled) {\n  const uris = client?.redirect_uris;\n  if (!Array.isArray(uris) || uris.length === 0) return null;\n  const frontend = frontendForRedirectUri(uris[0]);\n  return isEnabledFrontend(frontend, chatgptEnabled)\n    && uris.every((uri) => frontendForRedirectUri(uri) === frontend) ? frontend : null;\n}\n\nfunction frontendForRecord(record, client, chatgptEnabled) {\n  // Only an absent field is legacy; null, empty and unknown values fail closed.\n  const frontend = Object.hasOwn(record, 'frontend')\n    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled);\n  return isEnabledFrontend(frontend, chatgptEnabled) ? frontend : null;\n}\n\nconst STATE_SCHEMA_VERSION = 1;\n"
+      ],
+      [
+        "}\n\n// 单用户服务：默认只接受 claude.ai 的回调，防止他人注册自己的回调后诱导用户在授权页输入口令。\n// ChatGPT 使用独立开关和稳定精确回调；其他客户端仍可显式追加精确 HTTPS 地址。\nexport function extraRedirectUris(env = process.env) {\n  return String(env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS ?? '')\n    .split(',').map((value) => value.trim()).filter(Boolean);\n}\n\nexport function chatgptEnabledFromEnv(env = process.env) {\n  const value = env.I_REMOTE_MCP_CHATGPT_ENABLED;\n",
+        "}\n\n// 单用户服务：默认只接受 claude.ai 的回调，防止他人注册自己的回调后诱导用户在授权页输入口令。\n// ChatGPT 使用独立开关；只接受注册表中的精确回调。\n\nexport function chatgptEnabledFromEnv(env = process.env) {\n  const value = env.I_REMOTE_MCP_CHATGPT_ENABLED;\n"
+      ],
+      [
+        "  throw new Error('invalid_chatgpt_mode');\n}\n\nexport function isAllowedRedirectUri(value, extra = extraRedirectUris(), chatgptEnabled = chatgptEnabledFromEnv()) {\n  if (typeof value !== 'string' || value.length > 2048) return false;\n  if (CLAUDE_AI_CALLBACKS.includes(value)) return true;\n  if (chatgptEnabled === true && value === CHATGPT_CALLBACK_URI) return true;\n  if (!extra.includes(value)) return false;\n  let url;\n  try { url = new URL(value); } catch { return false; }\n  return url.protocol === 'https:' && !url.hash && !url.username && !url.password;\n}\n\nfunction normalizeResource(value) {\n",
+        "  throw new Error('invalid_chatgpt_mode');\n}\n\nexport function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv()) {\n  if (typeof value !== 'string' || value.length > 2048) return false;\n  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled);\n}\n\nfunction normalizeResource(value) {\n"
+      ],
+      [
+        "    if (!Array.isArray(redirectUris) || redirectUris.length === 0 || redirectUris.length > MAX_REDIRECT_URIS) {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be a non-empty array');\n    }\n    if (!redirectUris.every((uri) => isAllowedRedirectUri(uri, extraRedirectUris(), this.chatgptEnabled))) {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');\n    }\n    const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];\n",
+        "    if (!Array.isArray(redirectUris) || redirectUris.length === 0 || redirectUris.length > MAX_REDIRECT_URIS) {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be a non-empty array');\n    }\n    if (!frontendForRegisteredClient({ redirect_uris: redirectUris }, this.chatgptEnabled)) {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');\n    }\n    const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];\n"
+      ],
+      [
+        "    const client = clientId ? this.store.state.clients[clientId] : undefined;\n    if (!client) return { ok: false, status: 400, error: '未知的 client_id' };\n    const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);\n    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, extraRedirectUris(), this.chatgptEnabled)) {\n      return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };\n    }\n    const state = get('state');\n",
+        "    const client = clientId ? this.store.state.clients[clientId] : undefined;\n    if (!client) return { ok: false, status: 400, error: '未知的 client_id' };\n    const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);\n    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled)) {\n      return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };\n    }\n    const state = get('state');\n"
+      ],
+      [
+        "    if (form.redirect_uri !== record.redirect_uri) {\n      return oauthError(400, 'invalid_grant', 'redirect_uri mismatch');\n    }\n    if (form.resource !== undefined && normalizeResource(form.resource) !== this.resource) {\n      return oauthError(400, 'invalid_target', 'unknown resource');\n    }\n",
+        "    if (form.redirect_uri !== record.redirect_uri) {\n      return oauthError(400, 'invalid_grant', 'redirect_uri mismatch');\n    }\n    const frontend = frontendForRedirectUri(record.redirect_uri);\n    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled)\n      || !client.redirect_uris.includes(record.redirect_uri)\n      || frontendForRecord(record, client, this.chatgptEnabled) !== frontend) {\n      return oauthError(400, 'invalid_grant', 'invalid frontend');\n    }\n    if (form.resource !== undefined && normalizeResource(form.resource) !== this.resource) {\n      return oauthError(400, 'invalid_target', 'unknown resource');\n    }\n"
+      ],
+      [
+        "    const familyId = randomUUID();\n    record.used = true;\n    record.family_id = familyId;\n    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE, record.frontend ?? frontendForRedirectUri(record.redirect_uri));\n    this.store.save();\n    return { status: 200, body: tokens };\n  }\n",
+        "    const familyId = randomUUID();\n    record.used = true;\n    record.family_id = familyId;\n    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE, frontend);\n    this.store.save();\n    return { status: 200, body: tokens };\n  }\n"
+      ],
+      [
+        "      this.store.save();\n      return oauthError(400, 'invalid_grant', 'refresh_token expired');\n    }\n    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? frontendForRegisteredClient(client));\n    this.store.save();\n    return { status: 200, body: tokens };\n  }\n",
+        "      this.store.save();\n      return oauthError(400, 'invalid_grant', 'refresh_token expired');\n    }\n    const frontend = frontendForRecord(record, client, this.chatgptEnabled);\n    if (!frontend) return oauthError(400, 'invalid_grant', 'invalid frontend');\n    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), frontend);\n    this.store.save();\n    return { status: 200, body: tokens };\n  }\n"
+      ],
+      [
+        "    return String(scope).split(' ').filter((s) => this.supportedScopes.includes(s)).join(' ') || SCOPE;\n  }\n\n  #issueTokens(clientId, familyId, scope, frontend = 'claude_web') {\n    scope = this.#limitScope(scope);\n    const now = this.now();\n    const accessToken = newToken('iat');\n",
+        "    return String(scope).split(' ').filter((s) => this.supportedScopes.includes(s)).join(' ') || SCOPE;\n  }\n\n  #issueTokens(clientId, familyId, scope, frontend) {\n    scope = this.#limitScope(scope);\n    const now = this.now();\n    const accessToken = newToken('iat');\n"
+      ],
+      [
+        "    if (!record) return { ok: false, error: 'invalid_token' };\n    if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };\n    if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };\n    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return {\n      ok: true,\n      familyId: record.family_id,\n      clientId: record.client_id,\n      frontend: record.frontend ?? frontendForRegisteredClient(this.store.state.clients[record.client_id]),\n      scopes,\n    };\n  }\n",
+        "    if (!record) return { ok: false, error: 'invalid_token' };\n    if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };\n    if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };\n    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled);\n    if (!frontend) return { ok: false, error: 'invalid_token' };\n    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return {\n      ok: true,\n      familyId: record.family_id,\n      clientId: record.client_id,\n      frontend,\n      scopes,\n    };\n  }\n"
+      ]
+    ],
+    "server": [
+      [
+        "      return sendJson(res, 401, { error: auth.error ?? 'unauthorized', error_description: 'Bearer token required' });\n    }\n\n    const versionHeader = req.headers['mcp-protocol-version'];\n    if (versionHeader && !SUPPORTED_PROTOCOL_VERSIONS.includes(versionHeader)) {\n      return sendJson(res, 400, rpcErr(null, -32600, `Unsupported MCP-Protocol-Version: ${String(versionHeader).slice(0, 32)}`));\n",
+        "      return sendJson(res, 401, { error: auth.error ?? 'unauthorized', error_description: 'Bearer token required' });\n    }\n\n    let frontendHandlers;\n    let frontendTools;\n    if (auth.frontend === 'claude_web') {\n      frontendHandlers = handlers;\n      frontendTools = tools;\n    } else if (auth.frontend === 'chatgpt_web') {\n      frontendHandlers = chatgptHandlers;\n      frontendTools = chatgptTools;\n    } else {\n      res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));\n      return sendJson(res, 401, { error: 'invalid_token' });\n    }\n\n    const versionHeader = req.headers['mcp-protocol-version'];\n    if (versionHeader && !SUPPORTED_PROTOCOL_VERSIONS.includes(versionHeader)) {\n      return sendJson(res, 400, rpcErr(null, -32600, `Unsupported MCP-Protocol-Version: ${String(versionHeader).slice(0, 32)}`));\n"
+      ],
+      [
+        "    for (const message of messages) {\n      let dataSourceFailed = false;\n      const response = await handleRpcMessage(message, {\n        handlers: auth.frontend === 'chatgpt_web' ? chatgptHandlers : handlers,\n        tools: auth.frontend === 'chatgpt_web' ? chatgptTools : tools,\n        unavailableTools: auth.frontend === 'chatgpt_web' && !chatgptWriteback\n          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' } : {},\n        scopes: auth.scopes,\n",
+        "    for (const message of messages) {\n      let dataSourceFailed = false;\n      const response = await handleRpcMessage(message, {\n        handlers: frontendHandlers,\n        tools: frontendTools,\n        unavailableTools: auth.frontend === 'chatgpt_web' && !chatgptWriteback\n          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' } : {},\n        scopes: auth.scopes,\n"
+      ]
+    ],
+    "mcp": [],
+    "writeback": []
+  },
+  "legacy": {
+    "oauth": [
+      [
+        "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nfunction frontendForRedirectUri(redirectUri) {\n  return redirectUri === CHATGPT_CALLBACK_URI ? 'chatgpt_web' : 'claude_web';\n}\n\nfunction frontendForRegisteredClient(client) {\n  return Array.isArray(client?.redirect_uris)\n    && client.redirect_uris.length === 1\n    && client.redirect_uris[0] === CHATGPT_CALLBACK_URI\n    ? 'chatgpt_web'\n    : 'claude_web';\n}\n\nconst STATE_SCHEMA_VERSION = 1;\n",
+        "  'https://claude.com/api/mcp/auth_callback',\n]);\n\nexport const FRONTEND_CALLBACKS = Object.freeze({\n  claude_web: CLAUDE_AI_CALLBACKS,\n  chatgpt_web: Object.freeze([CHATGPT_CALLBACK_URI]),\n});\n\nexport function frontendForRedirectUri(redirectUri) {\n  return Object.keys(FRONTEND_CALLBACKS)\n    .find((frontend) => FRONTEND_CALLBACKS[frontend].includes(redirectUri)) ?? null;\n}\n\nfunction isEnabledFrontend(frontend, chatgptEnabled) {\n  return Object.hasOwn(FRONTEND_CALLBACKS, frontend)\n    && (frontend !== 'chatgpt_web' || chatgptEnabled === true);\n}\n\nfunction frontendForRegisteredClient(client, chatgptEnabled) {\n  const uris = client?.redirect_uris;\n  if (!Array.isArray(uris) || uris.length === 0) return null;\n  const frontend = frontendForRedirectUri(uris[0]);\n  return isEnabledFrontend(frontend, chatgptEnabled)\n    && uris.every((uri) => frontendForRedirectUri(uri) === frontend) ? frontend : null;\n}\n\nfunction frontendForRecord(record, client, chatgptEnabled) {\n  // Only an absent field is legacy; null, empty and unknown values fail closed.\n  const frontend = Object.hasOwn(record, 'frontend')\n    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled);\n  return isEnabledFrontend(frontend, chatgptEnabled) ? frontend : null;\n}\n\nconst STATE_SCHEMA_VERSION = 1;\n"
+      ],
+      [
+        "}\n\n// 单用户服务：默认只接受 claude.ai 的回调，防止他人注册自己的回调后诱导用户在授权页输入口令。\n// ChatGPT 使用独立开关和稳定精确回调；其他客户端仍可显式追加精确 HTTPS 地址。\nexport function extraRedirectUris(env = process.env) {\n  return String(env.I_REMOTE_MCP_EXTRA_REDIRECT_URIS ?? '')\n    .split(',').map((value) => value.trim()).filter(Boolean);\n}\n\nexport function chatgptEnabledFromEnv(env = process.env) {\n  const value = env.I_REMOTE_MCP_CHATGPT_ENABLED;\n",
+        "}\n\n// 单用户服务：默认只接受 claude.ai 的回调，防止他人注册自己的回调后诱导用户在授权页输入口令。\n// ChatGPT 使用独立开关；只接受注册表中的精确回调。\n\nexport function chatgptEnabledFromEnv(env = process.env) {\n  const value = env.I_REMOTE_MCP_CHATGPT_ENABLED;\n"
+      ],
+      [
+        "  throw new Error('invalid_chatgpt_mode');\n}\n\nexport function isAllowedRedirectUri(value, extra = extraRedirectUris(), chatgptEnabled = chatgptEnabledFromEnv()) {\n  if (typeof value !== 'string' || value.length > 2048) return false;\n  if (CLAUDE_AI_CALLBACKS.includes(value)) return true;\n  if (chatgptEnabled === true && value === CHATGPT_CALLBACK_URI) return true;\n  if (!extra.includes(value)) return false;\n  let url;\n  try { url = new URL(value); } catch { return false; }\n  return url.protocol === 'https:' && !url.hash && !url.username && !url.password;\n}\n\nfunction normalizeResource(value) {\n",
+        "  throw new Error('invalid_chatgpt_mode');\n}\n\nexport function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv()) {\n  if (typeof value !== 'string' || value.length > 2048) return false;\n  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled);\n}\n\nfunction normalizeResource(value) {\n"
+      ],
+      [
+        "    if (!Array.isArray(redirectUris) || redirectUris.length === 0 || redirectUris.length > MAX_REDIRECT_URIS) {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be a non-empty array');\n    }\n    if (!redirectUris.every((uri) => isAllowedRedirectUri(uri, extraRedirectUris(), this.chatgptEnabled))) {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');\n    }\n    const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];\n",
+        "    if (!Array.isArray(redirectUris) || redirectUris.length === 0 || redirectUris.length > MAX_REDIRECT_URIS) {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be a non-empty array');\n    }\n    if (!frontendForRegisteredClient({ redirect_uris: redirectUris }, this.chatgptEnabled)) {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');\n    }\n    const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];\n"
+      ],
+      [
+        "    const client = clientId ? this.store.state.clients[clientId] : undefined;\n    if (!client) return { ok: false, status: 400, error: '未知的 client_id' };\n    const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);\n    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, extraRedirectUris(), this.chatgptEnabled)) {\n      return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };\n    }\n    const state = get('state');\n",
+        "    const client = clientId ? this.store.state.clients[clientId] : undefined;\n    if (!client) return { ok: false, status: 400, error: '未知的 client_id' };\n    const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);\n    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled)) {\n      return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };\n    }\n    const state = get('state');\n"
+      ],
+      [
+        "    if (form.redirect_uri !== record.redirect_uri) {\n      return oauthError(400, 'invalid_grant', 'redirect_uri mismatch');\n    }\n    if (form.resource !== undefined && normalizeResource(form.resource) !== this.resource) {\n      return oauthError(400, 'invalid_target', 'unknown resource');\n    }\n",
+        "    if (form.redirect_uri !== record.redirect_uri) {\n      return oauthError(400, 'invalid_grant', 'redirect_uri mismatch');\n    }\n    const frontend = frontendForRedirectUri(record.redirect_uri);\n    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled)\n      || !client.redirect_uris.includes(record.redirect_uri)\n      || frontendForRecord(record, client, this.chatgptEnabled) !== frontend) {\n      return oauthError(400, 'invalid_grant', 'invalid frontend');\n    }\n    if (form.resource !== undefined && normalizeResource(form.resource) !== this.resource) {\n      return oauthError(400, 'invalid_target', 'unknown resource');\n    }\n"
+      ],
+      [
+        "    const familyId = randomUUID();\n    record.used = true;\n    record.family_id = familyId;\n    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE, record.frontend ?? frontendForRedirectUri(record.redirect_uri));\n    this.store.save();\n    return { status: 200, body: tokens };\n  }\n",
+        "    const familyId = randomUUID();\n    record.used = true;\n    record.family_id = familyId;\n    const tokens = this.#issueTokens(client.client_id, familyId, record.scope ?? SCOPE, frontend);\n    this.store.save();\n    return { status: 200, body: tokens };\n  }\n"
+      ],
+      [
+        "      this.store.save();\n      return oauthError(400, 'invalid_grant', 'refresh_token expired');\n    }\n    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), record.frontend ?? frontendForRegisteredClient(client));\n    this.store.save();\n    return { status: 200, body: tokens };\n  }\n",
+        "      this.store.save();\n      return oauthError(400, 'invalid_grant', 'refresh_token expired');\n    }\n    const frontend = frontendForRecord(record, client, this.chatgptEnabled);\n    if (!frontend) return oauthError(400, 'invalid_grant', 'invalid frontend');\n    record.rotated = true;\n    // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。\n    const tokens = this.#issueTokens(client.client_id, record.family_id, this.#limitScope(record.scope ?? SCOPE), frontend);\n    this.store.save();\n    return { status: 200, body: tokens };\n  }\n"
+      ],
+      [
+        "    return String(scope).split(' ').filter((s) => this.supportedScopes.includes(s)).join(' ') || SCOPE;\n  }\n\n  #issueTokens(clientId, familyId, scope, frontend = 'claude_web') {\n    scope = this.#limitScope(scope);\n    const now = this.now();\n    const accessToken = newToken('iat');\n",
+        "    return String(scope).split(' ').filter((s) => this.supportedScopes.includes(s)).join(' ') || SCOPE;\n  }\n\n  #issueTokens(clientId, familyId, scope, frontend) {\n    scope = this.#limitScope(scope);\n    const now = this.now();\n    const accessToken = newToken('iat');\n"
+      ],
+      [
+        "    if (!record) return { ok: false, error: 'invalid_token' };\n    if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };\n    if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };\n    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return {\n      ok: true,\n      familyId: record.family_id,\n      clientId: record.client_id,\n      frontend: record.frontend ?? frontendForRegisteredClient(this.store.state.clients[record.client_id]),\n      scopes,\n    };\n  }\n",
+        "    if (!record) return { ok: false, error: 'invalid_token' };\n    if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };\n    if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };\n    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled);\n    if (!frontend) return { ok: false, error: 'invalid_token' };\n    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n    const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));\n    return {\n      ok: true,\n      familyId: record.family_id,\n      clientId: record.client_id,\n      frontend,\n      scopes,\n    };\n  }\n"
+      ]
+    ],
+    "server": [
+      [
+        "      return sendJson(res, 401, { error: auth.error ?? 'unauthorized', error_description: 'Bearer token required' });\n    }\n\n    const versionHeader = req.headers['mcp-protocol-version'];\n    if (versionHeader && !SUPPORTED_PROTOCOL_VERSIONS.includes(versionHeader)) {\n      return sendJson(res, 400, rpcErr(null, -32600, `Unsupported MCP-Protocol-Version: ${String(versionHeader).slice(0, 32)}`));\n",
+        "      return sendJson(res, 401, { error: auth.error ?? 'unauthorized', error_description: 'Bearer token required' });\n    }\n\n    let frontendHandlers;\n    let frontendTools;\n    if (auth.frontend === 'claude_web') {\n      frontendHandlers = handlers;\n      frontendTools = tools;\n    } else if (auth.frontend === 'chatgpt_web') {\n      frontendHandlers = chatgptHandlers;\n      frontendTools = chatgptTools;\n    } else {\n      res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));\n      return sendJson(res, 401, { error: 'invalid_token' });\n    }\n\n    const versionHeader = req.headers['mcp-protocol-version'];\n    if (versionHeader && !SUPPORTED_PROTOCOL_VERSIONS.includes(versionHeader)) {\n      return sendJson(res, 400, rpcErr(null, -32600, `Unsupported MCP-Protocol-Version: ${String(versionHeader).slice(0, 32)}`));\n"
+      ],
+      [
+        "    for (const message of messages) {\n      let dataSourceFailed = false;\n      const response = await handleRpcMessage(message, {\n        handlers: auth.frontend === 'chatgpt_web' ? chatgptHandlers : handlers,\n        tools: auth.frontend === 'chatgpt_web' ? chatgptTools : tools,\n        unavailableTools: auth.frontend === 'chatgpt_web' && !chatgptWriteback\n          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' } : {},\n        scopes: auth.scopes,\n",
+        "    for (const message of messages) {\n      let dataSourceFailed = false;\n      const response = await handleRpcMessage(message, {\n        handlers: frontendHandlers,\n        tools: frontendTools,\n        unavailableTools: auth.frontend === 'chatgpt_web' && !chatgptWriteback\n          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' } : {},\n        scopes: auth.scopes,\n"
+      ]
+    ],
+    "mcp": [],
+    "writeback": []
+  }
+};
+
 PATCHES.writeback = [];
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const git = args => execFileSync('git', args, {cwd:REPO_ROOT, windowsHide:true, maxBuffer:1024*1024});
@@ -485,12 +601,13 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   const format=textFormat(current[name]);
   const represented=Buffer.from(textFormat(base).text.replaceAll('\n',format.eol));
   const compatibleMain = applyPatches(represented,name);
-  assert.ok(applyPatches(compatibleMain,name,false,FRONTEND_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
-  assert.ok(applyPatches(applyPatches(current[name],name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
+  const frontendMain = applyPatches(compatibleMain,name,false,FRONTEND_PATCHES.mainline);
+  assert.ok(applyPatches(frontendMain,name,false,REGISTRY_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
+  assert.ok(applyPatches(applyPatches(applyPatches(current[name],name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
   const path='i_remote_mcp/'+name+'.mjs';
   if(name==='oauth')assert.equal(textFormat(base).text,textFormat(files[path]).text,'OAuth baseline semantic mismatch');
-  files[path]=applyPatches(applyPatches(files[path],name),name,false,FRONTEND_PATCHES.legacy);
-  assert.ok(applyPatches(applyPatches(files[path],name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
+  files[path]=applyPatches(applyPatches(applyPatches(files[path],name),name,false,FRONTEND_PATCHES.legacy),name,false,REGISTRY_PATCHES.legacy);
+  assert.ok(applyPatches(applyPatches(applyPatches(files[path],name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
  }
  for(const bytes of Object.values(files))assert.ok(!/domain_tools|personal_data_domains|coreRemember|domain-config/.test(bytes.toString()),'W3 domain source forbidden');
  const manifest={schema_version:1,status:'not_deployed',baseline_commit:BASELINE_COMMIT,source_commit:sourceCommit,

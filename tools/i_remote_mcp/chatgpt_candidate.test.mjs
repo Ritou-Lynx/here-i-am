@@ -63,6 +63,24 @@ test('construction fails closed for a wrong baseline, altered blob, extra file o
  }
 });
 
+test('registry candidate has six files, four changes and no extra callback or Claude fallback', () => {
+ const {files,manifest}=constructCandidateSources(input); // Includes both forward/reverse byte checks.
+ assert.equal(Object.keys(files).length,6);
+ assert.equal(manifest.changed_files,4);
+ for(const bytes of Object.values(files)) {
+  assert.doesNotMatch(bytes.toString(),/I_REMOTE_MCP_EXTRA_REDIRECT_URIS|extraRedirectUris/);
+  assert.doesNotMatch(bytes.toString(),/return redirectUri === CHATGPT_CALLBACK_URI \? 'chatgpt_web' : 'claude_web'|\? 'chatgpt_web'\s*: 'claude_web'/);
+ }
+ const oauth=files['i_remote_mcp/oauth.mjs'].toString();
+ assert.match(oauth,/export const FRONTEND_CALLBACKS = Object\.freeze/);
+ assert.doesNotMatch(oauth,/frontend = 'claude_web'|record\.frontend \?\?/);
+ const server=files['i_remote_mcp/server.mjs'].toString();
+ assert.doesNotMatch(server,/auth\.frontend === 'chatgpt_web' \? chatgpt(?:Handlers|Tools) :/);
+ assert.match(server,/if \(auth\.frontend === 'claude_web'\)/);
+ assert.match(server,/else if \(auth\.frontend === 'chatgpt_web'\)/);
+ assert.match(server,/return sendJson\(res, 401, \{ error: 'invalid_token' \}\)/);
+});
+
 test('LF and CRLF checkouts yield the same pinned candidate without rewriting legacy bytes',()=>{
  const lf={...input,current:Object.fromEntries(Object.entries(input.current).map(([k,v])=>[k,Buffer.from(v.toString().replaceAll('\r\n','\n'))]))};
  const a=constructCandidateSources(input),b=constructCandidateSources(lf);
