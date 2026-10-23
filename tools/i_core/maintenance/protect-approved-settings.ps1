@@ -121,6 +121,7 @@ function Set-SettingsDacl($Handle,[string]$Sddl,[bool]$Protected) { [SettingsAcl
 function Invoke-SettingsProtection {
  param([string]$ProposalPath,[string]$ExpectedProposalSha256,[string]$ReceiptDirectory,[Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedOwnedArtifactsSha256,[switch]$Execute)
  Set-StrictMode -Version 2;$ErrorActionPreference='Stop'
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  if(!$Execute){throw 'explicit_execute_required'}
  if($ExpectedProposalSha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'proposal_hash_required'}
  Initialize-SettingsAclNative

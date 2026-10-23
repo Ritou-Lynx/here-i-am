@@ -381,8 +381,23 @@ export class ShortcutMailRelay {
     return responseFromRow(row);
   }
 
+  /**
+   * Leaves no -wal/-shm beside the journal: closed-state checks fingerprint every
+   * STATE file, so sidecars from a closed relay would read as an unclean stop.
+   */
   close() {
-    this.db.close();
+    if (!this.db.isOpen) return;
+    let checkpointError = null;
+    try {
+      const checkpoint = this.db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
+      if (checkpoint?.busy !== 0) throw new Error('shortcut_mail_checkpoint_busy');
+      this.db.exec('PRAGMA journal_mode = DELETE;');
+    } catch (error) {
+      checkpointError = error;
+    } finally {
+      this.db.close();
+    }
+    if (checkpointError) throw checkpointError;
   }
 }
 

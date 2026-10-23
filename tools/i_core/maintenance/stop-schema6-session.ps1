@@ -266,6 +266,7 @@ function Invoke-Schema6StopBinding {
  }finally{foreach($s in $sessions){$s.Lease.Dispose()}}
 }
 function Invoke-Schema6SessionStop([string]$TaskName) {
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  $binding=Invoke-Schema6Step 'stop.login_configuration' {Get-Schema6LoginBinding $TaskName}
  return (Invoke-Schema6StopBinding $binding)
 }
