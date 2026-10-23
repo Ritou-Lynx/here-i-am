@@ -5,9 +5,9 @@
 ## 当前状态（2026-10-23）
 
 ### 生产
-- schema6 Core 已上线（D1b，10-22 完成）。现役登录任务为 P′（`HereIAm-iCoreSchema6-d1a-mcp-20261013-6a063386`），运行新包 Core 和 MCP（manifest `4e003c0b`）。旧任务和 P 停用保留，不删。
-- 前端：claude_web、chatgpt_web 都已与 Core 配对，读取策略 `auto_share_origins` 为 `["claude_web","chatgpt_web"]`，真人验收通过。
-- 维护工具副本：`<OUT>\tools-3baf72d`（v3-lab `3baf72d`，含 A1–A3）。旧副本 `tools-302a62c0` 保留，D1b 的回执和登记配置钉的是它，不能复用到新副本；以后登记从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1（pwsh 7 会误报 `login_core_port_invalid`）。
+- schema6 Core 已上线（D1b，10-22 完成，manifest `4e003c0b`）。10-23 起现役登录任务为 `HereIAm-iCoreSchema6-d1d3-mcp-20261023-dddff0f1`（MCP 换为 v3-lab `dddff0f` 的六文件候选，含 D1、D3）；P′（`HereIAm-iCoreSchema6-d1a-mcp-20261013-6a063386`）、旧任务和 P 停用保留，不删。
+- 前端：claude_web、chatgpt_web、gemini_web 都已与 Core 配对，读取策略 `auto_share_origins` 为 `["claude_web","chatgpt_web","gemini_web"]`。Claude、ChatGPT 10-23 真人验收通过；Gemini 首次添加时回调被拒（见 D3 回调修订）。
+- 维护工具副本：`<OUT>\tools-dddff0f1`（v3-lab `dddff0f`，含 #45 宿主检查、#47 ready 容差）。旧副本 `tools-3baf72d`、`tools-302a62c0` 保留；以后登记从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1（pwsh 7 会误报 `login_core_port_invalid`）。
 - relay watcher：已按 A4 迁移为 `conhost --headless` 启动，codex 路径每轮自动查找，Codex 更新后不需要重新注册。
 
 ### 运维注意
@@ -19,10 +19,10 @@
 - A1+A2（#33）、A4（#34/#35）、A3（#36）已合并；10-23 生产换用新工具副本（#37）。
 - C1（#38，10-23 合并）：App 聊天时间线按来源显示 ChatGPT / Claude。**尚未构建安装**，待用户用 v3-lab 构建 App 替换现装版本并真人验收。
 
-- D1（#40，10-23 合并）：MCP 前端身份注册表，未知回调与身份默认拒绝。**尚未部署**，待按 update-mcp-source 流程换 MCP 源码（每步单独同意）。
+- D1（#40）+ D3（#44）：10-23 部署到生产（update-mcp-source 登记新任务、switch-login-task 切换，中断约 40 秒；读取策略加 gemini_web、配对 gemini_web、重启约 67 秒）。
 
 ### 待合并
-- D3（#44）：MCP 接入 Gemini 网页端 `gemini_web`（含调研），审核通过、CI 全绿。合并后与 D1 一起部署、`pair-core --frontend gemini_web`、真人验收（每步单独同意）。
+- D3 回调修订：Gemini 实际回调路径末尾是“编号-主机名（点换成下划线）”，原模式不含下划线，注册被拒。修订后需重新生成候选并再走一次 update-mcp-source + 切换（gemini_web 凭据和读取策略已就位，不用重做）。
 
 ### 进行中
 - relay 飞书 / Bark 通知（重做旧 #17）：PR #41 审核通过，待合并。合并后用户建飞书群机器人，把 webhook 填进本机 `.state/config.json`，运行 `--test-notify`。
