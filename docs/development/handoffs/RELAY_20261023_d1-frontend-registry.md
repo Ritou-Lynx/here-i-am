@@ -20,7 +20,7 @@
 - [ ] 删除 `I_REMOTE_MCP_EXTRA_REDIRECT_URIS` 与 `extraRedirectUris`（用户决定 1）。`isAllowedRedirectUri` 只认注册表中已启用的回调。
 - [ ] `/register`：所有 `redirect_uris` 必须属于**同一个** frontend，否则 400 `invalid_redirect_uri`。
 - [ ] `/authorize`、`/token`（authorization_code）：回调查不到 frontend 时拒绝（authorize 显示错误页不重定向；token 返回 `invalid_grant`），不签发令牌。
-- [ ] 旧令牌兼容（`frontend` 字段缺失，D1b 之前签发的）：仅当该 client 的全部 `redirect_uris` 都属于 `claude_web` 时视为 `claude_web`；否则 `verifyAccessToken` 返回 `invalid_token`，refresh 返回 `invalid_grant`。
+- [ ] 旧令牌兼容（`frontend` 字段缺失，D1b 之前签发的）：仅当该 client 的全部 `redirect_uris` 都属于**同一个已启用的** frontend 时视为该 frontend（纯 Claude → `claude_web`，纯 ChatGPT 且开关开启 → `chatgpt_web`）；混合或含未知回调时 `verifyAccessToken` 返回 `invalid_token`，refresh 返回 `invalid_grant`。
 - [ ] 令牌记录里 `frontend` 不在注册表中（含被篡改的值）时，同样拒绝。
 
 **路由（`server.mjs`）**
@@ -35,15 +35,18 @@
 - [ ] 新测试读取 `lib/ui/character/widgets/chat_message_source_label.dart` 中 `_knownChatSources` 的键，断言等于注册表每个 frontend 的 `frontend:<name>`。以后加 Sesame 漏改 App 映射表时 CI 会红。不改 Dart 文件。
 
 **测试（合成数据）**
-- [ ] `oauth.test.mjs` / `oauth_identity.test.mjs` 追加：未知 https 回调注册被拒；混合 Claude+ChatGPT 回调注册被拒；ChatGPT 关闭时 ChatGPT 回调被拒；旧令牌（删掉 `frontend`）在纯 Claude client 上仍为 `claude_web`、在含非 Claude 回调的 client 上被拒；`frontend` 改成 `sesame`/`""`/`Claude_web` 的令牌被拒且不进 RPC。
-- [ ] `oauth.test.mjs` 第 200–201 行依赖 extra 参数的两条断言，改为断言 extra 机制已移除（这是唯一允许改动的既有断言）。
+- [ ] `oauth.test.mjs` / `oauth_identity.test.mjs` 追加：未知 https 回调注册被拒；混合 Claude+ChatGPT 回调注册被拒；ChatGPT 关闭时 ChatGPT 回调被拒；旧令牌（删掉 `frontend`）在纯 Claude client 上为 `claude_web`、纯 ChatGPT client 上为 `chatgpt_web`、混合 client（直接改 store 构造，因为注册已拒绝混合）上被拒；`frontend` 改成 `sesame`/`""`/`Claude_web` 的令牌被拒且不进 RPC。
+- [ ] 允许改动的既有断言（第 2 轮修订，只限这些）：
+  - `oauth.test.mjs` 第 198–201 行、第 393–404 行：`isAllowedRedirectUri` 改签名后同步去掉 extra 参数，断言语义不变；第 200–201 行改为断言 extra 地址被拒。
+  - `oauth.test.mjs` 第 406–415 行“extra 保持显式精确 HTTPS 匹配”整条用例：改为断言 extra 机制已移除（`I_REMOTE_MCP_EXTRA_REDIRECT_URIS` 设了也不放行任何地址）。
+  - `oauth_identity.test.mjs` 第 98 行（混合回调 client 的旧令牌归为 `claude_web`）：改为断言混合 client 注册被拒，并用直接改 store 构造的混合 client 断言旧令牌被拒。第 96–97 行保持不变。
 - [ ] 新建 `tools/i_remote_mcp/frontend_registry.test.mjs`：注册表无重复回调、与 `FRONTENDS` 键一致、与 App 映射表一致、`server.mjs` 未知 frontend 返回 401。
 - [ ] `chatgpt_candidate.test.mjs`：候选生成成功、六文件、四个改动、正反向补丁可还原，以及上面的字符串断言。
 
 ## 允许修改的路径
 - `tools/i_remote_mcp/oauth.mjs`、`tools/i_remote_mcp/server.mjs`
 - `tools/i_remote_mcp/chatgpt_candidate.mjs`、`tools/i_remote_mcp/chatgpt_candidate.test.mjs`
-- `tools/i_remote_mcp/oauth.test.mjs`、`tools/i_remote_mcp/oauth_identity.test.mjs`（只追加；第 200–201 行例外）
+- `tools/i_remote_mcp/oauth.test.mjs`、`tools/i_remote_mcp/oauth_identity.test.mjs`（只追加；“允许改动的既有断言”所列行例外）
 - `tools/i_remote_mcp/frontend_registry.test.mjs`（新建）
 - `tools/i_remote_mcp/README.md`（删除 extra 回调说明，写明“新增前端 = 注册表加一项 + 配对 + App 映射表加一行”）
 - `docs/development/handoffs/RELAY_20261023_d1-frontend-registry.md`（只由 Claude 改）
@@ -63,7 +66,7 @@
 ## 用户决定（10-23，均按建议）
 1. **`I_REMOTE_MCP_EXTRA_REDIRECT_URIS`**：删除。生产没用它；保留就意味着任意回调都能签出令牌，与“未知默认拒绝”矛盾。以后接 Sesame 走代码改动（注册表加一项）。
 2. **App 显示名是否改读 Core 设备显示名**（C1 遗留）：**不改**，保留 App 映射表，另加上面的一致性测试。理由：Core 目前没有给 App 的设备列表接口，改读要动 Core API、同步协议和 App 三处；而且 Core 登记名是“claude.ai 网页端”“ChatGPT 网页端”，不是 C1 定的“Claude”“ChatGPT”。
-3. **旧令牌兼容**：按上面“纯 Claude client 才认”处理。现役 Claude 连接不受影响；如果有异常的旧 client，最坏是被要求重新授权一次。
+3. **旧令牌兼容**：只认回调全部属于同一前端的 client，混合的拒绝。现役 Claude 连接不受影响；如果有异常的旧 client，最坏是被要求重新授权一次。（第 2 轮修订：原写“纯 Claude 才认”，与既有测试冲突；纯 ChatGPT client 同样无歧义，一并认，符合用户“有歧义就拒绝”的本意。）
 
 ## 部署（合并后另行确认，手动粘贴）
 1. 在用户电脑用 v3-lab 生成六文件候选，复制到受保护私有目录。
@@ -75,4 +78,7 @@
 - 部署每一步单独同意。
 
 ## 审核记录
-（待填）
+
+### 第 1 轮（10-23）：blocked，合同修订
+- Codex 未改源码，指出合同“只追加”与既有测试冲突：`oauth_identity.test.mjs` 第 96–98 行要求纯 ChatGPT 与混合 client 的旧令牌有效；`oauth.test.mjs` 第 393–415 行用旧签名并要求保留 extra。基线 196/196 通过，候选六文件、`changed_files: 4`。
+- 处理：Claude 修订合同，列出允许改动的既有断言；旧令牌规则改为“回调全部属于同一已启用前端才认”。
