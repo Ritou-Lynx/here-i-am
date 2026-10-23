@@ -19,13 +19,14 @@
 - A1+A2（#33）、A4（#34/#35）、A3（#36）已合并；10-23 生产换用新工具副本（#37）。
 - C1（#38，10-23 合并）：App 聊天时间线按来源显示 ChatGPT / Claude。**尚未构建安装**，待用户用 v3-lab 构建 App 替换现装版本并真人验收。
 
+- D1（#40，10-23 合并）：MCP 前端身份注册表，未知回调与身份默认拒绝。**尚未部署**，待按 update-mcp-source 流程换 MCP 源码（每步单独同意）。
+
 ### 进行中
-- D1 前端身份注册表：relay PR #40（draft）。
 - relay 微信通知（重做旧 #17）：PR #41。
 - CI：maintenance job 超时与 R1 诊断（#39）；agent_relay 测试进 CI（#42）。
 
 ### 之后
-- D2 接入 Sesame（D1 之后）；D3 Gemini 远程 MCP 先调研。
+- D2 接入 Sesame（D1 部署之后）；D3 Gemini 远程 MCP 先调研。
 - R1 shortcut-mail 关闭前 checkpoint，留到下次换包一起做。
 - 数据中枢 P1：旧 #19 已关闭，分支 `codex/hub-golive-src-20261007` 保留作参考，D1/D2 之后拆分重做。
 

@@ -18,7 +18,7 @@
 
 后续获批激活后，在 ChatGPT 添加服务器 URL `https://i.ilynx.date/mcp`，认证选 OAuth，注册方式 DCR，默认 scope 选择 `i.read` 和 `i.write`；基础 scope 留空，OIDC 保持关闭，端点使用自动发现。CIMD/OIDC 不可用提示本身不代表设置错误。仍须真人完成授权和实际工具调用才能验收，合成测试不能替代这一项。
 
-授权码的精确回调绑定写回身份：ChatGPT 为 `chatgpt_web`（设备 `frontend:chatgpt_web`，显示名“ChatGPT 网页端”），Claude 为 `claude_web`（设备 `frontend:claude_web`，显示名“claude.ai 网页端”）。access token 与 refresh 族保存该身份，刷新不能改成另一前端；旧令牌无身份字段时，按该 client_id 的注册回调推导：仅注册 ChatGPT 精确回调时为 ChatGPT，其余情况（含混合回调）均为 Claude；刷新后的令牌保存推导结果。客户端不能自报身份，线程、sync_id 前缀、去重与待重试队列按前端隔离，互相续写线程会返回 `thread_frontend_mismatch`。
+授权码的精确回调绑定写回身份：ChatGPT 为 `chatgpt_web`（设备 `frontend:chatgpt_web`，显示名“ChatGPT 网页端”），Claude 为 `claude_web`（设备 `frontend:claude_web`，显示名“claude.ai 网页端”）。access token 与 refresh 族保存该身份，刷新不能改成另一前端；旧令牌无身份字段时，按该 client_id 的注册回调推导：全部注册回调属于同一个已启用前端时才采用该身份；混合、未知、空回调及未知身份字段一律拒绝；刷新后的令牌保存推导结果。客户端不能自报身份，线程、sync_id 前缀、去重与待重试队列按前端隔离，互相续写线程会返回 `thread_frontend_mismatch`。
 
 ChatGPT 凭据独立保存在 `core-frontend-chatgpt_web.json`。缺少凭据时 `i_chat_turn` 明确返回 `frontend_not_paired:chatgpt_web`，不会使用 Claude 凭据。主线配置领域工具时，ChatGPT 保留只读的 week_get、day_get；同时提供读取与聊天写回。ChatGPT 不提供随手记（capture_add）和笔记（i_remember），这两项仅供 Claude。实际配对、修改真实读取策略及部署切换另行执行。
 
@@ -172,7 +172,7 @@ curl https://<机器名>.<tailnet>.ts.net/.well-known/oauth-authorization-server
 
 - 未授权访问 `/mcp`（任意方法）返回 `401` 与 `WWW-Authenticate: Bearer resource_metadata=…`；无效或过期令牌带 `error="invalid_token"`。
 - 元数据：`/.well-known/oauth-protected-resource`（及 `/.well-known/oauth-protected-resource/mcp`）、`/.well-known/oauth-authorization-server`。
-- `/register` 默认只接受 claude.ai 的回调（`https://claude.ai/api/mcp/auth_callback` 与 `https://claude.com/api/mcp/auth_callback`），防止他人注册自己的回调后诱导你在授权页输入口令；以后接 ChatGPT 等其他客户端时，用环境变量 `I_REMOTE_MCP_EXTRA_REDIRECT_URIS`（逗号分隔，精确匹配，必须 https）追加。注册为 public client（`token_endpoint_auth_method: none`）。客户端最多保留 50 个，超出淘汰最早的。
+- `/register` 默认只接受 claude.ai 的回调（`https://claude.ai/api/mcp/auth_callback` 与 `https://claude.com/api/mcp/auth_callback`），防止他人注册自己的回调后诱导你在授权页输入口令；只接受 `oauth.mjs` 的 `FRONTEND_CALLBACKS` 注册表中已启用的精确回调，且同一 client 的回调必须属于同一个前端。新增前端 = 注册表加一项 + 配对 + App 映射表加一行；一致性测试会校验注册表、写回定义与 App 显示名映射。注册为 public client（`token_endpoint_auth_method: none`）。客户端最多保留 50 个，超出淘汰最早的。
 - `/authorize`：`client_id` 未知或 `redirect_uri` 与注册不一致时直接显示错误页，不重定向；只接受 `code_challenge_method=S256`；带 `resource` 时必须等于本服务的 `/mcp` 地址。
 - `/token`：`application/x-www-form-urlencoded`；错误码遵循 RFC 6749（失效的 refresh token 返回 `invalid_grant`）。授权码被重放会吊销由它签发的令牌。
 - 会话：`initialize` 响应带 `Mcp-Session-Id`，后续请求必须带上；会话绑定令牌家族（刷新后仍可用，换一次授权则不行）；`DELETE /mcp` 结束会话；服务重启后会话失效，客户端收到 404 会重新 initialize。
