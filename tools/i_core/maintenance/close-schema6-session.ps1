@@ -69,6 +69,7 @@ function Assert-BootstrapRelease([string]$Root,[string]$Hash){
 }
 
 try{
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  # The caller pins this approved maintenance input; its own bytes are retained.
  Assert-BootstrapPath ([IO.Path]::GetDirectoryName($ConfigurationPath)) -Root
  Pin-BootstrapFile $ConfigurationPath

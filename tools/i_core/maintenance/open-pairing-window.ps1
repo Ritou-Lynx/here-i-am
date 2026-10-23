@@ -9,6 +9,7 @@ function Write-Schema6PairingFile([string]$Path,[byte[]]$Bytes) {
  try {$stream.Write($Bytes,0,$Bytes.Length);$stream.Flush($true)} finally {$stream.Dispose()}
 }
 function Invoke-Schema6PairingWindow([string]$TaskName) {
+ if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
  $binding=Get-Schema6LoginBinding $TaskName
  Assert-Schema6NoRecovery $binding
  $sessions=@(Get-Schema6LiveSessions $binding)
