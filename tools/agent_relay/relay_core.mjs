@@ -44,9 +44,12 @@ const secretPatterns = [
 const userPath = /(?<![A-Za-z0-9])[A-Za-z]:(?!\/\/)[\\/]Users[\\/][^\s]+/g;
 const absolutePath = /(?<![A-Za-z0-9])[A-Za-z]:(?!\/\/)[\\/](?!Users[\\/])[^\s\r\n]+/g;
 
-export function redact(text, maxChars = 6000) {
+export function redact(text, maxChars = 6000, secrets = []) {
   let value = String(text ?? '');
   let redacted = false;
+  for (const secret of [...secrets].filter(x => typeof x === 'string' && x).sort((a, b) => b.length - a.length)) {
+    if (value.includes(secret)) { value = value.split(secret).join('[已隐藏]'); redacted = true; }
+  }
   for (const pattern of secretPatterns) {
     value = value.replace(pattern, () => { redacted = true; return '[已隐藏]'; });
   }
@@ -58,7 +61,23 @@ export function redact(text, maxChars = 6000) {
   return { text: value, redacted, truncated };
 }
 
-export function formatReply({ round, status, sha, startSha, commitCount, files, summary, reason, details, summaryMaxChars = 6000 } = {}) {
+export function parseNotification(body) {
+  if (typeof body !== 'string') return null;
+  const match = /^<!-- relay:(done|to-human) -->[ \t]*$/.exec(body.split(/\r?\n/, 1)[0]);
+  return match ? { kind: match[1] } : null;
+}
+
+export function formatNotification({ kind, pr, round, title = '', url = '', body = '' }, secrets = []) {
+  const suffix = kind === 'done' ? '完成，等你验收' : kind === 'to-human' ? '需要你决定' : `第 ${round} 轮失败`;
+  const excerpt = redact(String(body).replace(/^.*?(?:\r?\n|$)/, ''), 300, secrets).text;
+  return {
+    title: redact(`接力 PR #${pr}：${suffix}`, Number.MAX_SAFE_INTEGER, secrets).text,
+    content: redact(`${title}\n${url}\n${excerpt}`, Number.MAX_SAFE_INTEGER, secrets).text,
+    url: redact(url, Number.MAX_SAFE_INTEGER, secrets).text,
+  };
+}
+
+export function formatReply({ round, status, sha, startSha, commitCount, files, summary, reason, details, summaryMaxChars = 6000, secrets = [] } = {}) {
   const ok = ['done', 'blocked'].includes(status);
   const safeSha = ok ? (sha || 'none') : 'none';
   const head = `<!-- relay:to-claude round=${round} status=${status} sha=${safeSha} -->`;
@@ -72,21 +91,21 @@ export function formatReply({ round, status, sha, startSha, commitCount, files, 
   } else if (reason) {
     lines.push(`原因：${reason}`, '');
   }
-  const rawSummary = redact(String(summary ?? ''), Number.MAX_SAFE_INTEGER);
-  const rawReason = redact(String(reason ?? ''), Number.MAX_SAFE_INTEGER);
+  const rawSummary = redact(String(summary ?? ''), Number.MAX_SAFE_INTEGER, secrets);
+  const rawReason = redact(String(reason ?? ''), Number.MAX_SAFE_INTEGER, secrets);
   const diagnosticText = ok ? '' : String(details ?? '');
-  const rawDetails = redact(diagnosticText, Number.MAX_SAFE_INTEGER);
+  const rawDetails = redact(diagnosticText, Number.MAX_SAFE_INTEGER, secrets);
   const detailLines = rawDetails.text.split(/\r?\n/).slice(0, 29);
   const droppedLines = (reason ? String(reason).split(/\r?\n/).length > 1 : false) || diagnosticText.split(/\r?\n/).length > 29;
   // Redact complete diagnostics before clipping, so a multiline key cannot be cut before its END marker.
   const combined = [rawSummary.text, ...detailLines].filter(Boolean).join('\n');
   const reasonLines = reason ? [`原因：${rawReason.text.split(/\r?\n/)[0]}`] : [];
-  const payload = redact([...reasonLines, combined].filter(Boolean).join('\n'), summaryMaxChars);
+  const payload = redact([...reasonLines, combined].filter(Boolean).join('\n'), summaryMaxChars, secrets);
   const fixed = ok ? lines.slice() : lines.slice(0, 2);
   lines.length = 0;
   lines.push(...fixed);
   lines.push(payload.text);
-  const publicBody = redact(lines.join('\n'), Number.MAX_SAFE_INTEGER);
+  const publicBody = redact(lines.join('\n'), Number.MAX_SAFE_INTEGER, secrets);
   const result = publicBody.text;
   const anyRedacted = rawSummary.redacted || rawReason.redacted || rawDetails.redacted || publicBody.redacted || payload.redacted;
   return head + '\n' + result + ((anyRedacted || payload.truncated || droppedLines) ? '\n\n部分内容已隐藏，全文见本机日志' : '');

@@ -25,7 +25,7 @@
 - D3（#44）：MCP 接入 Gemini 网页端 `gemini_web`（含调研），审核通过、CI 全绿。合并后与 D1 一起部署、`pair-core --frontend gemini_web`、真人验收（每步单独同意）。
 
 ### 进行中
-- relay 微信通知（重做旧 #17）：PR #41。
+- relay 飞书 / Bark 通知（重做旧 #17）：PR #41 审核通过，待合并。合并后用户建飞书群机器人，把 webhook 填进本机 `.state/config.json`，运行 `--test-notify`。
 - CI：maintenance job 超时与 R1 诊断（#39）；agent_relay 测试进 CI（#42）。
 
 ### 之后

@@ -6,7 +6,9 @@ import { access, mkdir, open, readFile, realpath, rename, unlink, writeFile } fr
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply } from './relay_core.mjs';
+import { StringDecoder } from 'node:string_decoder';
+import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply, parseNotification, formatNotification } from './relay_core.mjs';
+import { sendNotification } from './relay_notify.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = 'Ritou-Lynx/here-i-am';
@@ -18,9 +20,28 @@ export function run(cmd, args, opts = {}) {
     const child = spawn(cmd, args, { cwd: opts.cwd, env: { ...process.env, ...opts.env }, shell: false, windowsHide: true, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
     const chunks = [], errors = [];
     const output = opts.stdoutFile ? createWriteStream(opts.stdoutFile, { flags: 'w', mode: 0o600 }) : null;
+    const secrets = (opts.secrets ?? []).filter(x => typeof x === 'string' && x);
+    const decoder = new StringDecoder('utf8');
+    let pendingOutput = '';
+    const flushOutput = (chunk, final = false) => {
+      pendingOutput += chunk;
+      const end = final ? pendingOutput.length : Math.max(0, pendingOutput.length - Math.max(...secrets.map(x => x.length)) + 1);
+      let cursor = 0, safeOutput = '';
+      while (cursor < end) {
+        let match = null, at = pendingOutput.length;
+        for (const secret of secrets) {
+          const index = pendingOutput.indexOf(secret, cursor);
+          if (index >= 0 && (index < at || index === at && secret.length > (match?.length ?? 0))) { at = index; match = secret; }
+        }
+        if (match && at < end) { safeOutput += pendingOutput.slice(cursor, at) + '[已隐藏]'; cursor = at + match.length; }
+        else { safeOutput += pendingOutput.slice(cursor, end); cursor = end; }
+      }
+      pendingOutput = pendingOutput.slice(cursor);
+      if (safeOutput) output.write(safeOutput);
+    };
     let timedOut = false, timer, finishTimer, cleanup = Promise.resolve(), streamError, settled = false, cleanupUnconfirmed = false;
     output?.on('error', error => { streamError = error; });
-    child.stdout.on('data', data => { if (output) output.write(data); else chunks.push(data); });
+    child.stdout.on('data', data => { if (output) { if (secrets.length) flushOutput(decoder.write(data)); else output.write(data); } else chunks.push(data); });
     child.stderr.on('data', data => errors.push(data));
     child.stdin.on('error', () => {});
     const finish = async code => {
@@ -28,7 +49,10 @@ export function run(cmd, args, opts = {}) {
       settled = true;
       clearTimeout(timer); clearTimeout(finishTimer);
       await cleanup;
-      if (output && !output.destroyed) await new Promise(done => output.end(done));
+      if (output && !output.destroyed) {
+        if (secrets.length) flushOutput(decoder.end(), true);
+        await new Promise(done => output.end(done));
+      }
       resolve({ code: streamError ? 1 : code ?? 1, stdout: Buffer.concat(chunks).toString('utf8'), stderr: Buffer.concat(errors).toString('utf8') + (streamError ? `\n${streamError.message}` : ''), timedOut, cleanupUnconfirmed, pid: child.pid });
     };
     child.on('error', error => { clearTimeout(timer); output?.end(); reject(error); });
@@ -120,6 +144,18 @@ export function validateConfig(input) {
   if (!config.allowedAuthors.length || !config.headPrefixes.length || config.headPrefixes.some(x => !['claude/', 'codex/'].includes(x))) throw new Error('作者或分支白名单无效');
   for (const field of ['maxRounds', 'codexTimeoutMinutes', 'summaryMaxChars', 'pollSeconds']) if (!Number.isFinite(config[field]) || config[field] <= 0) throw new Error(`${field} 必须大于零`);
   if (!Number.isInteger(config.maxRounds) || config.maxRounds > 4) throw new Error('最多允许 4 轮');
+  if (config.notify !== undefined) {
+    if (!config.notify || typeof config.notify !== 'object' || Array.isArray(config.notify)) throw new Error('notify 必须是对象');
+    const fields = ['feishuWebhook', 'feishuSecret', 'barkKey', 'barkServer'];
+    if (Object.keys(config.notify).some(field => !fields.includes(field))) throw new Error('notify 含未知字段；通知已改用飞书，请使用 feishuWebhook / feishuSecret');
+    for (const field of fields) if (config.notify[field] !== undefined && typeof config.notify[field] !== 'string') throw new Error(`notify.${field} 必须是字符串`);
+    if (config.notify.feishuWebhook && !/^https:\/\/open\.(?:feishu\.cn|larksuite\.com)\/open-apis\/bot\/v2\/hook\/[^/?#\s\\]+$(?![\s\S])/.test(config.notify.feishuWebhook)) throw new Error('notify.feishuWebhook 必须是飞书或 Lark HTTPS 机器人地址（hook 非空，无查询或片段）');
+    if (config.notify.barkServer) {
+      let server;
+      try { server = new URL(config.notify.barkServer); } catch { throw new Error('notify.barkServer 必须是 https:// URL'); }
+      if (!config.notify.barkServer.startsWith('https://') || server.protocol !== 'https:' || !server.hostname || server.username || server.password || server.search || server.hash) throw new Error('notify.barkServer 必须是 https:// URL（无凭据、查询或片段）');
+    }
+  }
   if (!config.repoPath || !config.worktreeRoot || !path.isAbsolute(config.repoPath) || !path.isAbsolute(config.worktreeRoot)) throw new Error('repoPath 与 worktreeRoot 必须是绝对路径');
   if (config.codexPath !== undefined && (typeof config.codexPath !== 'string' || !path.isAbsolute(config.codexPath))) throw new Error('codexPath 必须是绝对路径');
   if (config.codexSearch !== undefined) {
@@ -201,8 +237,18 @@ export async function resolveCodex(config, { platform = process.platform, fs = n
   return null;
 }
 
-export async function runOnce({ config: input, stateDir = path.join(here, '.state'), run: execute = run, now = Date.now, pid = process.pid, isProcessAlive = alive, log = console.log, template, dryRun = false, codexOptions } = {}) {
+function notificationSecrets(notify = {}) {
+  return [notify.feishuWebhook, notify.feishuWebhook?.split('/hook/')[1], notify.feishuSecret, notify.barkKey];
+}
+
+export async function runOnce({ config: input, stateDir = path.join(here, '.state'), run: execute = run, now = Date.now, pid = process.pid, isProcessAlive = alive, log = console.log, template, dryRun = false, codexOptions, fetchImpl = fetch } = {}) {
   const config = validateConfig(input);
+  const secrets = notificationSecrets(config.notify);
+  const safe = text => redact(text, Number.MAX_SAFE_INTEGER, secrets).text;
+  const logger = log;
+  log = text => logger(safe(text));
+  const notifyEnabled = Boolean(config.notify?.feishuWebhook || config.notify?.barkKey);
+  if (!notifyEnabled) log('未配置通知通道');
   let release;
   if (!dryRun) {
     release = await acquireLock(stateDir, pid, isProcessAlive);
@@ -214,23 +260,25 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
     return { code: result.code ?? result.exitCode ?? 0, stdout: result.stdout ?? '', stderr: result.stderr ?? '', timedOut: result.timedOut ?? false, cleanupUnconfirmed: result.cleanupUnconfirmed ?? false, pid: result.pid };
   };
   const checked = async (cmd, args, opts) => {
-    const result = await invoke(cmd, args, opts);
-    if (result.code !== 0 || result.timedOut) throw new Error(`${cmd} ${args.join(' ')} 失败\n${result.stderr || result.stdout}`);
-    return result.stdout;
+    try {
+      const result = await invoke(cmd, args, opts);
+      if (result.code !== 0 || result.timedOut) throw new Error(`${cmd} ${args.join(' ')} 失败\n${result.stderr || result.stdout}`);
+      return result.stdout;
+    } catch (error) { throw new Error(safe(error.message)); }
   };
   const gh = args => checked('gh', args);
   const reaction = (id, content) => gh(['api', '-X', 'POST', `repos/${config.repo}/issues/comments/${id}/reactions`, '-f', `content=${content}`]);
   const post = async (pr, body) => {
     const file = path.join(stateDir, 'logs', `reply-${pr}-${randomUUID()}.md`);
     await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, body, { mode: 0o600 });
-    await gh(['pr', 'comment', String(pr), '--repo', config.repo, '--body-file', file]);
+    await writeFile(file, safe(body), { mode: 0o600 });
+    return (await gh(['pr', 'comment', String(pr), '--repo', config.repo, '--body-file', file])).trim();
   };
   try {
     const state = await readState(stateFile);
     const promptTemplate = template ?? await readFile(path.join(here, 'CODEX_ROUND_PROMPT.md'), 'utf8');
     const deliver = async (id, entry) => {
-      await post(entry.pr, entry.notification.body);
+      entry.notification.url = await post(entry.pr, entry.notification.body);
       if (entry.notification.reaction) await reaction(id, entry.notification.reaction);
       entry.notification.pending = false;
       await saveState(stateFile, state);
@@ -239,6 +287,68 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
       if (entry.notification?.pending) await deliver(id, entry);
     }
     if (await exists(path.join(stateDir, 'cleanup-blocked.json'))) { log('上次进程树清理未确认；需本机检查后移除 cleanup-blocked.json'); return { status: 'cleanup-blocked' }; }
+    const attempted = new Set();
+    const notify = async (id, data) => {
+      if (!notifyEnabled || attempted.has(String(id))) return;
+      attempted.add(String(id));
+      try {
+        const previous = state.notified?.[id];
+        if (previous && previous.status !== 'pending') return;
+        const message = formatNotification(data, secrets);
+        if (dryRun) { log(`将要通知 ${id}：${JSON.stringify(message)}`); return; }
+        const result = await sendNotification(message, config.notify, fetchImpl);
+        const attempts = (previous?.attempts ?? 0) + 1;
+        const status = Object.values(result).includes('ok') ? 'sent' : attempts >= 3 ? 'gave_up' : 'pending';
+        state.notified[id] = { status, attempts, at: timestamp(now) };
+        await saveState(stateFile, state);
+        log(`手机通知 ${id}：${status}`);
+      } catch { log(`手机通知 ${id}：failed`); }
+    };
+    const notifyFailure = (id, entry) => notify(`failed:${id}`, {
+      kind: 'failed', pr: entry.pr, round: entry.round, title: entry.prTitle ?? prs.find(pr => pr.number === entry.pr)?.title,
+      url: entry.notification?.url || `https://github.com/${config.repo}/pull/${entry.pr}`,
+      body: entry.notification?.body,
+    });
+    const prs = JSON.parse(await gh(['pr', 'list', '--repo', config.repo, '--state', 'open', '--label', 'agent-relay', '--json', 'number,title,headRefName,baseRefName,headRefOid,isCrossRepository,labels']));
+    const commentCache = new Map();
+    const baseline = notifyEnabled && !state.notifyEnabledAt;
+    let scanComplete = true;
+    if (notifyEnabled && !dryRun) state.notified ??= {};
+    // Complete the scan before eligibility checks and codex-not-found can return.
+    for (const pr of prs) {
+      if (!Number.isSafeInteger(pr.number) || pr.number < 1) continue;
+      let comments;
+      try {
+        comments = JSON.parse(await gh(['api', `repos/${config.repo}/issues/${pr.number}/comments`, '--paginate', '--slurp'])).flat();
+      } catch {
+        // An unavailable PR must not block scanning or execution on other PRs.
+        scanComplete = false;
+        log(`评论扫描 PR #${pr.number} 失败`);
+        continue;
+      }
+      commentCache.set(pr.number, comments);
+      if (!notifyEnabled) continue;
+      for (const comment of comments) {
+        const parsed = parseNotification(comment.body);
+        if (!parsed || !Number.isSafeInteger(comment.id) || comment.id < 1 || !config.allowedAuthors.includes(comment.user?.login)) continue;
+        if (baseline) {
+          if (!dryRun) state.notified[comment.id] ??= { status: 'sent', attempts: 0, at: timestamp(now) };
+        } else await notify(comment.id, { ...parsed, pr: pr.number, title: pr.title, url: comment.html_url || `https://github.com/${config.repo}/pull/${pr.number}`, body: comment.body });
+      }
+    }
+    for (const [id, entry] of Object.entries(state.comments)) {
+      if (entry.status !== 'failed' || !entry.notification || entry.notification.pending) continue;
+      if (baseline) {
+        if (!dryRun) state.notified[`failed:${id}`] ??= { status: 'sent', attempts: 0, at: timestamp(now) };
+      } else await notifyFailure(id, entry);
+    }
+    if (baseline && scanComplete) {
+      if (dryRun) log('首次启用通知：仅记录历史基线');
+      else {
+        try { state.notifyEnabledAt = timestamp(now); await saveState(stateFile, state); }
+        catch { delete state.notifyEnabledAt; log('手机通知基线保存失败'); }
+      }
+    }
     // Accepted comments never replay, even after a crash. Report abandoned work separately.
     if (!dryRun) for (const [id, entry] of Object.entries(state.comments)) {
       if (entry.status === 'in_progress' && (!Number.isFinite(Date.parse(entry.startedAt)) || now() - Date.parse(entry.startedAt) > config.codexTimeoutMinutes * 120000)) {
@@ -247,15 +357,15 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
           entry.notification = { pending: true, body: formatReply({ round: entry.round, status: 'failed', reason: entry.reason, summaryMaxChars: config.summaryMaxChars }), reaction: 'confused' };
           await saveState(stateFile, state);
           await deliver(id, entry);
+          entry.prTitle ??= prs.find(pr => pr.number === entry.pr)?.title;
+          await notifyFailure(id, entry);
         } else await saveState(stateFile, state);
         log(entry.reason);
       }
     }
-    const prs = JSON.parse(await gh(['pr', 'list', '--repo', config.repo, '--state', 'open', '--label', 'agent-relay', '--json', 'number,headRefName,baseRefName,headRefOid,isCrossRepository,labels']));
     for (const pr of prs) {
       if (!Number.isSafeInteger(pr.number) || pr.number < 1 || !isEligiblePr(pr, config)) { log(`跳过 PR #${pr.number}：不满足接力条件`); continue; }
-      const pages = JSON.parse(await gh(['api', `repos/${config.repo}/issues/${pr.number}/comments`, '--paginate', '--slurp']));
-      const comments = pages.flat().filter(comment => Number.isSafeInteger(comment.id) && comment.id > 0 && parseInstruction(comment.body) && config.allowedAuthors.includes(comment.user?.login) && !Object.hasOwn(state.comments, String(comment.id))).sort((a, b) => Date.parse(a.created_at ?? 0) - Date.parse(b.created_at ?? 0) || Number(a.id) - Number(b.id));
+      const comments = (commentCache.get(pr.number) ?? []).filter(comment => Number.isSafeInteger(comment.id) && comment.id > 0 && parseInstruction(comment.body) && config.allowedAuthors.includes(comment.user?.login) && !Object.hasOwn(state.comments, String(comment.id))).sort((a, b) => Date.parse(a.created_at ?? 0) - Date.parse(b.created_at ?? 0) || Number(a.id) - Number(b.id));
       const comment = comments[0];
       if (!comment) continue;
       const { round, instruction } = parseInstruction(comment.body);
@@ -264,7 +374,7 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
       const worktree = path.join(config.worktreeRoot, `pr-${pr.number}`);
       const codexArgs = ['exec', '--cd', worktree, ...config.codexArgs, '--json', '--output-last-message', path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.last.txt`), '-'];
       const contract = JSON.parse(await gh(['pr', 'view', String(pr.number), '--repo', config.repo, '--json', 'body'])).body ?? '';
-      const prompt = renderPrompt(promptTemplate, { pr_number: pr.number, branch: pr.headRefName, round, contract, instruction });
+      const prompt = safe(renderPrompt(promptTemplate, { pr_number: pr.number, branch: pr.headRefName, round, contract, instruction }));
       if (dryRun) {
         const preview = { status: 'dry-run', pr: pr.number, commentId: comment.id, round, prompt, commands: round > config.maxRounds ? [['gh', 'pr', 'edit', String(pr.number), '--add-label', 'relay-needs-human'], ['gh', 'pr', 'comment', String(pr.number)]] : [['gh', 'api', '-X', 'POST', '.../reactions', '-f', 'content=eyes'], ['git', 'fetch', 'origin', pr.headRefName], ['git', 'worktree', 'add', worktree], [codex.path, ...codexArgs], ['git', 'push', 'origin', `HEAD:refs/heads/${pr.headRefName}`], ['gh', 'pr', 'comment', String(pr.number)]] };
         log(JSON.stringify(preview, null, 2));
@@ -281,7 +391,7 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         return { status: 'human', pr: pr.number, round };
       }
       await reaction(comment.id, 'eyes');
-      state.comments[comment.id] = { status: 'in_progress', pr: pr.number, round, startedAt: timestamp(now) };
+      state.comments[comment.id] = { status: 'in_progress', pr: pr.number, prTitle: safe(pr.title ?? ''), round, startedAt: timestamp(now) };
       await saveState(stateFile, state);
       let status = 'failed', summary = '', reason = '', details = '', startSha = '', sha = 'none', commitCount = 0, files = [];
       const git = args => checked('git', args, { cwd: worktree });
@@ -316,10 +426,12 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         await mkdir(path.dirname(last), { recursive: true });
         // Never accept a leftover answer from an earlier interrupted run.
         try { await unlink(last); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-        const result = await invoke(codex.path, codexArgs, { cwd: worktree, input: prompt, env: { SKIP_PROJECT_STATE: '1' }, timeoutMs: config.codexTimeoutMinutes * 60000, stdoutFile });
-        if (result.stdout) await writeFile(stdoutFile, result.stdout, { mode: 0o600 });
-        await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.stderr.txt`), result.stderr, { mode: 0o600 });
-        details = result.stderr;
+        const result = await invoke(codex.path, codexArgs, { cwd: worktree, input: prompt, env: { SKIP_PROJECT_STATE: '1' }, timeoutMs: config.codexTimeoutMinutes * 60000, stdoutFile, secrets });
+        if (result.stdout) await writeFile(stdoutFile, safe(result.stdout), { mode: 0o600 });
+        // Codex owns this file; sanitize it even when the process failed.
+        if (await exists(last)) await writeFile(last, safe(await readFile(last, 'utf8')), { mode: 0o600 });
+        await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.stderr.txt`), safe(result.stderr), { mode: 0o600 });
+        details = safe(result.stderr);
         if (result.cleanupUnconfirmed) {
           await writeFile(path.join(stateDir, 'cleanup-blocked.json'), JSON.stringify({ pid: result.pid, pr: pr.number, round, occurredAt: timestamp(now) }) + '\n', { mode: 0o600 });
           throw new Error('Codex 超时且进程树清理未确认，后续轮询已阻止，需本机检查');
@@ -370,41 +482,55 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
         files = (await git(['diff', '--name-only', `${startSha}..HEAD`])).trim().split(/\r?\n/).filter(Boolean);
       } catch (error) {
-        status = 'failed'; reason = error.message.split(/\r?\n/, 1)[0]; sha = 'none';
-        if (!details) details = error.message.split(/\r?\n/).slice(1).join('\n');
+        status = 'failed'; reason = safe(error.message).split(/\r?\n/, 1)[0]; sha = 'none';
+        if (!details) details = safe(error.message).split(/\r?\n/).slice(1).join('\n');
       }
       await mkdir(path.join(stateDir, 'logs'), { recursive: true });
-      await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.result.json`), JSON.stringify({ status, sha, startSha, commitCount, files, summary, reason, details, codexSource: codex.codexSource, codexDir: codex.codexDir }, null, 2) + '\n', { mode: 0o600 });
-      const body = formatReply({ round, status, sha, startSha: startSha.slice(0, 12), commitCount, files, summary, reason, details, summaryMaxChars: config.summaryMaxChars });
+      await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.result.json`), safe(JSON.stringify({ status, sha, startSha, commitCount, files, summary, reason, details, codexSource: codex.codexSource, codexDir: codex.codexDir }, null, 2)) + '\n', { mode: 0o600 });
+      const body = safe(formatReply({ round, status, sha, startSha: startSha.slice(0, 12), commitCount, files, summary, reason, details, summaryMaxChars: config.summaryMaxChars, secrets }));
       state.comments[comment.id] = { ...state.comments[comment.id], status, sha, finishedAt: timestamp(now), notification: { pending: true, body, reaction: ['done', 'blocked'].includes(status) ? 'rocket' : 'confused' } };
       await saveState(stateFile, state);
       await deliver(comment.id, state.comments[comment.id]);
+      if (status === 'failed') await notifyFailure(comment.id, state.comments[comment.id]);
       return { status, pr: pr.number, commentId: comment.id, round, sha, reason };
     }
     log('无待处理');
     return { status: 'idle' };
-  } finally { await release?.(); }
+  } catch (error) { throw new Error(safe(error.message)); }
+  finally { await release?.(); }
 }
 
-export async function main(argv = process.argv.slice(2), { executeOnce = runOnce, log = console.log } = {}) {
-  let loop = false, dryRun = false, configFile = path.join(here, '.state', 'config.json');
+export async function main(argv = process.argv.slice(2), { executeOnce = runOnce, log = console.log, fetchImpl = fetch } = {}) {
+  let loop = false, dryRun = false, testNotify = false, configFile = path.join(here, '.state', 'config.json');
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--loop') loop = true;
     else if (argv[i] === '--once') loop = false;
     else if (argv[i] === '--dry-run') dryRun = true;
+    else if (argv[i] === '--test-notify') testNotify = true;
     else if (argv[i] === '--config' && argv[i + 1]) configFile = path.resolve(argv[++i]);
     else throw new Error(`未知参数：${argv[i]}`);
   }
   let input;
   try { input = JSON.parse(await readFile(configFile, 'utf8')); }
   catch (error) {
-    if (!dryRun || error.code !== 'ENOENT') throw error;
+    if (!dryRun || error.code !== 'ENOENT') throw new Error(`无法读取接力配置（${error.code ?? 'JSON 无效'}）`);
     // Preview discovery works before installation, without creating local configuration.
     input = { ...defaults, repoPath: path.resolve(here, '../..'), worktreeRoot: path.join(os.homedir(), 'relay-worktrees') };
   }
   const config = validateConfig(input);
+  const secrets = notificationSecrets(config.notify);
+  const logger = log;
+  log = text => logger(redact(text, Number.MAX_SAFE_INTEGER, secrets).text);
+  if (testNotify) {
+    if (dryRun) { log('将要通知：接力测试通知'); return 0; }
+    const result = await sendNotification({ title: '接力测试通知', content: 'Agent Relay 手机通知测试', url: `https://github.com/${config.repo}` }, config.notify, fetchImpl);
+    log(JSON.stringify(result));
+    return Object.values(result).includes('ok') ? 0 : 1;
+  }
   do {
-    const result = await executeOnce({ config, stateDir: path.dirname(configFile), dryRun, log });
+    let result;
+    try { result = await executeOnce({ config, stateDir: path.dirname(configFile), dryRun, log, fetchImpl }); }
+    catch (error) { throw new Error(redact(error.message, Number.MAX_SAFE_INTEGER, secrets).text); }
     if (!['idle', 'locked', 'dry-run', 'codex-not-found'].includes(result.status)) log(redact(`PR #${result.pr ?? '-'}: ${result.status}${result.reason ? ` - ${result.reason}` : ''}`).text);
     if (!loop || dryRun) return ['failed', 'cleanup-blocked', 'codex-not-found'].includes(result.status) ? 1 : 0;
     if (loop && !dryRun) await new Promise(resolve => setTimeout(resolve, config.pollSeconds * 1000));

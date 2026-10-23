@@ -16,5 +16,11 @@
   "codexArgs": ["--sandbox", "workspace-write"],
   "summaryMaxChars": 6000,
   "mention": "@Ritou-Lynx",
-  "pollSeconds": 180
+  "pollSeconds": 180,
+  "notify": {
+    "feishuWebhook": "",
+    "feishuSecret": "",
+    "barkKey": "",
+    "barkServer": ""
+  }
 }
