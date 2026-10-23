@@ -37,3 +37,4 @@
 | A4 | PR #34（合同）与 #35（代码）都已合并；本机 watcher 已迁移，手动触发一次结果为 0 | — |
 | A3 | PR #36 已合并（10-23）；生产已换用新副本 `tools-3baf72d` | — |
 | C1 | PR #38 第 1 轮审核通过，CI 全绿（10-23） | 用户合并；用 v3-lab 构建并安装 App，真人验收 ChatGPT/Claude 标签 |
+| R1 | 源码已改（10-23）：`ShortcutMailRelay.close()` 先 checkpoint 再切 DELETE 模式，关闭后不留 -wal/-shm；补两项合成测试。现役 schema6 运行时不打开该日志库，STATE 里现有的旧 sidecar 不受影响 | 用户审核合并；随下次换包部署。清理现有旧 sidecar 需另做带闸门的步骤，须用户同意 |
