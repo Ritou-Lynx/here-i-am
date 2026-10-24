@@ -109,3 +109,10 @@
 ### 第 1 轮（10-24）：blocked，合同修订
 - Codex 复现：`domain_store.mjs` 提交入口在 hooks 之前要求 delete 的 actor 为第 3 级，`agent_inferred`（第 1 级）delete 返回 403 `actor_not_authorized`，无改动。
 - 裁决：不改 Core 引擎。删除是用户级操作，属引擎设计；前端撤销改为 patch `voided:true`（新增字段），真正删除留给 App 的 `user_direct`（N3）。合同已相应修订。
+
+### 第 2 轮（10-24）：通过
+- Codex 回报 blocked 的原因是环境问题，不是代码问题：沙箱临时目录让 `chatgpt_candidate.test.mjs:119` 的既有断言失效；本机没有 Flutter。提交 `772dab1` 只改允许路径。
+- Claude 云端核对 `origin/v3-lab...772dab1` 的全部 diff：`food_domains.mjs` 字段精确、合计严格相等，hooks 只放行 `writerPrincipalIds` 的 `agent_inferred` create/patch，patch 限本人创建，delete 拒绝；MCP 自算 `local_date`（04:00 日界）与 totals，禁止字段报 `food_field_not_allowed`，`void` 只 patch `voided`，重试按 op_id 指纹去重，MCP 重启后遇到已有 op 时安全失败；`food` 块令牌独立，scopes 不含 delete；gemini_web 不暴露 food 工具；未配置 food 时工具清单不变。App 只读，隐藏 voided，未启用、未配置、需重同步各有提示。
+- 复跑 `node --test tools/i_core/*.test.mjs tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs`：677 项，664 过，11 败，2 跳；这 11 项（PowerShell/SMTP 用例、activity 并发计时）在 v3-lab 基线上同样失败，单独跑 activity 108/108。新增和相关文件 81/81。候选生成六文件，`changed_files: 5`，哈希与 `48bd91e` 完全一致。
+- 已知限制：`food_day` 每次全量翻快照（上限 2 万条，按每天几餐估计可用多年）；时区默认 Asia/Shanghai，可在配置里改。
+- 结论：完成标准达标，CI 全绿后可以合并。上线走 N2。
