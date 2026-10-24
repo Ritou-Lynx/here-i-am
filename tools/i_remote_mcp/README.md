@@ -195,6 +195,8 @@ Antigravity 的本机 MCP 代理以 `MCP CLI Proxy` 注册 public client（`toke
 
 诊断仅记录固定 `callback_class: antigravity`，不记录回调原文。候选构建器的 `ANTIGRAVITY_PATCHES` 分别校验 mainline 与 legacy 的正反向精确字节，运行时仍为六文件、`changed_files: 5`，diagnostics 保留 CRLF。本节只说明接线；部署、真实配对和真人验收另行授权。
 
+添加方式（10-24 实测）：Antigravity 读取用户目录下 `.gemini\config\mcp_config.json`（不是 `.gemini\antigravity\`）。远端条目用 `command` 启动 `npx -y mcp-remote <MCP 地址>/mcp`，首次连接弹窗输口令，令牌缓存在用户目录 `.mcp-auth\mcp-remote-v1\`。改完配置必须完全退出 Antigravity 再打开，否则对话里仍是旧的 MCP 子进程；新对话的工具列表应为 `i_context`、`i_recall`、`i_chat_turn` 等远端工具，若看到 `i_bootstrap` 一类说明连的还是本机连续性网关。
+
 ## 协议与安全要点
 
 - 未授权访问 `/mcp`（任意方法）返回 `401` 与 `WWW-Authenticate: Bearer resource_metadata=…`；无效或过期令牌带 `error="invalid_token"`。

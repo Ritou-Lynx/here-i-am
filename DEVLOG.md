@@ -7,6 +7,15 @@
 - 三张表：账本（沿用 10 个字段）、练习记录（只增不改）、收件（手机和 Gemini 的错点手动加）。dot 改读写 `feishu-study`。现役 siyuan_tutor 未改。
 - 云端 `node --test tools/feishu_tutor/sync/*.test.mjs` 71 项通过（另有 7 项 PS 用例在 Linux 上跳过；Codex 在 Windows 上 78/78）。未连真实飞书，未建计划任务，未迁移旧账本。
 
+## 2026-10-24 #49 与 D4 部署到生产；重启导致停机一次；Antigravity 验收通过
+
+- #49（Gemini 回调允许下划线）合并后按部署段 5 从 d1d3 任务登记并切换到 `HereIAm-iCoreSchema6-d3fix-mcp-20261023-084be21d`（工具副本、凭据、读取策略不变）。Gemini 随后能添加，但对话里工具调用不生效，疑似 Gemini 侧问题，未继续排查。
+- D4（#50，Antigravity 前端）合并后按段 6 部署：v3-lab `48bd91e` 生成六文件候选（改动 5 个），update-mcp-source 从 d3fix 任务登记 `HereIAm-iCoreSchema6-d4-mcp-20261023-48bd91ed` 并切换（不加 NoRollback）；读取策略加入 antigravity（先备份），配对 antigravity，重启。两次中断约 39 秒、31 秒。d3fix 任务停用保留。
+- 段 6 中途电脑重启：开机后现役 d3fix 会话以 0xC000013A 退出，线上服务停摆，直到手动 `Start-ScheduledTask` 拉起。这是注销/重启强杀的老问题 L，仍未修；重启或注销后要检查并手动拉起现役任务。
+- 段 6 其他卡点：relay 有轮次在跑时部署前置检查报 `relay_round_in_progress`，等轮次结束后重跑；候选 `runtime` 目录 ACL 是继承来的，登记报 `protected_root_required`，照上一个候选目录的 ACL 设成受保护后通过。
+- Antigravity 真人验收（10-24）：配置写在 `.gemini\config\mcp_config.json`，`mcp-remote` 授权成功；第一次“读不到上下文”是因为 Antigravity 没重载配置，仍在跑本机连续性网关。完全重启后 `i_context` 与 `i_chat_turn` 均成功。
+- 执行中的教训（已写进部署提示词）：Codex 临时脚本不要 dot-source 或 import 维护脚本（会清空 `-TaskName`，报 `task_name_required`）；新候选目录要受保护 ACL。
+
 ## 2026-10-23 D1+D3 部署到生产；Gemini 回调模式补下划线
 
 - 部署（用户逐段同意，Codex 在本机执行）：工具副本换为 `<OUT>\tools-dddff0f1`；v3-lab `dddff0f` 生成六文件候选（改动 5 个），update-mcp-source 登记新任务 `HereIAm-iCoreSchema6-d1d3-mcp-20261023-dddff0f1`，switch-login-task 切换（不加 NoRollback，中断约 40 秒）；两种非法回调注册均 400。读取策略加入 gemini_web，配对 gemini_web，重启约 67 秒。Claude、ChatGPT 真人验收通过。
