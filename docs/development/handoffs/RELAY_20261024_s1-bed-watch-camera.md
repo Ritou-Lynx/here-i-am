@@ -18,7 +18,7 @@
 **采样（前台服务）**
 - [ ] `BedWatchService`：前台服务，`foregroundServiceType="camera"`，常驻通知显示“床头哨兵运行中 · 上次判断 HH:mm”。只在“监测窗口”内拍（默认 23:30–06:00，可设）；窗口外不开相机。
 - [ ] 每 60 秒（可设 30–300）用 CameraX `ImageAnalysis` 取一帧（可选前/后摄，默认后摄），固定曝光补偿为 0、关闭夜景/HDR 类扩展；拿到一帧即分析即释放，`ImageProxy.close()` 后不保留任何像素引用。
-- [ ] 开机自启（`BOOT_COMPLETED`，仅在用户已开启监测时）；被系统杀后 `START_STICKY` 重启。
+- [ ] 开机恢复：Android 15 起 targetSdk 35 的应用不能从 `BOOT_COMPLETED` 启动 camera 前台服务。因此开机广播（仅在用户已开启监测时）**只发一条高优先级通知“床头哨兵已停止，点一下恢复监测”**，点击打开主界面，由前台界面启动服务。被系统杀后用 `START_STICKY` 重建；重建时 `startForeground` 若抛 `ForegroundServiceStartNotAllowedException` 或 `SecurityException`，就捕获并改发同一条恢复通知，不崩溃。
 
 **单帧特征（纯函数，可单测）**
 - [ ] `FrameFeatures(face: Boolean, eyesOpen: Float?, glow: Float, frameLuma: Float)`：
@@ -65,6 +65,7 @@
 - `gradle -p tools/bed_watch_android testDebugUnitTest`
 - 不跑 `assembleDebug`、不生成 APK、不安装：协议“永不”禁止 relay 内构建/安装 App（第 1 轮因此 blocked）。`testDebugUnitTest` 只编译并运行 JVM 单测，不出 APK，属于测试。
 - `gradle` 不在 PATH 时：用本机已有的 Gradle 8.14 发行版，按完整路径调用（在 `GRADLE_USER_HOME`，未设置则 `~/.gradle`，下的 `wrapper/dists/gradle-8.14*/*/gradle-8.14/bin/gradle.bat` 里找；这是 Flutter 构建时缓存的）。不下载、不安装、不改 PATH、不提交 wrapper，该路径不写进仓库或回帖。找不到时回 blocked。
+- `JAVA_HOME` 未设置时：用 Android Studio 自带的 JBR（可从 `flutter doctor -v` 的 “Java binary at” 行得到路径），只在本次 PowerShell 进程里设 `$env:JAVA_HOME`，不改系统或用户环境变量，路径不写进仓库或回帖。
 - `git grep -n -i -E "ntfy.sh/[a-z0-9_-]{6,}" -- tools/bed_watch_android` 无结果（只允许占位）
 
 ## 真人验收（合并后）
@@ -77,3 +78,4 @@
 ## 审计记录
 - 第 1 轮 blocked（10-24）：合同要求 assembleDebug 与协议“永不构建或安装 App”冲突。处理：APK 构建移出 relay，改为合并后由用户授权单独执行；relay 只跑 JVM 单测。
 - 第 2 轮 blocked（10-24）：本机 PATH 上没有 `gradle`（Android SDK 35 已存在）。处理：改用 Flutter 构建缓存里的 Gradle 8.14，按完整路径调用；轮数上限改为 4 轮（前两轮只是环境问题，没有代码）。
+- 第 3 轮 blocked（10-24）：①合同要求开机自启 camera 前台服务，Android 15 禁止；改为开机发恢复通知，点击后在前台启动服务，START_STICKY 重建失败同样降级为通知。②缓存 Gradle 找不到 java；改为本进程临时设 JAVA_HOME 指向 Android Studio JBR。
