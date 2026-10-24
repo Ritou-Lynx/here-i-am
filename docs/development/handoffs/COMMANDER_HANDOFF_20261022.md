@@ -42,4 +42,5 @@
 | D4 | #50 合并，10-24 部署（现役任务 `…d4-mcp-20261023-48bd91ed`），antigravity 已配对，真人验收通过 | — |
 | R1 | 源码已改（10-23）：`ShortcutMailRelay.close()` 先 checkpoint 再切 DELETE 模式，关闭后不留 -wal/-shm；补两项合成测试。现役 schema6 运行时不打开该日志库，STATE 里现有的旧 sidecar 不受影响 | 用户审核合并；随下次换包部署。清理现有旧 sidecar 需另做带闸门的步骤，须用户同意 |
 | F1 飞书学习导师 | 实测通过（10-24，团队租户；个人账号被平台拦截）；合同 `RELAY_20261024_f1-feishu-tutor.md`；PR #51 两轮审核通过（10-24） | 用户合并；按 README 本机配置；旧账本迁移另出提示词；10-31 复测续期 |
+| H1 心率夜间导出 | 合同 `RELAY_20261024_h1-heart-rate-night-export.md`（10-24 用户同意）；relay 第 1 轮已发 | Codex 实现 → Claude 审核 → 用户合并、重建 App、次日导出对照 COROS；之后另立判睡合同 |
 | relay 通知 | PR #41 已合并，飞书机器人与 Bark 本机测试送达成功；旧 #17/#19/#23 已关闭，#19 分支保留 | — |
