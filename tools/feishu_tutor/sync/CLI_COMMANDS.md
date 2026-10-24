@@ -4,10 +4,10 @@
 
 | 唯一出口的命令 | 固定参数与数据参数 | 读取的返回字段 |
 | --- | --- | --- |
-| `whoami` | `--as user` | 成功信封 `ok`、`identity` |
+| `whoami` | `--as user` | `identity`、`available`（10-24 真实租户确认：没有 `ok` 字段） |
 | `base +table-get` | `--as user --base-token <BASE> --table-id <TABLE> --format json` | 成功信封，确认指定表可读 |
 | `base +field-list` | 同上 | `data.fields[]` 中的 `name/type/multiple/options[].name`；该具体容器需真人 check 核验，未知形状拒绝继续 |
-| `base +record-list` | `--as user --base-token <BASE> --table-id <TABLE> --format ndjson --limit 2000 --offset <OFFSET> --output records.ndjson` | 临时 NDJSON 每行 `record_id` 和以字段名为 key 的单元格；同名 `.manifest.json` 的 `records_count/has_more/next_offset/rev/query_context` |
+| `base +record-list` | `--as user --base-token <BASE> --table-id <TABLE> --format ndjson --limit 2000 --offset <OFFSET> --output records.ndjson` | 临时 NDJSON 每行 `record_id` 和以字段名为 key 的单元格；同名 `.manifest.json` 的 `records_count/has_more/next_offset/rev/query_context`；stdout 就是这份 manifest，不套 `ok/identity` 信封（10-24 真实租户确认） |
 | `base +record-batch-create` | `--as user --base-token <BASE> --table-id <TABLE> --json @payload.json` | `data.record_id_list`；检查 `ignored_fields` |
 | `base +record-batch-update` | 同上 | `data.ignored_fields`；成功响应不验证记录存在，因此还会读回核对 |
 | `docs +fetch` | `--as user --doc <DOC> --doc-format markdown` | `data.document.document_id/content/reference_map`，原样保留 sidecar |
