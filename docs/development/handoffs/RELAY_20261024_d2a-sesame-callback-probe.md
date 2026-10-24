@@ -44,6 +44,7 @@
 - `tools/i_remote_mcp/chatgpt_candidate.mjs`、`chatgpt_candidate.test.mjs`（只追加）
 - 新建 `tools/i_remote_mcp/callback_shape.test.mjs`
 - `tools/i_remote_mcp/README.md`
+- `tools/i_remote_mcp/gemini_frontend.test.mjs`：只限第 287 行旧脱敏断言（第 2 轮追加授权，见审核记录）
 - `docs/development/handoffs/RELAY_20261024_d2a-sesame-callback-probe.md`（只由 Claude 改）
 
 ## 不做 / 边界
@@ -60,3 +61,8 @@
 ## 部署（合并后另行确认，手动执行）
 1. 按 D4 段 6 的流程，从现役任务 `HereIAm-iCoreSchema6-d4-mcp-20261023-48bd91ed` 用 `update-mcp-source` 登记新任务并切换（不加 NoRollback）；不改读取策略、不配对。
 2. 用户在 Sesame 里再添加一次 `/mcp`，然后只读取出当次 `/register` 记录的 `callback_shapes`，贴回给 Claude 写 D2b。
+
+## 审核记录
+- 10-24 第 1 轮（d82776e）：blocked。实现了 `callbackShape`、`callback_shapes` 与候选补丁，但 `gemini_frontend.test.mjs:287` 旧断言禁止日志出现 `private-path|unknown\.invalid`，与新口径冲突；未建新测试。
+- 10-24 第 2 轮指令：放开该断言中这两项（其余脱敏断言保留），并断言 `other` 类注册记录 `callback_shapes` 为 `['https://unknown.invalid/private-path']`、其他分类无此字段；路径段计数去掉首个空串；query/fragment 改用 `url.search`/`url.hash`。
+- 10-24 第 2 轮（afe5eaf）：通过。只改合同允许路径（含第 2 轮追加的一处断言）。云端复跑 `node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs` 245/245；候选六文件、`changed_files: 5`，diagnostics 结果哈希 `bd9b3444`，server/oauth/mcp/writeback 与 D4 候选相同，i_memory_read 不变。新测试覆盖 20/21 段边界、253 字符主机、空 query/fragment、去重与 8 项上限、HTTP 注册仍 400 且记录不含原始随机段、四个已知前端无 `callback_shapes`。
