@@ -123,6 +123,8 @@ jobs:
         working-directory: tools/agent_relay
         # Win32 codex resolution is simulated via options, so the suite is platform-neutral.
         run: node --test *.test.mjs
+      - name: feishu_tutor
+        run: node --test tools/feishu_tutor/sync/*.test.mjs
 
   chatgpt-mcp-windows:
     name: MCP ChatGPT compatibility (Windows)

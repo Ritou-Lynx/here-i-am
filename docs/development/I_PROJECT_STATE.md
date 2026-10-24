@@ -23,7 +23,7 @@
 - #49（Gemini 回调允许下划线）与 D4（#50，Antigravity）：先后部署到生产（D4 于 10-24），Antigravity 真人验收通过。App 来源标签“Gemini”“Antigravity”需重建 App 才显示。
 
 ### 进行中
-- 学习账本 F1（固定脚本读写飞书 + 沙箱 Codex 出学习单）：relay PR #51 进行中，收到 relay:done 前不要合并。
+- F1 飞书学习导师：PR #51 审核通过，待合并。合并后用户按 `tools/feishu_tutor/README.md` 在本机配置（团队租户、工具目录和学习目录分开、建三张表、试跑、注册 Interactive 计划任务）；旧账本迁移另做；10-31 复测 refresh token 续期。
 
 ### 之后
 - D2 接入 Sesame（D1 部署之后）。

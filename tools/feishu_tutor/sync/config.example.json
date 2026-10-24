@@ -1,0 +1,45 @@
+{
+  "cli": "<LARK_CLI_EXECUTABLE>",
+  "model": "<CODEX_MODEL>",
+  "base_token": "<BASE_TOKEN>",
+  "subjects": ["<SUBJECT_NAME>"],
+  "sources": [{"title": "<SOURCE_TITLE>", "doc": "<SOURCE_DOC_TOKEN>"}],
+  "tables": {
+    "ledger": {
+      "name": "<LEDGER_TABLE_NAME>",
+      "fields": {
+        "知识点": "<LEDGER_KNOWLEDGE_FIELD>",
+        "科目": "<LEDGER_SUBJECT_FIELD>",
+        "来源": "<LEDGER_SOURCE_FIELD>",
+        "掌握度": "<LEDGER_MASTERY_FIELD>",
+        "最近结果": "<LEDGER_RESULT_FIELD>",
+        "连对": "<LEDGER_STREAK_FIELD>",
+        "错次": "<LEDGER_ERRORS_FIELD>",
+        "上次练习": "<LEDGER_LAST_DATE_FIELD>",
+        "下次复习": "<LEDGER_NEXT_DATE_FIELD>",
+        "备注": "<LEDGER_NOTES_FIELD>"
+      }
+    },
+    "practice": {
+      "name": "<PRACTICE_TABLE_NAME>",
+      "fields": {
+        "时间": "<PRACTICE_TIME_FIELD>",
+        "知识点": "<PRACTICE_KNOWLEDGE_FIELD>",
+        "科目": "<PRACTICE_SUBJECT_FIELD>",
+        "结果": "<PRACTICE_RESULT_FIELD>",
+        "纠正": "<PRACTICE_CORRECTION_FIELD>",
+        "渠道": "<PRACTICE_CHANNEL_FIELD>",
+        "学习单日期": "<PRACTICE_SHEET_DATE_FIELD>"
+      }
+    },
+    "inbox": {
+      "name": "<INBOX_TABLE_NAME>",
+      "fields": {
+        "内容": "<INBOX_CONTENT_FIELD>",
+        "渠道": "<INBOX_CHANNEL_FIELD>",
+        "状态": "<INBOX_STATUS_FIELD>",
+        "入账日期": "<INBOX_DATE_FIELD>"
+      }
+    }
+  }
+}

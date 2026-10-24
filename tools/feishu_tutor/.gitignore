@@ -1,0 +1,7 @@
+# Study data and transport/runtime output never belong in the public repository.
+state/
+inbox/
+logs/
+today.md
+sync/config.json
+config.json
