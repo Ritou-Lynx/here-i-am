@@ -115,4 +115,9 @@
 - Claude 云端核对 `origin/v3-lab...772dab1` 的全部 diff：`food_domains.mjs` 字段精确、合计严格相等，hooks 只放行 `writerPrincipalIds` 的 `agent_inferred` create/patch，patch 限本人创建，delete 拒绝；MCP 自算 `local_date`（04:00 日界）与 totals，禁止字段报 `food_field_not_allowed`，`void` 只 patch `voided`，重试按 op_id 指纹去重，MCP 重启后遇到已有 op 时安全失败；`food` 块令牌独立，scopes 不含 delete；gemini_web 不暴露 food 工具；未配置 food 时工具清单不变。App 只读，隐藏 voided，未启用、未配置、需重同步各有提示。
 - 复跑 `node --test tools/i_core/*.test.mjs tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs`：677 项，664 过，11 败，2 跳；这 11 项（PowerShell/SMTP 用例、activity 并发计时）在 v3-lab 基线上同样失败，单独跑 activity 108/108。新增和相关文件 81/81。候选生成六文件，`changed_files: 5`，哈希与 `48bd91e` 完全一致。
 - 已知限制：`food_day` 每次全量翻快照（上限 2 万条，按每天几餐估计可用多年）；时区默认 Asia/Shanghai，可在配置里改。
-- 结论：完成标准达标，CI 全绿后可以合并。上线走 N2。
+- 结论：Node 与候选部分达标；Flutter 留待 CI 结果。
+
+### 第 3 轮（10-24）：通过
+- 第 2 轮提交的 CI 中，`Flutter full suite (Linux)` 有 4 项失败，都在新文件里：卡片 `ListTile` 放在带背景色的 `Container` 中，触发水波纹断言（3 项）；stale 副本测试用 `invalidateReplica` 构造状态，但这个方法并不设置 `replica_requires_resync`（1 项）。
+- 提交 `6e79b02`：`_Panel` 改用 `Material`，颜色和圆角不变；测试改为 `invalidateReplica` 之后期望“等待首次同步”，再走真实的完成路径造出需重同步状态。`food_service.dart` 未改。
+- `6e79b02` 的 CI 全部通过，包括 Flutter 全量、Node、Windows schema6 与 MCP 兼容。结论：可以合并。上线走 N2。
