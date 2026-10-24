@@ -19,20 +19,20 @@ class PreviewActivity : Activity(), LifecycleOwner {
     override val lifecycle: Lifecycle get() = registry
     private lateinit var camera: CameraSession
     private lateinit var texture: TextureView
-    private lateinit var overlay: TextView
+    private lateinit var readout: TextView
     private var foreground = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         camera = CameraSession(this, this)
         texture = TextureView(this)
-        overlay = TextView(this).apply {
+        readout = TextView(this).apply {
             text = "仅前台预览 · 不保存\n返回后恢复监测"
             textSize = 20f; setTextColor(android.graphics.Color.WHITE); setBackgroundColor(0x99000000.toInt())
         }
         setContentView(FrameLayout(this).apply {
             addView(texture, FrameLayout.LayoutParams(-1, -1))
-            addView(overlay, FrameLayout.LayoutParams(-1, -2))
+            addView(readout, FrameLayout.LayoutParams(-1, -2))
         })
         texture.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) { startPreview() }
@@ -73,10 +73,10 @@ class PreviewActivity : Activity(), LifecycleOwner {
             }
         }
         camera.start(config.front, 500, surfaceProvider,
-            onError = { overlay.text = "相机不可用，请返回检查权限和相机选择。" },
+            onError = { readout.text = "相机不可用，请返回检查权限和相机选择。" },
             onFrame = { f ->
                 val verdict = judge.classify(f)
-                runOnUiThread { if (foreground) overlay.text = "face=${if (f.face) 1 else 0}  eyesOpen=${f.eyesOpen ?: -1f}\n" +
+                runOnUiThread { if (foreground) readout.text = "face=${if (f.face) 1 else 0}  eyesOpen=${f.eyesOpen ?: -1f}\n" +
                     "glow=%.2f  luma=%.1f\n%s\n返回后恢复监测".format(f.glow, f.frameLuma, verdict) }
             })
     }
