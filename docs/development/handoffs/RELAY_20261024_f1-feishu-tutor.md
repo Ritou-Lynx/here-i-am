@@ -101,3 +101,12 @@
 - 纠正明细只写进"练习记录"表，再建一个按日期分组的视图，不单独写"学习记录"文档。
 - Gemini 的错点先手动记到"收件"表，这次不做自动化。
 - risk-control 保持默认；任何 Agent 都不改 risk-control，也不运行 `config` 或 `auth` 类命令。
+
+## 审核记录
+- 第 1 轮（78a50aa，10-24）：实现完整，云端 58 项通过、4 项 PS 跳过。返修 5 项：
+  1. 同步代码、配置、runner 原本放在 Codex 可写的学习目录里，沙箱被绕过，改为独立的工具目录，sync 必须带 `--state`；
+  2. 配置不能把 CLI 设成 `.mjs`；
+  3. 来源改为选填，并允许 `/wiki/`；
+  4. 锁文件写 pid，崩溃后报 stale；
+  5. TUTOR_RULES 的 inbox 路径改到 feishu-study（更正合同疏漏）。
+- 第 2 轮（99354d3，10-24）：5 项都已修复。目录检查同时比较原路径和 realpath，能防 junction 绕过；runner 的 `-StudyDirectory`、`-ConfigPath` 为必填。云端 71 项通过、7 项 PS 跳过（Codex 在 Windows 上 78/78）。**通过。**

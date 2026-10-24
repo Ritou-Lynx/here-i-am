@@ -25,6 +25,7 @@
 - D3 回调修订：Gemini 实际回调路径末尾是“编号-主机名（点换成下划线）”，原模式不含下划线，注册被拒。修订后需重新生成候选并再走一次 update-mcp-source + 切换（gemini_web 凭据和读取策略已就位，不用重做）。
 
 ### 进行中
+- F1 飞书学习导师：PR #51 审核通过，待合并。合并后用户按 `tools/feishu_tutor/README.md` 在本机配置（团队租户、工具目录和学习目录分开、建三张表、试跑、注册 Interactive 计划任务）；旧账本迁移另做；10-31 复测 refresh token 续期。
 - relay 飞书 / Bark 通知（重做旧 #17）：PR #41 审核通过，待合并。合并后用户建飞书群机器人，把 webhook 填进本机 `.state/config.json`，运行 `--test-notify`。
 - CI：maintenance job 超时与 R1 诊断（#39）；agent_relay 测试进 CI（#42）。
 

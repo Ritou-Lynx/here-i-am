@@ -1,3 +1,12 @@
+## 2026-10-24 F1：飞书学习导师（PR #51）
+
+- 先实测（用户本机，lark-cli 1.0.98）：个人或豆包账号下的自建应用授权被平台拦截（21001）。改在自建的免费团队租户里后，文档 Markdown 往返、多维表格增改、筛选、建视图都能做。计划任务调用 CLI 只有在 danger-full-access 下才能跑通（DPoP 在 restricted token 下报 20140）。结论写进 docs/reference/FEISHU_NOTES_RESEARCH_20261021.md 第 10 节。
+- 用户决定：定时任务拆成两段，确定性同步脚本读写飞书，Codex 用 workspace-write 关网，只处理本地文件。
+- 合同 docs/development/handoffs/RELAY_20261024_f1-feishu-tutor.md，经 relay 由 Codex 实现（2 轮）。新增 `tools/feishu_tutor/`：`feishu_sync.mjs` 只能拼出白名单里的 9 个 CLI 操作，拼不出 delete、config、auth；outbox 的 5 种动作先整批校验再写；按快照判断冲突，不覆盖手机上的改动；写入期间文件放在 inflight，不明确的写入留待人工核对。
+- 第 2 轮安全返修：同步代码、配置和 runner 放进独立的工具目录，Codex 的可写目录只有学习目录（目录互相包含时拒绝运行，含 junction）；配置里不能把 CLI 设成脚本；残留锁报 stale。
+- 三张表：账本（沿用 10 个字段）、练习记录（只增不改）、收件（手机和 Gemini 的错点手动加）。dot 改读写 `feishu-study`。现役 siyuan_tutor 未改。
+- 云端 `node --test tools/feishu_tutor/sync/*.test.mjs` 71 项通过（另有 7 项 PS 用例在 Linux 上跳过；Codex 在 Windows 上 78/78）。未连真实飞书，未建计划任务，未迁移旧账本。
+
 ## 2026-10-23 D1+D3 部署到生产；Gemini 回调模式补下划线
 
 - 部署（用户逐段同意，Codex 在本机执行）：工具副本换为 `<OUT>\tools-dddff0f1`；v3-lab `dddff0f` 生成六文件候选（改动 5 个），update-mcp-source 登记新任务 `HereIAm-iCoreSchema6-d1d3-mcp-20261023-dddff0f1`，switch-login-task 切换（不加 NoRollback，中断约 40 秒）；两种非法回调注册均 400。读取策略加入 gemini_web，配对 gemini_web，重启约 67 秒。Claude、ChatGPT 真人验收通过。

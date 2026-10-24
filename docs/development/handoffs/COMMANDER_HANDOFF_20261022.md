@@ -40,5 +40,5 @@
 | D1 | 10-23 已部署（新任务 `…d1d3-mcp-20261023-dddff0f1`），Claude/ChatGPT 真人验收通过 | — |
 | D3 | 10-23 与 D1 一起部署，gemini_web 已配对；Gemini 添加时回调被拒（路径含下划线），回调修订 PR 待合并 | 合并后重新生成候选、update-mcp-source、切换，再做 Gemini 真人验收 |
 | R1 | 源码已改（10-23）：`ShortcutMailRelay.close()` 先 checkpoint 再切 DELETE 模式，关闭后不留 -wal/-shm；补两项合成测试。现役 schema6 运行时不打开该日志库，STATE 里现有的旧 sidecar 不受影响 | 用户审核合并；随下次换包部署。清理现有旧 sidecar 需另做带闸门的步骤，须用户同意 |
-| F1 飞书学习导师 | 实测通过（10-24，团队租户；个人账号被平台拦截）；合同 `RELAY_20261024_f1-feishu-tutor.md`，relay PR 已开 | Codex 实现，Claude 审核；合并后用户按 README 本机配置 |
+| F1 飞书学习导师 | 实测通过（10-24，团队租户；个人账号被平台拦截）；合同 `RELAY_20261024_f1-feishu-tutor.md`；PR #51 两轮审核通过（10-24） | 用户合并；按 README 本机配置；旧账本迁移另出提示词；10-31 复测续期 |
 | relay 通知 | PR #41（重做旧 #17）：第 1 轮通过后改为飞书机器人，第 2 轮审核通过（10-23），云端 105/105；旧 #17/#19/#23 已关闭，#19 分支保留 | 用户合并；建飞书群机器人，配置 webhook 后运行 `--test-notify` |
