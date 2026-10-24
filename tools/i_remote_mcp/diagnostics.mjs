@@ -32,12 +32,12 @@ export function callbackShape(value) {
   try {
     const url = new URL(value);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hostname.length > 253) return null;
-    const segments = url.pathname.split('/');
+    const segments = url.pathname.split('/').slice(1);
     if (segments.length > 20) return null;
-    const path = segments.map(segment => !segment || /^[a-z][a-z_-]{0,31}$/.test(segment)
+    const path = '/' + segments.map(segment => !segment || /^[a-z][a-z_-]{0,31}$/.test(segment)
       ? segment : `{${segment.length}}`).join('/');
-    const query = url.href.split('#', 1)[0].includes('?') ? '?{q}' : '';
-    const fragment = url.href.includes('#') ? '#{f}' : '';
+    const query = url.search ? '?{q}' : '';
+    const fragment = url.hash ? '#{f}' : '';
     return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${path}${query}${fragment}`;
   } catch { return null; }
 }
