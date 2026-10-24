@@ -14,6 +14,7 @@
 - 段 6 中途电脑重启：开机后现役 d3fix 会话以 0xC000013A 退出，线上服务停摆，直到手动 `Start-ScheduledTask` 拉起。这是注销/重启强杀的老问题 L，仍未修；重启或注销后要检查并手动拉起现役任务。
 - 段 6 其他卡点：relay 有轮次在跑时部署前置检查报 `relay_round_in_progress`，等轮次结束后重跑；候选 `runtime` 目录 ACL 是继承来的，登记报 `protected_root_required`，照上一个候选目录的 ACL 设成受保护后通过。
 - Antigravity 真人验收（10-24）：配置写在 `.gemini\config\mcp_config.json`，`mcp-remote` 授权成功；第一次“读不到上下文”是因为 Antigravity 没重载配置，仍在跑本机连续性网关。完全重启后 `i_context` 与 `i_chat_turn` 均成功。
+- 同日用 v3-lab 重建 App（`install_hereiam_v3.ps1`，debug 包覆盖安装、保留数据），C1 来源标签真人验收通过；Gemini 工具调用问题用户决定不再跟进。
 - 执行中的教训（已写进部署提示词）：Codex 临时脚本不要 dot-source 或 import 维护脚本（会清空 `-TaskName`，报 `task_name_required`）；新候选目录要受保护 ACL。
 
 ## 2026-10-23 D1+D3 部署到生产；Gemini 回调模式补下划线

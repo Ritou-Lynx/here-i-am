@@ -17,10 +17,10 @@
 
 ### 最近完成
 - A1+A2（#33）、A4（#34/#35）、A3（#36）已合并；10-23 生产换用新工具副本（#37）。
-- C1（#38，10-23 合并）：App 聊天时间线按来源显示 ChatGPT / Claude。**尚未构建安装**，待用户用 v3-lab 构建 App 替换现装版本并真人验收。
+- C1（#38）：App 聊天时间线按来源显示 Claude / ChatGPT / Gemini / Antigravity。10-24 用 v3-lab 重建 debug 包覆盖安装（保留数据），真人验收通过。
 - relay 飞书 / Bark 通知（#41）已合并，本机测试送达成功；agent_relay 测试进 CI（#42）已合并。
 - D1（#40）+ D3（#44）：10-23 部署到生产。
-- #49（Gemini 回调允许下划线）与 D4（#50，Antigravity）：先后部署到生产（D4 于 10-24），Antigravity 真人验收通过。App 来源标签“Gemini”“Antigravity”需重建 App 才显示。
+- #49（Gemini 回调允许下划线）与 D4（#50，Antigravity）：先后部署到生产（D4 于 10-24），Antigravity 真人验收通过。Gemini 工具调用不生效，用户决定不再跟进。
 
 ### 进行中
 - F1 飞书学习导师：PR #51 审核通过，待合并。合并后用户按 `tools/feishu_tutor/README.md` 在本机配置（团队租户、工具目录和学习目录分开、建三张表、试跑、注册 Interactive 计划任务）；旧账本迁移另做；10-31 复测 refresh token 续期。
