@@ -63,11 +63,16 @@
 
 ## 验证命令
 - `gradle -p tools/bed_watch_android testDebugUnitTest`
-- `gradle -p tools/bed_watch_android assembleDebug`（成功，APK 不提交）
+- 不跑 `assembleDebug`、不生成 APK、不安装：协议“永不”禁止 relay 内构建/安装 App（第 1 轮因此 blocked）。`testDebugUnitTest` 只编译并运行 JVM 单测，不出 APK，属于测试。
+- 若本机没有 `gradle` 或 Android SDK，不要自行安装，回 blocked 并说明缺什么。
 - `git grep -n -i -E "ntfy.sh/[a-z0-9_-]{6,}" -- tools/bed_watch_android` 无结果（只允许占位）
 
 ## 真人验收（合并后）
+0. 用户另行授权后，在本机执行 `gradle -p tools/bed_watch_android assembleDebug` 出 APK（Claude 另给提示词，不在 relay 内做）。
 1. 小米装 APK，授权相机、通知；按 README 设小米后台策略；“调角度”页摆好支架。
 2. 三星装 ntfy 订阅同一 topic；建例程：通知含“林埃来电”→ Call Charlie。“测试推送”能拉起 Charlie。
 3. 白天关灯模拟：刷手机 4 分钟内收到推送；锁屏闭眼不推；今晚放行打开后不推。
 4. 整夜跑一晚，第二天看 jsonl：误推次数、漏判情况、手机温度和电量。
+
+## 审计记录
+- 第 1 轮 blocked（10-24）：合同要求 assembleDebug 与协议“永不构建或安装 App”冲突。处理：APK 构建移出 relay，改为合并后由用户授权单独执行；relay 只跑 JVM 单测。
