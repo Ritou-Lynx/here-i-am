@@ -53,9 +53,11 @@ async function exists(file) { try { await access(file); return true; } catch { r
 // npm's Windows .cmd cannot be spawned with shell:false. Resolve only the known
 // package's native binary; never execute a command shell or arbitrary wrapper.
 export async function resolveCli(config) {
+  if (typeof config.cli === 'string' && /\.(mjs|cjs|js)$/iu.test(config.cli)) fail('cli_invalid');
   const requested = process.env.FEISHU_TUTOR_CLI || config.cli || 'lark-cli';
   if (typeof requested !== 'string' || !requested || /[\r\n\0]/u.test(requested)) fail('cli_invalid');
   if (/\.(mjs|cjs|js)$/iu.test(requested)) {
+    if (!process.env.FEISHU_TUTOR_CLI) fail('cli_invalid');
     return { cli: process.execPath, prefix: [path.resolve(requested)] };
   }
   if (process.platform !== 'win32') return { cli: requested, prefix: [] };

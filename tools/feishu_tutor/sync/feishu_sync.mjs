@@ -5,13 +5,15 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { callCli, fail, SyncError } from './cli.mjs';
+import { assertSeparateDirectories, resolvedPath } from './layout.mjs';
 import { SCHEMA, OPTIONS, object, validDate, validateConfig, validateFields, encodeFields, decodeRow } from './schema.mjs';
 
 export const HELP = `Feishu tutor sync (Node 24)
-Usage: node sync/feishu_sync.mjs <pull|push|check> [--config sync/config.json]
-       node sync/feishu_sync.mjs push --dry-run [--config sync/config.json]
+Usage: node <tool>/sync/feishu_sync.mjs <pull|push|check> --state <study>/state --config <tool>/config.json
+       node <tool>/sync/feishu_sync.mjs push --dry-run --state <study>/state --config <tool>/config.json
        node sync/feishu_sync.mjs --help
-Config lives in <study>/sync/config.json; state lives in <study>/state/.
+--state is required. Config defaults to <tool>/config.json, outside the study directory.
+Tool and study directories must be separate, without either containing the other.
 Only user identity, fixed allowlisted CLI commands, and append-only study docs.
 Dry-run validates local outbox only; it makes no CLI calls and moves no files.
 `;
@@ -109,7 +111,7 @@ export function validateAction(action, config, ledger, inbox, documents) {
       exactKeys(action, ['action', 'records']);
       const table = action.action === 'ledger_create' ? 'ledger' : 'practice';
       if (!Array.isArray(action.records) || action.records.length < 1 || action.records.length > (table === 'ledger' ? 30 : 200)) fail('outbox_invalid_batch');
-      const required = table === 'ledger' ? ['知识点', '科目', '来源', '掌握度', '连对', '错次', '下次复习'] : Object.keys(SCHEMA.practice);
+      const required = table === 'ledger' ? ['知识点', '科目', '掌握度', '连对', '错次', '下次复习'] : Object.keys(SCHEMA.practice);
       for (const fields of action.records) validateFields(fields, table, config, required);
       break;
     }
@@ -246,19 +248,34 @@ export async function run(argv, output = console.log) {
   if (argv.length === 1 && ['--help', '-h'].includes(argv[0])) { output(HELP); return 0; }
   const [command, ...rest] = argv;
   if (!['pull', 'push', 'check'].includes(command)) fail('usage_invalid');
-  let configFile = path.resolve('sync/config.json'), dryRun = false, suppliedConfig = false;
+  const toolDirectory = fileURLToPath(new URL('../', import.meta.url));
+  let configFile = path.join(toolDirectory, 'config.json'), state, dryRun = false, suppliedConfig = false;
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === '--dry-run' && command === 'push' && !dryRun) dryRun = true;
     else if (rest[i] === '--config' && rest[i + 1] && !suppliedConfig) { configFile = path.resolve(rest[++i]); suppliedConfig = true; }
+    else if (rest[i] === '--state' && rest[i + 1] && !state) state = path.resolve(rest[++i]);
     else fail('usage_invalid');
   }
+  if (!state) fail('usage_invalid');
+  const tools = [toolDirectory, path.dirname(configFile), path.dirname(await resolvedPath(configFile))];
+  await assertSeparateDirectories(path.dirname(state), tools);
+  await assertSeparateDirectories(state, tools);
   const config = await json(configFile); validateConfig(config);
-  const state = path.join(path.dirname(configFile), '..', 'state');
   await mkdir(state, { recursive: true });
   let lock;
   try { lock = await open(path.join(state, '.sync.lock'), 'wx'); }
-  catch { fail('sync_locked'); }
+  catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    let owner;
+    try { owner = JSON.parse(await readFile(path.join(state, '.sync.lock'), 'utf8')); } catch { fail('sync_locked'); }
+    if (Number.isSafeInteger(owner?.pid) && owner.pid > 0) {
+      try { process.kill(owner.pid, 0); }
+      catch (probe) { if (probe.code === 'ESRCH') fail('sync_lock_stale'); }
+    }
+    fail('sync_locked');
+  }
   try {
+    await lock.writeFile(`${JSON.stringify({ pid: process.pid, started_at: new Date().toISOString() })}\n`);
     if (command === 'push') return await push(config, state, dryRun);
     if (command === 'pull') await pull(config, state);
     else await check(config);

@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, access } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, access, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { COMMANDS, buildCommand, callCli } from './cli.mjs';
+import { COMMANDS, buildCommand, callCli, resolveCli } from './cli.mjs';
+import { assertSeparateDirectories } from './layout.mjs';
 import { SCHEMA, OPTIONS, decodeRow } from './schema.mjs';
 
 const entry = fileURLToPath(new URL('./feishu_sync.mjs', import.meta.url));
@@ -15,7 +16,8 @@ import path from 'node:path';
 const args = process.argv.slice(2), store = JSON.parse(fs.readFileSync(process.env.TEST_FEISHU_STORE, 'utf8'));
 const flag = name => args[args.indexOf(name) + 1];
 const files = args.filter(v => v.startsWith('@')).map(arg => ({arg, bytes:fs.readFileSync(arg.slice(1)).toString('base64')}));
-fs.appendFileSync(process.env.TEST_FEISHU_LOG, JSON.stringify({args,files,cwd:process.cwd(),no_proxy:process.env.LARK_CLI_NO_PROXY})+'\n');
+const lock = process.env.TEST_FEISHU_LOCK && fs.existsSync(process.env.TEST_FEISHU_LOCK) ? JSON.parse(fs.readFileSync(process.env.TEST_FEISHU_LOCK,'utf8')) : null;
+fs.appendFileSync(process.env.TEST_FEISHU_LOG, JSON.stringify({args,files,lock,cwd:process.cwd(),no_proxy:process.env.LARK_CLI_NO_PROXY})+'\n');
 const command = args[0] === 'whoami' ? 'whoami' : args[1];
 const table = flag('--table-id');
 let data = {};
@@ -60,12 +62,13 @@ const sourceRow = { record_id: 'recLedger', ...ledgerFields, 科目: ['日语'],
 const inboxRow = { record_id: 'recInbox', 内容: '语音错点', 渠道: ['手动'], 状态: ['待入账'], 入账日期: null };
 
 async function fixture(t) {
-  const root = await mkdtemp(path.join(tmpdir(), 'feishu-test-'));
-  t.after(async () => { assert.equal(path.dirname(root), path.resolve(tmpdir())); await rm(root, { recursive: true, force: true }); });
-  await mkdir(path.join(root, 'sync')); await mkdir(path.join(root, 'state', 'outbox'), { recursive: true });
-  const cli = path.join(root, 'fake-cli.mjs'), log = path.join(root, 'calls.jsonl'), storeFile = path.join(root, 'store.json');
+  const base = await mkdtemp(path.join(tmpdir(), 'feishu-test-'));
+  t.after(async () => { assert.equal(path.dirname(base), path.resolve(tmpdir())); await rm(base, { recursive: true, force: true }); });
+  const root = path.join(base, 'study'), tool = path.join(base, 'tool');
+  await mkdir(tool); await mkdir(path.join(root, 'state', 'outbox'), { recursive: true });
+  const cli = path.join(tool, 'fake-cli.mjs'), log = path.join(base, 'calls.jsonl'), storeFile = path.join(base, 'store.json');
   await writeFile(cli, fakeSource); await writeFile(log, '');
-  const config = { cli, base_token: 'TEST_BASE', model: 'TEST_MODEL', subjects: ['日语'],
+  const config = { cli: 'lark-cli', base_token: 'TEST_BASE', model: 'TEST_MODEL', subjects: ['日语'],
     sources: [{title:'语法',doc:'TEST_SOURCE'}], tables: {} };
   const fields = {};
   for (const [table, schema] of Object.entries(SCHEMA)) {
@@ -74,12 +77,13 @@ async function fixture(t) {
       multiple:false,options:(name==='科目'?config.subjects:OPTIONS[name]).map(name=>({name}))}: {})}));
   }
   const store = { fields, rows: { ledger: [structuredClone(sourceRow)], practice: [], inbox: [structuredClone(inboxRow)] }, counter: 0 };
-  const configFile = path.join(root, 'sync', 'config.json');
+  const configFile = path.join(tool, 'config.json');
   await writeFile(configFile, JSON.stringify(config)); await writeFile(storeFile, JSON.stringify(store));
   const env = {...process.env,TEST_FEISHU_STORE:storeFile,TEST_FEISHU_LOG:log};
-  delete env.FEISHU_TUTOR_CLI;
+  env.FEISHU_TUTOR_CLI = cli;
+  env.TEST_FEISHU_LOCK = path.join(root,'state','.sync.lock');
   const f = {
-    root, config, store, env,
+    root, tool, configFile, config, store, env,
     async storeSave() { await writeFile(storeFile,JSON.stringify(store)); },
     async savedStore() { return JSON.parse(await readFile(storeFile,'utf8')); },
     async put(name, action) { await writeFile(path.join(root,'state','outbox',name),JSON.stringify(action)); },
@@ -87,8 +91,11 @@ async function fixture(t) {
     async clearLog() { await writeFile(log,''); },
     async report() { return JSON.parse(await readFile(path.join(root,'state','push-report.json'),'utf8')); },
     async run(...args) {
+      return this.invoke([...args,'--config',configFile,'--state',path.join(root,'state')]);
+    },
+    async invoke(args) {
       return new Promise((resolve,reject)=>{
-        const child = spawn(process.execPath,[entry,...args,'--config',configFile],{env,shell:false});
+        const child = spawn(process.execPath,[entry,...args],{env,shell:false});
         let stdout='',stderr='';child.stdout.setEncoding('utf8');child.stderr.setEncoding('utf8');
         child.stdout.on('data',s=>stdout+=s);child.stderr.on('data',s=>stderr+=s);
         child.on('error',reject);child.on('close',exit=>resolve({exit,stdout,stderr}));
@@ -100,6 +107,90 @@ async function fixture(t) {
 }
 const writes = calls => calls.filter(c=>['+record-batch-create','+record-batch-update','+create','+update'].includes(c.args[1]));
 const create = () => ({action:'ledger_create',records:[structuredClone(ledgerFields)]});
+
+test('sync requires --state before reading config or calling CLI', async t => {
+  const f=await fixture(t);
+  const result=await f.invoke(['check','--config',f.configFile]);
+  assert.equal(result.exit,1);assert.match(result.stderr,/usage_invalid/u);
+  assert.equal((await f.calls()).length,0);
+});
+
+for (const layout of ['same','tool_inside_study','study_inside_tool']) test(`Node sync rejects overlapping directories: ${layout}`,async t=>{
+  const f=await fixture(t);
+  const study=layout==='same'?f.tool:layout==='tool_inside_study'?path.dirname(f.tool):path.join(f.tool,'nested-study');
+  const result=await f.invoke(['pull','--config',f.configFile,'--state',path.join(study,'state')]);
+  assert.equal(result.exit,1);assert.match(result.stderr,/daily_layout_invalid/u);
+  assert.equal((await f.calls()).length,0);
+});
+
+test('Node layout resolves junctions and missing state ancestors',async t=>{
+  const f=await fixture(t), alias=path.join(path.dirname(f.root),'alias');
+  await symlink(f.tool,alias,process.platform==='win32'?'junction':'dir');
+  await assert.rejects(assertSeparateDirectories(path.join(alias,'missing'),[f.tool]),/daily_layout_invalid/u);
+  await assertSeparateDirectories(f.root,[f.tool]);
+});
+
+test('state alias into tools is rejected before remote calls',async t=>{
+  const f=await fixture(t), alias=path.join(f.root,'aliased-state');
+  await symlink(f.tool,alias,process.platform==='win32'?'junction':'dir');
+  const result=await f.invoke(['check','--config',f.configFile,'--state',alias]);
+  assert.equal(result.exit,1);assert.match(result.stderr,/daily_layout_invalid/u);
+  assert.equal((await f.calls()).length,0);
+});
+
+test('config alias placed in the writable study directory is rejected',async t=>{
+  const f=await fixture(t), alias=path.join(f.root,'tool-alias');
+  await symlink(f.tool,alias,process.platform==='win32'?'junction':'dir');
+  const result=await f.invoke(['check','--config',path.join(alias,'config.json'),'--state',path.join(f.root,'state')]);
+  assert.equal(result.exit,1);assert.match(result.stderr,/daily_layout_invalid/u);
+  assert.equal((await f.calls()).length,0);
+});
+
+test('script CLI paths are only accepted from the test environment override',async()=>{
+  const previous=process.env.FEISHU_TUTOR_CLI;
+  try {
+    delete process.env.FEISHU_TUTOR_CLI;
+    for(const extension of ['mjs','js','cjs','JS']) await assert.rejects(resolveCli({cli:`fake.${extension}`}),/cli_invalid/u);
+    process.env.FEISHU_TUTOR_CLI='fake.mjs';
+    assert.deepEqual(await resolveCli({cli:'lark-cli'}),{cli:process.execPath,prefix:[path.resolve('fake.mjs')]});
+    await assert.rejects(resolveCli({cli:'config-script.mjs'}),/cli_invalid/u);
+  } finally { if(previous===undefined)delete process.env.FEISHU_TUTOR_CLI;else process.env.FEISHU_TUTOR_CLI=previous; }
+});
+
+test('ledger create permits omitted source and wiki sources',async t=>{
+  const f=await fixture(t), withoutSource={...ledgerFields};delete withoutSource.来源;
+  await f.put('a.json',{action:'ledger_create',records:[withoutSource,{...ledgerFields,来源:'[知识库](https://example.invalid/wiki/note)'}]});
+  const result=await f.run('push');assert.equal(result.exit,0,result.stderr);
+  const records=(await f.savedStore()).rows.ledger;
+  assert.equal(Object.hasOwn(records[1],'来源'),false);
+  assert.equal(records[2].来源,'[知识库](https://example.invalid/wiki/note)');
+});
+
+test('sync lock records owner pid and timestamp and releases after success',async t=>{
+  const f=await fixture(t);assert.equal((await f.run('check')).exit,0);
+  const lock=(await f.calls())[0].lock;
+  assert.ok(Number.isSafeInteger(lock.pid)&&lock.pid>0);
+  assert.ok(Number.isFinite(Date.parse(lock.started_at)));
+  await assert.rejects(access(path.join(f.root,'state','.sync.lock')));
+});
+
+for(const kind of ['live','stale','malformed']) test(`existing ${kind} sync lock is retained without CLI calls`,async t=>{
+  const f=await fixture(t);let pid=process.pid;
+  if(kind==='stale') pid=await new Promise((resolve,reject)=>{
+    const child=spawn(process.execPath,['-e',''],{shell:false});
+    child.once('error',reject);child.once('close',()=>resolve(child.pid));
+  });
+  const lockFile=path.join(f.root,'state','.sync.lock');
+  const contents=kind==='malformed'?'{':JSON.stringify({pid,started_at:new Date().toISOString()});
+  await writeFile(lockFile,contents);
+  await mkdir(path.join(f.root,'state','outbox','inflight'));
+  await writeFile(path.join(f.root,'state','outbox','inflight','uncertain.json'),'{}');
+  const result=await f.run('check');assert.equal(result.exit,1);
+  assert.match(result.stderr,kind==='stale'?/sync_lock_stale/u:/sync_locked/u);
+  assert.equal(await readFile(lockFile,'utf8'),contents);
+  assert.deepEqual(await readdir(path.join(f.root,'state','outbox','inflight')),['uncertain.json']);
+  assert.equal((await f.calls()).length,0);
+});
 
 test('closed command builder enumerates every allowed operation', () => {
   const cases = {
@@ -268,7 +359,7 @@ test('ignored fields do not archive a write as successful',async t=>{
 test('transport finally removes temporary files on subprocess failure',async t=>{
   const f=await fixture(t);f.store.fail='+create';await f.storeSave();
   const oldStore=process.env.TEST_FEISHU_STORE,oldLog=process.env.TEST_FEISHU_LOG,oldCli=process.env.FEISHU_TUTOR_CLI;
-  process.env.TEST_FEISHU_STORE=f.env.TEST_FEISHU_STORE;process.env.TEST_FEISHU_LOG=f.env.TEST_FEISHU_LOG;process.env.FEISHU_TUTOR_CLI=f.config.cli;
+  process.env.TEST_FEISHU_STORE=f.env.TEST_FEISHU_STORE;process.env.TEST_FEISHU_LOG=f.env.TEST_FEISHU_LOG;process.env.FEISHU_TUTOR_CLI=f.env.FEISHU_TUTOR_CLI;
   try { await assert.rejects(callCli({cli:'unused'},'doc_create',{},'中文\n$ "x"'),/cli_failed/u); }
   finally { for(const [k,v] of Object.entries({TEST_FEISHU_STORE:oldStore,TEST_FEISHU_LOG:oldLog,FEISHU_TUTOR_CLI:oldCli})) {if(v===undefined)delete process.env[k];else process.env[k]=v;} }
   const calls=await f.calls();assert.equal(calls.length,1);await assert.rejects(access(calls[0].cwd));

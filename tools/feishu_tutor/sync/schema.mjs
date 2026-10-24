@@ -50,7 +50,7 @@ export function validateFields(fields, table, config, required = []) {
     if (key === '来源') {
       const match = /^\[([^\]\r\n]+)\]\((https:\/\/[^\s)]+)\)$/u.exec(value);
       if (!match) fail('outbox_invalid_source');
-      try { const url = new URL(match[2]); if (url.username || url.password || !url.pathname.startsWith('/docx/')) fail('outbox_invalid_source'); }
+      try { const url = new URL(match[2]); if (url.username || url.password || !/^\/(docx|wiki)\//u.test(url.pathname)) fail('outbox_invalid_source'); }
       catch { fail('outbox_invalid_source'); }
     }
   }
