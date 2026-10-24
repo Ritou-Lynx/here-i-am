@@ -34,7 +34,7 @@
   - 永不出现：任何 delete、remove、clear、`config`、`auth`、权限和成员类命令
 - [ ] `pull`：把三张表读成 `state/ledger.json`、`state/inbox.json`（只取"状态 = 待入账"的行），带 `pulled_at` 和每行的 `record_id`。
 - [ ] `push`：读 `state/outbox/*.json`，先校验再写。校验规则：
-  - 只允许三种动作：`ledger_update`（按 record_id，只改白名单字段）、`ledger_create`（单次最多 30 行）、`practice_create`。另外还有 `inbox_mark`（只把"状态"改成"已入账"并填入账日期）和 `doc_write`（只写学习单文档）。
+  - 只允许五种动作：`ledger_update`（按 record_id，只改白名单字段）、`ledger_create`（单次最多 30 行）、`practice_create`、`inbox_mark`（只把"状态"改成"已入账"并填入账日期）、`doc_write`（只写学习单文档）。
   - 字段值逐项校验类型和取值范围，例如掌握度只能是 未学/模糊/掌握，连对只能是非负整数，日期必须是合法日期。
   - 任一条不合法，整批拒绝，什么都不写，退出码非 0，错误码写进 `state/push-report.json`。
   - 写入成功的 outbox 文件移到 `state/outbox/done/`，不删除。
