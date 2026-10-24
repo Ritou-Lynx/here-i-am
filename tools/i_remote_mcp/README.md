@@ -234,6 +234,7 @@ Node 22 的 `node --test <目录>` 不会展开目录（会把目录当模块执
 每个完成的 HTTP 请求产生 `http_request`；每条实际经过 RPC 处理器的消息另产生 `mcp_rpc`。每行都有 `timestamp`（UTC ISO 8601）、`method`、`path`、`status`、`ua_family`、`origin`。UA 只保留固定家族：`claude`、`edge`、`firefox`、`chromium`、`safari`、`curl`、`node`、`python-httpx`、`python-requests`、`other` 或 `absent`；客户端可伪造 UA，因此家族不能证明来源。
 
 - GET `/authorize` 额外记录 `callback` / `resource`；只保留已知 Claude callback 和本服务 resource（保留尾斜杠差异），去除账号、密码、query 和 fragment。Origin 仅保留已知 Claude 或本服务来源。未知 URL（包括额外配置的 callback）统一为 `[redacted]`，缺失为 `null`。它们用于判断是否带参和已知端点是否匹配，不回显任意外部 URL。
+- POST `/register` 仅在 `callback_class: other` 时记录 `callback_shapes`：保留协议、小写主机、非默认端口及符合 `^[a-z][a-z_-]{0,31}$` 的路径段，其他非空段仅记 `{长度}`、空段保留，query/fragment 仅记 `?{q}` / `#{f}`；拒绝非 HTTP(S)、账号密码、超长主机或超过 20 段的路径，过滤无效形状后去重保序且最多 8 项，不记录原始回调。
 - `mcp_rpc` 只记录白名单 `rpc_method` / `tool`、`outcome`（`success`、`error`、`no_response`）及必要的固定 `error_code`。未知方法或工具名为 `other`；JSON-RPC 错误为白名单数值码，工具错误为 `tool_error` 或 `data_source_unavailable`。HTTP 拒绝发生在 RPC 处理前时仅有 HTTP 状态，不能算作工具执行。
 - 不记录原始 UA、Authorization / Cookie / session 头、请求 ID、IP、口令、授权码、token、其他 query、body、工具参数或结果内容、原始异常。未知 HTTP 路径和方法也替换为固定标签。旧 `log` 回调仍可接收脱敏的 method/path/status；不再接收异常正文。
 - 日志基于响应 `finish`，说明本服务完成了响应写入，不代表远端客户端已接收或用户已验收；中途断开且未完成的响应不产生日志。诊断回调报错不会改变 MCP/OAuth 响应。落盘失败仅报告 `diagnostic_write_failed`，不输出路径或系统异常。每日分文件不自动删除旧日志。
