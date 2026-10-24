@@ -7,7 +7,7 @@
 - 目标：用户在 Claude / ChatGPT / Antigravity 发食物照片或描述，前端模型识图、拆成“食物 + 克数范围 + 每项热量和三大营养素”，经 i MCP 写入 Core；手机 App 新“饮食”页显示当天记录。照片不经 MCP、不留存；模型自己估值，标来源和置信度。
 - 存储走个人数据中枢的通用领域引擎：`tools/i_core/domain_store.mjs` 的 `registerDomain`（第 52 行）+ 主机 hooks，写法参照 `personal_data_domains.mjs`（schema 第 17 行起，hooks 第 183 行起，注册第 245 行）。生产上个人领域从未启用（`registerPersonalDataDomains` 没有生产调用方，手机端“默认不发任何领域流量”），本合同同样只做源码与合成测试，不接入生产启动。
 - actor：`domain_store.mjs` 第 5、151 行规定 `user_direct`/`user_via_agent` 为第 3 级，必须带已验证的 `authorization_ref`。用户决定前端写入不要授权引用，所以 MCP 写入用 `agent_inferred`（第 1 级）。副作用是以后 App 里以 `user_direct` 改过的字段，前端不能再覆盖，这正符合“用户改的为准”。
-- MCP：领域工具在 `domain_tools.mjs`，网页端白名单 `WEB_DOMAIN_TOOLS`（第 57 行），配置入口 `server.mjs` `createWebDomainOptions`（第 479 行起，`plan_reads` 是独立令牌的先例），ChatGPT 系前端的领域工具按名字过滤（第 98 行）。
+- MCP：领域工具在 `domain_tools.mjs`，网页端白名单 `WEB_DOMAIN_TOOLS`（第 57 行），配置入口 `server.mjs` `createWebDomainOptions`（第 480 行起，`plan_reads` 是独立令牌的先例），ChatGPT 系前端的领域工具按名字过滤（第 98 行）。
 - 生产 MCP 是 `chatgpt_candidate.mjs` 从旧基线生成的六文件候选，legacy 侧没有领域工具。改 mainline `server.mjs` 必须在构建器加只作用于 mainline 的补丁组，候选输出必须逐字节不变（本合同不改生产 MCP 行为）。
 - App：领域副本与同步在 `lib/data/personal_data_hub/`，`PlanningService`（`planning_service.dart` 第 47 行）是只读视图的先例；生活空间页 `companion_life_space_screen.dart` 第 47–51 行用 tab 跳 `AppRoutes.planning`。
 
