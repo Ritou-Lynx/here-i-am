@@ -50,6 +50,10 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
       context.push(AppRoutes.planning);
       return;
     }
+    if (index == 6) {
+      context.push(AppRoutes.food);
+      return;
+    }
     setState(() {
       _currentIndex = index;
       _visitedIndexes.add(index);
@@ -65,6 +69,7 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
       'Health',
       '话题线索',
       '今天 / 本周',
+      '饮食',
     ];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
