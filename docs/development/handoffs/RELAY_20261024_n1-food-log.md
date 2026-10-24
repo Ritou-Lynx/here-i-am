@@ -24,6 +24,7 @@
 | `items` | 数组，1–40 项，每项见下表 |
 | `totals` | `{kcal,kcal_low,kcal_high,protein_g,fat_g,carb_g}`，必须等于按下面算法从 items 算出的值 |
 | `user_corrected` | boolean；本合同里 MCP 写入恒为 false |
+| `voided` | boolean；前端“撤销这条”时置 true，读取和 App 一律隐藏；真正删除留给 App 的 `user_direct`（N3） |
 
 每项 `items[]`（键集合精确，不许多余键）：
 
@@ -43,18 +44,18 @@
 **Core（新文件 `tools/i_core/food_domains.mjs`）**
 - [ ] 导出 `FOOD_HOOK_VERSION='food-v1'`、`FOOD_DOMAINS=['food_entries']`、`FOOD_SCHEMAS`、`foodTotals(items)`、`validateFoodRecord(record)`、`createFoodDomainHooks({writerPrincipalIds=[]})`、`registerFoodDomains(store,{mode='off'})`。
 - [ ] 校验按上面两张表：键集合精确、枚举、长度、数值范围、`grams_low ≤ grams ≤ grams_high`、`totals` 与 `foodTotals(items)` 逐键严格相等；不合规的转换被 hooks 拒绝。
-- [ ] `authorizeOperation`：只允许 `writerPrincipalIds` 里的 principal，以 actor `agent_inferred` 做 create / patch / delete；patch / delete 只能针对同一 principal 创建的记录。其他 principal、其他 actor、`status`/`merge`/`restore`/`purge` 一律拒绝。lookup 阶段规则同理。
+- [ ] `authorizeOperation`：只允许 `writerPrincipalIds` 里的 principal，以 actor `agent_inferred` 做 create / patch；patch 只能针对同一 principal 创建的记录。其他 principal、其他 actor、`delete`/`status`/`merge`/`restore`/`purge` 一律拒绝（引擎本就要求 delete 为第 3 级，见审核记录第 1 轮）。lookup 阶段规则同理。
 - [ ] 不改 `domain_store.mjs`、`i_core_server.mjs`、`i_core_store.mjs`、`personal_data_domains.mjs`、`release_schema6/`；不接入任何生产启动路径。
-- [ ] 新测试 `tools/i_core/food_domains.test.mjs`（合成数据，用真实 `DomainStore` 走 HTTP 或 store 接口）：注册 → 授权 principal 以 `agent_inferred` 创建、改、删成功；未授权 principal、`user_via_agent` 无授权引用、`status` 操作被拒；totals 错 0.1、缺键、多键、`grams_low>grams`、41 项、未知枚举各被拒；`foodTotals` 有固定样例（含小数进位）。
+- [ ] 新测试 `tools/i_core/food_domains.test.mjs`（合成数据，用真实 `DomainStore` 走 HTTP 或 store 接口）：注册 → 授权 principal 以 `agent_inferred` 创建、修改、置 `voided:true` 成功，`agent_inferred` delete 被拒；未授权 principal、`user_via_agent` 无授权引用、`status` 操作被拒；totals 错 0.1、缺键、多键、`grams_low>grams`、41 项、未知枚举各被拒；`foodTotals` 有固定样例（含小数进位）。
 
 **MCP（`domain_tools.mjs`、`server.mjs`、`mcp.mjs` 仅确需时）**
-- [ ] 新工具 `food_log`（scope `i.write`）：参数 `action`（`add`/`update`/`delete`）、`op_id`（UUID，重试原样）、`id`（UUID，add 时新建）、`base_revision`（update/delete 必填）、`entry`（add/update 必填：`eaten_at`、`meal`、`title`、`note?`、`input_kind`、`items`）。MCP 自己算 `local_date`、`totals`，补 `user_corrected:false`、`created_at`/`expires_at`，actor 固定 `agent_inferred`；update 为整条覆盖这些字段。调用方传 `totals`、`local_date`、`actor` 一律报错 `food_field_not_allowed`。返回 `{id,revision,local_date,totals,day_totals}`。
-- [ ] 新工具 `food_day`（scope `i.read`）：参数 `date?`（缺省为按 04:00 日界的“今天”），返回当天全部未删除条目（按 `eaten_at` 升序）和 `day_totals`（各条 totals 逐键求和后 round1）。
-- [ ] 两个工具的 description 用中文写清：照片由你自己看，不要尝试上传；逐项列食物，中式炒菜把“烹调油”单列一项；给克数范围；参照物写进 note；不确定标 low，不编数；`food_ref.source` 用 `model`，拍到营养标签时用 `label`、`basis:'label'`；写入后把结果和今日累计告诉用户并请对方纠正。
-- [ ] `WEB_DOMAIN_TOOLS` 加 `food_log`、`food_day`。`createWebDomainOptions` 支持可选 `food` 配置块：独立令牌（与 `token`、`plan_reads.token` 都不同），scopes 只能是 `food_entries:read/create/patch/delete` 的子集，否则 `invalid_web_food_configuration`。
+- [ ] 新工具 `food_log`（scope `i.write`）：参数 `action`（`add`/`update`/`void`）、`op_id`（UUID，重试原样）、`id`（UUID，add 时新建）、`base_revision`（update/void 必填）、`entry`（add/update 必填：`eaten_at`、`meal`、`title`、`note?`、`input_kind`、`items`）。MCP 自己算 `local_date`、`totals`，补 `user_corrected:false`、`voided:false`、`created_at`/`expires_at`，actor 固定 `agent_inferred`；update 为整条覆盖这些字段；void 只 patch `voided:true`。调用方传 `totals`、`local_date`、`actor` 一律报错 `food_field_not_allowed`。返回 `{id,revision,local_date,totals,day_totals}`。
+- [ ] 新工具 `food_day`（scope `i.read`）：参数 `date?`（缺省为按 04:00 日界的“今天”），返回当天全部未删除且 `voided` 不为 true 的条目（按 `eaten_at` 升序）和 `day_totals`（各条 totals 逐键求和后 round1）。
+- [ ] 两个工具的 description 用中文写清：照片由你自己看，不要尝试上传；逐项列食物，中式炒菜把“烹调油”单列一项；给克数范围；参照物写进 note；不确定标 low，不编数；`food_ref.source` 用 `model`，拍到营养标签时用 `label`、`basis:'label'`；写入后把结果和今日累计告诉用户并请对方纠正；用户说记错了、不要这条时用 `void`。
+- [ ] `WEB_DOMAIN_TOOLS` 加 `food_log`、`food_day`。`createWebDomainOptions` 支持可选 `food` 配置块：独立令牌（与 `token`、`plan_reads.token` 都不同），scopes 只能是 `food_entries:read/create/patch` 的子集，否则 `invalid_web_food_configuration`。
 - [ ] 前端：`claude_web`、`chatgpt_web`、`antigravity` 都暴露 `food_log`、`food_day`；`gemini_web` 不暴露。`food_log` 的 `requiredScope` 为 `i.write`（第 96 行现有 `capture_add` 特判一并改成按工具声明）。
 - [ ] 未配置 `food` 块时工具清单与现在完全一致（既有测试不改即通过）。
-- [ ] 新测试 `tools/i_remote_mcp/food_tools.test.mjs`：假 Core 客户端；`local_date` 日界（本地 03:59 归前一天、04:00 归当天）；totals 由 MCP 计算且与 `foodTotals` 一致（import Core 文件只在测试里做对照）；禁止字段报错；add→update→delete 的请求形状（actor、base_revision、op_id 重试原样）；四个前端的工具清单（gemini 无 food 工具）；`food` 配置非法的各种情况。
+- [ ] 新测试 `tools/i_remote_mcp/food_tools.test.mjs`：假 Core 客户端；`local_date` 日界（本地 03:59 归前一天、04:00 归当天）；totals 由 MCP 计算且与 `foodTotals` 一致（import Core 文件只在测试里做对照）；禁止字段报错；add→update→void 的请求形状（actor、base_revision、op_id 重试原样）；四个前端的工具清单（gemini 无 food 工具）；`food` 配置非法的各种情况。
 
 **候选构建器（`chatgpt_candidate.mjs`）**
 - [ ] 新补丁组只作用于 mainline（legacy 为空），v3-lab 新源码通过正反向校验。
@@ -62,7 +63,7 @@
 
 **App（只读今日页）**
 - [ ] `lib/data/personal_data_hub/food_models.dart`：`FoodEntry`、`FoodItem`、`FoodTotals`、`FoodDaySnapshot`（含 `error` 文案）；从副本 JSON 严格解析，坏记录跳过并计数，不崩溃。
-- [ ] `lib/data/personal_data_hub/food_service.dart`：`FoodService({DomainStore? store, DateTime Function()? clock})`，`Stream<void> get changes`，`Future<FoodDaySnapshot> read(DateTime date)`；绑定检查、`route!='core'` →“尚未启用”、需重同步 →“副本需要重新同步”、无 store →“尚未配置”，写法同 `PlanningService.read`。本期没有任何写操作。
+- [ ] `lib/data/personal_data_hub/food_service.dart`：`FoodService({DomainStore? store, DateTime Function()? clock})`，`Stream<void> get changes`，`Future<FoodDaySnapshot> read(DateTime date)`；绑定检查、`route!='core'` →“尚未启用”、需重同步 →“副本需要重新同步”、无 store →“尚未配置”，写法同 `PlanningService.read`；`voided:true` 的条目不显示、不计入合计。本期没有任何写操作。
 - [ ] `lib/ui/food/widgets/food_screen.dart` + `food_host_screen.dart`：今日视图。顶部当日热量“约 N 千卡（低–高）”；蛋白 / 脂肪 / 碳水三条横条（克数与占热量比例，按 4/9/4 千卡每克算）；按 `eaten_at` 的餐次卡片（时间、标题、热量与范围、置信度点、来源标签）；点开列出每项食物、克数、来源（模型估 / 标签）；左右切换日期；无数据和各错误状态有中文提示。
 - [ ] 来源标签：副本记录若有 `origin.device_id`，用 `chat_message_source_label.dart` 里同一份映射显示（允许在该文件新增一个公开函数，原有行为不变）；没有就不显示。
 - [ ] 路由 `AppRoutes.food = '/food'`；生活空间 tab 末尾加“饮食”，点击 `context.push(AppRoutes.food)`，写法同第 47–51 行。
@@ -104,4 +105,7 @@
 - N2 上线每一步单独同意。
 
 ## 审核记录
-（待第 1 轮）
+
+### 第 1 轮（10-24）：blocked，合同修订
+- Codex 复现：`domain_store.mjs` 提交入口在 hooks 之前要求 delete 的 actor 为第 3 级，`agent_inferred`（第 1 级）delete 返回 403 `actor_not_authorized`，无改动。
+- 裁决：不改 Core 引擎。删除是用户级操作，属引擎设计；前端撤销改为 patch `voided:true`（新增字段），真正删除留给 App 的 `user_direct`（N3）。合同已相应修订。
