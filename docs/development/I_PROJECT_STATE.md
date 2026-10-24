@@ -17,10 +17,10 @@
 
 ### 最近完成
 - A1+A2（#33）、A4（#34/#35）、A3（#36）已合并；10-23 生产换用新工具副本（#37）。
-- C1（#38，10-23 合并）：App 聊天时间线按来源显示 ChatGPT / Claude。**尚未构建安装**，待用户用 v3-lab 构建 App 替换现装版本并真人验收。
+- C1（#38）：App 聊天时间线按来源显示 Claude / ChatGPT / Gemini / Antigravity。10-24 用 v3-lab 重建 debug 包覆盖安装（保留数据），真人验收通过。
 - relay 飞书 / Bark 通知（#41）已合并，本机测试送达成功；agent_relay 测试进 CI（#42）已合并。
 - D1（#40）+ D3（#44）：10-23 部署到生产。
-- #49（Gemini 回调允许下划线）与 D4（#50，Antigravity）：先后部署到生产（D4 于 10-24），Antigravity 真人验收通过。App 来源标签“Gemini”“Antigravity”需重建 App 才显示。
+- #49（Gemini 回调允许下划线）与 D4（#50，Antigravity）：先后部署到生产（D4 于 10-24），Antigravity 真人验收通过。Gemini 工具调用不生效，用户决定不再跟进。
 
 ### 进行中
 - 学习账本 F1（固定脚本读写飞书 + 沙箱 Codex 出学习单）：relay PR #51 进行中，收到 relay:done 前不要合并。
