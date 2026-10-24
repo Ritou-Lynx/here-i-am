@@ -105,7 +105,14 @@ export async function callCli(config, operation, params = {}, payload) {
         if (overflow || code !== 0) return reject(new SyncError('cli_failed'));
         let envelope;
         try { envelope = JSON.parse(stdout); } catch { return reject(new SyncError('cli_invalid_json')); }
-        if (envelope.ok !== true || envelope.identity !== 'user') return reject(new SyncError('cli_invalid_response'));
+        // CLI 1.0.98 shapes, confirmed on a real tenant: whoami has no ok field;
+        // record-list with --output prints the manifest itself, whose rows are
+        // checked against the files below. Every other command keeps the envelope.
+        if (operation === 'whoami') {
+          if (envelope.identity !== 'user' || envelope.available !== true) return reject(new SyncError('cli_invalid_response'));
+        } else if (operation !== 'record_list' && (envelope.ok !== true || envelope.identity !== 'user')) {
+          return reject(new SyncError('cli_invalid_response'));
+        }
         resolve(envelope);
       });
     });
