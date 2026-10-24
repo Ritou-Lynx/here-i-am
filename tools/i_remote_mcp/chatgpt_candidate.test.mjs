@@ -224,3 +224,28 @@ test('Antigravity candidate keeps the six-file closure, exact callbacks and dedi
  const bytes=readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'),'utf8');
  assert.ok(!bytes.replaceAll('\r\n','').includes('\n'),'Antigravity diagnostics retain CRLF');
 });
+
+test('callback shape candidate preserves six-file closure, exact diagnostics bytes and path boundaries', async t => {
+ const built = candidate(t); // Construction enforces mainline and legacy forward/reverse byte checks.
+ assert.equal(built.manifest.files.length,6);
+ assert.equal(built.manifest.changed_files,5);
+ const bytes = readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'));
+ assert.equal(bytes.toString().replaceAll('\r\n','\n'),input.current.diagnostics.toString().replaceAll('\r\n','\n'));
+ assert.ok(!bytes.toString().replaceAll('\r\n','').includes('\n'),'callback shape diagnostics retain CRLF');
+ const { pathToFileURL } = await import('node:url');
+ const { callbackShape, createRequestDiagnostics } = await import(pathToFileURL(join(built.root,'i_remote_mcp/diagnostics.mjs')));
+ const twenty = 'https://x.example.com/' + Array(20).fill('cb').join('/');
+ assert.equal(callbackShape(twenty),twenty);
+ assert.equal(callbackShape(twenty + '/cb'),null);
+ assert.equal(callbackShape('https://x.example.com/cb?'),'https://x.example.com/cb');
+ assert.equal(callbackShape('https://x.example.com/cb#'),'https://x.example.com/cb');
+ assert.equal(callbackShape('https://x.example.com/cb?state=secret#frag'),'https://x.example.com/cb?{q}#{f}');
+ const records = [];
+ const diagnostic = createRequestDiagnostics({method:'POST',url:'/register',headers:{}},
+  {issuer:'https://synthetic.example',resource:'https://synthetic.example/mcp',diagnostic:record=>records.push(record)});
+ diagnostic.registration(['https://sesame-test.example/oauth/callback/abcdef0123456789'],[]);
+ diagnostic.finish(400);
+ assert.equal(records[0].callback_class,'other');
+ assert.deepEqual(records[0].callback_shapes,['https://sesame-test.example/oauth/callback/{16}']);
+ assert.doesNotMatch(JSON.stringify(records[0]),/abcdef0123456789/);
+});

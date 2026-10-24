@@ -1048,6 +1048,50 @@ const ANTIGRAVITY_PATCHES = {
   }
 };
 
+// Diagnostic shape probe only; callback policy and OAuth behavior are unchanged.
+const SESAME_PROBE_PATCHES = {
+  "mainline": {
+    "server": [],
+    "oauth": [],
+    "mcp": [],
+    "writeback": [],
+    "diagnostics": [
+      [
+        "// Fixed classifications only: never emit any part of an unrecognized callback.\n",
+        "// Unrecognized callbacks expose only protocol/host/port and redacted path shapes, never raw URLs.\n"
+      ],
+      [
+        "// User agents are self-reported and are not evidence of client identity.\n",
+        "export function callbackShape(value) {\n  if (typeof value !== 'string') return null;\n  try {\n    const url = new URL(value);\n    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hostname.length > 253) return null;\n    const segments = url.pathname.split('/').slice(1);\n    if (segments.length > 20) return null;\n    const path = '/' + segments.map(segment => !segment || /^[a-z][a-z_-]{0,31}$/.test(segment)\n      ? segment : `{${segment.length}}`).join('/');\n    const query = url.search ? '?{q}' : '';\n    const fragment = url.hash ? '#{f}' : '';\n    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${path}${query}${fragment}`;\n  } catch { return null; }\n}\n\n// User agents are self-reported and are not evidence of client identity.\n"
+      ],
+      [
+        "      base.callback_count = callbacks.length;\n",
+        "      if (base.callback_class === 'other') {\n        base.callback_shapes = [...new Set(callbacks.filter(value => callbackClass(value) === 'other')\n          .map(callbackShape).filter(value => value !== null))].slice(0, 8);\n      }\n      base.callback_count = callbacks.length;\n"
+      ]
+    ]
+  },
+  "legacy": {
+    "server": [],
+    "oauth": [],
+    "mcp": [],
+    "writeback": [],
+    "diagnostics": [
+      [
+        "// Fixed classifications only: never emit any part of an unrecognized callback.\n",
+        "// Unrecognized callbacks expose only protocol/host/port and redacted path shapes, never raw URLs.\n"
+      ],
+      [
+        "// User agents are self-reported and are not evidence of client identity.\n",
+        "export function callbackShape(value) {\n  if (typeof value !== 'string') return null;\n  try {\n    const url = new URL(value);\n    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hostname.length > 253) return null;\n    const segments = url.pathname.split('/').slice(1);\n    if (segments.length > 20) return null;\n    const path = '/' + segments.map(segment => !segment || /^[a-z][a-z_-]{0,31}$/.test(segment)\n      ? segment : `{${segment.length}}`).join('/');\n    const query = url.search ? '?{q}' : '';\n    const fragment = url.hash ? '#{f}' : '';\n    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${path}${query}${fragment}`;\n  } catch { return null; }\n}\n\n// User agents are self-reported and are not evidence of client identity.\n"
+      ],
+      [
+        "      base.callback_count = callbacks.length;\n",
+        "      if (base.callback_class === 'other') {\n        base.callback_shapes = [...new Set(callbacks.filter(value => callbackClass(value) === 'other')\n          .map(callbackShape).filter(value => value !== null))].slice(0, 8);\n      }\n      base.callback_count = callbacks.length;\n"
+      ]
+    ]
+  }
+};
+
 PATCHES.writeback = [];
 PATCHES.diagnostics = [];
 for (const patchSet of [FRONTEND_PATCHES, REGISTRY_PATCHES]) {
@@ -1113,13 +1157,15 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   const frontendMain = applyPatches(compatibleMain,name,false,FRONTEND_PATCHES.mainline);
   const registryMain = applyPatches(frontendMain,name,false,REGISTRY_PATCHES.mainline);
   const geminiMain = applyPatches(registryMain,name,false,GEMINI_PATCHES.mainline);
-  assert.ok(applyPatches(geminiMain,name,false,ANTIGRAVITY_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
+  const antigravityMain = applyPatches(geminiMain,name,false,ANTIGRAVITY_PATCHES.mainline);
+  assert.ok(applyPatches(antigravityMain,name,false,SESAME_PROBE_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,SESAME_PROBE_PATCHES.mainline),name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
   const path='i_remote_mcp/'+name+'.mjs';
   if(name==='oauth'||name==='diagnostics')assert.equal(textFormat(base).text,textFormat(files[path]).text,'shared baseline semantic mismatch: '+name);
   files[path]=applyPatches(applyPatches(applyPatches(applyPatches(files[path],name),name,false,FRONTEND_PATCHES.legacy),name,false,REGISTRY_PATCHES.legacy),name,false,GEMINI_PATCHES.legacy);
   files[path]=applyPatches(files[path],name,false,ANTIGRAVITY_PATCHES.legacy);
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
+  files[path]=applyPatches(files[path],name,false,SESAME_PROBE_PATCHES.legacy);
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,SESAME_PROBE_PATCHES.legacy),name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
  }
  for(const bytes of Object.values(files))assert.ok(!/domain_tools|personal_data_domains|coreRemember|domain-config/.test(bytes.toString()),'W3 domain source forbidden');
  const manifest={schema_version:1,status:'not_deployed',baseline_commit:BASELINE_COMMIT,source_commit:sourceCommit,

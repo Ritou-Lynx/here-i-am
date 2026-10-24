@@ -1,3 +1,10 @@
+## 2026-10-24 D2a：诊断记录未知 OAuth 回调形状（PR #55，探测 Sesame）
+
+- 起因：催睡来电方案（Here I Am 判断没睡 → 三星例程拉起 Sesame）要让 Sesame 经 i MCP 拿上下文。用户在 Sesame 添加 `/mcp`，现役日志显示 Sesame（python-httpx）走标准 DCR，但 `/register` 400、`callback_class: other`。Sesame 没有公开回调地址。
+- 合同 docs/development/handoffs/RELAY_20261024_d2a-sesame-callback-probe.md，经 relay 由 Codex 实现（2 轮）。`diagnostics.mjs` 新增 `callbackShape`：只记协议、主机、端口与路径段形状，非单词段记 `{长度}`，query/fragment 只记占位；仅 `other` 类注册写 `callback_shapes`。注册、白名单、OAuth 行为不变。
+- 第 1 轮 blocked：Gemini 测试旧断言禁止日志出现未知回调的主机与路径；第 2 轮按新口径放开这一处，其余脱敏断言保留。
+- 云端 245/245；候选六文件、改动 5 个，只有 diagnostics 结果变化。未部署。
+
 ## 2026-10-24 F1：飞书学习导师（PR #51）
 
 - 先实测（用户本机，lark-cli 1.0.98）：个人或豆包账号下的自建应用授权被平台拦截（21001）。改在自建的免费团队租户里后，文档 Markdown 往返、多维表格增改、筛选、建视图都能做。计划任务调用 CLI 只有在 danger-full-access 下才能跑通（DPoP 在 restricted token 下报 20140）。结论写进 docs/reference/FEISHU_NOTES_RESEARCH_20261021.md 第 10 节。

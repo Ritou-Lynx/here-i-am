@@ -42,4 +42,5 @@
 | D4 | #50 合并，10-24 部署（现役任务 `…d4-mcp-20261023-48bd91ed`），antigravity 已配对，真人验收通过 | — |
 | R1 | 源码已改（10-23）：`ShortcutMailRelay.close()` 先 checkpoint 再切 DELETE 模式，关闭后不留 -wal/-shm；补两项合成测试。现役 schema6 运行时不打开该日志库，STATE 里现有的旧 sidecar 不受影响 | 用户审核合并；随下次换包部署。清理现有旧 sidecar 需另做带闸门的步骤，须用户同意 |
 | F1 飞书学习导师 | 实测通过（10-24，团队租户；个人账号被平台拦截）；合同 `RELAY_20261024_f1-feishu-tutor.md`；PR #51 两轮审核通过（10-24） | 用户合并；按 README 本机配置；旧账本迁移另出提示词；10-31 复测续期 |
+| D2a Sesame 回调探测 | 合同 `RELAY_20261024_d2a-sesame-callback-probe.md`；PR #55 两轮审核通过（10-24）：诊断对未知回调记脱敏形状 `callback_shapes` | 用户合并；按 D4 段 6 流程部署；用户在 Sesame 再添加一次，读出形状后写 D2b |
 | relay 通知 | PR #41 已合并，飞书机器人与 Bark 本机测试送达成功；旧 #17/#19/#23 已关闭，#19 分支保留 | — |
