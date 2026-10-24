@@ -5,6 +5,7 @@ const Map<String, String> _knownChatSources = {
   'frontend:claude_web': 'Claude',
   'frontend:chatgpt_web': 'ChatGPT',
   'frontend:gemini_web': 'Gemini',
+  'frontend:antigravity': 'Antigravity',
 };
 
 /// Resolves only exact, case-sensitive device provenance. Empty frontend IDs

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
+import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
 import { readFileSync } from 'node:fs';
 import { createDomainClient, createDomainTools, createCoreRemember, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
 import { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';
@@ -77,18 +77,20 @@ export function createApp({
   allowedOrigins = DEFAULT_ALLOWED_ORIGINS,
   chatgptEnabled = chatgptEnabledFromEnv(),
   geminiEnabled = geminiEnabledFromEnv(),
+  antigravityEnabled = antigravityEnabledFromEnv(),
   log = () => {},
   diagnostic = () => {},
   writeback = null,
   chatgptWriteback = null,
   geminiWriteback = null,
+  antigravityWriteback = null,
   coreRemember = null,
   domainTools = null,
 }) {
   if (!publicUrl) throw new Error('publicUrl is required');
   if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');
-  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || coreRemember);
-  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled });
+  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || coreRemember);
+  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled });
   if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');
   const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};
   const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];
@@ -111,6 +113,15 @@ export function createApp({
     geminiHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:gemini_web'); };
   }
   const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),
+    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
+  const antigravityHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
+    writeback: antigravityWriteback,
+    frontend: 'antigravity' }),
+    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };
+  if (writeEnabled && !antigravityWriteback) {
+    antigravityHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:antigravity'); };
+  }
+  const antigravityTools = [...listTools({ writeEnabled, frontend: 'antigravity' }),
     ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
   const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
@@ -160,6 +171,9 @@ export function createApp({
     } else if (auth.frontend === 'gemini_web') {
       frontendHandlers = geminiHandlers;
       frontendTools = geminiTools;
+    } else if (auth.frontend === 'antigravity') {
+      frontendHandlers = antigravityHandlers;
+      frontendTools = antigravityTools;
     } else {
       res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));
       return sendJson(res, 401, { error: 'invalid_token' });
@@ -224,7 +238,9 @@ export function createApp({
         unavailableTools: auth.frontend === 'chatgpt_web' && !chatgptWriteback
           ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' }
           : auth.frontend === 'gemini_web' && !geminiWriteback
-            ? { i_chat_turn: 'frontend_not_paired:gemini_web' } : {},
+            ? { i_chat_turn: 'frontend_not_paired:gemini_web' }
+            : auth.frontend === 'antigravity' && !antigravityWriteback
+              ? { i_chat_turn: 'frontend_not_paired:antigravity' } : {},
         scopes: auth.scopes,
         session,
         logError: () => { dataSourceFailed = true; },
@@ -564,6 +580,7 @@ async function main(argv) {
   const publicUrl = args['public-url'] ?? process.env.I_REMOTE_MCP_PUBLIC_URL ?? `http://${host}:${port}`;
   const chatgptEnabled = chatgptEnabledFromEnv();
   const geminiEnabled = geminiEnabledFromEnv();
+  const antigravityEnabled = antigravityEnabledFromEnv();
   if (!publicUrl.startsWith('https://')) {
     process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\n`);
   }
@@ -605,16 +622,27 @@ async function main(argv) {
       coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'gemini_web' }),
     });
   }
+  let antigravityWriteback = null;
+  if (antigravityEnabled && process.env.I_REMOTE_MCP_WRITEBACK !== '0') {
+    const credential = loadFrontendCredential(stateDir, 'antigravity');
+    if (credential) antigravityWriteback = createWriteback({
+      ledger: openLedger(resolve(stateDir, 'writeback.sqlite')),
+      frontend: 'antigravity',
+      coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'antigravity' }),
+    });
+  }
   const { server, oauth } = createApp({
     stateDir,
     publicUrl,
     chatgptEnabled,
     geminiEnabled,
+    antigravityEnabled,
     getReadModel,
     diagnostic,
     writeback,
     chatgptWriteback,
     geminiWriteback,
+    antigravityWriteback,
     ...loadWebDomainOptions(args['domain-config']),
   });
   let phoneServer = null;
@@ -631,7 +659,7 @@ async function main(argv) {
   server.listen(port, host, () => {
     process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\n`);
   });
-  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); };
+  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); antigravityWriteback?.close(); };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }

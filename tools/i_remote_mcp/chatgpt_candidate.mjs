@@ -818,6 +818,236 @@ const GEMINI_PATCHES = {
   }
 };
 
+// D4 exact loopback frontend; both representations are checked forward and backward.
+const ANTIGRAVITY_PATCHES = {
+  "mainline": {
+    "server": [
+      [
+        "import { dirname, resolve } from 'node:path';\nimport { fileURLToPath, pathToFileURL } from 'node:url';\nimport { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';\nimport { readFileSync } from 'node:fs';\nimport { createDomainClient, createDomainTools, createCoreRemember, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';\n",
+        "import { dirname, resolve } from 'node:path';\nimport { fileURLToPath, pathToFileURL } from 'node:url';\nimport { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';\nimport { readFileSync } from 'node:fs';\nimport { createDomainClient, createDomainTools, createCoreRemember, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';\n"
+      ],
+      [
+        "  chatgptEnabled = chatgptEnabledFromEnv(),\n  geminiEnabled = geminiEnabledFromEnv(),\n  log = () => {},\n  diagnostic = () => {},\n",
+        "  chatgptEnabled = chatgptEnabledFromEnv(),\n  geminiEnabled = geminiEnabledFromEnv(),\n  antigravityEnabled = antigravityEnabledFromEnv(),\n  log = () => {},\n  diagnostic = () => {},\n"
+      ],
+      [
+        "  chatgptWriteback = null,\n  geminiWriteback = null,\n  coreRemember = null,\n  domainTools = null,\n",
+        "  chatgptWriteback = null,\n  geminiWriteback = null,\n  antigravityWriteback = null,\n  coreRemember = null,\n  domainTools = null,\n"
+      ],
+      [
+        "  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || coreRemember);\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled });\n  if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');\n  const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};\n",
+        "  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || coreRemember);\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled });\n  if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');\n  const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};\n"
+      ],
+      [
+        "  }\n  const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),\n    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n",
+        "  }\n  const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),\n    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];\n  const antigravityHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: antigravityWriteback,\n    frontend: 'antigravity' }),\n    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };\n  if (writeEnabled && !antigravityWriteback) {\n    antigravityHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:antigravity'); };\n  }\n  const antigravityTools = [...listTools({ writeEnabled, frontend: 'antigravity' }),\n    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n"
+      ],
+      [
+        "      frontendHandlers = geminiHandlers;\n      frontendTools = geminiTools;\n    } else {\n      res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));\n",
+        "      frontendHandlers = geminiHandlers;\n      frontendTools = geminiTools;\n    } else if (auth.frontend === 'antigravity') {\n      frontendHandlers = antigravityHandlers;\n      frontendTools = antigravityTools;\n    } else {\n      res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));\n"
+      ],
+      [
+        "          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' }\n          : auth.frontend === 'gemini_web' && !geminiWriteback\n            ? { i_chat_turn: 'frontend_not_paired:gemini_web' } : {},\n        scopes: auth.scopes,\n        session,\n",
+        "          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' }\n          : auth.frontend === 'gemini_web' && !geminiWriteback\n            ? { i_chat_turn: 'frontend_not_paired:gemini_web' }\n            : auth.frontend === 'antigravity' && !antigravityWriteback\n              ? { i_chat_turn: 'frontend_not_paired:antigravity' } : {},\n        scopes: auth.scopes,\n        session,\n"
+      ],
+      [
+        "  const chatgptEnabled = chatgptEnabledFromEnv();\n  const geminiEnabled = geminiEnabledFromEnv();\n  if (!publicUrl.startsWith('https://')) {\n    process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\\n`);\n",
+        "  const chatgptEnabled = chatgptEnabledFromEnv();\n  const geminiEnabled = geminiEnabledFromEnv();\n  const antigravityEnabled = antigravityEnabledFromEnv();\n  if (!publicUrl.startsWith('https://')) {\n    process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\\n`);\n"
+      ],
+      [
+        "    });\n  }\n  const { server, oauth } = createApp({\n    stateDir,\n",
+        "    });\n  }\n  let antigravityWriteback = null;\n  if (antigravityEnabled && process.env.I_REMOTE_MCP_WRITEBACK !== '0') {\n    const credential = loadFrontendCredential(stateDir, 'antigravity');\n    if (credential) antigravityWriteback = createWriteback({\n      ledger: openLedger(resolve(stateDir, 'writeback.sqlite')),\n      frontend: 'antigravity',\n      coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'antigravity' }),\n    });\n  }\n  const { server, oauth } = createApp({\n    stateDir,\n"
+      ],
+      [
+        "    chatgptEnabled,\n    geminiEnabled,\n    getReadModel,\n    diagnostic,\n",
+        "    chatgptEnabled,\n    geminiEnabled,\n    antigravityEnabled,\n    getReadModel,\n    diagnostic,\n"
+      ],
+      [
+        "    chatgptWriteback,\n    geminiWriteback,\n    ...loadWebDomainOptions(args['domain-config']),\n  });\n",
+        "    chatgptWriteback,\n    geminiWriteback,\n    antigravityWriteback,\n    ...loadWebDomainOptions(args['domain-config']),\n  });\n"
+      ],
+      [
+        "    process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\\n`);\n  });\n  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); };\n  process.on('SIGINT', shutdown);\n  process.on('SIGTERM', shutdown);\n",
+        "    process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\\n`);\n  });\n  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); antigravityWriteback?.close(); };\n  process.on('SIGINT', shutdown);\n  process.on('SIGTERM', shutdown);\n"
+      ]
+    ],
+    "oauth": [
+      [
+        "]);\n\nexport const FRONTEND_CALLBACKS = Object.freeze({\n  claude_web: CLAUDE_AI_CALLBACKS,\n  chatgpt_web: Object.freeze([CHATGPT_CALLBACK_URI]),\n});\n\n",
+        "]);\n\nexport const ANTIGRAVITY_CALLBACKS = Object.freeze([\n  'http://127.0.0.1:32014/oauth/callback',\n  'http://localhost:32014/oauth/callback',\n]);\n\nexport const FRONTEND_CALLBACKS = Object.freeze({\n  claude_web: CLAUDE_AI_CALLBACKS,\n  chatgpt_web: Object.freeze([CHATGPT_CALLBACK_URI]),\n  antigravity: ANTIGRAVITY_CALLBACKS,\n});\n\n"
+      ],
+      [
+        "}\n\nfunction isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled) {\n  return (Object.hasOwn(FRONTEND_CALLBACKS, frontend) || Object.hasOwn(FRONTEND_CALLBACK_PATTERNS, frontend))\n    && (frontend !== 'chatgpt_web' || chatgptEnabled === true)\n    && (frontend !== 'gemini_web' || geminiEnabled === true);\n}\n\nfunction frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled) {\n  const uris = client?.redirect_uris;\n  if (!Array.isArray(uris) || uris.length === 0) return null;\n  const frontend = frontendForRedirectUri(uris[0]);\n  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled)\n    && uris.every((uri) => frontendForRedirectUri(uri) === frontend) ? frontend : null;\n}\n\nfunction frontendForRecord(record, client, chatgptEnabled, geminiEnabled) {\n  // Only an absent field is legacy; null, empty and unknown values fail closed.\n  const frontend = Object.hasOwn(record, 'frontend')\n    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled);\n  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled) ? frontend : null;\n}\n\n",
+        "}\n\nfunction isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled) {\n  return (Object.hasOwn(FRONTEND_CALLBACKS, frontend) || Object.hasOwn(FRONTEND_CALLBACK_PATTERNS, frontend))\n    && (frontend !== 'chatgpt_web' || chatgptEnabled === true)\n    && (frontend !== 'gemini_web' || geminiEnabled === true)\n    && (frontend !== 'antigravity' || antigravityEnabled === true);\n}\n\nfunction frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled, antigravityEnabled) {\n  const uris = client?.redirect_uris;\n  if (!Array.isArray(uris) || uris.length === 0) return null;\n  const frontend = frontendForRedirectUri(uris[0]);\n  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled)\n    && uris.every((uri) => frontendForRedirectUri(uri) === frontend) ? frontend : null;\n}\n\nfunction frontendForRecord(record, client, chatgptEnabled, geminiEnabled, antigravityEnabled) {\n  // Only an absent field is legacy; null, empty and unknown values fail closed.\n  const frontend = Object.hasOwn(record, 'frontend')\n    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled, antigravityEnabled);\n  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled) ? frontend : null;\n}\n\n"
+      ],
+      [
+        "}\n\nexport function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv()) {\n  if (typeof value !== 'string' || value.length > 2048) return false;\n  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled, geminiEnabled);\n}\n\n",
+        "}\n\nexport function antigravityEnabledFromEnv(env = process.env) {\n  const value = env.I_REMOTE_MCP_ANTIGRAVITY_ENABLED;\n  if (value === undefined || value === '1') return true;\n  if (value === '0') return false;\n  throw new Error('invalid_antigravity_mode');\n}\n\nexport function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv(), antigravityEnabled = antigravityEnabledFromEnv()) {\n  if (typeof value !== 'string' || value.length > 2048) return false;\n  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled, geminiEnabled, antigravityEnabled);\n}\n\n"
+      ],
+      [
+        "\nexport class OAuthServer {\n  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv() }) {\n    if (typeof chatgptEnabled !== 'boolean') throw new Error('invalid_chatgpt_mode');\n    if (typeof geminiEnabled !== 'boolean') throw new Error('invalid_gemini_mode');\n    this.chatgptEnabled = chatgptEnabled;\n    this.geminiEnabled = geminiEnabled;\n    this.store = new OAuthStateStore(stateDir);\n    // 单用户服务：启用写回后，每次授权都签发全部支持的 scope（授权页会写明），\n",
+        "\nexport class OAuthServer {\n  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv(), antigravityEnabled = antigravityEnabledFromEnv() }) {\n    if (typeof chatgptEnabled !== 'boolean') throw new Error('invalid_chatgpt_mode');\n    if (typeof geminiEnabled !== 'boolean') throw new Error('invalid_gemini_mode');\n    if (typeof antigravityEnabled !== 'boolean') throw new Error('invalid_antigravity_mode');\n    this.chatgptEnabled = chatgptEnabled;\n    this.geminiEnabled = geminiEnabled;\n    this.antigravityEnabled = antigravityEnabled;\n    this.store = new OAuthStateStore(stateDir);\n    // 单用户服务：启用写回后，每次授权都签发全部支持的 scope（授权页会写明），\n"
+      ],
+      [
+        "    const exactFrontend = frontends[0];\n    if (Object.hasOwn(FRONTEND_CALLBACKS, exactFrontend) && frontends.every(frontend => frontend === exactFrontend)) {\n      if (redirectUris.length > MAX_REDIRECT_URIS || !isEnabledFrontend(exactFrontend, this.chatgptEnabled, this.geminiEnabled)) {\n        return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');\n      }\n    } else if (this.geminiEnabled && redirectUris.length <= 8 && frontends.includes('gemini_web')\n",
+        "    const exactFrontend = frontends[0];\n    if (Object.hasOwn(FRONTEND_CALLBACKS, exactFrontend) && frontends.every(frontend => frontend === exactFrontend)) {\n      if (redirectUris.length > MAX_REDIRECT_URIS || !isEnabledFrontend(exactFrontend, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)) {\n        return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed callback');\n      }\n    } else if (this.geminiEnabled && redirectUris.length <= 8 && frontends.includes('gemini_web')\n"
+      ],
+      [
+        "      redirectUris = redirectUris.filter((uri, index) => frontends[index] === 'gemini_web');\n    } else {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');\n    }\n    const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];\n",
+        "      redirectUris = redirectUris.filter((uri, index) => frontends[index] === 'gemini_web');\n    } else {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed callback');\n    }\n    const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];\n"
+      ],
+      [
+        "    if (!client) return { ok: false, status: 400, error: '未知的 client_id' };\n    const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);\n    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled, this.geminiEnabled)) {\n      return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };\n    }\n",
+        "    if (!client) return { ok: false, status: 400, error: '未知的 client_id' };\n    const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);\n    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)) {\n      return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };\n    }\n"
+      ],
+      [
+        "        try { clientId = colon < 0 ? null : decodeURIComponent(decoded.slice(0, colon)); } catch { /* invalid public identifier */ }\n        const client = this.store.state.clients[clientId];\n        if (frontendForRegisteredClient(client, this.chatgptEnabled, this.geminiEnabled) === 'gemini_web') {\n          form = { ...form, client_id: clientId };\n        }\n",
+        "        try { clientId = colon < 0 ? null : decodeURIComponent(decoded.slice(0, colon)); } catch { /* invalid public identifier */ }\n        const client = this.store.state.clients[clientId];\n        if (frontendForRegisteredClient(client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled) === 'gemini_web') {\n          form = { ...form, client_id: clientId };\n        }\n"
+      ],
+      [
+        "    }\n    const frontend = frontendForRedirectUri(record.redirect_uri);\n    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled, this.geminiEnabled)\n      || !client.redirect_uris.includes(record.redirect_uri)\n      || frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled) !== frontend) {\n      return oauthError(400, 'invalid_grant', 'invalid frontend');\n    }\n",
+        "    }\n    const frontend = frontendForRedirectUri(record.redirect_uri);\n    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)\n      || !client.redirect_uris.includes(record.redirect_uri)\n      || frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled) !== frontend) {\n      return oauthError(400, 'invalid_grant', 'invalid frontend');\n    }\n"
+      ],
+      [
+        "      return oauthError(400, 'invalid_grant', 'refresh_token expired');\n    }\n    const frontend = frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled);\n    if (!frontend) return oauthError(400, 'invalid_grant', 'invalid frontend');\n    record.rotated = true;\n",
+        "      return oauthError(400, 'invalid_grant', 'refresh_token expired');\n    }\n    const frontend = frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled);\n    if (!frontend) return oauthError(400, 'invalid_grant', 'invalid frontend');\n    record.rotated = true;\n"
+      ],
+      [
+        "    if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };\n    if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };\n    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled, this.geminiEnabled);\n    if (!frontend) return { ok: false, error: 'invalid_token' };\n    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n",
+        "    if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };\n    if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };\n    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled);\n    if (!frontend) return { ok: false, error: 'invalid_token' };\n    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n"
+      ]
+    ],
+    "mcp": [],
+    "writeback": [
+      [
+        "  chatgpt_web: Object.freeze({ name: 'chatgpt_web', deviceId: 'frontend:chatgpt_web', displayName: 'ChatGPT 网页端', credentialFile: 'core-frontend-chatgpt_web.json' }),\n  gemini_web: Object.freeze({ name: 'gemini_web', deviceId: 'frontend:gemini_web', displayName: 'Gemini 网页端', credentialFile: 'core-frontend-gemini_web.json' }),\n});\nexport const FRONTEND_NAME = 'claude_web';\n",
+        "  chatgpt_web: Object.freeze({ name: 'chatgpt_web', deviceId: 'frontend:chatgpt_web', displayName: 'ChatGPT 网页端', credentialFile: 'core-frontend-chatgpt_web.json' }),\n  gemini_web: Object.freeze({ name: 'gemini_web', deviceId: 'frontend:gemini_web', displayName: 'Gemini 网页端', credentialFile: 'core-frontend-gemini_web.json' }),\n  antigravity: Object.freeze({ name: 'antigravity', deviceId: 'frontend:antigravity', displayName: 'Antigravity', credentialFile: 'core-frontend-antigravity.json' }),\n});\nexport const FRONTEND_NAME = 'claude_web';\n"
+      ]
+    ],
+    "diagnostics": [
+      [
+        "  if (frontend === 'chatgpt_web') return 'chatgpt';\n  if (frontend === 'gemini_web') return 'gemini_pattern';\n  try {\n    const url = new URL(value);\n",
+        "  if (frontend === 'chatgpt_web') return 'chatgpt';\n  if (frontend === 'gemini_web') return 'gemini_pattern';\n  if (frontend === 'antigravity') return 'antigravity';\n  try {\n    const url = new URL(value);\n"
+      ],
+      [
+        "      const callbacks = Array.isArray(values) ? values : [];\n      const classes = callbacks.map(callbackClass);\n      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'google_relay_other', 'other', 'absent']\n        .find(value => classes.includes(value)) ?? 'absent';\n      base.callback_count = callbacks.length;\n",
+        "      const callbacks = Array.isArray(values) ? values : [];\n      const classes = callbacks.map(callbackClass);\n      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'antigravity', 'google_relay_other', 'other', 'absent']\n        .find(value => classes.includes(value)) ?? 'absent';\n      base.callback_count = callbacks.length;\n"
+      ]
+    ]
+  },
+  "legacy": {
+    "server": [
+      [
+        "import { dirname, resolve } from 'node:path';\nimport { fileURLToPath, pathToFileURL } from 'node:url';\nimport { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';\nimport { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';\nimport {\n",
+        "import { dirname, resolve } from 'node:path';\nimport { fileURLToPath, pathToFileURL } from 'node:url';\nimport { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';\nimport { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';\nimport {\n"
+      ],
+      [
+        "  chatgptEnabled = chatgptEnabledFromEnv(),\n  geminiEnabled = geminiEnabledFromEnv(),\n  log = () => {},\n  diagnostic = () => {},\n",
+        "  chatgptEnabled = chatgptEnabledFromEnv(),\n  geminiEnabled = geminiEnabledFromEnv(),\n  antigravityEnabled = antigravityEnabledFromEnv(),\n  log = () => {},\n  diagnostic = () => {},\n"
+      ],
+      [
+        "  chatgptWriteback = null,\n  geminiWriteback = null,\n}) {\n  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback);\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled });\n  const handlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback });\n  const tools = listTools({ writeEnabled: Boolean(writeback) });\n",
+        "  chatgptWriteback = null,\n  geminiWriteback = null,\n  antigravityWriteback = null,\n}) {\n  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback);\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled });\n  const handlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback });\n  const tools = listTools({ writeEnabled: Boolean(writeback) });\n"
+      ],
+      [
+        "  }\n  const geminiTools = listTools({ writeEnabled, frontend: 'gemini_web' });\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n  const sessions = new Map();\n",
+        "  }\n  const geminiTools = listTools({ writeEnabled, frontend: 'gemini_web' });\n  const antigravityHandlers = createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: antigravityWriteback, frontend: 'antigravity' });\n  if (writeEnabled && !antigravityWriteback) {\n    antigravityHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:antigravity'); };\n  }\n  const antigravityTools = listTools({ writeEnabled, frontend: 'antigravity' });\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n  const sessions = new Map();\n"
+      ],
+      [
+        "      frontendHandlers = geminiHandlers;\n      frontendTools = geminiTools;\n    } else {\n      res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));\n",
+        "      frontendHandlers = geminiHandlers;\n      frontendTools = geminiTools;\n    } else if (auth.frontend === 'antigravity') {\n      frontendHandlers = antigravityHandlers;\n      frontendTools = antigravityTools;\n    } else {\n      res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));\n"
+      ],
+      [
+        "          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' }\n          : auth.frontend === 'gemini_web' && !geminiWriteback\n            ? { i_chat_turn: 'frontend_not_paired:gemini_web' } : {},\n        scopes: auth.scopes,\n        session,\n",
+        "          ? { i_chat_turn: 'frontend_not_paired:chatgpt_web' }\n          : auth.frontend === 'gemini_web' && !geminiWriteback\n            ? { i_chat_turn: 'frontend_not_paired:gemini_web' }\n            : auth.frontend === 'antigravity' && !antigravityWriteback\n              ? { i_chat_turn: 'frontend_not_paired:antigravity' } : {},\n        scopes: auth.scopes,\n        session,\n"
+      ],
+      [
+        "  const chatgptEnabled = chatgptEnabledFromEnv();\n  const geminiEnabled = geminiEnabledFromEnv();\n  if (!publicUrl.startsWith('https://')) {\n    process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\\n`);\n",
+        "  const chatgptEnabled = chatgptEnabledFromEnv();\n  const geminiEnabled = geminiEnabledFromEnv();\n  const antigravityEnabled = antigravityEnabledFromEnv();\n  if (!publicUrl.startsWith('https://')) {\n    process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\\n`);\n"
+      ],
+      [
+        "    });\n  }\n  const { server, oauth } = createApp({\n    stateDir,\n",
+        "    });\n  }\n  let antigravityWriteback = null;\n  if (antigravityEnabled && process.env.I_REMOTE_MCP_WRITEBACK !== '0') {\n    const credential = loadFrontendCredential(stateDir, 'antigravity');\n    if (credential) antigravityWriteback = createWriteback({\n      ledger: openLedger(resolve(stateDir, 'writeback.sqlite')),\n      frontend: 'antigravity',\n      coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'antigravity' }),\n    });\n  }\n  const { server, oauth } = createApp({\n    stateDir,\n"
+      ],
+      [
+        "    chatgptEnabled,\n    geminiEnabled,\n    getReadModel,\n    diagnostic,\n",
+        "    chatgptEnabled,\n    geminiEnabled,\n    antigravityEnabled,\n    getReadModel,\n    diagnostic,\n"
+      ],
+      [
+        "    chatgptWriteback,\n    geminiWriteback,\n  });\n  let phoneServer = null;\n",
+        "    chatgptWriteback,\n    geminiWriteback,\n    antigravityWriteback,\n  });\n  let phoneServer = null;\n"
+      ],
+      [
+        "    process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\\n`);\n  });\n  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); };\n  process.on('SIGINT', shutdown);\n  process.on('SIGTERM', shutdown);\n",
+        "    process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\\n`);\n  });\n  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); antigravityWriteback?.close(); };\n  process.on('SIGINT', shutdown);\n  process.on('SIGTERM', shutdown);\n"
+      ]
+    ],
+    "oauth": [
+      [
+        "]);\n\nexport const FRONTEND_CALLBACKS = Object.freeze({\n  claude_web: CLAUDE_AI_CALLBACKS,\n  chatgpt_web: Object.freeze([CHATGPT_CALLBACK_URI]),\n});\n\n",
+        "]);\n\nexport const ANTIGRAVITY_CALLBACKS = Object.freeze([\n  'http://127.0.0.1:32014/oauth/callback',\n  'http://localhost:32014/oauth/callback',\n]);\n\nexport const FRONTEND_CALLBACKS = Object.freeze({\n  claude_web: CLAUDE_AI_CALLBACKS,\n  chatgpt_web: Object.freeze([CHATGPT_CALLBACK_URI]),\n  antigravity: ANTIGRAVITY_CALLBACKS,\n});\n\n"
+      ],
+      [
+        "}\n\nfunction isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled) {\n  return (Object.hasOwn(FRONTEND_CALLBACKS, frontend) || Object.hasOwn(FRONTEND_CALLBACK_PATTERNS, frontend))\n    && (frontend !== 'chatgpt_web' || chatgptEnabled === true)\n    && (frontend !== 'gemini_web' || geminiEnabled === true);\n}\n\nfunction frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled) {\n  const uris = client?.redirect_uris;\n  if (!Array.isArray(uris) || uris.length === 0) return null;\n  const frontend = frontendForRedirectUri(uris[0]);\n  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled)\n    && uris.every((uri) => frontendForRedirectUri(uri) === frontend) ? frontend : null;\n}\n\nfunction frontendForRecord(record, client, chatgptEnabled, geminiEnabled) {\n  // Only an absent field is legacy; null, empty and unknown values fail closed.\n  const frontend = Object.hasOwn(record, 'frontend')\n    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled);\n  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled) ? frontend : null;\n}\n\n",
+        "}\n\nfunction isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled) {\n  return (Object.hasOwn(FRONTEND_CALLBACKS, frontend) || Object.hasOwn(FRONTEND_CALLBACK_PATTERNS, frontend))\n    && (frontend !== 'chatgpt_web' || chatgptEnabled === true)\n    && (frontend !== 'gemini_web' || geminiEnabled === true)\n    && (frontend !== 'antigravity' || antigravityEnabled === true);\n}\n\nfunction frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled, antigravityEnabled) {\n  const uris = client?.redirect_uris;\n  if (!Array.isArray(uris) || uris.length === 0) return null;\n  const frontend = frontendForRedirectUri(uris[0]);\n  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled)\n    && uris.every((uri) => frontendForRedirectUri(uri) === frontend) ? frontend : null;\n}\n\nfunction frontendForRecord(record, client, chatgptEnabled, geminiEnabled, antigravityEnabled) {\n  // Only an absent field is legacy; null, empty and unknown values fail closed.\n  const frontend = Object.hasOwn(record, 'frontend')\n    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled, antigravityEnabled);\n  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled) ? frontend : null;\n}\n\n"
+      ],
+      [
+        "}\n\nexport function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv()) {\n  if (typeof value !== 'string' || value.length > 2048) return false;\n  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled, geminiEnabled);\n}\n\n",
+        "}\n\nexport function antigravityEnabledFromEnv(env = process.env) {\n  const value = env.I_REMOTE_MCP_ANTIGRAVITY_ENABLED;\n  if (value === undefined || value === '1') return true;\n  if (value === '0') return false;\n  throw new Error('invalid_antigravity_mode');\n}\n\nexport function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv(), antigravityEnabled = antigravityEnabledFromEnv()) {\n  if (typeof value !== 'string' || value.length > 2048) return false;\n  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled, geminiEnabled, antigravityEnabled);\n}\n\n"
+      ],
+      [
+        "\nexport class OAuthServer {\n  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv() }) {\n    if (typeof chatgptEnabled !== 'boolean') throw new Error('invalid_chatgpt_mode');\n    if (typeof geminiEnabled !== 'boolean') throw new Error('invalid_gemini_mode');\n    this.chatgptEnabled = chatgptEnabled;\n    this.geminiEnabled = geminiEnabled;\n    this.store = new OAuthStateStore(stateDir);\n    // 单用户服务：启用写回后，每次授权都签发全部支持的 scope（授权页会写明），\n",
+        "\nexport class OAuthServer {\n  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv(), antigravityEnabled = antigravityEnabledFromEnv() }) {\n    if (typeof chatgptEnabled !== 'boolean') throw new Error('invalid_chatgpt_mode');\n    if (typeof geminiEnabled !== 'boolean') throw new Error('invalid_gemini_mode');\n    if (typeof antigravityEnabled !== 'boolean') throw new Error('invalid_antigravity_mode');\n    this.chatgptEnabled = chatgptEnabled;\n    this.geminiEnabled = geminiEnabled;\n    this.antigravityEnabled = antigravityEnabled;\n    this.store = new OAuthStateStore(stateDir);\n    // 单用户服务：启用写回后，每次授权都签发全部支持的 scope（授权页会写明），\n"
+      ],
+      [
+        "    const exactFrontend = frontends[0];\n    if (Object.hasOwn(FRONTEND_CALLBACKS, exactFrontend) && frontends.every(frontend => frontend === exactFrontend)) {\n      if (redirectUris.length > MAX_REDIRECT_URIS || !isEnabledFrontend(exactFrontend, this.chatgptEnabled, this.geminiEnabled)) {\n        return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');\n      }\n    } else if (this.geminiEnabled && redirectUris.length <= 8 && frontends.includes('gemini_web')\n",
+        "    const exactFrontend = frontends[0];\n    if (Object.hasOwn(FRONTEND_CALLBACKS, exactFrontend) && frontends.every(frontend => frontend === exactFrontend)) {\n      if (redirectUris.length > MAX_REDIRECT_URIS || !isEnabledFrontend(exactFrontend, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)) {\n        return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed callback');\n      }\n    } else if (this.geminiEnabled && redirectUris.length <= 8 && frontends.includes('gemini_web')\n"
+      ],
+      [
+        "      redirectUris = redirectUris.filter((uri, index) => frontends[index] === 'gemini_web');\n    } else {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed https callback');\n    }\n    const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];\n",
+        "      redirectUris = redirectUris.filter((uri, index) => frontends[index] === 'gemini_web');\n    } else {\n      return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed callback');\n    }\n    const grantTypes = body.grant_types ?? ['authorization_code', 'refresh_token'];\n"
+      ],
+      [
+        "    if (!client) return { ok: false, status: 400, error: '未知的 client_id' };\n    const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);\n    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled, this.geminiEnabled)) {\n      return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };\n    }\n",
+        "    if (!client) return { ok: false, status: 400, error: '未知的 client_id' };\n    const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);\n    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)) {\n      return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };\n    }\n"
+      ],
+      [
+        "        try { clientId = colon < 0 ? null : decodeURIComponent(decoded.slice(0, colon)); } catch { /* invalid public identifier */ }\n        const client = this.store.state.clients[clientId];\n        if (frontendForRegisteredClient(client, this.chatgptEnabled, this.geminiEnabled) === 'gemini_web') {\n          form = { ...form, client_id: clientId };\n        }\n",
+        "        try { clientId = colon < 0 ? null : decodeURIComponent(decoded.slice(0, colon)); } catch { /* invalid public identifier */ }\n        const client = this.store.state.clients[clientId];\n        if (frontendForRegisteredClient(client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled) === 'gemini_web') {\n          form = { ...form, client_id: clientId };\n        }\n"
+      ],
+      [
+        "    }\n    const frontend = frontendForRedirectUri(record.redirect_uri);\n    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled, this.geminiEnabled)\n      || !client.redirect_uris.includes(record.redirect_uri)\n      || frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled) !== frontend) {\n      return oauthError(400, 'invalid_grant', 'invalid frontend');\n    }\n",
+        "    }\n    const frontend = frontendForRedirectUri(record.redirect_uri);\n    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)\n      || !client.redirect_uris.includes(record.redirect_uri)\n      || frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled) !== frontend) {\n      return oauthError(400, 'invalid_grant', 'invalid frontend');\n    }\n"
+      ],
+      [
+        "      return oauthError(400, 'invalid_grant', 'refresh_token expired');\n    }\n    const frontend = frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled);\n    if (!frontend) return oauthError(400, 'invalid_grant', 'invalid frontend');\n    record.rotated = true;\n",
+        "      return oauthError(400, 'invalid_grant', 'refresh_token expired');\n    }\n    const frontend = frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled);\n    if (!frontend) return oauthError(400, 'invalid_grant', 'invalid frontend');\n    record.rotated = true;\n"
+      ],
+      [
+        "    if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };\n    if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };\n    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled, this.geminiEnabled);\n    if (!frontend) return { ok: false, error: 'invalid_token' };\n    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n",
+        "    if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };\n    if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };\n    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled);\n    if (!frontend) return { ok: false, error: 'invalid_token' };\n    // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。\n"
+      ]
+    ],
+    "mcp": [],
+    "writeback": [
+      [
+        "  chatgpt_web: Object.freeze({ name: 'chatgpt_web', deviceId: 'frontend:chatgpt_web', displayName: 'ChatGPT 网页端', credentialFile: 'core-frontend-chatgpt_web.json' }),\n  gemini_web: Object.freeze({ name: 'gemini_web', deviceId: 'frontend:gemini_web', displayName: 'Gemini 网页端', credentialFile: 'core-frontend-gemini_web.json' }),\n});\nexport const FRONTEND_NAME = 'claude_web';\n",
+        "  chatgpt_web: Object.freeze({ name: 'chatgpt_web', deviceId: 'frontend:chatgpt_web', displayName: 'ChatGPT 网页端', credentialFile: 'core-frontend-chatgpt_web.json' }),\n  gemini_web: Object.freeze({ name: 'gemini_web', deviceId: 'frontend:gemini_web', displayName: 'Gemini 网页端', credentialFile: 'core-frontend-gemini_web.json' }),\n  antigravity: Object.freeze({ name: 'antigravity', deviceId: 'frontend:antigravity', displayName: 'Antigravity', credentialFile: 'core-frontend-antigravity.json' }),\n});\nexport const FRONTEND_NAME = 'claude_web';\n"
+      ]
+    ],
+    "diagnostics": [
+      [
+        "  if (frontend === 'chatgpt_web') return 'chatgpt';\n  if (frontend === 'gemini_web') return 'gemini_pattern';\n  try {\n    const url = new URL(value);\n",
+        "  if (frontend === 'chatgpt_web') return 'chatgpt';\n  if (frontend === 'gemini_web') return 'gemini_pattern';\n  if (frontend === 'antigravity') return 'antigravity';\n  try {\n    const url = new URL(value);\n"
+      ],
+      [
+        "      const callbacks = Array.isArray(values) ? values : [];\n      const classes = callbacks.map(callbackClass);\n      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'google_relay_other', 'other', 'absent']\n        .find(value => classes.includes(value)) ?? 'absent';\n      base.callback_count = callbacks.length;\n",
+        "      const callbacks = Array.isArray(values) ? values : [];\n      const classes = callbacks.map(callbackClass);\n      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'antigravity', 'google_relay_other', 'other', 'absent']\n        .find(value => classes.includes(value)) ?? 'absent';\n      base.callback_count = callbacks.length;\n"
+      ]
+    ]
+  }
+};
+
 PATCHES.writeback = [];
 PATCHES.diagnostics = [];
 for (const patchSet of [FRONTEND_PATCHES, REGISTRY_PATCHES]) {
@@ -882,12 +1112,14 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   const compatibleMain = applyPatches(represented,name);
   const frontendMain = applyPatches(compatibleMain,name,false,FRONTEND_PATCHES.mainline);
   const registryMain = applyPatches(frontendMain,name,false,REGISTRY_PATCHES.mainline);
-  assert.ok(applyPatches(registryMain,name,false,GEMINI_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
+  const geminiMain = applyPatches(registryMain,name,false,GEMINI_PATCHES.mainline);
+  assert.ok(applyPatches(geminiMain,name,false,ANTIGRAVITY_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
   const path='i_remote_mcp/'+name+'.mjs';
   if(name==='oauth'||name==='diagnostics')assert.equal(textFormat(base).text,textFormat(files[path]).text,'shared baseline semantic mismatch: '+name);
   files[path]=applyPatches(applyPatches(applyPatches(applyPatches(files[path],name),name,false,FRONTEND_PATCHES.legacy),name,false,REGISTRY_PATCHES.legacy),name,false,GEMINI_PATCHES.legacy);
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
+  files[path]=applyPatches(files[path],name,false,ANTIGRAVITY_PATCHES.legacy);
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
  }
  for(const bytes of Object.values(files))assert.ok(!/domain_tools|personal_data_domains|coreRemember|domain-config/.test(bytes.toString()),'W3 domain source forbidden');
  const manifest={schema_version:1,status:'not_deployed',baseline_commit:BASELINE_COMMIT,source_commit:sourceCommit,

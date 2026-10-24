@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { FRONTEND_CALLBACKS, FRONTEND_CALLBACK_PATTERNS, CLAUDE_AI_CALLBACKS, CHATGPT_CALLBACK_URI, frontendForRedirectUri } from './oauth.mjs';
+import { FRONTEND_CALLBACKS, FRONTEND_CALLBACK_PATTERNS, CLAUDE_AI_CALLBACKS, CHATGPT_CALLBACK_URI, ANTIGRAVITY_CALLBACKS, frontendForRedirectUri } from './oauth.mjs';
 import { FRONTENDS } from './writeback.mjs';
 import { mcpPost, startTestServer } from './fixtures.mjs';
 
 test('registry is frozen, exact and assigns every callback to one frontend', () => {
   assert.ok(Object.isFrozen(FRONTEND_CALLBACKS));
-  assert.deepEqual(FRONTEND_CALLBACKS, { claude_web: CLAUDE_AI_CALLBACKS, chatgpt_web: [CHATGPT_CALLBACK_URI] });
+  assert.deepEqual(FRONTEND_CALLBACKS, { claude_web: CLAUDE_AI_CALLBACKS, chatgpt_web: [CHATGPT_CALLBACK_URI], antigravity: ANTIGRAVITY_CALLBACKS });
   assert.ok(Object.isFrozen(FRONTEND_CALLBACK_PATTERNS));
   assert.deepEqual(Object.keys(FRONTEND_CALLBACK_PATTERNS), ['gemini_web']);
   const callbacks = Object.values(FRONTEND_CALLBACKS).flat();
