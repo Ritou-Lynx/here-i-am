@@ -2,31 +2,28 @@
 
 本文件只写现状，供林埃（i）与各会话读取。2026-10-23 之前的逐日记录已移入 [历史归档](archive/I_PROJECT_STATE_HISTORY_20261023.md)，过程细节见 [DEVLOG](../../DEVLOG.md)，总指挥规则和计划见 [总指挥交接](handoffs/COMMANDER_HANDOFF_20261022.md)。
 
-## 当前状态（2026-10-23）
+## 当前状态（2026-10-24）
 
 ### 生产
-- schema6 Core 已上线（D1b，10-22 完成，manifest `4e003c0b`）。10-23 起现役登录任务为 `HereIAm-iCoreSchema6-d1d3-mcp-20261023-dddff0f1`（MCP 换为 v3-lab `dddff0f` 的六文件候选，含 D1、D3）；P′（`HereIAm-iCoreSchema6-d1a-mcp-20261013-6a063386`）、旧任务和 P 停用保留，不删。
-- 前端：claude_web、chatgpt_web、gemini_web 都已与 Core 配对，读取策略 `auto_share_origins` 为 `["claude_web","chatgpt_web","gemini_web"]`。Claude、ChatGPT 10-23 真人验收通过；Gemini 首次添加时回调被拒（见 D3 回调修订）。
+- schema6 Core 已上线（D1b，10-22 完成，manifest `4e003c0b`）。10-24 起现役登录任务为 `HereIAm-iCoreSchema6-d4-mcp-20261023-48bd91ed`（MCP 为 v3-lab `48bd91e` 的六文件候选，含 D1、D3、#49、D4）；此前的 d3fix、d1d3、P′、旧任务和 P 停用保留，不删。
+- 前端：claude_web、chatgpt_web、gemini_web、antigravity 都已与 Core 配对，读取策略 `auto_share_origins` 为这四个。Claude、ChatGPT 10-23 真人验收通过；Antigravity 10-24 验收通过；Gemini 能添加，但对话里工具调用不生效（疑 Gemini 侧，未排查）。
 - 维护工具副本：`<OUT>\tools-dddff0f1`（v3-lab `dddff0f`，含 #45 宿主检查、#47 ready 容差）。旧副本 `tools-3baf72d`、`tools-302a62c0` 保留；以后登记从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1（pwsh 7 会误报 `login_core_port_invalid`）。
 - relay watcher：已按 A4 迁移为 `conhost --headless` 启动，codex 路径每轮自动查找，Codex 更新后不需要重新注册。
 
 ### 运维注意
 - STATE 中留有旧 shortcut-mail 日志库的 -wal/-shm，stop 最后一步会报 `database_sidecars_present`；只要 `stop.receipts` 已通过，会话就已干净关闭。
 - 任何时候都不要绕过闸门去改 STATE 内的文件。
-- 注销前先手动停服（L 注销强杀问题暂停，未修）。
+- 注销前先手动停服（L 注销强杀问题暂停，未修）。10-24 电脑重启后现役会话以 0xC000013A 退出、服务停摆，需手动 `Start-ScheduledTask` 拉起现役任务。
 
 ### 最近完成
 - A1+A2（#33）、A4（#34/#35）、A3（#36）已合并；10-23 生产换用新工具副本（#37）。
 - C1（#38，10-23 合并）：App 聊天时间线按来源显示 ChatGPT / Claude。**尚未构建安装**，待用户用 v3-lab 构建 App 替换现装版本并真人验收。
-
-- D1（#40）+ D3（#44）：10-23 部署到生产（update-mcp-source 登记新任务、switch-login-task 切换，中断约 40 秒；读取策略加 gemini_web、配对 gemini_web、重启约 67 秒）。
-
-### 待合并
-- D3 回调修订：Gemini 实际回调路径末尾是“编号-主机名（点换成下划线）”，原模式不含下划线，注册被拒。修订后需重新生成候选并再走一次 update-mcp-source + 切换（gemini_web 凭据和读取策略已就位，不用重做）。
+- relay 飞书 / Bark 通知（#41）已合并，本机测试送达成功；agent_relay 测试进 CI（#42）已合并。
+- D1（#40）+ D3（#44）：10-23 部署到生产。
+- #49（Gemini 回调允许下划线）与 D4（#50，Antigravity）：先后部署到生产（D4 于 10-24），Antigravity 真人验收通过。App 来源标签“Gemini”“Antigravity”需重建 App 才显示。
 
 ### 进行中
-- relay 飞书 / Bark 通知（重做旧 #17）：PR #41 审核通过，待合并。合并后用户建飞书群机器人，把 webhook 填进本机 `.state/config.json`，运行 `--test-notify`。
-- CI：maintenance job 超时与 R1 诊断（#39）；agent_relay 测试进 CI（#42）。
+- 学习账本 F1（固定脚本读写飞书 + 沙箱 Codex 出学习单）：relay PR #51 进行中，收到 relay:done 前不要合并。
 
 ### 之后
 - D2 接入 Sesame（D1 部署之后）。

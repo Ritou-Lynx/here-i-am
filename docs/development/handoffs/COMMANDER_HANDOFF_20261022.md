@@ -9,7 +9,7 @@
 - 交接方式：源码类工作走 Agent Relay（PR 评论标记 `relay:to-codex` 等，watcher 每 3 分钟轮询，用法见 `agent-relay` skill），用户只需合并。生产步骤走手动粘贴，每次粘贴即视为用户同意。
 
 ## 现状
-- 生产：schema6 Core 已上线（D1b，10-22 完成）。现役登录任务为 P′（`HereIAm-iCoreSchema6-d1a-mcp-20261013-6a063386`），旧任务和 P 停用保留。claude_web 和 chatgpt_web 都已配对，真人验收通过。全过程见 `RELAY_20261012_core-release-r1.md` 的“D1b 执行记录”。
+- 生产：schema6 Core 已上线（D1b，10-22 完成）。10-24 起现役登录任务为 `HereIAm-iCoreSchema6-d4-mcp-20261023-48bd91ed`（含 D1、D3、#49、D4），之前各任务停用保留。claude_web、chatgpt_web、gemini_web、antigravity 都已配对。电脑重启或注销后现役会话会被强杀（问题 L），要手动 `Start-ScheduledTask` 拉起。D1b 全过程见 `RELAY_20261012_core-release-r1.md` 的“D1b 执行记录”，之后的部署见 DEVLOG。
 - relay watcher：10-23 已按 A4 迁移。计划任务改为 `conhost --headless` 启动，codex 由配置里的 `codexSearch` 每轮查找（取 exe 修改时间最新的），Codex 更新后不需要重新注册。旧 VBS 已删除，备份留在本机 STATE 的 migration-a4 目录。
 - 维护工具副本：10-23 起改为 `<OUT>\tools-3baf72d`（v3-lab `3baf72d`，含 A1–A3，313 个文件，三项校验和 ACL 抽查都通过）。旧副本 `tools-302a62c0` 保留，D1b 的回执和登记配置钉的是它，不能拿到新副本上复用。以后要登记时，从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1 运行：pwsh 7 的 ConvertFrom-Json 会把数字读成 Int64，`-isnot [int]` 一类检查会误报。
 - 运维注意：STATE 中有旧 shortcut-mail 日志库的 -wal/-shm。stop 最后一步会报 `database_sidecars_present`，只要 `stop.receipts` 已通过，就说明会话已干净关闭。不要绕过闸门去改 STATE 内的文件（教训：第 7 步做了 checkpoint，状态树指纹随之改变，导致启动被拒）。注销前先手动停服。
@@ -37,7 +37,8 @@
 | A4 | PR #34（合同）与 #35（代码）都已合并；本机 watcher 已迁移，手动触发一次结果为 0 | — |
 | A3 | PR #36 已合并（10-23）；生产已换用新副本 `tools-3baf72d` | — |
 | C1 | PR #38 已合并（10-23） | 用 v3-lab 构建并安装 App，真人验收 ChatGPT/Claude 标签 |
-| D1 | 10-23 已部署（新任务 `…d1d3-mcp-20261023-dddff0f1`），Claude/ChatGPT 真人验收通过 | — |
-| D3 | 10-23 与 D1 一起部署，gemini_web 已配对；Gemini 添加时回调被拒（路径含下划线），回调修订 PR 待合并 | 合并后重新生成候选、update-mcp-source、切换，再做 Gemini 真人验收 |
+| D1 | 10-23 已部署，Claude/ChatGPT 真人验收通过 | — |
+| D3 | 10-23 部署；回调修订 #49 合并后已部署（任务 `…d3fix-mcp-20261023-084be21d`）。Gemini 能添加，但工具调用不生效 | 可选：只读查日志确认是否 Gemini 侧问题 |
+| D4 | #50 合并，10-24 部署（现役任务 `…d4-mcp-20261023-48bd91ed`），antigravity 已配对，真人验收通过 | 重建 App 后核对 Gemini/Antigravity 标签 |
 | R1 | 源码已改（10-23）：`ShortcutMailRelay.close()` 先 checkpoint 再切 DELETE 模式，关闭后不留 -wal/-shm；补两项合成测试。现役 schema6 运行时不打开该日志库，STATE 里现有的旧 sidecar 不受影响 | 用户审核合并；随下次换包部署。清理现有旧 sidecar 需另做带闸门的步骤，须用户同意 |
-| relay 通知 | PR #41（重做旧 #17）：第 1 轮通过后改为飞书机器人，第 2 轮审核通过（10-23），云端 105/105；旧 #17/#19/#23 已关闭，#19 分支保留 | 用户合并；建飞书群机器人，配置 webhook 后运行 `--test-notify` |
+| relay 通知 | PR #41 已合并，飞书机器人与 Bark 本机测试送达成功；旧 #17/#19/#23 已关闭，#19 分支保留 | — |
