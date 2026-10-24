@@ -59,12 +59,12 @@
 - 不改 Flutter App、`android/`、iCore、MCP；不接 i MCP（另做）。
 - 不录视频、不存图、不上传图像；不用云端视觉模型。
 - 不在仓库写 topic、令牌、本机路径。
-- 止损：同一测试名或错误码连续两个提交失败即 blocked，最多 3 轮。
+- 止损：同一测试名或错误码连续两个提交失败即 blocked，最多 4 轮（协议上限）。
 
 ## 验证命令
 - `gradle -p tools/bed_watch_android testDebugUnitTest`
 - 不跑 `assembleDebug`、不生成 APK、不安装：协议“永不”禁止 relay 内构建/安装 App（第 1 轮因此 blocked）。`testDebugUnitTest` 只编译并运行 JVM 单测，不出 APK，属于测试。
-- 若本机没有 `gradle` 或 Android SDK，不要自行安装，回 blocked 并说明缺什么。
+- `gradle` 不在 PATH 时：用本机已有的 Gradle 8.14 发行版，按完整路径调用（在 `GRADLE_USER_HOME`，未设置则 `~/.gradle`，下的 `wrapper/dists/gradle-8.14*/*/gradle-8.14/bin/gradle.bat` 里找；这是 Flutter 构建时缓存的）。不下载、不安装、不改 PATH、不提交 wrapper，该路径不写进仓库或回帖。找不到时回 blocked。
 - `git grep -n -i -E "ntfy.sh/[a-z0-9_-]{6,}" -- tools/bed_watch_android` 无结果（只允许占位）
 
 ## 真人验收（合并后）
@@ -76,3 +76,4 @@
 
 ## 审计记录
 - 第 1 轮 blocked（10-24）：合同要求 assembleDebug 与协议“永不构建或安装 App”冲突。处理：APK 构建移出 relay，改为合并后由用户授权单独执行；relay 只跑 JVM 单测。
+- 第 2 轮 blocked（10-24）：本机 PATH 上没有 `gradle`（Android SDK 35 已存在）。处理：改用 Flutter 构建缓存里的 Gradle 8.14，按完整路径调用；轮数上限改为 4 轮（前两轮只是环境问题，没有代码）。
