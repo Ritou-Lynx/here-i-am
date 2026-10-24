@@ -31,7 +31,7 @@
 **测试（合成数据）**
 - [ ] 新建 `tools/i_remote_mcp/callback_shape.test.mjs`：
   - `https://app.example.com/oauth/callback` → 原样；`https://App.Example.com:8443/oauth/callback/` → `https://app.example.com:8443/oauth/callback/`；
-  - `https://x.example.com/r/user_bound_custom-mcp-AbC123` → `https://x.example.com/r/{25}`；`https://x.example.com/cb/550e8400-e29b-41d4-a716-446655440000` → `https://x.example.com/cb/{36}`；
+  - `https://x.example.com/r/user_bound_custom-mcp-AbC123` → `https://x.example.com/r/{28}`；`https://x.example.com/cb/550e8400-e29b-41d4-a716-446655440000` → `https://x.example.com/cb/{36}`；
   - `https://x.example.com/cb?state=secret#frag` → `https://x.example.com/cb?{q}#{f}`，结果不含 `secret`、`frag`；
   - `https://user:pw@x.example.com/cb`、`ftp://x.example.com/cb`、`not a url`、空串、超长主机、超过 20 段 → `null`；
   - `http://127.0.0.1:9000/callback` → 原样。
