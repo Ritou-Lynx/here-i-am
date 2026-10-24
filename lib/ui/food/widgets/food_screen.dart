@@ -351,14 +351,16 @@ class _Panel extends StatelessWidget {
   final EdgeInsetsGeometry padding;
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: padding,
-        decoration: BoxDecoration(
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Material(
           color: context.springRainUi.surface.withValues(alpha: .94),
           borderRadius: BorderRadius.circular(context.springRainUi.radius18),
+          child: Padding(
+            padding: padding,
+            child: child,
+          ),
         ),
-        child: child,
       );
 }
 

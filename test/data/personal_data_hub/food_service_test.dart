@@ -117,6 +117,48 @@ void main() {
     await store.configureRoute(foodDomain, DomainRoute.core);
     expect((await FoodService(store: store).read(_now)).error, '等待首次同步');
     await store.invalidateReplica(foodDomain);
+    expect((await FoodService(store: store).read(_now)).error, '等待首次同步');
+
+    await store.applyPage(foodDomain, _page([_record('stale')]));
+    expect((await FoodService(store: store).read(_now)).error, isNull);
+    final op = await store.enqueue(
+      foodDomain,
+      id: 'stale',
+      kind: 'patch',
+      actor: 'agent_inferred',
+      baseRevision: 1,
+      fields: {
+        'patch': {'title': '合成午餐修正'},
+      },
+    );
+    // Operation lookup reports a deleted target after the patch was accepted.
+    await store.complete(
+      op,
+      {
+        'domain': foodDomain,
+        'op_id': op,
+        'outcome': 'accepted',
+        'receipt': {
+          'receipt_id': 'receipt-$op',
+          'accepted_op_id': op,
+          'principal_id': _binding.principalId,
+          'accepted_at': _now.toIso8601String(),
+          'policy_version': DomainPolicy.version,
+          'core_instance_id': _binding.coreInstanceId,
+          'domain': foodDomain,
+          'authority_mode': 'single_host',
+          'epoch': null,
+          'targets': [
+            {'id': 'stale', 'revision': 2},
+          ],
+          'change_sequences': [1],
+          'receipt_auth': List.filled(64, 'a').join(),
+        },
+      },
+      targetState: 'deleted',
+    );
+    expect((await store.read())['domains'][foodDomain]['replica_requires_resync'],
+        isTrue);
     expect((await FoodService(store: store).read(_now)).error, '副本需要重新同步');
   });
 
