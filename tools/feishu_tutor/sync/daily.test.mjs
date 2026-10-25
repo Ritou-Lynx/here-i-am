@@ -48,6 +48,7 @@ for (const [failedStep, expectedSteps, exit] of [
   const codex=calls.find(c=>c.step==='codex');
   if(codex) {
     assert.ok(codex.args.includes('--skip-git-repo-check'));
+    assert.match(codex.args[codex.args.indexOf('-o')+1],/[\\/]logs[\\/]codex-last-\d{8}-\d{6}-\d+\.md$/u);
     assert.equal(codex.args[codex.args.indexOf('-s')+1],'workspace-write');
     assert.equal(codex.args[codex.args.indexOf('-C')+1],study);
     assert.equal(codex.args[codex.args.indexOf('-m')+1],'TEST_MODEL');

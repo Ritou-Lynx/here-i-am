@@ -103,7 +103,7 @@ dry-run 只做本地校验，不调用 CLI、不移动文件、不保证远端�
 
 ## 每日运行与 Interactive 计划任务
 
-工具目录的 `run-daily.ps1` 兼容 Windows PowerShell 5.1，`-StudyDirectory` 和 `-ConfigPath` 均必填，没有学习目录默认值。它检查学习目录与工具/配置目录互不包含，否则报 `daily_layout_invalid`；随后依次 pull → `codex exec -C <学习目录> -s workspace-write -m <配置模型>` → push，同步命令均显式传 `--state`。每步检查退出码，失败即停。显式关闭 sandbox 网络；不加 danger-full-access。日志在学习目录 logs，仅记步骤和退出码。已有未处理 outbox 或 inflight 时，出新学习单前先停。日运行持有独占文件句柄，多个实例不能同时操作。
+工具目录的 `run-daily.ps1` 兼容 Windows PowerShell 5.1，`-StudyDirectory` 和 `-ConfigPath` 均必填，没有学习目录默认值。它检查学习目录与工具/配置目录互不包含，否则报 `daily_layout_invalid`；随后依次 pull → `codex exec -C <学习目录> -s workspace-write -m <配置模型>` → push，同步命令均显式传 `--state`。每步检查退出码，失败即停。显式关闭 sandbox 网络；不加 danger-full-access。日志在学习目录 logs：`daily-*.log` 只记步骤和退出码；`codex-last-*.md` 是导师最后一段回复（codex `-o`），没出单或出单不对时先看它。已有未处理 outbox 或 inflight 时，出新学习单前先停。日运行持有独占文件句柄，多个实例不能同时操作。
 
 合并后用户先手动试跑，确认报告、today.md 和远端均正确，再自己注册任务。任务设置为 **Interactive / 仅在用户登录时运行**，不使用“无论用户是否登录”；电脑须开机并登录。时间由用户决定。不要让本仓库执行者注册、启用或触发真实计划任务。
 

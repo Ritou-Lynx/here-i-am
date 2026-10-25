@@ -48,7 +48,10 @@ try {
     }
     $logsDirectory = Join-Path $studyRoot 'logs'
     New-Item -ItemType Directory -Path $logsDirectory -Force | Out-Null
-    $dailyLog = Join-Path $logsDirectory ('daily-{0}-{1}.log' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $PID)
+    $dailyStamp = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $PID
+    $dailyLog = Join-Path $logsDirectory ('daily-{0}.log' -f $dailyStamp)
+    # The tutor's final reply, so a run that writes nothing can still be explained.
+    $codexLastMessage = Join-Path $logsDirectory ('codex-last-{0}.md' -f $dailyStamp)
     # Hold an exclusive handle across pull -> Codex -> push. A crash releases it.
     $dailyLock = [System.IO.File]::Open((Join-Path $logsDirectory '.daily.lock'), [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
     Set-Location -LiteralPath $studyRoot
@@ -68,7 +71,7 @@ try {
     $dailyPrompt = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('5a6a5pe26L+Q6KGM77yI5peg5Lq65YC85a6I77yJ77ya5Ye65LuK5aSp55qE5a2m5Lmg5Y2V'))
     # The study directory is deliberately not a git repository; codex exec
     # refuses to start there without this flag.
-    $stepExit = Invoke-DailyStep -Executable $CodexExecutable -CommandArguments @('exec', '--skip-git-repo-check', '-C', $studyRoot, '-s', 'workspace-write', '-m', $dailyConfig.model, '-c', 'sandbox_workspace_write.network_access=false', $dailyPrompt)
+    $stepExit = Invoke-DailyStep -Executable $CodexExecutable -CommandArguments @('exec', '--skip-git-repo-check', '-o', $codexLastMessage, '-C', $studyRoot, '-s', 'workspace-write', '-m', $dailyConfig.model, '-c', 'sandbox_workspace_write.network_access=false', $dailyPrompt)
     if ($stepExit -ne 0) { ('codex_failed:{0}' -f $stepExit) | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append; exit $stepExit }
 
     'push_start' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
