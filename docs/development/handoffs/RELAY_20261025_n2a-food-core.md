@@ -98,4 +98,19 @@
 - 生产换包和开通由用户另行同意。
 
 ## 审核记录
-（待第 1 轮）
+
+### 第 1 轮（10-25）：Codex 报 blocked，Claude 云端复核后小修
+- Codex 提交 `9b59af4`，只改了允许的路径。Codex 报告的两个失败都是本机沙箱造成的：只读检查在 realpath 上报 EPERM，全量测试运行期间源码被改动。
+- 云端复跑结果：
+  - 专项测试 81 项，73 过、0 败、8 跳。
+  - 全量 `tools/i_core`、`release_schema6`、`i_remote_mcp` 共 1046 项，943 过、11 败、92 跳。这 11 项与 `v3-lab` 基线失败的用例逐名一致，没有新增失败。
+  - INVENTORY 48 项和两份固定哈希不变。MCP 候选六文件哈希不变。
+- 代码审核：
+  - 食物代码已原样迁移，并改成转出口。
+  - `provisionFoodDomain` 在单事务内完成，冲突时不做修改。
+  - 轮询器先删请求再解析，校验 HMAC、有效期和重放；回执不含令牌；任何异常都不进入关停。
+  - 两处 `createICoreServer` 都已装上 hooks。
+- Windows CI 只有 1 项失败：Windows 合成脚本用例中 `-Rotate phone` 实际发出 `[]`。原因是夹具 dot-source 维护脚本时，维护脚本的 param 块把 `$Rotate` 重置成了空。Claude 直接修了三处：
+  - 夹具在 dot-source 之前保存参数。
+  - 维护脚本按逗号拆分 `-Rotate`，因为 `-File` 调用时 `writer,phone` 会作为一个字符串传入；测试补了一项。
+  - README 去掉了末尾空行。

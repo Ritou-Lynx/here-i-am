@@ -10,6 +10,8 @@ function Write-Schema6FoodFile([string]$Path,[byte[]]$Bytes) {
 }
 function Invoke-Schema6FoodProvision([string]$TaskName,[string[]]$Rotate=@()) {
  if($PSVersionTable.PSVersion.Major-ne 5 -or $PSVersionTable.PSEdition-ne 'Desktop'){throw 'windows_powershell_51_required'}
+ # -File passes "writer,phone" as one string; accept both that and separate values.
+ $Rotate=@($Rotate|ForEach-Object {$_ -split ','})
  if(@($Rotate|Where-Object {$_ -cnotin @('writer','phone')}).Count -gt 0 -or @($Rotate|Select-Object -Unique).Count -ne $Rotate.Count){throw 'invalid_food_provision_request'}
  $binding=Get-Schema6LoginBinding $TaskName
  Assert-Schema6NoRecovery $binding

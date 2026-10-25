@@ -130,12 +130,14 @@ test('N2a Windows synthetic script emits one JSON, deletes tokens, rotates only 
  const second=invoke();assert.equal(second.status,0);assert.deepEqual(second.value.issued,[]);assert.equal(Object.hasOwn(second.value,'writer_token'),false);
  const rotated=invoke(['phone']);assert.equal(rotated.status,0);assert.deepEqual(rotated.value.issued,['phone']);
  assert.equal(Object.hasOwn(rotated.value,'writer_token'),false);assert.equal(rotated.value.phone_token===first.value.phone_token,false);
+ const both=invoke(['writer,phone']);assert.equal(both.status,0);assert.deepEqual(both.value.issued,['writer','phone']);
+ assert.equal(both.value.writer_token===first.value.writer_token,false);assert.equal(both.value.phone_token===rotated.value.phone_token,false);
  assert.equal(readdirSync(run.control).some(n=>n.startsWith('food-tokens-')),false);
  // A reservation is also an unhandled publication; no scheduler operations occur.
  writeFileSync(path.join(run.control,'food.request.pending'),'synthetic outstanding reservation');
  const pending=invoke();assert.equal(pending.status,2);assert.equal(pending.value.status,'rejected_food_unhandled_request_exists');
  rmSync(path.join(run.control,'food.request.pending'));
- for(const secret of [first.value.writer_token,first.value.phone_token,rotated.value.phone_token]){
+ for(const secret of [first.value.writer_token,first.value.phone_token,rotated.value.phone_token,both.value.writer_token,both.value.phone_token]){
   assert.equal((run.stdout+run.stderr).includes(secret),false);
   for(const name of readdirSync(run.control).filter(n=>n.startsWith('food-receipt-')))
    assert.equal(readFileSync(path.join(run.control,name),'utf8').includes(secret),false);
