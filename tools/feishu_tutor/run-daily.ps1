@@ -12,7 +12,11 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding
 function Invoke-DailyStep {
     param([string]$Executable, [string[]]$CommandArguments)
-    $resolvedExecutable = Get-Command $Executable -CommandType Application -ErrorAction Stop
+    # npm puts both codex.cmd and an extensionless shell script on PATH, and
+    # Get-Command returns both. Take the first Windows-runnable match only.
+    $resolvedExecutable = @(Get-Command $Executable -CommandType Application -ErrorAction Stop |
+        Where-Object { $_.Extension -in @('.exe', '.cmd', '.bat', '.com') }) | Select-Object -First 1
+    if ($null -eq $resolvedExecutable) { throw 'daily_executable_not_found' }
     # PS 5.1 otherwise turns native stderr into a terminating NativeCommandError
     # before we can preserve the actual process exit code.
     $ErrorActionPreference = 'Continue'

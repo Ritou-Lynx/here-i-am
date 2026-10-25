@@ -60,6 +60,29 @@ for (const [failedStep, expectedSteps, exit] of [
   assert.ok(status.includes(failedStep==='none'?'daily_done':failedStep+'_failed:'+exit));
 });
 
+test('PS 5.1 resolves a bare name to the .cmd when npm also installs an extensionless script',{skip:process.platform!=='win32'},async t=>{
+  const root=await mkdtemp(path.join(tmpdir(),'feishu-daily-'));
+  t.after(async()=>{assert.equal(path.dirname(root),path.resolve(tmpdir()));await rm(root,{recursive:true,force:true});});
+  const study=path.join(root,'study'),tool=path.join(root,'tool'),bin=path.join(root,'bin'),config=path.join(tool,'config.json');
+  await mkdir(study);await mkdir(tool);await mkdir(bin);await writeFile(config,JSON.stringify({model:'TEST_MODEL'}));
+  const script=path.join(root,'fake.mjs');await writeFile(script,fakeDaily);
+  for(const role of ['node','codex']) {
+    await writeFile(path.join(bin,`fake-${role}.cmd`),`@echo off\r\n"${process.execPath}" "${script}" ${role} %*\r\nexit /b %errorlevel%\r\n`);
+    await writeFile(path.join(bin,`fake-${role}`),'#!/bin/sh\nexit 99\n');
+  }
+  const log=path.join(root,'calls.jsonl');await writeFile(log,'');
+  const code=`& ${quotePS(runner)} -StudyDirectory ${quotePS(study)} -ConfigPath ${quotePS(config)} -NodeExecutable 'fake-node' -CodexExecutable 'fake-codex'\nexit $LASTEXITCODE`;
+  const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,TEST_DAILY_LOG:log,TEST_DAILY_PULL_EXIT:'0',TEST_DAILY_CODEX_EXIT:'0',TEST_DAILY_PUSH_EXIT:'0'};
+  const actual=await new Promise((resolve,reject)=>{
+    const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(code,'utf16le').toString('base64')],{env,shell:false});
+    let stderr='';child.stdout.resume();child.stderr.setEncoding('utf8');child.stderr.on('data',s=>stderr+=s);
+    child.once('error',reject);child.once('close',exit=>resolve({exit,stderr}));
+  });
+  assert.equal(actual.exit,0,actual.stderr);
+  const calls=(await readFile(log,'utf8')).trim().split('\n').filter(Boolean).map(v=>JSON.parse(v));
+  assert.deepEqual(calls.map(c=>c.step),['pull','codex','push']);
+});
+
 for(const layout of ['same','tool_inside_study','study_inside_tool']) test(`PS 5.1 rejects overlapping directories: ${layout}`,{skip:process.platform!=='win32'},async t=>{
   const root=await mkdtemp(path.join(tmpdir(),'feishu-daily-'));
   t.after(async()=>{assert.equal(path.dirname(root),path.resolve(tmpdir()));await rm(root,{recursive:true,force:true});});
