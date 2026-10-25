@@ -23,7 +23,7 @@ Node 24、无第三方依赖。确定性同步脚本读写飞书；定时 Codex 
 3. 在仓库之外建立两个互不包含的目录，已有内容不同先比较，不覆盖：
    - **工具目录** `%USERPROFILE%\feishu-tutor-tool`：复制 `sync/` 和 `run-daily.ps1`。把 `sync/config.example.json` 复制为工具目录根部的 `config.json`。工具目录不得作为 Codex 的工作目录或额外可写根，Codex 不得修改这里的代码和配置。
    - **学习目录** `%USERPROFILE%\feishu-study`：只复制 `STUDY_AGENTS.md`（改名 `AGENTS.md`）、`TUTOR_RULES.md`、`subjects.md`；创建 `state/outbox/`、`inbox/done/`、`logs/`。运行后生成 `today.md`。不向这里复制 sync、配置或 runner。
-4. 在工具目录的私有 `config.json` 中，将所有占位符替换为本机实际值：CLI 原生可执行文件路径（或设为 `lark-cli` 走 PATH）、模型、base 标识、三张表名、全部字段映射、科目、来源文档。`sources` 可为空数组；出题需要对应来源时应补全。真实配置、学习快照、日志和 outbox 不入库；凭据只留 CLI 的系统安全存储，不复制到学习目录。
+4. 在工具目录的私有 `config.json` 中，将所有占位符替换为本机实际值：CLI 原生可执行文件路径（或设为 `lark-cli` 走 PATH）、模型、base 标识、三张表名、全部字段映射、科目、来源文档。`sources` 可为空数组；出题需要对应来源时应补全。每项可选填 `url`（该文档的飞书分享链接，https，路径为 `/docx/` 或 `/wiki/`），pull 会原样带进 `sources.json`，导师用它写可点开的出处；不填就只写标题。真实配置、学习快照、日志和 outbox 不入库；凭据只留 CLI 的系统安全存储，不复制到学习目录。
 5. 定时 Codex 的本机配置不要启用 MCP、apps、连接器或额外工具；只允许本地学习文件流程。不得给这次运行开放网络或换为 danger-full-access。网络限制由 runner 显式设为 false；AGENTS 同时禁止通过外部服务工具绕行。
 
 ## 建三张表（用户在场）

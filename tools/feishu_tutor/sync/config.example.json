@@ -3,7 +3,7 @@
   "model": "<CODEX_MODEL>",
   "base_token": "<BASE_TOKEN>",
   "subjects": ["<SUBJECT_NAME>"],
-  "sources": [{"title": "<SOURCE_TITLE>", "doc": "<SOURCE_DOC_TOKEN>"}],
+  "sources": [{"title": "<SOURCE_TITLE>", "doc": "<SOURCE_DOC_TOKEN>", "url": "<SOURCE_SHARE_URL>"}],
   "tables": {
     "ledger": {
       "name": "<LEDGER_TABLE_NAME>",
