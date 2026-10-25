@@ -66,3 +66,4 @@
 - 10-24 第 1 轮（d82776e）：blocked。实现了 `callbackShape`、`callback_shapes` 与候选补丁，但 `gemini_frontend.test.mjs:287` 旧断言禁止日志出现 `private-path|unknown\.invalid`，与新口径冲突；未建新测试。
 - 10-24 第 2 轮指令：放开该断言中这两项（其余脱敏断言保留），并断言 `other` 类注册记录 `callback_shapes` 为 `['https://unknown.invalid/private-path']`、其他分类无此字段；路径段计数去掉首个空串；query/fragment 改用 `url.search`/`url.hash`。
 - 10-24 第 2 轮（afe5eaf）：通过。只改合同允许路径（含第 2 轮追加的一处断言）。云端复跑 `node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs` 245/245；候选六文件、`changed_files: 5`，diagnostics 结果哈希 `bd9b3444`，server/oauth/mcp/writeback 与 D4 候选相同，i_memory_read 不变。新测试覆盖 20/21 段边界、253 字符主机、空 query/fragment、去重与 8 项上限、HTTP 注册仍 400 且记录不含原始随机段、四个已知前端无 `callback_shapes`。
+- 10-25 合入 v3-lab（含 N1 #59）：构建器 mainline 链改为 antigravity → SESAME_PROBE → FOOD，反向链依次反向撤回；N1 测试里 diagnostics 的固定哈希从 pre-D2a 的 2b461c32 改为 bd9b3444（D2a 本身预期的值）。云端 255/255；候选 6 个文件的哈希与部署提示词一致。

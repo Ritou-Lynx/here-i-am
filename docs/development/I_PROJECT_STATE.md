@@ -26,6 +26,8 @@
 - D2a Sesame 回调探测（PR #55）：Sesame 走标准 DCR，但回调不在白名单，`/register` 400。诊断对未知回调记脱敏形状 `callback_shapes`，两轮审核通过，待合并与部署；拿到形状后写 D2b（白名单、`sesame` 身份、来源标签、配对）。起因是催睡来电方案：三星例程拉起 Sesame，经 i MCP 取上下文。
 - F1 飞书学习导师：PR #51 审核通过，待合并。合并后用户按 `tools/feishu_tutor/README.md` 在本机配置（团队租户、工具目录和学习目录分开、建三张表、试跑、注册 Interactive 计划任务）；旧账本迁移另做；10-31 复测 refresh token 续期。
 
+- N1 食物记录：PR #59 三轮审核通过、CI 全绿，源码默认关闭，待用户合并；之后写 N2（食物领域上线，数据中枢首个领域，含 Core 换包，生产操作逐步同意）。
+
 ### 之后
 - D2b 接入 Sesame（等 D2a 部署后拿到回调形状）。
 - R1 shortcut-mail 关闭前 checkpoint，留到下次换包一起做。

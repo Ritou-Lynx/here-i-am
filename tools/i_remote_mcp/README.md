@@ -262,3 +262,19 @@ const { server } = createApp({
 Core captures 模式的 `plan_reads` 继续使用独立只读凭据。除 `plan_weeks:read`、`plan_days:read` 外，可明确授予 `plan_items:read`；该凭据仍不能写规划或读取 captures/chat。`day_get` 单记录和分页结果会在原始 day/queues 外返回 `item_titles`（ID → title/revision）及 `item_title_issues`。缺事项权限、已删除或暂不可读的事项明确报问题，不猜标题。最多解析500个不同ID，保留原队列ID；事项标题是各自当前版本，不是跨领域原子快照。网页端不因此开放 `plan_list` 或规划写工具。
 
 仅提交/合入源码不会修改现役 MCP、启用 Core captures 或签发生产凭据。按部署前审计的 D3，真实增改删闭环验收前继续保留47862记事桥，移交时只启用一个消费者。
+
+## 食物记录（N1，源码默认关闭）
+
+`food_log` / `food_day` 仅在显式配置 `food` 块后加入 mainline 网页工具；Claude、ChatGPT、Antigravity 可见，Gemini 不开放。未配置时工具清单保持原状。配置沿用 Core domain 配置入口，`food` 格式如下（占位值不是凭据）：
+
+```json
+{"food":{"token":"<独立食物领域令牌>","scopes":["food_entries:read","food_entries:create","food_entries:patch"],"time_zone":"Asia/Shanghai"}}
+```
+
+令牌必须与 captures 的 `token` 和 `plan_reads.token` 不同。scope 仅允许上面三种的子集；读取需要 read，写工具同时需要 read 和 create/patch。时区默认 Asia/Shanghai，本地 04:00 划分记录日；`food_day` 的 date 可查其他日期。
+
+照片由前端模型直接识别，不通过 MCP 上传或保存。逐项给食物、克数范围、热量和三大营养素；炒菜将烹调油单列，参照物写 note。不确定标 low，不编数。估值用 source=model，拍到营养标签用 source=label、basis=label。MCP 计算 local_date 与 totals，调用方不能覆盖这些字段或 actor。写后告知结果和今日累计，并请用户纠正。
+
+`food_log` 接受 add/update/void；每个新意图使用不同 UUID op_id，重试保留原样。update/void 带 base_revision；void 仅 patch voided=true，日累计与 App 隐藏该条。MCP 使用 agent_inferred，不能覆盖用户在 App 更正并锁定的字段。生成的意图时间在当前进程缓存中保持不变；缓存丢失且 Core 已存在该 op 时返回 food_retry_state_unavailable，不自动重建或重新写入。
+
+本阶段仅新增领域源码与合成测试；没有注册生产领域、创建真实凭据或打开手机同步。六文件候选仍排除领域工具，输出与 N1 前逐字节相同。生产上线属于另行授权的 N2。

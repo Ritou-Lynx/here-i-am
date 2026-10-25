@@ -133,7 +133,8 @@ dot 读 `%USERPROFILE%\feishu-study\today.md`，按 TUTOR_RULES 带练；GPT voi
 - Windows 沙箱的 DPoP/KSP 限制正是拆分同步与 Codex 的原因。任务用登录用户运行同步脚本；不把 lark-cli 放入沙箱，也不解除 Codex 沙箱。
 - compare-then-write 不能阻止比较之后、写入之前的极短并发窗口；飞书 CLI 没有这里可用的条件更新原子操作。不承诺消除所有并发覆盖。
 - 飞书更新可能异步可见。读回不一致会保留为不确定状态，需要核对；不自动重试。
+- 10-24 真实租户试跑确认：`whoami` 返回没有 `ok` 字段，只校验 `identity=user` 且 `available=true`；`+record-list --output` 的 stdout 是 manifest 本身，不套信封，行数与分页仍按 manifest 文件校验。其他命令照旧要求 `ok=true` 且 `identity=user`。
 - CLI 帮助已核对，部分返回容器依据本地说明/适配约定，用户合并后须 check、单条试跑。未联网验收、未建计划任务、未迁移旧账本。CLI 升级后先重新核对帮助和合成测试。
 - 不碰思源、flexnote、App、MCP、i_core 或 Memory V3。旧账本迁移另做，需要用户同意。
 
-合成验证：`node --test tools/feishu_tutor/sync/*.test.mjs`。假 CLI 在系统临时目录生成，只记录合成 argv 和 @file 字节；涵盖白名单穷举、整批拒绝、冲突、字节一致、dry-run、归档及失败保留。GitHub CI 的 bridge-node 跑相同命令。测试通过、真实飞书试跑、定时任务验收和真人体验是分开的结论。
+合成验证：仓库根目录运行 `node --test tools/feishu_tutor/sync/*.test.mjs`（bash）。PowerShell 不展开这个通配符，要写成 `node --test (Get-ChildItem tools/feishu_tutor/sync -Filter *.test.mjs).FullName`。在工具目录里只跑 `sync\feishu_sync.test.mjs`；`daily.test.mjs` 里有一项要和仓库里的 siyuan_tutor 模板比对，离开仓库必然失败。假 CLI 在系统临时目录生成，只记录合成 argv 和 @file 字节；涵盖白名单穷举、整批拒绝、冲突、字节一致、dry-run、归档及失败保留。GitHub CI 的 bridge-node 跑相同命令。测试通过、真实飞书试跑、定时任务验收和真人体验是分开的结论。

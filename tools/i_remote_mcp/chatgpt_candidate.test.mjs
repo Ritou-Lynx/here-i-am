@@ -249,3 +249,23 @@ test('callback shape candidate preserves six-file closure, exact diagnostics byt
  assert.deepEqual(records[0].callback_shapes,['https://sesame-test.example/oauth/callback/{16}']);
  assert.doesNotMatch(JSON.stringify(records[0]),/abcdef0123456789/);
 });
+
+test('N1 mainline food patches preserve all six pre-N1 candidate hashes and reject source drift', () => {
+ const {files,manifest}=constructCandidateSources(input);
+ const pinned={
+  'i_remote_mcp/server.mjs':'c1926ef7c16efe3ddf1f916778b156703aa905a43cc5880768dd2e835105f7d4',
+  'i_remote_mcp/oauth.mjs':'7c82a07d7ec10afaea12728b71b45fcf9d80e07141994ca68a6394764d4d56bd',
+  'i_remote_mcp/diagnostics.mjs':'bd9b34441bb6d4b92b2a0c13af341570f2a0408f7411e1d8e893b53d0e861d08', // D2a callback_shapes (#55)
+  'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',
+  'i_remote_mcp/writeback.mjs':'783e8fd0eabd55b61cff624e2ff4a67025374da361c4136337d3d05ceb1fcc19',
+  'i_memory/i_memory_read.mjs':'cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28',
+ };
+ assert.equal(manifest.changed_files,5);
+ assert.deepEqual(Object.keys(files).sort(),Object.keys(pinned).sort());
+ for(const [path,hash] of Object.entries(pinned)) {
+  assert.equal(sha256(files[path]),hash);
+  assert.doesNotMatch(files[path].toString(),/food_log|food_day|food_entries|createFoodTools/);
+ }
+ const server=Buffer.from(input.current.server.toString().replace('createFoodTools','unreviewedFoodTools'));
+ assert.throws(()=>constructCandidateSources({...input,current:{...input.current,server}}),/unexpected current/);
+});
