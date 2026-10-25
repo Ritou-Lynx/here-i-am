@@ -225,10 +225,10 @@ test('Antigravity candidate keeps the six-file closure, exact callbacks and dedi
  assert.ok(!bytes.replaceAll('\r\n','').includes('\n'),'Antigravity diagnostics retain CRLF');
 });
 
-test('N1 mainline food patches preserve all six pre-N1 candidate hashes and reject source drift', () => {
+test('N2b food patches change only the server candidate hash and reject source drift', () => {
  const {files,manifest}=constructCandidateSources(input);
  const pinned={
-  'i_remote_mcp/server.mjs':'c1926ef7c16efe3ddf1f916778b156703aa905a43cc5880768dd2e835105f7d4',
+  'i_remote_mcp/server.mjs':'6a713d3018fcc11d559b422f55ab5284abebc0ad6acf632e16514fa54cc12628',
   'i_remote_mcp/oauth.mjs':'7c82a07d7ec10afaea12728b71b45fcf9d80e07141994ca68a6394764d4d56bd',
   'i_remote_mcp/diagnostics.mjs':'2b461c327de8a9a0da97767249ca810c7bd4a6536cc8cf32dd94141d630ffbe0',
   'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',
@@ -239,8 +239,21 @@ test('N1 mainline food patches preserve all six pre-N1 candidate hashes and reje
  assert.deepEqual(Object.keys(files).sort(),Object.keys(pinned).sort());
  for(const [path,hash] of Object.entries(pinned)) {
   assert.equal(sha256(files[path]),hash);
-  assert.doesNotMatch(files[path].toString(),/food_log|food_day|food_entries|createFoodTools/);
+  if(path==='i_remote_mcp/server.mjs') {
+   assert.match(files[path].toString(),/food_log/);
+   assert.match(files[path].toString(),/food_day/);
+   assert.doesNotMatch(files[path].toString(),/createFoodTools/);
+  } else assert.doesNotMatch(files[path].toString(),/food_log|food_day|food_entries|createFoodTools/);
  }
  const server=Buffer.from(input.current.server.toString().replace('createFoodTools','unreviewedFoodTools'));
  assert.throws(()=>constructCandidateSources({...input,current:{...input.current,server}}),/unexpected current/);
+});
+
+test('N2b inline server keeps the frozen dependency closure and forbidden-source guard',()=>{
+ const server=constructCandidateSources(input).files['i_remote_mcp/server.mjs'].toString();
+ assert.doesNotMatch(server,/domain_tools|personal_data_domains|coreRemember|domain-config/);
+ const imports=[...server.matchAll(/(?:from\s*|import\s*\()(['"])([^'"]+)\1/g)].map(match=>match[2]);
+ assert.ok(imports.length>0);
+ for(const name of imports)assert.ok(name.startsWith('node:')||['./oauth.mjs','./mcp.mjs','./writeback.mjs','./diagnostics.mjs'].includes(name),name);
+ assert.match(server,/import\(pathToFileURL\(resolve\(REPO_TOOLS, 'i_memory\/i_memory_read\.mjs'\)\)\.href\)/);
 });
