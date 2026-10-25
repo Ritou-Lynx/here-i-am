@@ -5,9 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
+import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, sesameEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
 import { readFileSync } from 'node:fs';
-import { createDomainClient, createDomainTools, createCoreRemember, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
+import { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
 import { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';
 import {
   SUPPORTED_PROTOCOL_VERSIONS,
@@ -78,24 +78,27 @@ export function createApp({
   chatgptEnabled = chatgptEnabledFromEnv(),
   geminiEnabled = geminiEnabledFromEnv(),
   antigravityEnabled = antigravityEnabledFromEnv(),
+  sesameEnabled = sesameEnabledFromEnv(),
   log = () => {},
   diagnostic = () => {},
   writeback = null,
   chatgptWriteback = null,
   geminiWriteback = null,
   antigravityWriteback = null,
+  sesameWriteback = null,
   coreRemember = null,
   domainTools = null,
 }) {
   if (!publicUrl) throw new Error('publicUrl is required');
   if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');
-  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || coreRemember);
-  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled });
+  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || sesameWriteback || coreRemember || domainTools?.tools.some(tool => tool.requiredScope === 'i.write'));
+  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled });
   if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');
   const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};
-  const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];
+  const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[])];
   // These handlers are selected only from the verified OAuth token, never MCP arguments.
-  const chatgptDomainTools = (domainTools?.tools ?? []).filter(tool => ['week_get', 'day_get'].includes(tool.name));
+  const chatgptDomainTools = (domainTools?.tools ?? []).filter(tool => ['week_get', 'day_get', 'food_log', 'food_day'].includes(tool.name));
+  const geminiDomainTools = chatgptDomainTools.filter(tool => !['food_log', 'food_day'].includes(tool.name));
   const chatgptHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
     writeback: chatgptWriteback,
     frontend: 'chatgpt_web' }),
@@ -104,16 +107,16 @@ export function createApp({
     chatgptHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:chatgpt_web'); };
   }
   const chatgptTools = [...listTools({ writeEnabled, frontend: 'chatgpt_web' }),
-    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
+    ...chatgptDomainTools];
   const geminiHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
     writeback: geminiWriteback,
     frontend: 'gemini_web' }),
-    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };
+    ...Object.fromEntries(geminiDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };
   if (writeEnabled && !geminiWriteback) {
     geminiHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:gemini_web'); };
   }
   const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),
-    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
+    ...geminiDomainTools];
   const antigravityHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
     writeback: antigravityWriteback,
     frontend: 'antigravity' }),
@@ -122,7 +125,17 @@ export function createApp({
     antigravityHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:antigravity'); };
   }
   const antigravityTools = [...listTools({ writeEnabled, frontend: 'antigravity' }),
-    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
+    ...chatgptDomainTools];
+  const sesameDomainTools = (domainTools?.tools ?? []).filter(tool => ['week_get', 'day_get'].includes(tool.name));
+  const sesameHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
+    writeback: sesameWriteback,
+    frontend: 'sesame' }),
+    ...Object.fromEntries(sesameDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };
+  if (writeEnabled && !sesameWriteback) {
+    sesameHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:sesame'); };
+  }
+  const sesameTools = [...listTools({ writeEnabled, frontend: 'sesame' }),
+    ...sesameDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];
   const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
 
@@ -174,6 +187,9 @@ export function createApp({
     } else if (auth.frontend === 'antigravity') {
       frontendHandlers = antigravityHandlers;
       frontendTools = antigravityTools;
+    } else if (auth.frontend === 'sesame') {
+      frontendHandlers = sesameHandlers;
+      frontendTools = sesameTools;
     } else {
       res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));
       return sendJson(res, 401, { error: 'invalid_token' });
@@ -240,7 +256,9 @@ export function createApp({
           : auth.frontend === 'gemini_web' && !geminiWriteback
             ? { i_chat_turn: 'frontend_not_paired:gemini_web' }
             : auth.frontend === 'antigravity' && !antigravityWriteback
-              ? { i_chat_turn: 'frontend_not_paired:antigravity' } : {},
+              ? { i_chat_turn: 'frontend_not_paired:antigravity' }
+              : auth.frontend === 'sesame' && !sesameWriteback
+                ? { i_chat_turn: 'frontend_not_paired:sesame' } : {},
         scopes: auth.scopes,
         session,
         logError: () => { dataSourceFailed = true; },
@@ -488,6 +506,17 @@ export function createWebDomainOptions(config) {
     const planTools=createDomainTools({client:createDomainClient({coreUrl:config.core_url,coreInstanceId:config.core_instance_id,token:plan.token}),scopes:plan.scopes,surface:'web',captureSource:'claude_web'});
     domainTools.tools.push(...planTools.tools);Object.assign(domainTools.handlers,planTools.handlers);
   }
+  if(Object.hasOwn(config,'food')){
+    const food=config.food;
+    if(!food||typeof food!=='object'||Array.isArray(food)||Object.keys(food).some(key=>!['token','scopes','time_zone'].includes(key))
+      ||typeof food.token!=='string'||!food.token||/\s/.test(food.token)||food.token===config.token||food.token===config.plan_reads?.token
+      ||!Array.isArray(food.scopes)||food.scopes.some(scope=>!['food_entries:read','food_entries:create','food_entries:patch'].includes(scope)))throw new Error('invalid_web_food_configuration');
+    let foodTools;
+    try {
+      foodTools=createFoodTools({client:createDomainClient({coreUrl:config.core_url,coreInstanceId:config.core_instance_id,token:food.token}),scopes:food.scopes,timeZone:food.time_zone??'Asia/Shanghai'});
+    } catch {throw new Error('invalid_web_food_configuration');}
+    domainTools.tools.push(...foodTools.tools);Object.assign(domainTools.handlers,foodTools.handlers);
+  }
   return {coreRemember:createCoreRemember({client,scopes:config.scopes}),domainTools};
 }
 
@@ -581,6 +610,7 @@ async function main(argv) {
   const chatgptEnabled = chatgptEnabledFromEnv();
   const geminiEnabled = geminiEnabledFromEnv();
   const antigravityEnabled = antigravityEnabledFromEnv();
+  const sesameEnabled = sesameEnabledFromEnv();
   if (!publicUrl.startsWith('https://')) {
     process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\n`);
   }
@@ -631,18 +661,29 @@ async function main(argv) {
       coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'antigravity' }),
     });
   }
+  let sesameWriteback = null;
+  if (sesameEnabled && process.env.I_REMOTE_MCP_WRITEBACK !== '0') {
+    const credential = loadFrontendCredential(stateDir, 'sesame');
+    if (credential) sesameWriteback = createWriteback({
+      ledger: openLedger(resolve(stateDir, 'writeback.sqlite')),
+      frontend: 'sesame',
+      coreClient: createCoreFrontendClient({ coreUrl, deviceToken: credential.device_token, frontend: 'sesame' }),
+    });
+  }
   const { server, oauth } = createApp({
     stateDir,
     publicUrl,
     chatgptEnabled,
     geminiEnabled,
     antigravityEnabled,
+    sesameEnabled,
     getReadModel,
     diagnostic,
     writeback,
     chatgptWriteback,
     geminiWriteback,
     antigravityWriteback,
+    sesameWriteback,
     ...loadWebDomainOptions(args['domain-config']),
   });
   let phoneServer = null;
@@ -659,7 +700,7 @@ async function main(argv) {
   server.listen(port, host, () => {
     process.stderr.write(`i remote MCP 监听 http://${host}:${port}/mcp ，对外地址 ${oauth.resource}\n`);
   });
-  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); antigravityWriteback?.close(); };
+  const shutdown = () => { server.close(); phoneServer?.close(); getReadModel.close(); writeback?.close(); chatgptWriteback?.close(); geminiWriteback?.close(); antigravityWriteback?.close(); sesameWriteback?.close(); };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }

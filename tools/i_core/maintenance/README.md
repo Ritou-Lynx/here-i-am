@@ -212,3 +212,16 @@ D1b 更正顺序如下。用户在场，每一步单独同意；必须先合并 
 第 1b 至第 2 步失败时，可以重新启用并启动旧任务。第 3 步之后，失败一律不起旧任务，按经审阅的反向换包处理。以上全部是部署用法，本轮只交付源码和 CI 验证，不执行本机真实操作。
 
 C1 现在只选择非 `preserved/`、`role: task`、精确名 `tasks/HereIAm-CoreSchema6-Session.xml` 的唯一条目。其他任务与历史条目保持原样，循环模板声明哈希沿用既有规则。合成夹具与 Windows 会话测试均覆盖三条现役 task 加一条 preserved task 的形态。R2 本机仅静态/纯合成验证，真实关闭、离线换包和生成产物的 RegisterOnly 验证由 hosted Windows CI 执行。
+# 食物领域开通
+
+`provision-food-domain.ps1 -TaskName <name>` 仅供 Windows PowerShell 5.1 使用。
+它定位唯一活动 Core 会话，通过 HMAC 控制通道登记 authoritative 的
+`food_entries`，首次发出 MCP 写入与手机只读令牌，不登记、启动或停止任务。
+重复执行不再发令牌。`-Rotate writer`、`-Rotate phone` 或
+`-Rotate writer,phone` 只轮换指定角色，旧令牌立即失效。
+
+stdout 恰好一行 JSON；令牌只交给下一步经 stdin 消费，N2b 将定义 MCP
+配置写入步骤。不要把令牌打印到 transcript、参数、环境变量或日志。
+脚本读取令牌文件后立即删除；失败输出去敏的 `rejected_*` 状态并非零退出。
+已有未处理请求时拒绝，不覆盖请求。回滚旧 Core 包后，食物请求返回
+`schema_not_ready`，其他 Core 功能仍可使用。生产换包与开通需要另行授权。

@@ -224,3 +224,82 @@ test('Antigravity candidate keeps the six-file closure, exact callbacks and dedi
  const bytes=readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'),'utf8');
  assert.ok(!bytes.replaceAll('\r\n','').includes('\n'),'Antigravity diagnostics retain CRLF');
 });
+
+test('callback shape candidate preserves six-file closure, exact diagnostics bytes and path boundaries', async t => {
+ const built = candidate(t); // Construction enforces mainline and legacy forward/reverse byte checks.
+ assert.equal(built.manifest.files.length,6);
+ assert.equal(built.manifest.changed_files,5);
+ const bytes = readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'));
+ assert.equal(bytes.toString().replaceAll('\r\n','\n'),input.current.diagnostics.toString().replaceAll('\r\n','\n'));
+ assert.ok(!bytes.toString().replaceAll('\r\n','').includes('\n'),'callback shape diagnostics retain CRLF');
+ const { pathToFileURL } = await import('node:url');
+ const { callbackShape, createRequestDiagnostics } = await import(pathToFileURL(join(built.root,'i_remote_mcp/diagnostics.mjs')));
+ const twenty = 'https://x.example.com/' + Array(20).fill('cb').join('/');
+ assert.equal(callbackShape(twenty),twenty);
+ assert.equal(callbackShape(twenty + '/cb'),null);
+ assert.equal(callbackShape('https://x.example.com/cb?'),'https://x.example.com/cb');
+ assert.equal(callbackShape('https://x.example.com/cb#'),'https://x.example.com/cb');
+ assert.equal(callbackShape('https://x.example.com/cb?state=secret#frag'),'https://x.example.com/cb?{q}#{f}');
+ const records = [];
+ const diagnostic = createRequestDiagnostics({method:'POST',url:'/register',headers:{}},
+  {issuer:'https://synthetic.example',resource:'https://synthetic.example/mcp',diagnostic:record=>records.push(record)});
+ diagnostic.registration(['https://sesame-test.example/oauth/callback/abcdef0123456789'],[]);
+ diagnostic.finish(400);
+ assert.equal(records[0].callback_class,'other');
+ assert.deepEqual(records[0].callback_shapes,['https://sesame-test.example/oauth/callback/{16}']);
+ assert.doesNotMatch(JSON.stringify(records[0]),/abcdef0123456789/);
+});
+
+test('N1 mainline food patches preserve all six pre-N1 candidate hashes and reject source drift', () => {
+ const {files,manifest}=constructCandidateSources(input);
+ const pinned={
+  'i_remote_mcp/server.mjs':'12fc40a957caf3dec8691095439784e825eb6a6aa7ac4509762f8b7f5e408371', // D2b sesame
+  'i_remote_mcp/oauth.mjs':'e2c88aca4d218f7f6b71c34a398dad34216d13d6717a1bff49ff2d8c2707203d', // D2b sesame
+  'i_remote_mcp/diagnostics.mjs':'5303ef6db7549f47da51e6e8b0069c22b7cebe2cb168df4407966dfe09b251f5', // D2b sesame
+  'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',
+  'i_remote_mcp/writeback.mjs':'a7a6f95d05c9d2028e66d7ca052cf0c8b2482b494905d5b848a8f066123ddfb3', // D2b sesame
+  'i_memory/i_memory_read.mjs':'cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28',
+ };
+ assert.equal(manifest.changed_files,5);
+ assert.deepEqual(Object.keys(files).sort(),Object.keys(pinned).sort());
+ for(const [path,hash] of Object.entries(pinned)) {
+  assert.equal(sha256(files[path]),hash);
+  assert.doesNotMatch(files[path].toString(),/food_log|food_day|food_entries|createFoodTools/);
+ }
+ const server=Buffer.from(input.current.server.toString().replace('createFoodTools','unreviewedFoodTools'));
+ assert.throws(()=>constructCandidateSources({...input,current:{...input.current,server}}),/unexpected current/);
+});
+
+test('Sesame candidate preserves six-file closure, exact callback, isolated routing and diagnostics CRLF', async t => {
+ const built = candidate(t); // Enforces both mainline and legacy forward/reverse byte checks.
+ assert.equal(allFiles(built.root).length,6);
+ assert.equal(built.manifest.changed_files,5);
+ const { pathToFileURL } = await import('node:url');
+ const oauth = await import(pathToFileURL(join(built.root,'i_remote_mcp/oauth.mjs')));
+ const diagnostics = await import(pathToFileURL(join(built.root,'i_remote_mcp/diagnostics.mjs')));
+ const uri = 'https://sesameai.app/api/oauth/external-mcp/callback';
+ assert.deepEqual(oauth.SESAME_CALLBACKS,[uri]);
+ assert.equal(oauth.frontendForRedirectUri(uri),'sesame');
+ assert.equal(oauth.frontendForRedirectUri(uri + '/'),null);
+ assert.equal(oauth.sesameEnabledFromEnv({}),true);
+ assert.equal(oauth.sesameEnabledFromEnv({I_REMOTE_MCP_SESAME_ENABLED:'0'}),false);
+ assert.throws(()=>oauth.sesameEnabledFromEnv({I_REMOTE_MCP_SESAME_ENABLED:'2'}),/invalid_sesame_mode/);
+ assert.equal(oauth.isAllowedRedirectUri(uri,true,true,true,false),false);
+ const records = [];
+ const diagnostic = diagnostics.createRequestDiagnostics({method:'POST',url:'/register',headers:{}},
+  {issuer:'https://synthetic.example',resource:'https://synthetic.example/mcp',diagnostic:r=>records.push(r)});
+ diagnostic.registration([uri],[uri]);
+ diagnostic.finish(201);
+ assert.equal(records[0].callback_class,'sesame');
+ assert.equal(Object.hasOwn(records[0],'callback_shapes'),false);
+ assert.ok(!JSON.stringify(records).includes(uri));
+ const server = readFileSync(join(built.root,'i_remote_mcp/server.mjs'),'utf8');
+ assert.match(server,/else if \(auth\.frontend === 'sesame'\)/);
+ assert.match(server,/loadFrontendCredential\(stateDir, 'sesame'\)/);
+ assert.match(server,/frontend_not_paired:sesame/);
+ assert.match(server,/sesameWriteback\?\.close\(\)/);
+ const writeback = readFileSync(join(built.root,'i_remote_mcp/writeback.mjs'),'utf8');
+ assert.match(writeback,/credentialFile: 'core-frontend-sesame\.json'/);
+ const bytes = readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'),'utf8');
+ assert.ok(!bytes.replaceAll('\r\n','').includes('\n'),'Sesame diagnostics retain CRLF');
+});

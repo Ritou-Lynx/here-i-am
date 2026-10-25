@@ -195,3 +195,47 @@ test('stable identity is independent from content, domain separated and UUID for
   assert.notEqual(stableImportId('source-b','plan_days','2026-10-05'),first);
   assert.match(first,/^[0-9a-f-]{14}5/);
 });
+
+
+// N2a: append-only provisioning coverage.
+import {provisionFoodDomain as provisionFood, foodPrincipalConfigs, FOOD_SCHEMAS as n2aSchemas,
+ FOOD_PHONE_PRINCIPAL_ID, FOOD_WRITER_PRINCIPAL_ID} from './personal_data_domains.mjs';
+import {foodMemory} from './test_fixtures/release_schema6/n2a_food.mjs';
+
+test('N2a provisioning is atomic, idempotent, and rotates only the requested principal',t=>{
+ const {db,domains}=foodMemory(t);
+ const first=provisionFood(domains);
+ assert.equal(first.registered,true);assert.deepEqual(Object.keys(first.issued),['writer','phone']);
+ const writer=domains.authenticate(first.issued.writer),phone=domains.authenticate(first.issued.phone);
+ assert.equal(writer.principal_id,FOOD_WRITER_PRINCIPAL_ID);assert.equal(phone.principal_id,FOOD_PHONE_PRINCIPAL_ID);
+ assert.deepEqual(provisionFood(domains),{registered:false,issued:{}});
+ const rotated=provisionFood(domains,{rotate:['writer']});assert.deepEqual(Object.keys(rotated.issued),['writer']);
+ assert.equal(domains.authenticate(first.issued.writer),null);assert.ok(domains.authenticate(rotated.issued.writer));
+ assert.deepEqual(domains.authenticate(first.issued.phone),phone);
+ const configs=foodPrincipalConfigs();assert.deepEqual(configs.phone.scopes,['food_entries:read']);
+ assert.deepEqual(configs.writer.actors,['agent_inferred']);assert.equal(configs.writer.trusted_interactive,false);
+ configs.writer.scopes.push('unwanted');assert.equal(foodPrincipalConfigs().writer.scopes.length,3);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM domain_registry').get().n,1);
+});
+for(const conflict of ['mode','schema','hooks'])test('N2a conflict has zero database changes: '+conflict,t=>{
+ const {db,domains}=foodMemory(t);const schema=structuredClone(n2aSchemas.food_entries);
+ if(conflict==='schema')schema.fields.extra={type:'string'};
+ domains.registerDomain('food_entries',schema,{mode:conflict==='mode'?'off':'authoritative',requiredHooksVersion:conflict==='hooks'?'other-v1':'food-v1'});
+ const before=db.prepare('SELECT * FROM domain_registry').all();
+ assert.throws(()=>provisionFood(domains,{rotate:['phone']}),{code:'food_domain_conflict'});
+ assert.deepEqual(db.prepare('SELECT * FROM domain_registry').all(),before);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM domain_principals').get().n,0);
+});
+test('N2a invalid rotations cannot mutate the database',t=>{
+ const {db,domains}=foodMemory(t);
+ for(const rotate of [null,'writer',['unknown'],['writer','writer'],[1],{}])
+  assert.throws(()=>provisionFood(domains,{rotate}),{code:'invalid_food_provision_request'});
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM domain_registry').get().n,0);
+});
+test('N2a failure after credential issuance rolls back and can safely retry',t=>{
+ let fail=true;const {db,domains}=foodMemory(t,{testOnlyFault:point=>{if(fail&&point==='before_commit')throw new Error('synthetic_failure');}});
+ assert.throws(()=>provisionFood(domains),/synthetic_failure/);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM domain_registry').get().n,0);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM domain_principals').get().n,0);
+ fail=false;assert.deepEqual(Object.keys(provisionFood(domains).issued),['writer','phone']);
+});

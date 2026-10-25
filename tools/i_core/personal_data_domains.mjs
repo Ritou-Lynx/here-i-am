@@ -252,3 +252,169 @@ export function stableImportId(sourceIdentity,domain,key) {
   bytes[6]=(bytes[6]&15)|80;bytes[8]=(bytes[8]&63)|128;
   const hex=bytes.toString('hex');return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
 }
+
+// 食物：N1 declarations retain an isolated scope and the same public identities.
+export const {
+  FOOD_HOOK_VERSION, FOOD_DOMAINS, FOOD_SCHEMAS, foodTotals, validateFoodRecord, createFoodDomainHooks, registerFoodDomains
+} = (() => {
+const FOOD_HOOK_VERSION = 'food-v1';
+const FOOD_DOMAINS = ['food_entries'];
+
+const field = (type, values) => ({
+  type,
+  required: true,
+  ...(values ? {enum: values} : {}),
+});
+
+const FOOD_SCHEMAS = {
+  food_entries: {
+    version: 1,
+    fields: {
+      eaten_at: field('string'),
+      local_date: field('string'),
+      meal: field('string', ['breakfast', 'lunch', 'dinner', 'snack', 'drink']),
+      title: field('string'),
+      note: field('string'),
+      input_kind: field('string', ['photo', 'text', 'mixed', 'app']),
+      items: field('array'),
+      totals: field('object'),
+      user_corrected: field('boolean'),
+      voided: field('boolean'),
+    },
+  },
+};
+
+const MEALS = FOOD_SCHEMAS.food_entries.fields.meal.enum;
+const INPUT_KINDS = FOOD_SCHEMAS.food_entries.fields.input_kind.enum;
+const FOOD_SOURCES = ['model', 'label', 'personal', 'usda'];
+const BASES = ['weighed', 'label', 'photo', 'described', 'model_guess'];
+const CONFIDENCES = ['high', 'medium', 'low'];
+const RECORD_FIELDS = Object.keys(FOOD_SCHEMAS.food_entries.fields);
+const ITEM_FIELDS = ['name', 'food_ref', 'grams', 'grams_low', 'grams_high', 'kcal', 'protein_g', 'fat_g', 'carb_g', 'basis', 'confidence'];
+const FOOD_REF_FIELDS = ['source', 'id'];
+const TOTAL_FIELDS = ['kcal', 'kcal_low', 'kcal_high', 'protein_g', 'fat_g', 'carb_g'];
+
+const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value)
+  && Object.getPrototypeOf(value) === Object.prototype;
+const exact = (value, keys) => plain(value) && keys.every(key => Object.hasOwn(value, key))
+  && Object.keys(value).every(key => keys.includes(key));
+const identifier = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,199}$/.test(value);
+const finiteRange = (value, minimum, maximum) => typeof value === 'number' && Number.isFinite(value)
+  && value >= minimum && value <= maximum;
+const round1 = value => Math.round(value * 10) / 10;
+
+function foodTotals(items) {
+  return {
+    kcal: round1(items.reduce((sum, item) => sum + item.kcal, 0)),
+    kcal_low: round1(items.reduce((sum, item) => sum + item.kcal * item.grams_low / item.grams, 0)),
+    kcal_high: round1(items.reduce((sum, item) => sum + item.kcal * item.grams_high / item.grams, 0)),
+    protein_g: round1(items.reduce((sum, item) => sum + item.protein_g, 0)),
+    fat_g: round1(items.reduce((sum, item) => sum + item.fat_g, 0)),
+    carb_g: round1(items.reduce((sum, item) => sum + item.carb_g, 0)),
+  };
+}
+
+function validItem(item) {
+  if (!exact(item, ITEM_FIELDS) || typeof item.name !== 'string' || item.name.trim().length === 0
+    || item.name.length > 100 || !exact(item.food_ref, FOOD_REF_FIELDS)
+    || !FOOD_SOURCES.includes(item.food_ref.source)
+    || !(item.food_ref.id === null || typeof item.food_ref.id === 'string')
+    || !finiteRange(item.grams, Number.MIN_VALUE, 5000)
+    || !finiteRange(item.grams_low, Number.MIN_VALUE, 5000)
+    || !finiteRange(item.grams_high, Number.MIN_VALUE, 5000)
+    || item.grams_low > item.grams || item.grams > item.grams_high
+    || !['kcal', 'protein_g', 'fat_g', 'carb_g'].every(key => finiteRange(item[key], 0, 10000))
+    || !BASES.includes(item.basis) || !CONFIDENCES.includes(item.confidence)) return false;
+  return true;
+}
+
+function validateFoodRecord(record) {
+  if (!plain(record) || !identifier(record.id) || record.deleted_at) return false;
+  const data = record.data;
+  if (!exact(data, RECORD_FIELDS) || !validBusinessTime(data.eaten_at)
+    || !validBusinessDate(data.local_date) || !MEALS.includes(data.meal)
+    || typeof data.title !== 'string' || data.title.trim().length === 0 || data.title.length > 200
+    || typeof data.note !== 'string' || data.note.length > 2000
+    || !INPUT_KINDS.includes(data.input_kind) || !Array.isArray(data.items)
+    || data.items.length < 1 || data.items.length > 40 || !data.items.every(validItem)
+    || !exact(data.totals, TOTAL_FIELDS)
+    || typeof data.user_corrected !== 'boolean' || typeof data.voided !== 'boolean') return false;
+  const expected = foodTotals(data.items);
+  return TOTAL_FIELDS.every(key => typeof data.totals[key] === 'number'
+    && Number.isFinite(data.totals[key]) && data.totals[key] === expected[key]);
+}
+
+function createFoodDomainHooks({writerPrincipalIds = []} = {}) {
+  const writers = new Set(writerPrincipalIds);
+  return {
+    food_entries: {
+      version: FOOD_HOOK_VERSION,
+      authorizeOperation(ctx) {
+        const principalId = ctx.principal.principal_id;
+        if (!writers.has(principalId)) return false;
+        if (ctx.phase === 'lookup') {
+          const operation = ctx.operation;
+          return operation?.actor === 'agent_inferred' && ['create', 'patch'].includes(operation.kind);
+        }
+        const request = ctx.request;
+        if (request?.actor !== 'agent_inferred' || !['create', 'patch'].includes(request.kind)) return false;
+        if (request.kind === 'create') return true;
+        return ctx.phase === 'preflight' || ctx.current?.origin?.principal_id === principalId;
+      },
+      validateTransition({next}) {
+        return validateFoodRecord(next);
+      },
+    },
+  };
+}
+
+function registerFoodDomains(store, {mode = 'off'} = {}) {
+  for (const domain of FOOD_DOMAINS) {
+    store.registerDomain(domain, structuredClone(FOOD_SCHEMAS[domain]), {
+      mode,
+      requiredHooksVersion: FOOD_HOOK_VERSION,
+    });
+  }
+}
+
+return { FOOD_HOOK_VERSION, FOOD_DOMAINS, FOOD_SCHEMAS, foodTotals, validateFoodRecord, createFoodDomainHooks, registerFoodDomains };
+})();
+
+import {canonicalJSON as foodCanonicalJSON} from './domain_store.mjs';
+
+export const FOOD_WRITER_PRINCIPAL_ID = 'food-mcp-writer';
+export const FOOD_PHONE_PRINCIPAL_ID = 'phone-food-reader';
+
+export function foodPrincipalConfigs() {
+  return {
+    writer: {principal_id: FOOD_WRITER_PRINCIPAL_ID, device_id: 'i-remote-mcp', installation_id: 'food-mcp',
+      scopes: ['food_entries:read', 'food_entries:create', 'food_entries:patch'], actors: ['agent_inferred'], trusted_interactive: false},
+    phone: {principal_id: FOOD_PHONE_PRINCIPAL_ID, device_id: 'phone-main', installation_id: 'food-phone',
+      scopes: ['food_entries:read'], actors: [], trusted_interactive: false},
+  };
+}
+
+export function provisionFoodDomain(domains, {rotate = []} = {}) {
+  const fail = code => { throw Object.assign(new Error(code), {code}); };
+  if (!Array.isArray(rotate) || new Set(rotate).size !== rotate.length
+    || rotate.some(role => !['writer', 'phone'].includes(role))) fail('invalid_food_provision_request');
+  // configurePrincipal normally owns a transaction. Use the same methods with
+  // an inner transaction adapter so registration and both credentials commit once.
+  const atomic = Object.create(domains);
+  atomic.tx = fn => fn();
+  return domains.tx(() => {
+    domains.ready();
+    const row = domains.db.prepare('SELECT 1 FROM domain_registry WHERE domain=?').get('food_entries');
+    if (row) {
+      const current = domains.domain('food_entries');
+      if (current.mode !== 'authoritative' || current.requiredHooksVersion !== FOOD_HOOK_VERSION
+        || foodCanonicalJSON(current.schema) !== foodCanonicalJSON(FOOD_SCHEMAS.food_entries)) fail('food_domain_conflict');
+    } else registerFoodDomains(atomic, {mode: 'authoritative'});
+    const issued = {};
+    for (const [role, config] of Object.entries(foodPrincipalConfigs())) {
+      const exists = domains.db.prepare('SELECT 1 FROM domain_principals WHERE principal_id=?').get(config.principal_id);
+      if (!exists || rotate.includes(role)) issued[role] = atomic.configurePrincipal(config).token;
+    }
+    return {registered: !row, issued};
+  });
+}
