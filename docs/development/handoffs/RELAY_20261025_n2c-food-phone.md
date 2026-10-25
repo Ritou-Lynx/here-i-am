@@ -125,3 +125,16 @@
 ## 需要真人的部分
 - 合并由用户进行，收到 `relay:done` 前不要合并。
 - 生产换包、开通、装 App，由用户另行同意。
+
+## 审核记录
+
+### 第 1 轮（10-25）：Codex 完成，Claude 审核并小修
+- Codex 提交 `aeec5cc`，只改了允许的路径。
+- Core：
+  - `claimFoodPhoneCredential` 在单事务里检查领域登记、hooks 版本、schema，以及 principal 的状态和配置。任何一项不符就报 `food_not_provisioned`，不轮换。
+  - 路由先 `requireDevice`，只接受安卓手机；请求体严格为 `{}`，上限 1024 字节。共用的 `json()` 自带 `no-store`。
+- App：
+  - 凭据存在安全存储里，响应要严格校验，包括节点号必须一致。
+  - 在 `_performSync` 前 attach，失败时吞掉异常。认证失败后每个进程只重领一次。断开设备时会清除凭据并 detach。
+- 云端复跑：专项 Node 测试 56 项，48 过、0 败、8 跳。`tools/i_core/*.test.mjs` 共 438 项，11 败，都是基线已有的 PowerShell/SMTP 用例，没有新增失败。这个环境没有 Flutter，Flutter 部分以 CI 为准。
+- Claude 小修一处：之前如果在首次聊天同步之前打开饮食页，页面只会显示“尚未连接林埃核心”。现在打开页面时会尝试连接一次（每次打开最多一次，避免和状态变化互相触发）。

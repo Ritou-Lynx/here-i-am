@@ -39,6 +39,7 @@ class _FoodConnectionHost extends StatefulWidget {
 class _FoodConnectionHostState extends State<_FoodConnectionHost> {
   StreamSubscription<PersonalDataHubChange>? _subscription;
   Object? _lastStore;
+  bool _attachTried = false;
 
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _FoodConnectionHostState extends State<_FoodConnectionHost> {
       unawaited(_subscription?.cancel());
       _subscription = widget.runtime.hub.changes.listen((_) => _changed());
       _lastStore = null;
+      _attachTried = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _syncOnOpen());
     }
   }
@@ -67,7 +69,16 @@ class _FoodConnectionHostState extends State<_FoodConnectionHost> {
 
   void _syncOnOpen() {
     final store = widget.runtime.hub.storeFor(foodDomainName);
-    if (store == null || identical(store, _lastStore)) return;
+    if (store == null) {
+      // Opening the page before the first chat sync still connects once.
+      if (_attachTried) return;
+      _attachTried = true;
+      unawaited(FoodConnector.instance
+          .ensureAttached(widget.runtime.hub)
+          .catchError((Object _) {}));
+      return;
+    }
+    if (identical(store, _lastStore)) return;
     _lastStore = store;
     unawaited(_syncFood());
   }
