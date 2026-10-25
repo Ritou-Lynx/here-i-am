@@ -1,3 +1,11 @@
+## 2026-10-24 N1：食物记录源码（PR #59，默认关闭）
+
+- 用户想在 Claude / ChatGPT / Antigravity 发食物照片或描述，由前端模型识图估算，写进 Here I Am。设计稿已和用户定完 10 点：照片不经服务端、不留存；数据源零操作（个人库、营养标签、菜谱拆解、USDA 兜底）；Gemini 不给。
+- 发现个人数据中枢领域在生产上从未启用，所以 N1 只做源码。用户选“走数据中枢，食物作为首个上线领域”，上线另立 N2。
+- 合同 docs/development/handoffs/RELAY_20261024_n1-food-log.md，3 轮（第 3 轮修 Flutter 新测试的 4 项失败）。第 1 轮 blocked：引擎要求 delete 为第 3 级 actor，前端写入用的是 `agent_inferred`；裁决不改 Core，撤销改为 patch `voided:true`。
+- 新增 `tools/i_core/food_domains.mjs`（`food_entries` 领域，合计由 Core 校验）、MCP `food_log`/`food_day`（可选 `food` 配置块，独立令牌，本地 04:00 日界）、App 只读“饮食”今日页（生活空间新 tab）。构建器加只作用于 mainline 的补丁组，六文件候选与 `48bd91e` 逐字节一致。
+- 云端复核：Node 全量 677 项，新增测试全过；11 项失败（PowerShell/SMTP、activity 并发计时）在 v3-lab 基线上同样存在。CI 全绿（`6e79b02`）。
+
 ## 2026-10-24 F1：飞书学习导师（PR #51）
 
 - 先实测（用户本机，lark-cli 1.0.98）：个人或豆包账号下的自建应用授权被平台拦截（21001）。改在自建的免费团队租户里后，文档 Markdown 往返、多维表格增改、筛选、建视图都能做。计划任务调用 CLI 只有在 danger-full-access 下才能跑通（DPoP 在 restricted token 下报 20140）。结论写进 docs/reference/FEISHU_NOTES_RESEARCH_20261021.md 第 10 节。

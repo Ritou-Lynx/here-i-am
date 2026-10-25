@@ -1054,6 +1054,45 @@ for (const patchSet of [FRONTEND_PATCHES, REGISTRY_PATCHES]) {
  patchSet.mainline.diagnostics = [];
  patchSet.legacy.diagnostics = [];
 }
+// N1 is mainline-only. Frozen legacy bytes never receive food domain code.
+const FOOD_PATCHES = {
+  "mainline": {
+    "server": [
+      [
+        "import { fileURLToPath, pathToFileURL } from 'node:url';\nimport { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';\nimport { readFileSync } from 'node:fs';\nimport { createDomainClient, createDomainTools, createCoreRemember, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';\nimport { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';\nimport {\n  SUPPORTED_PROTOCOL_VERSIONS,\n",
+        "import { fileURLToPath, pathToFileURL } from 'node:url';\nimport { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';\nimport { readFileSync } from 'node:fs';\nimport { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';\nimport { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';\nimport {\n  SUPPORTED_PROTOCOL_VERSIONS,\n"
+      ],
+      [
+        "}) {\n  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || coreRemember);\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled });\n  if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');\n  const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};\n  const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]).map(tool=>({...tool,requiredScope:tool.name==='capture_add'?'i.write':'i.read'}))];\n  // These handlers are selected only from the verified OAuth token, never MCP arguments.\n  const chatgptDomainTools = (domainTools?.tools ?? []).filter(tool => ['week_get', 'day_get'].includes(tool.name));\n  const chatgptHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: chatgptWriteback,\n    frontend: 'chatgpt_web' }),\n",
+        "}) {\n  if (!publicUrl) throw new Error('publicUrl is required');\n  if (typeof getReadModel !== 'function') throw new Error('getReadModel is required');\n  const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || coreRemember || domainTools?.tools.some(tool => tool.requiredScope === 'i.write'));\n  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled });\n  if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');\n  const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers};\n  const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[])];\n  // These handlers are selected only from the verified OAuth token, never MCP arguments.\n  const chatgptDomainTools = (domainTools?.tools ?? []).filter(tool => ['week_get', 'day_get', 'food_log', 'food_day'].includes(tool.name));\n  const geminiDomainTools = chatgptDomainTools.filter(tool => !['food_log', 'food_day'].includes(tool.name));\n  const chatgptHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: chatgptWriteback,\n    frontend: 'chatgpt_web' }),\n"
+      ],
+      [
+        "    chatgptHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:chatgpt_web'); };\n  }\n  const chatgptTools = [...listTools({ writeEnabled, frontend: 'chatgpt_web' }),\n    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];\n  const geminiHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: geminiWriteback,\n    frontend: 'gemini_web' }),\n    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };\n  if (writeEnabled && !geminiWriteback) {\n    geminiHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:gemini_web'); };\n  }\n  const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),\n    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];\n  const antigravityHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: antigravityWriteback,\n    frontend: 'antigravity' }),\n",
+        "    chatgptHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:chatgpt_web'); };\n  }\n  const chatgptTools = [...listTools({ writeEnabled, frontend: 'chatgpt_web' }),\n    ...chatgptDomainTools];\n  const geminiHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: geminiWriteback,\n    frontend: 'gemini_web' }),\n    ...Object.fromEntries(geminiDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };\n  if (writeEnabled && !geminiWriteback) {\n    geminiHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:gemini_web'); };\n  }\n  const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),\n    ...geminiDomainTools];\n  const antigravityHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,\n    writeback: antigravityWriteback,\n    frontend: 'antigravity' }),\n"
+      ],
+      [
+        "    antigravityHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:antigravity'); };\n  }\n  const antigravityTools = [...listTools({ writeEnabled, frontend: 'antigravity' }),\n    ...chatgptDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n  const sessions = new Map();\n\n",
+        "    antigravityHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:antigravity'); };\n  }\n  const antigravityTools = [...listTools({ writeEnabled, frontend: 'antigravity' }),\n    ...chatgptDomainTools];\n  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n  const sessions = new Map();\n\n"
+      ],
+      [
+        "    const planTools=createDomainTools({client:createDomainClient({coreUrl:config.core_url,coreInstanceId:config.core_instance_id,token:plan.token}),scopes:plan.scopes,surface:'web',captureSource:'claude_web'});\n    domainTools.tools.push(...planTools.tools);Object.assign(domainTools.handlers,planTools.handlers);\n  }\n  return {coreRemember:createCoreRemember({client,scopes:config.scopes}),domainTools};\n}\n\n",
+        "    const planTools=createDomainTools({client:createDomainClient({coreUrl:config.core_url,coreInstanceId:config.core_instance_id,token:plan.token}),scopes:plan.scopes,surface:'web',captureSource:'claude_web'});\n    domainTools.tools.push(...planTools.tools);Object.assign(domainTools.handlers,planTools.handlers);\n  }\n  if(Object.hasOwn(config,'food')){\n    const food=config.food;\n    if(!food||typeof food!=='object'||Array.isArray(food)||Object.keys(food).some(key=>!['token','scopes','time_zone'].includes(key))\n      ||typeof food.token!=='string'||!food.token||/\\s/.test(food.token)||food.token===config.token||food.token===config.plan_reads?.token\n      ||!Array.isArray(food.scopes)||food.scopes.some(scope=>!['food_entries:read','food_entries:create','food_entries:patch'].includes(scope)))throw new Error('invalid_web_food_configuration');\n    let foodTools;\n    try {\n      foodTools=createFoodTools({client:createDomainClient({coreUrl:config.core_url,coreInstanceId:config.core_instance_id,token:food.token}),scopes:food.scopes,timeZone:food.time_zone??'Asia/Shanghai'});\n    } catch {throw new Error('invalid_web_food_configuration');}\n    domainTools.tools.push(...foodTools.tools);Object.assign(domainTools.handlers,foodTools.handlers);\n  }\n  return {coreRemember:createCoreRemember({client,scopes:config.scopes}),domainTools};\n}\n\n"
+      ]
+    ],
+    "oauth": [],
+    "mcp": [],
+    "writeback": [],
+    "diagnostics": []
+  },
+  "legacy": {
+    "server": [],
+    "oauth": [],
+    "mcp": [],
+    "writeback": [],
+    "diagnostics": []
+  }
+};
+
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const git = args => execFileSync('git', args, {cwd:REPO_ROOT, windowsHide:true, maxBuffer:1024*1024});
 
@@ -1113,8 +1152,9 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   const frontendMain = applyPatches(compatibleMain,name,false,FRONTEND_PATCHES.mainline);
   const registryMain = applyPatches(frontendMain,name,false,REGISTRY_PATCHES.mainline);
   const geminiMain = applyPatches(registryMain,name,false,GEMINI_PATCHES.mainline);
-  assert.ok(applyPatches(geminiMain,name,false,ANTIGRAVITY_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
+  const antigravityMain = applyPatches(geminiMain,name,false,ANTIGRAVITY_PATCHES.mainline);
+  assert.ok(applyPatches(antigravityMain,name,false,FOOD_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,FOOD_PATCHES.mainline),name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
   const path='i_remote_mcp/'+name+'.mjs';
   if(name==='oauth'||name==='diagnostics')assert.equal(textFormat(base).text,textFormat(files[path]).text,'shared baseline semantic mismatch: '+name);
   files[path]=applyPatches(applyPatches(applyPatches(applyPatches(files[path],name),name,false,FRONTEND_PATCHES.legacy),name,false,REGISTRY_PATCHES.legacy),name,false,GEMINI_PATCHES.legacy);
