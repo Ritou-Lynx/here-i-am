@@ -6,6 +6,13 @@
 - 本机联网编译第一次失败：预览页里的字段名 `overlay` 和 ViewGroup 的 `overlay` 属性重名，被后者遮蔽，Claude 改名为 `readout`（181e2d0）。云端用 Robolectric 提供的框架 jar 复现了这个错误，修复后编译通过。用户本机随后 `testDebugUnitTest assembleDebug` 成功，36/36，debug APK 约 48 MB，未安装。
 - 已知限制：在监测窗口里相机一直开着，只是每 60 秒取一帧，整夜可能发热，真机试跑后再看要不要改成按次开相机。云端无法访问 Google Maven，CameraX 和 ML Kit 部分只能在用户本机编译。
 
+## 2026-10-24 D2a：诊断记录未知 OAuth 回调形状（PR #55，探测 Sesame）
+
+- 起因：催睡来电方案（Here I Am 判断没睡 → 三星例程拉起 Sesame）要让 Sesame 经 i MCP 拿上下文。用户在 Sesame 添加 `/mcp`，现役日志显示 Sesame（python-httpx）走标准 DCR，但 `/register` 400、`callback_class: other`。Sesame 没有公开回调地址。
+- 合同 docs/development/handoffs/RELAY_20261024_d2a-sesame-callback-probe.md，经 relay 由 Codex 实现（2 轮）。`diagnostics.mjs` 新增 `callbackShape`：只记协议、主机、端口与路径段形状，非单词段记 `{长度}`，query/fragment 只记占位；仅 `other` 类注册写 `callback_shapes`。注册、白名单、OAuth 行为不变。
+- 第 1 轮 blocked：Gemini 测试旧断言禁止日志出现未知回调的主机与路径；第 2 轮按新口径放开这一处，其余脱敏断言保留。
+- 云端 245/245；候选六文件、改动 5 个，只有 diagnostics 结果变化。未部署。
+
 ## 2026-10-24 N1：食物记录源码（PR #59，默认关闭）
 
 - 用户想在 Claude / ChatGPT / Antigravity 发食物照片或描述，由前端模型识图估算，写进 Here I Am。设计稿已和用户定完 10 点：照片不经服务端、不留存；数据源零操作（个人库、营养标签、菜谱拆解、USDA 兜底）；Gemini 不给。

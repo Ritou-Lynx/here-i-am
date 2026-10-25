@@ -225,12 +225,37 @@ test('Antigravity candidate keeps the six-file closure, exact callbacks and dedi
  assert.ok(!bytes.replaceAll('\r\n','').includes('\n'),'Antigravity diagnostics retain CRLF');
 });
 
+test('callback shape candidate preserves six-file closure, exact diagnostics bytes and path boundaries', async t => {
+ const built = candidate(t); // Construction enforces mainline and legacy forward/reverse byte checks.
+ assert.equal(built.manifest.files.length,6);
+ assert.equal(built.manifest.changed_files,5);
+ const bytes = readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'));
+ assert.equal(bytes.toString().replaceAll('\r\n','\n'),input.current.diagnostics.toString().replaceAll('\r\n','\n'));
+ assert.ok(!bytes.toString().replaceAll('\r\n','').includes('\n'),'callback shape diagnostics retain CRLF');
+ const { pathToFileURL } = await import('node:url');
+ const { callbackShape, createRequestDiagnostics } = await import(pathToFileURL(join(built.root,'i_remote_mcp/diagnostics.mjs')));
+ const twenty = 'https://x.example.com/' + Array(20).fill('cb').join('/');
+ assert.equal(callbackShape(twenty),twenty);
+ assert.equal(callbackShape(twenty + '/cb'),null);
+ assert.equal(callbackShape('https://x.example.com/cb?'),'https://x.example.com/cb');
+ assert.equal(callbackShape('https://x.example.com/cb#'),'https://x.example.com/cb');
+ assert.equal(callbackShape('https://x.example.com/cb?state=secret#frag'),'https://x.example.com/cb?{q}#{f}');
+ const records = [];
+ const diagnostic = createRequestDiagnostics({method:'POST',url:'/register',headers:{}},
+  {issuer:'https://synthetic.example',resource:'https://synthetic.example/mcp',diagnostic:record=>records.push(record)});
+ diagnostic.registration(['https://sesame-test.example/oauth/callback/abcdef0123456789'],[]);
+ diagnostic.finish(400);
+ assert.equal(records[0].callback_class,'other');
+ assert.deepEqual(records[0].callback_shapes,['https://sesame-test.example/oauth/callback/{16}']);
+ assert.doesNotMatch(JSON.stringify(records[0]),/abcdef0123456789/);
+});
+
 test('N1 mainline food patches preserve all six pre-N1 candidate hashes and reject source drift', () => {
  const {files,manifest}=constructCandidateSources(input);
  const pinned={
   'i_remote_mcp/server.mjs':'c1926ef7c16efe3ddf1f916778b156703aa905a43cc5880768dd2e835105f7d4',
   'i_remote_mcp/oauth.mjs':'7c82a07d7ec10afaea12728b71b45fcf9d80e07141994ca68a6394764d4d56bd',
-  'i_remote_mcp/diagnostics.mjs':'2b461c327de8a9a0da97767249ca810c7bd4a6536cc8cf32dd94141d630ffbe0',
+  'i_remote_mcp/diagnostics.mjs':'bd9b34441bb6d4b92b2a0c13af341570f2a0408f7411e1d8e893b53d0e861d08', // D2a callback_shapes (#55)
   'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',
   'i_remote_mcp/writeback.mjs':'783e8fd0eabd55b61cff624e2ff4a67025374da361c4136337d3d05ceb1fcc19',
   'i_memory/i_memory_read.mjs':'cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28',
