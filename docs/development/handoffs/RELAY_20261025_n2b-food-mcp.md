@@ -31,7 +31,9 @@
 
 **2. 测试**
 - [ ] `chatgpt_candidate.test.mjs`：
-  - 把 N1 那条测试里 `i_remote_mcp/server.mjs` 的固定哈希更新为新值，其余五个不变。**这是唯一允许修改的既有断言**，测试名可以同步改。
+  - N1 那条测试（约第 228–246 行）允许改两处，测试名可以同步改，其他既有断言一律不许动：
+    - `i_remote_mcp/server.mjs` 的固定哈希更新为新值，其余五个不变。
+    - 第 242 行“不得出现 `food_log|food_day|food_entries|createFoodTools`”的断言限定到其余五个文件，另给 server 追加正向断言：包含 `food_log`、`food_day`，并且不含 `createFoodTools` 这个 mainline 函数名（内联实现用别的名字）。
   - 追加测试：候选 `server.mjs` 不含禁用词；只 import `node:` 模块和原有的相对模块。
 - [ ] 新文件 `tools/i_remote_mcp/food_candidate.test.mjs`，端到端执行：
   - 构建候选到临时 `build/` 子目录。
@@ -61,7 +63,7 @@
 
 ## 验证命令
 - `node --test tools/i_remote_mcp/*.test.mjs tools/i_core/food_domains.test.mjs tools/i_core/release_schema6/maintenance_n2a_food.test.mjs`：列出基线上就失败的用例。
-- `node tools/i_remote_mcp/chatgpt_candidate.mjs --out build/n2b-candidate`：贴出六个文件的哈希，输出不提交。
+- `node tools/i_remote_mcp/chatgpt_candidate.mjs --out build/n2b-candidate-<轮次>`：用新目录，不要覆盖旧目录。贴出六个文件的哈希，输出不提交。
 - CI 全绿，“MCP ChatGPT compatibility (Windows)”要实际执行。
 
 ## 之后（不在本合同）
@@ -79,3 +81,7 @@
 - Codex 发现 `constructCandidateSources` 的 legacy 正向生成和反向校验（约第 1160–1162 行）没有接入 `FOOD_PATCHES.legacy`，只改补丁组无法改变候选，因此停下，未改动任何文件。判断正确。
 - 裁决：扩大允许范围，允许在 legacy 链上接入 `FOOD_PATCHES.legacy`，正向在 Antigravity 之后，反向最先撤销。其他逻辑不改。
 - 本机 `food_domains.test.mjs:218` 的 EPERM 失败与 N2a 第 1 轮相同，是沙箱的 realpath 限制。云端复跑通过，不影响结论。
+
+### 第 2 轮（10-25）：blocked，合同修订
+- Codex 发现 `chatgpt_candidate.test.mjs:242` 断言六个候选文件都不得出现食物工具名，这和本合同直接冲突。Codex 停下，未改动任何文件。判断正确。
+- 裁决：该断言限定为其余五个文件，server 改为正向断言（见第 2 节）。前两轮都是合同缺口，不计入止损轮数，止损从第 3 轮起算。
