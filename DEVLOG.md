@@ -1,3 +1,11 @@
+## 2026-10-25 D2b 部署与 Sesame 验收
+
+- 从 v3-lab `129ec194`（#64 合并，含 #62 的 N2a 源码，Core 未换）生成候选，六文件哈希与审核一致（server `12fc40a9`、oauth `e2c88aca`、diagnostics `5303ef6d`、writeback `a7a6f95d`，mcp、i_memory_read 不变），切换到 `HereIAm-iCoreSchema6-d2b-mcp-20261025-129ec194`（中断上限约 45 秒，d2a 任务停用保留）。
+- 坑 1：用 Set-Acl 复制对照候选的 ACL，报缺 `SeSecurityPrivilege`（连审计规则 SACL 一起写）。改用 `GetAccessControl('Access')` 加 `SetAccessControl` 只写 DACL 后规则到位，但子目录仍未受保护；写入前再调用 `SetAccessRuleProtection($true, $false)` 才通过。
+- 坑 2：读取策略第一次用 PowerShell 5.1 序列化写回，JSON 被写坏（膨胀到上万行）。按字节恢复备份后，改用 node 解析、只改 `auto_share_origins` 加 `sesame`、自检后写回。以后改生产 JSON 一律用 node。
+- `pair-core --frontend sesame` 配对成功。Sesame 添加 `/mcp`：`/register` 201（`callback_class: sesame`）、`/authorize`、`/token` 200，之后 MCP 请求 200；Sesame 接受 `token_endpoint_auth_method: none` 加 PKCE。
+- 用户真人验收：Sesame 里 `i_context`、`i_chat_turn` 正常，手机 App 能看到这条记录（显示 “Sesame” 要等 App 重建）。
+
 ## 2026-10-25 D2a 部署；D2b：接入 Sesame 前端（PR #64）
 
 - D2a（#55）部署：从 v3-lab `84980161` 生成候选，切换到 `HereIAm-iCoreSchema6-d2a-mcp-20261024-84980161`（中断上限约 41 秒，d4 任务停用保留）。第一次登记报 `protected_root_required`：候选根目录是受保护的，但 `runtime` 及其两个子目录继承了父目录 ACL；照 D4 候选对应目录的 ACL 补上后通过。部署提示词已改为逐级保护子目录。
