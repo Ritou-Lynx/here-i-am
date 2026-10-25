@@ -21,7 +21,8 @@ void main() {
     'frontend:chatgpt_web': 'ChatGPT',
     'frontend:gemini_web': 'Gemini',
     'frontend:antigravity': 'Antigravity',
-    'frontend:sesame': '网页端',
+    'frontend:sesame': 'Sesame',
+    'frontend:synthetic_unknown': '网页端',
     'frontend:claude_web:extra': '网页端',
     'frontend:CLAUDE_WEB': '网页端',
     null: null,
@@ -98,7 +99,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ChatMessageSourceLabel(
-          message: _message(origin: 'frontend:sesame'),
+          message: _message(origin: 'frontend:synthetic_unknown'),
         ),
       ),
     );

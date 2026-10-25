@@ -290,4 +290,14 @@ powershell -NoProfile -File tools/i_core/maintenance/provision-food-domain.ps1 -
 - 只保存写入令牌，并绑定 Core `/v1/core/health` 返回的 `node_id`；手机令牌被忽略。
 - 没有写入令牌时报 `food_writer_token_missing`，需要用 `-Rotate writer` 重新发出。
 - `serve` 启动时严格校验这个文件，不合法就报 `invalid_food_credential` 并拒绝启动；文件不存在时与旧行为相同。
-- 写入后要重启 MCP 会话。Claude、ChatGPT、Antigravity 能看到 `food_log` 和 `food_day`，Gemini 看不到。
+- 写入后要重启 MCP 会话。Claude、ChatGPT、Antigravity 能看到 `food_log` 和 `food_day`，Gemini 和 Sesame 看不到。
+
+## Sesame（D2b）
+
+仅接受精确回调 `https://sesameai.app/api/oauth/external-mcp/callback`，拒绝回调变体和与其他前端混合注册。不新增允许的 Origin；Sesame 预期从服务端发起请求。
+
+`I_REMOTE_MCP_SESAME_ENABLED` 未设置或为 `1` 时开启，`0` 关闭，其他值启动时报 `invalid_sesame_mode`。关闭后拒绝注册、授权、授权码换令牌、refresh 和既有令牌使用。OAuth 保持 public client（`token_endpoint_auth_method: none`）与 PKCE S256；真实 Sesame 是否兼容仍需另行验收。
+
+`pair-core --frontend sesame` 使用独立设备 `frontend:sesame` 与凭据文件 `core-frontend-sesame.json`；不会借用其他前端凭据。写回开启且缺少 Sesame 配对时，`i_chat_turn` 返回 `frontend_not_paired:sesame`。工具范围为 `i_context`、`i_recall`、`i_chat_turn` 及已配置的只读 `week_get`、`day_get`，不开放 `capture_add` 或 `i_remember`。
+
+诊断使用固定 `callback_class: sesame`，不记录该回调的 `callback_shapes` 或原文。App 聊天来源显示为 Sesame。源码接入与合成测试不代表已配对、部署或完成真实前端验收。

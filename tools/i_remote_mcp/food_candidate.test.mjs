@@ -40,13 +40,14 @@ function cli(args, input='') {
 }
 const callbacks={claude_web:'https://claude.ai/api/mcp/auth_callback',chatgpt_web:'https://chatgpt.com/connector_platform_oauth_redirect',
   antigravity:'http://127.0.0.1:32014/oauth/callback',gemini_web:'https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp-synthetic-food'};
+const SESAME_CALLBACK='https://sesameai.app/api/oauth/external-mcp/callback';
 async function start(t,{stateDir,coreUrl,frontend,writeback=null}={}) {
   oauthModule.setPassphrase(stateDir,PASSPHRASE);
   const app=candidate.createApp({stateDir,coreUrl,publicUrl:PUBLIC_URL,getReadModel:async()=>createFakeReadModel(),now:()=>foodNow,
     chatgptEnabled:true,geminiEnabled:true,antigravityEnabled:true,writeback});
   await listenForFetch(app.server);
   t.after(()=>new Promise(resolve=>app.server.close(resolve)));
-  const base='http://127.0.0.1:'+app.server.address().port, redirectUri=callbacks[frontend];
+  const base='http://127.0.0.1:'+app.server.address().port, redirectUri=callbacks[frontend]??(frontend==='sesame'?SESAME_CALLBACK:undefined);
   const registered=await registerClient(base,[redirectUri]);assert.equal(registered.status,201);
   const {verifier,challenge}=pkcePair();
   const auth=await submitPassphrase(base,{...Object.fromEntries(authorizeParams({clientId:registered.body.client_id,challenge})),redirect_uri:redirectUri});
@@ -134,6 +135,9 @@ test('N2b provision stdin, three OAuth frontends and real Core add/update/void m
   const gemini=await start(t,{stateDir,coreUrl:real.coreOrigin,frontend:'gemini_web'});
   assert.deepEqual((await gemini.rpc('tools/list')).result.tools.map(tool=>tool.name),['i_context','i_recall']);
   assert.equal((await gemini.rpc('tools/call',{name:'food_log',arguments:{}})).error.code,-32602);
+  const sesame=await start(t,{stateDir,coreUrl:real.coreOrigin,frontend:'sesame'});
+  assert.deepEqual((await sesame.rpc('tools/list')).result.tools.map(tool=>tool.name),['i_context','i_recall']);
+  assert.equal((await sesame.rpc('tools/call',{name:'food_log',arguments:{}})).error.code,-32602);
 });
 
 test('N2b missing credential preserves four frontend lists including paired writeback', {timeout:30000},async t=>{

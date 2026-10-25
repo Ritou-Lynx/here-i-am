@@ -10,6 +10,7 @@ export const FRONTENDS = Object.freeze({
   chatgpt_web: Object.freeze({ name: 'chatgpt_web', deviceId: 'frontend:chatgpt_web', displayName: 'ChatGPT 网页端', credentialFile: 'core-frontend-chatgpt_web.json' }),
   gemini_web: Object.freeze({ name: 'gemini_web', deviceId: 'frontend:gemini_web', displayName: 'Gemini 网页端', credentialFile: 'core-frontend-gemini_web.json' }),
   antigravity: Object.freeze({ name: 'antigravity', deviceId: 'frontend:antigravity', displayName: 'Antigravity', credentialFile: 'core-frontend-antigravity.json' }),
+  sesame: Object.freeze({ name: 'sesame', deviceId: 'frontend:sesame', displayName: 'Sesame', credentialFile: 'core-frontend-sesame.json' }),
 });
 export const FRONTEND_NAME = 'claude_web';
 

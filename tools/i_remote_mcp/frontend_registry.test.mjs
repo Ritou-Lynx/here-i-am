@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { FRONTEND_CALLBACKS, FRONTEND_CALLBACK_PATTERNS, CLAUDE_AI_CALLBACKS, CHATGPT_CALLBACK_URI, ANTIGRAVITY_CALLBACKS, frontendForRedirectUri } from './oauth.mjs';
+import { FRONTEND_CALLBACKS, FRONTEND_CALLBACK_PATTERNS, CLAUDE_AI_CALLBACKS, CHATGPT_CALLBACK_URI, ANTIGRAVITY_CALLBACKS, SESAME_CALLBACKS, frontendForRedirectUri } from './oauth.mjs';
 import { FRONTENDS } from './writeback.mjs';
 import { mcpPost, startTestServer } from './fixtures.mjs';
 
 test('registry is frozen, exact and assigns every callback to one frontend', () => {
   assert.ok(Object.isFrozen(FRONTEND_CALLBACKS));
-  assert.deepEqual(FRONTEND_CALLBACKS, { claude_web: CLAUDE_AI_CALLBACKS, chatgpt_web: [CHATGPT_CALLBACK_URI], antigravity: ANTIGRAVITY_CALLBACKS });
+  assert.deepEqual(FRONTEND_CALLBACKS, { claude_web: CLAUDE_AI_CALLBACKS, chatgpt_web: [CHATGPT_CALLBACK_URI], antigravity: ANTIGRAVITY_CALLBACKS, sesame: SESAME_CALLBACKS });
   assert.ok(Object.isFrozen(FRONTEND_CALLBACK_PATTERNS));
   assert.deepEqual(Object.keys(FRONTEND_CALLBACK_PATTERNS), ['gemini_web']);
   const callbacks = Object.values(FRONTEND_CALLBACKS).flat();
@@ -35,7 +35,7 @@ test('server independently rejects unknown verified frontend before parsing or R
   const ctx = await startTestServer({ chatgptEnabled: true });
   try {
     // Isolate the routing guard from OAuth validation, which also rejects these values.
-    for (const frontend of ['sesame', '', 'Claude_web', null, undefined, 'constructor', '__proto__']) {
+    for (const frontend of ['unknown_frontend', '', 'Claude_web', null, undefined, 'constructor', '__proto__']) {
       ctx.oauth.verifyAccessToken = () => ({ ok: true, frontend, familyId: 'synthetic', scopes: ['i.read', 'i.write'] });
       for (const message of [{ jsonrpc: '2.0', id: 1, method: 'initialize' }, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'i_context', arguments: {} } }]) {
         const result = await mcpPost(ctx.base, 'synthetic', message);

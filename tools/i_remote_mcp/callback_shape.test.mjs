@@ -106,7 +106,7 @@ test('HTTP registration still rejects unknown callbacks and emits only shapes fo
   assert.equal(rejected.record.gemini_kept_count, 0);
   assert.deepEqual(rejected.record.callback_shapes, ['https://sesame-test.example/oauth/callback/{16}']);
   assert.doesNotMatch(JSON.stringify(rejected.record), /abcdef0123456789/);
-  const classes = { claude_web: 'claude', chatgpt_web: 'chatgpt', antigravity: 'antigravity' };
+  const classes = { claude_web: 'claude', chatgpt_web: 'chatgpt', antigravity: 'antigravity', sesame: 'sesame' };
   const known = Object.entries(FRONTEND_CALLBACKS).flatMap(([frontend, callbacks]) =>
     callbacks.map(callback => [callback, classes[frontend]]));
   known.push(['https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp-synthetic', 'gemini_pattern']);

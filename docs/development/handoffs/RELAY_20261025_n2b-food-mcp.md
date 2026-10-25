@@ -103,3 +103,9 @@
   - Gemini 不暴露食物工具。
   - 凭据不存在时，四个前端的工具清单不变（有测试覆盖）。
   - 只有配置了食物凭据时 OAuth 才会签发 `i.write`，这是 `food_log` 需要的。
+
+### 合并 v3-lab（#55、#64）
+
+- #55 加了 SESAME_PROBE 补丁组，#64 加了 SESAME 补丁组，legacy 链现在是 ANTIGRAVITY → SESAME_PROBE → SESAME → FOOD，反向时先撤销 FOOD。
+- FOOD 的 legacy server 补丁按 Sesame 改过的源码调整了锚点（`sesameWriteback`、`sesameEnabled`）。Sesame 的工具清单用 `legacyWriteEnabled`，不开放食物工具，端到端测试已覆盖。
+- server 候选哈希改钉为 `f42f291f…`，其余文件沿用 D2b 的哈希。
