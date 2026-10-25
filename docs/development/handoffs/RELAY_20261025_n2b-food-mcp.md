@@ -48,7 +48,7 @@
 - [ ] `tools/i_core/maintenance/README.md` 的“食物领域开通”一节补一句，说明 stdout 的消费者就是 `set-food-credential`。
 
 ## 允许修改的路径
-- 修改：`tools/i_remote_mcp/chatgpt_candidate.mjs`（只改 `FOOD_PATCHES.legacy.server` 及其注释）、`tools/i_remote_mcp/chatgpt_candidate.test.mjs`（见上）、`tools/i_remote_mcp/README.md`、`tools/i_core/maintenance/README.md`
+- 修改：`tools/i_remote_mcp/chatgpt_candidate.mjs`（改 `FOOD_PATCHES.legacy.server` 及其注释；并在 `constructCandidateSources` 的 legacy 链上接入 `FOOD_PATCHES.legacy`：正向放在 `ANTIGRAVITY_PATCHES.legacy` 之后，反向还原校验最先撤销它，写法与 mainline 链一致；其他逻辑不改）、`tools/i_remote_mcp/chatgpt_candidate.test.mjs`（见上）、`tools/i_remote_mcp/README.md`、`tools/i_core/maintenance/README.md`
 - 新建：`tools/i_remote_mcp/food_candidate.test.mjs`
 - `docs/development/handoffs/RELAY_20261025_n2b-food-mcp.md` 只由 Claude 改。
 - 若发现必须改 legacy 基线 fixture、mainline 源码、`update-mcp-source.mjs` 或其他文件，停下并发 blocked 说明原因。
@@ -74,4 +74,8 @@
 - 生产步骤每一步都需要用户单独同意。
 
 ## 审核记录
-（待第 1 轮）
+
+### 第 1 轮（10-25）：blocked，合同修订
+- Codex 发现 `constructCandidateSources` 的 legacy 正向生成和反向校验（约第 1160–1162 行）没有接入 `FOOD_PATCHES.legacy`，只改补丁组无法改变候选，因此停下，未改动任何文件。判断正确。
+- 裁决：扩大允许范围，允许在 legacy 链上接入 `FOOD_PATCHES.legacy`，正向在 Antigravity 之后，反向最先撤销。其他逻辑不改。
+- 本机 `food_domains.test.mjs:218` 的 EPERM 失败与 N2a 第 1 轮相同，是沙箱的 realpath 限制。云端复跑通过，不影响结论。
