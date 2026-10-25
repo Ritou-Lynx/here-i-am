@@ -52,7 +52,7 @@ for (const [failedStep, expectedSteps, exit] of [
     assert.equal(codex.args[codex.args.indexOf('-C')+1],study);
     assert.equal(codex.args[codex.args.indexOf('-m')+1],'TEST_MODEL');
     assert.ok(codex.args.includes('sandbox_workspace_write.network_access=false'));
-    assert.equal(codex.args.at(-1),'出今天的学习单');
+    assert.equal(codex.args.at(-1),'定时运行（无人值守）：出今天的学习单');
   }
   const files=(await readdir(path.join(study,'logs'))).filter(n=>n.endsWith('.log'));
   assert.equal(files.length,1);

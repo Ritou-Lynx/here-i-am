@@ -63,8 +63,9 @@ try {
 
     'codex_start' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
     # The prompt is encoded in the source so PS 5.1 also reads an UTF-8/no-BOM
-    # checkout correctly. It decodes to the required Chinese daily instruction.
-    $dailyPrompt = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('5Ye65LuK5aSp55qE5a2m5Lmg5Y2V'))
+    # checkout correctly. It decodes to the scheduled-mode daily instruction, so the
+    # tutor knows it must not run sync or lark-cli itself.
+    $dailyPrompt = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('5a6a5pe26L+Q6KGM77yI5peg5Lq65YC85a6I77yJ77ya5Ye65LuK5aSp55qE5a2m5Lmg5Y2V'))
     # The study directory is deliberately not a git repository; codex exec
     # refuses to start there without this flag.
     $stepExit = Invoke-DailyStep -Executable $CodexExecutable -CommandArguments @('exec', '--skip-git-repo-check', '-C', $studyRoot, '-s', 'workspace-write', '-m', $dailyConfig.model, '-c', 'sandbox_workspace_write.network_access=false', $dailyPrompt)
