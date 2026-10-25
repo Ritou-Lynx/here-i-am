@@ -53,7 +53,11 @@ try {
     # The tutor's final reply, so a run that writes nothing can still be explained.
     $codexLastMessage = Join-Path $logsDirectory ('codex-last-{0}.md' -f $dailyStamp)
     # Hold an exclusive handle across pull -> Codex -> push. A crash releases it.
-    $dailyLock = [System.IO.File]::Open((Join-Path $logsDirectory '.daily.lock'), [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    try {
+        $dailyLock = [System.IO.File]::Open((Join-Path $logsDirectory '.daily.lock'), [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    } catch [System.IO.IOException] {
+        throw 'daily_locked'
+    }
     Set-Location -LiteralPath $studyRoot
     $pending = @(Get-ChildItem -LiteralPath (Join-Path $studyRoot 'state\outbox') -Filter '*.json' -File -ErrorAction SilentlyContinue)
     $uncertain = @(Get-ChildItem -LiteralPath (Join-Path $studyRoot 'state\outbox\inflight') -File -ErrorAction SilentlyContinue)
@@ -80,7 +84,10 @@ try {
     'daily_done' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
     $dailyExit = 0
 } catch {
-    if ($dailyLog) { 'daily_failed' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append }
+    # Our own throws are fixed daily_* codes; anything else stays generic so the
+    # log never carries raw exception text.
+    $dailyReason = if ($_.Exception.Message -match '^daily_[a-z_]+$') { $_.Exception.Message } else { 'daily_error' }
+    if ($dailyLog) { ('daily_failed:{0}' -f $dailyReason) | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append }
     $dailyError = if ($_.Exception.Message -eq 'daily_layout_invalid') { 'daily_layout_invalid' } else { 'daily_failed' }
     Write-Error $dailyError -ErrorAction Continue
 } finally {
