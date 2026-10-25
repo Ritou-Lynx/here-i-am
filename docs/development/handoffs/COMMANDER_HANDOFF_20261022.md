@@ -45,5 +45,5 @@
 | D2a Sesame 回调探测 | 合同 `RELAY_20261024_d2a-sesame-callback-probe.md`；PR #55 两轮审核通过（10-24）：诊断对未知回调记脱敏形状 `callback_shapes` | 用户合并；按 D4 段 6 流程部署；用户在 Sesame 再添加一次，读出形状后写 D2b |
 | relay 通知 | PR #41 已合并，飞书机器人与 Bark 本机测试送达成功；旧 #17/#19/#23 已关闭，#19 分支保留 | — |
 | S1 床头哨兵 | PR #58 四轮 relay，第 4 轮交付；Claude 修了一个编译错误；用户本机编译通过，单测 36/36（10-24） | 用户合并；装机、建三星例程、白天模拟、整夜试跑；之后接 Sesame（D2） |
-| D2b Sesame 前端 | D2a 已部署（10-25），拿到回调 `https://sesameai.app/api/oauth/external-mcp/callback`；合同 `RELAY_20261025_d2b-sesame-frontend.md` | relay 实现 → 用户合并 → 部署（策略加 sesame、配对）→ Sesame 真人验收 |
+| D2b Sesame 前端 | D2a 已部署（10-25，任务 `…d2a-mcp-20261024-84980161`）；PR #64 第 1 轮通过审核，Claude 修正 3 处旧测试夹具，263/263 | 用户合并 → 部署（策略加 sesame、配对）→ Sesame 真人验收 |
 | N1 食物记录 | 合同 `RELAY_20261024_n1-food-log.md`；PR #59 三轮审核通过、CI 全绿（10-24），源码默认关闭 | 用户合并；写 N2（食物领域上线，数据中枢首个领域，Core 换包，生产逐步同意） |

@@ -74,3 +74,11 @@
 ## 需要真人的部分
 - 合并由用户进行；收到 `relay:done` 之前不要合并。
 - 部署的每一步都要用户单独同意。
+
+## 审核记录
+
+### 第 1 轮（10-25）：通过（Claude 修了测试夹具）
+- Codex 提交 `d16b5ed`，只改了允许的 11 个路径，报 blocked：`callback_shape.test.mjs`、`frontend_registry.test.mjs`、`oauth_identity.test.mjs` 3 项旧测试把 `sesame` 当作“未知前端”夹具，sesame 变成已知前端后这 3 项失败。
+- Claude 处理：callback_shape 测试的分类表加 `sesame: 'sesame'`，另外两处夹具名改为 `unknown_frontend`。这几处属于同类夹具调整，不改变断言的意图。
+- 核对 diff：`SESAME_CALLBACKS` 只有一个精确地址，没有模式规则；开关贯穿注册、授权、换令牌、refresh、令牌校验；server 有显式的 `sesame` 分支，工具集与 Antigravity 相同，未配对时返回 `frontend_not_paired:sesame`；diagnostics 分类为 `sesame`，不写 `callback_shapes`；N1 测试只更新了 4 个改动文件的哈希，并标注 `// D2b sesame`；Dart 测试的“未知前端”改用 `frontend:synthetic_unknown`。
+- 云端复跑 263/263。候选 6 个文件，`changed_files: 5`；哈希前 8 位为 server `12fc40a9`、oauth `e2c88aca`、diagnostics `5303ef6d`、mcp `0ae610bf`、writeback `a7a6f95d`、i_memory_read `cee18518`。Flutter 以 CI 为准。

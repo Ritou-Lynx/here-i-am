@@ -35,7 +35,7 @@ test('server independently rejects unknown verified frontend before parsing or R
   const ctx = await startTestServer({ chatgptEnabled: true });
   try {
     // Isolate the routing guard from OAuth validation, which also rejects these values.
-    for (const frontend of ['sesame', '', 'Claude_web', null, undefined, 'constructor', '__proto__']) {
+    for (const frontend of ['unknown_frontend', '', 'Claude_web', null, undefined, 'constructor', '__proto__']) {
       ctx.oauth.verifyAccessToken = () => ({ ok: true, frontend, familyId: 'synthetic', scopes: ['i.read', 'i.write'] });
       for (const message of [{ jsonrpc: '2.0', id: 1, method: 'initialize' }, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'i_context', arguments: {} } }]) {
         const result = await mcpPost(ctx.base, 'synthetic', message);

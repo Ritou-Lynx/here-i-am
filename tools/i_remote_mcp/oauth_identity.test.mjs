@@ -144,7 +144,7 @@ describe('D1 registry rejects ambiguous and invalid identities', () => {
     assert.equal(records(tokens)[1].rotated, false);
   }
 
-  for (const frontend of ['sesame', '', 'Claude_web', null, 'constructor', '__proto__']) {
+  for (const frontend of ['unknown_frontend', '', 'Claude_web', null, 'constructor', '__proto__']) {
     test(`rejects explicit invalid frontend ${JSON.stringify(frontend)} before RPC and refresh`, async () => {
       const tokens = await obtainTokens(ctx.base);
       for (const record of records(tokens)) record.frontend = frontend;
