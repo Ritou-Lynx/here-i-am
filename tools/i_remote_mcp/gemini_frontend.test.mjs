@@ -276,6 +276,8 @@ test('Gemini diagnostics classify callbacks and counts without exposing relay pa
     assert.equal(ctx.records.at(-1).callback_class, expected);
     assert.equal(ctx.records.at(-1).callback_count, uri === undefined ? 0 : 1);
     assert.equal(ctx.records.at(-1).gemini_kept_count, expected === 'gemini_pattern' ? 1 : 0);
+    if (expected === 'other') assert.deepEqual(ctx.records.at(-1).callback_shapes, ['https://unknown.invalid/private-path']);
+    else assert.equal(Object.hasOwn(ctx.records.at(-1), 'callback_shapes'), false);
   }
   await register(ctx, [invalid[0], ...valid, invalid[1]]);
   assert.equal(ctx.records.at(-1).callback_class, 'gemini_pattern');
@@ -284,6 +286,6 @@ test('Gemini diagnostics classify callbacks and counts without exposing relay pa
   await register(ctx, [valid[0], REDIRECT_URI]);
   assert.equal(ctx.records.at(-1).gemini_kept_count, 0);
   const log = JSON.stringify(ctx.records);
-  assert.doesNotMatch(log, /user_bound_custom-mcp|synthetic-123|other-secret|private-path|unknown\.invalid/);
+  assert.doesNotMatch(log, /user_bound_custom-mcp|synthetic-123|other-secret/);
   for (const host of hosts) assert.ok(!log.includes(host));
 });
