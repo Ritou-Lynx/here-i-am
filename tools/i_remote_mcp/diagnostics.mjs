@@ -20,6 +20,7 @@ export function callbackClass(value) {
   if (frontend === 'chatgpt_web') return 'chatgpt';
   if (frontend === 'gemini_web') return 'gemini_pattern';
   if (frontend === 'antigravity') return 'antigravity';
+  if (frontend === 'sesame') return 'sesame';
   try {
     const url = new URL(value);
     if (['oauth-redirect.googleusercontent.com', 'oauth-redirect-sandbox.googleusercontent.com'].includes(url.hostname)) return 'google_relay_other';
@@ -95,7 +96,7 @@ export function createRequestDiagnostics(req, { issuer, resource, diagnostic = (
     registration(values, kept) {
       const callbacks = Array.isArray(values) ? values : [];
       const classes = callbacks.map(callbackClass);
-      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'antigravity', 'google_relay_other', 'other', 'absent']
+      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'antigravity', 'sesame', 'google_relay_other', 'other', 'absent']
         .find(value => classes.includes(value)) ?? 'absent';
       if (base.callback_class === 'other') {
         base.callback_shapes = [...new Set(callbacks.filter(value => callbackClass(value) === 'other')
