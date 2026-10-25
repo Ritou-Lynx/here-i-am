@@ -106,7 +106,7 @@
 
 ## outbox 格式和边界
 
-每个 `state/outbox/<唯一名称>.json` 只含一个动作；各动作的完整示例见 README。只允许 ledger_update、ledger_create、practice_create、inbox_mark、doc_write 五种。字段名使用上面的逻辑中文名，远端映射由同步脚本处理。单选在 outbox 用字符串，日期用合法 `YYYY-MM-DD`；不传空值清空字段。
+每个 `state/outbox/<唯一名称>.json` 只含一个动作。文件名一律写成 `YYYYMMDD-HHMMSS-<动作>-<序号>.json`（本地时间到秒，例如 `20261025-164012-doc_write-1.json`），不能只用日期：同一天第二次出单时，与 `outbox/done/` 里已有的同名文件冲突，push 会报 `outbox_already_done`，整批不写。写之前先确认 `outbox/` 和 `outbox/done/` 里都没有同名文件。各动作的完整示例见 README。只允许 ledger_update、ledger_create、practice_create、inbox_mark、doc_write 五种。字段名使用上面的逻辑中文名，远端映射由同步脚本处理。单选在 outbox 用字符串，日期用合法 `YYYY-MM-DD`；不传空值清空字段。
 
 - 可以写 `today.md`、新的 `state/outbox/*.json`、经确认的 `subjects.md` 和本机 `inbox/done/` 归档。
 - 不改学习目录外的工具目录、配置、拉取快照、push-report、`state/sync-owned/`、outbox 的 `inflight/` 或 `done/`。文档登记由同步脚本独占维护；不能自己写 token。
