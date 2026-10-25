@@ -122,12 +122,12 @@ test('N2b provision stdin, three OAuth frontends and real Core add/update/void m
       const actual=await app.call('food_day',{date});assert.equal(actual.isError,false);
       assert.deepEqual(normalise(actual.structuredContent),normalise(await expected.handlers.food_day({date})));
     }
-    const record=(await real.send('/v1/core/domains/food_entries/records/'+id,real.tokens.writer)).body.record;
+    const record=(await real.send('/v1/core/domains/food_entries/records/'+id+'?core_instance_id='+encodeURIComponent(real.core.store.nodeId),real.tokens.writer)).body.record;
     assert.equal(record.data.local_date,'2026-10-25');assert.equal(record.data.totals.kcal,123.4);
     assert.ok(Object.values(record.field_meta).every(field=>field.actor==='agent_inferred'));
     await compare({action:'void',op_id:randomUUID(),id,base_revision:2});
     const day=await app.call('food_day',{});assert.equal(day.structuredContent.entries.length,0);assert.equal(day.structuredContent.day_totals.kcal,0);
-    const voided=(await real.send('/v1/core/domains/food_entries/records/'+id,real.tokens.writer)).body.record;
+    const voided=(await real.send('/v1/core/domains/food_entries/records/'+id+'?core_instance_id='+encodeURIComponent(real.core.store.nodeId),real.tokens.writer)).body.record;
     assert.equal(voided.data.voided,true);assert.equal(voided.data.title,record.data.title);assert.deepEqual(voided.data.items,record.data.items);
   }
   const stateDir=state(t);await install(stateDir,real);

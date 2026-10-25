@@ -1111,8 +1111,8 @@ const FOOD_PATCHES = {
         "  const foodCredential = loadFoodCredential(stateDir);\n  const foodTools = foodCredential ? createCandidateFoodTools({client:createFoodClient({coreUrl,token:foodCredential.token,coreInstanceId:foodCredential.core_instance_id}),scopes:['food_entries:read','food_entries:create','food_entries:patch'],timeZone:foodCredential.time_zone,now}) : null;\n  const legacyWriteEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback);\n  const writeEnabled = Boolean(legacyWriteEnabled || foodTools);"
       ],
       [
-        "  // These handlers are selected only from the verified OAuth token, never MCP arguments.",
-        "  if (foodTools) { Object.assign(handlers,foodTools.handlers); tools.push(...foodTools.tools); }\n  // These handlers are selected only from the verified OAuth token, never MCP arguments."
+        "  const tools = listTools({ writeEnabled: Boolean(writeback) });\n  // These handlers are selected only from the verified OAuth token, never MCP arguments.",
+        "  const tools = [...listTools({ writeEnabled: Boolean(writeback) })];\n  if (foodTools) { Object.assign(handlers,foodTools.handlers); tools.push(...foodTools.tools); }\n  // These handlers are selected only from the verified OAuth token, never MCP arguments."
       ],
       [
         "  if (writeEnabled && !chatgptWriteback)",
@@ -1120,7 +1120,7 @@ const FOOD_PATCHES = {
       ],
       [
         "  const chatgptTools = listTools({ writeEnabled, frontend: 'chatgpt_web' });",
-        "  const chatgptTools = listTools({ writeEnabled: legacyWriteEnabled, frontend: 'chatgpt_web' });\n  if (foodTools) { Object.assign(chatgptHandlers,foodTools.handlers); chatgptTools.push(...foodTools.tools); }"
+        "  const chatgptTools = [...listTools({ writeEnabled: legacyWriteEnabled, frontend: 'chatgpt_web' })];\n  if (foodTools) { Object.assign(chatgptHandlers,foodTools.handlers); chatgptTools.push(...foodTools.tools); }"
       ],
       [
         "  if (writeEnabled && !geminiWriteback)",
@@ -1136,7 +1136,7 @@ const FOOD_PATCHES = {
       ],
       [
         "  const antigravityTools = listTools({ writeEnabled, frontend: 'antigravity' });",
-        "  const antigravityTools = listTools({ writeEnabled: legacyWriteEnabled, frontend: 'antigravity' });\n  if (foodTools) { Object.assign(antigravityHandlers,foodTools.handlers); antigravityTools.push(...foodTools.tools); }"
+        "  const antigravityTools = [...listTools({ writeEnabled: legacyWriteEnabled, frontend: 'antigravity' })];\n  if (foodTools) { Object.assign(antigravityHandlers,foodTools.handlers); antigravityTools.push(...foodTools.tools); }"
       ],
       [
         "  if (command === 'pair-core') {",
@@ -1153,6 +1153,10 @@ const FOOD_PATCHES = {
       [
         "serve、set-passphrase、revoke-all、pair-core、issue-phone-token",
         "serve、set-passphrase、revoke-all、pair-core、issue-phone-token、set-food-credential"
+      ],
+      [
+        "  main(process.argv.slice(2)).catch(() => {\n    process.stderr.write('启动或管理操作失败；请检查参数、权限与本机配置。\\n');",
+        "  main(process.argv.slice(2)).catch((error) => {\n    // Food credential codes are fixed strings and never contain secrets.\n    const foodCode = /^(?:food_[a-z_]+|invalid_food_credential)(?::|$)/.test(String(error?.message ?? '')) ? error.message : null;\n    if (foodCode) { process.stderr.write(`${foodCode}\\n`); process.exitCode = 1; return; }\n    process.stderr.write('启动或管理操作失败；请检查参数、权限与本机配置。\\n');"
       ]
     ],
     "oauth": [],

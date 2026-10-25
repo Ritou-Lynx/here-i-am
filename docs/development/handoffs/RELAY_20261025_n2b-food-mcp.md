@@ -85,3 +85,21 @@
 ### 第 2 轮（10-25）：blocked，合同修订
 - Codex 发现 `chatgpt_candidate.test.mjs:242` 断言六个候选文件都不得出现食物工具名，这和本合同直接冲突。Codex 停下，未改动任何文件。判断正确。
 - 裁决：该断言限定为其余五个文件，server 改为正向断言（见第 2 节）。前两轮都是合同缺口，不计入止损轮数，止损从第 3 轮起算。
+
+### 第 3 轮（10-25）：Codex 交出主体后报 blocked，Claude 修完收尾
+- Codex 提交 `2d9d53a`，改动都在允许的路径内：legacy 链接线、legacy server 补丁组、`set-food-credential`、凭据校验、内联食物工具、端到端测试。还剩 3 处失败，两份 README 也没改。
+- Claude 直接修完：
+  - legacy `listTools` 在没有写回时返回冻结的 `TOOLS`，`push` 会报 “object is not extensible”。三个前端都改成先复制再追加。claude_web 那一处补丁带上了前一行。
+  - legacy 顶层 `catch` 会吞掉所有错误码。补了一个补丁：只有固定的 `food_*` 和 `invalid_food_credential` 码原样输出到 stderr，其他错误仍用原来的统一提示。
+  - 测试读 record 时缺 `core_instance_id` 查询参数，已补上。
+  - 更新 server 固定哈希，补两份 README。
+- 云端结果：
+  - `node --test tools/i_remote_mcp/*.test.mjs tools/i_core/food_domains.test.mjs tools/i_core/release_schema6/maintenance_n2a_food.test.mjs`：229 项，228 过，0 败，1 跳。
+  - 候选：server `dfad4f70`；oauth `7c82a07d`、diagnostics `2b461c32`、mcp `0ae610bf`、writeback `783e8fd0`、i_memory_read `cee18518` 均不变。
+- 代码审核：
+  - 凭据文件的键必须完全一致，校验失败就拒绝启动。
+  - stdin 有 8KB 上限，必须恰好一行。
+  - 输出不含令牌。
+  - Gemini 不暴露食物工具。
+  - 凭据不存在时，四个前端的工具清单不变（有测试覆盖）。
+  - 只有配置了食物凭据时 OAuth 才会签发 `i.write`，这是 `food_log` 需要的。

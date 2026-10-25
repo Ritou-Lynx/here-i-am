@@ -228,7 +228,7 @@ test('Antigravity candidate keeps the six-file closure, exact callbacks and dedi
 test('N2b food patches change only the server candidate hash and reject source drift', () => {
  const {files,manifest}=constructCandidateSources(input);
  const pinned={
-  'i_remote_mcp/server.mjs':'6a713d3018fcc11d559b422f55ab5284abebc0ad6acf632e16514fa54cc12628',
+  'i_remote_mcp/server.mjs':'dfad4f7020aa50d1e725bbae0fb6ab7b343387c2e59862a4e682e7672de390f8',
   'i_remote_mcp/oauth.mjs':'7c82a07d7ec10afaea12728b71b45fcf9d80e07141994ca68a6394764d4d56bd',
   'i_remote_mcp/diagnostics.mjs':'2b461c327de8a9a0da97767249ca810c7bd4a6536cc8cf32dd94141d630ffbe0',
   'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',
