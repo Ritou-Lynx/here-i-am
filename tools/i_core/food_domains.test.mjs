@@ -208,3 +208,35 @@ test('validateFoodRecord accepts only the exact complete active record shape', (
   assert.equal(validateFoodRecord({...record, data: {...record.data, extra: true}}), false);
   assert.equal(validateFoodRecord({...record, deleted_at: iso}), false);
 });
+
+
+// N2a: HTTP permissions and rollback use a real synthetic Core database.
+import {provisionFoodDomain as provisionN2aFood} from './personal_data_domains.mjs';
+import {foodHttp, foodOperation} from './test_fixtures/release_schema6/n2a_food.mjs';
+import {databaseInspectionFingerprint} from './inspection_read_only.mjs';
+
+test('N2a HTTP food writer, phone reader, device denial and hook-free rollback',async t=>{
+ const f=await foodHttp(t);const {issued}=provisionN2aFood(f.core.store.domains);
+ const base='/v1/core/domains/food_entries';const binding=f.core.store.nodeId;
+ const create=foodOperation(f.core);
+ assert.equal((await f.send(base+'/ops',issued.writer,create)).status,201);
+ const patch=foodOperation(f.core,'patch',{id:create.id,patch:{note:'synthetic correction'}});
+ assert.equal((await f.send(base+'/ops',issued.writer,patch)).status,201);
+ const voided=foodOperation(f.core,'patch',{id:create.id,base_revision:2,patch:{voided:true}});
+ assert.equal((await f.send(base+'/ops',issued.writer,voided)).status,201);
+ const snapshot=await f.send(base+'/snapshot?core_instance_id='+binding,issued.phone);
+ assert.equal(snapshot.status,200);assert.equal(snapshot.body.records[0].data.voided,true);
+ assert.equal((await f.send(base+'/changes?core_instance_id='+binding+'&cursor='+encodeURIComponent(snapshot.body.manifest.base_cursor),issued.phone)).status,200);
+ assert.equal((await f.send(base+'/ops',issued.phone,foodOperation(f.core))).body.error.code,'scope_forbidden');
+ const paired=await f.send('/v1/core/devices/pair',null,{pairing_code:'synthetic-pairing-code',device_id:'synthetic-food-device',
+  display_name:'Synthetic',platform:'test',client_version:'1',capabilities:['chat']});
+ assert.equal(paired.status,200);
+ assert.equal((await f.send(base+'/snapshot?core_instance_id='+binding,paired.body.device_token)).body.error.code,'scope_forbidden');
+ await f.close();await f.open(false);
+ assert.equal((await f.send('/v1/core/health')).status,200);
+ const refused=await f.send(base+'/snapshot?core_instance_id='+binding,issued.phone);
+ assert.equal(refused.status,503);assert.equal(refused.body.error.code,'schema_not_ready');
+ assert.equal((await f.send('/v1/core/chat/transcript-capabilities',paired.body.device_token)).status,200);
+ await f.close();const inspection=databaseInspectionFingerprint(f.databasePath);
+ assert.equal(inspection.tables.find(row=>row.name==='domain_records').rows,1);
+});

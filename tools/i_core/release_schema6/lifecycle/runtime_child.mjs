@@ -10,6 +10,63 @@ import { sealClosedRecovery, verifyCanonicalRestart, migrateToSchema6, rollbackE
 import { needsStartupRecovery, recoverAtStartup } from '../automatic_recovery.mjs';
 import { SWITCH_PENDING, readSwitchPlan, verifySwitchConfigurations } from '../package_switch.mjs';
 import { isInspectionDatabasePath } from '../../inspection_read_only.mjs';
+import { provisionFoodDomain } from '../../personal_data_domains.mjs';
+
+// Food provisioning is isolated from pairing and from the shutdown boundary.
+export function createFoodProvisionPoller({control, token, manifestSha256, core, writeReceipt, now = Date.now}) {
+ const requestPath = path.join(control, 'food.request');
+ const seen = new Set();
+ let sequence = 0;
+ return function pollFoodProvision() {
+  let requestId = null, status = 'rejected_invalid_request';
+  const emit = value => {
+   try { writeReceipt('food-receipt-' + (++sequence) + '.json', {...value, at_ms: now()}); }
+   catch { /* Receipt failures never stop Core. */ }
+  };
+  try {
+   let info;
+   try { info = lstatSync(requestPath); } catch (error) { if (error.code === 'ENOENT') return; throw error; }
+   let raw;
+   try {
+    if (!info.isFile() || info.isSymbolicLink()) throw new Error('food_input_type');
+    plainPath(requestPath);
+    if (info.size > 1024) throw new Error('food_input_size');
+    raw = readFileSync(requestPath);
+    if (raw.length > 1024) throw new Error('food_input_size');
+   } finally {
+    // No parsed request, credential issuance or host callback before consumption.
+    unlinkSync(requestPath);
+   }
+   const request = JSON.parse(raw.toString('utf8'));
+   if (!request || Array.isArray(request) || Object.keys(request).sort().join(',') !== 'expires_at_ms,hmac,request_id,rotate'
+     || typeof request.request_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(request.request_id)
+     || !Array.isArray(request.rotate) || new Set(request.rotate).size !== request.rotate.length
+     || request.rotate.some(role => !['writer', 'phone'].includes(role))
+     || !Number.isSafeInteger(request.expires_at_ms) || typeof request.hmac !== 'string' || !/^[a-f0-9]{64}$/.test(request.hmac)) throw new Error('food_input_request');
+   requestId = request.request_id.toLowerCase();
+   status = 'rejected_expired';
+   if (request.expires_at_ms <= now() || request.expires_at_ms > now() + 600000) throw new Error('food_input_expiry');
+   status = 'rejected_authentication';
+   const key = readFileSync(plainPath(path.join(control, 'stop.key')), 'utf8');
+   const expected = createHmac('sha256', key).update(token + '|' + manifestSha256 + '|food|' + request.request_id + '|' + [...request.rotate].sort().join(',') + '|' + request.expires_at_ms).digest();
+   if (!timingSafeEqual(expected, Buffer.from(request.hmac, 'hex'))) throw new Error('food_input_authentication');
+   status = 'rejected_replay';
+   if (seen.has(requestId)) throw new Error('food_input_replay');
+   seen.add(requestId);
+   status = 'rejected_provision_failed';
+   const result = provisionFoodDomain(core.store.domains, {rotate: request.rotate});
+   const issued = Object.keys(result.issued);
+   if (issued.length) {
+    const tokens = {format: 'food-tokens-v1', request_id: request.request_id};
+    for (const role of issued) tokens[role + '_token'] = result.issued[role];
+    writeFileSync(path.join(control, 'food-tokens-' + request.request_id + '.json'), JSON.stringify(tokens), {flag: 'wx', mode: 0o600});
+   }
+   emit({status: 'provisioned', request_id: request.request_id, registered: result.registered, issued, hooks_version: 'food-v1'});
+  } catch (error) {
+   emit({status: error.code === 'food_domain_conflict' ? 'rejected_food_domain_conflict' : status, request_id: requestId});
+  }
+ };
+}
 
 // Pairing is an independent control channel. Its inputs and receipt failures must
 // never reach the shutdown handler used by close/stop.
@@ -215,7 +272,9 @@ try {
   offlineCompleted=true;await shutdown('offline_completed');
  } else {
  const {createICoreServer}=await import(pathToFileURL(path.join(config.release,'tools/i_core/i_core_server.mjs')));
- started=true;core=createICoreServer({databasePath:filename,...settings.options});
+ const {createFoodDomainHooks,FOOD_WRITER_PRINCIPAL_ID}=await import(pathToFileURL(path.join(config.release,'tools/i_core/personal_data_domains.mjs')));
+ const domainHooks=createFoodDomainHooks({writerPrincipalIds:[FOOD_WRITER_PRINCIPAL_ID]});
+ started=true;core=createICoreServer({databasePath:filename,...settings.options,domainHooks});
  if(core.store.health().schema_version!==(initial?5:6) || (before && core.store.nodeId!==before.nodeId))throw new Error('runtime_identity_mismatch');
  lifecycle.node_id=core.store.nodeId;
  if(initial) {
@@ -234,7 +293,7 @@ try {
   recordClosedDatabase(lease,closedReceipt(inspectExisting(filename)));
   saveMarker(lifecycle);
   await verifyCanonicalRestart({databasePath:filename,supervisorLease:lease,custodyDirectory:settings.value.recovery_custody_directory,custodyKey:settings.custodyKey});
-  core=createICoreServer({databasePath:filename,...settings.options});
+  core=createICoreServer({databasePath:filename,...settings.options,domainHooks});
  }
  lifecycle.phase='store_created';saveMarker(lifecycle);
  const address=await core.listen({host:'127.0.0.1',port:config.port});
@@ -244,8 +303,10 @@ try {
   companion_upload_mode:'legacy_b3',companion_reply_jobs:false,domain_policy:'owner_managed',relay:'disabled',
   commandline_secret_free:true,inherited_core_keys:Object.keys(process.env).filter(k=>k.toUpperCase().startsWith('I_CORE_'))});
  const pollPairingRequest=createPairingRequestPoller({control,token,manifestSha256:config.manifest_sha256,core,writeReceipt:writeControl});
+ const pollFoodProvision=createFoodProvisionPoller({control,token,manifestSha256:config.manifest_sha256,core,writeReceipt:writeControl});
  poll=setInterval(()=>{
   try {pollPairingRequest();}catch{/* Pairing never shares the shutdown boundary. */}
+  try {pollFoodProvision();}catch{/* Food never shares the shutdown boundary. */}
   try {
    for(const name of ['close','stop']) {
     const target=path.join(control,name);
