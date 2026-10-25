@@ -14,12 +14,18 @@ abstract interface class FoodReader {
 /// Read-only view over the configured food replica. It never changes a route,
 /// synchronizes, writes an outbox operation, or opens another store.
 class FoodService implements FoodReader {
-  FoodService({DomainStore? store, DateTime Function()? clock})
+  FoodService(
+      {DomainStore? store,
+      DateTime Function()? clock,
+      this.missingStoreError = '尚未配置',
+      this.connectionError})
       : _store = store,
         clock = clock ?? DateTime.now;
 
   final DomainStore? _store;
   final DateTime Function() clock;
+  final String missingStoreError;
+  final String? connectionError;
 
   @override
   Stream<void> get changes {
@@ -34,7 +40,9 @@ class FoodService implements FoodReader {
   Future<FoodDaySnapshot> read(DateTime date) async {
     final key = foodDateKey(date);
     final store = _store;
-    if (store == null) return FoodDaySnapshot(date: key, error: '尚未配置');
+    if (store == null) {
+      return FoodDaySnapshot(date: key, error: missingStoreError);
+    }
     try {
       final state = await store.read();
       final domain = store.domain(state, foodDomain);
@@ -65,7 +73,8 @@ class FoodService implements FoodReader {
         entries: List.unmodifiable(entries),
         totals: FoodTotals.sum(entries.map((entry) => entry.totals)),
         invalidRecords: invalidRecords,
-        error: invalidRecords == 0 ? null : '已跳过 $invalidRecords 条无法读取的记录',
+        error: connectionError ??
+            (invalidRecords == 0 ? null : '已跳过 $invalidRecords 条无法读取的记录'),
       );
     } on DomainFailure catch (error) {
       return FoodDaySnapshot(

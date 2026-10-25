@@ -418,3 +418,33 @@ export function provisionFoodDomain(domains, {rotate = []} = {}) {
     return {registered: !row, issued};
   });
 }
+
+export function claimFoodPhoneCredential(domains) {
+  const fail = () => { throw Object.assign(new Error('food_not_provisioned'), {code: 'food_not_provisioned'}); };
+  const expected = foodPrincipalConfigs().phone;
+  const atomic = Object.create(domains);
+  atomic.tx = fn => fn();
+  return domains.tx(() => {
+    domains.ready();
+    const registered = domains.db.prepare('SELECT 1 FROM domain_registry WHERE domain=?').get('food_entries');
+    if (!registered) fail();
+    const current = domains.domain('food_entries');
+    if (current.mode !== 'authoritative' || current.requiredHooksVersion !== FOOD_HOOK_VERSION
+      || foodCanonicalJSON(current.schema) !== foodCanonicalJSON(FOOD_SCHEMAS.food_entries)) fail();
+    const principal = domains.db.prepare('SELECT status,config_json FROM domain_principals WHERE principal_id=?')
+      .get(FOOD_PHONE_PRINCIPAL_ID);
+    let storedConfig;
+    try { storedConfig = principal ? JSON.parse(principal.config_json) : null; } catch { fail(); }
+    if (!principal || principal.status !== 'active'
+      || foodCanonicalJSON(storedConfig) !== foodCanonicalJSON(expected)) fail();
+    const issued = atomic.rotatePrincipal(FOOD_PHONE_PRINCIPAL_ID);
+    return {
+      format: 'food-phone-credential-v1',
+      domain: 'food_entries',
+      principal_id: issued.principal_id,
+      generation: issued.generation,
+      core_instance_id: domains.nodeId,
+      token: issued.token,
+    };
+  });
+}

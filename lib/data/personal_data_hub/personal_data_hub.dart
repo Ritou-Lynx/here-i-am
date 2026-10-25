@@ -40,6 +40,17 @@ class PersonalDataHub {
     _changes.add(PersonalDataHubChange.connections);
   }
 
+  void detach(String domain) {
+    final hadStore = _stores.remove(domain) != null;
+    final hadEngine = _engines.remove(domain) != null;
+    final hadRecall = _recallDomains.remove(domain);
+    syncedDomains.remove(domain);
+    lastSyncErrors.remove(domain);
+    if (hadStore || hadEngine || hadRecall) {
+      _changes.add(PersonalDataHubChange.connections);
+    }
+  }
+
   DomainStore? storeFor(String domain) => _stores[domain];
   Future<void> syncOnce(String domain) async {
     final engine = _engines[domain];

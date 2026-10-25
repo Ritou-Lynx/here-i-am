@@ -9,10 +9,12 @@ import 'package:memex/utils/command.dart';
 import 'package:memex/utils/result.dart';
 
 class FoodScreen extends StatefulWidget {
-  const FoodScreen({super.key, required this.service, this.clock});
+  const FoodScreen(
+      {super.key, required this.service, this.clock, this.synchronize});
 
   final FoodReader service;
   final DateTime Function()? clock;
+  final Future<void> Function()? synchronize;
 
   @override
   State<FoodScreen> createState() => _FoodScreenState();
@@ -63,7 +65,13 @@ class _FoodScreenState extends State<FoodScreen> {
               ),
               ListenableBuilder(
                 listenable: Listenable.merge([vm, vm.load]),
-                builder: (context, _) => _FoodDayView(vm: vm),
+                builder: (context, _) => RefreshIndicator(
+                  onRefresh: () async {
+                    await widget.synchronize?.call();
+                    await vm.load.execute();
+                  },
+                  child: _FoodDayView(vm: vm),
+                ),
               ),
             ],
           ),
@@ -185,8 +193,7 @@ class _FoodDayView extends StatelessWidget {
           ),
         ),
         if (vm.load.running) const LinearProgressIndicator(),
-        if (vm.load.error)
-          const _Panel(child: Text('读取失败，请稍后重试。')),
+        if (vm.load.error) const _Panel(child: Text('读取失败，请稍后重试。')),
         if (vm.streamWarning != null) _Panel(child: Text(vm.streamWarning!)),
         if (snapshot.error != null) _Panel(child: Text(snapshot.error!)),
         if (snapshot.entries.isEmpty &&
