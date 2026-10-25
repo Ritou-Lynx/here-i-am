@@ -79,3 +79,5 @@
 - 第 1 轮 blocked（10-24）：合同要求 assembleDebug 与协议“永不构建或安装 App”冲突。处理：APK 构建移出 relay，改为合并后由用户授权单独执行；relay 只跑 JVM 单测。
 - 第 2 轮 blocked（10-24）：本机 PATH 上没有 `gradle`（Android SDK 35 已存在）。处理：改用 Flutter 构建缓存里的 Gradle 8.14，按完整路径调用；轮数上限改为 4 轮（前两轮只是环境问题，没有代码）。
 - 第 3 轮 blocked（10-24）：①合同要求开机自启 camera 前台服务，Android 15 禁止；改为开机发恢复通知，点击后在前台启动服务，START_STICKY 重建失败同样降级为通知。②缓存 Gradle 找不到 java；改为本进程临时设 JAVA_HOME 指向 Android Studio JBR。
+- 第 4 轮（10-24）：9781410 交付 22 个文件。Claude 审核：覆盖合同全部条目，隐私路径（不用 ImageCapture、Bitmap、文件 API，Y 平面用完清零）已人工确认；可接受的偏离有 Title 用 RFC 2047、verdict 记为 0/1/2、中位数分母下限取 1。云端抽取纯逻辑跑 36/36。
+- relay 外：用户本机联网编译时 PreviewActivity:35 出错（字段 `overlay` 被 ViewGroup.overlay 遮蔽），Claude 改名 `readout`（181e2d0）；随后用户本机 `testDebugUnitTest assembleDebug` 成功，36/36，APK 未安装。**审核通过，可以合并。**
