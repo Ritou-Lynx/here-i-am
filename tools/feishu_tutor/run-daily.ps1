@@ -65,7 +65,9 @@ try {
     # The prompt is encoded in the source so PS 5.1 also reads an UTF-8/no-BOM
     # checkout correctly. It decodes to the required Chinese daily instruction.
     $dailyPrompt = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('5Ye65LuK5aSp55qE5a2m5Lmg5Y2V'))
-    $stepExit = Invoke-DailyStep -Executable $CodexExecutable -CommandArguments @('exec', '-C', $studyRoot, '-s', 'workspace-write', '-m', $dailyConfig.model, '-c', 'sandbox_workspace_write.network_access=false', $dailyPrompt)
+    # The study directory is deliberately not a git repository; codex exec
+    # refuses to start there without this flag.
+    $stepExit = Invoke-DailyStep -Executable $CodexExecutable -CommandArguments @('exec', '--skip-git-repo-check', '-C', $studyRoot, '-s', 'workspace-write', '-m', $dailyConfig.model, '-c', 'sandbox_workspace_write.network_access=false', $dailyPrompt)
     if ($stepExit -ne 0) { ('codex_failed:{0}' -f $stepExit) | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append; exit $stepExit }
 
     'push_start' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
