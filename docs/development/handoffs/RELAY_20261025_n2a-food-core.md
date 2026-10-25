@@ -114,3 +114,5 @@
   - 夹具在 dot-source 之前保存参数。
   - 维护脚本按逗号拆分 `-Rotate`，因为 `-File` 调用时 `writer,phone` 会作为一个字符串传入；测试补了一项。
   - README 去掉了末尾空行。
+- `bce9d70` 的 CI：两次运行中，N2a 的 Windows 合成用例都已通过，修复生效。其中一次运行里，既有用例“R1 real Windows session opens one pairing window”等配对回执超过 15 秒超时。该用例在另一次运行中通过，`runtime_child.mjs` 与此前通过时的版本相同，判断为 runner 计时问题；重跑一次后全绿。
+- 结论：N2a 达标，可以合并。合并只把源码并入主线，不影响生产。上线要等窗口 1：先换 Core 包，再运行开通脚本，令牌交给 N2b，每一步单独征得同意。
