@@ -1,4 +1,5 @@
 import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
+import 'package:memex/data/personal_data_hub/food_connection.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -66,7 +67,8 @@ class CoreSyncRuntimeService extends ChangeNotifier {
       _onChatMessageAdded,
     );
     await refreshStatus();
-    if (_status.isConfigured || PersonalDataHub.forDatabase(AppDatabase.instance).hasConnections) {
+    if (_status.isConfigured ||
+        PersonalDataHub.forDatabase(AppDatabase.instance).hasConnections) {
       unawaited(syncNow(reason: 'startup'));
     }
   }
@@ -163,7 +165,12 @@ class CoreSyncRuntimeService extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
-    await _connectionStore.clear();
+    final hub = PersonalDataHub.forDatabase(AppDatabase.instance);
+    try {
+      await FoodConnector.instance.disconnect(hub);
+    } finally {
+      await _connectionStore.clear();
+    }
     _setStatus(const CoreSyncRuntimeStatus(
       phase: CoreSyncRuntimePhase.notConfigured,
     ));
@@ -182,7 +189,19 @@ class CoreSyncRuntimeService extends ChangeNotifier {
 
   Future<void> _performSync(String reason) async {
     if (!AppDatabase.isInitialized) return;
-    await PersonalDataHub.forDatabase(AppDatabase.instance).syncConfiguredOnce();
+    final hub = PersonalDataHub.forDatabase(AppDatabase.instance);
+    try {
+      await FoodConnector.instance.ensureAttached(hub);
+    } catch (error, stack) {
+      _logger.warning('Food connection failed ($reason)', error, stack);
+    }
+    await hub.syncConfiguredOnce();
+    try {
+      await FoodConnector.instance.handleSyncResult(hub);
+    } catch (error, stack) {
+      _logger.warning(
+          'Food credential recovery failed ($reason)', error, stack);
+    }
     CoreSyncConnection? connection;
     try {
       connection = await _connectionStore.read();

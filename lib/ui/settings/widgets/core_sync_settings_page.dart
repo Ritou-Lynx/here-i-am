@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:memex/data/services/sync/core_sync_runtime_service.dart';
+import 'package:memex/data/personal_data_hub/food_connection.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/settings/widgets/sleep_takeover_debug_page.dart';
 import 'package:memex/utils/toast_helper.dart';
@@ -23,12 +24,14 @@ class _CoreSyncSettingsPageState extends State<CoreSyncSettingsPage> {
   void initState() {
     super.initState();
     _runtime.addListener(_onStatusChanged);
+    FoodConnector.instance.addListener(_onStatusChanged);
     _runtime.refreshStatus();
   }
 
   @override
   void dispose() {
     _runtime.removeListener(_onStatusChanged);
+    FoodConnector.instance.removeListener(_onStatusChanged);
     _urlController.dispose();
     _codeController.dispose();
     _nameController.dispose();
@@ -109,6 +112,12 @@ class _CoreSyncSettingsPageState extends State<CoreSyncSettingsPage> {
         padding: const EdgeInsets.all(20),
         children: [
           _StatusCard(status: status),
+          const SizedBox(height: 8),
+          Text('饮食同步：${FoodConnector.instance.status.label}',
+              style: const TextStyle(
+                color: SpringRainUiTokens.daylightTextSecondary,
+                fontSize: 13,
+              )),
           const SizedBox(height: 10),
           const Text(
             '当前是第一个窄切版本：只同步你发出的文字消息。'
