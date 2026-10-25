@@ -6,6 +6,7 @@ import 'package:memex/ui/quick_capture/quick_capture_access_gate.dart';
 import 'package:flutter/foundation.dart';
 import 'package:memex/ui/quick_capture/widgets/quick_capture_host_screen.dart';
 import 'package:memex/ui/planning/widgets/planning_host_screen.dart';
+import 'package:memex/ui/food/widgets/food_host_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +64,8 @@ GoRouter createAppRouter(
       GoRoute(
           path: AppRoutes.planning,
           builder: (_, __) => const PlanningHostScreen()),
+      GoRoute(
+          path: AppRoutes.food, builder: (_, __) => const FoodHostScreen()),
       // Desktop standard work surfaces share one persistent shell. The shell
       // keeps the sidebar state while sibling pages switch with no Windows
       // ZoomPageTransition. Mobile still builds the existing root unchanged.

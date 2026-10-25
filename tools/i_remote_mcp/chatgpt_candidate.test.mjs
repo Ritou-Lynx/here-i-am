@@ -224,3 +224,23 @@ test('Antigravity candidate keeps the six-file closure, exact callbacks and dedi
  const bytes=readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'),'utf8');
  assert.ok(!bytes.replaceAll('\r\n','').includes('\n'),'Antigravity diagnostics retain CRLF');
 });
+
+test('N1 mainline food patches preserve all six pre-N1 candidate hashes and reject source drift', () => {
+ const {files,manifest}=constructCandidateSources(input);
+ const pinned={
+  'i_remote_mcp/server.mjs':'c1926ef7c16efe3ddf1f916778b156703aa905a43cc5880768dd2e835105f7d4',
+  'i_remote_mcp/oauth.mjs':'7c82a07d7ec10afaea12728b71b45fcf9d80e07141994ca68a6394764d4d56bd',
+  'i_remote_mcp/diagnostics.mjs':'2b461c327de8a9a0da97767249ca810c7bd4a6536cc8cf32dd94141d630ffbe0',
+  'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',
+  'i_remote_mcp/writeback.mjs':'783e8fd0eabd55b61cff624e2ff4a67025374da361c4136337d3d05ceb1fcc19',
+  'i_memory/i_memory_read.mjs':'cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28',
+ };
+ assert.equal(manifest.changed_files,5);
+ assert.deepEqual(Object.keys(files).sort(),Object.keys(pinned).sort());
+ for(const [path,hash] of Object.entries(pinned)) {
+  assert.equal(sha256(files[path]),hash);
+  assert.doesNotMatch(files[path].toString(),/food_log|food_day|food_entries|createFoodTools/);
+ }
+ const server=Buffer.from(input.current.server.toString().replace('createFoodTools','unreviewedFoodTools'));
+ assert.throws(()=>constructCandidateSources({...input,current:{...input.current,server}}),/unexpected current/);
+});
