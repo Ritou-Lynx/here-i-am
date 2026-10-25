@@ -89,6 +89,7 @@ async function fixture(t) {
   const f = {
     root, tool, configFile, config, store, env,
     async storeSave() { await writeFile(storeFile,JSON.stringify(store)); },
+    async configSave() { await writeFile(configFile,JSON.stringify(config)); },
     async savedStore() { return JSON.parse(await readFile(storeFile,'utf8')); },
     async put(name, action) { await writeFile(path.join(root,'state','outbox',name),JSON.stringify(action)); },
     async calls() { return (await readFile(log,'utf8')).trim().split('\n').filter(Boolean).map(l=>JSON.parse(l)); },
@@ -237,6 +238,18 @@ test('pull reads all three tables and sources; paginates and filters inbox', asy
   assert.deepEqual(ledger.records[0].snapshot,decodeRow(sourceRow,'ledger',f.config).snapshot);
   assert.ok((await f.calls()).some(c=>c.args[1]==='+fetch'));
   assert.equal(writes(await f.calls()).length,0);
+});
+
+test('pull carries an optional https source url into sources.json',async t=>{
+  const f=await fixture(t);f.config.sources=[{title:'语法',doc:'TEST_SOURCE',url:'https://example.invalid/docx/placeholder'},{title:'无链接',doc:'TEST_SOURCE'}];await f.configSave();
+  assert.equal((await f.run('pull')).exit,0);
+  const sources=JSON.parse(await readFile(path.join(f.root,'state','sources.json'),'utf8')).sources;
+  assert.equal(sources[0].url,'https://example.invalid/docx/placeholder');assert.ok(!Object.hasOwn(sources[1],'url'));
+});
+for(const url of ['http://example.invalid/docx/x','https://example.invalid/sheets/x','https://u:p@example.invalid/docx/x',42]) test(`pull rejects a bad source url: ${url}`,async t=>{
+  const f=await fixture(t);f.config.sources=[{title:'语法',doc:'TEST_SOURCE',url}];await f.configSave();
+  assert.equal((await f.run('pull')).exit,1);
+  await assert.rejects(readFile(path.join(f.root,'state','sources.json')));
 });
 
 test('all five actions succeed; exact UTF-8 @file bytes and done archives survive', async t => {

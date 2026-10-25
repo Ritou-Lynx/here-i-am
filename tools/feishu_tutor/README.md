@@ -23,7 +23,7 @@ Node 24、无第三方依赖。确定性同步脚本读写飞书；定时 Codex 
 3. 在仓库之外建立两个互不包含的目录，已有内容不同先比较，不覆盖：
    - **工具目录** `%USERPROFILE%\feishu-tutor-tool`：复制 `sync/` 和 `run-daily.ps1`。把 `sync/config.example.json` 复制为工具目录根部的 `config.json`。工具目录不得作为 Codex 的工作目录或额外可写根，Codex 不得修改这里的代码和配置。
    - **学习目录** `%USERPROFILE%\feishu-study`：只复制 `STUDY_AGENTS.md`（改名 `AGENTS.md`）、`TUTOR_RULES.md`、`subjects.md`；创建 `state/outbox/`、`inbox/done/`、`logs/`。运行后生成 `today.md`。不向这里复制 sync、配置或 runner。
-4. 在工具目录的私有 `config.json` 中，将所有占位符替换为本机实际值：CLI 原生可执行文件路径（或设为 `lark-cli` 走 PATH）、模型、base 标识、三张表名、全部字段映射、科目、来源文档。`sources` 可为空数组；出题需要对应来源时应补全。真实配置、学习快照、日志和 outbox 不入库；凭据只留 CLI 的系统安全存储，不复制到学习目录。
+4. 在工具目录的私有 `config.json` 中，将所有占位符替换为本机实际值：CLI 原生可执行文件路径（或设为 `lark-cli` 走 PATH）、模型、base 标识、三张表名、全部字段映射、科目、来源文档。`sources` 可为空数组；出题需要对应来源时应补全。每项可选填 `url`（该文档的飞书分享链接，https，路径为 `/docx/` 或 `/wiki/`），pull 会原样带进 `sources.json`，导师用它写可点开的出处；不填就只写标题。真实配置、学习快照、日志和 outbox 不入库；凭据只留 CLI 的系统安全存储，不复制到学习目录。
 5. 定时 Codex 的本机配置不要启用 MCP、apps、连接器或额外工具；只允许本地学习文件流程。不得给这次运行开放网络或换为 danger-full-access。网络限制由 runner 显式设为 false；AGENTS 同时禁止通过外部服务工具绕行。
 
 ## 建三张表（用户在场）
@@ -103,7 +103,7 @@ dry-run 只做本地校验，不调用 CLI、不移动文件、不保证远端�
 
 ## 每日运行与 Interactive 计划任务
 
-工具目录的 `run-daily.ps1` 兼容 Windows PowerShell 5.1，`-StudyDirectory` 和 `-ConfigPath` 均必填，没有学习目录默认值。它检查学习目录与工具/配置目录互不包含，否则报 `daily_layout_invalid`；随后依次 pull → `codex exec -C <学习目录> -s workspace-write -m <配置模型>` → push，同步命令均显式传 `--state`。每步检查退出码，失败即停。显式关闭 sandbox 网络；不加 danger-full-access。日志在学习目录 logs，仅记步骤和退出码。已有未处理 outbox 或 inflight 时，出新学习单前先停。日运行持有独占文件句柄，多个实例不能同时操作。
+工具目录的 `run-daily.ps1` 兼容 Windows PowerShell 5.1，`-StudyDirectory` 和 `-ConfigPath` 均必填，没有学习目录默认值。它检查学习目录与工具/配置目录互不包含，否则报 `daily_layout_invalid`；随后依次 pull → `codex exec -C <学习目录> -s workspace-write -m <配置模型>` → push，同步命令均显式传 `--state`。每步检查退出码，失败即停。显式关闭 sandbox 网络；不加 danger-full-access。日志在学习目录 logs：`daily-*.log` 只记步骤和退出码；`codex-last-*.md` 是导师最后一段回复（codex `-o`），没出单或出单不对时先看它。已有未处理 outbox 或 inflight 时，出新学习单前先停。拉取前就失败时，日志最后一行写 `daily_failed:<原因>`：`daily_pending_outbox`（outbox 有没推完的 .json 或 inflight 非空）、`daily_locked`（上一次运行还没结束）、`daily_model_invalid`，其他意外统一写 `daily_error`。日运行持有独占文件句柄，多个实例不能同时操作。
 
 合并后用户先手动试跑，确认报告、today.md 和远端均正确，再自己注册任务。任务设置为 **Interactive / 仅在用户登录时运行**，不使用“无论用户是否登录”；电脑须开机并登录。时间由用户决定。不要让本仓库执行者注册、启用或触发真实计划任务。
 
