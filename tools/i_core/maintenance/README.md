@@ -220,8 +220,8 @@ C1 现在只选择非 `preserved/`、`role: task`、精确名 `tasks/HereIAm-Cor
 重复执行不再发令牌。`-Rotate writer`、`-Rotate phone` 或
 `-Rotate writer,phone` 只轮换指定角色，旧令牌立即失效。
 
-stdout 恰好一行 JSON；令牌只交给下一步经 stdin 消费，N2b 将定义 MCP
-配置写入步骤。不要把令牌打印到 transcript、参数、环境变量或日志。
+stdout 恰好一行 JSON，令牌只能经 stdin 交给下一步：生产 MCP 候选的
+`server.mjs set-food-credential`（N2b）。它只保存写入令牌；手机令牌留到 N2c 用 `-Rotate phone` 重新发出。不要把令牌打印到 transcript、参数、环境变量或日志。
 脚本读取令牌文件后立即删除；失败输出去敏的 `rejected_*` 状态并非零退出。
 已有未处理请求时拒绝，不覆盖请求。回滚旧 Core 包后，食物请求返回
 `schema_not_ready`，其他 Core 功能仍可使用。生产换包与开通需要另行授权。

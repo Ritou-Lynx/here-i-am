@@ -250,10 +250,10 @@ test('callback shape candidate preserves six-file closure, exact diagnostics byt
  assert.doesNotMatch(JSON.stringify(records[0]),/abcdef0123456789/);
 });
 
-test('N1 mainline food patches preserve all six pre-N1 candidate hashes and reject source drift', () => {
+test('N2b food patches change only the server candidate hash and reject source drift', () => {
  const {files,manifest}=constructCandidateSources(input);
  const pinned={
-  'i_remote_mcp/server.mjs':'12fc40a957caf3dec8691095439784e825eb6a6aa7ac4509762f8b7f5e408371', // D2b sesame
+  'i_remote_mcp/server.mjs':'f42f291f251a7a74f2489b881b4e019f7c9072cadcb101055b2eac8136afd12e', // D2b sesame + N2b food
   'i_remote_mcp/oauth.mjs':'e2c88aca4d218f7f6b71c34a398dad34216d13d6717a1bff49ff2d8c2707203d', // D2b sesame
   'i_remote_mcp/diagnostics.mjs':'5303ef6db7549f47da51e6e8b0069c22b7cebe2cb168df4407966dfe09b251f5', // D2b sesame
   'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',
@@ -264,7 +264,11 @@ test('N1 mainline food patches preserve all six pre-N1 candidate hashes and reje
  assert.deepEqual(Object.keys(files).sort(),Object.keys(pinned).sort());
  for(const [path,hash] of Object.entries(pinned)) {
   assert.equal(sha256(files[path]),hash);
-  assert.doesNotMatch(files[path].toString(),/food_log|food_day|food_entries|createFoodTools/);
+  if(path==='i_remote_mcp/server.mjs') {
+   assert.match(files[path].toString(),/food_log/);
+   assert.match(files[path].toString(),/food_day/);
+   assert.doesNotMatch(files[path].toString(),/createFoodTools/);
+  } else assert.doesNotMatch(files[path].toString(),/food_log|food_day|food_entries|createFoodTools/);
  }
  const server=Buffer.from(input.current.server.toString().replace('createFoodTools','unreviewedFoodTools'));
  assert.throws(()=>constructCandidateSources({...input,current:{...input.current,server}}),/unexpected current/);
@@ -302,4 +306,13 @@ test('Sesame candidate preserves six-file closure, exact callback, isolated rout
  assert.match(writeback,/credentialFile: 'core-frontend-sesame\.json'/);
  const bytes = readFileSync(join(built.root,'i_remote_mcp/diagnostics.mjs'),'utf8');
  assert.ok(!bytes.replaceAll('\r\n','').includes('\n'),'Sesame diagnostics retain CRLF');
+});
+
+test('N2b inline server keeps the frozen dependency closure and forbidden-source guard',()=>{
+ const server=constructCandidateSources(input).files['i_remote_mcp/server.mjs'].toString();
+ assert.doesNotMatch(server,/domain_tools|personal_data_domains|coreRemember|domain-config/);
+ const imports=[...server.matchAll(/(?:from\s*|import\s*\()(['"])([^'"]+)\1/g)].map(match=>match[2]);
+ assert.ok(imports.length>0);
+ for(const name of imports)assert.ok(name.startsWith('node:')||['./oauth.mjs','./mcp.mjs','./writeback.mjs','./diagnostics.mjs'].includes(name),name);
+ assert.match(server,/import\(pathToFileURL\(resolve\(REPO_TOOLS, 'i_memory\/i_memory_read\.mjs'\)\)\.href\)/);
 });

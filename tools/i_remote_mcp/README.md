@@ -279,6 +279,19 @@ Core captures 模式的 `plan_reads` 继续使用独立只读凭据。除 `plan_
 
 本阶段仅新增领域源码与合成测试；没有注册生产领域、创建真实凭据或打开手机同步。六文件候选仍排除领域工具，输出与 N1 前逐字节相同。生产上线属于另行授权的 N2。
 
+### 生产候选（N2b）
+
+生产用的六文件候选不读 `food` 配置块，改为读 MCP `stateDir` 下的 `core-food.json`（格式 `core-food-v1`）。这个文件由下面的管道写入，令牌只走 stdin：
+
+```
+powershell -NoProfile -File tools/i_core/maintenance/provision-food-domain.ps1 -TaskName <登录任务> | node <候选>/runtime/i_remote_mcp/server.mjs set-food-credential --state-dir <MCP state> --core-url <Core 地址>
+```
+
+- 只保存写入令牌，并绑定 Core `/v1/core/health` 返回的 `node_id`；手机令牌被忽略。
+- 没有写入令牌时报 `food_writer_token_missing`，需要用 `-Rotate writer` 重新发出。
+- `serve` 启动时严格校验这个文件，不合法就报 `invalid_food_credential` 并拒绝启动；文件不存在时与旧行为相同。
+- 写入后要重启 MCP 会话。Claude、ChatGPT、Antigravity 能看到 `food_log` 和 `food_day`，Gemini 和 Sesame 看不到。
+
 ## Sesame（D2b）
 
 仅接受精确回调 `https://sesameai.app/api/oauth/external-mcp/callback`，拒绝回调变体和与其他前端混合注册。不新增允许的 Origin；Sesame 预期从服务端发起请求。
