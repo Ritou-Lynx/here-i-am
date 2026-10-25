@@ -30,10 +30,15 @@ export const ANTIGRAVITY_CALLBACKS = Object.freeze([
   'http://localhost:32014/oauth/callback',
 ]);
 
+export const SESAME_CALLBACKS = Object.freeze([
+  'https://sesameai.app/api/oauth/external-mcp/callback',
+]);
+
 export const FRONTEND_CALLBACKS = Object.freeze({
   claude_web: CLAUDE_AI_CALLBACKS,
   chatgpt_web: Object.freeze([CHATGPT_CALLBACK_URI]),
   antigravity: ANTIGRAVITY_CALLBACKS,
+  sesame: SESAME_CALLBACKS,
 });
 
 // Exact relay hosts only; canonical spelling also excludes explicit default ports,
@@ -59,26 +64,27 @@ export function frontendForRedirectUri(redirectUri) {
       .find((frontend) => FRONTEND_CALLBACK_PATTERNS[frontend](redirectUri)) ?? null;
 }
 
-function isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled) {
+function isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled) {
   return (Object.hasOwn(FRONTEND_CALLBACKS, frontend) || Object.hasOwn(FRONTEND_CALLBACK_PATTERNS, frontend))
     && (frontend !== 'chatgpt_web' || chatgptEnabled === true)
     && (frontend !== 'gemini_web' || geminiEnabled === true)
-    && (frontend !== 'antigravity' || antigravityEnabled === true);
+    && (frontend !== 'antigravity' || antigravityEnabled === true)
+    && (frontend !== 'sesame' || sesameEnabled === true);
 }
 
-function frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled, antigravityEnabled) {
+function frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled) {
   const uris = client?.redirect_uris;
   if (!Array.isArray(uris) || uris.length === 0) return null;
   const frontend = frontendForRedirectUri(uris[0]);
-  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled)
+  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled)
     && uris.every((uri) => frontendForRedirectUri(uri) === frontend) ? frontend : null;
 }
 
-function frontendForRecord(record, client, chatgptEnabled, geminiEnabled, antigravityEnabled) {
+function frontendForRecord(record, client, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled) {
   // Only an absent field is legacy; null, empty and unknown values fail closed.
   const frontend = Object.hasOwn(record, 'frontend')
-    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled, antigravityEnabled);
-  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled) ? frontend : null;
+    ? record.frontend : frontendForRegisteredClient(client, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled);
+  return isEnabledFrontend(frontend, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled) ? frontend : null;
 }
 
 const STATE_SCHEMA_VERSION = 1;
@@ -208,9 +214,16 @@ export function antigravityEnabledFromEnv(env = process.env) {
   throw new Error('invalid_antigravity_mode');
 }
 
-export function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv(), antigravityEnabled = antigravityEnabledFromEnv()) {
+export function sesameEnabledFromEnv(env = process.env) {
+  const value = env.I_REMOTE_MCP_SESAME_ENABLED;
+  if (value === undefined || value === '1') return true;
+  if (value === '0') return false;
+  throw new Error('invalid_sesame_mode');
+}
+
+export function isAllowedRedirectUri(value, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv(), antigravityEnabled = antigravityEnabledFromEnv(), sesameEnabled = sesameEnabledFromEnv()) {
   if (typeof value !== 'string' || value.length > 2048) return false;
-  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled, geminiEnabled, antigravityEnabled);
+  return isEnabledFrontend(frontendForRedirectUri(value), chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled);
 }
 
 function normalizeResource(value) {
@@ -218,13 +231,15 @@ function normalizeResource(value) {
 }
 
 export class OAuthServer {
-  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv(), antigravityEnabled = antigravityEnabledFromEnv() }) {
+  constructor({ stateDir, publicUrl, now = () => Date.now(), options = {}, writeEnabled = false, chatgptEnabled = chatgptEnabledFromEnv(), geminiEnabled = geminiEnabledFromEnv(), antigravityEnabled = antigravityEnabledFromEnv(), sesameEnabled = sesameEnabledFromEnv() }) {
     if (typeof chatgptEnabled !== 'boolean') throw new Error('invalid_chatgpt_mode');
     if (typeof geminiEnabled !== 'boolean') throw new Error('invalid_gemini_mode');
     if (typeof antigravityEnabled !== 'boolean') throw new Error('invalid_antigravity_mode');
+    if (typeof sesameEnabled !== 'boolean') throw new Error('invalid_sesame_mode');
     this.chatgptEnabled = chatgptEnabled;
     this.geminiEnabled = geminiEnabled;
     this.antigravityEnabled = antigravityEnabled;
+    this.sesameEnabled = sesameEnabled;
     this.store = new OAuthStateStore(stateDir);
     // 单用户服务：启用写回后，每次授权都签发全部支持的 scope（授权页会写明），
     // 避免客户端只请求 i.read 导致写回永远不可用。旧令牌没有 i.write，需要重新授权。
@@ -292,7 +307,7 @@ export class OAuthServer {
     const frontends = redirectUris.map(frontendForRedirectUri);
     const exactFrontend = frontends[0];
     if (Object.hasOwn(FRONTEND_CALLBACKS, exactFrontend) && frontends.every(frontend => frontend === exactFrontend)) {
-      if (redirectUris.length > MAX_REDIRECT_URIS || !isEnabledFrontend(exactFrontend, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)) {
+      if (redirectUris.length > MAX_REDIRECT_URIS || !isEnabledFrontend(exactFrontend, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled, this.sesameEnabled)) {
         return oauthError(400, 'invalid_redirect_uri', 'redirect_uris must be an allowed callback');
       }
     } else if (this.geminiEnabled && redirectUris.length <= 8 && frontends.includes('gemini_web')
@@ -342,7 +357,7 @@ export class OAuthServer {
     const client = clientId ? this.store.state.clients[clientId] : undefined;
     if (!client) return { ok: false, status: 400, error: '未知的 client_id' };
     const redirectUri = get('redirect_uri') ?? (client.redirect_uris.length === 1 ? client.redirect_uris[0] : undefined);
-    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)) {
+    if (!redirectUri || !client.redirect_uris.includes(redirectUri) || !isAllowedRedirectUri(redirectUri, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled, this.sesameEnabled)) {
       return { ok: false, status: 400, error: 'redirect_uri 与注册时不一致' };
     }
     const state = get('state');
@@ -438,7 +453,7 @@ export class OAuthServer {
         let clientId;
         try { clientId = colon < 0 ? null : decodeURIComponent(decoded.slice(0, colon)); } catch { /* invalid public identifier */ }
         const client = this.store.state.clients[clientId];
-        if (frontendForRegisteredClient(client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled) === 'gemini_web') {
+        if (frontendForRegisteredClient(client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled, this.sesameEnabled) === 'gemini_web') {
           form = { ...form, client_id: clientId };
         }
       }
@@ -474,9 +489,9 @@ export class OAuthServer {
       return oauthError(400, 'invalid_grant', 'redirect_uri mismatch');
     }
     const frontend = frontendForRedirectUri(record.redirect_uri);
-    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled)
+    if (!isAllowedRedirectUri(record.redirect_uri, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled, this.sesameEnabled)
       || !client.redirect_uris.includes(record.redirect_uri)
-      || frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled) !== frontend) {
+      || frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled, this.sesameEnabled) !== frontend) {
       return oauthError(400, 'invalid_grant', 'invalid frontend');
     }
     if (form.resource !== undefined && normalizeResource(form.resource) !== this.resource) {
@@ -518,7 +533,7 @@ export class OAuthServer {
       this.store.save();
       return oauthError(400, 'invalid_grant', 'refresh_token expired');
     }
-    const frontend = frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled);
+    const frontend = frontendForRecord(record, client, this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled, this.sesameEnabled);
     if (!frontend) return oauthError(400, 'invalid_grant', 'invalid frontend');
     record.rotated = true;
     // 刷新不扩大权限；旧版本签发的 refresh token 没有 scope 字段，视为只读。
@@ -594,7 +609,7 @@ export class OAuthServer {
     if (!record) return { ok: false, error: 'invalid_token' };
     if (this.now() >= record.expires_at) return { ok: false, error: 'invalid_token' };
     if (record.resource !== this.resource) return { ok: false, error: 'invalid_token' };
-    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled);
+    const frontend = frontendForRecord(record, this.store.state.clients[record.client_id], this.chatgptEnabled, this.geminiEnabled, this.antigravityEnabled, this.sesameEnabled);
     if (!frontend) return { ok: false, error: 'invalid_token' };
     // 服务关闭写回后，旧的写令牌也只按当前支持的 scope 生效。
     const scopes = String(record.scope ?? SCOPE).split(' ').filter((s) => this.supportedScopes.includes(s));

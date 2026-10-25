@@ -278,3 +278,13 @@ Core captures 模式的 `plan_reads` 继续使用独立只读凭据。除 `plan_
 `food_log` 接受 add/update/void；每个新意图使用不同 UUID op_id，重试保留原样。update/void 带 base_revision；void 仅 patch voided=true，日累计与 App 隐藏该条。MCP 使用 agent_inferred，不能覆盖用户在 App 更正并锁定的字段。生成的意图时间在当前进程缓存中保持不变；缓存丢失且 Core 已存在该 op 时返回 food_retry_state_unavailable，不自动重建或重新写入。
 
 本阶段仅新增领域源码与合成测试；没有注册生产领域、创建真实凭据或打开手机同步。六文件候选仍排除领域工具，输出与 N1 前逐字节相同。生产上线属于另行授权的 N2。
+
+## Sesame（D2b）
+
+仅接受精确回调 `https://sesameai.app/api/oauth/external-mcp/callback`，拒绝回调变体和与其他前端混合注册。不新增允许的 Origin；Sesame 预期从服务端发起请求。
+
+`I_REMOTE_MCP_SESAME_ENABLED` 未设置或为 `1` 时开启，`0` 关闭，其他值启动时报 `invalid_sesame_mode`。关闭后拒绝注册、授权、授权码换令牌、refresh 和既有令牌使用。OAuth 保持 public client（`token_endpoint_auth_method: none`）与 PKCE S256；真实 Sesame 是否兼容仍需另行验收。
+
+`pair-core --frontend sesame` 使用独立设备 `frontend:sesame` 与凭据文件 `core-frontend-sesame.json`；不会借用其他前端凭据。写回开启且缺少 Sesame 配对时，`i_chat_turn` 返回 `frontend_not_paired:sesame`。工具范围为 `i_context`、`i_recall`、`i_chat_turn` 及已配置的只读 `week_get`、`day_get`，不开放 `capture_add` 或 `i_remember`。
+
+诊断使用固定 `callback_class: sesame`，不记录该回调的 `callback_shapes` 或原文。App 聊天来源显示为 Sesame。源码接入与合成测试不代表已配对、部署或完成真实前端验收。

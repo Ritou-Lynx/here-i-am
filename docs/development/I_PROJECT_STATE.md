@@ -5,7 +5,7 @@
 ## 当前状态（2026-10-24）
 
 ### 生产
-- schema6 Core 已上线（D1b，10-22 完成，manifest `4e003c0b`）。10-24 起现役登录任务为 `HereIAm-iCoreSchema6-d4-mcp-20261023-48bd91ed`（MCP 为 v3-lab `48bd91e` 的六文件候选，含 D1、D3、#49、D4）；此前的 d3fix、d1d3、P′、旧任务和 P 停用保留，不删。
+- schema6 Core 已上线（D1b，10-22 完成，manifest `4e003c0b`）。10-25 起现役登录任务为 `HereIAm-iCoreSchema6-d2a-mcp-20261024-84980161`（MCP 为 v3-lab `84980161` 的六文件候选，含 D1、D3、#49、D4、D2a）；此前的 d4、d3fix、d1d3、P′、旧任务和 P 停用保留，不删。
 - 前端：claude_web、chatgpt_web、gemini_web、antigravity 都已与 Core 配对，读取策略 `auto_share_origins` 为这四个。Claude、ChatGPT 10-23 真人验收通过；Antigravity 10-24 验收通过；Gemini 能添加，但对话里工具调用不生效（疑 Gemini 侧，未排查）。
 - 维护工具副本：`<OUT>\tools-dddff0f1`（v3-lab `dddff0f`，含 #45 宿主检查、#47 ready 容差）。旧副本 `tools-3baf72d`、`tools-302a62c0` 保留；以后登记从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1（pwsh 7 会误报 `login_core_port_invalid`）。
 - relay watcher：已按 A4 迁移为 `conhost --headless` 启动，codex 路径每轮自动查找，Codex 更新后不需要重新注册。
@@ -28,6 +28,8 @@
 
 - S1 床头哨兵：PR #58 审核通过，待合并。合并后把 APK 装到闲置小米上，用“调角度”页摆好支架；三星订阅 ntfy 并建例程（通知含“林埃来电” → Call Charlie）；先白天模拟，再整夜试跑。手机重启后要点一下通知才会恢复监测。
 - N1 食物记录：PR #59 三轮审核通过、CI 全绿，源码默认关闭，待用户合并；之后写 N2（食物领域上线，数据中枢首个领域，含 Core 换包，生产操作逐步同意）。
+
+- D2b Sesame 前端：PR #64 审核通过，等待合并。合并后部署（读取策略加 sesame、配对），然后在 Sesame 里添加 i 验收。D2a 已于 10-25 部署，现役任务 `HereIAm-iCoreSchema6-d2a-mcp-20261024-84980161`。
 
 ### 之后
 - D2b 接入 Sesame（等 D2a 部署后拿到回调形状）。

@@ -1,3 +1,11 @@
+## 2026-10-25 D2a 部署；D2b：接入 Sesame 前端（PR #64）
+
+- D2a（#55）部署：从 v3-lab `84980161` 生成候选，切换到 `HereIAm-iCoreSchema6-d2a-mcp-20261024-84980161`（中断上限约 41 秒，d4 任务停用保留）。第一次登记报 `protected_root_required`：候选根目录是受保护的，但 `runtime` 及其两个子目录继承了父目录 ACL；照 D4 候选对应目录的 ACL 补上后通过。部署提示词已改为逐级保护子目录。
+- 用户在 Sesame 重新添加 `/mcp` 后，诊断记录 `callback_shapes: ['https://sesameai.app/api/oauth/external-mcp/callback']`（主机名由用户确认），`ua_family: python-httpx`。
+- D2b 合同 docs/development/handoffs/RELAY_20261025_d2b-sesame-frontend.md，照搬 D4：精确回调、`sesame` 身份、开关 `I_REMOTE_MCP_SESAME_ENABLED`（未设即开）、独立凭据、工具集与 Antigravity 相同、App 来源标签“Sesame”，构建器 `SESAME_PATCHES` 排在 SESAME_PROBE 与 FOOD 之间。
+- 第 1 轮（d16b5ed）实现完整，但 3 项旧测试把 `sesame` 当作“未知前端”夹具，现在它成了已知前端，这几项失败。Claude 把夹具名改成 `unknown_frontend`，并在 callback_shape 测试的分类表里加上 sesame。云端 263/263；候选 6 个文件、`changed_files: 5`。
+- 风险：本服务只签发 `token_endpoint_auth_method: none` 并要求 PKCE；Sesame 是服务端发起 OAuth，能否接受要到验收时才知道。
+
 ## 2026-10-24 S1：床头哨兵 App（PR #58）
 
 - 催睡来电改走摄像头方案：闲置小米手机放在床头，本机判断用户是否还醒着，醒着就通过 ntfy 推送到三星，三星“模式与例程”再拉起 Sesame（Call Charlie）。用户白天实拍两张，屏幕冷光和睁眼、闭眼都看得清。
