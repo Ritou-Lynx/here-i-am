@@ -1,3 +1,11 @@
+## 2026-10-24 S1：床头哨兵 App（PR #58）
+
+- 催睡来电改走摄像头方案：闲置小米手机放在床头，本机判断用户是否还醒着，醒着就通过 ntfy 推送到三星，三星“模式与例程”再拉起 Sesame（Call Charlie）。用户白天实拍两张，屏幕冷光和睁眼、闭眼都看得清。
+- 合同 docs/development/handoffs/RELAY_20261024_s1-bed-watch-camera.md。新增独立工程 `tools/bed_watch_android/`（Kotlin，CameraX + bundled ML Kit）：每 60 秒分析一帧，最近 4 帧里有 3 帧醒着就推送一次，之后冷却 10 分钟；可开“今晚放行”。图像不写盘、不上传，日志只记 7 个数字字段。
+- relay 4 轮。前 3 轮被拦下，都是环境或平台问题，每次都改了合同：协议规定 relay 里不能构建 APK，改成只跑 JVM 单测；PATH 上没有 gradle，改用本机缓存的 Gradle 8.14；缺 java，只在当前进程里把 JAVA_HOME 指向 Android Studio 的 JBR；Android 15 不允许开机直接启动相机前台服务，改成开机只发一条“点一下恢复监测”的通知。第 4 轮交付了 22 个文件。
+- 本机联网编译第一次失败：预览页里的字段名 `overlay` 和 ViewGroup 的 `overlay` 属性重名，被后者遮蔽，Claude 改名为 `readout`（181e2d0）。云端用 Robolectric 提供的框架 jar 复现了这个错误，修复后编译通过。用户本机随后 `testDebugUnitTest assembleDebug` 成功，36/36，debug APK 约 48 MB，未安装。
+- 已知限制：在监测窗口里相机一直开着，只是每 60 秒取一帧，整夜可能发热，真机试跑后再看要不要改成按次开相机。云端无法访问 Google Maven，CameraX 和 ML Kit 部分只能在用户本机编译。
+
 ## 2026-10-24 N1：食物记录源码（PR #59，默认关闭）
 
 - 用户想在 Claude / ChatGPT / Antigravity 发食物照片或描述，由前端模型识图估算，写进 Here I Am。设计稿已和用户定完 10 点：照片不经服务端、不留存；数据源零操作（个人库、营养标签、菜谱拆解、USDA 兜底）；Gemini 不给。
