@@ -19,12 +19,16 @@ import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.memexlab.memex.ble.BleHeartRateEventBus
+import com.memexlab.memex.ble.BleHeartRateNightReport
 import com.memexlab.memex.ble.BleHeartRateService
 import com.memexlab.memex.ble.BleHeartRateStore
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.util.UUID
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.concurrent.Executors
 
 /** Narrow Flutter bridge; BLE ownership remains entirely native. */
 object BleHeartRateChannelHandler {
@@ -39,6 +43,9 @@ object BleHeartRateChannelHandler {
     private var scanStopRunnable: Runnable? = null
     private var scanCount = 0
     private var processStore: BleHeartRateStore? = null
+    private val reportExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "ble-heart-rate-reports").apply { isDaemon = true }
+    }
 
     private val busListener: (Map<String, Any?>) -> Unit = { event ->
         val eventUserKey = event["userKey"] as? String
@@ -166,6 +173,42 @@ object BleHeartRateChannelHandler {
                     "getRecentDiagnostics" -> {
                         if (userId.isNullOrBlank()) result.error("USER_REQUIRED", "userId is required", null)
                         else result.success(store.diagnostics(userId))
+                    }
+                    "listNightSummaries", "exportNight" -> {
+                        if (userId.isNullOrBlank()) {
+                            result.error("USER_REQUIRED", "userId is required", null)
+                        } else {
+                            val night = if (call.method == "exportNight") {
+                                runCatching {
+                                    BleHeartRateNightReport.parseNight(args?.get("night") as? String ?: "")
+                                }.getOrNull()
+                            } else null
+                            if (call.method == "exportNight" && night == null) {
+                                result.error("INVALID_NIGHT", "night must be yyyy-MM-dd", null)
+                            } else {
+                                val context = activity.applicationContext
+                                val nights = (args?.get("nights") as? Number)?.toInt()?.coerceIn(1, 14) ?: 7
+                                reportExecutor.execute {
+                                    try {
+                                        val zone = ZoneId.systemDefault()
+                                        val directory = BleHeartRateStore.telemetryDirectory(
+                                            context.filesDir, BleHeartRateStore.userKey(userId),
+                                        )
+                                        val value = if (night != null) {
+                                            BleHeartRateNightReport.export(directory, context.cacheDir, night, zone, LocalDate.now(zone))
+                                        } else {
+                                            val latest = BleHeartRateNightReport.latestNight(System.currentTimeMillis(), zone)
+                                            (0 until nights).map { offset ->
+                                                BleHeartRateNightReport.readNight(directory, latest.minusDays(offset.toLong()), zone).summary
+                                            }
+                                        }
+                                        mainHandler.post { result.success(value) }
+                                    } catch (_: Exception) {
+                                        mainHandler.post { result.error("EXPORT_FAILED", "Night records could not be read or exported", null) }
+                                    }
+                                }
+                            }
+                        }
                     }
                     else -> result.notImplemented()
                 }
