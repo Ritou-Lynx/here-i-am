@@ -177,6 +177,29 @@ test('read-only package-switch binding preparation preserves the complete deploy
    f.reset();write(target().files.task,replace(readFileSync(target().files.task,'utf8')));rejects(f,/^switch_bindings_task_xml_changed$/);
   }
  });
+ // A source task cloned by C1 is stored as Task Scheduler's own XmlText export.
+ const schedulerExport=s=>{
+  const body=s.replace(/^<\?xml[^>]*\?>\s*/,'');
+  return '<?xml version="1.0" encoding="UTF-16"?>\r\n'+body
+   .replace(/^(<Task [^>]*>)/,'$1\r\n  <RegistrationInfo>\r\n    <URI>\\synthetic-task</URI>\r\n    <SecurityDescriptor>D:(A;;FA;;;SY)</SecurityDescriptor>\r\n  </RegistrationInfo>\r\n  ')
+   .replace('<UserId>'+SID+'</UserId></LogonTrigger>','<UserId>SYNTHETIC\\owner</UserId></LogonTrigger>')
+   .replace('<StartWhenAvailable>true</StartWhenAvailable>','<StartWhenAvailable>true</StartWhenAvailable><RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable><IdleSettings><StopOnIdleEnd>true</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings><AllowStartOnDemand>true</AllowStartOnDemand>')
+   .replace('<Settings><MultipleInstancesPolicy>','<Settings>\r\n    <MultipleInstancesPolicy>')
+   .replace('<Enabled>true</Enabled><Hidden>','<Enabled>false</Enabled><Hidden>')
+   .replace('<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>','<RunOnlyIfIdle>false</RunOnlyIfIdle><DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession><WakeToRun>false</WakeToRun><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Priority>7</Priority>')
+   .replaceAll('&quot;','"');
+ };
+ await t.test('source task exported by Task Scheduler after C1 is accepted only with identical policy',()=>{
+  f.reset();const original=readFileSync(old().files.task,'utf8');
+  write(old().files.task,schedulerExport(original));
+  assert.equal(validatePackageSwitchBindings(...f.args()).taskXmlBound,true);
+  for(const change of [s=>s.replace('LeastPrivilege','HighestAvailable'),s=>s.replace('<Priority>7</Priority>','<Priority>4</Priority>'),s=>s.replace('<WakeToRun>false</WakeToRun>','<WakeToRun>true</WakeToRun>'),
+   s=>s.replace(old().end.manifestSha256,target().end.manifestSha256),s=>s.replace('<Hidden>true</Hidden>',''),s=>s.replace('</Actions>','<Exec><Command>cmd.exe</Command></Exec></Actions>'),
+   s=>s.replace('SYNTHETIC\\owner',''),s=>s.replace('<LogonType>InteractiveToken</LogonType>','<LogonType>Password</LogonType>')]){
+   write(old().files.task,change(schedulerExport(original)));rejects(f,/^switch_bindings_task_xml_changed$/);
+  }
+  f.reset();write(target().files.task,schedulerExport(readFileSync(target().files.task,'utf8')));rejects(f,/^switch_bindings_task_xml_changed$/);
+ });
  await t.test('actual MCP program bytes cannot drift',()=>{f.reset();write(path.join(f.source,'cli.mjs'),'// changed bytes');rejects(f,/^switch_bindings_anchor_changed$/);});
  await t.test('new MCP program cannot be substituted with self-consistent new hashes',()=>{
   f.reset();const alternate=path.join(f.root,'alternate-mcp');mkdirSync(alternate);write(path.join(alternate,'cli.mjs'),'// another valid-looking program');
