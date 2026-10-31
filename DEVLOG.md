@@ -1,3 +1,14 @@
+## 2026-10-31 N2 食物上线（生产）
+
+- 第 1 步（只准备、不停服）：从 v3-lab `42ecf688` 打新 Core 包（manifest `9897fb41`，相对现役只改 4 个库存文件）、N2b MCP 候选（server `f42f291f`）、换包配置与 fixed prepare XML，零写入预检通过。
+- 第 2 步：先用 Claude 写的脚本让 Codex 运行，后改走脚本轮（PR #71、#73，`mode=write`，用户点 👍）。期间修了两处维护工具：
+  - #69：现役链经多次 C1 后，源任务 XML 是计划任务自己导出的格式（RegistrationInfo、默认值、Enabled=false、登录触发器用户写成账户名），换包绑定校验只认模板原文。改为只在源端接受这种导出，其余叶子必须完全一致；目标端仍逐字节比对。
+  - #71：一条 22 天前被强杀、没有退出回执的旧会话记录，其 PID 被 session 0 的 svchost 复用，`OpenProcess` 被拒，活会话定位整体抛错（挡住 close-input、switch、provision）。改为“拒绝访问且进程快照显示属于其他会话”时视为失效。
+- 10-31 15:17 起按 D1b 顺序执行：关闭会话 → 停用 d2b 任务 → 批准换包计划 → 离线换包 → 登记 P（`HereIAm-iCoreSchema6-n2-pkg-20261031`）→ C1 切 N2b 候选到 P′（`HereIAm-iCoreSchema6-n2-food-20261031`）→ 切换 → 开通食物领域（writer、phone 令牌）并把 MCP 食物凭据经内存管道写入 → 重启一次。停服约 97 秒 + 35 秒。
+- 云端核对：i MCP 在线，出现 `food_log`、`food_day`；`food_day` 读今日返回空列表与零累计。
+- 坑：watcher 按评论时间只处理最早一条未完成指令，未批准的旧 write 轮会堵住后面；watcher 不清理已关闭 PR 的 worktree，复用分支前要先删（用不带 --force 的 `git worktree remove`）。
+- 剩余：三端真人验收食物记录；手机 App 重建安装后自动领取 phone 令牌，看饮食页。
+
 ## 2026-10-25 D2b 部署与 Sesame 验收
 
 - 从 v3-lab `129ec194`（#64 合并，含 #62 的 N2a 源码，Core 未换）生成候选，六文件哈希与审核一致（server `12fc40a9`、oauth `e2c88aca`、diagnostics `5303ef6d`、writeback `a7a6f95d`，mcp、i_memory_read 不变），切换到 `HereIAm-iCoreSchema6-d2b-mcp-20261025-129ec194`（中断上限约 45 秒，d2a 任务停用保留）。
