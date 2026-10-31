@@ -3,12 +3,24 @@ $ErrorActionPreference = 'Stop'
 
 function Out-Json($obj) { [Console]::Out.WriteLine(($obj | ConvertTo-Json -Compress -Depth 6)) }
 
-$bench = Join-Path $env:LOCALAPPDATA 'HereIAm\tts-bench'
+$cands = @()
+if ($env:LOCALAPPDATA) { $cands += (Join-Path $env:LOCALAPPDATA 'HereIAm\tts-bench') }
+if ($env:USERPROFILE) { $cands += (Join-Path $env:USERPROFILE 'AppData\Local\HereIAm\tts-bench') }
+$cands += @(Get-ChildItem 'C:\Users\*\AppData\Local\HereIAm\tts-bench' -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+$bench = $cands | Where-Object { Test-Path (Join-Path $_ '.venv\Scripts\python.exe') } | Select-Object -First 1
+if (-not $bench) {
+    $hia = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'HereIAm' } else { $null }
+    $kids = if ($hia -and (Test-Path $hia)) { @(Get-ChildItem $hia -Directory | ForEach-Object { $_.Name }) } else { @() }
+    $tb = Join-Path $hia 'tts-bench'
+    $tbKids = if ($hia -and (Test-Path $tb)) { @(Get-ChildItem $tb -Force | ForEach-Object { $_.Name }) } else { @() }
+    Out-Json @{ step = 'precheck'; ok = $false; error = 'bench_venv_missing'; user = $env:USERNAME; localAppDataSet = [bool]$env:LOCALAPPDATA
+        hereIAmDirs = $kids; ttsBenchEntries = $tbKids; candidates = $cands.Count }
+    exit 2
+}
 $py = Join-Path $bench '.venv\Scripts\python.exe'
 $prof = (Resolve-Path (Join-Path $PSScriptRoot '..\..\tts_bench\profile_turbo.py')).Path
 $ref = Join-Path $bench 'linai-ref-v5.wav'
 if (-not (Test-Path $ref)) { $ref = (Resolve-Path (Join-Path $PSScriptRoot '..\..\tts_bench\linai-ref-v5.wav')).Path }
-if (-not (Test-Path $py)) { Out-Json @{ step = 'precheck'; ok = $false; error = 'bench_venv_missing' }; exit 2 }
 
 $busy = Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.CommandLine -like '*profile_turbo.py*' }
 if ($busy) { Out-Json @{ step = 'precheck'; ok = $false; error = 'another_profile_run_in_progress'; count = @($busy).Count }; exit 3 }
