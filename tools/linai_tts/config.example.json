@@ -1,0 +1,7 @@
+{
+  "token": "<至少 32 个字符的随机字符串，手机端填同一个>",
+  "reference_wav": "<林埃参考音频 wav 的完整路径，长于 5 秒>",
+  "device": "cuda",
+  "max_chars": 400,
+  "queue_timeout_s": 20
+}
