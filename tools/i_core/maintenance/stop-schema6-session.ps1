@@ -90,9 +90,16 @@ public sealed class Schema6MaintenanceHost:IDisposable {
   if(memory==IntPtr.Zero)throw new Win32Exception();
   try{string[] result=new string[count-1];for(int i=1;i<count;i++)result[i-1]=Marshal.PtrToStringUni(Marshal.ReadIntPtr(memory,i*IntPtr.Size));return result;}finally{LocalFree(memory);}
  }
+ // A stale record whose PID now belongs to a process in another logon session
+ // (for example a session-0 service) cannot be our host; access to it is denied.
+ // Session ids come from the process snapshot, which needs no process handle.
+ static bool RecycledIntoOtherSession(int id){
+  try{using(var p=System.Diagnostics.Process.GetProcessById(id))using(var self=System.Diagnostics.Process.GetCurrentProcess())return p.SessionId!=self.SessionId;}
+  catch(ArgumentException){return true;}
+ }
  public static Schema6MaintenanceHost Open(int id,long hwnd,long recordedTicks,string image,string owner,int session,uint tid){
   IntPtr handle=OpenProcess(0x00101000,false,id);
-  if(handle==IntPtr.Zero){int error=Marshal.GetLastWin32Error();if(error==87)return null;throw new Win32Exception(error);}
+  if(handle==IntPtr.Zero){int error=Marshal.GetLastWin32Error();if(error==87||error==5&&RecycledIntoOtherSession(id))return null;throw new Win32Exception(error);}
   var lease=new Schema6MaintenanceHost();lease.process=handle;lease.pid=id;lease.window=hwnd;
   try{
    if(WaitForSingleObject(handle,0)!=258){lease.Dispose();return null;}

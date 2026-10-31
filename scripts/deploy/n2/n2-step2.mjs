@@ -8,7 +8,8 @@
 // Tokens stay in memory only: never printed, logged or written by this script.
 //
 // Usage: run n2-step2.ps1 (Windows PowerShell 5.1, -File) with --git <git.exe>.
-// Requires the outputs of step 1 under <OUT>.
+// Requires the outputs of step 1 under <OUT>. Builds <OUT>\tools-fb401d45 (old tools
+// copy + the two files PR #69 changed) before anything else.
 import {createHash,randomBytes} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {copyFileSync,existsSync,mkdirSync,readFileSync,readdirSync,statSync,writeFileSync,appendFileSync} from 'node:fs';
@@ -20,9 +21,16 @@ const P2='HereIAm-iCoreSchema6-n2-food-20261031';
 const M='9897fb4109f1e6dda4fa15c3a0a1ef34f4ed001160d3e458ae94860b1349af95';
 const STEP1={login:'c5109636',xml:'b8df7804',receipt:'3d018a4d',server:'f42f291f'};
 const PINNED_NODE='58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f';
+// Maintenance tools: step 1 used tools-42ecf688 (tools/i_core at S). PR #69 changed only
+// the two files below, so the new copy is the old one plus those blobs at V.
+const S='42ecf688f61ff829f5f7bb1d5aadc2695c01436b',V='fb401d459e3ae56233558ba138ae0d7ec7c07c08';
+const TOOLS_CHANGED=['tools/i_core/maintenance/package-switch-bindings.mjs','tools/i_core/release_schema6/maintenance_package_switch_bindings.test.mjs'];
+const TOOLS_FILES=321;
 
 class Stop extends Error{constructor(step,detail){super(detail);this.step=step;this.detail=detail;}}
 const sha=b=>createHash('sha256').update(b).digest('hex');
+const blobSha=b=>createHash('sha1').update(Buffer.concat([Buffer.from('blob '+b.length+'\0'),b])).digest('hex');
+function files(root){const out=[];const go=d=>{for(const e of readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())go(p);else out.push(p);}};go(root);return out;}
 const fileSha=p=>sha(readFileSync(p));
 const short=h=>String(h).slice(0,8).toLowerCase();
 let report=null;
@@ -69,7 +77,7 @@ function main(){
  const a=process.argv.slice(2);need(a.length===2&&a[0]==='--git','args','usage: --git <git.exe>');
  need(process.platform==='win32','args','windows_required');
  need(process.version==='v24.14.1'&&fileSha(process.execPath)===PINNED_NODE&&plain(process.execPath),'args','pinned_node_required');
- const G=a[1];need(plain(G)&&existsSync(G)&&statSync(G).nlink===1,'args','single_link_git_required');
+ const G=a[1];need(plain(G)&&existsSync(G)&&statSync(G).isFile(),'args','git_path_required'); // only used for fetch/diff/ls-tree/cat-file
 
  // 0. Preflight: read-only.
  const before=tasks('step0');
@@ -82,7 +90,33 @@ function main(){
  const core=readJson(login.core_configuration_path,login.core_configuration_sha256,'step0');
  const oldCand=path.dirname(mcp.working_directory),OUT=path.dirname(oldCand);
  need(path.basename(mcp.working_directory)==='runtime'&&/^mcp-candidate-/.test(path.basename(oldCand))&&plain(OUT),'step0','live_candidate_layout');
- const TOOLS=path.join(OUT,'tools-42ecf688'),TI=path.join(TOOLS,'tools','i_core'),MT=path.join(TI,'maintenance');
+ const TOOLS=path.join(OUT,'tools-'+V.slice(0,8)),TI=path.join(TOOLS,'tools','i_core'),MT=path.join(TI,'maintenance');
+ {// New maintenance tools copy (outside production; reused if an earlier run already built it).
+  const OLDT=path.join(OUT,'tools-42ecf688'),WT=path.join(OUT,'worktree-42ecf688');
+  need(existsSync(path.join(OLDT,'tools','i_core','maintenance'))&&existsSync(WT),'step0','old_tools_or_worktree_missing');
+  const git=(args,step)=>{const r=run(G,['-C',WT,...args],{step});need(r.code===0,step,'git_failed:'+args[0]);return r.stdout;};
+  git(['fetch','origin','v3-lab'],'step0');
+  need(run(G,['-C',WT,'merge-base','--is-ancestor',V,'origin/v3-lab'],{step:'step0'}).code===0,'step0','V_not_on_v3_lab');
+  const changed=git(['diff','--name-only',S,V,'--','tools/i_core'],'step0').split(/\r?\n/).filter(Boolean).sort();
+  need(JSON.stringify(changed)===JSON.stringify([...TOOLS_CHANGED].sort()),'step0','tools_diff:'+changed.join(','));
+  const blobs=new Map(git(['ls-tree','-r',V,'--',...TOOLS_CHANGED],'step0').split(/\r?\n/).filter(Boolean).map(l=>{const m=l.match(/^100644 blob ([0-9a-f]{40})\t(.+)$/);need(m,'step0','ls_tree');return [m[2],m[1]];}));
+  need(blobs.size===2,'step0','ls_tree_count');
+  const oldFiles=files(OLDT);need(oldFiles.length===TOOLS_FILES,'step0','old_tools_count:'+oldFiles.length);
+  if(!existsSync(TOOLS)){
+   mkdirSync(TOOLS);
+   const acl=ps51("$a=(Get-Item -LiteralPath $q.from).GetAccessControl('Access')\n$a.SetAccessRuleProtection($true,$true)\n(Get-Item -LiteralPath $q.to).SetAccessControl($a)\n$v=(Get-Item -LiteralPath $q.to).GetAccessControl('Access')\n[pscustomobject]@{protected=$v.AreAccessRulesProtected;rules=@($v.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])).Count}|ConvertTo-Json -Compress",{from:OLDT,to:TOOLS},'step0');
+   need(acl.protected===true&&acl.rules>0,'step0','tools_acl');
+   for(const p of oldFiles){const rel=path.relative(OLDT,p),dst=path.join(TOOLS,rel);mkdirSync(path.dirname(dst),{recursive:true});
+    const repo=rel.split(path.sep).join('/');
+    if(blobs.has(repo)){const r=spawnSync(G,['-C',WT,'cat-file','blob',blobs.get(repo)],{env:childEnv(),windowsHide:true,maxBuffer:16*1024*1024});need(r.status===0,'step0','cat_file');writeFileSync(dst,r.stdout,{flag:'wx'});}
+    else copyFileSync(p,dst);}
+  }
+  const newFiles=files(TOOLS);need(newFiles.length===TOOLS_FILES,'step0','new_tools_count:'+newFiles.length);
+  for(const p of newFiles){const rel=path.relative(TOOLS,p),repo=rel.split(path.sep).join('/');
+   if(blobs.has(repo))need(blobSha(readFileSync(p))===blobs.get(repo),'step0','tools_blob:'+path.basename(p));
+   else need(existsSync(path.join(OLDT,rel))&&fileSha(p)===fileSha(path.join(OLDT,rel)),'step0','tools_copy:'+rel);}
+  emit('step0.tools',true,{tools:'tools-'+V.slice(0,8),files:TOOLS_FILES,changed:TOOLS_CHANGED.map(n=>path.basename(n))});
+ }
  const REL=path.join(OUT,'release-42ecf688'),CAND=path.join(OUT,'mcp-candidate-42ecf688'),CFG=path.join(OUT,'n2-pkg-configs'),RUN=path.join(OUT,'n2-step2-run');
  need(existsSync(path.join(MT,'switch-login-task.ps1')),'step0','tools_copy_layout');
  need(fileSha(path.join(REL,'manifest.json'))===M,'step0','new_release_manifest_changed');
