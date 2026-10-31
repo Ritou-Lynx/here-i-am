@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import * as nodeFs from 'node:fs/promises';
 import { access, mkdir, open, readFile, realpath, rename, unlink, writeFile } from 'node:fs/promises';
@@ -7,12 +7,12 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
-import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply, parseNotification, formatNotification } from './relay_core.mjs';
+import { parseInstruction, parseRunnerInstruction, formatRunnerReply, isEligiblePr, renderPrompt, redact, formatReply, parseNotification, formatNotification } from './relay_core.mjs';
 import { sendNotification } from './relay_notify.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = 'Ritou-Lynx/here-i-am';
-const defaults = { repo: REPO, baseBranch: 'v3-lab', headPrefixes: ['claude/', 'codex/'], allowedAuthors: ['Ritou-Lynx'], maxRounds: 4, codexTimeoutMinutes: 60, codexArgs: ['--sandbox', 'workspace-write'], summaryMaxChars: 6000, mention: '@Ritou-Lynx', pollSeconds: 180 };
+const defaults = { repo: REPO, baseBranch: 'v3-lab', headPrefixes: ['claude/', 'codex/'], allowedAuthors: ['Ritou-Lynx'], maxRounds: 4, codexTimeoutMinutes: 60, codexArgs: ['--sandbox', 'workspace-write'], summaryMaxChars: 6000, mention: '@Ritou-Lynx', pollSeconds: 180, runnerEnabled: true, runnerTimeoutMinutes: 20, selfUpdate: true };
 
 // Every subprocess, including the Windows timeout cleanup helper, uses this boundary.
 export function run(cmd, args, opts = {}) {
@@ -172,7 +172,8 @@ export function validateConfig(input) {
   if (config.repo !== REPO || config.baseBranch !== 'v3-lab') throw new Error('只允许协议指定仓库和 v3-lab base');
   for (const field of ['allowedAuthors', 'headPrefixes', 'codexArgs']) if (!Array.isArray(config[field]) || !config[field].every(x => typeof x === 'string')) throw new Error(`${field} 必须是字符串数组`);
   if (!config.allowedAuthors.length || !config.headPrefixes.length || config.headPrefixes.some(x => !['claude/', 'codex/'].includes(x))) throw new Error('作者或分支白名单无效');
-  for (const field of ['maxRounds', 'codexTimeoutMinutes', 'summaryMaxChars', 'pollSeconds']) if (!Number.isFinite(config[field]) || config[field] <= 0) throw new Error(`${field} 必须大于零`);
+  for (const field of ['runnerEnabled', 'selfUpdate']) if (typeof config[field] !== 'boolean') throw new Error(`${field} 必须是 true 或 false`);
+  for (const field of ['maxRounds', 'codexTimeoutMinutes', 'runnerTimeoutMinutes', 'summaryMaxChars', 'pollSeconds']) if (!Number.isFinite(config[field]) || config[field] <= 0) throw new Error(`${field} 必须大于零`);
   if (!Number.isInteger(config.maxRounds) || config.maxRounds > 4) throw new Error('最多允许 4 轮');
   if (config.notify !== undefined) {
     if (!config.notify || typeof config.notify !== 'object' || Array.isArray(config.notify)) throw new Error('notify 必须是对象');
@@ -267,6 +268,30 @@ export async function resolveCodex(config, { platform = process.platform, fs = n
   return null;
 }
 
+// Windows PowerShell 5.1, launched with -File (the outer pwsh 7 must not expand anything).
+export function runnerArgs(scriptFile) {
+  return ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptFile];
+}
+
+// Keep the watcher's own checkout on the latest base: merged fixes apply on the next poll.
+// Only a clean checkout of the base branch is fast-forwarded; anything else is left alone.
+async function selfUpdate({ invoke, log, baseBranch }) {
+  try {
+    const opts = { cwd: here };
+    const top = (await invoke('git', ['rev-parse', '--show-toplevel'], opts)).stdout.trim();
+    if (!top) return;
+    const at = { cwd: top };
+    const origin = (await invoke('git', ['remote', 'get-url', 'origin'], at)).stdout.trim();
+    if (!/^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)Ritou-Lynx\/here-i-am(?:\.git)?\/?$/i.test(origin)) { log('自更新跳过：运行目录 origin 不是协议仓库'); return; }
+    if ((await invoke('git', ['branch', '--show-current'], at)).stdout.trim() !== baseBranch) { log(`自更新跳过：运行目录不在 ${baseBranch}`); return; }
+    if ((await invoke('git', ['status', '--porcelain', '--untracked-files=no'], at)).stdout.trim()) { log('自更新跳过：运行目录有未提交改动'); return; }
+    const fetched = await invoke('git', ['fetch', 'origin', `refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`], { ...at, timeoutMs: 60000 });
+    if (fetched.code !== 0 || fetched.timedOut) { log('自更新跳过：fetch 失败'); return; }
+    const merged = await invoke('git', ['merge', '--ff-only', `origin/${baseBranch}`], { ...at, env: { SKIP_PROJECT_STATE: '1' } });
+    log(merged.code === 0 ? '自更新：运行目录已与远端同步' : '自更新跳过：无法快进');
+  } catch (error) { log(`自更新跳过：${error.message.split(/\r?\n/, 1)[0]}`); }
+}
+
 function notificationSecrets(notify = {}) {
   return [notify.feishuWebhook, notify.feishuWebhook?.split('/hook/')[1], notify.feishuSecret, notify.barkKey];
 }
@@ -305,6 +330,7 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
     return (await gh(['pr', 'comment', String(pr), '--repo', config.repo, '--body-file', file])).trim();
   };
   try {
+    if (config.selfUpdate && !dryRun) await selfUpdate({ invoke, log, baseBranch: config.baseBranch });
     const state = await readState(stateFile);
     const promptTemplate = template ?? await readFile(path.join(here, 'CODEX_ROUND_PROMPT.md'), 'utf8');
     const deliver = async (id, entry) => {
@@ -395,22 +421,37 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
     }
     for (const pr of prs) {
       if (!Number.isSafeInteger(pr.number) || pr.number < 1 || !isEligiblePr(pr, config)) { log(`跳过 PR #${pr.number}：不满足接力条件`); continue; }
-      const comments = (commentCache.get(pr.number) ?? []).filter(comment => Number.isSafeInteger(comment.id) && comment.id > 0 && parseInstruction(comment.body) && config.allowedAuthors.includes(comment.user?.login) && !Object.hasOwn(state.comments, String(comment.id))).sort((a, b) => Date.parse(a.created_at ?? 0) - Date.parse(b.created_at ?? 0) || Number(a.id) - Number(b.id));
+      const comments = (commentCache.get(pr.number) ?? []).filter(comment => Number.isSafeInteger(comment.id) && comment.id > 0 && (parseInstruction(comment.body) || config.runnerEnabled && parseRunnerInstruction(comment.body)) && config.allowedAuthors.includes(comment.user?.login) && !Object.hasOwn(state.comments, String(comment.id))).sort((a, b) => Date.parse(a.created_at ?? 0) - Date.parse(b.created_at ?? 0) || Number(a.id) - Number(b.id));
       const comment = comments[0];
       if (!comment) continue;
-      const { round, instruction } = parseInstruction(comment.body);
-      const codex = await resolveCodex(config, codexOptions);
+      const runner = parseInstruction(comment.body) ? null : parseRunnerInstruction(comment.body);
+      const { round, instruction } = runner ?? parseInstruction(comment.body);
+      if (runner?.mode === 'write') {
+        // Only the owner's 👍 on this exact comment approves a script that changes things.
+        const reactions = JSON.parse(await gh(['api', `repos/${config.repo}/issues/comments/${comment.id}/reactions`, '--paginate', '--slurp'])).flat();
+        if (!reactions.some(item => item?.content === '+1' && config.allowedAuthors.includes(item.user?.login))) {
+          log(`PR #${pr.number} 脚本第 ${round} 轮等待 👍`);
+          await notify(`approval:${comment.id}`, { kind: 'approval', pr: pr.number, round, title: pr.title, url: comment.html_url || `https://github.com/${config.repo}/pull/${pr.number}`, body: comment.body });
+          continue;
+        }
+      }
+      const codex = runner ? { codexSource: 'runner' } : await resolveCodex(config, codexOptions);
       if (!codex) { log('codex_not_found'); return { status: 'codex-not-found' }; }
       const worktree = path.join(config.worktreeRoot, `pr-${pr.number}`);
       const codexArgs = ['exec', '--cd', worktree, ...config.codexArgs, '--json', '--output-last-message', path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.last.txt`), '-'];
       const contract = JSON.parse(await gh(['pr', 'view', String(pr.number), '--repo', config.repo, '--json', 'body'])).body ?? '';
       const prompt = safe(renderPrompt(promptTemplate, { pr_number: pr.number, branch: pr.headRefName, round, contract, instruction }));
+      if (dryRun && runner) {
+        const preview = { status: 'dry-run', pr: pr.number, commentId: comment.id, round, runner, commands: [['git', 'fetch', 'origin', pr.headRefName], ['powershell.exe', ...runnerArgs(path.join(worktree, ...runner.script.split('/')))], ['gh', 'pr', 'comment', String(pr.number)]] };
+        log(JSON.stringify(preview, null, 2));
+        return preview;
+      }
       if (dryRun) {
         const preview = { status: 'dry-run', pr: pr.number, commentId: comment.id, round, prompt, commands: round > config.maxRounds ? [['gh', 'pr', 'edit', String(pr.number), '--add-label', 'relay-needs-human'], ['gh', 'pr', 'comment', String(pr.number)]] : [['gh', 'api', '-X', 'POST', '.../reactions', '-f', 'content=eyes'], ['git', 'fetch', 'origin', pr.headRefName], ['git', 'worktree', 'add', worktree], [codex.path, ...codexArgs], ['git', 'push', 'origin', `HEAD:refs/heads/${pr.headRefName}`], ['gh', 'pr', 'comment', String(pr.number)]] };
         log(JSON.stringify(preview, null, 2));
         return preview;
       }
-      if (round > config.maxRounds) {
+      if (!runner && round > config.maxRounds) {
         // Record before external effects: a partial failure cannot cause duplicate work.
         state.comments[comment.id] = { status: 'in_progress', pr: pr.number, round, startedAt: timestamp(now) };
         await saveState(stateFile, state);
@@ -451,73 +492,101 @@ export async function runOnce({ config: input, stateDir = path.join(here, '.stat
         if (Number((await git(['rev-list', '--count', `${remote}..HEAD`])).trim()) !== 0) throw new Error('已有 worktree 本地领先远端，保留原样');
         await git(['merge', '--ff-only', remote]);
         startSha = (await git(['rev-parse', 'HEAD'])).trim();
-        const last = codexArgs[codexArgs.indexOf('--output-last-message') + 1];
-        const stdoutFile = path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.jsonl`);
-        await mkdir(path.dirname(last), { recursive: true });
-        // Never accept a leftover answer from an earlier interrupted run.
-        try { await unlink(last); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-        const result = await invoke(codex.path, codexArgs, { cwd: worktree, input: prompt, env: { SKIP_PROJECT_STATE: '1' }, timeoutMs: config.codexTimeoutMinutes * 60000, stdoutFile, secrets });
-        if (result.stdout) await writeFile(stdoutFile, safe(result.stdout), { mode: 0o600 });
-        // Codex owns this file; sanitize it even when the process failed.
-        if (await exists(last)) await writeFile(last, safe(await readFile(last, 'utf8')), { mode: 0o600 });
-        await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.stderr.txt`), safe(result.stderr), { mode: 0o600 });
-        details = safe(result.stderr);
-        if (result.cleanupUnconfirmed) {
-          await writeFile(path.join(stateDir, 'cleanup-blocked.json'), JSON.stringify({ pid: result.pid, pr: pr.number, round, occurredAt: timestamp(now) }) + '\n', { mode: 0o600 });
-          throw new Error('Codex 超时且进程树清理未确认，后续轮询已阻止，需本机检查');
-        }
-        if (result.timedOut) throw new Error('Codex 超时，已请求终止进程树');
-        if (result.code !== 0) throw new Error(`Codex 退出码 ${result.code}\n${result.stderr}`);
-        try { summary = await readFile(last, 'utf8'); } catch (error) { if (error.code === 'ENOENT') throw new Error('Codex 未输出最后消息'); throw error; }
-        if (!summary.trim()) throw new Error('Codex 最后消息为空');
-        if ((await git(['branch', '--show-current'])).trim() !== pr.headRefName) throw new Error('Codex 改变了 worktree 分支，拒绝提交或推送');
-        await git(['merge-base', '--is-ancestor', startSha, 'HEAD']);
-        status = /^STATUS: blocked\s*$/.test(summary.split(/\r?\n/, 1)[0]) ? 'blocked' : 'done';
-        const hasChanges = (await git(['status', '--porcelain'])).trim();
-        if (hasChanges) {
-          const proposedMessage = /^COMMIT:[ \t]*([^\r\n]*)/m.exec(summary)?.[1].trim();
-          const commitMessage = proposedMessage && proposedMessage !== '无' ? proposedMessage : `relay: 第 ${round} 轮`;
-          const commitOpts = { cwd: worktree, env: { SKIP_PROJECT_STATE: '1' } };
-          const staged = await invoke('git', ['add', '-A'], commitOpts);
-          const committed = staged.code === 0 && !staged.timedOut
-            ? await invoke('git', ['commit', '-m', commitMessage, '-m', `relay: PR #${pr.number} 第 ${round} 轮`], commitOpts)
-            : staged;
-          if (committed.code !== 0 || committed.timedOut) {
-            details = [committed.stderr, committed.stdout, await git(['status', '--short'])].filter(Boolean).join('\n');
-            throw new Error(`watcher ${staged.code === 0 ? '提交' : '暂存'}失败（退出码 ${committed.code}），不推送`);
+        if (runner) {
+          const scriptFile = path.join(worktree, ...runner.script.split('/'));
+          for (let current = scriptFile, leaf = true; current !== worktree; current = path.dirname(current), leaf = false) {
+            const stat = await nodeFs.lstat(current);
+            if (stat.isSymbolicLink() || (leaf ? !stat.isFile() : !stat.isDirectory())) throw new Error('脚本路径不是普通文件');
           }
-          if ((await git(['status', '--porcelain'])).trim()) {
-            details = await git(['status', '--short']);
-            throw new Error('watcher 提交后仍有未提交改动，不推送');
+          const digest = createHash('sha256').update(await readFile(scriptFile)).digest('hex');
+          if (digest !== runner.sha256) throw new Error(`脚本哈希不符（实际 ${digest.slice(0, 12)}），拒绝运行`);
+          const stdoutFile = path.join(stateDir, 'logs', `pr-${pr.number}-script-${round}.stdout.txt`);
+          await mkdir(path.dirname(stdoutFile), { recursive: true });
+          const result = await invoke('powershell.exe', runnerArgs(scriptFile), { cwd: worktree, input: '', env: { SKIP_PROJECT_STATE: '1' }, timeoutMs: config.runnerTimeoutMinutes * 60000, secrets });
+          await writeFile(stdoutFile, safe(result.stdout), { mode: 0o600 });
+          await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-script-${round}.stderr.txt`), safe(result.stderr), { mode: 0o600 });
+          // Scripts never commit; anything they leave in the worktree is discarded.
+          if ((await git(['status', '--porcelain'])).trim()) { await git(['reset', '--hard', startSha]); await git(['clean', '-fd']); details = '脚本在 worktree 留下的改动已丢弃'; }
+          if (result.cleanupUnconfirmed) {
+            await writeFile(path.join(stateDir, 'cleanup-blocked.json'), JSON.stringify({ pid: result.pid, pr: pr.number, round, occurredAt: timestamp(now) }) + '\n', { mode: 0o600 });
+            throw new Error('脚本超时且进程树清理未确认，后续轮询已阻止，需本机检查');
           }
-          if ((await git(['branch', '--show-current'])).trim() !== pr.headRefName) throw new Error('提交后 worktree 分支改变，拒绝推送');
+          summary = [result.stdout, result.stderr && `--- stderr ---\n${result.stderr}`].filter(Boolean).join('\n');
+          status = result.timedOut || result.code !== 0 ? 'failed' : 'done';
+          if (result.timedOut) reason = `脚本超时（${config.runnerTimeoutMinutes} 分钟）`;
+          runner.exitCode = result.code;
+          sha = startSha.slice(0, 12);
+        } else {
+          const last = codexArgs[codexArgs.indexOf('--output-last-message') + 1];
+          const stdoutFile = path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.jsonl`);
+          await mkdir(path.dirname(last), { recursive: true });
+          // Never accept a leftover answer from an earlier interrupted run.
+          try { await unlink(last); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+          const result = await invoke(codex.path, codexArgs, { cwd: worktree, input: prompt, env: { SKIP_PROJECT_STATE: '1' }, timeoutMs: config.codexTimeoutMinutes * 60000, stdoutFile, secrets });
+          if (result.stdout) await writeFile(stdoutFile, safe(result.stdout), { mode: 0o600 });
+          // Codex owns this file; sanitize it even when the process failed.
+          if (await exists(last)) await writeFile(last, safe(await readFile(last, 'utf8')), { mode: 0o600 });
+          await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.stderr.txt`), safe(result.stderr), { mode: 0o600 });
+          details = safe(result.stderr);
+          if (result.cleanupUnconfirmed) {
+            await writeFile(path.join(stateDir, 'cleanup-blocked.json'), JSON.stringify({ pid: result.pid, pr: pr.number, round, occurredAt: timestamp(now) }) + '\n', { mode: 0o600 });
+            throw new Error('Codex 超时且进程树清理未确认，后续轮询已阻止，需本机检查');
+          }
+          if (result.timedOut) throw new Error('Codex 超时，已请求终止进程树');
+          if (result.code !== 0) throw new Error(`Codex 退出码 ${result.code}\n${result.stderr}`);
+          try { summary = await readFile(last, 'utf8'); } catch (error) { if (error.code === 'ENOENT') throw new Error('Codex 未输出最后消息'); throw error; }
+          if (!summary.trim()) throw new Error('Codex 最后消息为空');
+          if ((await git(['branch', '--show-current'])).trim() !== pr.headRefName) throw new Error('Codex 改变了 worktree 分支，拒绝提交或推送');
           await git(['merge-base', '--is-ancestor', startSha, 'HEAD']);
-        }
-        commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
-        if (!Number.isSafeInteger(commitCount) || commitCount < 0) throw new Error('提交计数无效');
-        if (commitCount > 0) {
-          const pushArgs = ['push', 'origin', `HEAD:refs/heads/${pr.headRefName}`];
-          const firstPush = await invoke('git', pushArgs, { cwd: worktree });
-          if (firstPush.code !== 0) {
-            await checked('git', fetchArgs, { cwd: config.repoPath });
-            const merged = await invoke('git', ['merge', '--no-edit', remote], { cwd: worktree, env: { SKIP_PROJECT_STATE: '1' } });
-            if (merged.code !== 0) {
-              const aborted = await invoke('git', ['merge', '--abort'], { cwd: worktree });
-              throw new Error(`推送被拒且合并冲突\n${merged.stderr || merged.stdout}\n${aborted.code ? 'merge --abort 失败，请人工检查' : '已 merge --abort'}`);
+          status = /^STATUS: blocked\s*$/.test(summary.split(/\r?\n/, 1)[0]) ? 'blocked' : 'done';
+          const hasChanges = (await git(['status', '--porcelain'])).trim();
+          if (hasChanges) {
+            const proposedMessage = /^COMMIT:[ \t]*([^\r\n]*)/m.exec(summary)?.[1].trim();
+            const commitMessage = proposedMessage && proposedMessage !== '无' ? proposedMessage : `relay: 第 ${round} 轮`;
+            const commitOpts = { cwd: worktree, env: { SKIP_PROJECT_STATE: '1' } };
+            const staged = await invoke('git', ['add', '-A'], commitOpts);
+            const committed = staged.code === 0 && !staged.timedOut
+              ? await invoke('git', ['commit', '-m', commitMessage, '-m', `relay: PR #${pr.number} 第 ${round} 轮`], commitOpts)
+              : staged;
+            if (committed.code !== 0 || committed.timedOut) {
+              details = [committed.stderr, committed.stdout, await git(['status', '--short'])].filter(Boolean).join('\n');
+              throw new Error(`watcher ${staged.code === 0 ? '提交' : '暂存'}失败（退出码 ${committed.code}），不推送`);
             }
-            await git(pushArgs);
+            if ((await git(['status', '--porcelain'])).trim()) {
+              details = await git(['status', '--short']);
+              throw new Error('watcher 提交后仍有未提交改动，不推送');
+            }
+            if ((await git(['branch', '--show-current'])).trim() !== pr.headRefName) throw new Error('提交后 worktree 分支改变，拒绝推送');
+            await git(['merge-base', '--is-ancestor', startSha, 'HEAD']);
           }
+          commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
+          if (!Number.isSafeInteger(commitCount) || commitCount < 0) throw new Error('提交计数无效');
+          if (commitCount > 0) {
+            const pushArgs = ['push', 'origin', `HEAD:refs/heads/${pr.headRefName}`];
+            const firstPush = await invoke('git', pushArgs, { cwd: worktree });
+            if (firstPush.code !== 0) {
+              await checked('git', fetchArgs, { cwd: config.repoPath });
+              const merged = await invoke('git', ['merge', '--no-edit', remote], { cwd: worktree, env: { SKIP_PROJECT_STATE: '1' } });
+              if (merged.code !== 0) {
+                const aborted = await invoke('git', ['merge', '--abort'], { cwd: worktree });
+                throw new Error(`推送被拒且合并冲突\n${merged.stderr || merged.stdout}\n${aborted.code ? 'merge --abort 失败，请人工检查' : '已 merge --abort'}`);
+              }
+              await git(pushArgs);
+            }
+          }
+          sha = (await git(['rev-parse', 'HEAD'])).trim().slice(0, 12);
+          commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
+          files = (await git(['diff', '--name-only', `${startSha}..HEAD`])).trim().split(/\r?\n/).filter(Boolean);
         }
-        sha = (await git(['rev-parse', 'HEAD'])).trim().slice(0, 12);
-        commitCount = Number((await git(['rev-list', '--count', `${startSha}..HEAD`])).trim());
-        files = (await git(['diff', '--name-only', `${startSha}..HEAD`])).trim().split(/\r?\n/).filter(Boolean);
       } catch (error) {
         status = 'failed'; reason = safe(error.message).split(/\r?\n/, 1)[0]; sha = 'none';
         if (!details) details = safe(error.message).split(/\r?\n/).slice(1).join('\n');
       }
       await mkdir(path.join(stateDir, 'logs'), { recursive: true });
       await writeFile(path.join(stateDir, 'logs', `pr-${pr.number}-round-${round}.result.json`), safe(JSON.stringify({ status, sha, startSha, commitCount, files, summary, reason, details, codexSource: codex.codexSource, codexDir: codex.codexDir }, null, 2)) + '\n', { mode: 0o600 });
-      const body = safe(formatReply({ round, status, sha, startSha: startSha.slice(0, 12), commitCount, files, summary, reason, details, summaryMaxChars: config.summaryMaxChars, secrets }));
+      const body = safe(runner
+        ? formatRunnerReply({ round, status, sha, script: runner.script, exitCode: runner.exitCode, output: [summary, details].filter(Boolean).join('\n'), reason, summaryMaxChars: config.summaryMaxChars, secrets })
+        : formatReply({ round, status, sha, startSha: startSha.slice(0, 12), commitCount, files, summary, reason, details, summaryMaxChars: config.summaryMaxChars, secrets }));
       state.comments[comment.id] = { ...state.comments[comment.id], status, sha, finishedAt: timestamp(now), notification: { pending: true, body, reaction: ['done', 'blocked'].includes(status) ? 'rocket' : 'confused' } };
       await saveState(stateFile, state);
       await deliver(comment.id, state.comments[comment.id]);

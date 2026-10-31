@@ -56,6 +56,8 @@ Claude 开 PR 时在描述里写合同，以 `<!-- relay:contract v1 -->` 开头
 | `<!-- relay:to-codex round=N -->` | Claude | 第 N 轮指令。N 从 1 开始连续递增 |
 | `<!-- relay:to-claude round=N status=S sha=X -->` | watcher | 第 N 轮结果。S 为 `done`、`blocked`、`failed`；X 为推送后的 head 短 SHA，失败时为 `none` |
 | `<!-- relay:to-human -->` | Claude 或 watcher | 需要用户决定，正文 @Ritou-Lynx 并写清楚问题和选项 |
+| `<!-- relay:to-runner round=N script=P sha256=H mode=M -->` | Claude | 脚本轮，见下文“脚本轮” |
+| `<!-- relay:to-claude round=N status=S sha=X kind=runner -->` | watcher | 脚本轮结果，正文是脚本输出 |
 | `<!-- relay:done -->` | Claude | 审阅通过，正文 @Ritou-Lynx，列出需要真人做的事 |
 
 `to-codex` 正文格式：
@@ -80,9 +82,20 @@ Claude 开 PR 时在描述里写合同，以 `<!-- relay:contract v1 -->` 开头
 4. watcher 用 Codex 给的提交信息提交工作区改动，推送（不 force），发 `to-claude round=N`，给指令评论加 🚀（成功）或 😕（失败）。
 5. Claude 被唤醒，审阅后发下一轮 `to-codex`、`done` 或 `to-human`。
 
+## 脚本轮
+
+替代“Claude 写 PS5.1 脚本 → 用户手动运行 → 贴回输出”。
+
+- 脚本必须是 PR 分支上已提交的 `tools/relay_scripts/**/*.ps1`；`P` 是相对路径，`H` 是文件字节的 SHA256（小写十六进制）。哈希不符、路径不合规或是符号链接都拒跑。
+- `M=read`：只读（查询状态、读日志、算哈希），watcher 接单后直接运行。`M=write`：会改东西（含生产），watcher 等到用户本人在这条评论上点 👍 才运行，期间发飞书/Bark 提醒一次。
+- watcher 在该 PR 的 worktree 里，以 `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File <脚本>` 运行（Windows PowerShell 5.1），默认 20 分钟超时（`runnerTimeoutMinutes`）。脚本不提交、不推送；留在 worktree 里的改动会被丢弃。脚本的产物写到 worktree 外。
+- 输出（stdout，以及 stderr）脱敏、截断后回帖 `to-claude ... kind=runner`；退出码非零或超时为 `failed`。全文在本机 `.state/logs/`。
+- 脚本轮编号独立于代码轮，不受 4 轮上限约束；同一 PR 一次只执行一条，按评论时间顺序。
+- Claude 永远不给任何评论点 👍（评论和反应都以用户账号发出，watcher 分不出来，👍 只能由用户本人点）。拿不准是否只读的，一律 `write`。
+
 ## 轮数与停止
 
-- 最多 4 轮：第 1 轮执行，第 2–4 轮返修。watcher 拒绝 `round > 4`，并给 PR 加 `relay-needs-human`、发 `to-human`。
+- 代码轮最多 4 轮：第 1 轮执行，第 2–4 轮返修。watcher 拒绝 `round > 4`，并给 PR 加 `relay-needs-human`、发 `to-human`。
 - Codex 回 `blocked`（需要决定）时：Claude 能依合同和仓库规则回答就发下一轮；涉及产品语义、权限、外部影响或用户偏好的，发 `to-human`。
 - 一轮执行中（`to-codex` 已发、`to-claude` 未到）Claude 不推送代码，避免冲突。
 
@@ -92,4 +105,4 @@ Claude 开 PR 时在描述里写合同，以 `<!-- relay:contract v1 -->` 开头
 
 ## 永不
 
-合并 PR、force-push、rebase 他人提交、删除分支、构建或安装 App、碰真实账户或生产执行、处理非白名单作者的评论。
+合并 PR、force-push、rebase 他人提交、删除分支、构建或安装 App、处理非白名单作者的评论。代码轮不碰真实账户或生产；生产操作只能走用户点过 👍 的 `write` 脚本轮。

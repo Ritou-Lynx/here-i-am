@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseInstruction, isEligiblePr, renderPrompt, redact, formatReply, parseNotification, formatNotification } from './relay_core.mjs';
+import { parseRunnerInstruction, formatRunnerReply, parseInstruction, isEligiblePr, renderPrompt, redact, formatReply, parseNotification, formatNotification } from './relay_core.mjs';
 
 test('parseInstruction requires exact first line and safe positive round', () => {
   assert.deepEqual(parseInstruction('<!-- relay:to-codex round=2 -->\nDo it'), { round: 2, instruction: 'Do it' });
@@ -111,4 +111,26 @@ test('formatReply redacts a PEM block before clipping diagnostics', () => {
   const out = formatReply({ round: 5, status: 'failed', reason: 'check', details: pem, summaryMaxChars: 6000 });
   assert.doesNotMatch(out, /SYNTHETIC_SECRET_MATERIAL|-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----/);
   assert.match(out, /\[已隐藏\]/);
+});
+
+test('parseRunnerInstruction accepts only pinned scripts under tools/relay_scripts', () => {
+  const hash = 'a'.repeat(64);
+  assert.deepEqual(parseRunnerInstruction(`<!-- relay:to-runner round=2 script=tools/relay_scripts/n2/check.ps1 sha256=${hash} mode=write -->\n说明`), { round: 2, script: 'tools/relay_scripts/n2/check.ps1', sha256: hash, mode: 'write' });
+  for (const first of [
+    `<!-- relay:to-runner round=1 script=tools/relay_scripts/../maintenance/x.ps1 sha256=${hash} mode=read -->`,
+    `<!-- relay:to-runner round=1 script=tools/other/x.ps1 sha256=${hash} mode=read -->`,
+    `<!-- relay:to-runner round=1 script=tools/relay_scripts/x.cmd sha256=${hash} mode=read -->`,
+    `<!-- relay:to-runner round=1 script=tools/relay_scripts/x.ps1 sha256=${'A'.repeat(64)} mode=read -->`,
+    `<!-- relay:to-runner round=1 script=tools/relay_scripts/x.ps1 sha256=${hash} mode=admin -->`,
+    `<!-- relay:to-runner round=0 script=tools/relay_scripts/x.ps1 sha256=${hash} mode=read -->`,
+    `text first\n<!-- relay:to-runner round=1 script=tools/relay_scripts/x.ps1 sha256=${hash} mode=read -->`,
+  ]) assert.equal(parseRunnerInstruction(first), null, first);
+});
+
+test('formatRunnerReply fences output, redacts secrets and paths, and truncates', () => {
+  const body = formatRunnerReply({ round: 3, status: 'done', sha: 'abc', script: 'tools/relay_scripts/x.ps1', exitCode: 0, output: 'C:\\Users\\me\\x ghp_' + 'z'.repeat(30) + ' ```' + 'y'.repeat(50), summaryMaxChars: 60 });
+  assert.equal(body.split('\n')[0], '<!-- relay:to-claude round=3 status=done sha=abc kind=runner -->');
+  assert.ok(!body.includes('ghp_') && !body.includes('\\Users\\me'));
+  assert.ok(body.includes('部分内容已隐藏或截断'));
+  assert.equal((body.match(/```/g) ?? []).length, 2);
 });
