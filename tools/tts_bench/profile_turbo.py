@@ -17,8 +17,10 @@ import time
 
 os.environ.setdefault("TQDM_DISABLE", "1")  # 关掉 T3 循环里的进度条，避免控制台输出拖慢
 
+import wave
+
+import numpy as np
 import torch
-import torchaudio
 
 SENTENCES = [
     ("short", "Mm, I'm here."),
@@ -175,6 +177,16 @@ class StageTimer:
         m.watermarker.apply_watermark = watermark
 
 
+def save_wav(path, wav, sr):
+    """用标准库写 16 位 wav，避开新版 torchaudio.save 对 torchcodec/FFmpeg DLL 的依赖。"""
+    pcm = (np.clip(wav.squeeze().detach().cpu().numpy(), -1.0, 1.0) * 32767).astype("<i2")
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(int(sr))
+        w.writeframes(pcm.tobytes())
+
+
 def boost_process():
     """只对本进程生效：关掉 Windows 后台节能限速（EcoQoS），优先级调到高。进程退出即失效。"""
     if os.name != "nt":
@@ -187,6 +199,10 @@ def boost_process():
 
     k32 = ctypes.WinDLL("kernel32", use_last_error=True)
     k32.GetCurrentProcess.restype = wintypes.HANDLE
+    k32.SetProcessInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    k32.SetProcessInformation.restype = wintypes.BOOL
+    k32.SetPriorityClass.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    k32.SetPriorityClass.restype = wintypes.BOOL
     h = k32.GetCurrentProcess()
     state = PowerThrottlingState(1, 0x1 | 0x4, 0)  # EXECUTION_SPEED | IGNORE_TIMER_RESOLUTION，StateMask=0 表示不限速
     ok_throttle = k32.SetProcessInformation(h, 4, ctypes.byref(state), ctypes.sizeof(state))  # ProcessPowerThrottling
@@ -217,7 +233,7 @@ def run_variant(m, timer, name, ref, t3_dtype=None, skip_watermark=False):
             results.append(row)
             print(json.dumps({k: v for k, v in row.items() if k != "gpu"}, ensure_ascii=False), flush=True)
             if rep == 0:
-                torchaudio.save(f"prof-{name}-{key}.wav", wav, m.sr)
+                save_wav(f"prof-{name}-{key}.wav", wav, m.sr)
     return results
 
 
