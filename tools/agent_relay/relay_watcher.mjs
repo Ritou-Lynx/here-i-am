@@ -39,7 +39,7 @@ export function run(cmd, args, opts = {}) {
       pendingOutput = pendingOutput.slice(cursor);
       if (safeOutput) output.write(safeOutput);
     };
-    let timedOut = false, timer, finishTimer, cleanup = Promise.resolve(), streamError, settled = false, cleanupUnconfirmed = false;
+    let timedOut = false, timer, finishTimer, exitTimer, cleanup = Promise.resolve(), streamError, settled = false, cleanupUnconfirmed = false;
     output?.on('error', error => { streamError = error; });
     child.stdout.on('data', data => { if (output) { if (secrets.length) flushOutput(decoder.write(data)); else output.write(data); } else chunks.push(data); });
     child.stderr.on('data', data => errors.push(data));
@@ -47,7 +47,7 @@ export function run(cmd, args, opts = {}) {
     const finish = async code => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer); clearTimeout(finishTimer);
+      clearTimeout(timer); clearTimeout(finishTimer); clearTimeout(exitTimer);
       await cleanup;
       if (output && !output.destroyed) {
         if (secrets.length) flushOutput(decoder.end(), true);
@@ -57,6 +57,20 @@ export function run(cmd, args, opts = {}) {
     };
     child.on('error', error => { clearTimeout(timer); output?.end(); reject(error); });
     child.on('close', finish);
+    // Grandchildren (build daemons, MCP servers) can inherit the pipes and keep
+    // 'close' from ever firing after the child itself has exited. After a grace
+    // period, settle on the exit code and best-effort kill what is left.
+    child.on('exit', code => {
+      if (settled || timedOut || opts.cleanupHelper) return;
+      exitTimer = setTimeout(() => {
+        if (settled || timedOut) return;
+        cleanup = killLeftovers(child.pid, errors);
+        cleanup.finally(() => {
+          child.stdin.destroy(); child.stdout.destroy(); child.stderr.destroy();
+          void finish(code);
+        });
+      }, opts.exitGraceMs ?? 30000);
+    });
     if (opts.timeoutMs) timer = setTimeout(() => {
       timedOut = true;
       cleanup = (async () => {
@@ -83,6 +97,22 @@ export function run(cmd, args, opts = {}) {
     }, opts.timeoutMs);
     child.stdin.end(opts.input ?? '');
   });
+}
+// The exited child's descendants: POSIX via its process group, Windows via the
+// orphans' recorded parent PID (children started after the child itself only).
+async function killLeftovers(pid, errors) {
+  if (process.platform !== 'win32') {
+    try { process.kill(-pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') errors.push(Buffer.from(`\n残留进程清理失败：${error.message}`)); }
+    return;
+  }
+  try {
+    const query = `$p = Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}'; Get-CimInstance Win32_Process -Filter 'ParentProcessId=${pid}' | Where-Object { -not $p } | ForEach-Object { $_.ProcessId }`;
+    const listed = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', query], { timeoutMs: 10000, cleanupHelper: true });
+    for (const leftover of listed.stdout.split(/\r?\n/).map(x => x.trim()).filter(x => /^\d+$/.test(x))) {
+      const killed = await run('taskkill.exe', ['/PID', leftover, '/T', '/F'], { timeoutMs: 10000, cleanupHelper: true });
+      if (killed.code !== 0) errors.push(Buffer.from(`\n残留进程 ${leftover} 清理未确认：${killed.stderr}`));
+    }
+  } catch (error) { errors.push(Buffer.from(`\n残留进程清理失败：${error.message}`)); }
 }
 async function exists(file) { try { await access(file); return true; } catch (error) { if (error.code === 'ENOENT') return false; throw error; } }
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (error) { return error.code !== 'ESRCH'; } }

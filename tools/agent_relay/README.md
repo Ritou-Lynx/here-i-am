@@ -151,6 +151,7 @@ codex exec --cd <PR-worktree> --sandbox workspace-write --json --output-last-mes
 ### 执行与恢复边界
 
 - 所有进程调用经可注入 `run(cmd, args, opts)`；业务操作只调用 `gh`、`git`、`codex`。为满足 Windows 超时终止整棵进程树，另使用系统清理辅助 `taskkill.exe /PID <本轮子进程PID> /T /F`，也经过同一 `run`，有独立超时，不使用进程名或通配符。清理无法确认时写入 `.state/cleanup-blocked.json`，只允许补送已有通知，阻止新任务；核验进程树已退出后才能人工移除标记。
+- 子进程已退出但孙进程（构建守护进程、MCP 服务等）仍占着输出管道时，`close` 不会到来。`run` 在 `exit` 后等宽限期（默认 30 秒，`exitGraceMs`）仍无 `close` 就按退出码结算，并尽力清理残留：POSIX 杀进程组；Windows 用 `powershell.exe` 查父 PID 为本轮子进程（且该 PID 已不在用）的孤儿进程，再逐个 `taskkill /T /F`。残留清理失败只写进 stderr，不判本轮失败。
 - 仅使用已确认仓库的 origin，并核对 fetch/push 目标、既有 worktree 的 Git common-dir、分支和仓库根。创建 worktree 不使用会重置已有分支的 `-B`；已有脏改动或领先提交均保留并报告失败。
 - 推送被拒时只尝试一次普通合并和重推，冲突执行 `merge --abort`；永不 force。Codex 非零退出或缺少最后消息不推送；成功轮次的工作区改动由 watcher 提交，暂存或提交失败不推送。
 - 接单先保存 `in_progress`。崩溃或通知失败都不重跑同一评论；执行结果先持久化，失败的回帖/反应在下次轮询补送，不把通知故障当作执行失败。网络中断时已发出的评论可能重复投递，执行仍不会重复。
