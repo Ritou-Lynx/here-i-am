@@ -7,7 +7,10 @@ $cands = @()
 if ($env:LOCALAPPDATA) { $cands += (Join-Path $env:LOCALAPPDATA 'HereIAm\tts-bench') }
 if ($env:USERPROFILE) { $cands += (Join-Path $env:USERPROFILE 'AppData\Local\HereIAm\tts-bench') }
 $cands += @(Get-ChildItem 'C:\Users\*\AppData\Local\HereIAm\tts-bench' -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+# MSIX 打包的桌面 AI 应用写 AppData\Local 会被重定向到 Packages\<应用>\LocalCache\Local
+if ($env:LOCALAPPDATA) { $cands += @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Packages\*\LocalCache\Local\HereIAm\tts-bench') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }) }
 $bench = $cands | Where-Object { Test-Path (Join-Path $_ '.venv\Scripts\python.exe') } | Select-Object -First 1
+if ($bench) { Out-Json @{ step = 'bench-found'; where = $(if ($bench -like '*\Packages\*\LocalCache\*') { 'msix-localcache' } else { 'default' }) } }
 if (-not $bench) {
     # 默认位置没有：在用户目录和各固定盘里浅层查找名为 tts-bench 的目录
     $roots = @()
