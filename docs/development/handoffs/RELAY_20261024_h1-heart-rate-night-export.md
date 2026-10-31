@@ -83,4 +83,10 @@
 - 合并后用户用 v3-lab 重建并覆盖安装 App；第二天早上在设置页看到昨晚的小结，导出一次发给 Claude（或放进项目文件夹）用于对照 COROS。
 
 ## 审核记录
-（待第 1 轮）
+### 第 1 轮（10-24 实现，10-31 提交）：通过
+- 过程：Codex 10-24 17:18 完成（last 文件 `STATUS: done`），但 relay watcher 一直等子进程 `close` 事件，到 60 分钟判超时并写入 cleanup-blocked。核查确认没有残留进程后，用户解除阻断。沙箱写不了 worktree 的 `.git`，10-31 改由 Antigravity 手动提交为 `ee709ea`，只含 8 个允许路径。watcher 的假超时问题另立一项修。
+- 实现：`BleHeartRateNightReport.kt` 纯函数汇总，窗口左闭右开，缺口阈值 >15 秒、缺口秒数为间隔减 1，suspect 不进统计，坏行跳过计数；用 `useLines` 流式读取 D 和 D+1 两个文件；导出前清空目录，失败时删除写了一半的文件。为了能在 JVM 单测里跑（org.json 在单测里是桩），自带了一个严格的小型 JSON 解析器。通道使用独立的后台 executor，结果回主线程，不碰服务的 writer。Store 只把目录规则抽成 `telemetryDirectory`，行为不变。没有改 FileProvider，share_plus 用它自己的分享缓存。
+- 设置页：“夜间记录”区列出最近 7 晚，显示时段、覆盖率、最大缺口、断连次数，没有数据的晚上显示“无记录”；导出时 jsonl 和 csv 两个文件一起分享。分享函数可以注入，方便测试。
+- 验证（Codex 本机）：`:app:testHereIAmV3DebugUnitTest --tests com.memexlab.memex.ble.*` 64/64（原有 50 项，新增 14 项）；flutter analyze 无问题；flutter test 13/13。测试数据都是合成的，没有真实心率、设备地址或本机路径。
+- 小问题（不阻塞）：`malformedLines` 也会统计窗口外的坏行；同一个日期文件会被相邻两晚各读一次。
+- 结论：完成标准全部达标。CI 通过后即可合并。
