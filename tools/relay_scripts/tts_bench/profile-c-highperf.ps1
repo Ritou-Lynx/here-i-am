@@ -13,7 +13,7 @@ if (-not $bench) {
     $kids = if ($hia -and (Test-Path $hia)) { @(Get-ChildItem $hia -Directory | ForEach-Object { $_.Name }) } else { @() }
     $tb = Join-Path $hia 'tts-bench'
     $tbKids = if ($hia -and (Test-Path $tb)) { @(Get-ChildItem $tb -Force | ForEach-Object { $_.Name }) } else { @() }
-    Out-Json @{ step = 'precheck'; ok = $false; error = 'bench_venv_missing'; user = $env:USERNAME; localAppDataSet = [bool]$env:LOCALAPPDATA
+    Out-Json @{ step = 'precheck'; ok = $false; error = 'bench_venv_missing'; isSystem = ($env:USERNAME -eq 'SYSTEM' -or $env:USERNAME -like '*$'); localAppDataSet = [bool]$env:LOCALAPPDATA
         hereIAmDirs = $kids; ttsBenchEntries = $tbKids; candidates = $cands.Count }
     exit 2
 }
