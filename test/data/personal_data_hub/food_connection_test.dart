@@ -58,6 +58,69 @@ class _Transport implements DomainTransport {
       throw const DomainFailure('unexpected_submit');
 }
 
+/// Mirrors Core: an empty cursor is rejected with resync_required, and the
+/// snapshot manifest carries the Core phone principal's own binding.
+class _CoreLikeTransport implements DomainTransport {
+  int acknowledged = 0;
+
+  @override
+  Future<Json> changes(String domain, String? cursor) async {
+    if (cursor == null) throw const DomainFailure('resync_required');
+    return {
+      'next_cursor': '$cursor-next',
+      'policy_version': DomainPolicy.version,
+      'records': <dynamic>[],
+    };
+  }
+
+  @override
+  Future<void> acknowledge(String domain, String cursor,
+      {String? snapshotId}) async {
+    acknowledged++;
+  }
+
+  @override
+  Future<Json> snapshot(String domain,
+      {String? snapshotToken, String? pageToken}) async {
+    final records = <dynamic>[];
+    return {
+      'snapshot_id': 'synthetic-snapshot',
+      'snapshot_token': 'synthetic-snapshot-token',
+      'records': records,
+      'page_digest': domainDigest(records),
+      'next_page_token': null,
+      'has_more': false,
+      'manifest': {
+        'core_instance_id': 'synthetic-core',
+        'domain': domain,
+        'principal_id': foodPhonePrincipalId,
+        'credential_generation': 1,
+        'installation_id': 'food-phone',
+        'view_policy_version': DomainPolicy.version,
+        'namespace': 'production',
+        'snapshot_id': 'synthetic-snapshot',
+        'schema_version': 1,
+        'policy_version': DomainPolicy.version,
+        'created_at': '2026-10-31T00:00:00.000Z',
+        'expires_at': '2999-01-01T00:00:00.000Z',
+        'cut_sequence': 0,
+        'collection_digest': domainDigest(records),
+        'base_watermark': 0,
+        'base_cursor': 'synthetic-base-cursor',
+        'manifest_auth': 'synthetic-auth',
+      },
+    };
+  }
+
+  @override
+  Future<Json> operation(String domain, String opId) =>
+      throw const DomainFailure('unexpected_operation');
+
+  @override
+  Future<Json> submit(String domain, Json intent) =>
+      throw const DomainFailure('unexpected_submit');
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late AppDatabase db;
@@ -82,7 +145,6 @@ void main() {
         credentialStore: credentialStore,
         readConnection: readConnection ?? () async => _connection,
         claim: claim ?? (_) async => _credential(1),
-        readInstallationId: () async => 'synthetic-installation',
         createTransport: createTransport ?? (_, __, ___) => _Transport(),
       );
 
@@ -172,5 +234,38 @@ void main() {
     expect(await credentialStore.read(), isNull);
     expect(hub.storeFor(foodDomainName), isNull);
     expect(connected.status.screenMessage, '尚未连接林埃核心');
+  });
+
+  test('first sync against Core-like snapshot binding completes', () async {
+    final transport = _CoreLikeTransport();
+    final subject = connector(createTransport: (_, __, ___) => transport);
+    await subject.ensureAttached(hub);
+    final attached = hub.storeFor(foodDomainName)!;
+    await hub.syncOnce(foodDomainName);
+    expect(hub.lastSyncErrors[foodDomainName], isNull);
+    await subject.handleSyncResult(hub);
+    expect(subject.status.phase, FoodConnectionPhase.connected);
+    expect(transport.acknowledged, greaterThan(0));
+    final day = await FoodService(store: attached).read(DateTime(2026, 10, 31));
+    expect(day.error, isNull);
+  });
+
+  test('sync failure is shown instead of waiting and does not flip back',
+      () async {
+    final subject = connector(
+        createTransport: (_, __, ___) =>
+            _Transport(failure: 'snapshot_invalid'));
+    await subject.ensureAttached(hub);
+    await expectLater(
+        hub.syncOnce(foodDomainName), throwsA(isA<DomainFailure>()));
+    await subject.handleSyncResult(hub);
+    expect(subject.status.screenMessage, '同步失败（snapshot_invalid），下拉重试');
+    await subject.ensureAttached(hub);
+    expect(subject.status.phase, FoodConnectionPhase.failed);
+    final day = await FoodService(
+            store: hub.storeFor(foodDomainName),
+            connectionError: subject.status.screenMessage)
+        .read(DateTime(2026, 10, 31));
+    expect(day.error, '同步失败（snapshot_invalid），下拉重试');
   });
 }

@@ -54,7 +54,8 @@ class FoodService implements FoodReader {
         return FoodDaySnapshot(date: key, error: '副本需要重新同步');
       }
       if (domain['cursor'] == null) {
-        return FoodDaySnapshot(date: key, error: '等待首次同步');
+        return FoodDaySnapshot(
+            date: key, error: connectionError ?? '等待首次同步');
       }
       final records = await store.visible(foodDomain);
       final entries = <FoodEntry>[];
