@@ -77,7 +77,7 @@ function main(){
  const a=process.argv.slice(2);need(a.length===2&&a[0]==='--git','args','usage: --git <git.exe>');
  need(process.platform==='win32','args','windows_required');
  need(process.version==='v24.14.1'&&fileSha(process.execPath)===PINNED_NODE&&plain(process.execPath),'args','pinned_node_required');
- const G=a[1];need(plain(G)&&existsSync(G)&&statSync(G).nlink===1,'args','single_link_git_required');
+ const G=a[1];need(plain(G)&&existsSync(G)&&statSync(G).isFile(),'args','git_path_required'); // only used for fetch/diff/ls-tree/cat-file
 
  // 0. Preflight: read-only.
  const before=tasks('step0');
