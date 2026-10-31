@@ -9,12 +9,27 @@ if ($env:USERPROFILE) { $cands += (Join-Path $env:USERPROFILE 'AppData\Local\Her
 $cands += @(Get-ChildItem 'C:\Users\*\AppData\Local\HereIAm\tts-bench' -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
 $bench = $cands | Where-Object { Test-Path (Join-Path $_ '.venv\Scripts\python.exe') } | Select-Object -First 1
 if (-not $bench) {
+    # 默认位置没有：在用户目录和各固定盘里浅层查找名为 tts-bench 的目录
+    $roots = @()
+    if ($env:USERPROFILE) { $roots += @{ path = $env:USERPROFILE; depth = 5 } }
+    $roots += @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object { @{ path = $_.DeviceID + '\'; depth = 3 } })
+    foreach ($r in $roots) {
+        $found = Get-ChildItem $r.path -Directory -Recurse -Depth $r.depth -Filter 'tts-bench' -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.FullName '.venv\Scripts\python.exe') } | Select-Object -First 1
+        if ($found) { $bench = $found.FullName; break }
+    }
+    if ($bench) {
+        $where = if ($env:USERPROFILE -and $bench.StartsWith($env:USERPROFILE)) { 'home' } else { 'drive ' + $bench.Substring(0, 2) }
+        Out-Json @{ step = 'bench-found'; where = $where }
+    }
+}
+if (-not $bench) {
     $hia = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'HereIAm' } else { $null }
     $kids = if ($hia -and (Test-Path $hia)) { @(Get-ChildItem $hia -Directory | ForEach-Object { $_.Name }) } else { @() }
     $tb = Join-Path $hia 'tts-bench'
     $tbKids = if ($hia -and (Test-Path $tb)) { @(Get-ChildItem $tb -Force | ForEach-Object { $_.Name }) } else { @() }
     Out-Json @{ step = 'precheck'; ok = $false; error = 'bench_venv_missing'; isSystem = ($env:USERNAME -eq 'SYSTEM' -or $env:USERNAME -like '*$'); localAppDataSet = [bool]$env:LOCALAPPDATA
-        hereIAmDirs = $kids; ttsBenchEntries = $tbKids; candidates = $cands.Count }
+        hereIAmDirs = ($kids -join ','); ttsBenchEntries = ($tbKids -join ','); candidates = $cands.Count }
     exit 2
 }
 $py = Join-Path $bench '.venv\Scripts\python.exe'
