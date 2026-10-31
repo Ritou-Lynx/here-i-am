@@ -71,10 +71,12 @@ function main(){
  const OUT=path.dirname(oldCand);
  const WT=path.join(OUT,'worktree-42ecf688'),TOOLS=path.join(OUT,'tools-42ecf688'),REL=path.join(OUT,'release-42ecf688'),CAND=path.join(OUT,'mcp-candidate-42ecf688'),CFG=path.join(OUT,'n2-pkg-configs'),DRY=path.join(OUT,'n2-c1-dryrun');
  need(plain(OUT)&&existsSync(WT)&&existsSync(TOOLS),'step1','out_layout:worktree_or_tools_missing');
+ // The tools copy may hold tools\i_core\... (repository layout) or the i_core files directly.
+ const TI=existsSync(path.join(TOOLS,'tools','i_core','maintenance'))?path.join(TOOLS,'tools','i_core'):TOOLS;need(existsSync(path.join(TI,'maintenance')),'step1','tools_layout');
  const pf=process.env.ProgramFiles??'';
  const gitCandidates=a.length?[a[1]]:[path.join(pf,'Git','cmd','git.exe'),path.join(pf,'Git','mingw64','bin','git.exe'),path.join(pf,'Git','bin','git.exe')];
  const G=gitCandidates.find(p=>plain(p)&&existsSync(p)&&statSync(p).nlink===1);need(G,'step1','single_link_git_not_found');
- report=path.join(OUT,'n2-step1-report.jsonl');need(!existsSync(report),'step1','report_exists_rename_old_report_first');
+ report=path.join(OUT,'n2-step1-report-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jsonl');
  git(G,WT,['fetch','origin','v3-lab'],'step1');
  need(git(G,WT,['rev-parse','HEAD'],'step1')===S,'step1','worktree_head_not_S');
  need(git(G,WT,['status','--porcelain','--untracked-files=no'],'step1')==='','step1','worktree_dirty');
@@ -87,10 +89,10 @@ function main(){
  emit('step1',true,{git:path.basename(path.dirname(G))+'\\git.exe',S:short(S),diff:4,active:'Running',others:'Disabled',login:short(loginSha),mcp:short(login.mcp_configuration_sha256),backup:short(login.backup_configuration_sha256)});
 
  // 2. Reused tools copy
- const src=path.join(WT,'tools','i_core');const files=walk(TOOLS);need(files.length===TOOLS_FILES,'step2','tools_file_count:'+files.length);
- for(const p of files){const rel=path.relative(TOOLS,p);need(existsSync(path.join(src,rel))&&fileSha(p)===fileSha(path.join(src,rel)),'step2','tools_mismatch:'+rel);}
+ const src=path.join(WT,'tools','i_core');const files=walk(TI);need(files.length===TOOLS_FILES&&walk(TOOLS).length===TOOLS_FILES,'step2','tools_file_count:'+files.length);
+ for(const p of files){const rel=path.relative(TI,p);need(existsSync(path.join(src,rel))&&fileSha(p)===fileSha(path.join(src,rel)),'step2','tools_mismatch:'+rel);}
  need(walk(src).length===TOOLS_FILES,'step2','worktree_tools_count');
- emit('step2',true,{files:TOOLS_FILES,reused:true});
+ emit('step2',true,{files:TOOLS_FILES,reused:true,layout:TI===TOOLS?'flat':'tools\\i_core'});
 
  // 3. New Core package
  if(existsSync(REL)){need(statSync(REL).isDirectory()&&readdirSync(REL).length===0,'step3','release_dir_not_empty');rmdirSync(REL);}
@@ -126,7 +128,7 @@ function main(){
  const reqPath=path.join(OUT,'n2-pkg-request.json');need(!existsSync(reqPath)&&!existsSync(CFG),'step5','step5_output_exists');
  const request={oldLoginPath:loginPath,oldLoginSha256:loginSha,newReleaseDirectory:REL,newManifestSha256:M,outputDirectory:CFG,oldTaskXmlPath:taskEntries[0].source_path,taskName:NEW_TASK,oldTaskName:ACTIVE};
  writeFileSync(reqPath,JSON.stringify(request,null,2)+'\n',{flag:'wx'});
- r=run(process.execPath,[path.join(TOOLS,'maintenance','generate-package-switch-configurations.mjs'),'--input',reqPath,'--input-sha256',fileSha(reqPath)],{step:'step5'});
+ r=run(process.execPath,[path.join(TI,'maintenance','generate-package-switch-configurations.mjs'),'--input',reqPath,'--input-sha256',fileSha(reqPath)],{step:'step5'});
  const gen=lines(r.stdout).pop();need(r.code===0&&gen?.generated===true,'step5','generator:'+(gen?.code??r.code));
  const info=readJson(path.join(CFG,'static-inputs.json'),null,'step5');
  need(info.mcpPath===login.mcp_configuration_path&&info.mcpSha256===login.mcp_configuration_sha256,'step5','mcp_configuration_changed');
@@ -136,9 +138,9 @@ function main(){
  emit('step5',true,{request:short(fileSha(reqPath)),login:short(info.loginSha256),core:short(fileSha(info.corePath)),backup:short(fileSha(info.backupPath)),mcp:short(info.mcpSha256),xml:short(fileSha(info.preparedXml)),receipt:short(fileSha(path.join(CFG,'prepare-receipt.json'))),newReleaseCount:gen.newReleaseCount,preservedLegacyCount:gen.preservedLegacyCount});
 
  // 6. Zero-write checks
- r=run(process.execPath,[path.join(TOOLS,'maintenance','generate-package-switch-evidence.mjs'),'old-task','--task',ACTIVE,'--preview'],{step:'step6'});
+ r=run(process.execPath,[path.join(TI,'maintenance','generate-package-switch-evidence.mjs'),'old-task','--task',ACTIVE,'--preview'],{step:'step6'});
  const ev=lines(r.stdout).pop();need(r.code===0&&ev?.oldTaskStopped===false,'step6','old_task_preview:'+(ev?.code??r.code));
- r=run(process.execPath,[path.join(TOOLS,'maintenance','update-mcp-source.mjs'),'--from-task',ACTIVE,'--candidate',CAND,'--out',DRY,'--new-task',DRY_TASK,'--dry-run'],{step:'step6'});
+ r=run(process.execPath,[path.join(TI,'maintenance','update-mcp-source.mjs'),'--from-task',ACTIVE,'--candidate',CAND,'--out',DRY,'--new-task',DRY_TASK,'--dry-run'],{step:'step6'});
  const c1=lines(r.stdout).find(x=>x.step==='update.result');const c1fail=lines(r.stdout).find(x=>x.ok===false);
  need(r.code===0&&c1?.detail==='dry_run_passed'&&!existsSync(DRY),'step6','c1_dry_run:'+(c1fail?.step??'')+':'+(c1fail?.detail??r.code));
  const after=ps51("ConvertTo-Json -InputObject @(Get-ScheduledTask|Where-Object{$_.TaskName -like 'HereIAm-iCoreSchema6-*'}|ForEach-Object{[pscustomobject]@{name=$_.TaskName;state=[string]$_.State}}) -Compress",{},'step6');
