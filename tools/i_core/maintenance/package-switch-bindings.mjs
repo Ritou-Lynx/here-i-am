@@ -85,7 +85,38 @@ function mcp(c,l,a){
 }
 const taskTemplate='<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>true</Enabled><UserId /></LogonTrigger></Triggers><Principals><Principal id="Owner"><UserId /><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>false</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><Enabled>true</Enabled><Hidden>true</Hidden><UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine><ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings><Actions Context="Owner"><Exec><Command /><Arguments /></Exec></Actions></Task>';
 const escapeXml=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-function task(end,l,a){
+// Task Scheduler re-serializes a cloned definition (C1 update-mcp-source): it adds
+// RegistrationInfo, writes its own defaults, may store the logon trigger user as
+// an account name, keeps the clone disabled and reorders elements. Only the source
+// endpoint may be such an export; every other leaf must still match exactly.
+const schedulerDefaults=new Map([['Settings/RunOnlyIfNetworkAvailable','false'],['Settings/IdleSettings/StopOnIdleEnd','true'],['Settings/IdleSettings/RestartOnIdle','false'],['Settings/AllowStartOnDemand','true'],['Settings/RunOnlyIfIdle','false'],['Settings/DisallowStartOnRemoteAppSession','false'],['Settings/WakeToRun','false'],['Settings/Priority','7']]);
+const xmlText=s=>s.replace(/&(lt|gt|quot|apos|amp);/g,(_,e)=>({lt:'<',gt:'>',quot:'"',apos:"'",amp:'&'})[e]);
+function taskLeaves(xml){
+ const leaves=[],stack=[],re=/<(\/?)([A-Za-z][A-Za-z0-9]*)((?:\s+[A-Za-z:]+="[^"<>]*")*)\s*(\/?)>|([^<]+)/g;let m,at=0;
+ while((m=re.exec(xml))){
+  requireValue(m.index===at,'task_xml_changed');at=re.lastIndex;
+  if(m[5]!==undefined){requireValue(stack.length>0&&stack.at(-1).text===undefined,'task_xml_changed');stack.at(-1).text=xmlText(m[5]);continue;}
+  if(m[1]){const top=stack.pop();requireValue(top?.name===m[2]&&!m[3]&&!m[4],'task_xml_changed');leaves.push([top.path,top.text??'']);continue;}
+  const attrs=[...m[3].matchAll(/([A-Za-z:]+)="([^"]*)"/g)].map(([,k,v])=>k+'='+xmlText(v)).sort().join(',');
+  const node={name:m[2],path:[...stack.map(e=>e.name),m[2]].slice(1).join('/')+(attrs?'['+attrs+']':'')};
+  if(m[4])leaves.push([node.path,'']);else stack.push(node);
+ }
+ requireValue(at===xml.length&&stack.length===0,'task_xml_changed');
+ return leaves.filter(([p])=>p!=='');
+}
+function schedulerExportMatches(xml,expected){
+ const root=x=>x.match(/^<Task(\s[^>]*)>/)?.[1].trim();
+ if(root(xml)!==root(expected))return false;
+ const logonUser='Triggers/LogonTrigger/UserId';
+ const want=taskLeaves(expected).map(([p,v])=>p===logonUser?p+'\0':p+'\0'+v);
+ const have=taskLeaves(xml).filter(([p,v])=>!['RegistrationInfo','RegistrationInfo/URI','RegistrationInfo/SecurityDescriptor'].includes(p)&&!(p==='Settings/IdleSettings'&&v==='')&&schedulerDefaults.get(p)!==v).map(([p,v])=>{
+  if(p==='Settings/Enabled'&&v==='false')return p+'\0true';
+  if(p===logonUser){requireValue(v.length>0&&v.length<=256,'task_xml_changed');return p+'\0';}
+  return p+'\0'+v;
+ });
+ return same([...have].sort(),[...want].sort());
+}
+function task(end,l,a,{schedulerExport=false}={}){
  const ps=path.join(process.env.SystemRoot??'', 'System32','WindowsPowerShell','v1.0','powershell.exe');
  lexical(ps);
  const args=['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',path.join(end.releaseDirectory,'tools/i_core/release_schema6/lifecycle/login_schema6.ps1'),'-ReleaseDirectory',end.releaseDirectory,'-ManifestSha256',end.manifestSha256,'-LoginConfigurationPath',a.login.path,'-LoginConfigurationSha256',a.login.sha256];
@@ -93,7 +124,8 @@ function task(end,l,a){
  const expected=taskTemplate.replaceAll('<UserId />','<UserId>'+escapeXml(l.owner_sid)+'</UserId>').replace('<Command />','<Command>'+escapeXml(ps)+'</Command>').replace('<Arguments />','<Arguments>'+escapeXml(args.map(s=>'"'+s+'"').join(' '))+'</Arguments>');
  let xml=anchored(a.task.path,a.task.sha256).toString('utf8').replace(/^\uFEFF/,'').trim();
  xml=xml.replace(/^<\?xml version="1\.0" encoding="utf-8"\?>\s*/i,'').replace(/>\s+</g,'><');
- requireValue(xml===expected,'task_xml_changed');
+ if(xml===expected)return;
+ requireValue(schedulerExport&&schedulerExportMatches(xml.replace(/^<\?xml version="1\.0" encoding="utf-16"\?>/i,''),expected),'task_xml_changed');
 }
 // The schema4 recovery package is deliberately independent of the active schema6
 // endpoint. Its inventory is the frozen runtime_pin/start_pinned_i_core.ps1 set.
@@ -260,7 +292,7 @@ export function validatePackageSwitchBindings(plan,{fromArtifacts}={}){
   const relocated=oldMcp.executable_path===path.join(plan.from.releaseDirectory,'runtime/node.exe')&&newMcp.executable_path===path.join(plan.to.releaseDirectory,'runtime/node.exe');
   requireValue(oldMcp.executable_path===newMcp.executable_path||relocated,'mcp_runtime_changed');
   requireValue(same(without(oldMcp,['executable_path']),without(newMcp,['executable_path'])),'mcp_program_or_policy_changed');
-  task(plan.from,oldLogin,oldArtifacts);task(plan.to,newLogin,newArtifacts);
+  task(plan.from,oldLogin,oldArtifacts,{schedulerExport:true});task(plan.to,newLogin,newArtifacts);
   const oldBackup=backup(plan.from,oldCore,oldArtifacts,{allowLegacy:true}),newBackup=backup(plan.to,newCore,newArtifacts);
   if(oldBackup.legacy)requireCurrentTarget(plan.to);
   compareBackup(oldBackup.backup,newBackup.backup,plan.from,plan.to,oldArtifacts,newArtifacts,{legacy:oldBackup.legacy});
