@@ -2,15 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:memex/data/services/ble_heart_rate_gateway.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/utils/user_storage.dart';
 
 class HeartRateDeviceSettingsPage extends StatefulWidget {
-  const HeartRateDeviceSettingsPage({super.key, this.gateway, this.userId});
+  const HeartRateDeviceSettingsPage({
+    super.key,
+    this.gateway,
+    this.userId,
+    this.shareNightFiles,
+  });
 
   final BleHeartRateGateway? gateway;
   final String? userId;
+  final Future<void> Function(List<XFile> files)? shareNightFiles;
 
   @override
   State<HeartRateDeviceSettingsPage> createState() =>
@@ -25,6 +32,9 @@ class _HeartRateDeviceSettingsPageState
   Map<String, dynamic> _platformState = const {};
   final Map<String, BleHeartRateDevice> _devices = {};
   List<Map<String, dynamic>> _diagnostics = const [];
+  List<BleHeartRateNightSummary> _nights = const [];
+  String? _nightError;
+  bool _exportingNight = false;
   String? _userId;
   String? _error;
   String _scanState = 'idle';
@@ -79,6 +89,7 @@ class _HeartRateDeviceSettingsPageState
   Future<void> _refresh() async {
     final userId = _userId;
     if (userId == null) return;
+    final nightRefresh = _refreshNights(userId);
     try {
       final values = await Future.wait<dynamic>([
         _gateway.getSnapshot(userId),
@@ -99,6 +110,45 @@ class _HeartRateDeviceSettingsPageState
         _loading = false;
         _error = _friendlyError(error);
       });
+    }
+    await nightRefresh;
+  }
+
+  Future<void> _refreshNights(String userId) async {
+    try {
+      final nights = await _gateway.listNightSummaries(userId);
+      if (!mounted) return;
+      setState(() {
+        _nights = nights;
+        _nightError = null;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _nightError = '夜间记录暂时无法读取，请下拉重试。');
+    }
+  }
+
+  Future<void> _exportNight(BleHeartRateNightSummary night) async {
+    final userId = _userId;
+    if (userId == null || _exportingNight) return;
+    setState(() {
+      _exportingNight = true;
+      _nightError = null;
+    });
+    try {
+      final exported = await _gateway.exportNight(userId, night.night);
+      if (!mounted) return;
+      if (exported == null) throw StateError('export unavailable');
+      final files = [XFile(exported.jsonlPath), XFile(exported.csvPath)];
+      final share = widget.shareNightFiles;
+      if (share != null) {
+        await share(files);
+      } else {
+        await Share.shareXFiles(files);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _nightError = '夜间记录导出或分享失败，请重试。');
+    } finally {
+      if (mounted) setState(() => _exportingNight = false);
     }
   }
 
@@ -265,6 +315,8 @@ class _HeartRateDeviceSettingsPageState
                   _actions(tokens),
                   SizedBox(height: tokens.space24),
                   _scanSection(tokens),
+                  SizedBox(height: tokens.space24),
+                  _nightRecordsSection(tokens),
                   SizedBox(height: tokens.space24),
                   _diagnosticsSection(tokens),
                 ],
@@ -495,6 +547,55 @@ class _HeartRateDeviceSettingsPageState
               ),
       ),
     );
+  }
+
+  Widget _nightRecordsSection(SpringRainUiTokens tokens) {
+    return Column(
+      key: const ValueKey('heart_rate_night_records'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('夜间记录', style: Theme.of(context).textTheme.titleMedium),
+        const Text('每晚 18:00 至次日 12:00 · 最近 7 晚'),
+        if (_nightError != null)
+          _messageCard(
+            tokens,
+            _nightError!,
+            Icons.error_outline_rounded,
+            error: true,
+          ),
+        for (final night in _nights)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(night.night),
+            subtitle: Text(
+              night.samples == 0 ? '无记录' : _nightDescription(night),
+            ),
+            trailing: TextButton(
+              key: ValueKey('heart_rate_export_${night.night}'),
+              onPressed: _exportingNight ? null : () => _exportNight(night),
+              child: const Text('导出'),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _nightDescription(BleHeartRateNightSummary night) {
+    String time(int? ms) {
+      if (ms == null) return '—';
+      final date = DateTime.fromMillisecondsSinceEpoch(ms);
+      return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    }
+
+    final span = night.spanMinutes ?? 0;
+    final coverage = span > 0
+        ? ((night.coveredMinutes ?? 0) * 100 / span).round()
+        : 0;
+    final seconds = night.maxGapSeconds ?? 0;
+    final gap = seconds >= 60
+        ? '${(seconds / 60).toStringAsFixed(1)} 分钟'
+        : '${seconds.round()} 秒';
+    return '${time(night.firstSampleMs)}–${time(night.lastSampleMs)} · 覆盖率 $coverage%\n最大缺口 $gap · 断连 ${night.disconnectEvents} 次';
   }
 
   Widget _diagnosticsSection(SpringRainUiTokens tokens) {

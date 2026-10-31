@@ -154,6 +154,48 @@ class BleHeartRateScanStateEvent extends BleHeartRateGatewayEvent {
   final int count;
 }
 
+class BleHeartRateNightSummary {
+  BleHeartRateNightSummary.fromMap(Map<String, dynamic> map)
+    : night = map['night'] as String? ?? '',
+      windowStartMs = _asInt(map['windowStartMs']),
+      windowEndMs = _asInt(map['windowEndMs']),
+      firstSampleMs = (map['firstSampleMs'] as num?)?.toInt(),
+      lastSampleMs = (map['lastSampleMs'] as num?)?.toInt(),
+      samples = _asInt(map['samples']),
+      suspectSamples = _asInt(map['suspectSamples']),
+      statusEvents = _asInt(map['statusEvents']),
+      disconnectEvents = _asInt(map['disconnectEvents']),
+      gapCount = (map['gapCount'] as num?)?.toInt(),
+      maxGapSeconds = (map['maxGapSeconds'] as num?)?.toDouble(),
+      totalGapSeconds = (map['totalGapSeconds'] as num?)?.toDouble(),
+      coveredMinutes = (map['coveredMinutes'] as num?)?.toInt(),
+      spanMinutes = (map['spanMinutes'] as num?)?.toInt(),
+      bpmMedian = (map['bpmMedian'] as num?)?.toDouble(),
+      bpmMin = (map['bpmMin'] as num?)?.toDouble(),
+      bpmMax = (map['bpmMax'] as num?)?.toDouble(),
+      malformedLines = _asInt(map['malformedLines']);
+
+  final String night;
+  final int windowStartMs, windowEndMs;
+  final int? firstSampleMs, lastSampleMs;
+  final int samples, suspectSamples, statusEvents, disconnectEvents;
+  final int? gapCount, coveredMinutes, spanMinutes;
+  final double? maxGapSeconds, totalGapSeconds, bpmMedian, bpmMin, bpmMax;
+  final int malformedLines;
+}
+
+class BleHeartRateNightExport {
+  BleHeartRateNightExport.fromMap(Map<String, dynamic> map)
+    : jsonlPath = map['jsonlPath'] as String,
+      csvPath = map['csvPath'] as String,
+      summary = BleHeartRateNightSummary.fromMap(
+        _stringMap(map['summary']) ?? const {},
+      );
+
+  final String jsonlPath, csvPath;
+  final BleHeartRateNightSummary summary;
+}
+
 abstract interface class BleHeartRateGateway {
   static BleHeartRateGateway instance = PlatformBleHeartRateGateway();
 
@@ -172,6 +214,11 @@ abstract interface class BleHeartRateGateway {
   Future<BleHeartRateSnapshot> stop(String userId);
   Future<BleHeartRateSnapshot> forget(String userId);
   Future<List<Map<String, dynamic>>> getRecentDiagnostics(String userId);
+  Future<List<BleHeartRateNightSummary>> listNightSummaries(
+    String userId, {
+    int nights = 7,
+  });
+  Future<BleHeartRateNightExport?> exportNight(String userId, String night);
 }
 
 class PlatformBleHeartRateGateway implements BleHeartRateGateway {
@@ -305,6 +352,36 @@ class PlatformBleHeartRateGateway implements BleHeartRateGateway {
         .map(_stringMap)
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
+  }
+
+  @override
+  Future<List<BleHeartRateNightSummary>> listNightSummaries(
+    String userId, {
+    int nights = 7,
+  }) async {
+    if (!_isAndroid) return const [];
+    final value = await _methodChannel.invokeListMethod<dynamic>(
+      'listNightSummaries',
+      {'userId': userId, 'nights': nights},
+    );
+    return (value ?? const [])
+        .map(_stringMap)
+        .whereType<Map<String, dynamic>>()
+        .map(BleHeartRateNightSummary.fromMap)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<BleHeartRateNightExport?> exportNight(
+    String userId,
+    String night,
+  ) async {
+    if (!_isAndroid) return null;
+    final value = await _methodChannel.invokeMapMethod<String, dynamic>(
+      'exportNight',
+      {'userId': userId, 'night': night},
+    );
+    return value == null ? null : BleHeartRateNightExport.fromMap(value);
   }
 
   BleHeartRateGatewayEvent? _decodeEvent(dynamic value) {

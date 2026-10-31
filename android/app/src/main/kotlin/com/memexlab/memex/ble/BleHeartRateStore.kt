@@ -41,6 +41,9 @@ class BleHeartRateStore(private val context: Context) {
         private const val SNAPSHOT_PERSIST_INTERVAL_MS = 30_000L
         private const val WATCHDOG_TOKEN_COUNTER = "connect_watchdog_token_counter"
 
+        internal fun telemetryDirectory(filesDir: File, userKey: String): File =
+            File(filesDir, "ble_heart_rate/$userKey")
+
         fun userKey(userId: String): String {
             val digest = MessageDigest.getInstance("SHA-256")
                 .digest(userId.toByteArray(StandardCharsets.UTF_8))
@@ -416,7 +419,7 @@ class BleHeartRateStore(private val context: Context) {
         val date = LocalDate.now()
         if (writer == null || writerUserKey != userKey || writerDate != date) {
             closeWriterOnIo()
-            val directory = File(context.filesDir, "ble_heart_rate/$userKey")
+            val directory = telemetryDirectory(context.filesDir, userKey)
             directory.mkdirs()
             prune(directory, date)
             writer = BufferedWriter(
