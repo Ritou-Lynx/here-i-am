@@ -11,6 +11,7 @@ abstract final class AppRoutes {
 
   static const String quickCapture = '/quick-capture';
   static const String planning = '/planning';
+  static const String food = '/food';
 
   /// Personal center (settings).
   static const String personalCenter = '/personal-center';

@@ -1,3 +1,42 @@
+## 2026-10-25 D2b 部署与 Sesame 验收
+
+- 从 v3-lab `129ec194`（#64 合并，含 #62 的 N2a 源码，Core 未换）生成候选，六文件哈希与审核一致（server `12fc40a9`、oauth `e2c88aca`、diagnostics `5303ef6d`、writeback `a7a6f95d`，mcp、i_memory_read 不变），切换到 `HereIAm-iCoreSchema6-d2b-mcp-20261025-129ec194`（中断上限约 45 秒，d2a 任务停用保留）。
+- 坑 1：用 Set-Acl 复制对照候选的 ACL，报缺 `SeSecurityPrivilege`（连审计规则 SACL 一起写）。改用 `GetAccessControl('Access')` 加 `SetAccessControl` 只写 DACL 后规则到位，但子目录仍未受保护；写入前再调用 `SetAccessRuleProtection($true, $false)` 才通过。
+- 坑 2：读取策略第一次用 PowerShell 5.1 序列化写回，JSON 被写坏（膨胀到上万行）。按字节恢复备份后，改用 node 解析、只改 `auto_share_origins` 加 `sesame`、自检后写回。以后改生产 JSON 一律用 node。
+- `pair-core --frontend sesame` 配对成功。Sesame 添加 `/mcp`：`/register` 201（`callback_class: sesame`）、`/authorize`、`/token` 200，之后 MCP 请求 200；Sesame 接受 `token_endpoint_auth_method: none` 加 PKCE。
+- 用户真人验收：Sesame 里 `i_context`、`i_chat_turn` 正常，手机 App 能看到这条记录（显示 “Sesame” 要等 App 重建）。
+
+## 2026-10-25 D2a 部署；D2b：接入 Sesame 前端（PR #64）
+
+- D2a（#55）部署：从 v3-lab `84980161` 生成候选，切换到 `HereIAm-iCoreSchema6-d2a-mcp-20261024-84980161`（中断上限约 41 秒，d4 任务停用保留）。第一次登记报 `protected_root_required`：候选根目录是受保护的，但 `runtime` 及其两个子目录继承了父目录 ACL；照 D4 候选对应目录的 ACL 补上后通过。部署提示词已改为逐级保护子目录。
+- 用户在 Sesame 重新添加 `/mcp` 后，诊断记录 `callback_shapes: ['https://sesameai.app/api/oauth/external-mcp/callback']`（主机名由用户确认），`ua_family: python-httpx`。
+- D2b 合同 docs/development/handoffs/RELAY_20261025_d2b-sesame-frontend.md，照搬 D4：精确回调、`sesame` 身份、开关 `I_REMOTE_MCP_SESAME_ENABLED`（未设即开）、独立凭据、工具集与 Antigravity 相同、App 来源标签“Sesame”，构建器 `SESAME_PATCHES` 排在 SESAME_PROBE 与 FOOD 之间。
+- 第 1 轮（d16b5ed）实现完整，但 3 项旧测试把 `sesame` 当作“未知前端”夹具，现在它成了已知前端，这几项失败。Claude 把夹具名改成 `unknown_frontend`，并在 callback_shape 测试的分类表里加上 sesame。云端 263/263；候选 6 个文件、`changed_files: 5`。
+- 风险：本服务只签发 `token_endpoint_auth_method: none` 并要求 PKCE；Sesame 是服务端发起 OAuth，能否接受要到验收时才知道。
+
+## 2026-10-24 S1：床头哨兵 App（PR #58）
+
+- 催睡来电改走摄像头方案：闲置小米手机放在床头，本机判断用户是否还醒着，醒着就通过 ntfy 推送到三星，三星“模式与例程”再拉起 Sesame（Call Charlie）。用户白天实拍两张，屏幕冷光和睁眼、闭眼都看得清。
+- 合同 docs/development/handoffs/RELAY_20261024_s1-bed-watch-camera.md。新增独立工程 `tools/bed_watch_android/`（Kotlin，CameraX + bundled ML Kit）：每 60 秒分析一帧，最近 4 帧里有 3 帧醒着就推送一次，之后冷却 10 分钟；可开“今晚放行”。图像不写盘、不上传，日志只记 7 个数字字段。
+- relay 4 轮。前 3 轮被拦下，都是环境或平台问题，每次都改了合同：协议规定 relay 里不能构建 APK，改成只跑 JVM 单测；PATH 上没有 gradle，改用本机缓存的 Gradle 8.14；缺 java，只在当前进程里把 JAVA_HOME 指向 Android Studio 的 JBR；Android 15 不允许开机直接启动相机前台服务，改成开机只发一条“点一下恢复监测”的通知。第 4 轮交付了 22 个文件。
+- 本机联网编译第一次失败：预览页里的字段名 `overlay` 和 ViewGroup 的 `overlay` 属性重名，被后者遮蔽，Claude 改名为 `readout`（181e2d0）。云端用 Robolectric 提供的框架 jar 复现了这个错误，修复后编译通过。用户本机随后 `testDebugUnitTest assembleDebug` 成功，36/36，debug APK 约 48 MB，未安装。
+- 已知限制：在监测窗口里相机一直开着，只是每 60 秒取一帧，整夜可能发热，真机试跑后再看要不要改成按次开相机。云端无法访问 Google Maven，CameraX 和 ML Kit 部分只能在用户本机编译。
+
+## 2026-10-24 D2a：诊断记录未知 OAuth 回调形状（PR #55，探测 Sesame）
+
+- 起因：催睡来电方案（Here I Am 判断没睡 → 三星例程拉起 Sesame）要让 Sesame 经 i MCP 拿上下文。用户在 Sesame 添加 `/mcp`，现役日志显示 Sesame（python-httpx）走标准 DCR，但 `/register` 400、`callback_class: other`。Sesame 没有公开回调地址。
+- 合同 docs/development/handoffs/RELAY_20261024_d2a-sesame-callback-probe.md，经 relay 由 Codex 实现（2 轮）。`diagnostics.mjs` 新增 `callbackShape`：只记协议、主机、端口与路径段形状，非单词段记 `{长度}`，query/fragment 只记占位；仅 `other` 类注册写 `callback_shapes`。注册、白名单、OAuth 行为不变。
+- 第 1 轮 blocked：Gemini 测试旧断言禁止日志出现未知回调的主机与路径；第 2 轮按新口径放开这一处，其余脱敏断言保留。
+- 云端 245/245；候选六文件、改动 5 个，只有 diagnostics 结果变化。未部署。
+
+## 2026-10-24 N1：食物记录源码（PR #59，默认关闭）
+
+- 用户想在 Claude / ChatGPT / Antigravity 发食物照片或描述，由前端模型识图估算，写进 Here I Am。设计稿已和用户定完 10 点：照片不经服务端、不留存；数据源零操作（个人库、营养标签、菜谱拆解、USDA 兜底）；Gemini 不给。
+- 发现个人数据中枢领域在生产上从未启用，所以 N1 只做源码。用户选“走数据中枢，食物作为首个上线领域”，上线另立 N2。
+- 合同 docs/development/handoffs/RELAY_20261024_n1-food-log.md，3 轮（第 3 轮修 Flutter 新测试的 4 项失败）。第 1 轮 blocked：引擎要求 delete 为第 3 级 actor，前端写入用的是 `agent_inferred`；裁决不改 Core，撤销改为 patch `voided:true`。
+- 新增 `tools/i_core/food_domains.mjs`（`food_entries` 领域，合计由 Core 校验）、MCP `food_log`/`food_day`（可选 `food` 配置块，独立令牌，本地 04:00 日界）、App 只读“饮食”今日页（生活空间新 tab）。构建器加只作用于 mainline 的补丁组，六文件候选与 `48bd91e` 逐字节一致。
+- 云端复核：Node 全量 677 项，新增测试全过；11 项失败（PowerShell/SMTP、activity 并发计时）在 v3-lab 基线上同样存在。CI 全绿（`6e79b02`）。
+
 ## 2026-10-24 F1：飞书学习导师（PR #51）
 
 - 先实测（用户本机，lark-cli 1.0.98）：个人或豆包账号下的自建应用授权被平台拦截（21001）。改在自建的免费团队租户里后，文档 Markdown 往返、多维表格增改、筛选、建视图都能做。计划任务调用 CLI 只有在 danger-full-access 下才能跑通（DPoP 在 restricted token 下报 20140）。结论写进 docs/reference/FEISHU_NOTES_RESEARCH_20261021.md 第 10 节。

@@ -234,6 +234,7 @@ Node 22 的 `node --test <目录>` 不会展开目录（会把目录当模块执
 每个完成的 HTTP 请求产生 `http_request`；每条实际经过 RPC 处理器的消息另产生 `mcp_rpc`。每行都有 `timestamp`（UTC ISO 8601）、`method`、`path`、`status`、`ua_family`、`origin`。UA 只保留固定家族：`claude`、`edge`、`firefox`、`chromium`、`safari`、`curl`、`node`、`python-httpx`、`python-requests`、`other` 或 `absent`；客户端可伪造 UA，因此家族不能证明来源。
 
 - GET `/authorize` 额外记录 `callback` / `resource`；只保留已知 Claude callback 和本服务 resource（保留尾斜杠差异），去除账号、密码、query 和 fragment。Origin 仅保留已知 Claude 或本服务来源。未知 URL（包括额外配置的 callback）统一为 `[redacted]`，缺失为 `null`。它们用于判断是否带参和已知端点是否匹配，不回显任意外部 URL。
+- POST `/register` 仅在 `callback_class: other` 时记录 `callback_shapes`：保留协议、小写主机、非默认端口及符合 `^[a-z][a-z_-]{0,31}$` 的路径段，其他非空段仅记 `{长度}`、空段保留，query/fragment 仅记 `?{q}` / `#{f}`；拒绝非 HTTP(S)、账号密码、超长主机或超过 20 段的路径，过滤无效形状后去重保序且最多 8 项，不记录原始回调。
 - `mcp_rpc` 只记录白名单 `rpc_method` / `tool`、`outcome`（`success`、`error`、`no_response`）及必要的固定 `error_code`。未知方法或工具名为 `other`；JSON-RPC 错误为白名单数值码，工具错误为 `tool_error` 或 `data_source_unavailable`。HTTP 拒绝发生在 RPC 处理前时仅有 HTTP 状态，不能算作工具执行。
 - 不记录原始 UA、Authorization / Cookie / session 头、请求 ID、IP、口令、授权码、token、其他 query、body、工具参数或结果内容、原始异常。未知 HTTP 路径和方法也替换为固定标签。旧 `log` 回调仍可接收脱敏的 method/path/status；不再接收异常正文。
 - 日志基于响应 `finish`，说明本服务完成了响应写入，不代表远端客户端已接收或用户已验收；中途断开且未完成的响应不产生日志。诊断回调报错不会改变 MCP/OAuth 响应。落盘失败仅报告 `diagnostic_write_failed`，不输出路径或系统异常。每日分文件不自动删除旧日志。
@@ -261,3 +262,42 @@ const { server } = createApp({
 Core captures 模式的 `plan_reads` 继续使用独立只读凭据。除 `plan_weeks:read`、`plan_days:read` 外，可明确授予 `plan_items:read`；该凭据仍不能写规划或读取 captures/chat。`day_get` 单记录和分页结果会在原始 day/queues 外返回 `item_titles`（ID → title/revision）及 `item_title_issues`。缺事项权限、已删除或暂不可读的事项明确报问题，不猜标题。最多解析500个不同ID，保留原队列ID；事项标题是各自当前版本，不是跨领域原子快照。网页端不因此开放 `plan_list` 或规划写工具。
 
 仅提交/合入源码不会修改现役 MCP、启用 Core captures 或签发生产凭据。按部署前审计的 D3，真实增改删闭环验收前继续保留47862记事桥，移交时只启用一个消费者。
+
+## 食物记录（N1，源码默认关闭）
+
+`food_log` / `food_day` 仅在显式配置 `food` 块后加入 mainline 网页工具；Claude、ChatGPT、Antigravity 可见，Gemini 不开放。未配置时工具清单保持原状。配置沿用 Core domain 配置入口，`food` 格式如下（占位值不是凭据）：
+
+```json
+{"food":{"token":"<独立食物领域令牌>","scopes":["food_entries:read","food_entries:create","food_entries:patch"],"time_zone":"Asia/Shanghai"}}
+```
+
+令牌必须与 captures 的 `token` 和 `plan_reads.token` 不同。scope 仅允许上面三种的子集；读取需要 read，写工具同时需要 read 和 create/patch。时区默认 Asia/Shanghai，本地 04:00 划分记录日；`food_day` 的 date 可查其他日期。
+
+照片由前端模型直接识别，不通过 MCP 上传或保存。逐项给食物、克数范围、热量和三大营养素；炒菜将烹调油单列，参照物写 note。不确定标 low，不编数。估值用 source=model，拍到营养标签用 source=label、basis=label。MCP 计算 local_date 与 totals，调用方不能覆盖这些字段或 actor。写后告知结果和今日累计，并请用户纠正。
+
+`food_log` 接受 add/update/void；每个新意图使用不同 UUID op_id，重试保留原样。update/void 带 base_revision；void 仅 patch voided=true，日累计与 App 隐藏该条。MCP 使用 agent_inferred，不能覆盖用户在 App 更正并锁定的字段。生成的意图时间在当前进程缓存中保持不变；缓存丢失且 Core 已存在该 op 时返回 food_retry_state_unavailable，不自动重建或重新写入。
+
+本阶段仅新增领域源码与合成测试；没有注册生产领域、创建真实凭据或打开手机同步。六文件候选仍排除领域工具，输出与 N1 前逐字节相同。生产上线属于另行授权的 N2。
+
+### 生产候选（N2b）
+
+生产用的六文件候选不读 `food` 配置块，改为读 MCP `stateDir` 下的 `core-food.json`（格式 `core-food-v1`）。这个文件由下面的管道写入，令牌只走 stdin：
+
+```
+powershell -NoProfile -File tools/i_core/maintenance/provision-food-domain.ps1 -TaskName <登录任务> | node <候选>/runtime/i_remote_mcp/server.mjs set-food-credential --state-dir <MCP state> --core-url <Core 地址>
+```
+
+- 只保存写入令牌，并绑定 Core `/v1/core/health` 返回的 `node_id`；手机令牌被忽略。
+- 没有写入令牌时报 `food_writer_token_missing`，需要用 `-Rotate writer` 重新发出。
+- `serve` 启动时严格校验这个文件，不合法就报 `invalid_food_credential` 并拒绝启动；文件不存在时与旧行为相同。
+- 写入后要重启 MCP 会话。Claude、ChatGPT、Antigravity 能看到 `food_log` 和 `food_day`，Gemini 和 Sesame 看不到。
+
+## Sesame（D2b）
+
+仅接受精确回调 `https://sesameai.app/api/oauth/external-mcp/callback`，拒绝回调变体和与其他前端混合注册。不新增允许的 Origin；Sesame 预期从服务端发起请求。
+
+`I_REMOTE_MCP_SESAME_ENABLED` 未设置或为 `1` 时开启，`0` 关闭，其他值启动时报 `invalid_sesame_mode`。关闭后拒绝注册、授权、授权码换令牌、refresh 和既有令牌使用。OAuth 保持 public client（`token_endpoint_auth_method: none`）与 PKCE S256；真实 Sesame 是否兼容仍需另行验收。
+
+`pair-core --frontend sesame` 使用独立设备 `frontend:sesame` 与凭据文件 `core-frontend-sesame.json`；不会借用其他前端凭据。写回开启且缺少 Sesame 配对时，`i_chat_turn` 返回 `frontend_not_paired:sesame`。工具范围为 `i_context`、`i_recall`、`i_chat_turn` 及已配置的只读 `week_get`、`day_get`，不开放 `capture_add` 或 `i_remember`。
+
+诊断使用固定 `callback_class: sesame`，不记录该回调的 `callback_shapes` 或原文。App 聊天来源显示为 Sesame。源码接入与合成测试不代表已配对、部署或完成真实前端验收。

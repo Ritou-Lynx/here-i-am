@@ -16,6 +16,7 @@ import {
 import { ACTIVITY_MAX_REQUEST_BYTES } from './activity_control_plane.mjs';
 import { createDomainRequestHandler } from './domain_http.mjs';
 import { createInspectionReadOnlyCore, isInspectionDatabasePath } from './inspection_read_only.mjs';
+import { claimFoodPhoneCredential } from './personal_data_domains.mjs';
 import {
   SHORTCUT_WORKFLOW,
   ShortcutMailRelayError,
@@ -355,6 +356,37 @@ export function createICoreServer({
       const domainPath = (request.url ?? '').split('?')[0];
       if (domainPath === '/v1/core/domains' || domainPath.startsWith('/v1/core/domains/')) {
         await handleDomainRequest(request, response);
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/core/food/phone-credential') {
+        const device = requireDevice(request, store);
+        if (device.platform !== 'android' || isExternalFrontendDevice(device)
+          || device.device_id.startsWith('frontend:')) {
+          throw new CoreStoreError('phone_device_required', 'An Android phone device is required.', {status: 403});
+        }
+        let body;
+        try {
+          body = await readJson(request, 1024);
+        } catch (error) {
+          if (error?.code === 'request_too_large') {
+            throw new CoreStoreError('invalid_request', 'Request body must not exceed 1024 bytes.');
+          }
+          throw error;
+        }
+        if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 0) {
+          throw new CoreStoreError('invalid_request', 'Request body must be an empty object.');
+        }
+        if (!store.domains) {
+          throw new CoreStoreError('food_not_provisioned', 'Food sync is not provisioned.', {status: 503});
+        }
+        try {
+          json(response, 200, claimFoodPhoneCredential(store.domains));
+        } catch (error) {
+          if (error?.code === 'food_not_provisioned') {
+            throw new CoreStoreError('food_not_provisioned', 'Food sync is not provisioned.', {status: 409});
+          }
+          throw error;
+        }
         return;
       }
       if (request.method === 'POST' && url.pathname === '/v1/core/activity/probes/pair') {

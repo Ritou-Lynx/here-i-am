@@ -76,6 +76,14 @@ export async function check(config) {
   }
 }
 
+function sourceUrl(value) {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && /^\/(docx|wiki)\//u.test(url.pathname);
+  } catch { return false; }
+}
+
 async function pull(config, state) {
   await check(config);
   const records = await readTable(config, 'ledger');
@@ -85,9 +93,12 @@ async function pull(config, state) {
   if (config.sources !== undefined && !Array.isArray(config.sources)) fail('config_invalid');
   for (const source of config.sources || []) {
     if (!object(source) || typeof source.title !== 'string' || !source.title.trim() || typeof source.doc !== 'string') fail('config_invalid');
+    // Optional share link so the tutor can cite a clickable source; same shape
+    // the ledger 来源 field accepts.
+    if (source.url !== undefined && !sourceUrl(source.url)) fail('config_invalid');
     const data = await callCli(config, 'doc_fetch', { doc: source.doc });
     if (typeof data?.document?.content !== 'string') fail('cli_invalid_response');
-    sources.push({ title: source.title, document: data.document });
+    sources.push({ title: source.title, ...(source.url ? { url: source.url } : {}), document: data.document });
   }
   // No valid local snapshot is touched until all remote reads have completed.
   const pulled_at = new Date().toISOString();

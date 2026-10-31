@@ -47,17 +47,42 @@ for (const [failedStep, expectedSteps, exit] of [
   }
   const codex=calls.find(c=>c.step==='codex');
   if(codex) {
+    assert.ok(codex.args.includes('--skip-git-repo-check'));
+    assert.match(codex.args[codex.args.indexOf('-o')+1],/[\\/]logs[\\/]codex-last-\d{8}-\d{6}-\d+\.md$/u);
     assert.equal(codex.args[codex.args.indexOf('-s')+1],'workspace-write');
     assert.equal(codex.args[codex.args.indexOf('-C')+1],study);
     assert.equal(codex.args[codex.args.indexOf('-m')+1],'TEST_MODEL');
     assert.ok(codex.args.includes('sandbox_workspace_write.network_access=false'));
-    assert.equal(codex.args.at(-1),'出今天的学习单');
+    assert.equal(codex.args.at(-1),'定时运行（无人值守）：出今天的学习单');
   }
   const files=(await readdir(path.join(study,'logs'))).filter(n=>n.endsWith('.log'));
   assert.equal(files.length,1);
   const status=await readFile(path.join(study,'logs',files[0]),'utf8');
   assert.ok(!status.includes('synthetic stderr'));
   assert.ok(status.includes(failedStep==='none'?'daily_done':failedStep+'_failed:'+exit));
+});
+
+test('PS 5.1 resolves a bare name to the .cmd when npm also installs an extensionless script',{skip:process.platform!=='win32'},async t=>{
+  const root=await mkdtemp(path.join(tmpdir(),'feishu-daily-'));
+  t.after(async()=>{assert.equal(path.dirname(root),path.resolve(tmpdir()));await rm(root,{recursive:true,force:true});});
+  const study=path.join(root,'study'),tool=path.join(root,'tool'),bin=path.join(root,'bin'),config=path.join(tool,'config.json');
+  await mkdir(study);await mkdir(tool);await mkdir(bin);await writeFile(config,JSON.stringify({model:'TEST_MODEL'}));
+  const script=path.join(root,'fake.mjs');await writeFile(script,fakeDaily);
+  for(const role of ['node','codex']) {
+    await writeFile(path.join(bin,`fake-${role}.cmd`),`@echo off\r\n"${process.execPath}" "${script}" ${role} %*\r\nexit /b %errorlevel%\r\n`);
+    await writeFile(path.join(bin,`fake-${role}`),'#!/bin/sh\nexit 99\n');
+  }
+  const log=path.join(root,'calls.jsonl');await writeFile(log,'');
+  const code=`& ${quotePS(runner)} -StudyDirectory ${quotePS(study)} -ConfigPath ${quotePS(config)} -NodeExecutable 'fake-node' -CodexExecutable 'fake-codex'\nexit $LASTEXITCODE`;
+  const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,TEST_DAILY_LOG:log,TEST_DAILY_PULL_EXIT:'0',TEST_DAILY_CODEX_EXIT:'0',TEST_DAILY_PUSH_EXIT:'0'};
+  const actual=await new Promise((resolve,reject)=>{
+    const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(code,'utf16le').toString('base64')],{env,shell:false});
+    let stderr='';child.stdout.resume();child.stderr.setEncoding('utf8');child.stderr.on('data',s=>stderr+=s);
+    child.once('error',reject);child.once('close',exit=>resolve({exit,stderr}));
+  });
+  assert.equal(actual.exit,0,actual.stderr);
+  const calls=(await readFile(log,'utf8')).trim().split('\n').filter(Boolean).map(v=>JSON.parse(v));
+  assert.deepEqual(calls.map(c=>c.step),['pull','codex','push']);
 });
 
 for(const layout of ['same','tool_inside_study','study_inside_tool']) test(`PS 5.1 rejects overlapping directories: ${layout}`,{skip:process.platform!=='win32'},async t=>{
@@ -75,6 +100,25 @@ for(const layout of ['same','tool_inside_study','study_inside_tool']) test(`PS 5
   });
   assert.equal(actual.exit,1);assert.match(actual.stderr,/daily_layout_invalid/u);
   assert.ok(!(await readdir(study)).includes('logs'));
+});
+
+test('PS 5.1 logs the reason when pending outbox blocks the run',{skip:process.platform!=='win32'},async t=>{
+  const root=await mkdtemp(path.join(tmpdir(),'feishu-daily-'));
+  t.after(async()=>{assert.equal(path.dirname(root),path.resolve(tmpdir()));await rm(root,{recursive:true,force:true});});
+  const study=path.join(root,'study'),tool=path.join(root,'tool'),config=path.join(tool,'config.json');
+  await mkdir(path.join(study,'state','outbox'),{recursive:true});await mkdir(tool);
+  await writeFile(config,JSON.stringify({model:'TEST_MODEL'}));
+  await writeFile(path.join(study,'state','outbox','left-over.json'),'{}');
+  const code=`& ${quotePS(runner)} -StudyDirectory ${quotePS(study)} -ConfigPath ${quotePS(config)} -NodeExecutable 'must-not-run' -CodexExecutable 'must-not-run'\nexit $LASTEXITCODE`;
+  const actual=await new Promise((resolve,reject)=>{
+    const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(code,'utf16le').toString('base64')],{shell:false});
+    let stderr='';child.stdout.resume();child.stderr.setEncoding('utf8');child.stderr.on('data',s=>stderr+=s);
+    child.once('error',reject);child.once('close',exit=>resolve({exit,stderr}));
+  });
+  assert.equal(actual.exit,1);
+  const files=(await readdir(path.join(study,'logs'))).filter(n=>n.endsWith('.log'));
+  assert.equal(files.length,1);
+  assert.equal((await readFile(path.join(study,'logs',files[0]),'utf8')).replace(/^\uFEFF/u,'').trim(),'daily_failed:daily_pending_outbox');
 });
 
 test('subject template is byte-identical and voice rules change only the contracted passages',async()=>{

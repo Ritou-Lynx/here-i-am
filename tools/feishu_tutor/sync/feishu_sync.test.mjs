@@ -52,7 +52,11 @@ if (command === '+record-batch-update') {
 if (command === '+fetch') data = {document:{document_id:'TEST_SOURCE',content:'# 语法\n原始资料'}};
 if (command === '+create' || command === '+update') data = {document:{document_id:'TEST_CREATED_DOC'},warnings:[]};
 fs.writeFileSync(process.env.TEST_FEISHU_STORE, JSON.stringify(store));
-process.stdout.write(JSON.stringify({ok:!store.bad_ok,identity:store.bot?'bot':'user',data}));
+const identity = store.bot ? 'bot' : 'user';
+// Mirrors CLI 1.0.98: whoami has no ok field and record-list prints its manifest.
+if (command === 'whoami') process.stdout.write(JSON.stringify({identity,available:!store.unavailable}));
+else if (command === '+record-list') process.stdout.write(fs.readFileSync(path.basename(flag('--output'),'.ndjson')+'.manifest.json','utf8'));
+else process.stdout.write(JSON.stringify({ok:!store.bad_ok,identity,data}));
 `;
 const ledgerFields = { 知识点: 'て形', 科目: '日语', 来源: '[语法](https://example.invalid/docx/note)',
   掌握度: '未学', 最近结果: '不会', 连对: 0, 错次: 1, 上次练习: '2026-10-23', 下次复习: '2026-10-24', 备注: '待复习' };
@@ -85,6 +89,7 @@ async function fixture(t) {
   const f = {
     root, tool, configFile, config, store, env,
     async storeSave() { await writeFile(storeFile,JSON.stringify(store)); },
+    async configSave() { await writeFile(configFile,JSON.stringify(config)); },
     async savedStore() { return JSON.parse(await readFile(storeFile,'utf8')); },
     async put(name, action) { await writeFile(path.join(root,'state','outbox',name),JSON.stringify(action)); },
     async calls() { return (await readFile(log,'utf8')).trim().split('\n').filter(Boolean).map(l=>JSON.parse(l)); },
@@ -235,6 +240,18 @@ test('pull reads all three tables and sources; paginates and filters inbox', asy
   assert.equal(writes(await f.calls()).length,0);
 });
 
+test('pull carries an optional https source url into sources.json',async t=>{
+  const f=await fixture(t);f.config.sources=[{title:'语法',doc:'TEST_SOURCE',url:'https://example.invalid/docx/placeholder'},{title:'无链接',doc:'TEST_SOURCE'}];await f.configSave();
+  assert.equal((await f.run('pull')).exit,0);
+  const sources=JSON.parse(await readFile(path.join(f.root,'state','sources.json'),'utf8')).sources;
+  assert.equal(sources[0].url,'https://example.invalid/docx/placeholder');assert.ok(!Object.hasOwn(sources[1],'url'));
+});
+for(const url of ['http://example.invalid/docx/x','https://example.invalid/sheets/x','https://u:p@example.invalid/docx/x',42]) test(`pull rejects a bad source url: ${url}`,async t=>{
+  const f=await fixture(t);f.config.sources=[{title:'语法',doc:'TEST_SOURCE',url}];await f.configSave();
+  assert.equal((await f.run('pull')).exit,1);
+  await assert.rejects(readFile(path.join(f.root,'state','sources.json')));
+});
+
 test('all five actions succeed; exact UTF-8 @file bytes and done archives survive', async t => {
   const f=await fixture(t);assert.equal((await f.run('pull')).exit,0);await f.clearLog();
   const text='# 学习单 2026-10-24 日语\r\n中文「引号」 "quote" $HOME `literal`\n下一行';
@@ -342,9 +359,9 @@ for(const mode of ['bad_offset','changed_rev','bad_count']) test(`pull rejects i
   f.store.page_size=1;f.store.rows.ledger.push({...sourceRow,record_id:'recTwo'});f.store[mode]=true;await f.storeSave();
   assert.equal((await f.run('pull')).exit,1);assert.deepEqual(await readFile(path.join(f.root,'state','ledger.json')),before);
 });
-for(const change of ['bot','bad_ok','field_type','option','missing_field','multiselect']) test(`check fails closed: ${change}`,async t=>{
+for(const change of ['bot','unavailable','bad_ok','field_type','option','missing_field','multiselect']) test(`check fails closed: ${change}`,async t=>{
   const f=await fixture(t);
-  if(['bot','bad_ok'].includes(change))f.store[change]=true;
+  if(['bot','unavailable','bad_ok'].includes(change))f.store[change]=true;
   if(change==='field_type')f.store.fields.ledger[0].type='number';
   if(change==='option')f.store.fields.ledger.find(v=>v.name==='掌握度').options=[];
   if(change==='missing_field')f.store.fields.practice.pop();

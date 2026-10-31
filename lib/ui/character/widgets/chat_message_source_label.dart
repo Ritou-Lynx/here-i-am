@@ -6,6 +6,7 @@ const Map<String, String> _knownChatSources = {
   'frontend:chatgpt_web': 'ChatGPT',
   'frontend:gemini_web': 'Gemini',
   'frontend:antigravity': 'Antigravity',
+  'frontend:sesame': 'Sesame',
 };
 
 /// Resolves only exact, case-sensitive device provenance. Empty frontend IDs
@@ -20,6 +21,10 @@ String? chatSourceLabelFor(String? originDeviceId) {
   }
   return null;
 }
+
+/// Reuses the exact chat provenance mapping for other read-only replica views.
+String? foodSourceLabelFor(String? originDeviceId) =>
+    chatSourceLabelFor(originDeviceId);
 
 /// Presentation-only provenance, kept outside message contents and selection.
 class ChatMessageSourceLabel extends StatelessWidget {

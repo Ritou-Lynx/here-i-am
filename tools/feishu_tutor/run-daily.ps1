@@ -12,7 +12,11 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding
 function Invoke-DailyStep {
     param([string]$Executable, [string[]]$CommandArguments)
-    $resolvedExecutable = Get-Command $Executable -CommandType Application -ErrorAction Stop
+    # npm puts both codex.cmd and an extensionless shell script on PATH, and
+    # Get-Command returns both. Take the first Windows-runnable match only.
+    $resolvedExecutable = @(Get-Command $Executable -CommandType Application -ErrorAction Stop |
+        Where-Object { $_.Extension -in @('.exe', '.cmd', '.bat', '.com') }) | Select-Object -First 1
+    if ($null -eq $resolvedExecutable) { throw 'daily_executable_not_found' }
     # PS 5.1 otherwise turns native stderr into a terminating NativeCommandError
     # before we can preserve the actual process exit code.
     $ErrorActionPreference = 'Continue'
@@ -44,9 +48,16 @@ try {
     }
     $logsDirectory = Join-Path $studyRoot 'logs'
     New-Item -ItemType Directory -Path $logsDirectory -Force | Out-Null
-    $dailyLog = Join-Path $logsDirectory ('daily-{0}-{1}.log' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $PID)
+    $dailyStamp = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $PID
+    $dailyLog = Join-Path $logsDirectory ('daily-{0}.log' -f $dailyStamp)
+    # The tutor's final reply, so a run that writes nothing can still be explained.
+    $codexLastMessage = Join-Path $logsDirectory ('codex-last-{0}.md' -f $dailyStamp)
     # Hold an exclusive handle across pull -> Codex -> push. A crash releases it.
-    $dailyLock = [System.IO.File]::Open((Join-Path $logsDirectory '.daily.lock'), [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    try {
+        $dailyLock = [System.IO.File]::Open((Join-Path $logsDirectory '.daily.lock'), [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    } catch [System.IO.IOException] {
+        throw 'daily_locked'
+    }
     Set-Location -LiteralPath $studyRoot
     $pending = @(Get-ChildItem -LiteralPath (Join-Path $studyRoot 'state\outbox') -Filter '*.json' -File -ErrorAction SilentlyContinue)
     $uncertain = @(Get-ChildItem -LiteralPath (Join-Path $studyRoot 'state\outbox\inflight') -File -ErrorAction SilentlyContinue)
@@ -59,9 +70,12 @@ try {
 
     'codex_start' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
     # The prompt is encoded in the source so PS 5.1 also reads an UTF-8/no-BOM
-    # checkout correctly. It decodes to the required Chinese daily instruction.
-    $dailyPrompt = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('5Ye65LuK5aSp55qE5a2m5Lmg5Y2V'))
-    $stepExit = Invoke-DailyStep -Executable $CodexExecutable -CommandArguments @('exec', '-C', $studyRoot, '-s', 'workspace-write', '-m', $dailyConfig.model, '-c', 'sandbox_workspace_write.network_access=false', $dailyPrompt)
+    # checkout correctly. It decodes to the scheduled-mode daily instruction, so the
+    # tutor knows it must not run sync or lark-cli itself.
+    $dailyPrompt = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('5a6a5pe26L+Q6KGM77yI5peg5Lq65YC85a6I77yJ77ya5Ye65LuK5aSp55qE5a2m5Lmg5Y2V'))
+    # The study directory is deliberately not a git repository; codex exec
+    # refuses to start there without this flag.
+    $stepExit = Invoke-DailyStep -Executable $CodexExecutable -CommandArguments @('exec', '--skip-git-repo-check', '-o', $codexLastMessage, '-C', $studyRoot, '-s', 'workspace-write', '-m', $dailyConfig.model, '-c', 'sandbox_workspace_write.network_access=false', $dailyPrompt)
     if ($stepExit -ne 0) { ('codex_failed:{0}' -f $stepExit) | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append; exit $stepExit }
 
     'push_start' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
@@ -70,7 +84,10 @@ try {
     'daily_done' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
     $dailyExit = 0
 } catch {
-    if ($dailyLog) { 'daily_failed' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append }
+    # Our own throws are fixed daily_* codes; anything else stays generic so the
+    # log never carries raw exception text.
+    $dailyReason = if ($_.Exception.Message -match '^daily_[a-z_]+$') { $_.Exception.Message } else { 'daily_error' }
+    if ($dailyLog) { ('daily_failed:{0}' -f $dailyReason) | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append }
     $dailyError = if ($_.Exception.Message -eq 'daily_layout_invalid') { 'daily_layout_invalid' } else { 'daily_failed' }
     Write-Error $dailyError -ErrorAction Continue
 } finally {

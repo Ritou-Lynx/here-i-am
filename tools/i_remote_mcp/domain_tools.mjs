@@ -54,7 +54,7 @@ export const DOMAIN_TOOLS = Object.freeze(definitions.map(tool => ({...tool,
   annotations:{readOnlyHint:!!tool.read,destructiveHint:false,idempotentHint:true,openWorldHint:false},
 })));
 export const PLANNER_SCOPES = Object.freeze(['captures:read','captures:ack', ...['plan_items','plan_weeks','plan_days'].flatMap(domain => ['read','create','patch'].map(action=>`${domain}:${action}`))]);
-export const WEB_DOMAIN_TOOLS = Object.freeze(['capture_add','week_get','day_get']);
+export const WEB_DOMAIN_TOOLS = Object.freeze(['capture_add','week_get','day_get','food_log','food_day']);
 
 function checkArgs(args, allowed, required = []) {
   if (!object(args) || Object.keys(args).some(key => !allowed.includes(key)) || required.some(key=>!Object.hasOwn(args,key))) fail('invalid_request');
@@ -68,7 +68,7 @@ export function createDomainClient({coreUrl, token, coreInstanceId, fetchImpl = 
   if (!['http:','https:'].includes(url.protocol) || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('invalid_core_url');
   if (typeof token !== 'string' || !token || /\s/.test(token) || typeof coreInstanceId !== 'string' || !coreInstanceId) throw new Error('invalid_domain_credential');
   async function request(domain, resource, body, query = {}) {
-    if (!Object.hasOwn(PERSONAL_SCHEMAS, domain)) fail('domain_forbidden');
+    if (!Object.hasOwn(PERSONAL_SCHEMAS, domain) && domain !== 'food_entries') fail('domain_forbidden');
     const endpoint = new URL(`/v1/core/domains/${domain}/${resource}`, url);
     if (!body) { endpoint.searchParams.set('core_instance_id',coreInstanceId);for(const [key,value] of Object.entries(query))if(value!==undefined)endpoint.searchParams.set(key,String(value)); }
     try {
@@ -155,7 +155,130 @@ export function createDomainTools({client, scopes, surface = 'planner', captureS
     else intent.patch=args.data;
     return client.submit(tool.domain,intent);
   }]));
-  return {tools:permitted.map(({domain,kind,read,...tool})=>({...tool,requiredScope:undefined})),handlers};
+  return {tools:permitted.map(({domain,kind,read,...tool})=>({...tool,requiredScope:surface==='web'?(read?'i.read':'i.write'):undefined})),handlers};
+}
+
+// Food is opt-in and uses a separate Core credential. No photos enter this adapter.
+const foodKeys = ['kcal','kcal_low','kcal_high','protein_g','fat_g','carb_g'];
+const roundFood = value => Math.round(value*10)/10;
+function foodSum(items) {
+  return Object.fromEntries(foodKeys.map(key=>[key,roundFood(items.reduce((sum,item)=>sum+
+    (key==='kcal_low'?item.kcal*item.grams_low/item.grams:key==='kcal_high'?item.kcal*item.grams_high/item.grams:item[key]),0))]));
+}
+const foodInstructions = '照片由你自己看，不要尝试上传。逐项列食物，中式炒菜把“烹调油”单列一项。给克数范围，参照物写进 note。不确定标 low，不编数；food_ref.source 用 model，拍到营养标签时用 label、basis:"label"。写入后把结果和今日累计告诉用户并请对方纠正。用户说记错了、不要这条时用 void。';
+const foodNumber = {type:'number',minimum:0,maximum:10000};
+const foodItemSchema = shape({
+  name:{type:'string',minLength:1,maxLength:100},
+  food_ref:shape({source:{type:'string',enum:['model','label','personal','usda']},id:{type:['string','null']}}),
+  grams:{type:'number',exclusiveMinimum:0,maximum:5000},grams_low:{type:'number',exclusiveMinimum:0,maximum:5000},grams_high:{type:'number',exclusiveMinimum:0,maximum:5000},
+  kcal:foodNumber,protein_g:foodNumber,fat_g:foodNumber,carb_g:foodNumber,
+  basis:{type:'string',enum:['weighed','label','photo','described','model_guess']},confidence:{type:'string',enum:['high','medium','low']},
+});
+const foodEntrySchema = {...shape({eaten_at:{type:'string'},meal:{type:'string',enum:['breakfast','lunch','dinner','snack','drink']},title:{type:'string',minLength:1,maxLength:200},
+  note:{type:'string',maxLength:2000},input_kind:{type:'string',enum:['photo','text','mixed','app']},items:{type:'array',minItems:1,maxItems:40,items:foodItemSchema}}),required:['eaten_at','meal','title','input_kind','items']};
+export const FOOD_TOOLS = Object.freeze([
+  {name:'food_log',requiredScope:'i.write',description:foodInstructions+' action 为 add/update/void。新意图用新 UUID op_id，重试保留原参数。update/void 必须提供 base_revision；void 仅撤销该条。',inputSchema:{type:'object',properties:{
+    action:{type:'string',enum:['add','update','void']},op_id:idSchema,id:idSchema,base_revision:{type:'integer',minimum:1},entry:foodEntrySchema},required:['action','op_id','id'],additionalProperties:false},
+    annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}},
+  {name:'food_day',requiredScope:'i.read',description:'读取指定日或按配置时区本地 04:00 日界的今天，返回未撤销条目及累计。'+foodInstructions,inputSchema:{type:'object',properties:{date:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$'}},additionalProperties:false},
+    annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},
+]);
+const foodUuid = value => typeof value==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+const foodDate = value => typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value+'T00:00:00Z')) && new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+function foodTime(value) {
+  if(typeof value!=='string'||!foodDate(value.slice(0,10)))return false;
+  const m=value.match(/^\d{4}-\d{2}-\d{2}T(\d{2}):(\d{2}):(\d{2})(?:\.\d{3})?(Z|[+-](\d{2}):(\d{2}))$/);
+  return !!m && +m[1]<24 && +m[2]<60 && +m[3]<60 && (m[4]==='Z'||+m[5]<=14&&+m[6]<60&&(+m[5]!==14||+m[6]===0)) && Number.isFinite(Date.parse(value));
+}
+function foodShape(value,keys,optional=[]) {
+  return object(value)&&keys.every(key=>Object.hasOwn(value,key))&&Object.keys(value).every(key=>keys.includes(key)||optional.includes(key));
+}
+function checkFoodEntry(entry) {
+  if(!object(entry))fail('invalid_food_entry');
+  if(Object.keys(entry).some(key=>!Object.hasOwn(foodEntrySchema.properties,key)))fail('food_field_not_allowed');
+  if(!foodShape(entry,foodEntrySchema.required,['note'])||!foodTime(entry.eaten_at)
+    ||!foodEntrySchema.properties.meal.enum.includes(entry.meal)||!foodEntrySchema.properties.input_kind.enum.includes(entry.input_kind)
+    ||typeof entry.title!=='string'||!entry.title.trim()||[...entry.title].length>200
+    ||entry.note!==undefined&&(typeof entry.note!=='string'||[...entry.note].length>2000)
+    ||!Array.isArray(entry.items)||entry.items.length<1||entry.items.length>40)fail('invalid_food_entry');
+  for(const item of entry.items) {
+    if(!foodShape(item,Object.keys(foodItemSchema.properties))||typeof item.name!=='string'||!item.name.trim()||[...item.name].length>100
+      ||!foodShape(item.food_ref,['source','id'])||!['model','label','personal','usda'].includes(item.food_ref.source)
+      ||!(item.food_ref.id===null||typeof item.food_ref.id==='string')
+      ||!['weighed','label','photo','described','model_guess'].includes(item.basis)||!['high','medium','low'].includes(item.confidence)
+      ||!['grams','grams_low','grams_high','kcal','protein_g','fat_g','carb_g'].every(key=>typeof item[key]==='number'&&Number.isFinite(item[key]))
+      ||!(0<item.grams_low&&item.grams_low<=item.grams&&item.grams<=item.grams_high&&item.grams_high<=5000)
+      ||!['kcal','protein_g','fat_g','carb_g'].every(key=>item[key]>=0&&item[key]<=10000))fail('invalid_food_item');
+  }
+}
+
+export function createFoodTools({client,scopes,timeZone='Asia/Shanghai',now=()=>Date.now()}) {
+  if(!client||!Array.isArray(scopes)||scopes.some(scope=>!['food_entries:read','food_entries:create','food_entries:patch'].includes(scope)))throw new Error('invalid_food_configuration');
+  const formatter=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'});
+  function localDate(time) {
+    const parts=Object.fromEntries(formatter.formatToParts(new Date(time)).map(part=>[part.type,part.value]));
+    const date=new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00Z`);
+    if(Number(parts.hour)<4)date.setUTCDate(date.getUTCDate()-1);
+    return date.toISOString().slice(0,10);
+  }
+  const has=kind=>scopes.includes('food_entries:'+kind);
+  const tools=FOOD_TOOLS.filter(tool=>has('read')&&(tool.name==='food_day'||has('create')||has('patch')));
+  // Keep generated timestamps identical on retries. On restart/eviction, an existing
+  // Core op is fail-closed rather than reconstructing a different intent.
+  const intents=new Map();
+  async function day(date) {
+    const rows=[];let pageToken;
+    for(let n=0;n<200;n++) {
+      const page=await client.snapshot('food_entries',{limit:100,...(pageToken?{page_token:pageToken}:{})});
+      if(page.http_status!==200||!Array.isArray(page.records))fail(page.error?.code??'core_unavailable');
+      rows.push(...page.records.filter(row=>!row.deleted_at&&row.data?.voided!==true&&row.data?.local_date===date));
+      pageToken=page.next_page_token;
+      if(!pageToken) {
+        if(page.manifest?.base_cursor)await client.acknowledge('food_entries',page.manifest.base_cursor,page.snapshot_id);
+        rows.sort((a,b)=>Date.parse(a.data.eaten_at)-Date.parse(b.data.eaten_at)||a.id.localeCompare(b.id));
+        return {date,entries:rows,day_totals:Object.fromEntries(foodKeys.map(key=>[key,roundFood(rows.reduce((sum,row)=>sum+row.data.totals[key],0))]))};
+      }
+    }
+    fail('food_day_too_large');
+  }
+  const handlers={
+    async food_day(args={}) {
+      checkArgs(args,['date']);if(args.date!==undefined&&!foodDate(args.date))fail('invalid_food_date');
+      return day(args.date??localDate(now()));
+    },
+    async food_log(args={}) {
+      if(object(args)&&Object.keys(args).some(key=>!Object.hasOwn(FOOD_TOOLS[0].inputSchema.properties,key)))fail('food_field_not_allowed');
+      checkArgs(args,Object.keys(FOOD_TOOLS[0].inputSchema.properties),['action','op_id','id']);
+      if(!['add','update','void'].includes(args.action))fail('invalid_action');
+      if(!foodUuid(args.op_id)||!foodUuid(args.id)||args.op_id===args.id)fail('invalid_id');
+      const kind=args.action==='add'?'create':'patch';
+      if(!has(kind)||!has('read'))return {error:{code:'scope_forbidden',retryable:false},http_status:403};
+      if(args.action==='add'&&args.base_revision!==undefined||args.action!=='add'&&(!Number.isSafeInteger(args.base_revision)||args.base_revision<1))fail('invalid_base');
+      if(args.action==='void'&&args.entry!==undefined)fail('invalid_request');
+      if(args.action!=='void')checkFoodEntry(args.entry);
+      const data=args.action==='void'?{voided:true}:{...structuredClone(args.entry),note:args.entry.note??'',local_date:localDate(args.entry.eaten_at),totals:foodSum(args.entry.items),user_corrected:false,voided:false};
+      const intent={op_id:args.op_id,id:args.id,base_revision:args.action==='add'?0:args.base_revision,kind,actor:'agent_inferred',...(kind==='create'?{data,provenance:{source:'food_log',source_refs:[],import_batch_id:null}}:{patch:data})};
+      const fingerprint=JSON.stringify(intent);let cached=intents.get(args.op_id);
+      if(cached&&cached.fingerprint!==fingerprint)fail('idempotency_conflict');
+      if(!cached) {
+        if(client.operation) {
+          const prior=await client.operation('food_entries',args.op_id);
+          if(prior.http_status===200)fail('food_retry_state_unavailable');
+          if(prior.http_status!==404)fail(prior.error?.code??'core_unavailable');
+        }
+        const stamp=now();cached={fingerprint,created_at:new Date(stamp).toISOString(),expires_at:new Date(stamp+60*86400000).toISOString()};
+        if(intents.size>=1024)intents.delete(intents.keys().next().value);
+        intents.set(args.op_id,cached);
+      }
+      const result=await client.submit('food_entries',{...intent,created_at:cached.created_at,expires_at:cached.expires_at});
+      if(!['accepted','duplicate'].includes(result.outcome))return result;
+      const record=result.record??(await client.record('food_entries',args.id)).record;
+      if(!record?.data)fail('food_record_unavailable');
+      const snapshot=await day(record.data.local_date);
+      return {id:record.id,revision:record.revision,local_date:record.data.local_date,totals:record.data.totals,day_totals:snapshot.day_totals};
+    },
+  };
+  return {tools,handlers:Object.fromEntries(tools.map(tool=>[tool.name,handlers[tool.name]]))};
 }
 
 export const CORE_REMEMBER_TOOL = {

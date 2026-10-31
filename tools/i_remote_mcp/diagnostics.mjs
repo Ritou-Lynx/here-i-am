@@ -12,7 +12,7 @@ const TOOL_NAMES = new Set(['i_context', 'i_recall', 'i_chat_turn', 'i_remember'
 const RPC_CODES = new Set([-32700, -32600, -32601, -32602, -32603, -32001]);
 const CALLBACKS = ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback'];
 
-// Fixed classifications only: never emit any part of an unrecognized callback.
+// Unrecognized callbacks expose only protocol/host/port and redacted path shapes, never raw URLs.
 export function callbackClass(value) {
   if (value === undefined || value === null || value === '') return 'absent';
   const frontend = frontendForRedirectUri(value);
@@ -20,11 +20,27 @@ export function callbackClass(value) {
   if (frontend === 'chatgpt_web') return 'chatgpt';
   if (frontend === 'gemini_web') return 'gemini_pattern';
   if (frontend === 'antigravity') return 'antigravity';
+  if (frontend === 'sesame') return 'sesame';
   try {
     const url = new URL(value);
     if (['oauth-redirect.googleusercontent.com', 'oauth-redirect-sandbox.googleusercontent.com'].includes(url.hostname)) return 'google_relay_other';
   } catch { /* untrusted input */ }
   return 'other';
+}
+
+export function callbackShape(value) {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hostname.length > 253) return null;
+    const segments = url.pathname.split('/').slice(1);
+    if (segments.length > 20) return null;
+    const path = '/' + segments.map(segment => !segment || /^[a-z][a-z_-]{0,31}$/.test(segment)
+      ? segment : `{${segment.length}}`).join('/');
+    const query = url.search ? '?{q}' : '';
+    const fragment = url.hash ? '#{f}' : '';
+    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${path}${query}${fragment}`;
+  } catch { return null; }
 }
 
 // User agents are self-reported and are not evidence of client identity.
@@ -80,8 +96,12 @@ export function createRequestDiagnostics(req, { issuer, resource, diagnostic = (
     registration(values, kept) {
       const callbacks = Array.isArray(values) ? values : [];
       const classes = callbacks.map(callbackClass);
-      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'antigravity', 'google_relay_other', 'other', 'absent']
+      base.callback_class = ['gemini_pattern', 'claude', 'chatgpt', 'antigravity', 'sesame', 'google_relay_other', 'other', 'absent']
         .find(value => classes.includes(value)) ?? 'absent';
+      if (base.callback_class === 'other') {
+        base.callback_shapes = [...new Set(callbacks.filter(value => callbackClass(value) === 'other')
+          .map(callbackShape).filter(value => value !== null))].slice(0, 8);
+      }
       base.callback_count = callbacks.length;
       base.gemini_kept_count = kept.filter(value => frontendForRedirectUri(value) === 'gemini_web').length;
     },
