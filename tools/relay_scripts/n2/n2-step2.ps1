@@ -11,8 +11,11 @@ foreach ($name in @(Get-ChildItem Env: | Where-Object { $_.Name -like 'NODE_*' -
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $mjs = Join-Path $repo 'scripts\deploy\n2\n2-step2.mjs'
 $sha = [Security.Cryptography.SHA256]::Create()
-try { $actual = ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($mjs)))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
-if ($actual -cne 'ba92417b85082ea1e98bdbf0efae65f882f754d30f6da7f6262783e6bc8c7b63') { Write-Output '{"step":"launcher","ok":false,"detail":"mjs_hash_mismatch"}'; exit 1 }
+# core.autocrlf=true 检出会把 LF 变成 CRLF：原字节或把 CRLF 还原成 LF 后的字节，任一与提交版一致即可。
+$bytes = [IO.File]::ReadAllBytes($mjs)
+$lf = [Text.Encoding]::UTF8.GetBytes([Text.Encoding]::UTF8.GetString($bytes).Replace("`r`n", "`n"))
+try { $actual = @(foreach ($b in @($bytes, $lf)) { ([BitConverter]::ToString($sha.ComputeHash($b))).Replace('-', '').ToLowerInvariant() }) } finally { $sha.Dispose() }
+if ($actual -notcontains 'ba92417b85082ea1e98bdbf0efae65f882f754d30f6da7f6262783e6bc8c7b63') { Write-Output '{"step":"launcher","ok":false,"detail":"mjs_hash_mismatch"}'; exit 1 }
 $git = @(Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1)
 if ($git.Count -ne 1) { Write-Output '{"step":"launcher","ok":false,"detail":"git_not_found"}'; exit 1 }
 $task = Get-ScheduledTask -TaskName 'HereIAm-iCoreSchema6-d2b-mcp-20261025-129ec194'
