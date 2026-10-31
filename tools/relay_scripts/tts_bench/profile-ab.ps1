@@ -18,9 +18,20 @@ if (-not $bench) {
             Where-Object { Test-Path (Join-Path $_.FullName '.venv\Scripts\python.exe') } | Select-Object -First 1
         if ($found) { $bench = $found.FullName; break }
     }
+    if (-not $bench) {
+        # 再找任何装了 chatterbox 的 venv：...\Lib\site-packages\chatterbox\tts_turbo.py → venv 根 → 其父目录当测速目录
+        foreach ($r in $roots) {
+            $hit = Get-ChildItem $r.path -File -Recurse -Depth ($r.depth + 5) -Filter 'tts_turbo.py' -ErrorAction SilentlyContinue |
+                Where-Object { $_.DirectoryName -like '*\Lib\site-packages\chatterbox' } | Select-Object -First 1
+            if ($hit) {
+                $venv = $hit.Directory.Parent.Parent.Parent.FullName
+                if (Test-Path (Join-Path $venv 'Scripts\python.exe')) { $bench = Split-Path $venv -Parent; $venvName = Split-Path $venv -Leaf; break }
+            }
+        }
+    }
     if ($bench) {
         $where = if ($env:USERPROFILE -and $bench.StartsWith($env:USERPROFILE)) { 'home' } else { 'drive ' + $bench.Substring(0, 2) }
-        Out-Json @{ step = 'bench-found'; where = $where }
+        Out-Json @{ step = 'bench-found'; where = $where; venv = $venvName }
     }
 }
 if (-not $bench) {
@@ -32,7 +43,8 @@ if (-not $bench) {
         hereIAmDirs = ($kids -join ','); ttsBenchEntries = ($tbKids -join ','); candidates = $cands.Count }
     exit 2
 }
-$py = Join-Path $bench '.venv\Scripts\python.exe'
+if (-not $venvName) { $venvName = '.venv' }
+$py = Join-Path $bench "$venvName\Scripts\python.exe"
 $prof = (Resolve-Path (Join-Path $PSScriptRoot '..\..\tts_bench\profile_turbo.py')).Path
 $ref = Join-Path $bench 'linai-ref-v5.wav'
 if (-not (Test-Path $ref)) { $ref = (Resolve-Path (Join-Path $PSScriptRoot '..\..\tts_bench\linai-ref-v5.wav')).Path }
