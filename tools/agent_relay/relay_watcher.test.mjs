@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm, access, symlink, realpath, chmod, utimes } from 'node:fs/promises';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import test from 'node:test';
 import { main, runOnce, resolveCodex, validateConfig, run as runProcess } from './relay_watcher.mjs';
@@ -34,7 +35,7 @@ async function fixture(t, scenario = {}) {
     repo: 'Ritou-Lynx/here-i-am', baseBranch: 'v3-lab', headPrefixes: ['claude/', 'codex/'],
     allowedAuthors: ['Ritou-Lynx'], repoPath: path.join(root, 'clone'), worktreeRoot: path.join(root, 'worktrees'),
     maxRounds: 4, codexTimeoutMinutes: 60, codexArgs: ['--sandbox', 'workspace-write'], summaryMaxChars: 6000,
-    mention: '@Ritou-Lynx',
+    mention: '@Ritou-Lynx', selfUpdate: false,
     codexPath,
   };
   await mkdir(path.join(config.repoPath, '.git'), { recursive: true });
@@ -68,7 +69,7 @@ async function fixture(t, scenario = {}) {
         if (scenario.failScanPr === number) throw new Error('synthetic scan failure');
         return ok(JSON.stringify(scenario.commentsByPr?.[number] ?? scenario.comments ?? [baseComment]));
       }
-      if (args[0] === 'api' && args.some(arg => arg.endsWith('/reactions'))) return ok('{}');
+      if (args[0] === 'api' && args.some(arg => arg.endsWith('/reactions'))) return ok(args[1] === '-X' ? '{}' : JSON.stringify([scenario.reactions ?? []]));
       if (args[0] === 'pr' && args[1] === 'edit') return ok();
       if (args[0] === 'pr' && args[1] === 'comment') {
         assert.ok(args.includes('--body-file'), 'public result must use a body file');
@@ -86,7 +87,12 @@ async function fixture(t, scenario = {}) {
       if (args[0] === 'rev-parse' && args.includes('--show-toplevel')) return ok(`${scenario.wrongRoot && opts.cwd === worktree ? config.repoPath : opts.cwd}\n`);
       if (args[0] === 'fetch') return ok();
       if (args[0] === 'show-ref') return { code: 1, stdout: '', stderr: '' };
-      if (args[0] === 'worktree' && args[1] === 'add') { await mkdir(worktree, { recursive: true }); return ok(); }
+      if (args[0] === 'worktree' && args[1] === 'add') {
+        await mkdir(worktree, { recursive: true });
+        for (const [file, content] of Object.entries(scenario.files ?? {})) { await mkdir(path.dirname(path.join(worktree, file)), { recursive: true }); await writeFile(path.join(worktree, file), content); }
+        return ok();
+      }
+      if (args[0] === 'reset' || args[0] === 'clean') { executed = false; return ok(); }
       if (args[0] === 'branch' && args.includes('--show-current')) return ok(`${basePr.headRefName}\n`);
       if (args[0] === 'rev-parse') return ok(`${args.at(-1).startsWith('origin/') ? START : head}\n`);
       if (args[0] === 'status') return ok(executed ? (dirtyAfter ? `${staged ? 'M ' : ' M'} tools/agent_relay/example.mjs\n` : '') : (scenario.dirtyBefore ? ' M local-work.txt\n' : ''));
@@ -116,6 +122,12 @@ async function fixture(t, scenario = {}) {
         pushes += 1;
         return scenario.rejectPush && pushes === 1 ? { code: 1, stdout: '', stderr: 'rejected (fetch first)' } : ok();
       }
+    }
+    if (cmd === 'powershell.exe') {
+      executed = true; dirtyAfter = Boolean(scenario.scriptDirties);
+      const state = JSON.parse(await readFile(path.join(stateDir, 'state.json'), 'utf8'));
+      assert.equal(Object.values(state.comments)[0].status, 'in_progress', 'receipt must persist before the script starts');
+      return { code: scenario.scriptCode ?? 0, stdout: scenario.scriptOutput ?? '{"ok":true}\n', stderr: scenario.scriptError ?? '', timedOut: scenario.scriptTimedOut ?? false };
     }
     if (path.isAbsolute(cmd) && /^codex(?:\.exe)?$/.test(path.basename(cmd))) {
       executed = true;
@@ -1056,4 +1068,86 @@ test('exit grace: nonzero exit code is kept when close never arrives', async t =
   const result = await runProcess(process.execPath, ['-e', script], { timeoutMs: 15000, exitGraceMs: 300 });
   assert.equal(result.code, 3);
   assert.equal(result.timedOut, false);
+});
+
+const scriptPath = 'tools/relay_scripts/check-task.ps1';
+const scriptBody = "Write-Output '{\"ok\":true}'\r\n";
+const scriptHash = createHash('sha256').update(scriptBody).digest('hex');
+const runnerComment = (mode, extra = {}) => ({ ...baseComment, id: 201, body: `<!-- relay:to-runner round=1 script=${scriptPath} sha256=${extra.hash ?? scriptHash} mode=${mode} -->\n只读检查计划任务状态。`, ...extra.comment });
+const isScript = call => call.cmd === 'powershell.exe';
+
+test('runner: read script runs via PowerShell 5.1 -File without Codex, commit or push, and reports its output', async t => {
+  const f = await fixture(t, { comments: [runnerComment('read')], files: { [scriptPath]: scriptBody }, scriptOutput: '{"task":"Ready"}\n' });
+  const result = await f.once();
+  assert.equal(result.status, 'done');
+  const script = f.calls.find(isScript);
+  assert.deepEqual(script.args, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(f.worktree, 'tools', 'relay_scripts', 'check-task.ps1')]);
+  assert.equal(script.opts.cwd, f.worktree);
+  assert.equal(script.opts.timeoutMs, 20 * 60000);
+  assert.equal(f.calls.some(isCodex) || f.calls.some(isPush) || f.calls.some(isCommit) || f.calls.some(isAdd), false);
+  assert.match(f.posts[0].split(/\r?\n/)[0], /^<!-- relay:to-claude round=1 status=done sha=a{12} kind=runner -->$/);
+  assert.ok(f.posts[0].includes('{"task":"Ready"}'));
+  assert.ok(index(f.calls, call => isReaction(call, 'eyes')) < index(f.calls, isScript));
+  assert.ok(f.calls.some(call => isReaction(call, 'rocket')));
+  assert.equal((await f.state()).comments['201'].status, 'done');
+});
+
+test('runner: hash mismatch refuses to run and reports failed', async t => {
+  const f = await fixture(t, { comments: [runnerComment('read', { hash: 'f'.repeat(64) })], files: { [scriptPath]: scriptBody } });
+  assert.equal((await f.once()).status, 'failed');
+  assert.equal(f.calls.some(isScript), false);
+  assert.match(f.posts[0], /status=failed sha=none kind=runner[\s\S]*脚本哈希不符/);
+});
+
+test('runner: write script waits for the owner thumbs-up and leaves no receipt until then', async t => {
+  for (const reactions of [[], [{ content: '+1', user: { login: 'someone-else' } }], [{ content: 'heart', user: { login: 'Ritou-Lynx' } }]]) {
+    const f = await fixture(t, { comments: [runnerComment('write')], files: { [scriptPath]: scriptBody }, reactions });
+    assert.equal((await f.once()).status, 'idle');
+    assert.equal(f.calls.some(isScript), false);
+    assert.equal(f.posts.length, 0);
+    assert.equal(f.calls.some(call => isReaction(call, 'eyes')), false);
+  }
+  const approved = await fixture(t, { comments: [runnerComment('write')], files: { [scriptPath]: scriptBody }, reactions: [{ content: '+1', user: { login: 'Ritou-Lynx' } }] });
+  assert.equal((await approved.once()).status, 'done');
+  assert.ok(approved.calls.some(isScript));
+});
+
+test('runner: nonzero exit is failed with output, and leftovers in the worktree are discarded', async t => {
+  const f = await fixture(t, { comments: [runnerComment('read')], files: { [scriptPath]: scriptBody }, scriptCode: 2, scriptOutput: 'partial\n', scriptError: 'boom', scriptDirties: true });
+  assert.equal((await f.once()).status, 'failed');
+  assert.ok(f.calls.some(call => call.cmd === 'git' && call.args[0] === 'reset' && call.args.includes('--hard')));
+  assert.ok(f.calls.some(call => call.cmd === 'git' && call.args[0] === 'clean'));
+  assert.match(f.posts[0], /退出码：2[\s\S]*partial[\s\S]*boom[\s\S]*已丢弃/);
+  assert.equal(f.calls.some(isPush), false);
+});
+
+test('runner: script rounds are not capped by maxRounds and ignored when runner is disabled', async t => {
+  const late = { ...runnerComment('read'), body: runnerComment('read').body.replace('round=1', 'round=9') };
+  const f = await fixture(t, { comments: [late], files: { [scriptPath]: scriptBody } });
+  assert.equal((await f.once()).status, 'done');
+  const off = await fixture(t, { comments: [runnerComment('read')], files: { [scriptPath]: scriptBody } });
+  assert.equal((await off.once({ config: { ...off.config, runnerEnabled: false } })).status, 'idle');
+  assert.equal(off.calls.some(isScript), false);
+});
+
+test('self-update fast-forwards only a clean base checkout of the protocol repo and never fails the poll', async t => {
+  for (const [branch, dirty, origin, expectMerge] of [['v3-lab', '', 'https://github.com/Ritou-Lynx/here-i-am.git', true], ['feature', '', 'https://github.com/Ritou-Lynx/here-i-am.git', false], ['v3-lab', ' M x\n', 'https://github.com/Ritou-Lynx/here-i-am.git', false], ['v3-lab', '', 'https://github.com/other/fork.git', false]]) {
+    const f = await fixture(t, { prs: [] });
+    const calls = [];
+    const run = async (cmd, args, opts = {}) => {
+      calls.push({ cmd, args, opts });
+      const ok = stdout => ({ code: 0, stdout, stderr: '' });
+      if (cmd === 'git' && args[0] === 'rev-parse') return ok('/runtime\n');
+      if (cmd === 'git' && args[0] === 'remote') return ok(`${origin}\n`);
+      if (cmd === 'git' && args[0] === 'branch') return ok(`${branch}\n`);
+      if (cmd === 'git' && args[0] === 'status') return ok(dirty);
+      if (cmd === 'git' && (args[0] === 'fetch' || args[0] === 'merge')) return ok('');
+      if (cmd === 'gh' && args[1] === 'list') return ok('[]');
+      throw new Error(`unexpected ${cmd} ${args.join(' ')}`);
+    };
+    assert.equal((await f.once({ config: { ...f.config, selfUpdate: true }, run })).status, 'idle');
+    const merge = calls.find(call => call.args[0] === 'merge');
+    assert.equal(Boolean(merge), expectMerge);
+    if (merge) { assert.deepEqual(merge.args, ['merge', '--ff-only', 'origin/v3-lab']); assert.equal(merge.opts.cwd, '/runtime'); }
+  }
 });
