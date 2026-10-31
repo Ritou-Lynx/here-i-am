@@ -208,6 +208,12 @@ def make_handler(state):
     return Handler
 
 
+def emit(**fields):
+    """控制台一行 JSON；pythonw 下没有 stdout，直接跳过。"""
+    if sys.stdout is not None:
+        print(json.dumps(fields), flush=True)
+
+
 def create_server(state, host=DEFAULT_HOST, port=DEFAULT_PORT):
     server = ThreadingHTTPServer((host, port), make_handler(state))
     server.daemon_threads = True
@@ -222,7 +228,8 @@ def main():
     try:
         config = load_config(config_path)
     except ConfigError as e:
-        print(json.dumps({"event": "config_error", "error": str(e)}), flush=True)
+        emit(event="config_error", error=str(e))
+        RequestLog(Path(config_path).parent / "logs").write(event="config_error", error=str(e))
         return 2
     power = disable_power_throttling()
     state = TtsState(TurboEngine(config["reference_wav"], config["device"]), config, power)
@@ -230,7 +237,7 @@ def main():
     port = int(os.environ.get("LINAI_TTS_PORT", DEFAULT_PORT))
     server = create_server(state, host, port)
     threading.Thread(target=state.load_engine, daemon=True).start()
-    print(json.dumps({"event": "listening", "host": host, "port": port, **power}), flush=True)
+    emit(event="listening", host=host, port=port, **power)
     state.log.write(event="start", port=port, **power)
     try:
         server.serve_forever()

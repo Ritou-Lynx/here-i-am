@@ -11,6 +11,7 @@
 | `engine.py` | `TurboEngine`：加载模型、缓存参考音色、预热、合成 |
 | `power.py` | 关闭 Windows 对本进程的后台节能限速并提高优先级 |
 | `audio.py` | 标准库 `wave` 编码 16 位单声道 WAV |
+| `install_linai_tts.ps1` / `uninstall_linai_tts.ps1` | 登录自启 + Tailscale 入口的安装与停用 |
 | `config.example.json` | 配置模板（真实配置不进仓库） |
 | `requirements.txt` | chatterbox 以外的依赖（版本与 10-31 测速环境一致） |
 
@@ -72,4 +73,18 @@ python -m unittest discover -s tools/linai_tts/tests -v
 
 用假引擎，不需要显卡和模型。
 
-开机自启、计划任务不在这一版（V1c）。
+## 常驻运行（V1c）
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\linai_tts\install_linai_tts.ps1
+```
+
+幂等，可重复运行（更新代码也用它）：
+
+1. `%LOCALAPPDATA%\HereIAm\linai-tts\venv` 不存在时，整份复制已装好的测速 venv（省掉再下 2.7 GB torch）。
+2. 停掉旧实例，把本目录代码复制到 `linai-tts\app\`，服务从这份副本运行，不依赖仓库工作区。
+3. 首次生成 `config.json`（随机 64 位 hex token）和参考音频副本；之后保留，token 不变。
+4. 在“启动”文件夹放 `HereIAm_LinaiTts.vbs`，登录后用 `pythonw` 隐藏运行（与漫画服务同一做法，不用计划任务、不需要管理员）。
+5. 立即启动并等模型加载，再确保 `tailscale serve --bg --https=8445 http://127.0.0.1:47870`，从 tailnet 域名回测一次 health。
+
+停用：`uninstall_linai_tts.ps1`（删自启、停进程、关 :8445，保留文件）。
