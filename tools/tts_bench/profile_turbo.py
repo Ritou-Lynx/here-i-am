@@ -55,6 +55,8 @@ def env_info():
                              "--format=csv,noheader"]),
         "gpu_mem_used_total": sh(["nvidia-smi", "--query-gpu=memory.used,memory.total,utilization.gpu",
                                   "--format=csv,noheader"]),
+        "cpu": sh(["powershell", "-NoProfile", "-Command",
+                    "(Get-CimInstance Win32_Processor | Select-Object -First 1 | ForEach-Object { $_.Name + ' | cores ' + $_.NumberOfCores + ' | threads ' + $_.NumberOfLogicalProcessors + ' | maxMHz ' + $_.MaxClockSpeed })"]),
         "power_scheme": sh(["powercfg", "/getactivescheme"]),
         "on_ac_power": sh(["powershell", "-NoProfile", "-Command",
                            "(Get-CimInstance -Namespace root/wmi -ClassName BatteryStatus -ErrorAction SilentlyContinue).PowerOnline"]),
@@ -72,6 +74,7 @@ class GpuSampler:
 
     def __init__(self):
         self.rows, self.proc, self.thread = [], None, None
+        self.cpu_rows, self.cpu_proc, self.cpu_thread = [], None, None
 
     def __enter__(self):
         try:
@@ -83,7 +86,28 @@ class GpuSampler:
             self.thread.start()
         except Exception:
             self.proc = None
+        if os.name == "nt":  # CPU 实际性能百分比（>100 表示睿频），约 1 秒一次
+            try:
+                # 用 WMI 英文类名（typeperf 计数器名在中文系统上是本地化的）
+                loop = ("while($true){$p=Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation "
+                        "-Filter \"Name='_Total'\";[Console]::Out.WriteLine(\"x,$($p.PercentProcessorPerformance),"
+                        "$($p.PercentProcessorUtility)\");[Console]::Out.Flush();Start-Sleep -Milliseconds 800}")
+                self.cpu_proc = subprocess.Popen(["powershell", "-NoProfile", "-Command", loop],
+                                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                self.cpu_thread = threading.Thread(target=self._read_cpu, daemon=True)
+                self.cpu_thread.start()
+            except Exception:
+                self.cpu_proc = None
         return self
+
+    def _read_cpu(self):
+        for line in self.cpu_proc.stdout:
+            parts = [p.strip().strip('"') for p in line.split(",")]
+            if len(parts) == 3:
+                try:
+                    self.cpu_rows.append((float(parts[1]), float(parts[2])))
+                except ValueError:
+                    pass
 
     def _read(self):
         for line in self.proc.stdout:
@@ -95,6 +119,9 @@ class GpuSampler:
         if self.proc:
             self.proc.terminate()
             self.thread.join(timeout=2)
+        if self.cpu_proc:
+            self.cpu_proc.terminate()
+            self.cpu_thread.join(timeout=2)
 
     def summary(self):
         def num(i):
@@ -109,7 +136,9 @@ class GpuSampler:
         avg = lambda v: round(sum(v) / len(v), 1) if v else None
         return {"samples": len(self.rows), "util_avg": avg(util), "util_max": max(util) if util else None,
                 "sm_clock_avg": avg(clk), "power_avg_w": avg(pwr),
-                "pstates": sorted({r[3] for r in self.rows})}
+                "pstates": sorted({r[3] for r in self.rows}),
+                "cpu_perf_pct_avg": avg([c[0] for c in self.cpu_rows]),
+                "cpu_utility_pct_avg": avg([c[1] for c in self.cpu_rows])}
 
 
 class StageTimer:
@@ -146,6 +175,25 @@ class StageTimer:
         m.watermarker.apply_watermark = watermark
 
 
+def boost_process():
+    """只对本进程生效：关掉 Windows 后台节能限速（EcoQoS），优先级调到高。进程退出即失效。"""
+    if os.name != "nt":
+        return "skipped (not windows)"
+    import ctypes
+    from ctypes import wintypes
+
+    class PowerThrottlingState(ctypes.Structure):
+        _fields_ = [("Version", wintypes.ULONG), ("ControlMask", wintypes.ULONG), ("StateMask", wintypes.ULONG)]
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.GetCurrentProcess.restype = wintypes.HANDLE
+    h = k32.GetCurrentProcess()
+    state = PowerThrottlingState(1, 0x1 | 0x4, 0)  # EXECUTION_SPEED | IGNORE_TIMER_RESOLUTION，StateMask=0 表示不限速
+    ok_throttle = k32.SetProcessInformation(h, 4, ctypes.byref(state), ctypes.sizeof(state))  # ProcessPowerThrottling
+    ok_prio = k32.SetPriorityClass(h, 0x80)  # HIGH_PRIORITY_CLASS
+    return {"power_throttling_off": bool(ok_throttle), "high_priority": bool(ok_prio)}
+
+
 def run_variant(m, timer, name, ref, t3_dtype=None, skip_watermark=False):
     timer.t3_dtype, timer.skip_watermark = t3_dtype, skip_watermark
     results = []
@@ -176,9 +224,13 @@ def run_variant(m, timer, name, ref, t3_dtype=None, skip_watermark=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", help="林埃声音参考 wav（>5 秒），不传则用模型默认声音")
+    ap.add_argument("--boost", action="store_true", help="本进程关闭后台节能限速并提高优先级")
+    ap.add_argument("--only-baseline", action="store_true", help="只跑 baseline 变体")
     args = ap.parse_args()
 
     report = {"env": env_info()}
+    if args.boost:
+        report["boost"] = boost_process()
     print(json.dumps(report["env"], ensure_ascii=False, indent=1), flush=True)
 
     from chatterbox.tts_turbo import ChatterboxTurboTTS
@@ -197,8 +249,9 @@ def main():
         m.generate("Hey, I'm warming up.")
 
     rows = run_variant(m, timer, "baseline", args.ref)
-    rows += run_variant(m, timer, "no_watermark", args.ref, skip_watermark=True)
-    if report["env"]["bf16_supported"] or os.environ.get("PROFILE_FORCE_BF16"):
+    if not args.only_baseline:
+        rows += run_variant(m, timer, "no_watermark", args.ref, skip_watermark=True)
+    if not args.only_baseline and report["env"]["bf16_supported"] or os.environ.get("PROFILE_FORCE_BF16"):
         try:
             rows += run_variant(m, timer, "t3_bf16", args.ref, t3_dtype=torch.bfloat16, skip_watermark=True)
         except Exception as e:
@@ -215,7 +268,8 @@ def main():
         if r["rep"] == REPEATS - 1:
             print(f'{r["variant"]:<13}{r["sentence"]:<7} RTF {r["rtf"]:<5} t3 {r.get("t3")}s '
                   f'({r.get("t3_ms_per_token")}ms/tok) s3gen {r.get("s3gen")}s wm {r.get("watermark")}s '
-                  f'GPU {r["gpu"]["util_avg"]}% {r["gpu"]["sm_clock_avg"]}MHz {r["gpu"]["power_avg_w"]}W')
+                  f'GPU {r["gpu"]["util_avg"]}% {r["gpu"]["sm_clock_avg"]}MHz {r["gpu"]["power_avg_w"]}W '
+                  f'CPU perf {r["gpu"]["cpu_perf_pct_avg"]}%')
     print("已写入 profile.json")
 
 
