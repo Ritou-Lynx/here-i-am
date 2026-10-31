@@ -29,6 +29,15 @@ description: 用户说“用接力做…”“交给 Codex 执行”“接力冒
 4. 下一轮编号 = 上一轮 + 1。第 4 轮仍不过 → 不再发指令，加 `relay-needs-human`，发 `to-human` 总结卡点和建议。
 5. 一轮执行中不要往分支推送任何东西。
 
+## 2b. 需要在用户电脑上跑脚本时：脚本轮
+
+不要再让用户手动 `-File` 运行再贴回输出。按 PROTOCOL.md“脚本轮”：
+
+1. 把完整 PS5.1 脚本提交到分支 `tools/relay_scripts/<主题>/<名字>.ps1`（首行设 UTF-8 输出编码，stdout 按行输出 JSON，产物写 worktree 外），推送。
+2. 用 `sha256sum` 算文件哈希，发 `<!-- relay:to-runner round=N script=<路径> sha256=<哈希> mode=read|write -->`，正文写清这一步做什么、影响什么。只读才用 `read`；改生产、改配置、启停任务一律 `write`，并在回复里告诉用户去 GitHub 给这条评论点 👍。
+3. **绝不自己点 👍**，也不替用户加任何反应。
+4. 结果以 `to-claude ... kind=runner` 回来，读输出决定下一步。
+
 ## 3. 收尾
 
 1. 在分支上按 AGENTS.md 更新 `DEVLOG.md` 顶部（≤15 行）和 `docs/development/I_PROJECT_STATE.md`（Codex 用了 SKIP_PROJECT_STATE，状态由你统一写），推送。

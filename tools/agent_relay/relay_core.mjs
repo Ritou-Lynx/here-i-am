@@ -10,6 +10,28 @@ export function parseInstruction(body) {
   return { round, instruction: body.replace(/^.*?(?:\r?\n|$)/, '') };
 }
 
+// Script rounds: a committed PowerShell file, pinned by hash. write mode waits for the owner's 👍.
+const RUNNER = /^<!-- relay:to-runner round=(\d+) script=(tools\/relay_scripts\/[A-Za-z0-9_-][A-Za-z0-9._-]*(?:\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*\.ps1) sha256=([0-9a-f]{64}) mode=(read|write) -->[ \t]*$/;
+
+export function parseRunnerInstruction(body) {
+  if (typeof body !== 'string') return null;
+  const match = RUNNER.exec(body.split(/\r?\n/, 1)[0]);
+  if (!match || match[2].split('/').includes('..')) return null;
+  const round = Number(match[1]);
+  if (!Number.isSafeInteger(round) || round < 1) return null;
+  return { round, script: match[2], sha256: match[3], mode: match[4] };
+}
+
+export function formatRunnerReply({ round, status, sha, script, exitCode, output, reason, summaryMaxChars = 6000, secrets = [] } = {}) {
+  const head = `<!-- relay:to-claude round=${round} status=${status} sha=${sha || 'none'} kind=runner -->`;
+  const lines = [`**[to-claude] 脚本第 ${round} 轮 · ${status}**`, '', `脚本：${script ?? ''}`];
+  if (Number.isInteger(exitCode)) lines.push(`退出码：${exitCode}`);
+  if (reason) lines.push(`原因：${redact(String(reason).split(/\r?\n/, 1)[0], Number.MAX_SAFE_INTEGER, secrets).text}`);
+  const body = redact(String(output ?? ''), summaryMaxChars, secrets);
+  lines.push('', '```text', body.text.replace(/```/g, "'''"), '```');
+  return head + '\n' + redact(lines.join('\n'), Number.MAX_SAFE_INTEGER, secrets).text + (body.redacted || body.truncated ? '\n\n部分内容已隐藏或截断，全文见本机日志' : '');
+}
+
 export function isEligiblePr(pr, config = {}) {
   if (!pr || pr.state && pr.state !== 'OPEN' && pr.state !== 'open') return false;
   const labels = (pr.labels || []).map(x => typeof x === 'string' ? x : x?.name).filter(Boolean);
@@ -68,7 +90,7 @@ export function parseNotification(body) {
 }
 
 export function formatNotification({ kind, pr, round, title = '', url = '', body = '' }, secrets = []) {
-  const suffix = kind === 'done' ? '完成，等你验收' : kind === 'to-human' ? '需要你决定' : `第 ${round} 轮失败`;
+  const suffix = kind === 'done' ? '完成，等你验收' : kind === 'to-human' ? '需要你决定' : kind === 'approval' ? '有改动型脚本等你点 👍' : `第 ${round} 轮失败`;
   const excerpt = redact(String(body).replace(/^.*?(?:\r?\n|$)/, ''), 300, secrets).text;
   return {
     title: redact(`接力 PR #${pr}：${suffix}`, Number.MAX_SAFE_INTEGER, secrets).text,
