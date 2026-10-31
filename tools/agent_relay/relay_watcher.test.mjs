@@ -1028,3 +1028,32 @@ test('mobile: CLI and runOnce errors hide configured credentials, including inva
     return true;
   });
 });
+
+test('exit grace: child exit settles while a grandchild still holds stdout, and the grandchild is cleaned up', async t => {
+  const script = "const { spawn } = require('node:child_process'); const g = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: ['ignore', 'inherit', 'inherit'] }); process.stdout.write(String(g.pid) + '\\n'); process.exit(0);";
+  const started = Date.now();
+  const result = await runProcess(process.execPath, ['-e', script], { timeoutMs: 15000, exitGraceMs: 300 });
+  assert.equal(result.code, 0);
+  assert.equal(result.timedOut, false);
+  assert.equal(result.cleanupUnconfirmed, false);
+  assert.ok(Date.now() - started < 10000);
+  const grandchild = Number(result.stdout.trim());
+  assert.ok(Number.isSafeInteger(grandchild) && grandchild > 0);
+  if (process.platform !== 'win32') {
+    let alive = true;
+    for (let i = 0; i < 50 && alive; i++) {
+      // A killed orphan may linger as a zombie until init reaps it; that counts as gone.
+      try { process.kill(grandchild, 0); } catch { alive = false; break; }
+      try { if (/^\d+ \(.*\) Z/.test(await readFile(`/proc/${grandchild}/stat`, 'utf8'))) alive = false; } catch {}
+      if (alive) await new Promise(r => setTimeout(r, 20));
+    }
+    assert.equal(alive, false);
+  }
+});
+
+test('exit grace: nonzero exit code is kept when close never arrives', async t => {
+  const script = "const { spawn } = require('node:child_process'); spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: ['ignore', 'inherit', 'inherit'] }); process.exit(3);";
+  const result = await runProcess(process.execPath, ['-e', script], { timeoutMs: 15000, exitGraceMs: 300 });
+  assert.equal(result.code, 3);
+  assert.equal(result.timedOut, false);
+});
