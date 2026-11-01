@@ -144,8 +144,19 @@ class PersonaReplySanitizer {
     caseSensitive: false,
   );
 
+  /// Chatterbox-Turbo（家里电脑的林埃英文声音）认识的标签，与
+  /// tools/linai_tts/text_prep.py 的 ALLOWED_TAGS 保持一致。
+  static final RegExp _turboAudioTag = RegExp(
+    r'\[\s*(?:'
+    r'laugh|chuckle|sigh|gasp|cough|clear throat|crying|sniff|groan|shush|'
+    r'whispering|happy|angry|sarcastic|surprised|fear|dramatic'
+    r')\s*\]',
+    caseSensitive: false,
+  );
+
   static final RegExp _ttsAudioTag = RegExp(
-    '(?:${_elevenLabsAudioTag.pattern}|${_miniMaxSoundTag.pattern})',
+    '(?:${_elevenLabsAudioTag.pattern}|${_miniMaxSoundTag.pattern}|'
+    '${_turboAudioTag.pattern})',
     caseSensitive: false,
   );
 
