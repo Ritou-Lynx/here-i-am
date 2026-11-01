@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from linai_tts_server import ConfigError, TtsState, create_server, load_config  # noqa: E402
 
 TOKEN = "t" * 40
+LOGIN = "linai.owner@example.com"
 SECRET_TEXT = "Secret sentence for the log check."
 
 
@@ -44,11 +45,11 @@ class FakeEngine:
         return np.zeros(2400, dtype=np.float32), 24000
 
 
-class ServerTest(unittest.TestCase):
+class ServerHarness(unittest.TestCase):
     def start(self, engine=None, queue_timeout_s=5.0, loaded=True):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp, True)
-        config = {"token": TOKEN, "device": "cuda", "max_chars": 400, "queue_timeout_s": queue_timeout_s,
+        config = {"token": TOKEN, "tailscale_logins": [LOGIN], "device": "cuda", "max_chars": 400, "queue_timeout_s": queue_timeout_s,
                   "log_dir": str(Path(self.tmp) / "logs")}
         self.engine = engine or FakeEngine()
         self.state = TtsState(self.engine, config, {"power_throttling_off": True})
@@ -60,9 +61,11 @@ class ServerTest(unittest.TestCase):
         self.addCleanup(self.server.shutdown)
         self.port = self.server.server_address[1]
 
-    def request(self, method, path, body=None, token=TOKEN):
+    def request(self, method, path, body=None, token=TOKEN, login=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
         headers = {"Content-Type": "application/json"}
+        if login is not None:
+            headers["Tailscale-User-Login"] = login
         if token is not None:
             headers["Authorization"] = f"Bearer {token}"
         data = json.dumps(body).encode() if body is not None else None
@@ -76,6 +79,8 @@ class ServerTest(unittest.TestCase):
         logs = Path(self.tmp) / "logs"
         return "".join(p.read_text(encoding="utf-8") for p in logs.glob("*.log"))
 
+
+class ServerTest(ServerHarness):
     def test_health_without_token(self):
         self.start()
         resp, payload = self.request("GET", "/v1/tts/health", token=None)
@@ -161,6 +166,42 @@ class ServerTest(unittest.TestCase):
         self.assertNotIn("wrong-token", log)
 
 
+class TailscaleAuthTest(ServerHarness):
+    def test_allowed_login_without_token(self):
+        self.start()
+        resp, payload = self.request("POST", "/v1/tts/speak", {"text": "Hey."}, token=None, login=LOGIN.upper())
+        self.assertEqual(resp.status, 200)
+        self.assertTrue(payload.startswith(b"RIFF"))
+
+    def test_unknown_login_rejected(self):
+        self.start()
+        resp, _ = self.request("POST", "/v1/tts/speak", {"text": "Hey."}, token=None, login="someone@else.org")
+        self.assertEqual(resp.status, 401)
+
+    def test_unknown_login_with_token_still_ok(self):
+        self.start()
+        resp, _ = self.request("POST", "/v1/tts/speak", {"text": "Hey."}, login="someone@else.org")
+        self.assertEqual(resp.status, 200)
+
+    def test_health_reports_caller(self):
+        self.start()
+        _, body = self.request("GET", "/v1/tts/health", token=None, login=LOGIN)
+        self.assertTrue(json.loads(body)["caller_authorized"])
+        _, body = self.request("GET", "/v1/tts/health", token=None)
+        self.assertFalse(json.loads(body)["caller_authorized"])
+        _, body = self.request("GET", "/v1/tts/health")
+        self.assertTrue(json.loads(body)["caller_authorized"])
+
+    def test_log_records_method_not_login(self):
+        self.start()
+        self.request("POST", "/v1/tts/speak", {"text": "Hey."}, token=None, login=LOGIN)
+        self.request("POST", "/v1/tts/speak", {"text": "Hey."})
+        log = self.log_text()
+        self.assertNotIn(LOGIN, log)
+        auths = [json.loads(line)["auth"] for line in log.splitlines()]
+        self.assertEqual(auths, ["tailscale", "bearer"])
+
+
 class ConfigTest(unittest.TestCase):
     def write(self, data):
         d = tempfile.mkdtemp()
@@ -173,6 +214,19 @@ class ConfigTest(unittest.TestCase):
         cfg = load_config(self.write({"token": TOKEN, "reference_wav": "ref.wav"}))
         self.assertEqual((cfg["device"], cfg["max_chars"], cfg["queue_timeout_s"]), ("cuda", 400, 20.0))
         self.assertTrue(cfg["log_dir"].endswith("logs"))
+
+    def test_tailscale_logins_normalized(self):
+        cfg = load_config(self.write({"token": TOKEN, "reference_wav": "ref.wav",
+                                      "tailscale_logins": [" A@B.com ", "a@b.com"]}))
+        self.assertEqual(cfg["tailscale_logins"], ["a@b.com"])
+
+    def test_tailscale_logins_default_empty(self):
+        cfg = load_config(self.write({"token": TOKEN, "reference_wav": "ref.wav"}))
+        self.assertEqual(cfg["tailscale_logins"], [])
+
+    def test_tailscale_logins_invalid(self):
+        with self.assertRaises(ConfigError):
+            load_config(self.write({"token": TOKEN, "reference_wav": "ref.wav", "tailscale_logins": "a@b.com"}))
 
     def test_short_token_rejected(self):
         with self.assertRaises(ConfigError):

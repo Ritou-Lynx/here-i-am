@@ -3,7 +3,7 @@
 $ErrorActionPreference = 'Continue'
 # 安装/更新林埃英文语音服务为登录自启（幂等，可重复运行）：
 #   %LOCALAPPDATA%\HereIAm\linai-tts\  venv\（首次从测速环境复制）、app\（本目录代码的部署副本）、
-#   config.json（首次生成随机 token，之后保留）、参考音频、logs\
+#   config.json（首次生成随机 token，之后保留；本机 Tailscale 账号写进 tailscale_logins）、参考音频、logs\
 #   启动文件夹放一个 VBS，登录后用 pythonw 隐藏运行；不用计划任务，不需要管理员。
 #   tailscale serve --bg --https=8445 → 127.0.0.1:47870（Tailscale 服务每次开机自动恢复）。
 # 输出每行一个 JSON，不含路径、token、域名。卸载见 uninstall_linai_tts.ps1。
@@ -66,6 +66,28 @@ if (-not (Test-Path $cfgPath)) {
     Out-Json @{ step = 'config'; action = 'kept' }
 }
 
+# 4b. 本机 Tailscale 登录账号加入 tailscale_logins：同账号的手机经 tailscale serve 访问免 token
+$ts = (Get-Command tailscale -ErrorAction SilentlyContinue).Source
+if (-not $ts) { $ts = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe' }
+if (-not (Test-Path $ts)) { Out-Json @{ step = 'tailscale'; ok = $false; error = 'tailscale_not_found' }; exit 7 }
+$tsStatus = & $ts status --json | Out-String | ConvertFrom-Json
+$selfUser = "$($tsStatus.Self.UserID)"
+$login = $null
+if ($selfUser -and $tsStatus.User) { $login = $tsStatus.User.$selfUser.LoginName }
+if (-not $login) { Out-Json @{ step = 'tailscale-login'; ok = $false; error = 'login_not_found' }; exit 8 }
+$cfgObj = [IO.File]::ReadAllText($cfgPath) | ConvertFrom-Json
+$logins = @()
+if ($cfgObj.PSObject.Properties['tailscale_logins']) { $logins = @($cfgObj.tailscale_logins) }
+if ($logins -contains $login) {
+    Out-Json @{ step = 'tailscale-login'; ok = $true; action = 'kept'; count = $logins.Count }
+} else {
+    $logins = @($logins) + $login
+    if ($cfgObj.PSObject.Properties['tailscale_logins']) { $cfgObj.tailscale_logins = $logins }
+    else { $cfgObj | Add-Member -NotePropertyName tailscale_logins -NotePropertyValue $logins }
+    [IO.File]::WriteAllText($cfgPath, ($cfgObj | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+    Out-Json @{ step = 'tailscale-login'; ok = $true; action = 'added'; count = $logins.Count }
+}
+
 # 5. 登录自启：启动文件夹 VBS，隐藏窗口
 $vbsPath = Join-Path ([Environment]::GetFolderPath('Startup')) 'HereIAm_LinaiTts.vbs'
 $server = Join-Path $app 'linai_tts_server.py'
@@ -91,9 +113,6 @@ Out-Json @{ step = 'local-health'; seconds = [int]((Get-Date) - $t0).TotalSecond
 if (-not $health -or -not $health.model_loaded) { exit 6 }
 
 # 7. Tailscale HTTPS 入口
-$ts = (Get-Command tailscale -ErrorAction SilentlyContinue).Source
-if (-not $ts) { $ts = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe' }
-if (-not (Test-Path $ts)) { Out-Json @{ step = 'tailscale'; ok = $false; error = 'tailscale_not_found' }; exit 7 }
 $serve = & $ts serve status 2>&1 | Out-String
 if ($serve -notmatch ":$httpsPort\b") {
     & $ts serve --bg "--https=$httpsPort" "http://127.0.0.1:$port" 2>&1 | Out-Null
@@ -101,8 +120,9 @@ if ($serve -notmatch ":$httpsPort\b") {
 } else {
     Out-Json @{ step = 'tailscale-serve'; action = 'kept' }
 }
-$dns = ((& $ts status --json | Out-String | ConvertFrom-Json).Self.DNSName).TrimEnd('.')
+$dns = "$($tsStatus.Self.DNSName)".TrimEnd('.')
 $remote = $null
 try { $remote = Invoke-RestMethod -Uri "https://${dns}:$httpsPort/v1/tts/health" -TimeoutSec 15 } catch { $remoteError = $_.Exception.GetType().Name }
-Out-Json @{ step = 'tailnet-health'; ok = [bool]($remote -and $remote.model_loaded); error = $remoteError }
+# 本机经 tailnet 访问自己时 serve 也会带登录头，caller_authorized 应为 true
+Out-Json @{ step = 'tailnet-health'; ok = [bool]($remote -and $remote.model_loaded); caller_authorized = [bool]($remote -and $remote.caller_authorized); error = $remoteError }
 Out-Json @{ step = 'done'; ok = [bool]($remote -and $remote.model_loaded) }
