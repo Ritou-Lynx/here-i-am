@@ -712,11 +712,17 @@ class UserStorage {
 
   /// Returns the voice ID for the currently active TTS provider, or null if
   /// not configured. The active provider is controlled by the Chat auto-read
-  /// buttons (ElevenLabs / MiniMax); manual play and inline voice mode both
+  /// buttons (ElevenLabs / MiniMax / 家里电脑); manual play and inline voice mode both
   /// resolve through this so they follow whichever auto-read button is on.
   static Future<String?> getActiveTtsVoiceId() async {
     final provider = await getTtsProvider();
     if (provider == 'minimax') return getMiniMaxVoiceId();
+    if (provider == 'home_turbo') {
+      // 家里电脑的声音固定在服务端；这里给回退用的 MiniMax voice id。
+      // 没配 MiniMax 也要返回非空，否则调用方会当成“没配声音”直接不念。
+      final miniMax = await getMiniMaxVoiceId();
+      return (miniMax == null || miniMax.isEmpty) ? 'home_turbo' : miniMax;
+    }
     return getElevenLabsVoiceId();
   }
 

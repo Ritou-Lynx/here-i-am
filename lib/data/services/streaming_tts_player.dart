@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:memex/data/services/home_turbo_tts_service.dart';
 import 'package:memex/data/services/ordered_tts_queue.dart';
 import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/domain/models/voice_turn_identity.dart';
@@ -195,9 +196,11 @@ class StreamingTtsSession {
           _log.warning(
               'TTS seq=$currentSeq returned empty, pushing placeholder');
         }
+        // 家里电脑声音回的是 WAV；按文件头给扩展名，播放器按扩展名选解码器更稳。
+        final ext = HomeTurboTtsService.isWav(bytes) ? 'wav' : 'mp3';
         final file = File(
           '${Directory.systemTemp.path}/tts_seg_'
-          '${DateTime.now().microsecondsSinceEpoch}_$currentSeq.mp3',
+          '${DateTime.now().microsecondsSinceEpoch}_$currentSeq.$ext',
         );
         if (bytes.isNotEmpty) {
           await file.writeAsBytes(bytes, flush: true);

@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/services/home_turbo_tts_service.dart';
 import 'package:memex/data/services/voice_cue_classifier.dart';
+import 'package:memex/data/services/voice_cue_coordinator.dart';
 import 'package:memex/data/services/voice_cue_service.dart';
 
 void main() {
@@ -105,6 +107,25 @@ void main() {
     test('all clips have unique clipIds', () {
       final ids = defaultVoiceCueManifest.map((c) => c.clipId).toList();
       expect(ids.toSet().length, ids.length);
+    });
+  });
+
+  group('English cues for the home voice', () {
+    test('every clip has English text without CJK characters', () {
+      for (final clip in defaultVoiceCueManifest) {
+        expect(clip.englishText, isNotNull, reason: clip.clipId);
+        expect(HomeTurboTtsService.hasCjk(clip.englishText!), isFalse,
+            reason: clip.clipId);
+      }
+    });
+
+    test('textFor picks English only for the home voice', () {
+      final clip = defaultVoiceCueManifest.first;
+      expect(VoiceCueCoordinator.textFor(clip, provider: 'home_turbo'),
+          clip.englishText);
+      expect(VoiceCueCoordinator.textFor(clip, provider: 'minimax'), clip.text);
+      expect(
+          VoiceCueCoordinator.textFor(clip, provider: 'elevenlabs'), clip.text);
     });
   });
 }

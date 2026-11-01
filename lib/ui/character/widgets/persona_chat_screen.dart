@@ -5077,7 +5077,7 @@ only after you have written the goodbye you want the user to hear.''',
     _autoReadWatermarkId = newest.id;
   }
 
-  /// Toggle auto-read for [provider] ('elevenlabs' or 'minimax').
+  /// Toggle auto-read for [provider] ('elevenlabs', 'minimax' or 'home_turbo').
   ///
   /// If the tapped provider is already active and auto-read is on, turn it
   /// off. If a different provider is active (or auto-read is off), switch to
@@ -5137,6 +5137,8 @@ only after you have written the goodbye you want the user to hear.''',
         'call_${DateTime.now().millisecondsSinceEpoch}',
       );
       _activeVoiceTurn = null;
+      // 家里电脑声音：进入语音模式先体检，不可用整段用 MiniMax。
+      unawaited(TtsService.prepareForVoiceSession());
       // Initialize voice cue coordinator and pre-generate cue clips.
       final cueVoiceId = await UserStorage.getActiveTtsVoiceId();
       if (cueVoiceId != null && cueVoiceId.isNotEmpty) {
@@ -5809,6 +5811,16 @@ only after you have written the goodbye you want the user to hear.''',
             : _chatUiText(zh: 'MiniMax 朗读', en: 'MiniMax read'),
         active: _autoReadEnabled && _activeTtsProvider == 'minimax',
         onTap: () => unawaited(_toggleAutoRead('minimax')),
+      ),
+      _HeaderActionButton(
+        icon: _autoReadEnabled && _activeTtsProvider == 'home_turbo'
+            ? Icons.computer_rounded
+            : Icons.computer_outlined,
+        label: _autoReadEnabled && _activeTtsProvider == 'home_turbo'
+            ? _chatUiText(zh: '关闭家里电脑朗读', en: 'Stop home voice')
+            : _chatUiText(zh: '家里电脑朗读（英文）', en: 'Home voice (EN)'),
+        active: _autoReadEnabled && _activeTtsProvider == 'home_turbo',
+        onTap: () => unawaited(_toggleAutoRead('home_turbo')),
       ),
       if (widget.onOpenSpaces != null)
         _HeaderActionButton(
