@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:memex/data/services/voice_call_health.dart';
 import 'package:memex/utils/logger.dart';
 
 /// Structured latency tracker for a single voice turn.
@@ -133,5 +136,6 @@ class VoiceLatencyTracker {
       buf.write(' ${entry.key}=${entry.value}');
     }
     _log.info(buf.toString());
+    unawaited(VoiceCallHealth.instance.recordTurn(m));
   }
 }

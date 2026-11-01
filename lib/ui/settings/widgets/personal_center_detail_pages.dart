@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/data/services/checkin_service.dart';
@@ -8,6 +9,7 @@ import 'package:memex/data/services/home_turbo_tts_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/media_service.dart';
 import 'package:memex/data/services/proactive_outing_service.dart';
+import 'package:memex/data/services/voice_call_health.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_color_controller.dart';
 import 'package:memex/ui/core/themes/spring_rain_chat_tokens.dart';
@@ -546,6 +548,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   String? _homeTurboDerivedUrl;
   String? _homeTurboTestResult;
   bool _homeTurboTesting = false;
+  List<VoiceCallSession> _callHealth = const [];
   String? _provider;
 
   @override
@@ -573,6 +576,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _miniMaxVoiceIdController.text = values[5] as String? ?? '';
     _homeTurboUrlController.text = values[6] as String? ?? '';
     _homeTurboDerivedUrl = values[7] as String?;
+    _callHealth = await VoiceCallHealth.instance.load();
+    if (!mounted) return;
     setState(() => _provider = values[0]! as String);
   }
 
@@ -609,6 +614,13 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       );
     }
     if (mounted) _showSaved(context, '语音播放设置已保存');
+  }
+
+  Future<void> _copyCallHealth() async {
+    await Clipboard.setData(
+      ClipboardData(text: VoiceCallHealth.formatForCopy(_callHealth)),
+    );
+    if (mounted) _showSaved(context, '通话体检已复制');
   }
 
   /// 先查 health，再念一句，显示耗时。地址用输入框里还没保存的值。
@@ -787,6 +799,46 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
             child: FilledButton(
               onPressed: _save,
               child: const Text('保存'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _SettingsSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '通话体检（最近 ${VoiceCallHealth.maxSessions} 次）',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _callHealth.isEmpty ? null : _copyCallHealth,
+                      child: const Text('复制'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '每次语音对话一条，延迟为各轮中位数（毫秒），只记数字不记内容。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                if (_callHealth.isEmpty)
+                  Text('还没有记录',
+                      style: Theme.of(context).textTheme.bodySmall)
+                else
+                  for (final s in _callHealth)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: SelectableText(
+                        s.summaryLine,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+              ],
             ),
           ),
         ],

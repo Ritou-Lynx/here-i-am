@@ -2,6 +2,7 @@ import 'package:memex/data/services/elevenlabs_tts_service.dart';
 import 'package:memex/data/services/home_turbo_tts_service.dart';
 import 'package:memex/data/services/minimax_tts_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
+import 'package:memex/data/services/voice_call_health.dart';
 import 'package:memex/utils/user_storage.dart';
 
 class TtsService {
@@ -74,9 +75,16 @@ class TtsService {
 
   /// 语音会话（通话、耳机键、聊天语音模式）开始时调用：当前是家里电脑声音就先体检，
   /// 不可用则整段会话直接用 MiniMax。不阻塞调用方。
+  /// 同时开始一条通话体检记录（见 [VoiceCallHealth]）。
   static Future<void> prepareForVoiceSession() async {
     final provider = await UserStorage.getTtsProvider();
-    if (provider != homeTurboProvider) return;
-    await HomeTurboTtsService.prepareForSession();
+    if (provider != homeTurboProvider) {
+      await VoiceCallHealth.instance.begin(provider: provider);
+      return;
+    }
+    // 先开记录再体检：体检要等几秒，期间开场白的句子也要记进这次会话。
+    await VoiceCallHealth.instance.begin(provider: provider);
+    final health = await HomeTurboTtsService.prepareForSession();
+    await VoiceCallHealth.instance.setHealth(health.summary);
   }
 }

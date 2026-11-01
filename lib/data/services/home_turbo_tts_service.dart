@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:http/http.dart' as http;
 import 'package:memex/data/services/file_system_service.dart';
+import 'package:memex/data/services/voice_call_health.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/utils/logger.dart';
 
@@ -128,15 +129,19 @@ class HomeTurboTtsService {
   static Future<Uint8List?> trySynthesize(String text) async {
     final trimmed = text.trim();
     // Turbo 只会英文：含中日韩字符的句子直接交给 MiniMax，不算失败。
-    if (trimmed.isEmpty || trimmed.length > maxChars || hasCjk(trimmed)) {
+    if (trimmed.isEmpty) return null;
+    if (trimmed.length > maxChars || hasCjk(trimmed) || breaker.isOpen) {
+      unawaited(VoiceCallHealth.instance.recordTurbo(TurboOutcome.skipped));
       return null;
     }
-    if (breaker.isOpen) return null;
     final result = await synthesize(trimmed);
     if (result.audio != null) {
       breaker.recordSuccess();
+      unawaited(VoiceCallHealth.instance
+          .recordTurbo(TurboOutcome.ok, totalMs: result.totalMs));
     } else {
       breaker.recordFailure();
+      unawaited(VoiceCallHealth.instance.recordTurbo(TurboOutcome.failed));
       _log.warning('synthesize failed: ${result.error}');
     }
     return result.audio;
