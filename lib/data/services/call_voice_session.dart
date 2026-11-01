@@ -18,6 +18,7 @@ import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/streaming_tts_player.dart';
+import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/data/services/voice_call_audio_session.dart';
 import 'package:memex/data/services/voice_latency_tracker.dart';
 import 'package:memex/db/app_database.dart';
@@ -197,6 +198,8 @@ class CallVoiceSession {
       return;
     }
     _phase = CallVoicePhase.starting;
+    // 家里电脑声音：每通电话先体检一次，不可用整通电话用 MiniMax。
+    unawaited(TtsService.prepareForVoiceSession());
     if (!await ensureReady()) {
       if (_generationTracker.activeGeneration == generation) {
         await _failWith('通话初始化失败');

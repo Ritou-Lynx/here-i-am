@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/home_turbo_tts_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/media_service.dart';
 import 'package:memex/data/services/proactive_outing_service.dart';
@@ -541,6 +542,10 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _miniMaxController = TextEditingController();
   final _miniMaxGroupController = TextEditingController();
   final _miniMaxVoiceIdController = TextEditingController();
+  final _homeTurboUrlController = TextEditingController();
+  String? _homeTurboDerivedUrl;
+  String? _homeTurboTestResult;
+  bool _homeTurboTesting = false;
   String? _provider;
 
   @override
@@ -557,6 +562,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       UserStorage.getMiniMaxGroupId(),
       UserStorage.getElevenLabsVoiceId(),
       UserStorage.getMiniMaxVoiceId(),
+      HomeTurboTtsService.getSavedUrl(),
+      HomeTurboTtsService.getDerivedUrl(),
     ]);
     if (!mounted) return;
     _elevenLabsController.text = values[1] as String? ?? '';
@@ -564,6 +571,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _miniMaxGroupController.text = values[3] as String? ?? '';
     _elevenLabsVoiceIdController.text = values[4] as String? ?? '';
     _miniMaxVoiceIdController.text = values[5] as String? ?? '';
+    _homeTurboUrlController.text = values[6] as String? ?? '';
+    _homeTurboDerivedUrl = values[7] as String?;
     setState(() => _provider = values[0]! as String);
   }
 
@@ -574,6 +583,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _miniMaxController.dispose();
     _miniMaxGroupController.dispose();
     _miniMaxVoiceIdController.dispose();
+    _homeTurboUrlController.dispose();
     super.dispose();
   }
 
@@ -584,7 +594,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   }
 
   Future<void> _save() async {
-    if (_provider == 'minimax') {
+    await HomeTurboTtsService.saveUrl(_homeTurboUrlController.text);
+    // 家里电脑声音失败时用 MiniMax 顶上，所以也保存 MiniMax 的配置。
+    if (_provider == 'minimax' || _provider == 'home_turbo') {
       await UserStorage.setMiniMaxApiKey(_miniMaxController.text.trim());
       await UserStorage.setMiniMaxGroupId(_miniMaxGroupController.text.trim());
       await UserStorage.setMiniMaxVoiceId(_miniMaxVoiceIdController.text.trim());
@@ -599,6 +611,35 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     if (mounted) _showSaved(context, '语音播放设置已保存');
   }
 
+  /// 先查 health，再念一句，显示耗时。地址用输入框里还没保存的值。
+  Future<void> _testHomeTurbo() async {
+    setState(() {
+      _homeTurboTesting = true;
+      _homeTurboTestResult = null;
+    });
+    await HomeTurboTtsService.saveUrl(_homeTurboUrlController.text);
+    final health = await HomeTurboTtsService.checkHealth(
+      timeout: const Duration(seconds: 6),
+    );
+    var result = health.summary;
+    if (health.usable) {
+      final speak = await HomeTurboTtsService.synthesize(
+        "Hey, it's me. Can you hear me?",
+        timeout: const Duration(seconds: 15),
+      );
+      result = speak.audio != null
+          ? '可用：一句话往返 ${speak.totalMs} ms（生成 ${speak.genMs ?? '?'} ms，'
+              '音频 ${speak.audioMs ?? '?'} ms）'
+          : '能连上，但念一句失败（${speak.error}）';
+      if (speak.audio != null) HomeTurboTtsService.breaker.reset();
+    }
+    if (!mounted) return;
+    setState(() {
+      _homeTurboTesting = false;
+      _homeTurboTestResult = result;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return _DetailPage(
@@ -606,7 +647,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       children: [
         const _PageIntro(
           title: 'TTS 服务',
-          body: '两个语音服务各自需要 API Key 和 Voice ID。Chat 界面的两个自动朗读按钮分别对应 ElevenLabs 和 MiniMax，点一下开启对应服务的自动朗读，再点一下关闭。',
+          body: 'ElevenLabs 和 MiniMax 各自需要 API Key 和 Voice ID。“家里电脑（英文）”用电脑上的林埃英文声音，经 Tailscale 连接，不需要密钥；连不上或含中文的句子自动改用 MiniMax。Chat 界面的自动朗读按钮分别对应这三种，点一下开启，再点一下关闭。',
         ),
         const SizedBox(height: 20),
         if (_provider == null)
@@ -627,6 +668,13 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                   subtitle: '使用 MiniMax 语音服务',
                   selected: _provider == 'minimax',
                   onTap: () => _selectProvider('minimax'),
+                ),
+                const Divider(),
+                _ChoiceRow(
+                  title: '家里电脑（英文）',
+                  subtitle: '林埃的英文声音，失败时用 MiniMax',
+                  selected: _provider == 'home_turbo',
+                  onTap: () => _selectProvider('home_turbo'),
                 ),
               ],
             ),
@@ -689,6 +737,46 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                     labelText: 'MiniMax Voice ID',
                     hintText: '数字 voice ID',
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingsSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '家里电脑（英文）',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _homeTurboUrlController,
+                  keyboardType: TextInputType.url,
+                  decoration: InputDecoration(
+                    labelText: '服务地址（可留空）',
+                    hintText: _homeTurboDerivedUrl ?? 'https://电脑名:8445',
+                    helperText: _homeTurboDerivedUrl == null
+                        ? '留空时用漫画服务所在电脑的 8445 端口'
+                        : '留空时用 $_homeTurboDerivedUrl',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    OutlinedButton(
+                      onPressed: _homeTurboTesting ? null : _testHomeTurbo,
+                      child: Text(_homeTurboTesting ? '测试中…' : '测试连接'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _homeTurboTestResult ?? '',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
