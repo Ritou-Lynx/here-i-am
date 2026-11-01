@@ -1,6 +1,6 @@
 # linai_tts：家用林埃英文语音服务
 
-在家里电脑上用 Chatterbox-Turbo（ResembleAI，350M，MIT，仅英文）把一段英文合成为林埃的声音，返回 WAV。只监听 `127.0.0.1`，手机经 `tailscale serve` 的 HTTPS 访问，另加 Bearer token。App 侧接入见 V1b。
+在家里电脑上用 Chatterbox-Turbo（ResembleAI，350M，MIT，仅英文）把一段英文合成为林埃的声音，返回 WAV。只监听 `127.0.0.1`，手机经 `tailscale serve` 的 HTTPS 访问。鉴权二选一：请求经 tailscale serve 转发、带的 `Tailscale-User-Login` 在 `tailscale_logins` 名单里（同账号手机免 token），或 Bearer token。App 侧接入见 V1b。
 
 ## 文件
 
@@ -33,11 +33,12 @@ py -3.11 -m venv "$dir\venv"
 
 复制 `config.example.json` 到 `%LOCALAPPDATA%\HereIAm\linai-tts\config.json`（或用环境变量 `LINAI_TTS_CONFIG` 指定），填：
 
-- `token`：至少 32 个字符的随机串，手机端填同一个。
+- `token`：至少 32 个字符的随机串，不在 tailnet 名单里的调用方用它。
+- `tailscale_logins`：可选，放行的 Tailscale 登录账号（不区分大小写）。服务只听 `127.0.0.1`，这个头只会由本机的 tailscale serve 加上；本机其他进程也能直接伪造它，但它们本来就能读到 config 里的 token，不算降低门槛。
 - `reference_wav`：林埃参考音频，长于 5 秒、干净、有授权（目前用“声音 5”）。
 - `device`（默认 `cuda`）、`max_chars`（默认 400）、`queue_timeout_s`（默认 20）。
 
-日志在配置目录的 `logs\`，每次请求一行 JSON，不记原文和 token。
+日志在配置目录的 `logs\`，每次请求一行 JSON（含 `auth`：`tailscale` / `bearer`），不记原文、token 和登录账号。
 
 ## 运行
 
@@ -50,9 +51,9 @@ tailscale serve --https=8445 http://127.0.0.1:47870
 
 ## 接口
 
-- `GET /v1/tts/health`（无需 token）→ `{ok, model_loaded, device, gpu_name, uptime_s, requests, last_error, power_throttling_off}`
-- `POST /v1/tts/speak`，`Authorization: Bearer <token>`，body `{"text": "...", "request_id": "可选"}` → `audio/wav`，响应头 `X-Gen-Ms`、`X-Audio-Ms`、`X-Request-Id`。
-- 错误：401 token 不对；400 `empty_text` / `text_too_long` / `empty_after_cleanup` / `bad_json`；503 `model_loading` / `busy`（排队超时，`Retry-After: 2`）；500 `synthesis_failed`。
+- `GET /v1/tts/health`（无需 token）→ `{ok, model_loaded, device, gpu_name, uptime_s, requests, last_error, power_throttling_off, caller_authorized}`；`caller_authorized` 表示这次请求的身份能不能调 speak，App 测试连接用
+- `POST /v1/tts/speak`，tailnet 身份或 `Authorization: Bearer <token>`，body `{"text": "...", "request_id": "可选"}` → `audio/wav`，响应头 `X-Gen-Ms`、`X-Audio-Ms`、`X-Request-Id`。
+- 错误：401 身份不在名单且 token 不对；400 `empty_text` / `text_too_long` / `empty_after_cleanup` / `bad_json`；503 `model_loading` / `busy`（排队超时，`Retry-After: 2`）；500 `synthesis_failed`。
 
 支持的标签：`[laugh] [chuckle] [sigh] [gasp] [cough] [clear throat] [crying] [sniff] [groan] [shush] [whispering] [happy] [angry] [sarcastic] [surprised] [fear] [dramatic]`。
 
@@ -83,7 +84,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\linai_tts\install_lina
 
 1. `%LOCALAPPDATA%\HereIAm\linai-tts\venv` 不存在时，整份复制已装好的测速 venv（省掉再下 2.7 GB torch）。
 2. 停掉旧实例，把本目录代码复制到 `linai-tts\app\`，服务从这份副本运行，不依赖仓库工作区。
-3. 首次生成 `config.json`（随机 64 位 hex token）和参考音频副本；之后保留，token 不变。
+3. 首次生成 `config.json`（随机 64 位 hex token）和参考音频副本；之后保留，token 不变。每次运行都把本机 Tailscale 登录账号补进 `tailscale_logins`（已有就不动）。
 4. 在“启动”文件夹放 `HereIAm_LinaiTts.vbs`，登录后用 `pythonw` 隐藏运行（与漫画服务同一做法，不用计划任务、不需要管理员）。
 5. 立即启动并等模型加载，再确保 `tailscale serve --bg --https=8445 http://127.0.0.1:47870`，从 tailnet 域名回测一次 health。
 

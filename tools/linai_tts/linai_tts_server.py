@@ -1,6 +1,8 @@
 """林埃英文语音服务：只监听本机，把一段英文合成为林埃的声音（Chatterbox-Turbo），返回 WAV。
 
-手机经 `tailscale serve` 访问，另加 Bearer token。只用标准库做 HTTP；推理在 engine.py，
+手机经 `tailscale serve` 访问。鉴权两种任选其一：Bearer token，或 tailscale serve 转发时
+附带的 Tailscale-User-Login 头在 config 的 tailscale_logins 名单里（服务只听 127.0.0.1，
+这个头只能由本机的 tailscale serve 加上）。只用标准库做 HTTP；推理在 engine.py，
 文本整理在 text_prep.py，二者都可替换，测试用假引擎。
 """
 import hmac
@@ -48,8 +50,12 @@ def load_config(path):
     reference = raw.get("reference_wav")
     if not isinstance(reference, str) or not reference:
         raise ConfigError("reference_wav_missing")
+    logins = raw.get("tailscale_logins", [])
+    if not isinstance(logins, list) or not all(isinstance(x, str) and x.strip() for x in logins):
+        raise ConfigError("tailscale_logins_invalid")
     return {
         "token": token,
+        "tailscale_logins": sorted({x.strip().lower() for x in logins}),
         "reference_wav": reference,
         "device": raw.get("device", "cuda"),
         "max_chars": int(raw.get("max_chars", 400)),
@@ -97,7 +103,18 @@ class TtsState:
             self.last_error = f"load_failed:{type(e).__name__}"
             self.log.write(event="load_failed", error=type(e).__name__)
 
-    def health(self):
+    def authorize(self, headers):
+        """返回鉴权方式 'tailscale' / 'bearer'，不通过返回 None。"""
+        login = headers.get("Tailscale-User-Login", "").strip().lower()
+        if login and login in self.config.get("tailscale_logins", ()):
+            return "tailscale"
+        auth = headers.get("Authorization", "")
+        given = auth[7:] if auth.startswith("Bearer ") else ""
+        if given and hmac.compare_digest(given.encode("utf-8"), self.config["token"].encode("utf-8")):
+            return "bearer"
+        return None
+
+    def health(self, headers=None):
         return {
             "ok": True,
             "model_loaded": self.model_loaded,
@@ -107,6 +124,7 @@ class TtsState:
             "requests": self.requests,
             "last_error": self.last_error,
             "power_throttling_off": self.power.get("power_throttling_off"),
+            "caller_authorized": bool(headers is not None and self.authorize(headers)),
         }
 
 
@@ -131,12 +149,12 @@ def make_handler(state):
         def do_GET(self):
             if self.path != "/v1/tts/health":
                 return self._json(404, {"error": "not_found"})
-            self._json(200, state.health())
+            self._json(200, state.health(self.headers))
 
         def do_POST(self):
             if self.path != "/v1/tts/speak":
                 return self._json(404, {"error": "not_found"})
-            meta = {"request_id": uuid.uuid4().hex[:12], "chars": None, "gen_ms": None, "audio_ms": None}
+            meta = {"request_id": uuid.uuid4().hex[:12], "auth": None, "chars": None, "gen_ms": None, "audio_ms": None}
             try:
                 status, error, send = self._speak(meta)
             except Exception as e:
@@ -154,9 +172,8 @@ def make_handler(state):
             return status, code, lambda: self._json(status, {"error": code}, headers)
 
         def _speak(self, meta):
-            auth = self.headers.get("Authorization", "")
-            given = auth[7:] if auth.startswith("Bearer ") else ""
-            if not hmac.compare_digest(given.encode("utf-8"), state.config["token"].encode("utf-8")):
+            meta["auth"] = state.authorize(self.headers)
+            if not meta["auth"]:
                 return self._reject(401, "unauthorized")
             try:
                 length = int(self.headers.get("Content-Length", "0"))
