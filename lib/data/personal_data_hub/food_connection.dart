@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:memex/data/services/device_identity_service.dart';
 import 'package:memex/data/services/sync/core_sync_connection_store.dart';
 import 'package:memex/data/services/sync/core_sync_protocol.dart';
 
@@ -12,6 +11,11 @@ import 'personal_data_hub.dart';
 
 const foodDomainName = 'food_entries';
 const foodPhonePrincipalId = 'phone-food-reader';
+
+/// Must equal the Core phone principal's installation_id (foodPrincipalConfigs
+/// in tools/i_core/personal_data_domains.mjs). Core binds snapshots and cursors
+/// to it, so the replica binding cannot use this phone's device identity.
+const foodPhoneInstallationId = 'food-phone';
 
 class FoodCredential {
   const FoodCredential({
@@ -164,8 +168,11 @@ class FoodPhoneCredentialClient {
 enum FoodConnectionPhase { disconnected, connected, notProvisioned, failed }
 
 class FoodConnectionStatus {
-  const FoodConnectionStatus(this.phase);
+  const FoodConnectionStatus(this.phase, [this.detail]);
   final FoodConnectionPhase phase;
+
+  /// Short error code shown with a failure, never a token or URL.
+  final String? detail;
   String get label => switch (phase) {
         FoodConnectionPhase.connected => '已连接',
         FoodConnectionPhase.notProvisioned => '电脑端尚未开通',
@@ -173,7 +180,8 @@ class FoodConnectionStatus {
       };
   String get screenMessage => switch (phase) {
         FoodConnectionPhase.notProvisioned => '电脑端尚未开通饮食同步',
-        FoodConnectionPhase.failed => '同步失败，下拉重试',
+        FoodConnectionPhase.failed =>
+          detail == null ? '同步失败，下拉重试' : '同步失败（$detail），下拉重试',
         _ => '尚未连接林埃核心',
       };
 }
@@ -186,7 +194,6 @@ class FoodConnector extends ChangeNotifier {
     FoodCredentialStore? credentialStore,
     Future<CoreSyncConnection?> Function()? readConnection,
     FoodClaim? claim,
-    Future<String> Function()? readInstallationId,
     DomainTransport Function(
             String baseUrl, String token, DomainBinding binding)?
         createTransport,
@@ -194,8 +201,6 @@ class FoodConnector extends ChangeNotifier {
         _readConnection =
             readConnection ?? CoreSyncConnectionStore.instance.read,
         _claim = claim ?? FoodPhoneCredentialClient().claim,
-        _readInstallationId =
-            readInstallationId ?? DeviceIdentityService.getOrCreate,
         _createTransport = createTransport ??
             ((baseUrl, token, binding) => DomainHttpTransport(
                 baseUrl: baseUrl, token: token, binding: binding));
@@ -204,7 +209,6 @@ class FoodConnector extends ChangeNotifier {
   final FoodCredentialStore _credentialStore;
   final Future<CoreSyncConnection?> Function() _readConnection;
   final FoodClaim _claim;
-  final Future<String> Function() _readInstallationId;
   final DomainTransport Function(String, String, DomainBinding)
       _createTransport;
   FoodConnectionStatus _status =
@@ -248,12 +252,15 @@ class FoodConnector extends ChangeNotifier {
           coreInstanceId: connection.coreNodeId,
           principalId: foodPhonePrincipalId,
           generation: credential.generation,
-          installationId: await _readInstallationId());
+          installationId: foodPhoneInstallationId);
       final attached = hub.storeFor(foodDomainName);
       if (attached != null &&
           canonicalJson(attached.binding.forDomain(foodDomainName)) ==
               canonicalJson(binding.forDomain(foodDomainName))) {
-        _setStatus(FoodConnectionPhase.connected);
+        // A sync failure stays visible until a later sync succeeds.
+        if (_status.phase != FoodConnectionPhase.failed) {
+          _setStatus(FoodConnectionPhase.connected);
+        }
         return;
       }
       final store = DomainStore(hub.db, binding: binding);
@@ -302,11 +309,11 @@ class FoodConnector extends ChangeNotifier {
       return;
     }
     if (!['unauthenticated', 'credential_expired'].contains(error)) {
-      _setStatus(FoodConnectionPhase.failed);
+      _setStatus(FoodConnectionPhase.failed, _safeDetail(error));
       return;
     }
     if (_reclaimedThisProcess) {
-      _setStatus(FoodConnectionPhase.failed);
+      _setStatus(FoodConnectionPhase.failed, _safeDetail(error));
       return;
     }
     _reclaimedThisProcess = true;
@@ -319,7 +326,21 @@ class FoodConnector extends ChangeNotifier {
       } catch (_) {
         _setStatus(FoodConnectionPhase.failed);
       }
+      final retried = hub.lastSyncErrors[foodDomainName];
+      if (retried == null) {
+        _setStatus(FoodConnectionPhase.connected);
+      } else {
+        _setStatus(FoodConnectionPhase.failed, _safeDetail(retried));
+      }
     }
+  }
+
+  static String? _safeDetail(Object? code) {
+    final text = code?.toString();
+    if (text == null || !RegExp(r'^[a-z0-9_]{1,48}$').hasMatch(text)) {
+      return null;
+    }
+    return text;
   }
 
   Future<void> disconnect(PersonalDataHub hub) async {
@@ -331,9 +352,9 @@ class FoodConnector extends ChangeNotifier {
     _setStatus(FoodConnectionPhase.disconnected);
   }
 
-  void _setStatus(FoodConnectionPhase phase) {
-    if (_status.phase == phase) return;
-    _status = FoodConnectionStatus(phase);
+  void _setStatus(FoodConnectionPhase phase, [String? detail]) {
+    if (_status.phase == phase && _status.detail == detail) return;
+    _status = FoodConnectionStatus(phase, detail);
     notifyListeners();
   }
 }

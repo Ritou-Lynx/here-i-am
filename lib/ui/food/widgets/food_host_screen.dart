@@ -40,6 +40,8 @@ class _FoodConnectionHostState extends State<_FoodConnectionHost> {
   StreamSubscription<PersonalDataHubChange>? _subscription;
   Object? _lastStore;
   bool _attachTried = false;
+  FoodService? _service;
+  (Object?, String, String?)? _serviceKey;
 
   @override
   void initState() {
@@ -107,18 +109,36 @@ class _FoodConnectionHostState extends State<_FoodConnectionHost> {
     super.dispose();
   }
 
+  // Unrelated hub changes rebuild this widget; reuse the reader unless what it
+  // shows changed, so the day view is not recreated and reloaded each time.
+  FoodService _currentService() {
+    final status = FoodConnector.instance.status;
+    final store = widget.runtime.hub.storeFor(foodDomainName);
+    final failure = status.phase == FoodConnectionPhase.failed
+        ? status.screenMessage
+        : null;
+    final key = (store, status.screenMessage, failure);
+    final existing = _service;
+    if (existing != null &&
+        _serviceKey != null &&
+        identical(_serviceKey!.$1, key.$1) &&
+        _serviceKey!.$2 == key.$2 &&
+        _serviceKey!.$3 == key.$3) {
+      return existing;
+    }
+    _serviceKey = key;
+    return _service = FoodService(
+      store: store,
+      clock: widget.runtime.clock,
+      missingStoreError: status.screenMessage,
+      connectionError: failure,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final status = FoodConnector.instance.status;
     return FoodScreen(
-      service: FoodService(
-        store: widget.runtime.hub.storeFor(foodDomainName),
-        clock: widget.runtime.clock,
-        missingStoreError: status.screenMessage,
-        connectionError: status.phase == FoodConnectionPhase.failed
-            ? status.screenMessage
-            : null,
-      ),
+      service: _currentService(),
       synchronize: _refresh,
       clock: widget.runtime.clock,
     );
