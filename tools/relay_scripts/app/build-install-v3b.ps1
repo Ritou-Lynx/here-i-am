@@ -25,7 +25,7 @@ function Scrub([string]$text) {
 }
 function Tail-Log($file, $n = 15) {
     if (-not (Test-Path $file)) { return @() }
-    return @(Get-Content $file -Tail $n | ForEach-Object { Scrub $_ })
+    return @(Get-Content $file -Tail $n -Encoding UTF8 | ForEach-Object { Scrub $_ })
 }
 function Find-Tool($name, $cands) {
     $cmd = Get-Command $name -ErrorAction SilentlyContinue
@@ -74,8 +74,26 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 $rc = Join-Path $logDir 'robocopy.log'
 & robocopy.exe $repo $work /MIR /NFL /NDL /NJH /NP /R:1 /W:1 `
     /XD build .dart_tool .git .gradle .cxx .idea `
-    /XF .git local.properties .flutter-plugins .flutter-plugins-dependencies *> $rc
+    /XF .git debug.keystore local.properties .flutter-plugins .flutter-plugins-dependencies *> $rc
 $rcExit = $LASTEXITCODE
+
+# debug 签名：debug.keystore 不进仓库，只在本机主仓库里。必须用同一把，否则覆盖安装会因签名不符失败。
+# 从工作树对应的主仓库（git common dir 的上一级）复制到构建目录，只回传是否找到和哈希前缀。
+$keyDest = Join-Path $work 'android\app\debug.keystore'
+$common = (& git -C $repo rev-parse --path-format=absolute --git-common-dir 2>$null | Select-Object -First 1)
+$keySrc = $null
+if ($common) {
+    $cand = Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($common.Trim()))) 'android\app\debug.keystore'
+    if (Test-Path $cand) { $keySrc = $cand }
+}
+if ($keySrc) { Copy-Item -Force $keySrc $keyDest }
+$keyInfo = @{ step = 'signing'; source_found = [bool]$keySrc; present = (Test-Path $keyDest) }
+if (Test-Path $keyDest) {
+    $kfs = [IO.File]::OpenRead($keyDest)
+    try { $keyInfo.sha256_12 = (-join ([Security.Cryptography.SHA256]::Create().ComputeHash($kfs) | ForEach-Object { $_.ToString('x2') })).Substring(0, 12) } finally { $kfs.Dispose() }
+}
+Out-Json $keyInfo
+if (-not (Test-Path $keyDest)) { Out-Json @{ step = 'signing'; ok = $false; error = 'debug_keystore_not_found' }; exit 9 }
 Out-Json @{ step = 'sync'; ok = ($rcExit -lt 8); exit = $rcExit; incremental = (Test-Path (Join-Path $work 'build')) }
 if ($rcExit -ge 8) { Out-Json @{ step = 'sync'; tail = (Tail-Log $rc) }; exit 5 }
 
