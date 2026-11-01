@@ -121,6 +121,18 @@ $dailyEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($dai
 
 程序用 `powershell.exe`，参数用上述输出。Node/Codex 若不在该任务的 PATH，可在用户私有启动代码里显式传 `-NodeExecutable` / `-CodexExecutable`。手动运行也用同样的 EncodedCommand 参数。试跑后读 logs、push-report 和 today.md 的日期，而非只看任务 LastTaskResult。
 
+## 多科目与练习链接
+
+`examples/subjects-three.md` 是日语、英语、数据分析三科样例：每科有学习日、每日上限、目标、阶段和“路线”。“状态：路线驱动”的科目没有现成笔记，导师按路线顺序挑新点，并可在定时运行时为当天选中的路线点直接建账本行（每科每天不超过新学上限，见 STUDY_AGENTS“路线驱动建点”）。
+
+学习单把所有科目写在同一份里。写了“练习链接：要”的科目，导师把当天练习提示词存到学习目录 `practice/<科目>.txt`，再用学习目录里的 `practice_link.mjs` 生成 `https://chatgpt.com/?q=...` 链接写进学习单。点开就是带着当天知识点的 ChatGPT 新对话，按互动题一题一题练；做完 ChatGPT 输出【学习结果】，用户整段贴进飞书收件表（渠道“手动”），次日入账。`practice_link.mjs` 只读一个文件、输出一行，不联网；链接超过 7000 字符报 `prompt_too_long`。
+
+启用新科目时（本机一次性）：
+
+1. 在飞书“学习账本”和“练习记录”两张表的“科目”单选字段里各加上新科目选项（名称与 subjects 一致）。
+2. 工具目录 `config.json` 的 `subjects` 加上新科目，然后运行 `check`，应为 `check_ok`（缺选项会报 `schema_option_missing`）。
+3. 学习目录：用新的 `STUDY_AGENTS.md` 覆盖 `AGENTS.md`，复制 `study/practice_link.mjs` 到学习目录根部，用确认过的科目文件替换 `subjects.md`（先备份旧文件）。
+
 ## 语音与旧模板
 
 dot 读 `%USERPROFILE%\feishu-study\today.md`，按 TUTOR_RULES 带练；GPT voice 由用户粘贴学习单。来源提示用飞书的标题链接。Gemini 或语音结果可以手动加入飞书收件表。

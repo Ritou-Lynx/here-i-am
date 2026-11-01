@@ -1,3 +1,10 @@
+## 2026-11-01 学习导师：三科学习单与 ChatGPT 练习链接
+
+- 用户要把每日学习扩到日语、英语、数据分析三科，每天 1.5–2 小时，先建框架再练习，练习用 ChatGPT 智能 UI 的互动题。方案（Claude Doc）用户已认可。
+- 新增 `tools/feishu_tutor/examples/subjects-three.md`：三科的学习日、每日上限、目标（日语 2027-07 N2、2027-12 N1；英语冲雅思 8；数据分析服务运营/产品工作和 2027-02 春招）、阶段和路线。
+- STUDY_AGENTS：学习单按科目分节、各科分别按上限挑点；“路线驱动建点”允许定时运行为当天选中的路线点直接建账本行（每科每天不超过新学上限）；每科写练习提示词并用新的 `study/practice_link.mjs` 生成 `chatgpt.com/?q=` 链接，失败就退回提示词引用块。
+- 同步脚本、白名单和三张表结构都没改；新科目只需在飞书“科目”字段加选项、config 的 subjects 加名字。合成测试 80 过 9 跳过（新增 3 项链接测试）。
+
 ## 2026-10-25 D2b 部署与 Sesame 验收
 
 - 从 v3-lab `129ec194`（#64 合并，含 #62 的 N2a 源码，Core 未换）生成候选，六文件哈希与审核一致（server `12fc40a9`、oauth `e2c88aca`、diagnostics `5303ef6d`、writeback `a7a6f95d`，mcp、i_memory_read 不变），切换到 `HereIAm-iCoreSchema6-d2b-mcp-20261025-129ec194`（中断上限约 45 秒，d2a 任务停用保留）。
