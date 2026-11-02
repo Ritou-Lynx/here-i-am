@@ -133,6 +133,19 @@ $dailyEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($dai
 2. 工具目录 `config.json` 的 `subjects` 加上新科目，然后运行 `check`，应为 `check_ok`（缺选项会报 `schema_option_missing`）。
 3. 学习目录：用新的 `STUDY_AGENTS.md` 覆盖 `AGENTS.md`，复制 `study/practice_link.mjs` 到学习目录根部，用确认过的科目文件替换 `subjects.md`（先备份旧文件）。
 
+## Gemini 同步（可选）
+
+让 Gemini Notebook 自动看到今天的学习单、飞书笔记和学习进度。Gemini Notebook 没有个人可用的接口，但它会自动同步 Google 文档类资料，所以这样串联：
+
+1. 每日任务 push 成功后，若配置里有 `gemini_export_dir`，runner 运行 `sync/export_gemini.mjs`，把 `今日学习单.md`、`学习笔记合集.md`、`学习进度.md` 原子覆盖写进这个目录。这一步不联网、不碰飞书；失败只记 `export_error:<码>`，不影响 `daily_done`。
+2. 这个目录是 Google Drive 电脑版同步盘里的“here-i-am 学习同步”文件夹，文件会自动上传到 Google Drive。
+3. 你 Google 账号里的 Apps Script（`gemini/sync_to_docs.gs`）每小时把这些 .md 覆盖写进同名 Google 文档（文档 ID 不变，第一次自动创建）。
+4. 你在 Gemini Notebook 里把这三篇 Google 文档各添加一次，以后 Notebook 自动同步。
+
+一次性设置：装 Google Drive 电脑版并登录；在 script.google.com 新建项目，粘贴 `gemini/sync_to_docs.gs`，先运行 `syncStudyDocs` 授权，再运行一次 `installHourlyTrigger`。导出目录由脚本轮写进配置。
+
+边界：导出只含学习资料和账本统计，不含飞书凭据；Apps Script 只读写这一个文件夹，不删除文件。Gemini 那边的闪卡、测验结果不回流账本，错点照旧贴进飞书收件表（渠道“Gemini”）。
+
 ## 语音与旧模板
 
 dot 读 `%USERPROFILE%\feishu-study\today.md`，按 TUTOR_RULES 带练；GPT voice 由用户粘贴学习单。来源提示用飞书的标题链接。Gemini 或语音结果可以手动加入飞书收件表。

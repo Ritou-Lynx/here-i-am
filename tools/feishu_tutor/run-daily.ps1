@@ -81,6 +81,14 @@ try {
     'push_start' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
     $stepExit = Invoke-DailyStep -Executable $NodeExecutable -CommandArguments @($syncScript, 'push', '--config', $resolvedConfig, '--state', $stateDirectory)
     if ($stepExit -ne 0) { ('push_failed:{0}' -f $stepExit) | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append; exit $stepExit }
+    # Optional: copy today's sheet, notes and progress to a Google Drive for desktop
+    # folder for Gemini. Its failure never fails the daily run (logged as export_error).
+    $exportDirectory = [string]$dailyConfig.gemini_export_dir
+    if (-not [string]::IsNullOrWhiteSpace($exportDirectory)) {
+        'export_start' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
+        $stepExit = Invoke-DailyStep -Executable $NodeExecutable -CommandArguments @((Join-Path $toolRoot 'sync\export_gemini.mjs'), '--study', $studyRoot, '--out', $exportDirectory)
+        if ($stepExit -ne 0) { ('export_error:{0}' -f $stepExit) | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append }
+    }
     'daily_done' | Out-File -LiteralPath $dailyLog -Encoding utf8 -Append
     $dailyExit = 0
 } catch {
