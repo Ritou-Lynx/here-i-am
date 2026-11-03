@@ -1,5 +1,6 @@
 // Scoped Core domain adapter. No database, chat API, grants, or background writes.
 import { PERSONAL_SCHEMAS, effectiveDisposition } from '../i_core/personal_data_domains.mjs';
+import { StudyInputError, STUDY_TOOLS, createStudyTools, loadStudyConfig } from './study_tools.mjs';
 
 export class DomainToolInputError extends Error {}
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -279,6 +280,21 @@ export function createFoodTools({client,scopes,timeZone='Asia/Shanghai',now=()=>
     },
   };
   return {tools,handlers:Object.fromEntries(tools.map(tool=>[tool.name,handlers[tool.name]]))};
+}
+
+// ST1: study tools exist only when <stateDir>/study.json is present, and only for Claude and ChatGPT.
+export { STUDY_TOOLS };
+export function createStudyDomainTools({stateDir, now = () => Date.now()}) {
+  const config = loadStudyConfig(stateDir);
+  if (!config) return null;
+  const wrap = frontend => {
+    const {tools, handlers} = createStudyTools({studyDir:config.study_dir, frontend, now});
+    return {tools, handlers:Object.fromEntries(Object.entries(handlers).map(([name, handler]) => [name, async args => {
+      try { return await handler(args); }
+      catch (error) { if (error instanceof StudyInputError) throw new DomainToolInputError(error.message); throw error; }
+    }]))};
+  };
+  return {claude_web:wrap('claude_web'), chatgpt_web:wrap('chatgpt_web')};
 }
 
 export const CORE_REMEMBER_TOOL = {

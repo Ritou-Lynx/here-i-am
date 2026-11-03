@@ -1,3 +1,10 @@
+## 2026-11-03 ST1：远程 MCP 加学习工具
+
+- 用户 11-03 批准 ST1 合同（docs/development/handoffs/RELAY_20261102_st1-study-mcp-tools.md）。这一轮让 Claude 和 ChatGPT 能直接读今天的学习单、笔记和学习进度，练完把【学习结果】写回学习目录的 inbox。
+- 新增 `tools/i_remote_mcp/study_tools.mjs`，提供 study_today、study_source、study_progress（只读）和 study_result（只在 inbox 新建文件）。只有 MCP 状态目录里有 `study.json` 时才加载；Gemini、Antigravity、Sesame 不开放。
+- 候选构建器在 FOOD 之后加了 `STUDY_PATCHES`，legacy server 原样内嵌 study_tools.mjs。server 候选哈希改为 `a0bd0491`，其余文件不变。云端 223/223 通过。
+- 还没有部署。合并后另写部署脚本轮：生成候选、写 study.json、按 N2 流程切换任务。
+
 ## 2026-11-01 学习导师：三科学习单与 ChatGPT 练习链接
 
 - 用户要把每日学习扩到日语、英语、数据分析三科，每天 1.5–2 小时，先建框架再练习，练习用 ChatGPT 智能 UI 的互动题。方案（Claude Doc）用户已认可。
