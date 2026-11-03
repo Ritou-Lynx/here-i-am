@@ -87,7 +87,7 @@ function main(){
  need(list.every(t=>[ACTIVE,NEW].includes(t.name)||t.state==='Disabled'),'r0','other_task_enabled');
  const before=tasks('r0');
  const live=loginOf(before.find(t=>t.name===ACTIVE),'r0'),mcp=readJson(live.login.mcp_configuration_path,live.login.mcp_configuration_sha256,'r0');
- const OUT=path.dirname(path.dirname(mcp.working_directory)),MT=path.join(OUT,'tools-'+HEAD.slice(0,8),'tools','i_core','maintenance');
+ const OUT=path.dirname(path.dirname(mcp.working_directory)),MT=path.join(OUT,'tools-4603fb79','tools','i_core','maintenance') // built by round 1 at 4603fb79;
  need(existsSync(path.join(MT,'switch-login-task.ps1')),'r0','tools_copy_missing');
  if(nw.state==='Running'){emit('done',true,{running:NEW,note:'already_running'});return;}
  need(nw.state==='Disabled','r0','new_task_state:'+nw.state);
