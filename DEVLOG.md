@@ -1,3 +1,6 @@
+## 2026-11-04 ST1 部署完成
+- #88 第 5 轮切到新任务 st1-study（server a0bd0491），云端已能调用 study_today / study_source / study_progress / study_result。第 1–3 轮失败的经过和根因（强制收尾后，就绪等待把崩溃恢复期间的临时标记当成失败）见 docs/development/handoffs/RELAY_20261103_st1-deploy.md。
+
 ## 2026-11-03 ST1：远程 MCP 加学习工具
 
 - 用户 11-03 批准 ST1 合同（docs/development/handoffs/RELAY_20261102_st1-study-mcp-tools.md）。这一轮让 Claude 和 ChatGPT 能直接读今天的学习单、笔记和学习进度，练完把【学习结果】写回学习目录的 inbox。
