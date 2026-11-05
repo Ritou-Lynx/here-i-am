@@ -296,7 +296,9 @@ class _EntryPanel extends StatelessWidget {
     return _Panel(
       padding: EdgeInsets.zero,
       child: ExpansionTile(
-        key: ValueKey('food-entry-${entry.id}'),
+        // Own storage key: without it the tile reads the list's saved scroll
+        // offset (a double) as its expanded flag after a refresh rebuild.
+        key: PageStorageKey<String>('food-entry-${entry.id}'),
         leading: _ConfidenceDot(confidence: entry.confidence),
         title: Text('${_time(entry.eatenAt)} · ${entry.title}'),
         subtitle: Text(
