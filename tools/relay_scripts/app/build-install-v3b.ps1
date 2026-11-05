@@ -3,7 +3,7 @@
 $ErrorActionPreference = 'Continue'
 # 脚本轮（write）：构建 Here I Am V3 debug APK，经 USB adb 覆盖安装到唯一连着的手机并启动。
 # 构建放在工作树外的固定目录（本机应用数据下的 HereIAm\apk-build）：每轮把工作树源码镜像过去再构建，
-# build/ 和 .dart_tool/ 保留，第二次起是增量构建。构建限时 16 分钟，没完成就停下报 build_incomplete，
+# build/ 和 .dart_tool/ 保留，第二次起是增量构建。构建限时 18 分钟，没完成就停下报 build_incomplete，
 # 已编译的部分留着，下一轮接着编（watcher 每轮上限 20 分钟）。
 # 只做覆盖安装（-r），签名不符就停下报错，绝不卸载（卸载会清掉 App 数据）。
 # 输出每行一个 JSON，不含路径、设备序列号、账号。构建日志只回传末尾几行，且抹掉本机路径。
@@ -13,7 +13,7 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $package = 'com.memexlab.hereiam.v3'
 $work = Join-Path $env:LOCALAPPDATA 'HereIAm\apk-build'
 $apk = Join-Path $work 'build\app\outputs\flutter-apk\app-hereiamv3-debug.apk'
-$buildBudgetMinutes = 16
+$buildBudgetMinutes = 18
 $logDir = Join-Path $env:TEMP ('hereiam-apk-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
