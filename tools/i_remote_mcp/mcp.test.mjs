@@ -57,6 +57,15 @@ describe('协议', () => {
     assert.equal(r.status, 400);
   });
 
+  test('Gemini 用的 2025-11-25：initialize 协商成功，带该版本头的请求不再 400', async () => {
+    const latest = await initSession(c.ctx.base, c.token, '2025-11-25');
+    assert.equal(latest.init.status, 200);
+    assert.equal(latest.init.body.result.protocolVersion, '2025-11-25');
+    const r = await mcpPost(c.ctx.base, c.token, { jsonrpc: '2.0', id: 2, method: 'tools/list' }, { sessionId: latest.sessionId, headers: { 'MCP-Protocol-Version': '2025-11-25' } });
+    assert.equal(r.status, 200);
+    assert.ok(Array.isArray(r.body.result.tools));
+  });
+
   test('ping、通知 202、未知方法、未知工具、解析错误', async () => {
     assert.deepEqual((await c.rpc('ping')).body.result, {});
     const note = await mcpPost(c.ctx.base, c.token, { jsonrpc: '2.0', method: 'notifications/initialized' }, { sessionId: c.sessionId });
