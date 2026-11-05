@@ -88,3 +88,7 @@ MCP 工具 heart_rate ← 读上面两处
 - **存储**：样本时间必须严格递增，重复的计为 duplicates。分钟结束 15 秒后（或下一分钟的样本到达时）把这一分钟追加写入当天的文件；进程退出时补写当前分钟。重启后同一分钟可能被写两次，读取时保留样本数多的那一行。读写都不跟随符号链接；数据目录必须是状态目录下真实的 `heart_rate/`。
 - **App**：`BleHeartRateUploader.kt` 是纯 JVM 代码。400 和 413 的批次直接丢弃，不会无限重试；网络错误、401、403 和其他错误则保留队列并退避。同步关闭或没有可用地址时清空队列，不会攒数据留到之后再发。同步设置存在 `ble_heart_rate_upload` SharedPreferences 里，只有地址和上传结果，没有凭据。
 - **验证**：云端 `node --test tools/i_remote_mcp/*.test.mjs` 233/233；在独立 Kotlin JVM 工程里跑 `BleHeartRateUploaderTest` 8/8，Android 整体编译要以本机脚本轮为准；`flutter analyze` 改动文件无问题，`flutter test` 涉及 BleHeartRateGateway 的测试 28/28。
+- **部署脚本**：`tools/relay_scripts/heart_rate/hr1.mjs` 用 `--mode inspect` 做只读检查（`hr1-inspect.ps1`，脚本轮 read），用 `--mode deploy` 上线（`hr1-deploy.ps1`，脚本轮 write）。切换沿用 ST1 第 5 轮成功的做法：遇到 Core 崩溃恢复标记时等待，不当成失败；新任务起不来就停掉它、重启旧任务。维护工具直接复用 ST1 的 `tools-4603fb79` 副本，因为此后 tools/i_core 没有改动。新任务名为 `HereIAm-iCoreSchema6-hr1-heart-20261105`。上线完成后开 `tailscale serve --https=8447`，再经 tailnet 请求一次 `/v1/heart-rate/health`，用本机自己的 Tailscale 登录验证鉴权。
+- **装 App**：复用 `tools/relay_scripts/app/build-install-v3b.ps1`。
+- **合并时机**：本 PR 用未合并的分支直接部署。脚本轮 1–3 都跑完、验收通过之前不要合并。
+
