@@ -41,7 +41,7 @@ function syncStudyDocs() {
 }
 
 function cleanText(text) {
-  text = text.replace(/^﻿/, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '');
+  text = text.replace(/^\uFEFF/, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '');
   if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS) + '\n\n（内容过长，已截断）\n';
   return text;
 }
