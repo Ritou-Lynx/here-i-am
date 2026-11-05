@@ -102,6 +102,34 @@ Set-Location $work
 $t0 = Get-Date
 & $flutter pub get *> (Join-Path $logDir 'pub.log')
 if ($LASTEXITCODE -ne 0) { Out-Json @{ step = 'pub-get'; ok = $false; tail = (Tail-Log (Join-Path $logDir 'pub.log')) }; exit 5 }
+# pub 缓存里的包目录可能残缺（目录在、lib 里的文件没了），pub get 不会发现。逐个检查用到的缓存包：
+# 缺 lib 或 pubspec.yaml 的整个删掉，再 pub get 一次重新下载。只动 pub 缓存里的这几个目录。
+function Get-BrokenPackages {
+    $cfg = Join-Path $work '.dart_tool\package_config.json'
+    if (-not (Test-Path $cfg)) { return @() }
+    $broken = @()
+    foreach ($pkg in (Get-Content $cfg -Raw -Encoding UTF8 | ConvertFrom-Json).packages) {
+        if ($pkg.rootUri -notmatch '^file:///') { continue }
+        $dir = [Uri]::UnescapeDataString(($pkg.rootUri -replace '^file:///', '')) -replace '/', '\'
+        if ($dir -notmatch '\\hosted\\') { continue }
+        $lib = Join-Path $dir 'lib'
+        $ok = (Test-Path (Join-Path $dir 'pubspec.yaml')) -and (Test-Path $lib) -and
+            [bool](Get-ChildItem $lib -Recurse -File -Filter '*.dart' -ErrorAction SilentlyContinue | Select-Object -First 1)
+        if (-not $ok) { $broken += [pscustomobject]@{ name = (Split-Path -Leaf $dir); dir = $dir } }
+    }
+    return $broken
+}
+$broken = @(Get-BrokenPackages)
+Out-Json @{ step = 'pub-cache-check'; broken = @($broken | ForEach-Object { $_.name }) }
+if ($broken.Count -gt 0) {
+    foreach ($b in $broken) { Remove-Item -Recurse -Force $b.dir -ErrorAction SilentlyContinue }
+    & $flutter pub get *> (Join-Path $logDir 'pub2.log')
+    if ($LASTEXITCODE -ne 0) { Out-Json @{ step = 'pub-get-repair'; ok = $false; tail = (Tail-Log (Join-Path $logDir 'pub2.log')) }; exit 5 }
+    $still = @(Get-BrokenPackages)
+    Out-Json @{ step = 'pub-cache-repair'; ok = ($still.Count -eq 0); still_broken = @($still | ForEach-Object { $_.name }) }
+    if ($still.Count -gt 0) { exit 5 }
+    Remove-Item -Recurse -Force (Join-Path $work '.dart_tool\flutter_build') -ErrorAction SilentlyContinue
+}
 $pkgCfg = Join-Path $work '.dart_tool\package_config.json'
 if (Test-Path $pkgCfg) {
     $jniRoots = @((Get-Content $pkgCfg -Raw -Encoding UTF8 | ConvertFrom-Json).packages | Where-Object { $_.name -like 'jni*' } |
