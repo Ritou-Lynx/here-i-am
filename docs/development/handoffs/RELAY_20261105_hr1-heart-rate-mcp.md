@@ -61,10 +61,10 @@ MCP 工具 heart_rate ← 读上面两处
 
 ## 允许修改的路径
 - `tools/i_remote_mcp/`
-- `android/app/src/main/kotlin/com/memexlab/memex/ble/BleHeartRateUploader.kt`（新建）、`BleHeartRateService.kt`（只加样本转交和启停）、`channels/BleHeartRateChannelHandler.kt`（只加 `configureUpload`、`getUploadStatus`）
+- `android/app/src/main/kotlin/com/memexlab/memex/ble/BleHeartRateUploader.kt`、`BleHeartRateUploadSettings.kt`（新建）、`BleHeartRateService.kt`（只加样本转交和启停）、`channels/BleHeartRateChannelHandler.kt`（只加 `configureUpload`、`getUploadStatus`）
 - `android/app/src/test/kotlin/com/memexlab/memex/ble/BleHeartRateUploaderTest.kt`（新建）
-- `lib/data/services/ble_heart_rate_gateway.dart`、`lib/ui/settings/widgets/heart_rate_device_settings_page.dart`，以及推地址、启动同步所需的最小接线
-- `test/data/services/ble_heart_rate_gateway_test.dart`、`test/ui/settings/widgets/heart_rate_device_settings_page_test.dart`（只追加用例）
+- `lib/data/services/ble_heart_rate_gateway.dart`、`lib/ui/settings/widgets/heart_rate_device_settings_page.dart`、`lib/data/services/heart_rate_upload_sync.dart`（新建），以及 `lib/main.dart` 中启动时同步地址的一行
+- `test/data/services/ble_heart_rate_gateway_test.dart`、`test/ui/settings/widgets/heart_rate_device_settings_page_test.dart`（只追加用例；共享的假 gateway 需要补两个新接口方法）
 - `tools/relay_scripts/heart_rate/`、本合同、`DEVLOG.md`
 
 ## 不做 / 边界
@@ -81,3 +81,10 @@ MCP 工具 heart_rate ← 读上面两处
 
 ## 需要真人的部分
 - 合并 PR；部署第 2 轮和装 App 的第 3 轮各点一次 👍；戴上臂带在前端试问一次。
+
+## 实现说明（Claude，2026-11-05）
+- **MCP**：新文件 `heart_rate.mjs` 只依赖 `node:fs`、`node:path`、`node:http`。主线在 `domain_tools.mjs` 里加了 `createHeartRateDomainTools`，把输入错误转成结构化错误；`createApp` 把 `heartRate`（store 和 config）返回给 `main()`，由 `main()` 起 127.0.0.1 监听。
+- **legacy 候选**：`HEART_RATE_PATCHES` 排在 STUDY 之后。和 ST1 不同，补丁不再把源码写成字面量，而是构建时从同一 checkout 读取 `heart_rate.mjs` 原样内嵌；`heart_rate.test.mjs` 会逐字节核对，构建器也断言源码里没有 `String.replace` 会解释的 `$` 序列。补丁还改了这些地方：RPC 包装同样接管 `heart_rate` 的输入错误；`serve` 启动前校验 `heart_rate.json`；`heart_rate_` 开头的错误码原样打到 stderr；sesame 的工具列表改成可追加的数组。候选 server 哈希为 `77a8dd30…`，其余文件不变。
+- **存储**：样本时间必须严格递增，重复的计为 duplicates。分钟结束 15 秒后（或下一分钟的样本到达时）把这一分钟追加写入当天的文件；进程退出时补写当前分钟。重启后同一分钟可能被写两次，读取时保留样本数多的那一行。读写都不跟随符号链接；数据目录必须是状态目录下真实的 `heart_rate/`。
+- **App**：`BleHeartRateUploader.kt` 是纯 JVM 代码。400 和 413 的批次直接丢弃，不会无限重试；网络错误、401、403 和其他错误则保留队列并退避。同步关闭或没有可用地址时清空队列，不会攒数据留到之后再发。同步设置存在 `ble_heart_rate_upload` SharedPreferences 里，只有地址和上传结果，没有凭据。
+- **验证**：云端 `node --test tools/i_remote_mcp/*.test.mjs` 233/233；在独立 Kotlin JVM 工程里跑 `BleHeartRateUploaderTest` 8/8，Android 整体编译要以本机脚本轮为准；`flutter analyze` 改动文件无问题，`flutter test` 涉及 BleHeartRateGateway 的测试 28/28。
