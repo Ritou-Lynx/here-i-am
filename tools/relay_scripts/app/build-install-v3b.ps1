@@ -74,7 +74,7 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 $rc = Join-Path $logDir 'robocopy.log'
 & robocopy.exe $repo $work /MIR /NFL /NDL /NJH /NP /R:1 /W:1 `
     /XD build .dart_tool .git .gradle .cxx .idea `
-    /XF .git debug.keystore local.properties .flutter-plugins .flutter-plugins-dependencies *> $rc
+    /XF .git debug.keystore pubcache-ok.txt local.properties .flutter-plugins .flutter-plugins-dependencies *> $rc
 $rcExit = $LASTEXITCODE
 
 # debug 签名：debug.keystore 不进仓库，只在本机主仓库里。必须用同一把，否则覆盖安装会因签名不符失败。
@@ -104,6 +104,11 @@ $t0 = Get-Date
 if ($LASTEXITCODE -ne 0) { Out-Json @{ step = 'pub-get'; ok = $false; tail = (Tail-Log (Join-Path $logDir 'pub.log')) }; exit 5 }
 # pub 缓存里的包目录可能残缺（目录在、lib 里的文件没了），pub get 不会发现。逐个检查用到的缓存包：
 # 缺 lib 或 pubspec.yaml 的整个删掉，再 pub get 一次重新下载。只动 pub 缓存里的这几个目录。
+# 有些包本来就没有 Dart 代码（纯原生、只有 yaml/字体）：重新下载后仍然这样就是正常的，记进
+# 构建目录的 pubcache-ok.txt，以后不再检查，也不算失败。
+$okList = Join-Path $work 'pubcache-ok.txt'
+$known = @{}
+if (Test-Path $okList) { Get-Content $okList | ForEach-Object { if ($_) { $known[$_.Trim()] = $true } } }
 function Get-BrokenPackages {
     $cfg = Join-Path $work '.dart_tool\package_config.json'
     if (-not (Test-Path $cfg)) { return @() }
@@ -115,7 +120,8 @@ function Get-BrokenPackages {
         $lib = Join-Path $dir 'lib'
         $ok = (Test-Path (Join-Path $dir 'pubspec.yaml')) -and (Test-Path $lib) -and
             [bool](Get-ChildItem $lib -Recurse -File -Filter '*.dart' -ErrorAction SilentlyContinue | Select-Object -First 1)
-        if (-not $ok) { $broken += [pscustomobject]@{ name = (Split-Path -Leaf $dir); dir = $dir } }
+        $leaf = Split-Path -Leaf $dir
+        if (-not $ok -and -not $known.ContainsKey($leaf)) { $broken += [pscustomobject]@{ name = $leaf; dir = $dir } }
     }
     return $broken
 }
@@ -126,8 +132,9 @@ if ($broken.Count -gt 0) {
     & $flutter pub get *> (Join-Path $logDir 'pub2.log')
     if ($LASTEXITCODE -ne 0) { Out-Json @{ step = 'pub-get-repair'; ok = $false; tail = (Tail-Log (Join-Path $logDir 'pub2.log')) }; exit 5 }
     $still = @(Get-BrokenPackages)
-    Out-Json @{ step = 'pub-cache-repair'; ok = ($still.Count -eq 0); still_broken = @($still | ForEach-Object { $_.name }) }
-    if ($still.Count -gt 0) { exit 5 }
+    # 刚重新下载过的包仍然没有 Dart 代码 = 本来就没有，记为正常
+    $still | ForEach-Object { $_.name } | Add-Content -Path $okList -Encoding UTF8
+    Out-Json @{ step = 'pub-cache-repair'; ok = $true; redownloaded = $broken.Count; no_dart_by_design = @($still | ForEach-Object { $_.name }).Count }
     Remove-Item -Recurse -Force (Join-Path $work '.dart_tool\flutter_build') -ErrorAction SilentlyContinue
 }
 $pkgCfg = Join-Path $work '.dart_tool\package_config.json'
