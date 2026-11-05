@@ -83,6 +83,12 @@ function findDoc(folder, title) {
   return null;
 }
 
+// 从不运行。Apps Script 按代码里用到的方法自动申请权限：只有读取调用时只给只读 Drive 权限，
+// 上传写文档会报 403 insufficient authentication scopes。这里引用一次写入方法，让它申请可写权限。
+function requireDriveWriteScope_() {
+  DriveApp.createFile('unused', '');
+}
+
 function docExists(id) {
   if (!id) return false;
   try { return !DriveApp.getFileById(id).isTrashed(); } catch (e) { return false; }
