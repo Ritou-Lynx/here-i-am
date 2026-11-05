@@ -1,3 +1,4 @@
+import 'package:memex/data/services/heart_rate_upload_sync.dart';
 import 'package:memex/data/memory_v3/notes/claude_web_note_feed_service.dart';
 import 'package:memex/data/personal_data_hub/personal_data_hub_runtime_owner.dart';
 import 'package:memex/ui/quick_capture/quick_capture_access_gate.dart';
@@ -609,6 +610,8 @@ class _MemexAppState extends State<MemexApp> with WidgetsBindingObserver {
   /// isolates can detect the app is in active use and skip proactive pushes.
   void _startForegroundHeartbeat() {
     unawaited(CheckinService.instance.markForeground());
+    // HR1: keep the heart-rate sync address in step with the Core address.
+    unawaited(syncHeartRateUploadTarget());
     _foregroundHeartbeatTimer?.cancel();
     _foregroundHeartbeatTimer = Timer.periodic(
       const Duration(seconds: 60),
