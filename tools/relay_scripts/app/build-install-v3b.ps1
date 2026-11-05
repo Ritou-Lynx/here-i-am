@@ -102,7 +102,18 @@ Set-Location $work
 $t0 = Get-Date
 & $flutter pub get *> (Join-Path $logDir 'pub.log')
 if ($LASTEXITCODE -ne 0) { Out-Json @{ step = 'pub-get'; ok = $false; tail = (Tail-Log (Join-Path $logDir 'pub.log')) }; exit 5 }
+$pkgCfg = Join-Path $work '.dart_tool\package_config.json'
+if (Test-Path $pkgCfg) {
+    $jniRoots = @((Get-Content $pkgCfg -Raw -Encoding UTF8 | ConvertFrom-Json).packages | Where-Object { $_.name -like 'jni*' } |
+        ForEach-Object { "$($_.name)=" + (($_.rootUri -split '/') | Where-Object { $_ -match '^jni' } | Select-Object -Last 1) })
+    Out-Json @{ step = 'packages'; jni = $jniRoots }
+}
 if (Test-Path $apk) { Remove-Item -Force $apk }
+# Dart 编译缓存每轮清掉重编（只花一两分钟）：上一轮若在编译中途被限时停掉，残留的增量缓存会导致
+# 莫名其妙的编译错误。Gradle 的 Java/Kotlin/原生产物仍然保留。
+foreach ($stale in @((Join-Path $work '.dart_tool\flutter_build'), (Join-Path $work 'build\app\intermediates\flutter'))) {
+    if (Test-Path $stale) { Remove-Item -Recurse -Force $stale -ErrorAction SilentlyContinue }
+}
 $buildLog = Join-Path $logDir 'build.log'
 $proc = Start-Process -FilePath 'cmd.exe' -WorkingDirectory $work -WindowStyle Hidden -PassThru `
     -ArgumentList @('/c', "`"`"$flutter`" build apk --debug --flavor hereIAmV3 > `"$buildLog`" 2>&1`"")
