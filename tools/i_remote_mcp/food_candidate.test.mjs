@@ -133,8 +133,9 @@ test('N2b provision stdin, three OAuth frontends and real Core add/update/void m
   }
   const stateDir=state(t);await install(stateDir,real);
   const gemini=await start(t,{stateDir,coreUrl:real.coreOrigin,frontend:'gemini_web'});
-  assert.deepEqual((await gemini.rpc('tools/list')).result.tools.map(tool=>tool.name),['i_context','i_recall']);
-  assert.equal((await gemini.rpc('tools/call',{name:'food_log',arguments:{}})).error.code,-32602);
+  // G1 (11-05): Gemini calls tools now and gets the ChatGPT food tools.
+  assert.deepEqual((await gemini.rpc('tools/list')).result.tools.map(tool=>tool.name),['i_context','i_recall','food_log','food_day']);
+  assert.equal((await gemini.call('food_day',{})).isError,false);
   const sesame=await start(t,{stateDir,coreUrl:real.coreOrigin,frontend:'sesame'});
   assert.deepEqual((await sesame.rpc('tools/list')).result.tools.map(tool=>tool.name),['i_context','i_recall']);
   assert.equal((await sesame.rpc('tools/call',{name:'food_log',arguments:{}})).error.code,-32602);
