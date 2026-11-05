@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/ble_heart_rate_gateway.dart';
+import 'package:memex/data/services/heart_rate_upload_sync.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -185,6 +186,71 @@ void main() {
     expect(await gateway.listNightSummaries('synthetic-user'), isEmpty);
     expect(await gateway.exportNight('synthetic-user', '2026-10-20'), isNull);
   });
+
+  test('upload methods send only given fields and decode status', () async {
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return {
+        'enabled': true,
+        'derivedUrl': 'https://pc.example.ts.net:8447',
+        'overrideUrl': null,
+        'effectiveUrl': 'https://pc.example.ts.net:8447',
+        'lastSuccessAtMs': 1700000000000,
+        'lastErrorCode': 'network',
+        'lastErrorAtMs': 1700000001000,
+      };
+    });
+    final gateway =
+        PlatformBleHeartRateGateway(methodChannel: channel, isAndroid: true);
+
+    final configured = await gateway.configureUpload(overrideUrl: '');
+    final status = await gateway.getUploadStatus();
+
+    expect(calls.map((call) => call.method),
+        ['configureUpload', 'getUploadStatus']);
+    expect(calls.first.arguments, {'overrideUrl': ''});
+    expect(configured.effectiveUrl, 'https://pc.example.ts.net:8447');
+    expect(status.enabled, isTrue);
+    expect(status.overrideUrl, isNull);
+    expect(status.lastSuccessAt,
+        DateTime.fromMillisecondsSinceEpoch(1700000000000));
+    expect(status.lastErrorCode, 'network');
+  });
+
+  test('upload address is derived from an HTTPS Core address only', () {
+    expect(heartRateUploadBaseFromCore('https://pc.example.ts.net'),
+        'https://pc.example.ts.net:8447');
+    expect(heartRateUploadBaseFromCore(' https://pc.example.ts.net:443/ '),
+        'https://pc.example.ts.net:8447');
+    expect(heartRateUploadBaseFromCore('http://127.0.0.1:47850'), isNull);
+    expect(heartRateUploadBaseFromCore(null), isNull);
+    expect(heartRateUploadBaseFromCore(''), isNull);
+  });
+
+  test('syncing the upload target pushes the derived address or clears it',
+      () async {
+    final gateway = FakeBleHeartRateGateway();
+    await syncHeartRateUploadTarget(
+        gateway: gateway, readCoreBaseUrl: () async => 'https://pc.example.ts.net');
+    await syncHeartRateUploadTarget(
+        gateway: gateway, readCoreBaseUrl: () async => null);
+    await syncHeartRateUploadTarget(
+        gateway: gateway, readCoreBaseUrl: () async => throw StateError('x'));
+    expect(gateway.uploadConfigureCalls, [
+      {'derivedUrl': 'https://pc.example.ts.net:8447'},
+      {'derivedUrl': ''},
+    ]);
+    await gateway.dispose();
+  });
+
+  test('non-Android upload methods do not invoke channels', () async {
+    final gateway =
+        PlatformBleHeartRateGateway(methodChannel: channel, isAndroid: false);
+    expect((await gateway.getUploadStatus()).enabled, isFalse);
+    expect((await gateway.configureUpload(enabled: true)).effectiveUrl, isNull);
+  });
 }
 
 BleHeartRateSnapshot snapshot(BleHeartRateStatus status, {int? bpm}) {
@@ -311,6 +377,48 @@ class FakeBleHeartRateGateway implements BleHeartRateGateway {
       'summary': syntheticNightSummary(),
     });
   }
+
+  BleHeartRateUploadStatus upload = const BleHeartRateUploadStatus(
+    enabled: true,
+    derivedUrl: 'https://pc.example.ts.net:8447',
+    effectiveUrl: 'https://pc.example.ts.net:8447',
+  );
+  final List<Map<String, Object?>> uploadConfigureCalls = [];
+  String? rejectUploadCode;
+
+  @override
+  Future<BleHeartRateUploadStatus> configureUpload({
+    bool? enabled,
+    String? derivedUrl,
+    String? overrideUrl,
+  }) async {
+    uploadConfigureCalls.add({
+      if (enabled != null) 'enabled': enabled,
+      if (derivedUrl != null) 'derivedUrl': derivedUrl,
+      if (overrideUrl != null) 'overrideUrl': overrideUrl,
+    });
+    if (rejectUploadCode != null) {
+      throw PlatformException(code: rejectUploadCode!);
+    }
+    final override = overrideUrl == null
+        ? upload.overrideUrl
+        : (overrideUrl.isEmpty ? null : overrideUrl);
+    final derived = derivedUrl == null
+        ? upload.derivedUrl
+        : (derivedUrl.isEmpty ? null : derivedUrl);
+    final on = enabled ?? upload.enabled;
+    upload = BleHeartRateUploadStatus(
+      enabled: on,
+      derivedUrl: derived,
+      overrideUrl: override,
+      effectiveUrl: on ? (override ?? derived) : null,
+      lastSuccessAt: upload.lastSuccessAt,
+    );
+    return upload;
+  }
+
+  @override
+  Future<BleHeartRateUploadStatus> getUploadStatus() async => upload;
 }
 
 Map<String, dynamic> syntheticNightSummary() => {

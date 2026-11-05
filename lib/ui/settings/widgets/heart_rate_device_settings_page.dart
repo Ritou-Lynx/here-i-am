@@ -35,6 +35,9 @@ class _HeartRateDeviceSettingsPageState
   List<BleHeartRateNightSummary> _nights = const [];
   String? _nightError;
   bool _exportingNight = false;
+  BleHeartRateUploadStatus? _upload;
+  String? _uploadError;
+  bool _uploadBusy = false;
   String? _userId;
   String? _error;
   String _scanState = 'idle';
@@ -90,6 +93,7 @@ class _HeartRateDeviceSettingsPageState
     final userId = _userId;
     if (userId == null) return;
     final nightRefresh = _refreshNights(userId);
+    final uploadRefresh = _refreshUpload();
     try {
       final values = await Future.wait<dynamic>([
         _gateway.getSnapshot(userId),
@@ -112,6 +116,53 @@ class _HeartRateDeviceSettingsPageState
       });
     }
     await nightRefresh;
+    await uploadRefresh;
+  }
+
+  Future<void> _refreshUpload() async {
+    try {
+      final status = await _gateway.getUploadStatus();
+      if (mounted) setState(() => _upload = status);
+    } catch (_) {
+      if (mounted) setState(() => _uploadError = '同步状态暂时无法读取。');
+    }
+  }
+
+  Future<void> _configureUpload({bool? enabled, String? overrideUrl}) async {
+    if (_uploadBusy) return;
+    setState(() {
+      _uploadBusy = true;
+      _uploadError = null;
+    });
+    try {
+      final status = await _gateway.configureUpload(
+        enabled: enabled,
+        overrideUrl: overrideUrl,
+      );
+      if (mounted) setState(() => _upload = status);
+    } on PlatformException catch (error) {
+      if (mounted) {
+        setState(() => _uploadError = error.code == 'INVALID_URL'
+            ? '地址要写成 https://电脑名.ts.net:8447 这样的根地址。'
+            : '同步设置没有保存，请重试。');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _uploadError = '同步设置没有保存，请重试。');
+    } finally {
+      if (mounted) setState(() => _uploadBusy = false);
+    }
+  }
+
+  Future<void> _editUploadAddress() async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => _UploadAddressDialog(
+        initial: _upload?.overrideUrl ?? '',
+        hint: _upload?.derivedUrl ?? 'https://电脑名.ts.net:8447',
+      ),
+    );
+    if (value == null || !mounted) return;
+    await _configureUpload(overrideUrl: value);
   }
 
   Future<void> _refreshNights(String userId) async {
@@ -317,6 +368,8 @@ class _HeartRateDeviceSettingsPageState
                   _scanSection(tokens),
                   SizedBox(height: tokens.space24),
                   _nightRecordsSection(tokens),
+                  SizedBox(height: tokens.space24),
+                  _uploadSection(tokens),
                   SizedBox(height: tokens.space24),
                   _diagnosticsSection(tokens),
                 ],
@@ -580,6 +633,57 @@ class _HeartRateDeviceSettingsPageState
     );
   }
 
+  Widget _uploadSection(SpringRainUiTokens tokens) {
+    final upload = _upload;
+    final address = upload?.effectiveUrl;
+    final lines = <String>[
+      address == null
+          ? '还没有可用的电脑地址：先连好 Core，或手动填写。'
+          : '地址：$address${upload?.overrideUrl != null ? '（手动）' : ''}',
+      upload?.lastSuccessAt == null
+          ? '还没有成功同步过'
+          : '最近同步：${_formatTime(upload!.lastSuccessAt!)}',
+      if (upload?.lastErrorCode != null && upload?.lastErrorAt != null)
+        '最近问题：${_uploadErrorLabel(upload!.lastErrorCode!)}（${_formatTime(upload.lastErrorAt!)}）',
+    ];
+    return Column(
+      key: const ValueKey('heart_rate_upload_section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          key: const ValueKey('heart_rate_upload_switch'),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('同步到电脑'),
+          subtitle: const Text('戴着时把心率实时推给家里电脑，林埃在各个前端都能读到'),
+          value: upload?.enabled ?? false,
+          onChanged: upload == null || _uploadBusy
+              ? null
+              : (value) => _configureUpload(enabled: value),
+        ),
+        Text(lines.join('\n')),
+        if (_uploadError != null) ...[
+          SizedBox(height: tokens.space8),
+          _messageCard(tokens, _uploadError!, Icons.error_outline_rounded,
+              error: true),
+        ],
+        TextButton(
+          key: const ValueKey('heart_rate_upload_edit_address'),
+          onPressed:
+              upload == null || _uploadBusy ? null : _editUploadAddress,
+          child: const Text('修改地址'),
+        ),
+      ],
+    );
+  }
+
+  String _uploadErrorLabel(String code) => switch (code) {
+        'network' => '连不上电脑',
+        'forbidden' => '电脑不认这台手机的 Tailscale 账号',
+        'unauthorized' => '请求没有经过 Tailscale',
+        _ when code.startsWith('rejected_') => '一批数据被电脑拒收',
+        _ => '电脑返回错误（$code）',
+      };
+
   String _nightDescription(BleHeartRateNightSummary night) {
     String time(int? ms) {
       if (ms == null) return '—';
@@ -694,4 +798,53 @@ class _HeartRateDeviceSettingsPageState
 
   String _formatTime(DateTime time) =>
       '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+}
+
+/// Owns its controller so it is disposed only after the dialog route is gone.
+class _UploadAddressDialog extends StatefulWidget {
+  const _UploadAddressDialog({required this.initial, required this.hint});
+
+  final String initial;
+  final String hint;
+
+  @override
+  State<_UploadAddressDialog> createState() => _UploadAddressDialogState();
+}
+
+class _UploadAddressDialogState extends State<_UploadAddressDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('电脑地址'),
+      content: TextField(
+        key: const ValueKey('heart_rate_upload_address_field'),
+        controller: _controller,
+        keyboardType: TextInputType.url,
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          helperText: '留空时用 Core 所在电脑的 8447 端口',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          key: const ValueKey('heart_rate_upload_address_save'),
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
 }
