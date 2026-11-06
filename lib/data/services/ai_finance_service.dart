@@ -27,6 +27,14 @@ class AiFinanceService {
 
   /// characterId used by entries the user types into the ledger panel.
   static const manualUserCharacterId = 'manual:user';
+  /// KvStore key for the ledger start date ('YYYY-MM-DD', local day).
+  ///
+  /// When set, every cumulative figure (all_time_*, i 的余额, owes_user,
+  /// outstanding_loan) only counts rows recorded on or after that day. Older
+  /// rows stay in the table and still show in their own month — only the
+  /// running totals restart. Lets the user "重新开始" after a gap in records.
+  static const ledgerStartDateKey = 'ai_finance.ledger_start_date';
+  static const _settingsBucket = 'ai_finance';
   static final Lock _recordLock = Lock();
   static const _duplicateWindow = Duration(hours: 36);
   static const _bareAmountDuplicateWindow = Duration(minutes: 1);
@@ -192,6 +200,37 @@ class AiFinanceService {
         .go();
   }
 
+  /// The day cumulative totals start from, or null when counting every row.
+  Future<DateTime?> getLedgerStartDate() async {
+    final row = await (_db.select(_db.kvStore)
+          ..where((t) => t.key.equals(ledgerStartDateKey)))
+        .getSingleOrNull();
+    return _parseStartDate(row?.value);
+  }
+
+  /// Set (or with null, clear) the day cumulative totals start from.
+  Future<void> setLedgerStartDate(DateTime? date) async {
+    if (date == null) {
+      await (_db.delete(_db.kvStore)
+            ..where((t) => t.key.equals(ledgerStartDateKey)))
+          .go();
+      return;
+    }
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: ledgerStartDateKey,
+            bucket: const Value(_settingsBucket),
+            value: Value(_formatStartDate(date)),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+          ),
+        );
+  }
+
+  Future<int?> _startEpoch() async {
+    final start = await getLedgerStartDate();
+    return start == null ? null : start.millisecondsSinceEpoch ~/ 1000;
+  }
+
   /// Returns the user-facing real ledger alongside the derived AI position.
   ///
   /// Income and cost are external cash movements. Reward, penalty, loan and
@@ -201,7 +240,8 @@ class AiFinanceService {
   Future<Map<String, dynamic>> getLedgerOverview({
     String? month,
   }) async {
-    int? sinceEpoch;
+    final startEpoch = await _startEpoch();
+    int? sinceEpoch = startEpoch;
     int? untilEpoch;
     if (month != null) {
       final parts = month.split('-');
@@ -217,7 +257,8 @@ class AiFinanceService {
     ));
     final allRows = month == null
         ? rows
-        : _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod());
+        : _dedupeLedgerRows(
+            await _dao.getSharedEntriesForPeriod(sinceEpoch: startEpoch));
 
     Map<String, double> calculate(List<AiFinanceLedgerData> source) {
       var externalIncome = 0.0;
@@ -293,6 +334,7 @@ class AiFinanceService {
       'all_time_external_expense': allTime['external_expense'],
       'all_time_cash_net': allTime['cash_net'],
       'entry_count': rows.length,
+      'counting_since': aiSummary['counting_since'],
     };
   }
 
@@ -300,7 +342,10 @@ class AiFinanceService {
   Future<Map<String, dynamic>> getSummary({
     String? month, // 'YYYY-MM', if null returns all-time
   }) async {
-    int? sinceEpoch;
+    final startDate = await getLedgerStartDate();
+    final startEpoch =
+        startDate == null ? null : startDate.millisecondsSinceEpoch ~/ 1000;
+    int? sinceEpoch = startEpoch;
     int? untilEpoch;
     if (month != null) {
       final parts = month.split('-');
@@ -337,11 +382,11 @@ class AiFinanceService {
         - expense - cost - reward - transferFromAi;
 
     // all-time totals for debt calculation
-    final allSums = month != null
-        ? _sumRowsByType(
-            _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod()),
-          )
-        : sums;
+    final allRows = month != null
+        ? _dedupeLedgerRows(
+            await _dao.getSharedEntriesForPeriod(sinceEpoch: startEpoch))
+        : periodRows;
+    final allSums = month != null ? _sumRowsByType(allRows) : sums;
     final allIncome = allSums['income'] ?? 0.0;
     final allExpense = allSums['expense'] ?? 0.0;
     final allCost = allSums['cost'] ?? 0.0;
@@ -349,9 +394,6 @@ class AiFinanceService {
     final allRepayment = allSums['repayment'] ?? 0.0;
     final allReward = allSums['reward'] ?? 0.0;
     final allPenalty = allSums['penalty'] ?? 0.0;
-    final allRows = month != null
-        ? _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod())
-        : periodRows;
     final allTransferToAi = _sumTransferByDirection(allRows, 'user_to_ai');
     final allTransferFromAi = _sumTransferByDirection(allRows, 'ai_to_user');
     final allBalance = allIncome + allPenalty + allTransferToAi
@@ -377,6 +419,9 @@ class AiFinanceService {
       'owes_user': allBalance < 0 ? -allBalance : 0.0,
       // 记录过的垫付里还没归还的部分（信息项，已包含在 owes_user 的口径里）。
       'outstanding_loan': outstandingLoan > 0 ? outstandingLoan : 0.0,
+      // 累计数字的起算日；null = 从第一笔开始算。
+      'counting_since':
+          startDate == null ? null : _formatStartDate(startDate),
     };
   }
 
@@ -576,6 +621,18 @@ class AiFinanceService {
     }
     return null;
   }
+}
+
+String _formatStartDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+DateTime? _parseStartDate(String? value) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value ?? '');
+  if (m == null) return null;
+  return DateTime(
+      int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!));
 }
 
 double _sumAiAmount(List<AiFinanceLedgerData> rows, String entryType) => rows

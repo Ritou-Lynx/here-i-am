@@ -33,6 +33,7 @@ class LedgerViewModel extends ChangeNotifier {
     addEntry = Command1<void, LedgerEntryDraft>(_addEntry);
     updateEntry = Command1<void, LedgerEntryDraft>(_updateEntry);
     deleteEntry = Command1<void, String>(_deleteEntry);
+    setStartDate = Command1<void, DateTime?>(_setStartDate);
   }
 
   final AiFinanceService _service;
@@ -40,6 +41,12 @@ class LedgerViewModel extends ChangeNotifier {
   late final Command1<void, LedgerEntryDraft> addEntry;
   late final Command1<void, LedgerEntryDraft> updateEntry;
   late final Command1<void, String> deleteEntry;
+
+  /// 设置（或传 null 清除）累计数字的起算日。
+  late final Command1<void, DateTime?> setStartDate;
+
+  /// 累计数字从哪天开始算；null = 从第一笔开始。
+  DateTime? startDate;
 
   Map<String, dynamic> overview = const {};
   List<Map<String, dynamic>> entries = const [];
@@ -130,13 +137,22 @@ class LedgerViewModel extends ChangeNotifier {
     });
   }
 
+  Future<Result<void>> _setStartDate(DateTime? date) {
+    return runResultVoid(() async {
+      await _service.setLedgerStartDate(date);
+      await _refresh();
+    });
+  }
+
   Future<void> _refresh() async {
     final results = await Future.wait([
       _service.getLedgerOverview(month: _selectedMonth),
       _service.getRecentEntries(limit: 100, month: _selectedMonth),
+      _service.getLedgerStartDate(),
     ]);
     overview = results[0] as Map<String, dynamic>;
     entries = results[1] as List<Map<String, dynamic>>;
+    startDate = results[2] as DateTime?;
     notifyListeners();
   }
 
@@ -146,6 +162,7 @@ class LedgerViewModel extends ChangeNotifier {
     addEntry.dispose();
     updateEntry.dispose();
     deleteEntry.dispose();
+    setStartDate.dispose();
     super.dispose();
   }
 }

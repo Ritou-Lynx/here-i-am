@@ -555,5 +555,46 @@ void main() {
       expect(overview['ai_expense_share'], 70);
       expect(overview['my_expense_share'], 40);
     });
+    test('start date restarts cumulative totals but keeps older rows',
+        () async {
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'cost',
+        totalAmount: 500,
+        aiAmount: 500,
+        purpose: '旧套餐',
+        occurredAt: DateTime(2026, 3, 10, 12),
+      );
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'income',
+        totalAmount: 1000,
+        aiAmount: 300,
+        purpose: '新收入',
+        occurredAt: DateTime(2026, 11, 6, 12),
+      );
+
+      await service.setLedgerStartDate(DateTime(2026, 11, 6, 18, 30));
+      expect(await service.getLedgerStartDate(), DateTime(2026, 11, 6));
+
+      final summary = await service.getSummary();
+      expect(summary['all_time_balance'], 300);
+      expect(summary['counting_since'], '2026-11-06');
+
+      final overview = await service.getLedgerOverview(month: '2026-11');
+      expect(overview['all_time_cash_net'], 1000);
+      expect(overview['ai_all_time_balance'], 300);
+      expect(overview['counting_since'], '2026-11-06');
+
+      // 起算日之前的月份照常能查到。
+      final march = await service.getRecentEntries(month: '2026-03');
+      expect(march, hasLength(1));
+      final marchOverview = await service.getLedgerOverview(month: '2026-03');
+      expect(marchOverview['external_expense'], 500);
+
+      await service.setLedgerStartDate(null);
+      expect(await service.getLedgerStartDate(), isNull);
+      expect((await service.getSummary())['all_time_balance'], -200);
+    });
   });
 }

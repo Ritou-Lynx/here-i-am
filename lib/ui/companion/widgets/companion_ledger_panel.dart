@@ -64,7 +64,9 @@ class _CompanionLedgerPanelState extends State<CompanionLedgerPanel> {
           _CashSummary(overview: viewModel.overview),
           const SizedBox(height: 12),
           _SplitSummary(overview: viewModel.overview),
-          const SizedBox(height: 22),
+          const SizedBox(height: 8),
+          _StartDateRow(startDate: viewModel.startDate),
+          const SizedBox(height: 14),
           if (_viewMode == _ViewMode.list) ...[
             const Text(
               '当月明细',
@@ -270,6 +272,8 @@ class _CashSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final net = _number(overview['cash_net']);
     final allTimeNet = _number(overview['all_time_cash_net']);
+    final since = overview['counting_since'] as String?;
+    final allTimeLabel = since == null ? '总至今' : '自 $since 起';
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: _cardDecoration(),
@@ -283,7 +287,7 @@ class _CashSummary extends StatelessWidget {
               const Text('本月收支结余', style: TextStyle(color: _ledgerMuted)),
               const SizedBox(width: 10),
               Text(
-                '总至今 ${_money(allTimeNet, signed: true)}',
+                '$allTimeLabel ${_money(allTimeNet, signed: true)}',
                 style: const TextStyle(
                   fontSize: 11,
                   color: _ledgerMuted,
@@ -332,6 +336,105 @@ class _CashSummary extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// 累计数字（总至今、我的部分、i 的余额）的起算日。点一下可以改或清除。
+class _StartDateRow extends StatelessWidget {
+  const _StartDateRow({required this.startDate});
+
+  final DateTime? startDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = startDate;
+    final label = start == null
+        ? '累计从第一笔开始算'
+        : '累计从 ${DateFormat('yyyy年M月d日').format(start)} 开始算';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () => _pick(context),
+        style: TextButton.styleFrom(
+          foregroundColor: _ledgerOnRain,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          visualDensity: VisualDensity.compact,
+        ),
+        icon: const Icon(Icons.flag_outlined, size: 16),
+        label: Text(
+          '$label · 修改',
+          style: const TextStyle(
+            fontSize: 12,
+            shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pick(BuildContext context) async {
+    final viewModel = context.read<LedgerViewModel>();
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 4),
+              child: Text(
+                '起算日之前的账目会保留，也能按月查看，只是不再计入累计和 i 的余额。',
+                style: TextStyle(fontSize: 13, color: _ledgerMuted),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.today_outlined),
+              title: const Text('从今天重新开始'),
+              onTap: () => Navigator.pop(sheetContext, 'today'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_outlined),
+              title: const Text('选一个日期'),
+              onTap: () => Navigator.pop(sheetContext, 'pick'),
+            ),
+            if (startDate != null)
+              ListTile(
+                leading: const Icon(Icons.history_rounded),
+                title: const Text('取消起算日，从第一笔开始算'),
+                onTap: () => Navigator.pop(sheetContext, 'clear'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    final now = DateTime.now();
+    DateTime? date;
+    switch (choice) {
+      case 'today':
+        date = DateTime(now.year, now.month, now.day);
+      case 'pick':
+        date = await showDatePicker(
+          context: context,
+          initialDate: startDate ?? DateTime(now.year, now.month, now.day),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(now.year, now.month, now.day),
+        );
+        if (date == null || !context.mounted) return;
+      case 'clear':
+        date = null;
+    }
+    await viewModel.setStartDate.execute(date);
+    if (!context.mounted) return;
+    if (viewModel.setStartDate.result case Error<void>(:final error)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('设置失败：$error')),
+      );
+    }
   }
 }
 
