@@ -24,6 +24,9 @@ class AiFinanceService {
   AiFinanceService({required AppDatabase db}) : _db = db;
 
   static const _uuid = Uuid();
+
+  /// characterId used by entries the user types into the ledger panel.
+  static const manualUserCharacterId = 'manual:user';
   static final Lock _recordLock = Lock();
   static const _duplicateWindow = Duration(hours: 36);
   static const _bareAmountDuplicateWindow = Duration(minutes: 1);
@@ -78,7 +81,11 @@ class AiFinanceService {
       final now = (occurredAt ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
       final normalizedEntryType = entryType.trim().toLowerCase();
       final normalizedDirection = transferDirection?.trim().toLowerCase();
-      final duplicate = await _findDuplicateEntry(
+      // 用户在账本页手动记的一笔是明确意图：同一天两杯 30 元咖啡就是两笔，
+      // 不走启发式去重。去重只拦 agent / card bridge 的重复写入。
+      final duplicate = characterId == manualUserCharacterId
+          ? null
+          : await _findDuplicateEntry(
         entryType: normalizedEntryType,
         totalAmount: totalAmount,
         aiAmount: aiAmount,
@@ -242,14 +249,12 @@ class AiFinanceService {
             myExpenseShare += row.totalAmount - aiShare;
           case 'loan':
             loanedToAi += row.aiAmount;
-            paidToAi += row.aiAmount;
           case 'reward':
             receivedFromAi += row.aiAmount;
           case 'penalty':
             paidToAi += row.aiAmount;
           case 'repayment':
             repaidByAi += row.aiAmount;
-            receivedFromAi += row.aiAmount;
         }
       }
 
@@ -263,12 +268,10 @@ class AiFinanceService {
         'paid_to_ai': paidToAi,
         'loaned_to_ai': loanedToAi,
         'repaid_by_ai': repaidByAi,
-        'my_allocated_net': myIncomeShare -
-            myExpenseShare +
-            receivedFromAi -
-            paidToAi -
-            loanedToAi +
-            repaidByAi,
+        // 垫付 / 归还是借还，不改变双方净额；my_allocated_net 与 i 的
+        // all_time_balance 相加恒等于 cash_net。
+        'my_allocated_net':
+            myIncomeShare - myExpenseShare + receivedFromAi - paidToAi,
       };
     }
 
@@ -279,7 +282,8 @@ class AiFinanceService {
       'period': month ?? 'all_time',
       ...period,
       'ai_income_share': _sumAiAmount(rows, 'income'),
-      'ai_expense_share': _sumAiAmount(rows, 'cost'),
+      'ai_expense_share':
+          _sumAiAmount(rows, 'cost') + _sumAiAmount(rows, 'expense'),
       'ai_period_net': aiSummary['period_net'],
       'ai_all_time_balance': aiSummary['all_time_balance'],
       'ai_savings': aiSummary['savings'],
@@ -324,10 +328,13 @@ class AiFinanceService {
     final transferToAi = _sumTransferByDirection(periodRows, 'user_to_ai');
     final transferFromAi = _sumTransferByDirection(periodRows, 'ai_to_user');
 
-    // balance = income + repayment + penalty + transferToAi
-    //         - expense - cost - loan - reward - transferFromAi
-    final balance = income + repayment + penalty + transferToAi
-        - expense - cost - loan - reward - transferFromAi;
+    // balance = income + penalty + transferToAi
+    //         - expense - cost - reward - transferFromAi
+    // loan / repayment 只是用户和 i 之间的借还：借来的钱已经体现为开支后余额
+    // 变负（owes_user），再减一次 loan 会重复计；还款同理。它们不改变净额，
+    // 只记在 outstanding_loan 里。
+    final balance = income + penalty + transferToAi
+        - expense - cost - reward - transferFromAi;
 
     // all-time totals for debt calculation
     final allSums = month != null
@@ -347,8 +354,9 @@ class AiFinanceService {
         : periodRows;
     final allTransferToAi = _sumTransferByDirection(allRows, 'user_to_ai');
     final allTransferFromAi = _sumTransferByDirection(allRows, 'ai_to_user');
-    final allBalance = allIncome + allRepayment + allPenalty + allTransferToAi
-        - allExpense - allCost - allLoan - allReward - allTransferFromAi;
+    final allBalance = allIncome + allPenalty + allTransferToAi
+        - allExpense - allCost - allReward - allTransferFromAi;
+    final outstandingLoan = allLoan - allRepayment;
 
     return {
       'ledger_scope': 'shared_ai',
@@ -367,6 +375,8 @@ class AiFinanceService {
       // Positive all_time_balance = savings; negative = still owes user
       'savings': allBalance > 0 ? allBalance : 0.0,
       'owes_user': allBalance < 0 ? -allBalance : 0.0,
+      // 记录过的垫付里还没归还的部分（信息项，已包含在 owes_user 的口径里）。
+      'outstanding_loan': outstandingLoan > 0 ? outstandingLoan : 0.0,
     };
   }
 
@@ -411,7 +421,9 @@ class AiFinanceService {
   }
 
   /// Correct an existing ledger entry. Only the fields you pass are changed;
-  /// null/absent fields keep their existing value.
+  /// null/absent fields keep their existing value. Pass an empty string to a
+  /// text field (purpose, notes, transferDirection, linkedFactId, descs) to
+  /// clear it, and `clearContributionRatio: true` to drop the income split.
   ///
   /// `entryId` is the `id` column of the row to update. Returns the updated
   /// row, or null if the id does not exist.
@@ -427,6 +439,7 @@ class AiFinanceService {
     double? totalAmount,
     double? aiAmount,
     double? contributionRatio,
+    bool clearContributionRatio = false,
     String? myContributionDesc,
     String? aiContributionDesc,
     String? purpose,
@@ -438,19 +451,29 @@ class AiFinanceService {
     final existing = await _dao.getEntryById(entryId);
     if (existing == null) return null;
 
+    Value<String?> text(String? value) =>
+        value == null ? const Value.absent() : Value(_cleanNullableText(value));
+
     final companion = AiFinanceLedgerCompanion(
-      entryType: entryType != null ? Value(entryType.trim().toLowerCase()) : const Value.absent(),
-      totalAmount: totalAmount != null ? Value(totalAmount) : const Value.absent(),
-      aiAmount: aiAmount != null ? Value(aiAmount) : const Value.absent(),
-      contributionRatio: contributionRatio != null
-          ? Value(contributionRatio)
+      entryType: entryType != null
+          ? Value(entryType.trim().toLowerCase())
           : const Value.absent(),
-      myContributionDesc: Value(_cleanNullableText(myContributionDesc)),
-      aiContributionDesc: Value(_cleanNullableText(aiContributionDesc)),
-      purpose: Value(_cleanNullableText(purpose)),
-      linkedFactId: Value(_cleanNullableText(linkedFactId)),
-      transferDirection: Value(transferDirection?.trim().toLowerCase()),
-      notes: Value(_cleanNullableText(notes)),
+      totalAmount:
+          totalAmount != null ? Value(totalAmount) : const Value.absent(),
+      aiAmount: aiAmount != null ? Value(aiAmount) : const Value.absent(),
+      contributionRatio: clearContributionRatio
+          ? const Value(null)
+          : contributionRatio != null
+              ? Value(contributionRatio)
+              : const Value.absent(),
+      myContributionDesc: text(myContributionDesc),
+      aiContributionDesc: text(aiContributionDesc),
+      purpose: text(purpose),
+      linkedFactId: text(linkedFactId),
+      transferDirection: transferDirection == null
+          ? const Value.absent()
+          : Value(_cleanNullableText(transferDirection)?.toLowerCase()),
+      notes: text(notes),
       recordedAt: occurredAt != null
           ? Value(occurredAt.millisecondsSinceEpoch ~/ 1000)
           : const Value.absent(),
@@ -610,13 +633,14 @@ String? _normalizePurposeForMatch(String? value) {
       .trim();
 }
 
-/// 两条账目条目是否属于同一件事：归一化（去金额）后相等或互相包含。
+/// 两条账目条目是否属于同一件事：归一化（去金额）后完全相等。
+///
+/// 不再用「互相包含」：「咖啡」和「咖啡豆」同价会被误合并。
 bool _sameBusinessEntry(String? a, String? b) {
   final na = _normalizePurposeForMatch(a);
   final nb = _normalizePurposeForMatch(b);
   if (na == null || nb == null) return false;
-  if (na == nb) return true;
-  return na.contains(nb) || nb.contains(na);
+  return na == nb;
 }
 
 String? _cleanNullableText(String? value) {
@@ -653,6 +677,11 @@ bool _isDuplicateLedgerRow(
 ) {
   if (existing.characterId.startsWith(AiFinanceService._captureOwnerPrefix) ||
       candidate.characterId.startsWith(AiFinanceService._captureOwnerPrefix)) {
+    return existing.id == candidate.id;
+  }
+  // 用户手动记的一笔永远单独显示、单独计入合计。
+  if (existing.characterId == AiFinanceService.manualUserCharacterId ||
+      candidate.characterId == AiFinanceService.manualUserCharacterId) {
     return existing.id == candidate.id;
   }
   if (existing.entryType != candidate.entryType) return false;

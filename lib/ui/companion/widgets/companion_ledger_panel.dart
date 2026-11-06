@@ -743,7 +743,7 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
   final _aiAmountController = TextEditingController(text: '0');
   final _purposeController = TextEditingController();
   final _notesController = TextEditingController();
-  String _entryType = 'income';
+  String _entryType = 'expense';
   String _transferDirection = 'user_to_ai';
   DateTime _occurredAt = DateTime.now();
 
@@ -1003,7 +1003,17 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
       firstDate: DateTime(2000),
       lastDate: lastDate,
     );
-    if (date != null) setState(() => _occurredAt = date);
+    if (date == null) return;
+    // showDatePicker 只给日期（零点）；保留原来的时分，避免同一天的账目都落在
+    // 00:00、排序和去重时间窗失真。
+    setState(() => _occurredAt = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          _occurredAt.hour,
+          _occurredAt.minute,
+          _occurredAt.second,
+        ));
   }
 
   void _submit() {
@@ -1114,35 +1124,57 @@ class _MonthCalendarSection extends StatelessWidget {
     );
   }
 
-  Map<int, List<Map<String, dynamic>>> _groupEntriesByDay(
-    List<Map<String, dynamic>> rows,
-    String month,
-  ) {
-    final parts = month.split('-');
-    final year = int.parse(parts[0]);
-    final mon = int.parse(parts[1]);
-    final map = <int, List<Map<String, dynamic>>>{};
-    for (final r in rows) {
-      final epoch = (r['recorded_at'] as num?)?.toInt() ?? 0;
-      final dt = DateTime.fromMillisecondsSinceEpoch(epoch * 1000);
-      if (dt.year != year || dt.month != mon) continue;
-      map.putIfAbsent(dt.day, () => []).add(r);
-    }
-    return map;
-  }
-
   Future<void> _showDaySheet(
     BuildContext context,
     int day,
     List<Map<String, dynamic>> dayList,
   ) async {
+    // LedgerViewModel 只挂在账本页里；底部弹窗是新路由，拿不到它。把同一个
+    // 实例带进去，明细里长按修改 / 删除才能用，并且改完后明细跟着刷新。
+    final viewModel = context.read<LedgerViewModel>();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _DayEntriesSheet(day: day, entries: dayList),
+      builder: (_) => ChangeNotifierProvider<LedgerViewModel>.value(
+        value: viewModel,
+        child: _DayEntriesSheet(day: day, month: selectedMonth),
+      ),
     );
   }
+}
+
+Map<int, List<Map<String, dynamic>>> _groupEntriesByDay(
+  List<Map<String, dynamic>> rows,
+  String month,
+) {
+  final parts = month.split('-');
+  final year = int.parse(parts[0]);
+  final mon = int.parse(parts[1]);
+  final map = <int, List<Map<String, dynamic>>>{};
+  for (final r in rows) {
+    final epoch = (r['recorded_at'] as num?)?.toInt() ?? 0;
+    final dt = DateTime.fromMillisecondsSinceEpoch(epoch * 1000);
+    if (dt.year != year || dt.month != mon) continue;
+    map.putIfAbsent(dt.day, () => []).add(r);
+  }
+  return map;
+}
+
+/// 当日现金净额：只算对外的收入和支出，和顶部「现金净额」同一口径。
+/// 我和 i 之间的转账、奖惩、垫付是内部结算，不算花钱。
+double _dayCashNet(List<Map<String, dynamic>> entries) {
+  var net = 0.0;
+  for (final e in entries) {
+    final total = _number(e['total_amount']);
+    switch (e['type'] as String? ?? '') {
+      case 'income':
+        net += total;
+      case 'expense' || 'cost':
+        net -= total;
+    }
+  }
+  return net;
 }
 
 class _MonthCalendarGrid extends StatelessWidget {
@@ -1241,18 +1273,7 @@ class _CalendarDayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 当日净流：收入+返还-支出-转出
-    double net = 0;
-    for (final e in entries) {
-      final type = e['type'] as String? ?? '';
-      final total = _number(e['total_amount']);
-      final dir = e['transfer_direction'] as String?;
-      final isInflow = type == 'income' ||
-          type == 'reward' ||
-          type == 'repayment' ||
-          (type == 'transfer' && dir == 'ai_to_user');
-      net += isInflow ? total : -total;
-    }
+    final net = _dayCashNet(entries);
     final hasEntries = entries.isNotEmpty;
     final ink = net >= 0 ? _ledgerIncome : _ledgerExpense;
     return InkWell(
@@ -1302,24 +1323,19 @@ class _CalendarDayCell extends StatelessWidget {
 }
 
 class _DayEntriesSheet extends StatelessWidget {
-  const _DayEntriesSheet({required this.day, required this.entries});
+  const _DayEntriesSheet({required this.day, required this.month});
 
   final int day;
-  final List<Map<String, dynamic>> entries;
+  final String month;
 
   @override
   Widget build(BuildContext context) {
-    double net = 0;
-    for (final e in entries) {
-      final type = e['type'] as String? ?? '';
-      final total = _number(e['total_amount']);
-      final dir = e['transfer_direction'] as String?;
-      final isInflow = type == 'income' ||
-          type == 'reward' ||
-          type == 'repayment' ||
-          (type == 'transfer' && dir == 'ai_to_user');
-      net += isInflow ? total : -total;
-    }
+    final viewModel = context.watch<LedgerViewModel>();
+    // 改了日期的账目会离开这一天；切走月份后整页数据也不再属于这一天。
+    final entries = viewModel.selectedMonth == month
+        ? _groupEntriesByDay(viewModel.entries, month)[day] ?? const []
+        : const <Map<String, dynamic>>[];
+    final net = _dayCashNet(entries);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
       decoration: const BoxDecoration(

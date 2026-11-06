@@ -57,8 +57,8 @@ class LedgerViewModel extends ChangeNotifier {
     final cur = DateTime(int.parse(parts[0]), int.parse(parts[1]));
     final next = DateTime(cur.year, cur.month + delta);
     final now = DateTime.now();
-    // 不允许选到未来月份。
-    if (next.isAfter(DateTime(now.year, now.month + 1))) return;
+    // 不允许选到未来月份（当月是上限）。
+    if (next.isAfter(DateTime(now.year, now.month))) return;
     final newMonth = _formatMonth(next);
     if (newMonth == _selectedMonth) return;
     _selectedMonth = newMonth;
@@ -81,7 +81,7 @@ class LedgerViewModel extends ChangeNotifier {
           ? draft.aiAmount / draft.totalAmount
           : null;
       await _service.recordEntry(
-        characterId: 'manual:user',
+        characterId: AiFinanceService.manualUserCharacterId,
         entryType: draft.entryType,
         totalAmount: draft.totalAmount,
         aiAmount: draft.aiAmount,
@@ -105,15 +105,18 @@ class LedgerViewModel extends ChangeNotifier {
       final ratio = draft.entryType == 'income' && draft.totalAmount > 0
           ? draft.aiAmount / draft.totalAmount
           : null;
+      // 表单提交的是整条账目：空字段要显式清空（空字符串），不能用 null，
+      // 否则 updateEntry 会保留旧值（例如从转账改成支出后残留方向）。
       await _service.updateEntry(
         entryId: id,
         entryType: draft.entryType,
         totalAmount: draft.totalAmount,
         aiAmount: draft.aiAmount,
         contributionRatio: ratio,
+        clearContributionRatio: ratio == null,
         purpose: draft.purpose,
-        notes: draft.notes,
-        transferDirection: draft.transferDirection,
+        notes: draft.notes ?? '',
+        transferDirection: draft.transferDirection ?? '',
         occurredAt: draft.occurredAt,
       );
       await _refresh();
