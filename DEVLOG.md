@@ -1,3 +1,11 @@
+## 2026-11-07 E1/E2：其他 AI 端记账（expense_log）
+
+- 用户 11-07 让继续做记账 MCP（方案见 11-06 记账审查文档）。第一版只记支出。
+- Core：新增 `expense_entries` 领域（hooks `expense-v1`）。不发新凭证：饮食开通过的 Core 启动时、或饮食开通后，自动注册该领域，并给饮食的 MCP 写入主体和手机读取主体原地加上 expense 权限，token 不轮换。回执写 `expense-receipt-N.json`。
+- MCP：新增自包含 `tools/i_remote_mcp/expense_tools.mjs`（expense_log 增改撤、expense_day 当天合计，北京时间自然日）。生产候选 `EXPENSE_PATCHES` 原样内嵌，stateDir 同时有 `expense.json`（`{"format":"expense-v1"}`）和 `core-food.json` 才开放；Claude、ChatGPT、Gemini、Antigravity 可用，Sesame 不开放。server 候选哈希 `cf4c452e`。主线 server 未接（生产只跑候选）。
+- App：饮食连接顺带挂 `expense_entries`（同一凭证、同一 transport，失败不影响饮食状态）；每次前台同步后投影进共同账本（expense 行，id 由 Core 记录 id 生成，characterId `system:core_expense:<端>`，不参与去重）。只在 Core 版本号变了才重写，用户在 App 里改/删的行会保留；撤销或删除的记录会移除对应行。
+- 还没有部署：需要换 Core 包、换 MCP 候选并写 expense.json（脚本轮），之后重装 App。
+
 ## 2026-11-07 N1 家里安装脚本轮
 
 - 用户 11-07 完成 `drive:drive:readonly` 授权。新增脚本轮 `tools/relay_scripts/notes/n1-install.ps1`：核对家里同步文件是已知版本，备份后装 cli.mjs 和 notes_mirror.mjs、config 加 notes.folders，试跑一次，再注册 Interactive 计划任务 `FeishuNotes-Mirror`（每 30 分钟，:10/:40，wscript 隐藏窗口，日志在工具目录 logs）。合同见 docs/development/handoffs/RELAY_20261107_n1-notes-install.md。
