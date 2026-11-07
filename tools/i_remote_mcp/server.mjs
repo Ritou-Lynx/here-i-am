@@ -7,7 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, sesameEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
 import { readFileSync } from 'node:fs';
-import { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, createStudyDomainTools, createHeartRateDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
+import { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, createStudyDomainTools, createHeartRateDomainTools, createLifeDigestDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
 import { HEART_RATE_DEFAULT_PORT, createHeartRateIngestServer } from './heart_rate.mjs';
 import { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';
 import {
@@ -101,7 +101,6 @@ export function createApp({
   const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]),...(studyTools?.claude_web.tools??[]),...(heartRate?.tools??[])];
   // These handlers are selected only from the verified OAuth token, never MCP arguments.
   const chatgptDomainTools = (domainTools?.tools ?? []).filter(tool => ['week_get', 'day_get', 'food_log', 'food_day'].includes(tool.name));
-  const geminiDomainTools = chatgptDomainTools.filter(tool => !['food_log', 'food_day'].includes(tool.name));
   const chatgptHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
     writeback: chatgptWriteback,
     frontend: 'chatgpt_web' }),
@@ -116,12 +115,15 @@ export function createApp({
   const geminiHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
     writeback: geminiWriteback,
     frontend: 'gemini_web' }),
-    ...Object.fromEntries(geminiDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };
+    // G1 (11-05): Gemini now calls tools, so it gets the ChatGPT set.
+    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])),
+    ...studyTools?.gemini_web.handlers,
+    ...heartRate?.handlers };
   if (writeEnabled && !geminiWriteback) {
     geminiHandlers.i_chat_turn = async () => { throw new WritebackInputError('frontend_not_paired:gemini_web'); };
   }
   const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),
-    ...geminiDomainTools];
+    ...chatgptDomainTools, ...(studyTools?.gemini_web.tools ?? []), ...(heartRate?.tools ?? [])];
   const antigravityHandlers = { ...createToolHandlers({ getReadModel, identityLoader, now, timeZone,
     writeback: antigravityWriteback,
     frontend: 'antigravity' }),
@@ -143,6 +145,12 @@ export function createApp({
   }
   const sesameTools = [...listTools({ writeEnabled, frontend: 'sesame' }),
     ...sesameDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' })), ...(heartRate?.tools ?? [])];
+  // M1: life_digest / life_todo for every frontend; i_chat_turn start also returns a short life snapshot.
+  const lifeDigest = createLifeDigestDomainTools({ stateDir, now });
+  if (lifeDigest) {
+    for (const [frontendHandlers, frontendTools] of [[handlers, tools], [chatgptHandlers, chatgptTools], [geminiHandlers, geminiTools],
+      [antigravityHandlers, antigravityTools], [sesameHandlers, sesameTools]]) lifeDigest.attach(frontendHandlers, frontendTools, { writeback, getReadModel });
+  }
   const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
 

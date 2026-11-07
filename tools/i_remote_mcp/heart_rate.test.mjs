@@ -88,9 +88,9 @@ test('HR1 candidate inlines heart_rate.mjs verbatim and keeps the frozen depende
 });
 
 for(const [label,pick] of [['candidate',()=>({server:candidate,oauth:candidateOauth})],['mainline',()=>({server:mainServer,oauth:mainOauth})]]) {
-  test(`HR1 ${label}: Claude, ChatGPT, Antigravity and Sesame read live heart rate; Gemini cannot`,{timeout:60000},async t=>{
+  test(`HR1 ${label}: Claude, ChatGPT, Antigravity and Sesame read live heart rate (G1: Gemini too)`,{timeout:60000},async t=>{
     const {stateDir}=fixture(t);
-    for(const frontend of ['claude_web','chatgpt_web','antigravity','sesame']) {
+    for(const frontend of ['claude_web','chatgpt_web','antigravity','sesame','gemini_web']) {
       const {app,rpc,call}=await start(t,{...pick(),stateDir,frontend});
       const listed=(await rpc('tools/list')).result.tools.filter(tool=>tool.name==='heart_rate');
       assert.equal(listed.length,1,frontend);
@@ -113,9 +113,6 @@ for(const [label,pick] of [['candidate',()=>({server:candidate,oauth:candidateOa
       const bad=await call('heart_rate',{mode:'week'});
       assert.equal(bad.isError,true);assert.equal(bad.structuredContent.error.code,'invalid_heart_rate_mode');
     }
-    const gemini=await start(t,{...pick(),stateDir,frontend:'gemini_web'});
-    assert.equal((await gemini.rpc('tools/list')).result.tools.some(tool=>tool.name==='heart_rate'),false);
-    assert.equal((await gemini.rpc('tools/call',{name:'heart_rate',arguments:{}})).error.code,-32602);
   });
 
   test(`HR1 ${label}: without heart_rate.json there is no tool and no store`,{timeout:30000},async t=>{

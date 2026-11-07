@@ -69,6 +69,12 @@ function endpoint(value, known) {
   } catch { return '[redacted]'; }
 }
 
+// Date-shaped MCP-Protocol-Version values only; anything else collapses to a fixed label.
+export function protocolVersionLabel(value) {
+  if (value === undefined || value === null || value === '') return 'absent';
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : 'other';
+}
+
 export function createRequestDiagnostics(req, { issuer, resource, diagnostic = () => {}, now = Date.now }) {
   let url;
   try { url = new URL(req.url, issuer); } catch { /* Only fixed labels below. */ }
@@ -78,6 +84,7 @@ export function createRequestDiagnostics(req, { issuer, resource, diagnostic = (
     ua_family: userAgentFamily(req.headers['user-agent']),
     origin: endpoint(req.headers.origin, ['https://claude.ai/', 'https://claude.com/', `${issuer}/`]),
   };
+  if (req.headers['mcp-protocol-version'] !== undefined) base.protocol_version = protocolVersionLabel(req.headers['mcp-protocol-version']);
   if (base.method === 'GET' && base.path === '/authorize') {
     const query = Object.fromEntries(url.searchParams);
     base.callback = endpoint(query.redirect_uri, CALLBACKS);

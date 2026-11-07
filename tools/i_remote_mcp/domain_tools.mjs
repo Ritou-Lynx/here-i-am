@@ -2,6 +2,7 @@
 import { PERSONAL_SCHEMAS, effectiveDisposition } from '../i_core/personal_data_domains.mjs';
 import { StudyInputError, STUDY_TOOLS, createStudyTools, loadStudyConfig } from './study_tools.mjs';
 import { HeartRateInputError, HEART_RATE_TOOLS, createHeartRateStore, createHeartRateTools, loadHeartRateConfig } from './heart_rate.mjs';
+import { LifeDigestInputError, createLifeDigest } from './life_digest.mjs';
 
 export class DomainToolInputError extends Error {}
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -283,7 +284,7 @@ export function createFoodTools({client,scopes,timeZone='Asia/Shanghai',now=()=>
   return {tools,handlers:Object.fromEntries(tools.map(tool=>[tool.name,handlers[tool.name]]))};
 }
 
-// ST1: study tools exist only when <stateDir>/study.json is present, and only for Claude and ChatGPT.
+// ST1: study tools exist only when <stateDir>/study.json is present, for Claude, ChatGPT and (G1, 11-05) Gemini.
 export { STUDY_TOOLS };
 export function createStudyDomainTools({stateDir, now = () => Date.now()}) {
   const config = loadStudyConfig(stateDir);
@@ -295,7 +296,7 @@ export function createStudyDomainTools({stateDir, now = () => Date.now()}) {
       catch (error) { if (error instanceof StudyInputError) throw new DomainToolInputError(error.message); throw error; }
     }]))};
   };
-  return {claude_web:wrap('claude_web'), chatgpt_web:wrap('chatgpt_web')};
+  return {claude_web:wrap('claude_web'), chatgpt_web:wrap('chatgpt_web'), gemini_web:wrap('gemini_web')};
 }
 
 // HR1: heart_rate exists only when <stateDir>/heart_rate.json is present (Claude, ChatGPT, Antigravity, Sesame).
@@ -310,6 +311,11 @@ export function createHeartRateDomainTools({stateDir, now = () => Date.now()}) {
     try { return await handler(args); }
     catch (error) { if (error instanceof HeartRateInputError) throw new DomainToolInputError(error.message); throw error; }
   }]))};
+}
+
+// M1: life_digest / life_todo over the home digest directory, plus the i_chat_turn snapshot hook (attach).
+export function createLifeDigestDomainTools({stateDir, now = () => Date.now()}) {
+  return createLifeDigest({stateDir, now, mapError:error => error instanceof LifeDigestInputError ? new DomainToolInputError(error.message) : error});
 }
 
 export const CORE_REMEMBER_TOOL = {

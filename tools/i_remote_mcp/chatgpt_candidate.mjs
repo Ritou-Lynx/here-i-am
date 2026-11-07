@@ -1564,6 +1564,97 @@ const HEART_RATE_PATCHES = {
   }
 };
 
+// Gemini (11-05) sends MCP-Protocol-Version 2025-11-25 and was rejected with 400 before any RPC.
+// Accept it, and record the date-shaped header as a fixed diagnostics label.
+const PROTOCOL_VERSION_HUNKS = {
+  "mcp": [
+    ["export const SUPPORTED_PROTOCOL_VERSIONS = Object.freeze(['2025-06-18', '2025-03-26']);",
+      "export const SUPPORTED_PROTOCOL_VERSIONS = Object.freeze(['2025-11-25', '2025-06-18', '2025-03-26']);"]
+  ],
+  "diagnostics": [
+    ["export function createRequestDiagnostics(",
+      "// Date-shaped MCP-Protocol-Version values only; anything else collapses to a fixed label.\nexport function protocolVersionLabel(value) {\n  if (value === undefined || value === null || value === '') return 'absent';\n  return typeof value === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(value) ? value : 'other';\n}\n\nexport function createRequestDiagnostics("],
+    ["    origin: endpoint(req.headers.origin, ['https://claude.ai/', 'https://claude.com/', `${issuer}/`]),\n  };\n",
+      "    origin: endpoint(req.headers.origin, ['https://claude.ai/', 'https://claude.com/', `${issuer}/`]),\n  };\n  if (req.headers['mcp-protocol-version'] !== undefined) base.protocol_version = protocolVersionLabel(req.headers['mcp-protocol-version']);\n"]
+  ],
+  "server": [],
+  "oauth": [],
+  "writeback": []
+};
+const PROTOCOL_PATCHES = { "mainline": PROTOCOL_VERSION_HUNKS, "legacy": PROTOCOL_VERSION_HUNKS };
+
+// G1 (11-05): Gemini calls tools now; give it the ChatGPT tool set (food, study, heart_rate).
+const GEMINI_TOOLS_PATCHES = {
+  "mainline": {
+    "server": [
+      [
+            "  const geminiDomainTools = chatgptDomainTools.filter(tool => !['food_log', 'food_day'].includes(tool.name));\n  const chatgptHandlers = {",
+            "  const chatgptHandlers = {"
+      ],
+      [
+            "    frontend: 'gemini_web' }),\n    ...Object.fromEntries(geminiDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };",
+            "    frontend: 'gemini_web' }),\n    // G1 (11-05): Gemini now calls tools, so it gets the ChatGPT set.\n    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])),\n    ...studyTools?.gemini_web.handlers,\n    ...heartRate?.handlers };"
+      ],
+      [
+            "  const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),\n    ...geminiDomainTools];",
+            "  const geminiTools = [...listTools({ writeEnabled, frontend: 'gemini_web' }),\n    ...chatgptDomainTools, ...(studyTools?.gemini_web.tools ?? []), ...(heartRate?.tools ?? [])];"
+      ]
+],
+    "oauth": [], "mcp": [], "writeback": [], "diagnostics": []
+  },
+  "legacy": {
+    "server": [
+      [
+            "export const STUDY_FRONTENDS = Object.freeze({claude_web:'claude', chatgpt_web:'chatgpt'});",
+            "export const STUDY_FRONTENDS = Object.freeze({claude_web:'claude', chatgpt_web:'chatgpt', gemini_web:'gemini'});"
+      ],
+      [
+            "(?:claude|chatgpt)\\.md$",
+            "(?:claude|chatgpt|gemini)\\.md$"
+      ],
+      [
+            "  const geminiTools = listTools({ writeEnabled: legacyWriteEnabled, frontend: 'gemini_web' });",
+            "  // G1 (11-05): Gemini now calls tools, so it gets the ChatGPT set.\n  const geminiTools = [...listTools({ writeEnabled: legacyWriteEnabled, frontend: 'gemini_web' })];\n  if (foodTools) { Object.assign(geminiHandlers,foodTools.handlers); geminiTools.push(...foodTools.tools); }\n  if (studyTools) { Object.assign(geminiHandlers,studyTools.gemini_web.handlers); geminiTools.push(...studyTools.gemini_web.tools); }\n  if (heartRateTools) { Object.assign(geminiHandlers,heartRateTools.handlers); geminiTools.push(...heartRateTools.tools); }"
+      ]
+],
+    "oauth": [], "mcp": [], "writeback": [], "diagnostics": []
+  }
+};
+
+// M1 (11-07): life_digest / life_todo for every frontend and a short life snapshot on i_chat_turn start, configured by
+// <stateDir>/life_digest.json. The legacy server inlines life_digest.mjs verbatim (asserted by life_digest.test.mjs).
+const LIFE_DIGEST_SOURCE = readFileSync(join(REPO_ROOT,'tools','i_remote_mcp','life_digest.mjs'),'utf8').replaceAll('\r\n','\n');
+assert.ok(!/\$[$&`'<0-9]/.test(LIFE_DIGEST_SOURCE),'life_digest.mjs must not contain String.replace patterns');
+const LIFE_DIGEST_ATTACH = "  const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);\n";
+const LIFE_DIGEST_PATCHES = {
+  "mainline": {
+    "server": [
+      ["createHeartRateDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';",
+        "createHeartRateDomainTools, createLifeDigestDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';"],
+      [LIFE_DIGEST_ATTACH,
+        "  // M1: life_digest / life_todo for every frontend; i_chat_turn start also returns a short life snapshot.\n  const lifeDigest = createLifeDigestDomainTools({ stateDir, now });\n  if (lifeDigest) {\n    for (const [frontendHandlers, frontendTools] of [[handlers, tools], [chatgptHandlers, chatgptTools], [geminiHandlers, geminiTools],\n      [antigravityHandlers, antigravityTools], [sesameHandlers, sesameTools]]) lifeDigest.attach(frontendHandlers, frontendTools, { writeback, getReadModel });\n  }\n"+LIFE_DIGEST_ATTACH]
+    ],
+    "oauth": [], "mcp": [], "writeback": [], "diagnostics": []
+  },
+  "legacy": {
+    "server": [
+      ["const HERE = dirname(fileURLToPath(import.meta.url));",
+        LIFE_DIGEST_SOURCE.trimEnd()+"\n\n"+"const HERE = dirname(fileURLToPath(import.meta.url));"],
+      ["  if (!(error instanceof FoodInputError) && !(error instanceof StudyInputError) && !(error instanceof HeartRateInputError)) throw error;",
+        "  if (!(error instanceof FoodInputError) && !(error instanceof StudyInputError) && !(error instanceof HeartRateInputError) && !(error instanceof LifeDigestInputError)) throw error;"],
+      ["...HEART_RATE_TOOLS.map(item => item.name)].includes(name)",
+        "...HEART_RATE_TOOLS.map(item => item.name),...LIFE_DIGEST_TOOLS.map(item => item.name)].includes(name)"],
+      [LIFE_DIGEST_ATTACH,
+        "  // M1: life_digest / life_todo for every frontend; i_chat_turn start also returns a short life snapshot.\n  const lifeDigest = createLifeDigest({ stateDir, now });\n  if (lifeDigest) {\n    for (const [frontendHandlers, frontendTools] of [[handlers, tools], [chatgptHandlers, chatgptTools], [geminiHandlers, geminiTools],\n      [antigravityHandlers, antigravityTools], [sesameHandlers, sesameTools]]) lifeDigest.attach(frontendHandlers, frontendTools, { writeback, getReadModel });\n  }\n"+LIFE_DIGEST_ATTACH],
+      ["  loadStudyConfig(stateDir);\n  loadHeartRateConfig(stateDir);",
+        "  loadStudyConfig(stateDir);\n  loadHeartRateConfig(stateDir);\n  loadLifeDigestConfig(stateDir);"],
+      ["|heart_rate_[a-z_]+)(?::|$)/",
+        "|heart_rate_[a-z_]+|life_digest_[a-z_]+)(?::|$)/"]
+    ],
+    "oauth": [], "mcp": [], "writeback": [], "diagnostics": []
+  }
+};
+
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const git = args => execFileSync('git', args, {cwd:REPO_ROOT, windowsHide:true, maxBuffer:1024*1024});
 
@@ -1628,8 +1719,9 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   const sesameMain = applyPatches(probeMain,name,false,SESAME_PATCHES.mainline);
   const foodMain = applyPatches(sesameMain,name,false,FOOD_PATCHES.mainline);
   const studyMain = applyPatches(foodMain,name,false,STUDY_PATCHES.mainline);
-  assert.ok(applyPatches(studyMain,name,false,HEART_RATE_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,HEART_RATE_PATCHES.mainline),name,true,STUDY_PATCHES.mainline),name,true,FOOD_PATCHES.mainline),name,true,SESAME_PATCHES.mainline),name,true,SESAME_PROBE_PATCHES.mainline),name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
+  const heartMain = applyPatches(studyMain,name,false,HEART_RATE_PATCHES.mainline);
+  assert.ok(applyPatches(applyPatches(applyPatches(heartMain,name,false,PROTOCOL_PATCHES.mainline),name,false,GEMINI_TOOLS_PATCHES.mainline),name,false,LIFE_DIGEST_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,LIFE_DIGEST_PATCHES.mainline),name,true,GEMINI_TOOLS_PATCHES.mainline),name,true,PROTOCOL_PATCHES.mainline),name,true,HEART_RATE_PATCHES.mainline),name,true,STUDY_PATCHES.mainline),name,true,FOOD_PATCHES.mainline),name,true,SESAME_PATCHES.mainline),name,true,SESAME_PROBE_PATCHES.mainline),name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
   const path='i_remote_mcp/'+name+'.mjs';
   if(name==='oauth'||name==='diagnostics')assert.equal(textFormat(base).text,textFormat(files[path]).text,'shared baseline semantic mismatch: '+name);
   files[path]=applyPatches(applyPatches(applyPatches(applyPatches(files[path],name),name,false,FRONTEND_PATCHES.legacy),name,false,REGISTRY_PATCHES.legacy),name,false,GEMINI_PATCHES.legacy);
@@ -1639,7 +1731,10 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   files[path]=applyPatches(files[path],name,false,FOOD_PATCHES.legacy);
   files[path]=applyPatches(files[path],name,false,STUDY_PATCHES.legacy);
   files[path]=applyPatches(files[path],name,false,HEART_RATE_PATCHES.legacy);
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,HEART_RATE_PATCHES.legacy),name,true,STUDY_PATCHES.legacy),name,true,FOOD_PATCHES.legacy),name,true,SESAME_PATCHES.legacy),name,true,SESAME_PROBE_PATCHES.legacy),name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
+  files[path]=applyPatches(files[path],name,false,PROTOCOL_PATCHES.legacy);
+  files[path]=applyPatches(files[path],name,false,GEMINI_TOOLS_PATCHES.legacy);
+  files[path]=applyPatches(files[path],name,false,LIFE_DIGEST_PATCHES.legacy);
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,LIFE_DIGEST_PATCHES.legacy),name,true,GEMINI_TOOLS_PATCHES.legacy),name,true,PROTOCOL_PATCHES.legacy),name,true,HEART_RATE_PATCHES.legacy),name,true,STUDY_PATCHES.legacy),name,true,FOOD_PATCHES.legacy),name,true,SESAME_PATCHES.legacy),name,true,SESAME_PROBE_PATCHES.legacy),name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
  }
  for(const bytes of Object.values(files))assert.ok(!/domain_tools|personal_data_domains|coreRemember|domain-config/.test(bytes.toString()),'W3 domain source forbidden');
  const manifest={schema_version:1,status:'not_deployed',baseline_commit:BASELINE_COMMIT,source_commit:sourceCommit,

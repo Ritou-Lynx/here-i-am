@@ -164,3 +164,12 @@ test('throwing and rejecting diagnostic or legacy sinks cannot alter successful 
     } finally { await ctx.close(); }
   }
 });
+
+test('MCP-Protocol-Version is recorded only as a date label or a fixed value', () => {
+  const records = [];
+  for (const value of ['2025-11-25', 'SECRET_VERSION', ''])
+    createRequestDiagnostics(request({ method: 'POST', url: '/mcp', headers: { 'mcp-protocol-version': value } }), config((r) => records.push(r))).finish(400);
+  createRequestDiagnostics(request({ method: 'POST', url: '/mcp', headers: {} }), config((r) => records.push(r))).finish(401);
+  assert.deepEqual(records.map(r => r.protocol_version), ['2025-11-25', 'other', 'absent', undefined]);
+  assert.doesNotMatch(JSON.stringify(records), /SECRET/);
+});

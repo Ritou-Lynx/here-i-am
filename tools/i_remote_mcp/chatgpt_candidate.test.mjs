@@ -253,10 +253,10 @@ test('callback shape candidate preserves six-file closure, exact diagnostics byt
 test('N2b food patches change only the server candidate hash and reject source drift', () => {
  const {files,manifest}=constructCandidateSources(input);
  const pinned={
-  'i_remote_mcp/server.mjs':'77a8dd3068fe38b7450391dba3ee5fb255db87e91fc1b84cee5dd3198b365ae8', // D2b sesame + N2b food + ST1 study + HR1 heart rate
+  'i_remote_mcp/server.mjs':'bde3ff9f349cf4b86bc4236453604b623ec15b4cd4d4f0a91e6e92cff9123052', // D2b sesame + N2b food + ST1 study + HR1 heart rate + G1 Gemini tools + M1 life digest
   'i_remote_mcp/oauth.mjs':'e2c88aca4d218f7f6b71c34a398dad34216d13d6717a1bff49ff2d8c2707203d', // D2b sesame
-  'i_remote_mcp/diagnostics.mjs':'5303ef6db7549f47da51e6e8b0069c22b7cebe2cb168df4407966dfe09b251f5', // D2b sesame
-  'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',
+  'i_remote_mcp/diagnostics.mjs':'67b0fbec118a7f2baf7d6ad092d658b02d2337a93b4d225afda7a0d58eed6830', // D2b sesame + protocol_version label
+  'i_remote_mcp/mcp.mjs':'838810b234c1750ca92770aa61d6c6fadb70dfdf6d90f4a02a146f5d3be9f046', // + MCP 2025-11-25
   'i_remote_mcp/writeback.mjs':'a7a6f95d05c9d2028e66d7ca052cf0c8b2482b494905d5b848a8f066123ddfb3', // D2b sesame
   'i_memory/i_memory_read.mjs':'cee185180b825a141b645a12ab1f1812a61b9eb7462c347465b7ac4449af4e28',
  };

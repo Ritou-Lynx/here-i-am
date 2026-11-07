@@ -11,7 +11,7 @@ export const SERVER_VERSION = '0.2.0';
 export const READ_SCOPE = 'i.read';
 export const WRITE_SCOPE = 'i.write';
 export const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
-export const SUPPORTED_PROTOCOL_VERSIONS = Object.freeze(['2025-06-18', '2025-03-26']);
+export const SUPPORTED_PROTOCOL_VERSIONS = Object.freeze(['2025-11-25', '2025-06-18', '2025-03-26']);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_IDENTITY_PATH = resolve(HERE, '../i_continuity_gateway/identity.default.json');
