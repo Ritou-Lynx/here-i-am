@@ -146,6 +146,23 @@ $dailyEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($dai
 
 边界：导出只含学习资料和账本统计，不含飞书凭据；Apps Script 只读写这一个文件夹，不删除文件。Gemini 那边的闪卡、测验结果不回流账本，错点照旧贴进飞书收件表（渠道“Gemini”）。
 
+## 笔记副本（给 i MCP 读日记和工作文档）
+
+`sync/notes_mirror.mjs` 把飞书云空间里指定的顶层文件夹（含子文件夹）里的 docx 文档，只读地拉到本机一个单独的“笔记副本”目录，留给 i MCP 以后读取。对飞书只调用 `drive files list` 和 `docs +fetch`，从不写飞书。
+
+```text
+node <工具目录>\sync\notes_mirror.mjs --config <工具目录>\config.json --state <学习目录>\state --notes <笔记副本目录>
+```
+
+- **配置**：在工具目录的 `config.json` 里加 `"notes": {"folders": ["日记/日报", "工作"]}`。名字要和云空间根目录里的文件夹名完全一致，只能匹配到一个文件夹。
+- **增量**：每篇文档一个文件，路径是 `<文件夹>/<token>.md`（`/` 等字符换成 `-`）。用 `index.json` 记录每篇的修改时间，没改过的文档不会重新拉取；改过的文档原地覆盖同一个文件，不会生成新副本。飞书里删掉的文档，副本里也跟着删掉。改名或挪到别的配置文件夹，文件也会跟着更新。
+- **时间预算**：`--max-minutes N`（0–120，默认 20）。超过预算后不再拉新文档，剩下的记为 `deferred`，保留旧副本，退出码 2（`notes_deferred`），下次运行接着拉。这样第一次文档很多时也不会被计划任务的时限中途杀掉、写不出 index.json。
+- **保护**：所有列表都拉完才开始写本地。列表失败时什么都不改。某个文件夹原来有文档、这次却列出 0 篇，按“权限丢失”处理：报 `notes_listing_empty`，什么都不删。单篇拉取失败会保留上一份，退出码 2（`notes_partial`），下次运行重试。
+- **登录**：和 `feishu_sync` 共用本机的 lark-cli 登录。`<学习目录>\state\.sync.lock` 存在时直接跳过（输出 `notes_skipped_sync_busy`），不和学习单同时刷新凭据。自己的锁是 `<笔记副本目录>\.mirror.lock`；崩溃留下的锁，下次运行时发现进程已不在，会自动清掉。
+- **目录**：笔记副本目录不能和工具目录、配置所在目录或学习目录互相包含，否则报 `daily_layout_invalid`。
+- **授权**：列文件夹需要云空间只读权限（`drive:drive:readonly`）。原来按 `--domain "docs,base"` 授权的，需要**用户本人**再授权一次：`lark-cli auth login --domain "docs,base" --scope "drive:drive:readonly"`。Agent 和脚本都不得代为执行。
+- **计划任务**：建议单独注册一个 Interactive 任务，每 30 分钟跑一次，错开整点和半点（比如 :10 和 :40），避免撞上 06:30 的学习单。
+
 ## 语音与旧模板
 
 dot 读 `%USERPROFILE%\feishu-study\today.md`，按 TUTOR_RULES 带练；GPT voice 由用户粘贴学习单。来源提示用飞书的标题链接。Gemini 或语音结果可以手动加入飞书收件表。

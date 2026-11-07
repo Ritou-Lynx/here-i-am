@@ -224,6 +224,52 @@ void main() {
     expect(shareCalls, 0);
     await fake.dispose();
   });
+
+  testWidgets('sync section shows the address, toggles and saves an override', (tester) async {
+    final fake = FakeBleHeartRateGateway();
+    await tester.pumpWidget(MaterialApp(
+      theme: SpringRainUiTheme.build(ThemeData.light()),
+      home: HeartRateDeviceSettingsPage(gateway: fake, userId: 'synthetic-user'),
+    ));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('heart_rate_upload_edit_address')), 250,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.byKey(const ValueKey('heart_rate_upload_section')), findsOneWidget);
+    expect(find.textContaining('地址：https://pc.example.ts.net:8447'), findsOneWidget);
+    expect(find.textContaining('还没有成功同步过'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('heart_rate_upload_switch')));
+    await tester.pumpAndSettle();
+    expect(fake.uploadConfigureCalls.last, {'enabled': false});
+    expect(find.textContaining('还没有可用的电脑地址'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('heart_rate_upload_switch')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('heart_rate_upload_edit_address')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('heart_rate_upload_address_field')), 'https://other.example.ts.net:8447');
+    await tester.tap(find.byKey(const ValueKey('heart_rate_upload_address_save')));
+    await tester.pumpAndSettle();
+    expect(fake.uploadConfigureCalls.last, {'overrideUrl': 'https://other.example.ts.net:8447'});
+    expect(find.textContaining('地址：https://other.example.ts.net:8447（手动）'), findsOneWidget);
+    await fake.dispose();
+  });
+
+  testWidgets('invalid sync address shows a friendly message', (tester) async {
+    final fake = FakeBleHeartRateGateway()..rejectUploadCode = 'INVALID_URL';
+    await tester.pumpWidget(MaterialApp(
+      theme: SpringRainUiTheme.build(ThemeData.light()),
+      home: HeartRateDeviceSettingsPage(gateway: fake, userId: 'synthetic-user'),
+    ));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('heart_rate_upload_edit_address')), 250,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byKey(const ValueKey('heart_rate_upload_edit_address')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('heart_rate_upload_address_field')), 'http://plain.example');
+    await tester.tap(find.byKey(const ValueKey('heart_rate_upload_address_save')));
+    await tester.pumpAndSettle();
+    expect(find.text('地址要写成 https://电脑名.ts.net:8447 这样的根地址。'), findsOneWidget);
+    await fake.dispose();
+  });
 }
 
 BleHeartRateSnapshot _deviceSnapshot({

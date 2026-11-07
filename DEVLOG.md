@@ -1,3 +1,33 @@
+## 2026-11-07 N1 家里安装脚本轮
+
+- 用户 11-07 完成 `drive:drive:readonly` 授权。新增脚本轮 `tools/relay_scripts/notes/n1-install.ps1`：核对家里同步文件是已知版本，备份后装 cli.mjs 和 notes_mirror.mjs、config 加 notes.folders，试跑一次，再注册 Interactive 计划任务 `FeishuNotes-Mirror`（每 30 分钟，:10/:40，wscript 隐藏窗口，日志在工具目录 logs）。合同见 docs/development/handoffs/RELAY_20261107_n1-notes-install.md。
+- notes_mirror 加 `--max-minutes`（默认 20）：第一次文档多时超出预算的记为 deferred，下次接着拉，避免被任务时限杀掉而写不出 index.json。
+
+## 2026-11-05 HR1：臂带实时心率进 i MCP
+
+- 用户 11-05 同意 HR1（合同 docs/development/handoffs/RELAY_20261105_hr1-heart-rate-mcp.md）：戴着臂带时手机把心率实时推到家里电脑，Claude、ChatGPT、Antigravity、Sesame 都能用 `heart_rate` 按需读（now / range / night），Gemini 不开放。
+- MCP：新增 `tools/i_remote_mcp/heart_rate.mjs`。监听只绑 127.0.0.1:47866，只经 `tailscale serve --https=8447` 访问，靠 `Tailscale-User-Login` 名单鉴权，手机不存 token。逐秒数据只在内存里留最近 15 分钟；每分钟汇总写进状态目录 `heart_rate/`，保留 14 天。只有状态目录里有 `heart_rate.json` 时才启用。候选构建器在 STUDY 之后加了 `HEART_RATE_PATCHES`，legacy server 原样内嵌 heart_rate.mjs，server 候选哈希改为 `77a8dd30`，云端 233/233 通过。
+- App：前台服务新增上传器，每 5 秒批量推送一次；队列最多攒 10 分钟，失败按 5 秒到 60 秒退避，只上传时间和 bpm。地址从 Core 同步地址推出（同一台电脑的 8447 端口），设置页可以手动覆盖或关闭。Kotlin 纯逻辑 8 项单测和 Dart 28 项测试在云端通过。
+- 部署（11-05，#91）：第 1 轮只读检查通过；第 2 轮切到新任务 hr1-heart-20261105（server 77a8dd30），停服 65 秒，8447 经 tailnet health 200。原分支被本机旧 #56 工作树占用，所以从 #89 改到 #91。
+- 装 App：#91 的安装轮撤回，HR1 合进 GPT-Live 装机分支（#86），一次装好两边改动（新版安装脚本会修复 pub 缓存里残缺的 jni 包）。
+- 验收（11-07）：用户戴臂带，云端 Claude 调 `heart_rate` now 拿到 live=true、距今 1 秒的读数，range 返回逐分钟曲线（每分钟约 60 个样本）。
+
+## 2026-11-05 N1：飞书笔记副本（日记、工作文档给 i MCP 用）
+
+- 用户 11-05 要让飞书里的日记和工作文档成为助手能自己调用的上下文，选了“副本 + i MCP 工具”方案（不排除任何内容，副本要增量、同一篇只保留一份）。这是第一步，只负责把文档拉到本机。
+- 新增 `tools/feishu_tutor/sync/notes_mirror.mjs`：只读列出配置的顶层文件夹（含子文件夹）的 docx，按 token 一篇一个文件，比对修改时间增量拉取，改过的原地覆盖，飞书删了本地也删；列表全部成功才写，某文件夹突然 0 篇时报错不删。白名单加只读的 `drive files list`（`folder_list`）。与 feishu_sync 共用登录，sync 锁存在时跳过。
+- 还没装到家里：需要用户补一次 `drive:drive:readonly` 授权，再用脚本轮注册每 30 分钟的计划任务。N2（i MCP 的 notes 工具和 i_context 近况）另开。
+
+## 2026-11-04 ST1 部署完成
+- #88 第 5 轮切到新任务 st1-study（server a0bd0491），云端已能调用 study_today / study_source / study_progress / study_result。第 1–3 轮失败的经过和根因（强制收尾后，就绪等待把崩溃恢复期间的临时标记当成失败）见 docs/development/handoffs/RELAY_20261103_st1-deploy.md。
+
+## 2026-11-03 ST1：远程 MCP 加学习工具
+
+- 用户 11-03 批准 ST1 合同（docs/development/handoffs/RELAY_20261102_st1-study-mcp-tools.md）。这一轮让 Claude 和 ChatGPT 能直接读今天的学习单、笔记和学习进度，练完把【学习结果】写回学习目录的 inbox。
+- 新增 `tools/i_remote_mcp/study_tools.mjs`，提供 study_today、study_source、study_progress（只读）和 study_result（只在 inbox 新建文件）。只有 MCP 状态目录里有 `study.json` 时才加载；Gemini、Antigravity、Sesame 不开放。
+- 候选构建器在 FOOD 之后加了 `STUDY_PATCHES`，legacy server 原样内嵌 study_tools.mjs。server 候选哈希改为 `a0bd0491`，其余文件不变。云端 223/223 通过。
+- 还没有部署。合并后另写部署脚本轮：生成候选、写 study.json、按 N2 流程切换任务。
+
 ## 2026-11-01 学习导师：三科学习单与 ChatGPT 练习链接
 
 - 用户要把每日学习扩到日语、英语、数据分析三科，每天 1.5–2 小时，先建框架再练习，练习用 ChatGPT 智能 UI 的互动题。方案（Claude Doc）用户已认可。

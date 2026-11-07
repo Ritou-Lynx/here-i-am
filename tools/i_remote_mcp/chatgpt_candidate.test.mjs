@@ -253,7 +253,7 @@ test('callback shape candidate preserves six-file closure, exact diagnostics byt
 test('N2b food patches change only the server candidate hash and reject source drift', () => {
  const {files,manifest}=constructCandidateSources(input);
  const pinned={
-  'i_remote_mcp/server.mjs':'f42f291f251a7a74f2489b881b4e019f7c9072cadcb101055b2eac8136afd12e', // D2b sesame + N2b food
+  'i_remote_mcp/server.mjs':'77a8dd3068fe38b7450391dba3ee5fb255db87e91fc1b84cee5dd3198b365ae8', // D2b sesame + N2b food + ST1 study + HR1 heart rate
   'i_remote_mcp/oauth.mjs':'e2c88aca4d218f7f6b71c34a398dad34216d13d6717a1bff49ff2d8c2707203d', // D2b sesame
   'i_remote_mcp/diagnostics.mjs':'5303ef6db7549f47da51e6e8b0069c22b7cebe2cb168df4407966dfe09b251f5', // D2b sesame
   'i_remote_mcp/mcp.mjs':'0ae610bfc8bee8e4dd805e7532d486f678166a4b67d0e6ec80073ccd3f409eef',

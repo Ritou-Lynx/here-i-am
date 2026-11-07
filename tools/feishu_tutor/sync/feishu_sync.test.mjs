@@ -205,6 +205,7 @@ test('closed command builder enumerates every allowed operation', () => {
     record_update:[{base:'TEST_BASE',table:'ledger',file:'payload.json'},['base','+record-batch-update']],
     doc_fetch:[{doc:'TEST_DOC'},['docs','+fetch']],doc_create:[{file:'content.md'},['docs','+create']],
     doc_append:[{doc:'TEST_DOC',file:'content.md'},['docs','+update']],
+    folder_list:[{folder:'TEST_FOLDER',page:''},['drive','files','list']],
   };
   assert.ok(Object.isFrozen(COMMANDS));
   assert.deepEqual([...COMMANDS].sort(),Object.keys(cases).sort());
