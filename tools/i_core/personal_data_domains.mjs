@@ -413,7 +413,9 @@ export function provisionFoodDomain(domains, {rotate = []} = {}) {
     const issued = {};
     for (const [role, config] of Object.entries(foodPrincipalConfigs())) {
       const exists = domains.db.prepare('SELECT 1 FROM domain_principals WHERE principal_id=?').get(config.principal_id);
-      if (!exists || rotate.includes(role)) issued[role] = atomic.configurePrincipal(config).token;
+      // Rotation keeps the stored config, which may already carry ledger scopes.
+      if (!exists) issued[role] = atomic.configurePrincipal(config).token;
+      else if (rotate.includes(role)) issued[role] = atomic.rotatePrincipal(config.principal_id).token;
     }
     return {registered: !row, issued};
   });
@@ -435,8 +437,9 @@ export function claimFoodPhoneCredential(domains) {
       .get(FOOD_PHONE_PRINCIPAL_ID);
     let storedConfig;
     try { storedConfig = principal ? JSON.parse(principal.config_json) : null; } catch { fail(); }
+    // The ledger extends the phone principal's scopes in place (provisionExpenseDomain).
     if (!principal || principal.status !== 'active'
-      || foodCanonicalJSON(storedConfig) !== foodCanonicalJSON(expected)) fail();
+      || ![expected, ledgerPrincipalConfigs().phone].some(config => foodCanonicalJSON(storedConfig) === foodCanonicalJSON(config))) fail();
     const issued = atomic.rotatePrincipal(FOOD_PHONE_PRINCIPAL_ID);
     return {
       format: 'food-phone-credential-v1',
@@ -446,5 +449,123 @@ export function claimFoodPhoneCredential(domains) {
       core_instance_id: domains.nodeId,
       token: issued.token,
     };
+  });
+}
+
+// 记账：expense_entries is written by the same MCP writer and read by the same
+// phone principal as food. Extending their scopes in place keeps both existing
+// tokens valid, so enabling the ledger issues no new credential.
+export const EXPENSE_HOOK_VERSION = 'expense-v1';
+export const EXPENSE_DOMAIN = 'expense_entries';
+export const EXPENSE_CATEGORIES = Object.freeze(['food', 'transport', 'shopping', 'daily', 'entertainment', 'housing', 'health', 'learning', 'social', 'other']);
+export const EXPENSE_FRONTENDS = Object.freeze(['claude_web', 'chatgpt_web', 'gemini_web', 'antigravity']);
+const expenseField = (type, values) => ({type, required: true, ...(values ? {enum: [...values]} : {})});
+export const EXPENSE_SCHEMA = Object.freeze({
+  version: 1,
+  fields: {
+    spent_at: expenseField('string'),
+    local_date: expenseField('string'),
+    amount_cny: expenseField('number'),
+    ai_amount_cny: expenseField('number'),
+    item: expenseField('string'),
+    category: expenseField('string', EXPENSE_CATEGORIES),
+    note: expenseField('string'),
+    source_frontend: expenseField('string', EXPENSE_FRONTENDS),
+    voided: expenseField('boolean'),
+  },
+});
+const EXPENSE_FIELDS = Object.keys(EXPENSE_SCHEMA.fields);
+const EXPENSE_SCOPES = Object.freeze({
+  writer: ['expense_entries:read', 'expense_entries:create', 'expense_entries:patch'],
+  phone: ['expense_entries:read'],
+});
+const cents = value => typeof value === 'number' && Number.isFinite(value) && Math.abs(Math.round(value * 100) - value * 100) < 1e-6;
+
+export function validateExpenseRecord(record) {
+  if (!plain(record) || !id(record.id) || record.deleted_at) return false;
+  const data = record.data;
+  return exact(data, EXPENSE_FIELDS) && validBusinessTime(data.spent_at) && validBusinessDate(data.local_date)
+    && cents(data.amount_cny) && data.amount_cny > 0 && data.amount_cny <= 1000000
+    && cents(data.ai_amount_cny) && data.ai_amount_cny >= 0 && data.ai_amount_cny <= data.amount_cny
+    && typeof data.item === 'string' && data.item.trim().length > 0 && data.item.length <= 200
+    && EXPENSE_CATEGORIES.includes(data.category)
+    && typeof data.note === 'string' && data.note.length <= 2000
+    && EXPENSE_FRONTENDS.includes(data.source_frontend) && typeof data.voided === 'boolean';
+}
+
+export function createExpenseDomainHooks({writerPrincipalIds = []} = {}) {
+  const writers = new Set(writerPrincipalIds);
+  return {
+    [EXPENSE_DOMAIN]: {
+      version: EXPENSE_HOOK_VERSION,
+      authorizeOperation(ctx) {
+        const principalId = ctx.principal.principal_id;
+        if (!writers.has(principalId)) return false;
+        if (ctx.phase === 'lookup') {
+          const operation = ctx.operation;
+          return operation?.actor === 'agent_inferred' && ['create', 'patch'].includes(operation.kind);
+        }
+        const request = ctx.request;
+        if (request?.actor !== 'agent_inferred' || !['create', 'patch'].includes(request.kind)) return false;
+        if (request.kind === 'create') return true;
+        return ctx.phase === 'preflight' || ctx.current?.origin?.principal_id === principalId;
+      },
+      validateTransition({next}) {
+        return validateExpenseRecord(next);
+      },
+    },
+  };
+}
+
+/** Food and ledger hooks for the runtime Core; both are inert until registered. */
+export function createRuntimeDomainHooks({writerPrincipalIds = []} = {}) {
+  return {...createFoodDomainHooks({writerPrincipalIds}), ...createExpenseDomainHooks({writerPrincipalIds})};
+}
+
+export function registerExpenseDomain(store, {mode = 'off'} = {}) {
+  store.registerDomain(EXPENSE_DOMAIN, structuredClone(EXPENSE_SCHEMA), {mode, requiredHooksVersion: EXPENSE_HOOK_VERSION});
+}
+
+/** The food principals' configs once the ledger scopes are added. */
+export function ledgerPrincipalConfigs() {
+  const configs = foodPrincipalConfigs();
+  for (const role of Object.keys(configs)) configs[role].scopes = [...configs[role].scopes, ...EXPENSE_SCOPES[role]];
+  return configs;
+}
+
+/**
+ * Enable the ledger on a Core whose food sync is already provisioned. Idempotent:
+ * registers expense_entries and adds ledger scopes to the two food principals
+ * without rotating their tokens. Returns {status:'not_food_provisioned'} and
+ * changes nothing when food was never provisioned.
+ */
+export function provisionExpenseDomain(domains) {
+  const fail = code => { throw Object.assign(new Error(code), {code}); };
+  const atomic = Object.create(domains);
+  atomic.tx = fn => fn();
+  return domains.tx(() => {
+    domains.ready();
+    const food = domains.db.prepare('SELECT 1 FROM domain_registry WHERE domain=?').get('food_entries');
+    const principals = Object.fromEntries(Object.values(foodPrincipalConfigs()).map(config => [config.principal_id,
+      domains.db.prepare('SELECT status,config_json FROM domain_principals WHERE principal_id=?').get(config.principal_id)]));
+    if (!food || Object.values(principals).some(row => !row)) return {status: 'not_food_provisioned', registered: false, upgraded: []};
+    const row = domains.db.prepare('SELECT 1 FROM domain_registry WHERE domain=?').get(EXPENSE_DOMAIN);
+    if (row) {
+      const current = domains.domain(EXPENSE_DOMAIN);
+      if (current.mode !== 'authoritative' || current.requiredHooksVersion !== EXPENSE_HOOK_VERSION
+        || foodCanonicalJSON(current.schema) !== foodCanonicalJSON(EXPENSE_SCHEMA)) fail('expense_domain_conflict');
+    } else registerExpenseDomain(atomic, {mode: 'authoritative'});
+    const original = foodPrincipalConfigs(), extended = ledgerPrincipalConfigs(), upgraded = [];
+    for (const role of Object.keys(original)) {
+      const principalId = original[role].principal_id;
+      let stored;
+      try { stored = JSON.parse(principals[principalId].config_json); } catch { fail('expense_principal_conflict'); }
+      if (foodCanonicalJSON(stored) === foodCanonicalJSON(extended[role])) continue;
+      if (foodCanonicalJSON(stored) !== foodCanonicalJSON(original[role])) fail('expense_principal_conflict');
+      domains.db.prepare('UPDATE domain_principals SET config_json=? WHERE principal_id=?')
+        .run(foodCanonicalJSON(extended[role]), principalId);
+      upgraded.push(role);
+    }
+    return {status: 'provisioned', registered: !row, upgraded};
   });
 }
