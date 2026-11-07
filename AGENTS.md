@@ -35,7 +35,6 @@
 - 自动层对每个候选 SHA 重跑即完成精确绑定，证据用 CI 结果与产物，不手写 SHA/PID 长文。真人结论按改动是否触及其覆盖路径决定沿用或重看，沿用须在报告注明。自动场景失败不中止，跑完全部再汇总返修。旧 D 路径 native binding 只是历史 candidate-only 参考。
 - 新增 Gate 先写成自动场景；computer use 只用于探索或系统集成点验，不作为回归验收手段。
 - 实质成果更新 `DEVLOG.md` 顶部中文记录（不超过15行）和项目当前态；主窗统一落全局交接，worker 写各自 handoff。
-- i 工具可用时，新会话调用 i_bootstrap；当前项目只用 i_get_project_state/i_recall_project，不切换项目参数。实质结果用真实 session/thread ID、稳定幂等键 closeout，默认 project_default，只写简洁结果、决定、未完和相对 artifacts，不写凭据或生活资料。
 
 ## 无人值守环境常设授权
 

@@ -1,4 +1,4 @@
-// Standalone re-implementation of i_device_sync.mjs seal(), used only to
+// Standalone re-implementation of the retired gateway's i_device_sync.mjs seal(), used only to
 // produce a cross-language interop fixture for the Dart crypto test.
 import { createCipheriv, pbkdf2Sync, randomBytes } from 'node:crypto';
 

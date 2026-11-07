@@ -149,6 +149,23 @@ class GptLiveProtocol {
 
   static String closeEvent() => jsonEncode({'type': 'session.close'});
 
+  /// 让模型把一段话说出来（可意译）。用于“她先开口”：官方建议建会话时放一条
+  /// developer 开场说明，session.started 之后再发一次 commentary。
+  /// 内容上限 500 token，这里按字符截断。
+  static String commentaryEvent(String content) => jsonEncode({
+        'type': 'session.commentary.append',
+        'delegation_id': null,
+        'content': _clip(content, 400),
+      });
+
+  /// 催睡来电：接通后让她先开口的那句提示（developer 消息和 commentary 共用）。
+  static String nudgeGreeting(String reason) {
+    final r = reason.trim();
+    return '电话刚接通，是你主动打过来的催睡电话，请你先开口。'
+        '${r.isEmpty ? '' : '起因：$r'}'
+        '用一两句话问怎么还醒着、在干嘛，然后停下来听对方说。';
+  }
+
   static String? _errorMessage(String body) {
     try {
       final json = jsonDecode(body);

@@ -60,6 +60,8 @@ import 'package:memex/data/services/morning_weather_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/data/services/sleep_nudge/sleep_nudge_store.dart';
+import 'package:memex/ui/character/widgets/gpt_live_call_screen.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/call_voice_router.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
@@ -105,10 +107,7 @@ void _openPersonaChatVoiceModeFromRoot(String characterId) {
     // Global call: audio runs in the foreground-task isolate + overlay UI, so
     // the call survives backgrounding/lock (previously the main-isolate inline
     // voice mode died the moment the engine was suspended).
-    unawaited(() async {
-      await CallVoiceRouter.instance.startCall(characterId);
-      GlobalCallOverlay.instance.show();
-    }());
+    unawaited(_startAcceptedCompanionCall(characterId));
     return;
   }
 
@@ -120,6 +119,46 @@ void _openPersonaChatVoiceModeFromRoot(String characterId) {
     rootNavigator: true,
     initialVoiceMode: true,
   );
+}
+
+/// 接起一通待拨电话：催睡来电（待拨电话标了 GPT-Live）打开 GPT-Live 通话页，
+/// 其余走原来的全局通话（前台服务 isolate + 悬浮条）。
+Future<void> _startAcceptedCompanionCall(String characterId) async {
+  String? engine;
+  try {
+    engine = await readPendingCallEngine();
+  } catch (_) {}
+  if (engine == pendingEngineGptLive) {
+    final pending = await readPendingCall();
+    await clearPendingCall(characterId: characterId);
+    final config = await SleepNudgeStore.loadConfig();
+    // 冷启动时导航器可能还没挂上，最多等 10 秒。
+    NavigatorState? nav;
+    for (var i = 0; i < 40; i++) {
+      final state = rootNavigatorKey.currentState;
+      if (state != null && state.mounted) {
+        nav = state;
+        break;
+      }
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+    if (nav == null) return;
+    unawaited(nav.push(
+      MaterialPageRoute<void>(
+        builder: (_) => GptLiveCallScreen(
+          characterId: characterId,
+          callReason: pending?.opening ?? '',
+          maxDuration: config.maxCallMinutes > 0
+              ? Duration(minutes: config.maxCallMinutes)
+              : null,
+          showWhenLocked: true,
+        ),
+      ),
+    ));
+    return;
+  }
+  await CallVoiceRouter.instance.startCall(characterId);
+  GlobalCallOverlay.instance.show();
 }
 
 void _requestHereIamPersonaChat(
@@ -343,10 +382,7 @@ void main() async {
       // notification (call_control channel) provides hang-up/mute/speaker.
       await CallkitService.instance.endAll();
       await Future.delayed(const Duration(milliseconds: 300));
-      unawaited(() async {
-        await CallVoiceRouter.instance.startCall(characterId);
-        GlobalCallOverlay.instance.show();
-      }());
+      unawaited(_startAcceptedCompanionCall(characterId));
     };
     CallkitService.instance.onDecline = (String characterId) {
       // The CallKit service fires onDecline for BOTH explicit rejection
@@ -366,10 +402,7 @@ void main() async {
     final recoveredCall = await CallkitService.instance.recoverAcceptedCall();
     if (recoveredCall != null) {
       await CallkitService.instance.endAll();
-      unawaited(() async {
-        await CallVoiceRouter.instance.startCall(recoveredCall);
-        GlobalCallOverlay.instance.show();
-      }());
+      unawaited(_startAcceptedCompanionCall(recoveredCall));
     }
   }
 
