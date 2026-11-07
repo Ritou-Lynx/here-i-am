@@ -105,6 +105,29 @@ void main() {
               history: const SleepNudgeHistory()),
           isA<SleepNudgeSkip>());
     });
+    test('ignores shared-topic pushes without the call keyword', () {
+      final other =
+          NtfyMessage(id: 'x', time: now, title: '林埃', message: '中午没吃饭哦');
+      expect(
+          (SleepNudgePolicy.decide(
+                  messages: [other],
+                  now: now,
+                  config: config,
+                  history: const SleepNudgeHistory()) as SleepNudgeSkip)
+              .reason,
+          'no_message');
+      // 关键词在正文里也认；混在一起时取最新的来电消息。
+      final inBody = NtfyMessage(
+          id: 'y',
+          time: now.subtract(const Duration(seconds: 30)),
+          message: '林埃来电：醒着');
+      final d = SleepNudgePolicy.decide(
+          messages: [inBody, other],
+          now: now,
+          config: config,
+          history: const SleepNudgeHistory());
+      expect((d as SleepNudgeRing).message.id, 'y');
+    });
     test('last night count does not block tonight', () {
       final d = SleepNudgePolicy.decide(
         messages: [msg(now)],

@@ -140,6 +140,12 @@ class SleepNudgePolicy {
     return out;
   }
 
+  /// 床头哨兵推送的标记词（三星例程原来也靠它触发）。
+  static const callKeyword = '林埃来电';
+
+  static bool isCallMessage(NtfyMessage m) =>
+      m.title.contains(callKeyword) || m.message.contains(callKeyword);
+
   /// 一晚的标识：往前推 12 小时取日期，所以 23:00 和次日 03:00 同属一晚。
   static String nightKeyOf(DateTime now) {
     final d = now.subtract(const Duration(hours: 12));
@@ -155,8 +161,10 @@ class SleepNudgePolicy {
     required SleepNudgeHistory history,
     bool callAlreadyRinging = false,
   }) {
-    if (messages.isEmpty) return const SleepNudgeSkip('no_message');
-    final latest = messages.last;
+    // topic 可能和其他提醒（如日摘要推送）共用，只认带“林埃来电”的消息。
+    final calls = messages.where(isCallMessage).toList();
+    if (calls.isEmpty) return const SleepNudgeSkip('no_message');
+    final latest = calls.last;
     if (now.difference(latest.time) > staleAfter) {
       return const SleepNudgeSkip('stale');
     }

@@ -73,6 +73,8 @@ class SleepNudgeService {
     switch (decision) {
       case SleepNudgeSkip(:final reason):
         debugPrint('[SleepNudge] skip: $reason');
+        // 共用 topic 上的其他推送（不含“林埃来电”）不算催睡，不刷状态。
+        if (reason == 'no_message') return false;
         await SleepNudgeStore.setLastStatus('收到推送，未响铃（${_skipText(reason)}）');
         return false;
       case SleepNudgeRing(:final message):
