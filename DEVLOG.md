@@ -3,7 +3,9 @@
 - 用户 11-05 同意 HR1（合同 docs/development/handoffs/RELAY_20261105_hr1-heart-rate-mcp.md）：戴着臂带时手机把心率实时推到家里电脑，Claude、ChatGPT、Antigravity、Sesame 都能用 `heart_rate` 按需读（now / range / night），Gemini 不开放。
 - MCP：新增 `tools/i_remote_mcp/heart_rate.mjs`。监听只绑 127.0.0.1:47866，只经 `tailscale serve --https=8447` 访问，靠 `Tailscale-User-Login` 名单鉴权，手机不存 token。逐秒数据只在内存里留最近 15 分钟；每分钟汇总写进状态目录 `heart_rate/`，保留 14 天。只有状态目录里有 `heart_rate.json` 时才启用。候选构建器在 STUDY 之后加了 `HEART_RATE_PATCHES`，legacy server 原样内嵌 heart_rate.mjs，server 候选哈希改为 `77a8dd30`，云端 233/233 通过。
 - App：前台服务新增上传器，每 5 秒批量推送一次；队列最多攒 10 分钟，失败按 5 秒到 60 秒退避，只上传时间和 bpm。地址从 Core 同步地址推出（同一台电脑的 8447 端口），设置页可以手动覆盖或关闭。Kotlin 纯逻辑 8 项单测和 Dart 28 项测试在云端通过。
-- 还没有部署。部署走脚本轮：只读检查 → 换 MCP 并开 tailscale serve 8447 → 装 App。
+- 部署（11-05，#91）：第 1 轮只读检查通过；第 2 轮切到新任务 hr1-heart-20261105（server 77a8dd30），停服 65 秒，8447 经 tailnet health 200。原分支被本机旧 #56 工作树占用，所以从 #89 改到 #91。
+- 装 App：#91 的安装轮撤回，HR1 合进 GPT-Live 装机分支（#86），一次装好两边改动（新版安装脚本会修复 pub 缓存里残缺的 jni 包）。
+- 验收（11-07）：用户戴臂带，云端 Claude 调 `heart_rate` now 拿到 live=true、距今 1 秒的读数，range 返回逐分钟曲线（每分钟约 60 个样本）。
 
 ## 2026-11-04 ST1 部署完成
 - #88 第 5 轮切到新任务 st1-study（server a0bd0491），云端已能调用 study_today / study_source / study_progress / study_result。第 1–3 轮失败的经过和根因（强制收尾后，就绪等待把崩溃恢复期间的临时标记当成失败）见 docs/development/handoffs/RELAY_20261103_st1-deploy.md。
