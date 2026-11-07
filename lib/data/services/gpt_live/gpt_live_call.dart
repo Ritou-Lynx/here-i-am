@@ -18,9 +18,16 @@ enum GptLiveCallPhase { idle, connecting, live, ending, ended, failed }
 /// 第一版只跑在前台（通话页开着时），不进前台服务 isolate；挂断后把转写按轮写回聊天记录。
 /// 人设和最近聊天记录在建会话时注入（instructions + input），通话中不再调用本地 Agent。
 class GptLiveCall extends ChangeNotifier {
-  GptLiveCall({required this.characterId});
+  GptLiveCall({required this.characterId, this.callReason = ''});
 
   final String characterId;
+
+  /// 非空表示这是一通主动打来的催睡电话，内容是起因（床头哨兵的判醒原因）。
+  /// 会写进 instructions，并让她接通后先开口。
+  final String callReason;
+
+  bool get isNudge => callReason.trim().isNotEmpty;
+  bool _greeted = false;
   static final _log = getLogger('GptLiveCall');
 
   GptLiveCallPhase phase = GptLiveCallPhase.idle;
@@ -63,8 +70,15 @@ class GptLiveCall extends ChangeNotifier {
         persona: character?.persona ?? '',
         now: DateTime.now(),
         extra: await GptLiveSettings.getExtraInstructions(),
+        callReason: callReason,
       );
-      final history = await _loadHistory();
+      final history = [...await _loadHistory()];
+      if (isNudge) {
+        history.add(GptLiveHistoryMessage(
+          'developer',
+          GptLiveProtocol.nudgeGreeting(callReason),
+        ));
+      }
 
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
         await Helper.setAndroidAudioConfiguration(
@@ -183,9 +197,27 @@ class GptLiveCall extends ChangeNotifier {
       case GptLiveError(:final code, :final message):
         _log.warning('server error: $code $message');
       case GptLiveStarted():
+        _greetIfNudge();
       case null:
         break;
     }
+  }
+
+  /// 催睡来电：session.started 后发一次 commentary 让她先开口（只发一次）。
+  void _greetIfNudge() {
+    if (!isNudge || _greeted) return;
+    final dc = _dc;
+    if (dc == null || dc.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    _greeted = true;
+    unawaited(dc
+        .send(RTCDataChannelMessage(
+          GptLiveProtocol.commentaryEvent(
+            GptLiveProtocol.nudgeGreeting(callReason),
+          ),
+        ))
+        .catchError((Object e) => _log.warning('greeting send failed: $e')));
   }
 
   Future<void> _waitIceGathering(RTCPeerConnection pc) async {
@@ -300,6 +332,7 @@ class GptLiveCall extends ChangeNotifier {
     required String persona,
     required DateTime now,
     String extra = '',
+    String callReason = '',
   }) {
     String two(int n) => n.toString().padLeft(2, '0');
     final time =
@@ -316,6 +349,16 @@ class GptLiveCall extends ChangeNotifier {
       ..writeln('- 用户说英文时可以用英文回答。')
       ..writeln('- 之前的聊天记录已经给你了，接着那些内容自然聊，不要复述。')
       ..writeln('- 用户说要挂了，就简短道别。');
+    if (callReason.trim().isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## 这通电话')
+        ..writeln('- 这是你主动打给用户的催睡电话：已经很晚了，床头的摄像头发现用户还醒着。')
+        ..writeln('- 起因：${callReason.trim()}')
+        ..writeln('- 接通后你先开口。温柔但坚定地催用户放下手机去睡觉，可以撒娇、可以小小地凶一下，按你的人设来。')
+        ..writeln('- 用户说马上睡，就叮嘱一两句、道晚安后让对方挂电话；不要拖着聊。')
+        ..writeln('- 用户有心事睡不着，就先陪着说几句，再慢慢引导去躺下。');
+    }
     if (extra.trim().isNotEmpty) {
       buf
         ..writeln()

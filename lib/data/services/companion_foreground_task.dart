@@ -15,6 +15,7 @@ import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/notification_service.dart';
+import 'package:memex/data/services/sleep_nudge/sleep_nudge_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -194,6 +195,13 @@ class CompanionTaskHandler extends TaskHandler {
         }
       } catch (e) {
         debugPrint('[ForegroundTask] pending-call check error: $e');
+      }
+
+      // ── 催睡来电（床头哨兵 → ntfy → 这里），不受 check-in 开关影响 ──
+      try {
+        if (await SleepNudgeService.instance.tick(userId)) return;
+      } catch (e) {
+        debugPrint('[ForegroundTask] sleep nudge error: ${e.runtimeType}');
       }
 
       final directCalls = await CheckinService.instance.claimDueCallReminders();

@@ -1,21 +1,44 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:memex/data/services/gpt_live/gpt_live_call.dart';
 
 /// GPT-Live 备选通话页：进页面就拨，挂断或返回就收尾（写回转写）再退出。
 class GptLiveCallScreen extends StatefulWidget {
-  const GptLiveCallScreen({super.key, required this.characterId});
+  const GptLiveCallScreen({
+    super.key,
+    required this.characterId,
+    this.callReason = '',
+    this.maxDuration,
+    this.showWhenLocked = false,
+  });
 
   final String characterId;
+
+  /// 催睡来电的起因；非空时她会先开口。
+  final String callReason;
+
+  /// 通话满这么久自动挂断（催睡来电防止聊太久）；null 不限。
+  final Duration? maxDuration;
+
+  /// 锁屏接听时让通话页直接显示在锁屏上方（只在这一页期间开启）。
+  final bool showWhenLocked;
 
   @override
   State<GptLiveCallScreen> createState() => _GptLiveCallScreenState();
 }
 
 class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
-  late final GptLiveCall _call = GptLiveCall(characterId: widget.characterId);
+  static const _systemActions =
+      MethodChannel('com.memexlab.memex/system_actions');
+
+  late final GptLiveCall _call = GptLiveCall(
+    characterId: widget.characterId,
+    callReason: widget.callReason,
+  );
   Timer? _ticker;
   bool _leaving = false;
 
@@ -24,9 +47,27 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
     super.initState();
     _call.addListener(_onChanged);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && _call.phase == GptLiveCallPhase.live) setState(() {});
+      if (!mounted || _call.phase != GptLiveCallPhase.live) return;
+      final max = widget.maxDuration;
+      final start = _call.startedAt;
+      if (max != null &&
+          start != null &&
+          DateTime.now().difference(start) >= max) {
+        unawaited(_hangUpAndLeave());
+        return;
+      }
+      setState(() {});
     });
+    if (widget.showWhenLocked) unawaited(_setShowWhenLocked(true));
     unawaited(_call.start());
+  }
+
+  static Future<void> _setShowWhenLocked(bool enabled) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _systemActions
+          .invokeMethod('setShowWhenLocked', {'enabled': enabled});
+    } catch (_) {}
   }
 
   void _onChanged() {
@@ -49,6 +90,7 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    if (widget.showWhenLocked) unawaited(_setShowWhenLocked(false));
     _call.removeListener(_onChanged);
     // 兜底：页面被直接移除时也挂断并写回
     if (_call.phase == GptLiveCallPhase.ended ||
