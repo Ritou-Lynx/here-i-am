@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // M1 daily life digest generator, run by a scheduled task at 04:30, 07:30 and 19:30 (and at logon to catch up).
 //   node life_digest_run.mjs --config <generator.json> [--stage auto|morning|day|final] [--date YYYY-MM-DD] [--no-push] [--check]
-// Reads chat (read-only, MCP sharing policy), food (Core, read-only), heart-rate minute files, the Feishu notes mirror and
+// Reads chat (MCP sharing policy) and food from the Core database (read-only), heart-rate minute files, the Feishu notes mirror and
 // AMap weather; writes <digest_dir>/days/<date>.json, todos.json, pushes/<date>.jsonl, weather/<date>.json and logs/.
 // The model is the local Codex CLI (fixed model, JSON checked, one retry); the OpenAI API is only a fallback.
 // Output: one JSON line per stage, never secrets or message text.
@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as lib from './life_digest_lib.mjs';
 import { readChatRange } from './chat_source.mjs';
+import { DatabaseSync } from 'node:sqlite';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const NOTES_MODULE = path.resolve(HERE, '..', 'i_remote_mcp', 'notes_tools.mjs');
@@ -39,7 +40,6 @@ export function loadConfig(configPath) {
   return {
     digestDir: absolute(value.digest_dir, 'digest_dir'),
     chat: object(value.chat) ? { coreDb: absolute(value.chat.core_db, 'chat.core_db'), policy: absolute(value.chat.policy, 'chat.policy') } : null,
-    food: object(value.food) ? { coreUrl: String(value.food.core_url ?? 'http://127.0.0.1:47841').replace(/\/+$/, ''), credential: absolute(value.food.credential, 'food.credential') } : null,
     heartRateDir: absolute(value.heart_rate_dir, 'heart_rate_dir', true),
     notesDir: absolute(value.notes_dir, 'notes_dir', true),
     weather: weather && { key: String(weather.amap_key), adcode: String(weather.adcode), label: typeof weather.label === 'string' ? weather.label : '' },
@@ -103,26 +103,26 @@ const hasPart = st => (date, part) => {
 };
 
 // ---------- sources ----------
-async function readFood(config, date) {
-  if (!config.food) return { status: 'not_configured' };
-  const credential = JSON.parse(readFileSync(config.food.credential, 'utf8').replace(/^﻿/, ''));
-  if (credential?.format !== 'core-food-v1' || typeof credential.token !== 'string') throw new Error('food_credential_invalid');
-  const entries = [];
-  let pageToken;
-  for (let n = 0; n < 200; n++) {
-    const url = new URL('/v1/core/domains/food_entries/snapshot', config.food.coreUrl);
-    url.searchParams.set('core_instance_id', credential.core_instance_id); url.searchParams.set('limit', '100');
-    if (pageToken) url.searchParams.set('page_token', pageToken);
-    const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15000),
-      headers: { authorization: `Bearer ${credential.token}`, 'x-i-core-domain-protocol': '1' } });
-    const page = await response.json();
-    if (response.status !== 200 || !Array.isArray(page.records)) throw new Error('food_unavailable');
-    entries.push(...page.records.filter(r => !r.deleted_at && r.data?.voided !== true && r.data?.local_date === date).map(r => r.data));
-    pageToken = page.next_page_token;
-    if (!pageToken) break;
-  }
-  entries.sort((a, b) => Date.parse(a.eaten_at) - Date.parse(b.eaten_at));
-  return { status: 'ok', entries, day_totals: { kcal: entries.reduce((sum, e) => sum + (Number(e.totals?.kcal) || 0), 0) } };
+// Food straight from the Core database, read-only (production namespace, live records, this local day).
+function readFood(config, date) {
+  if (!config.chat) return { status: 'not_configured' };
+  const db = new DatabaseSync(config.chat.coreDb, { readOnly: true });
+  try {
+    const rows = db.prepare("SELECT envelope_json, body_json FROM domain_records WHERE namespace = 'production' AND domain = 'food_entries'").all();
+    const entries = [];
+    for (const row of rows) {
+      let envelope, body;
+      try { envelope = JSON.parse(row.envelope_json); body = row.body_json ? JSON.parse(row.body_json) : null; } catch { continue; }
+      const data = body?.data;
+      if (envelope?.deleted_at || !object(data) || data.voided === true || data.local_date !== date) continue;
+      entries.push(data);
+    }
+    entries.sort((a, b) => Date.parse(a.eaten_at) - Date.parse(b.eaten_at));
+    return { status: 'ok', entries, day_totals: { kcal: entries.reduce((sum, e) => sum + (Number(e.totals?.kcal) || 0), 0) } };
+  } catch (error) {
+    if (/no such table/.test(String(error?.message))) return { status: 'ok', entries: [], day_totals: { kcal: 0 } };
+    throw error;
+  } finally { db.close(); }
 }
 function readHeart(config, date) {
   if (!config.heartRateDir) return { status: 'not_configured', rows: [] };
@@ -237,7 +237,7 @@ export async function runStage({ config, st, kind, date, nowMs, push = true, run
   const until = kind === 'final' ? to : Math.min(to, nowMs);
   const chat = await settle('chat', async () => config.chat
     ? { status: 'ok', ...readChatRange({ coreDbPath: config.chat.coreDb, policyPath: config.chat.policy, fromMs: from, toMs: until }) } : { status: 'not_configured', messages: [] });
-  const food = await settle('food', () => readFood(config, date));
+  const food = await settle('food', async () => readFood(config, date));
   const heart = await settle('heart_rate', async () => readHeart(config, date));
   const notes = await settle('notes', () => readNotes(config, date));
   const status = { chat: chat.status, food: food.status, heart_rate: heart.status, notes: notes.status };
@@ -311,7 +311,7 @@ export async function main(argv, { now = () => Date.now(), runners, notify } = {
   const st = openStore(config.digestDir);
   if (args.check) {
     const rows = { chat: config.chat ? existsSync(config.chat.coreDb) && existsSync(config.chat.policy) : 'not_configured',
-      food: config.food ? existsSync(config.food.credential) : 'not_configured', heart_rate: config.heartRateDir ? existsSync(config.heartRateDir) : 'not_configured',
+heart_rate: config.heartRateDir ? existsSync(config.heartRateDir) : 'not_configured',
       notes: config.notesDir ? existsSync(config.notesDir) && existsSync(NOTES_MODULE) : 'not_configured', weather: Boolean(config.weather), ntfy: Boolean(config.ntfy), openai: Boolean(config.openai) };
     return [{ stage: 'check', ok: true, ...rows }];
   }
