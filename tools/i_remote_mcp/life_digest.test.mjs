@@ -32,6 +32,7 @@ const day = (date, extra = {}) => ({format:'life-digest-day-v1', date, stage:'da
     us:[{text:'聊了秋招面试', sources:['chat:m1']}], anomalies:[{text:'中午没吃正餐', sources:['food:' + date], level:'warn'}], omitted:[]},
   todos:[], sources_status:{chat:'ok', food:'ok', heart_rate:'ok', notes:'missing', weather:'ok'}, ...extra});
 const todos = items => ({format:'life-digest-todos-v1', updated_at:'2026-11-07T19:31:00+08:00', items});
+const CLOSERS = new WeakMap();
 function fixture(t, {withConfig = true} = {}) {
   const base = join(root, randomUUID()), stateDir = join(base, 'state'), digestDir = join(base, 'digest');
   for (const dir of [stateDir, join(digestDir, 'days'), join(digestDir, 'inbox'), join(digestDir, 'pushes')]) mkdirSync(dir, {recursive:true});
@@ -43,7 +44,10 @@ function fixture(t, {withConfig = true} = {}) {
     {id:'td_rent0001', text:'给房东回消息', quote:'记得回房东', source:'chat:m2', first_seen:'2026-11-07', status:'open'},
     {id:'td_old00001', text:'已完成的事', first_seen:'2026-11-01', status:'done'}])));
   writeFileSync(join(digestDir, 'pushes', '2026-11-07.jsonl'), JSON.stringify({id:'p_20261107a', at:'2026-11-07T19:32:00+08:00', rule:'no_lunch', text:'中午只吃了个面包吧？晚饭好好吃。'}) + '\n');
-  t.after(() => rmSync(base, {recursive:true, force:true}));
+  // Windows cannot delete files the server still holds (writeback.sqlite), so servers close before the folder goes.
+  const closers = [];
+  CLOSERS.set(t, closers);
+  t.after(async () => { for (const close of closers.reverse()) await close(); rmSync(base, {recursive:true, force:true}); });
   return {stateDir, digestDir};
 }
 
@@ -56,7 +60,9 @@ async function start(t, {server, oauth, writebackModule, stateDir, now = () => E
   const app = server.createApp({stateDir, publicUrl:PUBLIC_URL, getReadModel:async () => createFakeReadModel(), now, writeback,
     chatgptEnabled:true, geminiEnabled:true, antigravityEnabled:true, sesameEnabled:true});
   await listenForFetch(app.server);
-  t.after(() => new Promise(resolve => app.server.close(() => { writeback.close(); resolve(); })));
+  const close = () => new Promise(resolve => app.server.close(() => { writeback.close(); resolve(); }));
+  const closers = CLOSERS.get(t);
+  if (closers) closers.push(close); else t.after(close);
   const base = 'http://127.0.0.1:' + app.server.address().port;
   const registered = await registerClient(base, [CALLBACK]); assert.equal(registered.status, 201);
   const {verifier, challenge} = pkcePair();
