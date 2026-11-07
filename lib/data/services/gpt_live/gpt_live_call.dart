@@ -357,8 +357,7 @@ class GptLiveCall extends ChangeNotifier {
       ..writeln('## 通话规则')
       ..writeln('- 现在是 $time（用户本地时间）。')
       ..writeln('- 这是语音通话：用自然口语的中文，短句，像真人打电话，可以有语气词和停顿。')
-      ..writeln('- 不要说出动作描写、括号里的内容、表情符号或 markdown。')
-      ..writeln('- 用户说英文时可以用英文回答。')
+      ..writeln('- 用户换成哪种语言，你就跟着用哪种语言。')
       ..writeln('- 之前的聊天记录已经给你了，接着那些内容自然聊，不要复述。')
       ..writeln('- 用户说要挂了，就简短道别。');
     if (callReason.trim().isNotEmpty) {
