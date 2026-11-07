@@ -246,3 +246,27 @@ test('an empty day needs no model call', async t => {
   assert.deepEqual(rows.map(r => [r.ok, r.generator]), [[true, 'none']]);
   assert.match(JSON.parse(readFileSync(join(digestDir, 'days', '2026-11-01.json'), 'utf8')).day.headline, /没有/);
 });
+
+test('diary of the day (04:00 boundary) goes into the prompt as notes sources', async t => {
+  const { dir, digestDir, configPath } = generatorFixture(t, { ntfy: false });
+  const notes = join(dir, 'notes');
+  mkdirSync(join(notes, '日记-日报'), { recursive: true });
+  const index = { format: 'notes-v1', folders: [{ name: '日记/日报', dir: '日记-日报' }], last_run: { at: '2026-11-07T10:00:00.000Z' }, docs: {} };
+  for (const [token, modified, body] of [['docToday', '2026-11-07T03:00:00.000Z', '下午写周报。明天要给房东回消息。'], ['docOld', '2026-11-06T10:00:00.000Z', '前一天']]) {
+    const file = `日记-日报/${token}.md`;
+    writeFileSync(join(notes, file), ['---', 'title: "日记"', '---', '', body].join('\n') + '\n');
+    index.docs[token] = { title: '日记 ' + token, folder: '日记/日报', top: '日记-日报', url: null, modified, file, chars: body.length };
+  }
+  writeFileSync(join(notes, 'index.json'), JSON.stringify(index));
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  writeFileSync(configPath, JSON.stringify({ ...config, notes_dir: notes }));
+  let prompt = '';
+  const runners = { codex: async (_c, p) => { prompt = p; return JSON.stringify({ headline: '写周报的一天', your_day: [{ text: '写周报', sources: ['notes:docToday'] }], us: [], anomalies: [],
+    todos_new: [{ text: '给房东回消息', quote: '明天要给房东回消息', source: 'notes:docToday' }], todos_done: [], omitted: [], nudge: '' }); } };
+  const rows = await main(['--config', configPath, '--stage', 'day', '--date', '2026-11-07'], { now: () => at('2026-11-07T19:30:00+08:00'), runners });
+  assert.equal(rows[0].ok, true); assert.equal(rows[0].sources.notes, 'ok');
+  assert.match(prompt, /\[notes:docToday\] 《日记 docToday》/); assert.doesNotMatch(prompt, /前一天/);
+  const day = JSON.parse(readFileSync(join(digestDir, 'days', '2026-11-07.json'), 'utf8'));
+  assert.deepEqual(day.day.your_day[0].sources, ['notes:docToday']);
+  assert.equal(day.todos[0].text, '给房东回消息');
+});
