@@ -18,7 +18,11 @@ const specs = Object.freeze({
   doc_fetch: { command: ['docs', '+fetch'], keys: ['doc'] },
   doc_create: { command: ['docs', '+create'], keys: ['file'] },
   doc_append: { command: ['docs', '+update'], keys: ['doc', 'file'] },
+  // Read-only Drive listing for the notes mirror. An empty folder lists the
+  // user's root space (no pagination there); an empty page starts from the top.
+  folder_list: { command: ['drive', 'files', 'list'], keys: ['folder', 'page'] },
 });
+const optional = new Set(['folder', 'page']);
 export const COMMANDS = Object.freeze(Object.keys(specs));
 
 // No argv passthrough: both the verb and every flag come from this closed builder.
@@ -30,7 +34,7 @@ export function buildCommand(operation, params = {}) {
   for (const [key, value] of Object.entries(params)) {
     if (key === 'offset') {
       if (!Number.isSafeInteger(value) || value < 0) fail('command_not_allowed');
-    } else if (typeof value !== 'string' || !value || /^[\-@]/u.test(value) || /[\r\n\0]/u.test(value)) {
+    } else if (typeof value !== 'string' || (!value && !optional.has(key)) || /^[\-@]/u.test(value) || /[\r\n\0]/u.test(value)) {
       fail('command_not_allowed');
     }
     if (key === 'file' && value !== 'payload.json' && value !== 'content.md') fail('command_not_allowed');
@@ -45,6 +49,12 @@ export function buildCommand(operation, params = {}) {
   if (operation.startsWith('doc_')) args.push('--doc-format', 'markdown');
   if (operation === 'doc_append') args.push('--command', 'append');
   if (operation === 'doc_create' || operation === 'doc_append') args.push('--content', `@${params.file}`);
+  if (operation === 'folder_list') {
+    if (params.page && !params.folder) fail('command_not_allowed');
+    if (params.folder) args.push('--folder-token', params.folder, '--page-size', '200');
+    if (params.page) args.push('--page-token', params.page);
+    args.push('--format', 'json');
+  }
   return args;
 }
 
