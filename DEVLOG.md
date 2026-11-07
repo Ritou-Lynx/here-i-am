@@ -1,3 +1,8 @@
+## 2026-11-07 M6：退役本机连续性网关（i bootstrap）
+
+- 记忆重构 M6。用户电脑上 9 个文件里的残留已经清掉（11-07，经脚本轮，PR #97 已关闭）：Codex、Claude Code、Hermes、OpenCode 里的本机 `i` MCP 条目，`i-continuity` 指导块，Codex 的 `i-realtime-voice` 语音块，以及 Claude 的 `mcp__i__i_bootstrap` 权限。改前的原文件都在本机做了备份。远端 i、思源/FlexNote、`~/.i` 没动。
+- 仓库：删掉 `tools/i_continuity_gateway/` 下的网关服务、安装器、指导文本、语音上下文、多设备同步、探针和注册脚本，同时去掉 AGENTS.md 里的 i_bootstrap 规则。保留 `identity.default.json`（远端 MCP 的默认身份）和账本/注册表模块（DevRoom 项目记忆收尾还在用，随 M5 删）。相关文档已标成退役。
+
 ## 2026-11-07 N1 家里安装脚本轮
 
 - 用户 11-07 完成 `drive:drive:readonly` 授权。新增脚本轮 `tools/relay_scripts/notes/n1-install.ps1`：核对家里同步文件是已知版本，备份后装 cli.mjs 和 notes_mirror.mjs、config 加 notes.folders，试跑一次，再注册 Interactive 计划任务 `FeishuNotes-Mirror`（每 30 分钟，:10/:40，wscript 隐藏窗口，日志在工具目录 logs）。合同见 docs/development/handoffs/RELAY_20261107_n1-notes-install.md。

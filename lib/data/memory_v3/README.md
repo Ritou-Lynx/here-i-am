@@ -58,7 +58,7 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - 属于 Memory V3 的 domain / facet，不另起第二套记忆系统
 - 不写入普通 User-truth，不混入关系记忆或角色 sandbox
 - 跨工具 i Identity Capsule、外部 ingress 与 closeout 边界见 `docs/companion-first/LIN_AI_CROSS_TOOL_CONTINUITY.md`
-- Phase 2 用户级实现位于 `tools/i_continuity_gateway/`：Project Registry 只做路由/授权，加密 closeout ledger 负责当前 Project Space 交接，加密 Activity Index 只做可重建薄索引；三者都不是第二套语义记忆，也不允许直接写入本目录的 projection
+- （已退役，2026-11-07）Phase 2 用户级实现曾位于 `tools/i_continuity_gateway/`：Project Registry 只做路由/授权，加密 closeout ledger 负责当前 Project Space 交接，加密 Activity Index 只做可重建薄索引；三者都不是第二套语义记忆，也不允许直接写入本目录的 projection
 
 **原始资料与审计层**
 - `assets` / `asset_analysis` / `user_corrections` / `memory_card_operations`
