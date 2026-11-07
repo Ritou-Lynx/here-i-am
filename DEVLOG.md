@@ -7,6 +7,12 @@
 - 装 App：#91 的安装轮撤回，HR1 合进 GPT-Live 装机分支（#86），一次装好两边改动（新版安装脚本会修复 pub 缓存里残缺的 jni 包）。
 - 验收（11-07）：用户戴臂带，云端 Claude 调 `heart_rate` now 拿到 live=true、距今 1 秒的读数，range 返回逐分钟曲线（每分钟约 60 个样本）。
 
+## 2026-11-05 N1：飞书笔记副本（日记、工作文档给 i MCP 用）
+
+- 用户 11-05 要让飞书里的日记和工作文档成为助手能自己调用的上下文，选了“副本 + i MCP 工具”方案（不排除任何内容，副本要增量、同一篇只保留一份）。这是第一步，只负责把文档拉到本机。
+- 新增 `tools/feishu_tutor/sync/notes_mirror.mjs`：只读列出配置的顶层文件夹（含子文件夹）的 docx，按 token 一篇一个文件，比对修改时间增量拉取，改过的原地覆盖，飞书删了本地也删；列表全部成功才写，某文件夹突然 0 篇时报错不删。白名单加只读的 `drive files list`（`folder_list`）。与 feishu_sync 共用登录，sync 锁存在时跳过。
+- 还没装到家里：需要用户补一次 `drive:drive:readonly` 授权，再用脚本轮注册每 30 分钟的计划任务。N2（i MCP 的 notes 工具和 i_context 近况）另开。
+
 ## 2026-11-04 ST1 部署完成
 - #88 第 5 轮切到新任务 st1-study（server a0bd0491），云端已能调用 study_today / study_source / study_progress / study_result。第 1–3 轮失败的经过和根因（强制收尾后，就绪等待把崩溃恢复期间的临时标记当成失败）见 docs/development/handoffs/RELAY_20261103_st1-deploy.md。
 

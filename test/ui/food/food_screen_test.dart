@@ -101,7 +101,7 @@ void main() {
   testWidgets('expands a card into item grams, source and confidence',
       (tester) async {
     await show(tester);
-    await tester.tap(find.byKey(const ValueKey('food-entry-entry-1')));
+    await tester.tap(find.byKey(const PageStorageKey<String>('food-entry-entry-1')));
     await tester.pumpAndSettle();
     expect(find.text('置信度：低'), findsOneWidget);
     expect(find.text('以虚构餐盘作参照'), findsOneWidget);
@@ -109,6 +109,17 @@ void main() {
       find.text('合成面条 · 200 克（180–220） · 模型估 · 低'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('pull to refresh keeps meal cards readable', (tester) async {
+    await show(tester);
+    await tester.fling(find.byType(ListView), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('合成午餐'), findsOneWidget);
+    await tester.tap(find.byKey(const PageStorageKey<String>('food-entry-entry-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('置信度：低'), findsOneWidget);
   });
 
   testWidgets('empty day and date switching stay read only', (tester) async {

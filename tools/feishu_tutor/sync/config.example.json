@@ -3,6 +3,7 @@
   "model": "<CODEX_MODEL>",
   "base_token": "<BASE_TOKEN>",
   "subjects": ["<SUBJECT_NAME>"],
+  "notes": {"folders": ["<TOP_LEVEL_FOLDER_NAME>"]},
   "sources": [{"title": "<SOURCE_TITLE>", "doc": "<SOURCE_DOC_TOKEN>", "url": "<SOURCE_SHARE_URL>"}],
   "tables": {
     "ledger": {

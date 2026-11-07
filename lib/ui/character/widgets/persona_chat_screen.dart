@@ -28,6 +28,7 @@ import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/data/services/call_voice_router.dart';
 import 'package:memex/data/services/voice_call_audio_session.dart';
 import 'package:memex/ui/character/widgets/hangup_tone.dart';
+import 'package:memex/ui/character/widgets/gpt_live_call_screen.dart';
 import 'package:memex/ui/companion/widgets/global_call_overlay.dart';
 import 'package:memex/data/services/active_persona_chat_service.dart';
 import 'package:memex/data/services/bad_case_collector.dart';
@@ -1119,6 +1120,38 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
 
   void _onCharacterUpdated() {
     unawaited(_reloadCurrentCharacter());
+  }
+
+  bool _gptLiveCallOpen = false;
+
+  Future<void> _openGptLiveCall() async {
+    setState(() {
+      _isHeaderActionsOpen = false;
+      _gptLiveCallOpen = true;
+    });
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              GptLiveCallScreen(characterId: _currentCharacterId),
+        ),
+      );
+      final updated = await _chatService.getMessages(
+        _currentCharacterId,
+        limit: _messages.length + 40,
+      );
+      if (!mounted) return;
+      setState(() => _messages = updated);
+      _advanceAutoReadWatermark(updated);
+      _scrollToBottom();
+    } finally {
+      if (mounted) {
+        setState(() => _gptLiveCallOpen = false);
+      } else {
+        _gptLiveCallOpen = false;
+      }
+    }
   }
 
   Future<void> _reloadCurrentCharacter() async {
@@ -4972,6 +5005,8 @@ only after you have written the goodbye you want the user to hear.''',
       !_isAppInBackground &&
       !_isStreaming &&
       !_voiceModeOpeningInProgress &&
+      // GPT-Live 备选通话挂断时会把转写写回聊天记录，别再朗读一遍。
+      !_gptLiveCallOpen &&
       // A global call is active: the call session in the foreground-task
       // isolate already speaks replies via streaming TTS. Auto-reading the
       // same message here would play it a second time over the media stream
@@ -5821,6 +5856,11 @@ only after you have written the goodbye you want the user to hear.''',
             : _chatUiText(zh: '家里电脑朗读（英文）', en: 'Home voice (EN)'),
         active: _autoReadEnabled && _activeTtsProvider == 'home_turbo',
         onTap: () => unawaited(_toggleAutoRead('home_turbo')),
+      ),
+      _HeaderActionButton(
+        icon: Icons.phone_in_talk_outlined,
+        label: _chatUiText(zh: 'GPT-Live 通话（备选）', en: 'GPT-Live call'),
+        onTap: () => unawaited(_openGptLiveCall()),
       ),
       if (widget.onOpenSpaces != null)
         _HeaderActionButton(

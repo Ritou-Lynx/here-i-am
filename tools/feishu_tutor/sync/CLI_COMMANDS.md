@@ -13,6 +13,7 @@
 | `docs +fetch` | `--as user --doc <DOC> --doc-format markdown` | `data.document.document_id/content/reference_map`，原样保留 sidecar |
 | `docs +create` | `--as user --doc-format markdown --content @content.md` | `data.document.document_id`、`data.warnings`；正文首行带学习单标题 |
 | `docs +update` | `--as user --doc <OWNED_DOC> --doc-format markdown --command append --content @content.md` | 成功信封与 `data.warnings`；DOC 只能来自同步脚本自己的创建登记 |
+| `drive files list`（笔记副本，2026-11-05 加） | 根目录：`--as user --format json`；文件夹：`--as user --folder-token <FOLDER> --page-size 200 [--page-token <PAGE>] --format json` | `data.files[]` 的 `token/name/type/modified_time/url`，`data.has_more/next_page_token`（字段依据 CLI 1.0.98 的 `schema drive.files.list`）；根目录不分页 |
 
 JSON 成功信封是 `{ "ok": true, "identity": "user", "data": {} }`，不能用旧 OpenAPI 顶层 `code == 0` 判断成功。错误只返回本工具稳定的 snake_case 错误码，不向日志复制 CLI 原始输出。
 
