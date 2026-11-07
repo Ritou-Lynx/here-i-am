@@ -9,6 +9,7 @@ class GptLiveSettings {
 
   static const _keyApiKey = 'gpt_live.openai_api_key';
   static const _keyVoice = 'gpt_live.voice';
+  static const _keyExtra = 'gpt_live.extra_instructions';
 
   static FlutterSecureStorage storage = const FlutterSecureStorage();
 
@@ -43,6 +44,22 @@ class GptLiveSettings {
       await prefs.remove(_keyVoice);
     } else {
       await prefs.setString(_keyVoice, v);
+    }
+  }
+
+  /// 通话附加说明：用户自己写的话，原样追加到 instructions 末尾。
+  static Future<String> getExtraInstructions() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyExtra)?.trim() ?? '';
+  }
+
+  static Future<void> setExtraInstructions(String text) async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = text.trim();
+    if (v.isEmpty) {
+      await prefs.remove(_keyExtra);
+    } else {
+      await prefs.setString(_keyExtra, v);
     }
   }
 }

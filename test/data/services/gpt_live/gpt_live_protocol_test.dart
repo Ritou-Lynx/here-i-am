@@ -45,8 +45,14 @@ void main() {
 
     test('不支持的声音名退回默认', () {
       expect(GptLiveProtocol.normalizeVoice(' Cedar '), 'cedar');
-      expect(GptLiveProtocol.normalizeVoice('ember'), GptLiveProtocol.defaultVoice);
-      expect(GptLiveProtocol.normalizeVoice('hanul'), GptLiveProtocol.defaultVoice);
+      expect(
+        GptLiveProtocol.normalizeVoice('ember'),
+        GptLiveProtocol.defaultVoice,
+      );
+      expect(
+        GptLiveProtocol.normalizeVoice('hanul'),
+        GptLiveProtocol.defaultVoice,
+      );
     });
 
     test('没有历史时不带 input，超长人设被截断', () {
@@ -56,8 +62,10 @@ void main() {
       );
       final session = body['session'] as Map;
       expect(session.containsKey('input'), isFalse);
-      expect((session['instructions'] as String).length,
-          GptLiveProtocol.maxInstructionChars);
+      expect(
+        (session['instructions'] as String).length,
+        GptLiveProtocol.maxInstructionChars,
+      );
     });
   });
 
@@ -110,18 +118,25 @@ void main() {
     });
 
     test('错误码带上服务端的错误信息', () async {
-      final client = MockClient((_) async => http.Response(
-            jsonEncode({
-              'error': {'message': 'insufficient_quota'},
-            }),
-            429,
-          ));
+      final client = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'error': {'message': 'insufficient_quota'},
+          }),
+          429,
+        ),
+      );
       expect(
         () => GptLiveProtocol.createSession(
-            apiKey: 'k', body: const {}, client: client),
-        throwsA(isA<GptLiveException>()
-            .having((e) => e.code, 'code', 'http_429')
-            .having((e) => e.detail, 'detail', 'insufficient_quota')),
+          apiKey: 'k',
+          body: const {},
+          client: client,
+        ),
+        throwsA(
+          isA<GptLiveException>()
+              .having((e) => e.code, 'code', 'http_429')
+              .having((e) => e.detail, 'detail', 'insufficient_quota'),
+        ),
       );
     });
 
@@ -129,55 +144,74 @@ void main() {
       final client = MockClient((_) async => http.Response('{}', 201));
       expect(
         () => GptLiveProtocol.createSession(
-            apiKey: 'k', body: const {}, client: client),
+          apiKey: 'k',
+          body: const {},
+          client: client,
+        ),
         throwsA(
-            isA<GptLiveException>().having((e) => e.code, 'code', 'no_sdp')),
+          isA<GptLiveException>().having((e) => e.code, 'code', 'no_sdp'),
+        ),
       );
     });
   });
 
   group('GptLiveEvent.parse', () {
     test('解析通话需要的事件', () {
-      expect(GptLiveEvent.parse('{"type":"session.started"}'),
-          isA<GptLiveStarted>());
-      final user = GptLiveEvent.parse(
-              '{"type":"session.input_transcript.delta","delta":"你好","start_ms":120}')
-          as GptLiveTranscriptDelta;
+      expect(
+        GptLiveEvent.parse('{"type":"session.started"}'),
+        isA<GptLiveStarted>(),
+      );
+      final user =
+          GptLiveEvent.parse(
+                '{"type":"session.input_transcript.delta","delta":"你好","start_ms":120}',
+              )
+              as GptLiveTranscriptDelta;
       expect(user.fromUser, isTrue);
       expect(user.delta, '你好');
       expect(user.startMs, 120);
-      final ai = GptLiveEvent.parse(
-              '{"type":"session.output_transcript.delta","delta":"嗯"}')
-          as GptLiveTranscriptDelta;
+      final ai =
+          GptLiveEvent.parse(
+                '{"type":"session.output_transcript.delta","delta":"嗯"}',
+              )
+              as GptLiveTranscriptDelta;
       expect(ai.fromUser, isFalse);
       expect(
-          (GptLiveEvent.parse(
-                      '{"type":"session.usage.updated","usage":{"seconds":42}}')
-                  as GptLiveUsage)
-              .seconds,
-          42);
-      final closed = GptLiveEvent.parse(
-              '{"type":"session.closed","reason":"expired","usage":{"seconds":3600}}')
-          as GptLiveClosed;
+        (GptLiveEvent.parse(
+                  '{"type":"session.usage.updated","usage":{"seconds":42}}',
+                )
+                as GptLiveUsage)
+            .seconds,
+        42,
+      );
+      final closed =
+          GptLiveEvent.parse(
+                '{"type":"session.closed","reason":"expired","usage":{"seconds":3600}}',
+              )
+              as GptLiveClosed;
       expect(closed.reason, 'expired');
       expect(closed.seconds, 3600);
-      final err = GptLiveEvent.parse(
-              '{"type":"error","error":{"code":"bad","message":"oops"}}')
-          as GptLiveError;
+      final err =
+          GptLiveEvent.parse(
+                '{"type":"error","error":{"code":"bad","message":"oops"}}',
+              )
+              as GptLiveError;
       expect(err.code, 'bad');
       expect(err.message, 'oops');
     });
 
     test('未知事件和坏 JSON 返回 null', () {
       expect(
-          GptLiveEvent.parse('{"type":"session.delegation.created"}'), isNull);
+        GptLiveEvent.parse('{"type":"session.delegation.created"}'),
+        isNull,
+      );
       expect(GptLiveEvent.parse('not json'), isNull);
       expect(GptLiveEvent.parse('[1,2]'), isNull);
     });
 
     test('closeEvent', () {
-      expect(
-          jsonDecode(GptLiveProtocol.closeEvent()), {'type': 'session.close'});
+      expect(jsonDecode(GptLiveProtocol.closeEvent()), {
+        'type': 'session.close',
+      });
     });
   });
 
@@ -216,5 +250,16 @@ void main() {
     expect(s, contains('你是林埃'));
     expect(s, contains('温柔'));
     expect(s, contains('2026-11-01 09:05'));
+    expect(s, isNot(contains('用户补充说明')));
+  });
+
+  test('buildInstructions 把附加说明放在最后', () {
+    final s = GptLiveCall.buildInstructions(
+      name: '林埃',
+      persona: '温柔',
+      now: DateTime(2026, 11, 1, 9, 5),
+      extra: '  叫我小橙  ',
+    );
+    expect(s.trimRight(), endsWith('## 用户补充说明\n叫我小橙'));
   });
 }

@@ -12,14 +12,15 @@ import { assertSeparateDirectories, resolvedPath } from './layout.mjs';
 import { object } from './schema.mjs';
 
 export const HELP = `Feishu notes mirror (Node 24)
-Usage: node <tool>/sync/notes_mirror.mjs --notes <notes dir> --state <study>/state --config <tool>/config.json
+Usage: node <tool>/sync/notes_mirror.mjs --notes <notes dir> --state <study>/state --config <tool>/config.json [--max-minutes N]
        node sync/notes_mirror.mjs --help
 Mirrors the docx documents under config.notes.folders (top-level Drive folder names,
 subfolders included) into <notes dir>/<folder>/<token>.md plus index.json.
 Read-only towards Feishu. Skips quietly while feishu_sync holds <study>/state/.sync.lock.
+--max-minutes (0-120, default 20) stops fetching after that long; the rest waits for the next run.
 `;
 export const INDEX_FORMAT = 'notes-v1';
-const MAX_DEPTH = 4, MAX_DOCS = 5000, MAX_PAGES = 200;
+const MAX_DEPTH = 4, MAX_DOCS = 5000, MAX_PAGES = 200, DEFAULT_MINUTES = 20;
 const TOKEN = /^[A-Za-z0-9_-]{1,128}$/u;
 
 async function exists(file) { try { await access(file); return true; } catch { return false; } }
@@ -113,14 +114,17 @@ function render(token, doc, content) {
   return `${header.join('\n')}\n${content.endsWith('\n') ? content : `${content}\n`}`;
 }
 
-export async function mirror(config, notesDir, now = () => new Date()) {
+// deadline (ms since epoch): documents not fetched by then keep their last copy
+// and are counted as deferred, so a large first run spreads over several runs
+// instead of being killed by the scheduler before index.json is written.
+export async function mirror(config, notesDir, now = () => new Date(), { deadline = Infinity } = {}) {
   const folders = notesFolders(config), slugs = folderSlugs(folders);
   const index = await loadIndex(notesDir);
 
   // Every listing finishes before any local write, so a failed or partial
   // listing never deletes local copies.
   const root = await listFolder(config, '');
-  const listed = new Map(), stats = { fetched: 0, unchanged: 0, removed: 0, failed: 0, skipped: 0 };
+  const listed = new Map(), stats = { fetched: 0, unchanged: 0, deferred: 0, removed: 0, failed: 0, skipped: 0 };
   for (const [i, name] of folders.entries()) {
     const matches = root.filter(f => object(f) && f.type === 'folder' && f.name === name);
     if (!matches.length) fail('notes_folder_not_found');
@@ -141,6 +145,7 @@ export async function mirror(config, notesDir, now = () => new Date()) {
     const current = old && old.modified_time === doc.modified_time && old.title === doc.title &&
       old.folder === doc.folder && old.file === file && await exists(path.join(notesDir, file));
     if (current) { docs[token] = old; stats.unchanged++; continue; }
+    if (Date.now() >= deadline) { if (old) docs[token] = old; stats.deferred++; continue; }
     try {
       const data = await callCli(config, 'doc_fetch', { doc: token });
       if (typeof data?.document?.content !== 'string') fail('cli_invalid_response');
@@ -190,11 +195,12 @@ async function acquire(file) {
 export async function run(argv, output = console.log) {
   if (argv.length === 1 && ['--help', '-h'].includes(argv[0])) { output(HELP); return 0; }
   const toolDirectory = fileURLToPath(new URL('../', import.meta.url));
-  let configFile = path.join(toolDirectory, 'config.json'), state, notes, suppliedConfig = false;
+  let configFile = path.join(toolDirectory, 'config.json'), state, notes, suppliedConfig = false, minutes;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--config' && argv[i + 1] && !suppliedConfig) { configFile = path.resolve(argv[++i]); suppliedConfig = true; }
     else if (argv[i] === '--state' && argv[i + 1] && !state) state = path.resolve(argv[++i]);
     else if (argv[i] === '--notes' && argv[i + 1] && !notes) notes = path.resolve(argv[++i]);
+    else if (argv[i] === '--max-minutes' && /^\d{1,3}$/u.test(argv[i + 1] ?? '') && Number(argv[i + 1]) <= 120 && minutes === undefined) minutes = Number(argv[++i]);
     else fail('usage_invalid');
   }
   if (!state || !notes) fail('usage_invalid');
@@ -210,9 +216,9 @@ export async function run(argv, output = console.log) {
   await mkdir(notes, { recursive: true });
   const lockFile = path.join(notes, '.mirror.lock'), lock = await acquire(lockFile);
   try {
-    const result = await mirror(config, notes);
-    output(`notes_ok fetched=${result.fetched} unchanged=${result.unchanged} removed=${result.removed} failed=${result.failed}`);
-    if (result.failed) { console.error('notes_partial'); return 2; }
+    const result = await mirror(config, notes, undefined, { deadline: Date.now() + (minutes ?? DEFAULT_MINUTES) * 60000 });
+    output(`notes_ok fetched=${result.fetched} unchanged=${result.unchanged} deferred=${result.deferred} removed=${result.removed} failed=${result.failed}`);
+    if (result.failed || result.deferred) { console.error(result.failed ? 'notes_partial' : 'notes_deferred'); return 2; }
     return 0;
   } finally { await lock.close(); await unlink(lockFile).catch(() => {}); }
 }

@@ -1,3 +1,8 @@
+## 2026-11-07 N1 家里安装脚本轮
+
+- 用户 11-07 完成 `drive:drive:readonly` 授权。新增脚本轮 `tools/relay_scripts/notes/n1-install.ps1`：核对家里同步文件是已知版本，备份后装 cli.mjs 和 notes_mirror.mjs、config 加 notes.folders，试跑一次，再注册 Interactive 计划任务 `FeishuNotes-Mirror`（每 30 分钟，:10/:40，wscript 隐藏窗口，日志在工具目录 logs）。合同见 docs/development/handoffs/RELAY_20261107_n1-notes-install.md。
+- notes_mirror 加 `--max-minutes`（默认 20）：第一次文档多时超出预算的记为 deferred，下次接着拉，避免被任务时限杀掉而写不出 index.json。
+
 ## 2026-11-05 HR1：臂带实时心率进 i MCP
 
 - 用户 11-05 同意 HR1（合同 docs/development/handoffs/RELAY_20261105_hr1-heart-rate-mcp.md）：戴着臂带时手机把心率实时推到家里电脑，Claude、ChatGPT、Antigravity、Sesame 都能用 `heart_rate` 按需读（now / range / night），Gemini 不开放。
