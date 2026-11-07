@@ -1,3 +1,8 @@
+## 2026-11-07 笔记副本加 19:20 同步；N2 读笔记模块
+
+- 日摘要白天版定在 19:30（M1），给 `FeishuNotes-Mirror` 加每天 19:20 触发器，脚本轮 `tools/relay_scripts/notes/n1-add-1920.ps1`。合同见 docs/development/handoffs/RELAY_20261107_notes-1920-sync.md。
+- 新增 `tools/i_remote_mcp/notes_tools.mjs`：notes_recent / notes_search / notes_read 三个只读工具，以及给家里任务直接用的 notesByDate（日界 Asia/Shanghai 04:00）和 notesContextLines（i_context 用，约 200 字，只列标题）。还没接进 MCP 候选，要等 #91、#93 合并后再接。
+
 ## 2026-11-07 N1 家里安装脚本轮
 
 - 用户 11-07 完成 `drive:drive:readonly` 授权。新增脚本轮 `tools/relay_scripts/notes/n1-install.ps1`：核对家里同步文件是已知版本，备份后装 cli.mjs 和 notes_mirror.mjs、config 加 notes.folders，试跑一次，再注册 Interactive 计划任务 `FeishuNotes-Mirror`（每 30 分钟，:10/:40，wscript 隐藏窗口，日志在工具目录 logs）。合同见 docs/development/handoffs/RELAY_20261107_n1-notes-install.md。
