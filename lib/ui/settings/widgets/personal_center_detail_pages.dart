@@ -548,7 +548,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _miniMaxVoiceIdController = TextEditingController();
   final _homeTurboUrlController = TextEditingController();
   final _gptLiveKeyController = TextEditingController();
-  final _gptLiveVoiceController = TextEditingController();
+  final _gptLiveExtraController = TextEditingController();
+  String _gptLiveVoice = GptLiveProtocol.defaultVoice;
   String? _homeTurboDerivedUrl;
   String? _homeTurboTestResult;
   bool _homeTurboTesting = false;
@@ -573,6 +574,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       HomeTurboTtsService.getDerivedUrl(),
       GptLiveSettings.getApiKey(),
       GptLiveSettings.getVoice(),
+      GptLiveSettings.getExtraInstructions(),
     ]);
     if (!mounted) return;
     _elevenLabsController.text = values[1] as String? ?? '';
@@ -583,7 +585,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _homeTurboUrlController.text = values[6] as String? ?? '';
     _homeTurboDerivedUrl = values[7] as String?;
     _gptLiveKeyController.text = values[8] as String? ?? '';
-    _gptLiveVoiceController.text = values[9] as String? ?? '';
+    _gptLiveVoice = GptLiveProtocol.normalizeVoice(
+        values[9] as String? ?? GptLiveProtocol.defaultVoice);
+    _gptLiveExtraController.text = values[10] as String? ?? '';
     _callHealth = await VoiceCallHealth.instance.load();
     if (!mounted) return;
     setState(() => _provider = values[0]! as String);
@@ -598,7 +602,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _miniMaxVoiceIdController.dispose();
     _homeTurboUrlController.dispose();
     _gptLiveKeyController.dispose();
-    _gptLiveVoiceController.dispose();
+    _gptLiveExtraController.dispose();
     super.dispose();
   }
 
@@ -611,7 +615,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   Future<void> _save() async {
     await HomeTurboTtsService.saveUrl(_homeTurboUrlController.text);
     await GptLiveSettings.setApiKey(_gptLiveKeyController.text);
-    await GptLiveSettings.setVoice(_gptLiveVoiceController.text);
+    await GptLiveSettings.setVoice(_gptLiveVoice);
+    await GptLiveSettings.setExtraInstructions(_gptLiveExtraController.text);
     // 家里电脑声音失败时用 MiniMax 顶上，所以也保存 MiniMax 的配置。
     if (_provider == 'minimax' || _provider == 'home_turbo') {
       await UserStorage.setMiniMaxApiKey(_miniMaxController.text.trim());
@@ -827,12 +832,35 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                       const InputDecoration(labelText: 'OpenAI API Key'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _gptLiveVoiceController,
+                DropdownButtonFormField<String>(
+                  initialValue: _gptLiveVoice,
                   decoration: const InputDecoration(
                     labelText: '声音',
-                    hintText: GptLiveProtocol.defaultVoice,
-                    helperText: '留空用默认声音',
+                    helperText: '改完保存，下一通电话生效',
+                  ),
+                  items: [
+                    for (final v in GptLiveProtocol.builtInVoices)
+                      DropdownMenuItem(
+                        value: v,
+                        child: Text(v == GptLiveProtocol.defaultVoice
+                            ? '$v（默认）'
+                            : v),
+                      ),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _gptLiveVoice = v);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _gptLiveExtraController,
+                  minLines: 3,
+                  maxLines: 8,
+                  decoration: const InputDecoration(
+                    labelText: '通话附加说明',
+                    helperText: '原样加在林埃人设和通话规则后面，只对 GPT-Live 通话生效',
+                    helperMaxLines: 2,
+                    alignLabelWithHint: true,
                   ),
                 ),
               ],

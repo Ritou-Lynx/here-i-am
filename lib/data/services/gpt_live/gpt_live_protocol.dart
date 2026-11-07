@@ -44,7 +44,9 @@ class GptLiveProtocol {
                 'role': m.role,
                 'content': [
                   {
-                    'type': m.role == 'assistant' ? 'output_text' : 'input_text',
+                    'type': m.role == 'assistant'
+                        ? 'output_text'
+                        : 'input_text',
                     'text': m.content,
                   },
                 ],
@@ -57,9 +59,29 @@ class GptLiveProtocol {
 
   /// API 内置声音（ChatGPT App 里的 ember、hanul 等不在其中）。
   static const builtInVoices = {
-    'alloy', 'ash', 'ballad', 'beacon', 'bossa', 'cedar', 'cinder', 'coral',
-    'delta', 'echo', 'gleam', 'marin', 'meridian', 'quartz', 'ripple', 'sage',
-    'shida', 'shimmer', 'stone', 'tempo', 'verse', 'vesper', 'willow',
+    'alloy',
+    'ash',
+    'ballad',
+    'beacon',
+    'bossa',
+    'cedar',
+    'cinder',
+    'coral',
+    'delta',
+    'echo',
+    'gleam',
+    'marin',
+    'meridian',
+    'quartz',
+    'ripple',
+    'sage',
+    'shida',
+    'shimmer',
+    'stone',
+    'tempo',
+    'verse',
+    'vesper',
+    'willow',
   };
 
   /// 填了不支持的声音名时退回默认，免得整通电话建不起来。
@@ -70,7 +92,8 @@ class GptLiveProtocol {
 
   /// 只留最近的、总字数在上限内的消息，保持时间正序。
   static List<GptLiveHistoryMessage> trimHistory(
-      List<GptLiveHistoryMessage> history) {
+    List<GptLiveHistoryMessage> history,
+  ) {
     final kept = <GptLiveHistoryMessage>[];
     var chars = 0;
     for (final m in history.reversed) {
@@ -105,7 +128,9 @@ class GptLiveProtocol {
           .timeout(timeout);
       if (resp.statusCode != 200 && resp.statusCode != 201) {
         throw GptLiveException(
-            'http_${resp.statusCode}', _errorMessage(resp.body));
+          'http_${resp.statusCode}',
+          _errorMessage(resp.body),
+        );
       }
       final json = jsonDecode(utf8.decode(resp.bodyBytes));
       final sdp = _dig(json, 'transport', 'sdp');
@@ -114,7 +139,9 @@ class GptLiveProtocol {
         throw const GptLiveException('no_sdp', '服务端没有返回 SDP');
       }
       return GptLiveSessionCreated(
-          id: id is String ? id : null, answerSdp: sdp);
+        id: id is String ? id : null,
+        answerSdp: sdp,
+      );
     } finally {
       if (client == null) c.close();
     }
@@ -195,13 +222,14 @@ sealed class GptLiveEvent {
         );
       case 'session.usage.updated':
         return GptLiveUsage(
-            (GptLiveProtocol._dig(json, 'usage', 'seconds') as num?)?.toInt() ??
-                0);
+          (GptLiveProtocol._dig(json, 'usage', 'seconds') as num?)?.toInt() ??
+              0,
+        );
       case 'session.closed':
         return GptLiveClosed(
           reason: json['reason'] as String?,
-          seconds:
-              (GptLiveProtocol._dig(json, 'usage', 'seconds') as num?)?.toInt(),
+          seconds: (GptLiveProtocol._dig(json, 'usage', 'seconds') as num?)
+              ?.toInt(),
         );
       case 'error':
         final err = json['error'];
@@ -220,8 +248,11 @@ class GptLiveStarted extends GptLiveEvent {
 }
 
 class GptLiveTranscriptDelta extends GptLiveEvent {
-  const GptLiveTranscriptDelta(
-      {required this.fromUser, required this.delta, this.startMs});
+  const GptLiveTranscriptDelta({
+    required this.fromUser,
+    required this.delta,
+    this.startMs,
+  });
   final bool fromUser;
   final String delta;
   final int? startMs;
@@ -254,8 +285,10 @@ class GptLiveTranscript {
     if (turns.isNotEmpty && turns.last.fromUser == d.fromUser) {
       turns.last.text.write(d.delta);
     } else {
-      turns.add(GptLiveTurn(fromUser: d.fromUser, at: DateTime.now())
-        ..text.write(d.delta));
+      turns.add(
+        GptLiveTurn(fromUser: d.fromUser, at: DateTime.now())
+          ..text.write(d.delta),
+      );
     }
   }
 
