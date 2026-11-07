@@ -9,7 +9,7 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <ESP32Servo.h>
-#include "secrets.h"
+#include "wifi_config.h"
 
 // ---- wiring: servo signal pins on the expansion board ----
 const int PAN_PIN = 18;   // left/right servo

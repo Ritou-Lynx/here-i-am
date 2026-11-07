@@ -18,7 +18,7 @@ ESP32 加两个舵机，让床头哨兵手机能左右、上下转动。云台�
 ## 刷程序
 
 1. 安装 Arduino IDE 2.x。在“开发板管理器”里搜 `esp32`，装 Espressif 的包；在“库管理”里搜 `ESP32Servo`，装上。
-2. 把 `gimbal_esp32/secrets.example.h` 复制成同目录下的 `secrets.h`（已被 git 忽略），填家里 Wi-Fi 名、Wi-Fi 密码和一段至少 16 位的云台口令。
+2. 把 `gimbal_esp32/wifi_config.example.h` 复制成同目录下的 `wifi_config.h`（已被 git 忽略），填家里 Wi-Fi 名、Wi-Fi 密码和一段至少 16 位的云台口令。
 3. 打开 `gimbal_esp32/gimbal_esp32.ino`，开发板选 `ESP32 Dev Module`，选好端口，点“上传”。
 4. 打开串口监视器（115200），会看到 `gimbal ready at http://192.168.x.y`。建议在路由器里给它固定这个 IP。
 

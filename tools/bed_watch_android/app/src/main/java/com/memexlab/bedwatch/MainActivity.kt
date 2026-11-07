@@ -86,7 +86,7 @@ class MainActivity : Activity() {
         field("look_server", "家里电脑地址（如 http://192.168.x.x:47867）", lookConfig.server)
         field("look_token", "相机口令（与电脑上的 camera.json 对应，只保存在本机）", lookConfig.token)
         field("look_gimbal", "云台地址（如 http://192.168.x.y，没有云台就留空）", lookConfig.gimbal)
-        field("look_gimbal_token", "云台口令（与 ESP32 的 secrets.h 一致）", lookConfig.gimbalToken)
+        field("look_gimbal_token", "云台口令（与 ESP32 的 wifi_config.h 一致）", lookConfig.gimbalToken)
         field("look_positions", "预置位：名字=左右角,上下角;…（如 床=90,70;书桌=150,85;门口=30,90）",
             LookProtocol.formatPositions(lookConfig.positions))
         field("look_fov", "镜头水平视角（找人时用，默认 70）", lookConfig.fovDegrees.toString(), true)

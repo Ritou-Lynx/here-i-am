@@ -1,4 +1,4 @@
-// Copy this file to secrets.h (same folder) and fill in your own values. secrets.h is git-ignored.
+// Copy this file to wifi_config.h (same folder) and fill in your own values. wifi_config.h is git-ignored.
 #pragma once
 #define WIFI_SSID     "your-home-wifi"
 #define WIFI_PASSWORD "your-wifi-password"

@@ -1,2 +1,2 @@
-gimbal_esp32/secrets.h
+gimbal_esp32/wifi_config.h
 build/
