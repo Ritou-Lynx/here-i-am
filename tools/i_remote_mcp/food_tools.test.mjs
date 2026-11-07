@@ -118,18 +118,18 @@ test('food configuration is independent, opt-in and restricted to food read/crea
   assert.deepEqual(createWebDomainOptions({...config(),food:{token:'synthetic-food',scopes:[]}}).domainTools.tools.map(tool=>tool.name),['day_get']);
 });
 
-test('three food frontends expose declared write scope while Gemini never receives tools or handlers',async t=>{
+test('four food frontends (G1: Gemini too) expose declared write scope',async t=>{
   const f=fixture(),app=await startTestServer({domainTools:f});t.after(()=>app.close());
   for(const frontend of ['claude_web','chatgpt_web','antigravity','gemini_web']) {
     app.oauth.verifyAccessToken=()=>({ok:true,frontend,familyId:frontend,scopes:['i.read','i.write']});
     const session=await initSession(app.base,'synthetic');
     const result=await mcpPost(app.base,'synthetic',{jsonrpc:'2.0',id:2,method:'tools/list'},{sessionId:session.sessionId});
     const names=result.body.result.tools.map(tool=>tool.name);
-    assert.equal(names.includes('food_log'),frontend!=='gemini_web');assert.equal(names.includes('food_day'),frontend!=='gemini_web');
+    assert.equal(names.includes('food_log'),true);assert.equal(names.includes('food_day'),true);
     app.oauth.verifyAccessToken=()=>({ok:true,frontend,familyId:frontend,scopes:['i.read']});
     const readOnly=await mcpPost(app.base,'synthetic',{jsonrpc:'2.0',id:3,method:'tools/list'},{sessionId:session.sessionId});
     // Existing MCP lists tools independently of token scopes; calls enforce scopes.
-    assert.equal(readOnly.body.result.tools.some(tool=>tool.name==='food_log'),frontend!=='gemini_web');
+    assert.equal(readOnly.body.result.tools.some(tool=>tool.name==='food_log'),true);
     const denied=await mcpPost(app.base,'synthetic',{jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'food_log',arguments:{}}},{sessionId:session.sessionId});
     assert.ok(denied.body.error||denied.body.result?.isError);
   }
