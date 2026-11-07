@@ -42,22 +42,22 @@ MCP 工具 heart_rate ← 读上面两处
 
 ## 完成标准
 **MCP（tools/i_remote_mcp/）**
-- [ ] 新文件 `heart_rate.mjs`：只依赖 `node:` 内置模块，好让 legacy 候选原样内嵌。内容包括配置加载、监听（鉴权、限长、校验）、内存环形缓冲、分钟汇总写盘（分钟结束后追加写入，进程退出时补写当前分钟）、14 天清理、工具定义与执行。
-- [ ] 主线 `server.mjs` 和 `domain_tools.mjs` 接入工具和监听；`chatgpt_candidate.mjs` 在 STUDY 之后加 `HEART_RATE_PATCHES`（覆盖 mainline 和 legacy），正反向补丁字节一致，并改钉候选 server 的哈希。
-- [ ] 测试：没有 `heart_rate.json` 时，工具和监听都不出现；没有或伪造 Tailscale 头一律 401；登录名不在名单里返回 403；超长、非法 JSON、越界 bpm、时间异常都按规则处理；三种 mode 都要验证（包括跨午夜和空数据）；分钟文件不跟随符号链接，只在 `heart_rate/` 目录内读写；gemini 调用返回 -32602。
-- [ ] `node --test tools/i_remote_mcp/` 全部通过，CI 绿。
+- [x] 新文件 `heart_rate.mjs`：只依赖 `node:` 内置模块，好让 legacy 候选原样内嵌。内容包括配置加载、监听（鉴权、限长、校验）、内存环形缓冲、分钟汇总写盘（分钟结束后追加写入，进程退出时补写当前分钟）、14 天清理、工具定义与执行。
+- [x] 主线 `server.mjs` 和 `domain_tools.mjs` 接入工具和监听；`chatgpt_candidate.mjs` 在 STUDY 之后加 `HEART_RATE_PATCHES`（覆盖 mainline 和 legacy），正反向补丁字节一致，并改钉候选 server 的哈希。
+- [x] 测试：没有 `heart_rate.json` 时，工具和监听都不出现；没有或伪造 Tailscale 头一律 401；登录名不在名单里返回 403；超长、非法 JSON、越界 bpm、时间异常都按规则处理；三种 mode 都要验证（包括跨午夜和空数据）；分钟文件不跟随符号链接，只在 `heart_rate/` 目录内读写；gemini 调用返回 -32602。
+- [x] `node --test tools/i_remote_mcp/` 全部通过，CI 绿。
 
 **App（Kotlin + Dart）**
-- [ ] 新文件 `android/.../ble/BleHeartRateUploader.kt`：纯逻辑的部分（队列、批次、退避、丢弃规则）可以在 JVM 单测里跑；HTTP 用 `HttpURLConnection` 放在后台线程，不碰 Store 的 writer。`BleHeartRateService` 每收到一个样本就交给它，服务停止时停止上传。
-- [ ] 上传地址和开关存在原生 SharedPreferences 里，由 Dart 经现有 MethodChannel 新方法 `configureUpload({url?, enabled})` 设置；App 启动时以及 Core 地址变化时同步一次。
-- [ ] 心率设备设置页新增一个“同步到电脑”区块：开关（默认开）、推出的地址（可覆盖）、最近一次成功上传的时间、最近一次错误的代码。
-- [ ] 测试：`BleHeartRateUploaderTest.kt`；gateway 和设置页只追加用例。现有断言不改。
+- [x] 新文件 `android/.../ble/BleHeartRateUploader.kt`：纯逻辑的部分（队列、批次、退避、丢弃规则）可以在 JVM 单测里跑；HTTP 用 `HttpURLConnection` 放在后台线程，不碰 Store 的 writer。`BleHeartRateService` 每收到一个样本就交给它，服务停止时停止上传。
+- [x] 上传地址和开关存在原生 SharedPreferences 里，由 Dart 经现有 MethodChannel 新方法 `configureUpload({url?, enabled})` 设置；App 启动时以及 Core 地址变化时同步一次。
+- [x] 心率设备设置页新增一个“同步到电脑”区块：开关（默认开）、推出的地址（可覆盖）、最近一次成功上传的时间、最近一次错误的代码。
+- [x] 测试：`BleHeartRateUploaderTest.kt`；gateway 和设置页只追加用例。现有断言不改。
 
 **部署（脚本轮，tools/relay_scripts/heart_rate/）**
-- [ ] 第 1 轮（只读）：读 tailscale serve 状态、当前登录名、现役任务、MCP 状态目录，确认 47866 和 8447 都没被占用。输出只给“是否满足”，不打印登录名、域名和路径。
-- [ ] 第 2 轮（写入，需用户 👍，会停服约 1 分钟）：按 ST1 的流程生成 MCP 候选，写入 `heart_rate.json`（登录名取本机 tailscale 当前用户），给 `heart_rate/` 目录设受保护的 ACL，执行 `tailscale serve --bg --https=8447 http://127.0.0.1:47866`，最后切换任务。
-- [ ] 第 3 轮：复用 build-install-v3b 装 App（需插手机并点 👍）。
-- [ ] 验收：戴上臂带，在 Claude 里问“我现在心率多少”，能拿到 `live=true` 的读数；一小时后用 `range` 能看到每分钟的曲线。
+- [x] 第 1 轮（只读）：读 tailscale serve 状态、当前登录名、现役任务、MCP 状态目录，确认 47866 和 8447 都没被占用。输出只给“是否满足”，不打印登录名、域名和路径。
+- [x] 第 2 轮（写入，需用户 👍，会停服约 1 分钟）：按 ST1 的流程生成 MCP 候选，写入 `heart_rate.json`（登录名取本机 tailscale 当前用户），给 `heart_rate/` 目录设受保护的 ACL，执行 `tailscale serve --bg --https=8447 http://127.0.0.1:47866`，最后切换任务。
+- [x] 第 3 轮：复用 build-install-v3b 装 App（需插手机并点 👍）。实际改由 #86 一起装（见验收记录）。
+- [x] 验收：戴上臂带，在 Claude 里问“我现在心率多少”，能拿到 `live=true` 的读数；一小时后用 `range` 能看到每分钟的曲线。
 
 ## 允许修改的路径
 - `tools/i_remote_mcp/`
@@ -92,3 +92,8 @@ MCP 工具 heart_rate ← 读上面两处
 - **装 App**：复用 `tools/relay_scripts/app/build-install-v3b.ps1`。
 - **合并时机**：本 PR 用未合并的分支直接部署。脚本轮 1–3 都跑完、验收通过之前不要合并。
 
+## 验收记录（2026-11-07）
+- 分支从 #89 换到 #91（原分支被本机旧 #56 relay 工作树占用）。
+- 第 1 轮只读检查通过；第 2 轮部署通过：现役任务 `HereIAm-iCoreSchema6-hr1-heart-20261105`，server `77a8dd30`，停服 65 秒，tailnet health 200。
+- App 未走 #91 第 3 轮：HR1 分支合进 GPT-Live 装机分支（#86），用修复了 jni 残缺包的新版安装脚本一次装好。
+- 用户戴臂带后，云端 Claude 调 `heart_rate`：now 返回 live=true、距今 1 秒；range 返回逐分钟汇总，每分钟约 60 个样本。Kotlin 整体编译随安装通过。

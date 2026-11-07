@@ -11,18 +11,20 @@
 - 用户 11-07 完成 `drive:drive:readonly` 授权。新增脚本轮 `tools/relay_scripts/notes/n1-install.ps1`：核对家里同步文件是已知版本，备份后装 cli.mjs 和 notes_mirror.mjs、config 加 notes.folders，试跑一次，再注册 Interactive 计划任务 `FeishuNotes-Mirror`（每 30 分钟，:10/:40，wscript 隐藏窗口，日志在工具目录 logs）。合同见 docs/development/handoffs/RELAY_20261107_n1-notes-install.md。
 - notes_mirror 加 `--max-minutes`（默认 20）：第一次文档多时超出预算的记为 deferred，下次接着拉，避免被任务时限杀掉而写不出 index.json。
 
-## 2026-11-05 N1：飞书笔记副本（日记、工作文档给 i MCP 用）
-
-- 用户 11-05 要让飞书里的日记和工作文档成为助手能自己调用的上下文，选了“副本 + i MCP 工具”方案（不排除任何内容，副本要增量、同一篇只保留一份）。这是第一步，只负责把文档拉到本机。
-- 新增 `tools/feishu_tutor/sync/notes_mirror.mjs`：只读列出配置的顶层文件夹（含子文件夹）的 docx，按 token 一篇一个文件，比对修改时间增量拉取，改过的原地覆盖，飞书删了本地也删；列表全部成功才写，某文件夹突然 0 篇时报错不删。白名单加只读的 `drive files list`（`folder_list`）。与 feishu_sync 共用登录，sync 锁存在时跳过。
-- 还没装到家里：需要用户补一次 `drive:drive:readonly` 授权，再用脚本轮注册每 30 分钟的计划任务。N2（i MCP 的 notes 工具和 i_context 近况）另开。
-
 ## 2026-11-05 HR1：臂带实时心率进 i MCP
 
 - 用户 11-05 同意 HR1（合同 docs/development/handoffs/RELAY_20261105_hr1-heart-rate-mcp.md）：戴着臂带时手机把心率实时推到家里电脑，Claude、ChatGPT、Antigravity、Sesame 都能用 `heart_rate` 按需读（now / range / night），Gemini 不开放。
 - MCP：新增 `tools/i_remote_mcp/heart_rate.mjs`。监听只绑 127.0.0.1:47866，只经 `tailscale serve --https=8447` 访问，靠 `Tailscale-User-Login` 名单鉴权，手机不存 token。逐秒数据只在内存里留最近 15 分钟；每分钟汇总写进状态目录 `heart_rate/`，保留 14 天。只有状态目录里有 `heart_rate.json` 时才启用。候选构建器在 STUDY 之后加了 `HEART_RATE_PATCHES`，legacy server 原样内嵌 heart_rate.mjs，server 候选哈希改为 `77a8dd30`，云端 233/233 通过。
 - App：前台服务新增上传器，每 5 秒批量推送一次；队列最多攒 10 分钟，失败按 5 秒到 60 秒退避，只上传时间和 bpm。地址从 Core 同步地址推出（同一台电脑的 8447 端口），设置页可以手动覆盖或关闭。Kotlin 纯逻辑 8 项单测和 Dart 28 项测试在云端通过。
-- 还没有部署。部署走脚本轮：只读检查 → 换 MCP 并开 tailscale serve 8447 → 装 App。
+- 部署（11-05，#91）：第 1 轮只读检查通过；第 2 轮切到新任务 hr1-heart-20261105（server 77a8dd30），停服 65 秒，8447 经 tailnet health 200。原分支被本机旧 #56 工作树占用，所以从 #89 改到 #91。
+- 装 App：#91 的安装轮撤回，HR1 合进 GPT-Live 装机分支（#86），一次装好两边改动（新版安装脚本会修复 pub 缓存里残缺的 jni 包）。
+- 验收（11-07）：用户戴臂带，云端 Claude 调 `heart_rate` now 拿到 live=true、距今 1 秒的读数，range 返回逐分钟曲线（每分钟约 60 个样本）。
+
+## 2026-11-05 N1：飞书笔记副本（日记、工作文档给 i MCP 用）
+
+- 用户 11-05 要让飞书里的日记和工作文档成为助手能自己调用的上下文，选了“副本 + i MCP 工具”方案（不排除任何内容，副本要增量、同一篇只保留一份）。这是第一步，只负责把文档拉到本机。
+- 新增 `tools/feishu_tutor/sync/notes_mirror.mjs`：只读列出配置的顶层文件夹（含子文件夹）的 docx，按 token 一篇一个文件，比对修改时间增量拉取，改过的原地覆盖，飞书删了本地也删；列表全部成功才写，某文件夹突然 0 篇时报错不删。白名单加只读的 `drive files list`（`folder_list`）。与 feishu_sync 共用登录，sync 锁存在时跳过。
+- 还没装到家里：需要用户补一次 `drive:drive:readonly` 授权，再用脚本轮注册每 30 分钟的计划任务。N2（i MCP 的 notes 工具和 i_context 近况）另开。
 
 ## 2026-11-04 ST1 部署完成
 - #88 第 5 轮切到新任务 st1-study（server a0bd0491），云端已能调用 study_today / study_source / study_progress / study_result。第 1–3 轮失败的经过和根因（强制收尾后，就绪等待把崩溃恢复期间的临时标记当成失败）见 docs/development/handoffs/RELAY_20261103_st1-deploy.md。
@@ -40,6 +42,17 @@
 - 新增 `tools/feishu_tutor/examples/subjects-three.md`：三科的学习日、每日上限、目标（日语 2027-07 N2、2027-12 N1；英语冲雅思 8；数据分析服务运营/产品工作和 2027-02 春招）、阶段和路线。
 - STUDY_AGENTS：学习单按科目分节、各科分别按上限挑点；“路线驱动建点”允许定时运行为当天选中的路线点直接建账本行（每科每天不超过新学上限）；每科写练习提示词并用新的 `study/practice_link.mjs` 生成 `chatgpt.com/?q=` 链接，失败就退回提示词引用块。
 - 同步脚本、白名单和三张表结构都没改；新科目只需在飞书“科目”字段加选项、config 的 subjects 加名字。合成测试 80 过 9 跳过（新增 3 项链接测试）。
+
+## 2026-10-31 N2 食物上线（生产）
+
+- 第 1 步（只准备、不停服）：从 v3-lab `42ecf688` 打新 Core 包（manifest `9897fb41`，相对现役只改 4 个库存文件）、N2b MCP 候选（server `f42f291f`）、换包配置与 fixed prepare XML，零写入预检通过。
+- 第 2 步：先用 Claude 写的脚本让 Codex 运行，后改走脚本轮（PR #71、#73，`mode=write`，用户点 👍）。期间修了两处维护工具：
+  - #69：现役链经多次 C1 后，源任务 XML 是计划任务自己导出的格式（RegistrationInfo、默认值、Enabled=false、登录触发器用户写成账户名），换包绑定校验只认模板原文。改为只在源端接受这种导出，其余叶子必须完全一致；目标端仍逐字节比对。
+  - #71：一条 22 天前被强杀、没有退出回执的旧会话记录，其 PID 被 session 0 的 svchost 复用，`OpenProcess` 被拒，活会话定位整体抛错（挡住 close-input、switch、provision）。改为“拒绝访问且进程快照显示属于其他会话”时视为失效。
+- 10-31 15:17 起按 D1b 顺序执行：关闭会话 → 停用 d2b 任务 → 批准换包计划 → 离线换包 → 登记 P（`HereIAm-iCoreSchema6-n2-pkg-20261031`）→ C1 切 N2b 候选到 P′（`HereIAm-iCoreSchema6-n2-food-20261031`）→ 切换 → 开通食物领域（writer、phone 令牌）并把 MCP 食物凭据经内存管道写入 → 重启一次。停服约 97 秒 + 35 秒。
+- 云端核对：i MCP 在线，出现 `food_log`、`food_day`；`food_day` 读今日返回空列表与零累计。
+- 坑：watcher 按评论时间只处理最早一条未完成指令，未批准的旧 write 轮会堵住后面；watcher 不清理已关闭 PR 的 worktree，复用分支前要先删（用不带 --force 的 `git worktree remove`）。
+- 剩余：三端真人验收食物记录；手机 App 重建安装后自动领取 phone 令牌，看饮食页。
 
 ## 2026-10-25 D2b 部署与 Sesame 验收
 

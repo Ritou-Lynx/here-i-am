@@ -15,7 +15,7 @@ $sha = [Security.Cryptography.SHA256]::Create()
 $bytes = [IO.File]::ReadAllBytes($mjs)
 $lf = [Text.Encoding]::UTF8.GetBytes([Text.Encoding]::UTF8.GetString($bytes).Replace("`r`n", "`n"))
 try { $actual = @(foreach ($b in @($bytes, $lf)) { ([BitConverter]::ToString($sha.ComputeHash($b))).Replace('-', '').ToLowerInvariant() }) } finally { $sha.Dispose() }
-if ($actual -notcontains 'adf7a8c9a2794370a60bb8ec7bbdb78732bf4b626fde09848f9b59e103defc07') { Write-Output '{"step":"launcher","ok":false,"detail":"mjs_hash_mismatch"}'; exit 1 }
+if ($actual -notcontains 'b673c0f0c55912f7f80c4c20235d90009a347a1c69b826939030da931cd2a430') { Write-Output '{"step":"launcher","ok":false,"detail":"mjs_hash_mismatch"}'; exit 1 }
 $git = @(Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1)
 if ($git.Count -ne 1) { Write-Output '{"step":"launcher","ok":false,"detail":"git_not_found"}'; exit 1 }
 $task = Get-ScheduledTask -TaskName 'HereIAm-iCoreSchema6-d2b-mcp-20261025-129ec194'
