@@ -24,6 +24,17 @@ class AiFinanceService {
   AiFinanceService({required AppDatabase db}) : _db = db;
 
   static const _uuid = Uuid();
+
+  /// characterId used by entries the user types into the ledger panel.
+  static const manualUserCharacterId = 'manual:user';
+  /// KvStore key for the ledger start date ('YYYY-MM-DD', local day).
+  ///
+  /// When set, every cumulative figure (all_time_*, i 的余额, owes_user,
+  /// outstanding_loan) only counts rows recorded on or after that day. Older
+  /// rows stay in the table and still show in their own month — only the
+  /// running totals restart. Lets the user "重新开始" after a gap in records.
+  static const ledgerStartDateKey = 'ai_finance.ledger_start_date';
+  static const _settingsBucket = 'ai_finance';
   static final Lock _recordLock = Lock();
   static const _duplicateWindow = Duration(hours: 36);
   static const _bareAmountDuplicateWindow = Duration(minutes: 1);
@@ -78,7 +89,11 @@ class AiFinanceService {
       final now = (occurredAt ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
       final normalizedEntryType = entryType.trim().toLowerCase();
       final normalizedDirection = transferDirection?.trim().toLowerCase();
-      final duplicate = await _findDuplicateEntry(
+      // 用户在账本页手动记的一笔是明确意图：同一天两杯 30 元咖啡就是两笔，
+      // 不走启发式去重。去重只拦 agent / card bridge 的重复写入。
+      final duplicate = characterId == manualUserCharacterId
+          ? null
+          : await _findDuplicateEntry(
         entryType: normalizedEntryType,
         totalAmount: totalAmount,
         aiAmount: aiAmount,
@@ -185,6 +200,37 @@ class AiFinanceService {
         .go();
   }
 
+  /// The day cumulative totals start from, or null when counting every row.
+  Future<DateTime?> getLedgerStartDate() async {
+    final row = await (_db.select(_db.kvStore)
+          ..where((t) => t.key.equals(ledgerStartDateKey)))
+        .getSingleOrNull();
+    return _parseStartDate(row?.value);
+  }
+
+  /// Set (or with null, clear) the day cumulative totals start from.
+  Future<void> setLedgerStartDate(DateTime? date) async {
+    if (date == null) {
+      await (_db.delete(_db.kvStore)
+            ..where((t) => t.key.equals(ledgerStartDateKey)))
+          .go();
+      return;
+    }
+    await _db.into(_db.kvStore).insertOnConflictUpdate(
+          KvStoreCompanion.insert(
+            key: ledgerStartDateKey,
+            bucket: const Value(_settingsBucket),
+            value: Value(_formatStartDate(date)),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+          ),
+        );
+  }
+
+  Future<int?> _startEpoch() async {
+    final start = await getLedgerStartDate();
+    return start == null ? null : start.millisecondsSinceEpoch ~/ 1000;
+  }
+
   /// Returns the user-facing real ledger alongside the derived AI position.
   ///
   /// Income and cost are external cash movements. Reward, penalty, loan and
@@ -194,7 +240,8 @@ class AiFinanceService {
   Future<Map<String, dynamic>> getLedgerOverview({
     String? month,
   }) async {
-    int? sinceEpoch;
+    final startEpoch = await _startEpoch();
+    int? sinceEpoch = startEpoch;
     int? untilEpoch;
     if (month != null) {
       final parts = month.split('-');
@@ -210,7 +257,8 @@ class AiFinanceService {
     ));
     final allRows = month == null
         ? rows
-        : _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod());
+        : _dedupeLedgerRows(
+            await _dao.getSharedEntriesForPeriod(sinceEpoch: startEpoch));
 
     Map<String, double> calculate(List<AiFinanceLedgerData> source) {
       var externalIncome = 0.0;
@@ -242,14 +290,12 @@ class AiFinanceService {
             myExpenseShare += row.totalAmount - aiShare;
           case 'loan':
             loanedToAi += row.aiAmount;
-            paidToAi += row.aiAmount;
           case 'reward':
             receivedFromAi += row.aiAmount;
           case 'penalty':
             paidToAi += row.aiAmount;
           case 'repayment':
             repaidByAi += row.aiAmount;
-            receivedFromAi += row.aiAmount;
         }
       }
 
@@ -263,12 +309,10 @@ class AiFinanceService {
         'paid_to_ai': paidToAi,
         'loaned_to_ai': loanedToAi,
         'repaid_by_ai': repaidByAi,
-        'my_allocated_net': myIncomeShare -
-            myExpenseShare +
-            receivedFromAi -
-            paidToAi -
-            loanedToAi +
-            repaidByAi,
+        // 垫付 / 归还是借还，不改变双方净额；my_allocated_net 与 i 的
+        // all_time_balance 相加恒等于 cash_net。
+        'my_allocated_net':
+            myIncomeShare - myExpenseShare + receivedFromAi - paidToAi,
       };
     }
 
@@ -279,7 +323,8 @@ class AiFinanceService {
       'period': month ?? 'all_time',
       ...period,
       'ai_income_share': _sumAiAmount(rows, 'income'),
-      'ai_expense_share': _sumAiAmount(rows, 'cost'),
+      'ai_expense_share':
+          _sumAiAmount(rows, 'cost') + _sumAiAmount(rows, 'expense'),
       'ai_period_net': aiSummary['period_net'],
       'ai_all_time_balance': aiSummary['all_time_balance'],
       'ai_savings': aiSummary['savings'],
@@ -289,6 +334,7 @@ class AiFinanceService {
       'all_time_external_expense': allTime['external_expense'],
       'all_time_cash_net': allTime['cash_net'],
       'entry_count': rows.length,
+      'counting_since': aiSummary['counting_since'],
     };
   }
 
@@ -296,7 +342,10 @@ class AiFinanceService {
   Future<Map<String, dynamic>> getSummary({
     String? month, // 'YYYY-MM', if null returns all-time
   }) async {
-    int? sinceEpoch;
+    final startDate = await getLedgerStartDate();
+    final startEpoch =
+        startDate == null ? null : startDate.millisecondsSinceEpoch ~/ 1000;
+    int? sinceEpoch = startEpoch;
     int? untilEpoch;
     if (month != null) {
       final parts = month.split('-');
@@ -324,17 +373,20 @@ class AiFinanceService {
     final transferToAi = _sumTransferByDirection(periodRows, 'user_to_ai');
     final transferFromAi = _sumTransferByDirection(periodRows, 'ai_to_user');
 
-    // balance = income + repayment + penalty + transferToAi
-    //         - expense - cost - loan - reward - transferFromAi
-    final balance = income + repayment + penalty + transferToAi
-        - expense - cost - loan - reward - transferFromAi;
+    // balance = income + penalty + transferToAi
+    //         - expense - cost - reward - transferFromAi
+    // loan / repayment 只是用户和 i 之间的借还：借来的钱已经体现为开支后余额
+    // 变负（owes_user），再减一次 loan 会重复计；还款同理。它们不改变净额，
+    // 只记在 outstanding_loan 里。
+    final balance = income + penalty + transferToAi
+        - expense - cost - reward - transferFromAi;
 
     // all-time totals for debt calculation
-    final allSums = month != null
-        ? _sumRowsByType(
-            _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod()),
-          )
-        : sums;
+    final allRows = month != null
+        ? _dedupeLedgerRows(
+            await _dao.getSharedEntriesForPeriod(sinceEpoch: startEpoch))
+        : periodRows;
+    final allSums = month != null ? _sumRowsByType(allRows) : sums;
     final allIncome = allSums['income'] ?? 0.0;
     final allExpense = allSums['expense'] ?? 0.0;
     final allCost = allSums['cost'] ?? 0.0;
@@ -342,13 +394,11 @@ class AiFinanceService {
     final allRepayment = allSums['repayment'] ?? 0.0;
     final allReward = allSums['reward'] ?? 0.0;
     final allPenalty = allSums['penalty'] ?? 0.0;
-    final allRows = month != null
-        ? _dedupeLedgerRows(await _dao.getSharedEntriesForPeriod())
-        : periodRows;
     final allTransferToAi = _sumTransferByDirection(allRows, 'user_to_ai');
     final allTransferFromAi = _sumTransferByDirection(allRows, 'ai_to_user');
-    final allBalance = allIncome + allRepayment + allPenalty + allTransferToAi
-        - allExpense - allCost - allLoan - allReward - allTransferFromAi;
+    final allBalance = allIncome + allPenalty + allTransferToAi
+        - allExpense - allCost - allReward - allTransferFromAi;
+    final outstandingLoan = allLoan - allRepayment;
 
     return {
       'ledger_scope': 'shared_ai',
@@ -367,6 +417,11 @@ class AiFinanceService {
       // Positive all_time_balance = savings; negative = still owes user
       'savings': allBalance > 0 ? allBalance : 0.0,
       'owes_user': allBalance < 0 ? -allBalance : 0.0,
+      // 记录过的垫付里还没归还的部分（信息项，已包含在 owes_user 的口径里）。
+      'outstanding_loan': outstandingLoan > 0 ? outstandingLoan : 0.0,
+      // 累计数字的起算日；null = 从第一笔开始算。
+      'counting_since':
+          startDate == null ? null : _formatStartDate(startDate),
     };
   }
 
@@ -411,7 +466,9 @@ class AiFinanceService {
   }
 
   /// Correct an existing ledger entry. Only the fields you pass are changed;
-  /// null/absent fields keep their existing value.
+  /// null/absent fields keep their existing value. Pass an empty string to a
+  /// text field (purpose, notes, transferDirection, linkedFactId, descs) to
+  /// clear it, and `clearContributionRatio: true` to drop the income split.
   ///
   /// `entryId` is the `id` column of the row to update. Returns the updated
   /// row, or null if the id does not exist.
@@ -427,6 +484,7 @@ class AiFinanceService {
     double? totalAmount,
     double? aiAmount,
     double? contributionRatio,
+    bool clearContributionRatio = false,
     String? myContributionDesc,
     String? aiContributionDesc,
     String? purpose,
@@ -438,19 +496,29 @@ class AiFinanceService {
     final existing = await _dao.getEntryById(entryId);
     if (existing == null) return null;
 
+    Value<String?> text(String? value) =>
+        value == null ? const Value.absent() : Value(_cleanNullableText(value));
+
     final companion = AiFinanceLedgerCompanion(
-      entryType: entryType != null ? Value(entryType.trim().toLowerCase()) : const Value.absent(),
-      totalAmount: totalAmount != null ? Value(totalAmount) : const Value.absent(),
-      aiAmount: aiAmount != null ? Value(aiAmount) : const Value.absent(),
-      contributionRatio: contributionRatio != null
-          ? Value(contributionRatio)
+      entryType: entryType != null
+          ? Value(entryType.trim().toLowerCase())
           : const Value.absent(),
-      myContributionDesc: Value(_cleanNullableText(myContributionDesc)),
-      aiContributionDesc: Value(_cleanNullableText(aiContributionDesc)),
-      purpose: Value(_cleanNullableText(purpose)),
-      linkedFactId: Value(_cleanNullableText(linkedFactId)),
-      transferDirection: Value(transferDirection?.trim().toLowerCase()),
-      notes: Value(_cleanNullableText(notes)),
+      totalAmount:
+          totalAmount != null ? Value(totalAmount) : const Value.absent(),
+      aiAmount: aiAmount != null ? Value(aiAmount) : const Value.absent(),
+      contributionRatio: clearContributionRatio
+          ? const Value(null)
+          : contributionRatio != null
+              ? Value(contributionRatio)
+              : const Value.absent(),
+      myContributionDesc: text(myContributionDesc),
+      aiContributionDesc: text(aiContributionDesc),
+      purpose: text(purpose),
+      linkedFactId: text(linkedFactId),
+      transferDirection: transferDirection == null
+          ? const Value.absent()
+          : Value(_cleanNullableText(transferDirection)?.toLowerCase()),
+      notes: text(notes),
       recordedAt: occurredAt != null
           ? Value(occurredAt.millisecondsSinceEpoch ~/ 1000)
           : const Value.absent(),
@@ -555,6 +623,18 @@ class AiFinanceService {
   }
 }
 
+String _formatStartDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+DateTime? _parseStartDate(String? value) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value ?? '');
+  if (m == null) return null;
+  return DateTime(
+      int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!));
+}
+
 double _sumAiAmount(List<AiFinanceLedgerData> rows, String entryType) => rows
     .where((row) => row.entryType == entryType)
     .fold(0.0, (sum, row) => sum + row.aiAmount);
@@ -610,13 +690,14 @@ String? _normalizePurposeForMatch(String? value) {
       .trim();
 }
 
-/// 两条账目条目是否属于同一件事：归一化（去金额）后相等或互相包含。
+/// 两条账目条目是否属于同一件事：归一化（去金额）后完全相等。
+///
+/// 不再用「互相包含」：「咖啡」和「咖啡豆」同价会被误合并。
 bool _sameBusinessEntry(String? a, String? b) {
   final na = _normalizePurposeForMatch(a);
   final nb = _normalizePurposeForMatch(b);
   if (na == null || nb == null) return false;
-  if (na == nb) return true;
-  return na.contains(nb) || nb.contains(na);
+  return na == nb;
 }
 
 String? _cleanNullableText(String? value) {
@@ -653,6 +734,11 @@ bool _isDuplicateLedgerRow(
 ) {
   if (existing.characterId.startsWith(AiFinanceService._captureOwnerPrefix) ||
       candidate.characterId.startsWith(AiFinanceService._captureOwnerPrefix)) {
+    return existing.id == candidate.id;
+  }
+  // 用户手动记的一笔永远单独显示、单独计入合计。
+  if (existing.characterId == AiFinanceService.manualUserCharacterId ||
+      candidate.characterId == AiFinanceService.manualUserCharacterId) {
     return existing.id == candidate.id;
   }
   if (existing.entryType != candidate.entryType) return false;
