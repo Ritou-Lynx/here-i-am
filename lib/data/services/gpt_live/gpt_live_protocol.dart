@@ -34,16 +34,38 @@ class GptLiveProtocol {
         'model': model,
         'instructions': _clip(instructions, maxInstructionChars),
         'audio': {
-          'output': {'voice': voice},
+          'output': {'voice': normalizeVoice(voice)},
         },
         if (history.isNotEmpty)
           'input': [
             for (final m in trimHistory(history))
-              {'role': m.role, 'content': m.content},
+              {
+                'type': 'message',
+                'role': m.role,
+                'content': [
+                  {
+                    'type': m.role == 'assistant' ? 'output_text' : 'input_text',
+                    'text': m.content,
+                  },
+                ],
+              },
           ],
       },
       'transport': {'type': 'webrtc', 'sdp': offerSdp},
     };
+  }
+
+  /// API 内置声音（ChatGPT App 里的 ember、hanul 等不在其中）。
+  static const builtInVoices = {
+    'alloy', 'ash', 'ballad', 'beacon', 'bossa', 'cedar', 'cinder', 'coral',
+    'delta', 'echo', 'gleam', 'marin', 'meridian', 'quartz', 'ripple', 'sage',
+    'shida', 'shimmer', 'stone', 'tempo', 'verse', 'vesper', 'willow',
+  };
+
+  /// 填了不支持的声音名时退回默认，免得整通电话建不起来。
+  static String normalizeVoice(String voice) {
+    final v = voice.trim().toLowerCase();
+    return builtInVoices.contains(v) ? v : defaultVoice;
   }
 
   /// 只留最近的、总字数在上限内的消息，保持时间正序。
