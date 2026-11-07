@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'package:memex/agent/companion_agent/companion_persona_prompt_builder.dart';
 import 'package:memex/data/services/character_service.dart';
+import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
@@ -67,7 +69,17 @@ class GptLiveCall extends ChangeNotifier {
       characterName = character?.name;
       final instructions = buildInstructions(
         name: character?.name ?? '林埃',
-        persona: character?.persona ?? '',
+        // 和 App 聊天用同一份林埃身份；旧角色卡的 persona 字段 App 已不再使用。
+        persona: CompanionPersonaPromptBuilder.build(
+          character ??
+              CharacterModel(
+                id: characterId,
+                name: '林埃',
+                tags: const [],
+                persona: '',
+                enabled: true,
+              ),
+        ),
         now: DateTime.now(),
         extra: await GptLiveSettings.getExtraInstructions(),
         callReason: callReason,
@@ -338,15 +350,14 @@ class GptLiveCall extends ChangeNotifier {
     final time =
         '${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}:${two(now.minute)}';
     final buf = StringBuffer()
-      ..writeln('你是$name，正在和用户打电话。下面是你的人设，完全按它说话和反应。')
+      ..writeln('你是$name，正在和用户打电话。下面是你的身份设定，完全按它说话和反应。')
       ..writeln()
       ..writeln(persona.trim().isEmpty ? '（无额外人设）' : persona.trim())
       ..writeln()
       ..writeln('## 通话规则')
       ..writeln('- 现在是 $time（用户本地时间）。')
       ..writeln('- 这是语音通话：用自然口语的中文，短句，像真人打电话，可以有语气词和停顿。')
-      ..writeln('- 不要说出动作描写、括号里的内容、表情符号或 markdown。')
-      ..writeln('- 用户说英文时可以用英文回答。')
+      ..writeln('- 用户换成哪种语言，你就跟着用哪种语言。')
       ..writeln('- 之前的聊天记录已经给你了，接着那些内容自然聊，不要复述。')
       ..writeln('- 用户说要挂了，就简短道别。');
     if (callReason.trim().isNotEmpty) {
