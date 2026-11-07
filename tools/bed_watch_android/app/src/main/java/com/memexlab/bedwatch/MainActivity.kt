@@ -25,6 +25,9 @@ class MainActivity : Activity() {
     private lateinit var enabled: CheckBox
     private lateinit var front: CheckBox
     private lateinit var release: CheckBox
+    private lateinit var lookEnabled: CheckBox
+    private lateinit var invertPan: CheckBox
+    private lateinit var invertTilt: CheckBox
     private lateinit var rows: TextView
     private lateinit var status: TextView
     private val fields = linkedMapOf<String, EditText>()
@@ -77,15 +80,44 @@ class MainActivity : Activity() {
             text = "今晚放行（首次开启到次日 12:00，保存生效）"
             isChecked = config.releaseUntil > System.currentTimeMillis(); layout.addView(this)
         }
+        val lookConfig = store.readLook()
+        label("林埃按需看一眼（只在家里局域网）").textSize = 20f
+        lookEnabled = CheckBox(this).apply { text = "允许林埃按需看一眼（保存后生效）"; isChecked = lookConfig.enabled; layout.addView(this) }
+        field("look_server", "家里电脑地址（如 http://192.168.x.x:47867）", lookConfig.server)
+        field("look_token", "相机口令（与电脑上的 camera.json 对应，只保存在本机）", lookConfig.token)
+        field("look_gimbal", "云台地址（如 http://192.168.x.y，没有云台就留空）", lookConfig.gimbal)
+        field("look_gimbal_token", "云台口令（与 ESP32 的 secrets.h 一致）", lookConfig.gimbalToken)
+        field("look_positions", "预置位：名字=左右角,上下角;…（如 床=90,70;书桌=150,85;门口=30,90）",
+            LookProtocol.formatPositions(lookConfig.positions))
+        field("look_fov", "镜头水平视角（找人时用，默认 70）", lookConfig.fovDegrees.toString(), true)
+        invertPan = CheckBox(this).apply { text = "找人时左右方向反了就勾上"; isChecked = lookConfig.invertPan; layout.addView(this) }
+        invertTilt = CheckBox(this).apply { text = "找人时上下方向反了就勾上"; isChecked = lookConfig.invertTilt; layout.addView(this) }
+        button("现在别看（1 小时）/ 恢复") {
+            val paused = store.lookPausedUntil > System.currentTimeMillis()
+            store.lookPausedUntil = if (paused) 0 else System.currentTimeMillis() + 3_600_000L
+            status.text = if (paused) "已恢复：林埃可以按需看一眼" else "1 小时内林埃看不了"
+        }
+        button("测试云台（转到第一个预置位）") {
+            try {
+                val l = readLookForm()
+                val first = l.positions.entries.firstOrNull() ?: throw IllegalArgumentException()
+                status.text = "正在转到 ${first.key}…"
+                worker.execute {
+                    val ok = Gimbal(l.gimbal, l.gimbalToken).move(first.value)
+                    runOnUiThread { if (visible) status.text = if (ok) "已转到 ${first.key}" else "云台没有响应：检查地址、口令和电源" }
+                }
+            } catch (_: Exception) { status.text = "请先填写云台地址、口令和至少一个预置位。" }
+        }
         status = label("")
         button("保存设置") {
             try {
                 val next = readForm(requireEndpoint = enabled.isChecked)
-                if (next.enabled && !permissionsReady()) {
+                val nextLook = readLookForm()
+                if ((next.enabled || nextLook.enabled) && !permissionsReady()) {
                     pendingEnable = true
                     requestPermissions(requiredPermissions(), 10)
-                } else { saveAndApply(next) }
-            } catch (_: Exception) { status.text = "设置无效：请核对时间、数值范围和 HTTPS 地址。" }
+                } else { saveAndApply(next, nextLook) }
+            } catch (_: Exception) { status.text = "设置无效：请核对时间、数值范围、HTTPS 地址和局域网地址。" }
         }
         button("调角度 · 实时预览") {
             if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -127,17 +159,35 @@ class MainActivity : Activity() {
                 text("dimGlow").toFloat(), text("dark").toFloat()), text("cooldown").toInt(),
             text("server"), text("topic"), until)
     }
+    private fun readLookForm(): LookConfig {
+        fun text(key: String) = fields.getValue(key).text.toString().trim()
+        val on = lookEnabled.isChecked
+        val server = text("look_server")
+        val gimbal = text("look_gimbal")
+        if (on || server.isNotEmpty()) LookProtocol.lanBase(server)
+        if (on) require(text("look_token").length >= 32) { "相机口令至少 32 个字符" }
+        if (gimbal.isNotEmpty()) { LookProtocol.lanBase(gimbal); require(text("look_gimbal_token").length >= 16) }
+        return LookConfig(on, server, text("look_token"), gimbal, text("look_gimbal_token"),
+            LookProtocol.parsePositions(text("look_positions")), store.lookPausedUntil,
+            invertPan.isChecked, invertTilt.isChecked, text("look_fov").toFloat())
+    }
     private fun requiredPermissions() = mutableListOf(Manifest.permission.CAMERA).apply {
         if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
     }.toTypedArray()
     private fun permissionsReady() = requiredPermissions().all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED } &&
         WatchNotifications.allowed(this)
-    private fun saveAndApply(config: WatchSettings) {
+    private fun saveAndApply(config: WatchSettings, look: LookConfig = store.readLook()) {
         store.write(config)
+        store.writeLook(look)
         stopService(Intent(this, BedWatchService::class.java))
-        if (config.enabled) handler.postDelayed({ if (visible && store.read().enabled) startMonitoring() }, 300)
+        if (config.enabled || look.enabled) handler.postDelayed({ if (visible && store.serviceWanted()) startMonitoring() }, 300)
         else WatchNotifications.clearRecovery(this)
-        status.text = if (config.enabled) "已保存，监测仅在窗口内采样" else "已停止监测"
+        status.text = when {
+            config.enabled && look.enabled -> "已保存：夜间监测 + 按需看一眼"
+            config.enabled -> "已保存，监测仅在窗口内采样"
+            look.enabled -> "已保存：只开按需看一眼"
+            else -> "已停止监测"
+        }
     }
     private fun startMonitoring() {
         if (!permissionsReady()) { status.text = "请允许相机与通知，再保存设置以恢复监测。"; return }
@@ -153,13 +203,13 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume(); visible = true
         release.isChecked = store.read().releaseUntil > System.currentTimeMillis()
-        if (store.read().enabled) startMonitoring()
+        if (store.serviceWanted()) startMonitoring()
         handler.post(refresh)
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (visible && store.read().enabled) startMonitoring()
+        if (visible && store.serviceWanted()) startMonitoring()
     }
     override fun onPause() {
         visible = false; handler.removeCallbacksAndMessages(null); super.onPause()
@@ -169,8 +219,8 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 10 && pendingEnable) {
             pendingEnable = false
-            if (permissionsReady()) runCatching { saveAndApply(readForm(requireEndpoint = enabled.isChecked)) }
-            else { enabled.isChecked = false; status.text = "监测需要相机和通知权限。" }
+            if (permissionsReady()) runCatching { saveAndApply(readForm(requireEndpoint = enabled.isChecked), readLookForm()) }
+            else { enabled.isChecked = false; lookEnabled.isChecked = false; status.text = "监测需要相机和通知权限。" }
         } else if (requestCode == 11) { status.text = "相机权限处理完成，请再点一次调角度。" }
     }
 }

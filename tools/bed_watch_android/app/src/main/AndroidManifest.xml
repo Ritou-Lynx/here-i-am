@@ -6,9 +6,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+    <!-- Cleartext is needed only for CAM1 home-LAN calls (PC long poll, ESP32 mount); LookProtocol.lanBase
+         rejects anything but private IPv4 literals, and ntfy still requires https in NtfyNotifier. -->
     <application android:label="床头哨兵" android:allowBackup="false"
-        android:usesCleartextTraffic="false" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:usesCleartextTraffic="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".PreviewActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
@@ -17,6 +20,7 @@
             </intent-filter>
         </activity>
         <service android:name=".BedWatchService" android:exported="false" android:foregroundServiceType="camera" />
+        <receiver android:name=".LookPauseReceiver" android:exported="false" />
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
         </receiver>
