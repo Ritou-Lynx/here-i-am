@@ -9,6 +9,21 @@ const _keyCharacterId = 'pending_character_id';
 const _keyOpening = 'pending_opening';
 const _keyNotified = 'pending_notified';
 const _keyProactive = 'pending_proactive';
+const _keyEngine = 'pending_engine';
+
+/// 待拨电话接起后走 GPT-Live（催睡来电用）；不写则走原通话。
+const pendingEngineGptLive = 'gpt_live';
+
+/// 读待拨电话指定的引擎（null = 原通话）。
+Future<String?> readPendingCallEngine() async {
+  if (!AppDatabase.isInitialized) return null;
+  final db = AppDatabase.instance;
+  final row = await (db.select(db.kvStore)
+        ..where((kv) => kv.bucket.equals(_bucket) & kv.key.equals(_keyEngine)))
+      .getSingleOrNull();
+  final v = row?.value?.trim();
+  return (v == null || v.isEmpty) ? null : v;
+}
 
 /// Reads the pending opening message (and characterId) from KVStore.
 /// Does NOT delete; caller decides when to clear.
@@ -93,6 +108,7 @@ Future<bool> queuePendingCall({
   required String characterId,
   required String openingMessage,
   bool proactive = false,
+  String? engine,
 }) async {
   final db = AppDatabase.instance;
   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -127,6 +143,14 @@ Future<bool> queuePendingCall({
               key: _keyProactive,
               bucket: const Value(_bucket),
               value: Value(proactive.toString()),
+              updatedAt: Value(now),
+            ),
+          );
+      await db.into(db.kvStore).insertOnConflictUpdate(
+            KvStoreCompanion.insert(
+              key: _keyEngine,
+              bucket: const Value(_bucket),
+              value: Value(engine ?? ''),
               updatedAt: Value(now),
             ),
           );

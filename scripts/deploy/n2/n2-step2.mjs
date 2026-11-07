@@ -8,8 +8,8 @@
 // Tokens stay in memory only: never printed, logged or written by this script.
 //
 // Usage: run n2-step2.ps1 (Windows PowerShell 5.1, -File) with --git <git.exe>.
-// Requires the outputs of step 1 under <OUT>. Builds <OUT>\tools-fb401d45 (old tools
-// copy + the two files PR #69 changed) before anything else.
+// Requires the outputs of step 1 under <OUT>. Builds <OUT>\tools-34d19737 (old tools
+// copy + the files PRs #69 and #71 changed) before anything else.
 import {createHash,randomBytes} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {copyFileSync,existsSync,mkdirSync,readFileSync,readdirSync,statSync,writeFileSync,appendFileSync} from 'node:fs';
@@ -22,9 +22,9 @@ const M='9897fb4109f1e6dda4fa15c3a0a1ef34f4ed001160d3e458ae94860b1349af95';
 const STEP1={login:'c5109636',xml:'b8df7804',receipt:'3d018a4d',server:'f42f291f'};
 const PINNED_NODE='58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f';
 // Maintenance tools: step 1 used tools-42ecf688 (tools/i_core at S). PR #69 changed only
-// the two files below, so the new copy is the old one plus those blobs at V.
-const S='42ecf688f61ff829f5f7bb1d5aadc2695c01436b',V='fb401d459e3ae56233558ba138ae0d7ec7c07c08';
-const TOOLS_CHANGED=['tools/i_core/maintenance/package-switch-bindings.mjs','tools/i_core/release_schema6/maintenance_package_switch_bindings.test.mjs'];
+// (with #71) only the files below, so the new copy is the old one plus those blobs at V.
+const S='42ecf688f61ff829f5f7bb1d5aadc2695c01436b',V='34d19737b22c14e7fbcf2e9d7e654280b475e3d6';
+const TOOLS_CHANGED=['tools/i_core/maintenance/package-switch-bindings.mjs','tools/i_core/maintenance/stop-schema6-session.ps1','tools/i_core/release_schema6/maintenance_package_switch_bindings.test.mjs'];
 const TOOLS_FILES=321;
 
 class Stop extends Error{constructor(step,detail){super(detail);this.step=step;this.detail=detail;}}
@@ -100,7 +100,7 @@ function main(){
   const changed=git(['diff','--name-only',S,V,'--','tools/i_core'],'step0').split(/\r?\n/).filter(Boolean).sort();
   need(JSON.stringify(changed)===JSON.stringify([...TOOLS_CHANGED].sort()),'step0','tools_diff:'+changed.join(','));
   const blobs=new Map(git(['ls-tree','-r',V,'--',...TOOLS_CHANGED],'step0').split(/\r?\n/).filter(Boolean).map(l=>{const m=l.match(/^100644 blob ([0-9a-f]{40})\t(.+)$/);need(m,'step0','ls_tree');return [m[2],m[1]];}));
-  need(blobs.size===2,'step0','ls_tree_count');
+  need(blobs.size===TOOLS_CHANGED.length,'step0','ls_tree_count');
   const oldFiles=files(OLDT);need(oldFiles.length===TOOLS_FILES,'step0','old_tools_count:'+oldFiles.length);
   if(!existsSync(TOOLS)){
    mkdirSync(TOOLS);
@@ -117,7 +117,7 @@ function main(){
    else need(existsSync(path.join(OLDT,rel))&&fileSha(p)===fileSha(path.join(OLDT,rel)),'step0','tools_copy:'+rel);}
   emit('step0.tools',true,{tools:'tools-'+V.slice(0,8),files:TOOLS_FILES,changed:TOOLS_CHANGED.map(n=>path.basename(n))});
  }
- const REL=path.join(OUT,'release-42ecf688'),CAND=path.join(OUT,'mcp-candidate-42ecf688'),CFG=path.join(OUT,'n2-pkg-configs'),RUN=path.join(OUT,'n2-step2-run');
+ const REL=path.join(OUT,'release-42ecf688'),CAND=path.join(OUT,'mcp-candidate-42ecf688'),CFG=path.join(OUT,'n2-pkg-configs'),RUN=path.join(OUT,'n2-step2-run-'+new Date().toISOString().replace(/[:.]/g,'-'));
  need(existsSync(path.join(MT,'switch-login-task.ps1')),'step0','tools_copy_layout');
  need(fileSha(path.join(REL,'manifest.json'))===M,'step0','new_release_manifest_changed');
  const info=readJson(path.join(CFG,'static-inputs.json'),null,'step0');
@@ -144,7 +144,7 @@ function main(){
  privateDir(RUN,'step0');
  report=path.join(RUN,'report.jsonl');
  const gen=path.join(MT,'generate-package-switch-evidence.mjs'),node=process.execPath;
- emit('step0',true,{active:'Running',login:short(live.sha256),out_run:'n2-step2-run'});
+ emit('step0',true,{active:'Running',login:short(live.sha256),out_run:path.basename(RUN)});
 
  // A. From here the service is down. Failures before the offline switch restart the old task.
  const t0=Date.now();

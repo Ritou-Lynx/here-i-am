@@ -1,6 +1,7 @@
 // Scoped Core domain adapter. No database, chat API, grants, or background writes.
 import { PERSONAL_SCHEMAS, effectiveDisposition } from '../i_core/personal_data_domains.mjs';
 import { StudyInputError, STUDY_TOOLS, createStudyTools, loadStudyConfig } from './study_tools.mjs';
+import { HeartRateInputError, HEART_RATE_TOOLS, createHeartRateStore, createHeartRateTools, loadHeartRateConfig } from './heart_rate.mjs';
 
 export class DomainToolInputError extends Error {}
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -282,7 +283,7 @@ export function createFoodTools({client,scopes,timeZone='Asia/Shanghai',now=()=>
   return {tools,handlers:Object.fromEntries(tools.map(tool=>[tool.name,handlers[tool.name]]))};
 }
 
-// ST1: study tools exist only when <stateDir>/study.json is present, and only for Claude and ChatGPT.
+// ST1: study tools exist only when <stateDir>/study.json is present, for Claude, ChatGPT and (G1, 11-05) Gemini.
 export { STUDY_TOOLS };
 export function createStudyDomainTools({stateDir, now = () => Date.now()}) {
   const config = loadStudyConfig(stateDir);
@@ -294,7 +295,21 @@ export function createStudyDomainTools({stateDir, now = () => Date.now()}) {
       catch (error) { if (error instanceof StudyInputError) throw new DomainToolInputError(error.message); throw error; }
     }]))};
   };
-  return {claude_web:wrap('claude_web'), chatgpt_web:wrap('chatgpt_web')};
+  return {claude_web:wrap('claude_web'), chatgpt_web:wrap('chatgpt_web'), gemini_web:wrap('gemini_web')};
+}
+
+// HR1: heart_rate exists only when <stateDir>/heart_rate.json is present (Claude, ChatGPT, Antigravity, Sesame).
+// The store is shared with the 127.0.0.1 ingest listener that main() starts.
+export { HEART_RATE_TOOLS };
+export function createHeartRateDomainTools({stateDir, now = () => Date.now()}) {
+  const config = loadHeartRateConfig(stateDir);
+  if (!config) return null;
+  const store = createHeartRateStore({stateDir, now});
+  const {tools, handlers} = createHeartRateTools({store});
+  return {config, store, tools, handlers:Object.fromEntries(Object.entries(handlers).map(([name, handler]) => [name, async args => {
+    try { return await handler(args); }
+    catch (error) { if (error instanceof HeartRateInputError) throw new DomainToolInputError(error.message); throw error; }
+  }]))};
 }
 
 export const CORE_REMEMBER_TOOL = {

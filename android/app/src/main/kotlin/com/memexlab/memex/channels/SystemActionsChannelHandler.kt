@@ -2,6 +2,8 @@ package com.memexlab.memex.channels
 
 import android.app.Activity
 import android.content.ContentValues
+import android.os.Build
+import android.view.WindowManager
 import android.provider.CalendarContract
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -9,7 +11,7 @@ import java.util.TimeZone
 
 /**
  * Handles `com.memexlab.memex/system_actions` MethodChannel.
- * Supports: addCalendarEvent, addReminder.
+ * Supports: addCalendarEvent, addReminder, setShowWhenLocked.
  *
  * Android has no standalone Reminders app like iOS. Reminders are implemented
  * as all-day calendar events with a reminder alarm, which shows up in the
@@ -27,9 +29,29 @@ class SystemActionsChannelHandler(private val activity: Activity) {
                     when (call.method) {
                         "addCalendarEvent" -> handler.addCalendarEvent(call.arguments, result)
                         "addReminder" -> handler.addReminder(call.arguments, result)
+                        "setShowWhenLocked" -> {
+                            val enabled = (call.arguments as? Map<*, *>)?.get("enabled") as? Boolean ?: false
+                            handler.setShowWhenLocked(enabled)
+                            result.success(true)
+                        }
                         else -> result.notImplemented()
                     }
                 }
+        }
+    }
+
+    /** GPT-Live 催睡来电：锁屏接听时让通话页显示在锁屏上方并点亮屏幕，挂断后恢复。 */
+    private fun setShowWhenLocked(enabled: Boolean) {
+        activity.runOnUiThread {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                activity.setShowWhenLocked(enabled)
+                activity.setTurnScreenOn(enabled)
+            } else {
+                @Suppress("DEPRECATION")
+                val flags = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                if (enabled) activity.window.addFlags(flags) else activity.window.clearFlags(flags)
+            }
         }
     }
 

@@ -7,6 +7,9 @@ import 'package:memex/config/app_flavor.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_protocol.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_settings.dart';
+import 'package:memex/data/services/sleep_nudge/sleep_nudge_policy.dart';
+import 'package:memex/data/services/sleep_nudge/sleep_nudge_store.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:memex/data/services/home_turbo_tts_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/media_service.dart';
@@ -550,6 +553,15 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _gptLiveKeyController = TextEditingController();
   final _gptLiveExtraController = TextEditingController();
   String _gptLiveVoice = GptLiveProtocol.defaultVoice;
+  final _nudgeServerController = TextEditingController();
+  final _nudgeTopicController = TextEditingController();
+  final _nudgeGapController = TextEditingController();
+  final _nudgeCapController = TextEditingController();
+  final _nudgeMaxCallController = TextEditingController();
+  bool _nudgeEnabled = false;
+  SleepNudgeEngine _nudgeEngine = SleepNudgeEngine.gptLive;
+  String? _nudgeStatus;
+  bool? _fullScreenAllowed;
   String? _homeTurboDerivedUrl;
   String? _homeTurboTestResult;
   bool _homeTurboTesting = false;
@@ -589,12 +601,59 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
         values[9] as String? ?? GptLiveProtocol.defaultVoice);
     _gptLiveExtraController.text = values[10] as String? ?? '';
     _callHealth = await VoiceCallHealth.instance.load();
+    await _loadNudge();
     if (!mounted) return;
     setState(() => _provider = values[0]! as String);
   }
 
+  Future<void> _loadNudge() async {
+    try {
+      final c = await SleepNudgeStore.loadConfig();
+      _nudgeEnabled = c.enabled;
+      _nudgeEngine = c.engine;
+      _nudgeServerController.text = c.server;
+      _nudgeTopicController.text = c.topic;
+      _nudgeGapController.text = c.minGapMinutes.toString();
+      _nudgeCapController.text = c.maxPerNight.toString();
+      _nudgeMaxCallController.text = c.maxCallMinutes.toString();
+      _nudgeStatus = await SleepNudgeStore.lastStatus();
+    } catch (_) {}
+    try {
+      _fullScreenAllowed = await FlutterCallkitIncoming.canUseFullScreenIntent();
+    } catch (_) {
+      _fullScreenAllowed = null;
+    }
+  }
+
+  int _nudgeInt(TextEditingController c, int fallback) {
+    final n = int.tryParse(c.text.trim());
+    return n == null || n < 0 ? fallback : n;
+  }
+
+  Future<void> _saveNudge() async {
+    await SleepNudgeStore.saveConfig(SleepNudgeConfig(
+      enabled: _nudgeEnabled,
+      server: _nudgeServerController.text.trim().isEmpty
+          ? SleepNudgeConfig.defaultServer
+          : _nudgeServerController.text.trim(),
+      topic: _nudgeTopicController.text.trim(),
+      engine: _nudgeEngine,
+      minGapMinutes: _nudgeInt(
+          _nudgeGapController, SleepNudgeConfig.defaultMinGapMinutes),
+      maxPerNight: _nudgeInt(
+          _nudgeCapController, SleepNudgeConfig.defaultMaxPerNight),
+      maxCallMinutes: _nudgeInt(
+          _nudgeMaxCallController, SleepNudgeConfig.defaultMaxCallMinutes),
+    ));
+  }
+
   @override
   void dispose() {
+    _nudgeServerController.dispose();
+    _nudgeTopicController.dispose();
+    _nudgeGapController.dispose();
+    _nudgeCapController.dispose();
+    _nudgeMaxCallController.dispose();
     _elevenLabsController.dispose();
     _elevenLabsVoiceIdController.dispose();
     _miniMaxController.dispose();
@@ -617,6 +676,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     await GptLiveSettings.setApiKey(_gptLiveKeyController.text);
     await GptLiveSettings.setVoice(_gptLiveVoice);
     await GptLiveSettings.setExtraInstructions(_gptLiveExtraController.text);
+    await _saveNudge();
     // 家里电脑声音失败时用 MiniMax 顶上，所以也保存 MiniMax 的配置。
     if (_provider == 'minimax' || _provider == 'home_turbo') {
       await UserStorage.setMiniMaxApiKey(_miniMaxController.text.trim());
@@ -631,6 +691,110 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       );
     }
     if (mounted) _showSaved(context, '语音播放设置已保存');
+  }
+
+  Widget _buildSleepNudgeSection(BuildContext context) {
+    final small = Theme.of(context).textTheme.bodySmall;
+    return _SettingsSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              '催睡来电（床头哨兵）',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            subtitle: Text(
+              '床头哨兵判断你还醒着就推送到 ntfy，App 收到后直接响铃来电。不受主动联系开关影响。',
+              style: small,
+            ),
+            value: _nudgeEnabled,
+            onChanged: (v) => setState(() => _nudgeEnabled = v),
+          ),
+          TextField(
+            controller: _nudgeServerController,
+            decoration: const InputDecoration(
+              labelText: 'ntfy 服务器',
+              hintText: SleepNudgeConfig.defaultServer,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nudgeTopicController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'topic',
+              helperText: '和床头哨兵里填的同一个私有 topic',
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<SleepNudgeEngine>(
+            initialValue: _nudgeEngine,
+            decoration: const InputDecoration(labelText: '接听后用'),
+            items: const [
+              DropdownMenuItem(
+                value: SleepNudgeEngine.gptLive,
+                child: Text('GPT-Live（推荐）'),
+              ),
+              DropdownMenuItem(
+                value: SleepNudgeEngine.classic,
+                child: Text('原通话'),
+              ),
+            ],
+            onChanged: (v) {
+              if (v != null) setState(() => _nudgeEngine = v);
+            },
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _nudgeGapController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '间隔(分钟)'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _nudgeCapController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '每晚最多'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _nudgeMaxCallController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '单通上限(分)'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_fullScreenAllowed == false)
+            Row(
+              children: [
+                Expanded(
+                  child: Text('锁屏全屏来电需要“全屏通知”权限，现在没开。', style: small),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      await FlutterCallkitIncoming.requestFullIntentPermission();
+                    } catch (_) {}
+                  },
+                  child: const Text('去开启'),
+                ),
+              ],
+            ),
+          Text('最近：${_nudgeStatus ?? '还没收到过推送'}', style: small),
+        ],
+      ),
+    );
   }
 
   Future<void> _copyCallHealth() async {
@@ -866,6 +1030,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          _buildSleepNudgeSection(context),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,

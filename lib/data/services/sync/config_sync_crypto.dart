@@ -5,9 +5,9 @@ import 'package:cryptography/cryptography.dart';
 
 /// Password-derived AES-256-GCM envelope for encrypted config sync packages.
 ///
-/// Byte-for-byte compatible with the i continuity gateway's device-sync
-/// envelope (`tools/i_continuity_gateway/i_device_sync.mjs`), so a package
-/// sealed on-device can be opened by the desktop gateway and vice versa:
+/// Byte-for-byte compatible with the device-sync envelope of the retired i
+/// continuity gateway (formerly `tools/i_continuity_gateway/i_device_sync.mjs`;
+/// `test/data/services/sync/_node_seal.mjs` keeps a Node reference copy):
 ///   - KDF: PBKDF2-HMAC-SHA256, 600_000 iterations, 32-byte key
 ///   - Cipher: AES-256-GCM, 16-byte salt, 12-byte iv/nonce, 16-byte tag
 ///   - Fields base64url-encoded (no padding), wrapped in a JSON envelope with
