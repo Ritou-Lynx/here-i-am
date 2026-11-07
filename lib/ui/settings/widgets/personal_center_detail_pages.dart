@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/config/app_flavor.dart';
 import 'package:memex/data/services/checkin_service.dart';
+import 'package:memex/data/services/gpt_live/gpt_live_protocol.dart';
+import 'package:memex/data/services/gpt_live/gpt_live_settings.dart';
 import 'package:memex/data/services/home_turbo_tts_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/media_service.dart';
@@ -545,6 +547,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _miniMaxGroupController = TextEditingController();
   final _miniMaxVoiceIdController = TextEditingController();
   final _homeTurboUrlController = TextEditingController();
+  final _gptLiveKeyController = TextEditingController();
+  final _gptLiveExtraController = TextEditingController();
+  String _gptLiveVoice = GptLiveProtocol.defaultVoice;
   String? _homeTurboDerivedUrl;
   String? _homeTurboTestResult;
   bool _homeTurboTesting = false;
@@ -567,6 +572,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       UserStorage.getMiniMaxVoiceId(),
       HomeTurboTtsService.getSavedUrl(),
       HomeTurboTtsService.getDerivedUrl(),
+      GptLiveSettings.getApiKey(),
+      GptLiveSettings.getVoice(),
+      GptLiveSettings.getExtraInstructions(),
     ]);
     if (!mounted) return;
     _elevenLabsController.text = values[1] as String? ?? '';
@@ -576,6 +584,10 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _miniMaxVoiceIdController.text = values[5] as String? ?? '';
     _homeTurboUrlController.text = values[6] as String? ?? '';
     _homeTurboDerivedUrl = values[7] as String?;
+    _gptLiveKeyController.text = values[8] as String? ?? '';
+    _gptLiveVoice = GptLiveProtocol.normalizeVoice(
+        values[9] as String? ?? GptLiveProtocol.defaultVoice);
+    _gptLiveExtraController.text = values[10] as String? ?? '';
     _callHealth = await VoiceCallHealth.instance.load();
     if (!mounted) return;
     setState(() => _provider = values[0]! as String);
@@ -589,6 +601,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _miniMaxGroupController.dispose();
     _miniMaxVoiceIdController.dispose();
     _homeTurboUrlController.dispose();
+    _gptLiveKeyController.dispose();
+    _gptLiveExtraController.dispose();
     super.dispose();
   }
 
@@ -600,6 +614,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
 
   Future<void> _save() async {
     await HomeTurboTtsService.saveUrl(_homeTurboUrlController.text);
+    await GptLiveSettings.setApiKey(_gptLiveKeyController.text);
+    await GptLiveSettings.setVoice(_gptLiveVoice);
+    await GptLiveSettings.setExtraInstructions(_gptLiveExtraController.text);
     // 家里电脑声音失败时用 MiniMax 顶上，所以也保存 MiniMax 的配置。
     if (_provider == 'minimax' || _provider == 'home_turbo') {
       await UserStorage.setMiniMaxApiKey(_miniMaxController.text.trim());
@@ -789,6 +806,62 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                       ),
                     ),
                   ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingsSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'GPT-Live 通话（备选）',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '聊天页右上角菜单里的“GPT-Live 通话”用它，直连 OpenAI，按分钟计费（走 API 额度）。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _gptLiveKeyController,
+                  obscureText: true,
+                  decoration:
+                      const InputDecoration(labelText: 'OpenAI API Key'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _gptLiveVoice,
+                  decoration: const InputDecoration(
+                    labelText: '声音',
+                    helperText: '改完保存，下一通电话生效',
+                  ),
+                  items: [
+                    for (final v in GptLiveProtocol.builtInVoices)
+                      DropdownMenuItem(
+                        value: v,
+                        child: Text(v == GptLiveProtocol.defaultVoice
+                            ? '$v（默认）'
+                            : v),
+                      ),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _gptLiveVoice = v);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _gptLiveExtraController,
+                  minLines: 3,
+                  maxLines: 8,
+                  decoration: const InputDecoration(
+                    labelText: '通话附加说明',
+                    helperText: '原样加在林埃人设和通话规则后面，只对 GPT-Live 通话生效',
+                    helperMaxLines: 2,
+                    alignLabelWithHint: true,
+                  ),
                 ),
               ],
             ),

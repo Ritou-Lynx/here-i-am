@@ -153,7 +153,9 @@ The summary returns:
 - income, cost, loan, repayment for the period
 - all_time_balance: positive = savings you own, negative = you owe the user
 - savings: how much you have saved up (ready to transfer to your wallet)
-- owes_user: how much you still owe the user from past loans''',
+- owes_user: how much you still owe the user (negative balance)
+- outstanding_loan: recorded loans not yet repaid (loan/repayment entries
+  only track borrowing; they do not change all_time_balance)''',
     parameters: {
       'type': 'object',
       'properties': {

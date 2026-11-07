@@ -33,6 +33,7 @@ class LedgerViewModel extends ChangeNotifier {
     addEntry = Command1<void, LedgerEntryDraft>(_addEntry);
     updateEntry = Command1<void, LedgerEntryDraft>(_updateEntry);
     deleteEntry = Command1<void, String>(_deleteEntry);
+    setStartDate = Command1<void, DateTime?>(_setStartDate);
   }
 
   final AiFinanceService _service;
@@ -40,6 +41,12 @@ class LedgerViewModel extends ChangeNotifier {
   late final Command1<void, LedgerEntryDraft> addEntry;
   late final Command1<void, LedgerEntryDraft> updateEntry;
   late final Command1<void, String> deleteEntry;
+
+  /// 设置（或传 null 清除）累计数字的起算日。
+  late final Command1<void, DateTime?> setStartDate;
+
+  /// 累计数字从哪天开始算；null = 从第一笔开始。
+  DateTime? startDate;
 
   Map<String, dynamic> overview = const {};
   List<Map<String, dynamic>> entries = const [];
@@ -57,8 +64,8 @@ class LedgerViewModel extends ChangeNotifier {
     final cur = DateTime(int.parse(parts[0]), int.parse(parts[1]));
     final next = DateTime(cur.year, cur.month + delta);
     final now = DateTime.now();
-    // 不允许选到未来月份。
-    if (next.isAfter(DateTime(now.year, now.month + 1))) return;
+    // 不允许选到未来月份（当月是上限）。
+    if (next.isAfter(DateTime(now.year, now.month))) return;
     final newMonth = _formatMonth(next);
     if (newMonth == _selectedMonth) return;
     _selectedMonth = newMonth;
@@ -81,7 +88,7 @@ class LedgerViewModel extends ChangeNotifier {
           ? draft.aiAmount / draft.totalAmount
           : null;
       await _service.recordEntry(
-        characterId: 'manual:user',
+        characterId: AiFinanceService.manualUserCharacterId,
         entryType: draft.entryType,
         totalAmount: draft.totalAmount,
         aiAmount: draft.aiAmount,
@@ -105,15 +112,18 @@ class LedgerViewModel extends ChangeNotifier {
       final ratio = draft.entryType == 'income' && draft.totalAmount > 0
           ? draft.aiAmount / draft.totalAmount
           : null;
+      // 表单提交的是整条账目：空字段要显式清空（空字符串），不能用 null，
+      // 否则 updateEntry 会保留旧值（例如从转账改成支出后残留方向）。
       await _service.updateEntry(
         entryId: id,
         entryType: draft.entryType,
         totalAmount: draft.totalAmount,
         aiAmount: draft.aiAmount,
         contributionRatio: ratio,
+        clearContributionRatio: ratio == null,
         purpose: draft.purpose,
-        notes: draft.notes,
-        transferDirection: draft.transferDirection,
+        notes: draft.notes ?? '',
+        transferDirection: draft.transferDirection ?? '',
         occurredAt: draft.occurredAt,
       );
       await _refresh();
@@ -127,13 +137,22 @@ class LedgerViewModel extends ChangeNotifier {
     });
   }
 
+  Future<Result<void>> _setStartDate(DateTime? date) {
+    return runResultVoid(() async {
+      await _service.setLedgerStartDate(date);
+      await _refresh();
+    });
+  }
+
   Future<void> _refresh() async {
     final results = await Future.wait([
       _service.getLedgerOverview(month: _selectedMonth),
       _service.getRecentEntries(limit: 100, month: _selectedMonth),
+      _service.getLedgerStartDate(),
     ]);
     overview = results[0] as Map<String, dynamic>;
     entries = results[1] as List<Map<String, dynamic>>;
+    startDate = results[2] as DateTime?;
     notifyListeners();
   }
 
@@ -143,6 +162,7 @@ class LedgerViewModel extends ChangeNotifier {
     addEntry.dispose();
     updateEntry.dispose();
     deleteEntry.dispose();
+    setStartDate.dispose();
     super.dispose();
   }
 }

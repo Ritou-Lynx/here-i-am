@@ -226,6 +226,7 @@ void main() {
         await finance.updateEntry(
             entryId: (await panel()).single['id'] as String,
             totalAmount: 32,
+            linkedFactId: '',
             notes: 'User edited ledger');
         expect((await panel()).single['linked_fact_id'], isNull);
         await feed(3, deleted: true);
