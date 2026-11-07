@@ -25,10 +25,28 @@ void main() {
         'output': {'voice': 'cedar'},
       });
       expect(session['input'], [
-        {'role': 'user', 'content': '在吗'},
-        {'role': 'assistant', 'content': '在'},
+        {
+          'type': 'message',
+          'role': 'user',
+          'content': [
+            {'type': 'input_text', 'text': '在吗'},
+          ],
+        },
+        {
+          'type': 'message',
+          'role': 'assistant',
+          'content': [
+            {'type': 'output_text', 'text': '在'},
+          ],
+        },
       ]);
       expect(body['transport'], {'type': 'webrtc', 'sdp': 'v=0 offer'});
+    });
+
+    test('不支持的声音名退回默认', () {
+      expect(GptLiveProtocol.normalizeVoice(' Cedar '), 'cedar');
+      expect(GptLiveProtocol.normalizeVoice('ember'), GptLiveProtocol.defaultVoice);
+      expect(GptLiveProtocol.normalizeVoice('hanul'), GptLiveProtocol.defaultVoice);
     });
 
     test('没有历史时不带 input，超长人设被截断', () {
