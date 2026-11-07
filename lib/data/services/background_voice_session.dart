@@ -15,6 +15,7 @@ import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/notification_service.dart';
 import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/data/services/streaming_tts_player.dart';
+import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/domain/models/llm_config.dart';
@@ -119,6 +120,7 @@ class BackgroundVoiceSession {
       _characterId = character.id;
       _characterName = character.name;
       _voiceId = await UserStorage.getActiveTtsVoiceId();
+      unawaited(TtsService.prepareForVoiceSession());
       _ready = true;
       _log.info(
           'ready: character=${character.id} voiceId=${_voiceId ?? 'none'}');

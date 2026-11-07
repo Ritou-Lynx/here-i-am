@@ -64,7 +64,9 @@ class _CompanionLedgerPanelState extends State<CompanionLedgerPanel> {
           _CashSummary(overview: viewModel.overview),
           const SizedBox(height: 12),
           _SplitSummary(overview: viewModel.overview),
-          const SizedBox(height: 22),
+          const SizedBox(height: 8),
+          _StartDateRow(startDate: viewModel.startDate),
+          const SizedBox(height: 14),
           if (_viewMode == _ViewMode.list) ...[
             const Text(
               '当月明细',
@@ -270,6 +272,8 @@ class _CashSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final net = _number(overview['cash_net']);
     final allTimeNet = _number(overview['all_time_cash_net']);
+    final since = overview['counting_since'] as String?;
+    final allTimeLabel = since == null ? '总至今' : '自 $since 起';
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: _cardDecoration(),
@@ -283,7 +287,7 @@ class _CashSummary extends StatelessWidget {
               const Text('本月收支结余', style: TextStyle(color: _ledgerMuted)),
               const SizedBox(width: 10),
               Text(
-                '总至今 ${_money(allTimeNet, signed: true)}',
+                '$allTimeLabel ${_money(allTimeNet, signed: true)}',
                 style: const TextStyle(
                   fontSize: 11,
                   color: _ledgerMuted,
@@ -332,6 +336,105 @@ class _CashSummary extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// 累计数字（总至今、我的部分、i 的余额）的起算日。点一下可以改或清除。
+class _StartDateRow extends StatelessWidget {
+  const _StartDateRow({required this.startDate});
+
+  final DateTime? startDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = startDate;
+    final label = start == null
+        ? '累计从第一笔开始算'
+        : '累计从 ${DateFormat('yyyy年M月d日').format(start)} 开始算';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () => _pick(context),
+        style: TextButton.styleFrom(
+          foregroundColor: _ledgerOnRain,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          visualDensity: VisualDensity.compact,
+        ),
+        icon: const Icon(Icons.flag_outlined, size: 16),
+        label: Text(
+          '$label · 修改',
+          style: const TextStyle(
+            fontSize: 12,
+            shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pick(BuildContext context) async {
+    final viewModel = context.read<LedgerViewModel>();
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 4),
+              child: Text(
+                '起算日之前的账目会保留，也能按月查看，只是不再计入累计和 i 的余额。',
+                style: TextStyle(fontSize: 13, color: _ledgerMuted),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.today_outlined),
+              title: const Text('从今天重新开始'),
+              onTap: () => Navigator.pop(sheetContext, 'today'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_outlined),
+              title: const Text('选一个日期'),
+              onTap: () => Navigator.pop(sheetContext, 'pick'),
+            ),
+            if (startDate != null)
+              ListTile(
+                leading: const Icon(Icons.history_rounded),
+                title: const Text('取消起算日，从第一笔开始算'),
+                onTap: () => Navigator.pop(sheetContext, 'clear'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    final now = DateTime.now();
+    DateTime? date;
+    switch (choice) {
+      case 'today':
+        date = DateTime(now.year, now.month, now.day);
+      case 'pick':
+        date = await showDatePicker(
+          context: context,
+          initialDate: startDate ?? DateTime(now.year, now.month, now.day),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(now.year, now.month, now.day),
+        );
+        if (date == null || !context.mounted) return;
+      case 'clear':
+        date = null;
+    }
+    await viewModel.setStartDate.execute(date);
+    if (!context.mounted) return;
+    if (viewModel.setStartDate.result case Error<void>(:final error)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('设置失败：$error')),
+      );
+    }
   }
 }
 
@@ -743,7 +846,7 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
   final _aiAmountController = TextEditingController(text: '0');
   final _purposeController = TextEditingController();
   final _notesController = TextEditingController();
-  String _entryType = 'income';
+  String _entryType = 'expense';
   String _transferDirection = 'user_to_ai';
   DateTime _occurredAt = DateTime.now();
 
@@ -1003,7 +1106,17 @@ class _LedgerEntrySheetState extends State<_LedgerEntrySheet> {
       firstDate: DateTime(2000),
       lastDate: lastDate,
     );
-    if (date != null) setState(() => _occurredAt = date);
+    if (date == null) return;
+    // showDatePicker 只给日期（零点）；保留原来的时分，避免同一天的账目都落在
+    // 00:00、排序和去重时间窗失真。
+    setState(() => _occurredAt = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          _occurredAt.hour,
+          _occurredAt.minute,
+          _occurredAt.second,
+        ));
   }
 
   void _submit() {
@@ -1114,35 +1227,57 @@ class _MonthCalendarSection extends StatelessWidget {
     );
   }
 
-  Map<int, List<Map<String, dynamic>>> _groupEntriesByDay(
-    List<Map<String, dynamic>> rows,
-    String month,
-  ) {
-    final parts = month.split('-');
-    final year = int.parse(parts[0]);
-    final mon = int.parse(parts[1]);
-    final map = <int, List<Map<String, dynamic>>>{};
-    for (final r in rows) {
-      final epoch = (r['recorded_at'] as num?)?.toInt() ?? 0;
-      final dt = DateTime.fromMillisecondsSinceEpoch(epoch * 1000);
-      if (dt.year != year || dt.month != mon) continue;
-      map.putIfAbsent(dt.day, () => []).add(r);
-    }
-    return map;
-  }
-
   Future<void> _showDaySheet(
     BuildContext context,
     int day,
     List<Map<String, dynamic>> dayList,
   ) async {
+    // LedgerViewModel 只挂在账本页里；底部弹窗是新路由，拿不到它。把同一个
+    // 实例带进去，明细里长按修改 / 删除才能用，并且改完后明细跟着刷新。
+    final viewModel = context.read<LedgerViewModel>();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _DayEntriesSheet(day: day, entries: dayList),
+      builder: (_) => ChangeNotifierProvider<LedgerViewModel>.value(
+        value: viewModel,
+        child: _DayEntriesSheet(day: day, month: selectedMonth),
+      ),
     );
   }
+}
+
+Map<int, List<Map<String, dynamic>>> _groupEntriesByDay(
+  List<Map<String, dynamic>> rows,
+  String month,
+) {
+  final parts = month.split('-');
+  final year = int.parse(parts[0]);
+  final mon = int.parse(parts[1]);
+  final map = <int, List<Map<String, dynamic>>>{};
+  for (final r in rows) {
+    final epoch = (r['recorded_at'] as num?)?.toInt() ?? 0;
+    final dt = DateTime.fromMillisecondsSinceEpoch(epoch * 1000);
+    if (dt.year != year || dt.month != mon) continue;
+    map.putIfAbsent(dt.day, () => []).add(r);
+  }
+  return map;
+}
+
+/// 当日现金净额：只算对外的收入和支出，和顶部「现金净额」同一口径。
+/// 我和 i 之间的转账、奖惩、垫付是内部结算，不算花钱。
+double _dayCashNet(List<Map<String, dynamic>> entries) {
+  var net = 0.0;
+  for (final e in entries) {
+    final total = _number(e['total_amount']);
+    switch (e['type'] as String? ?? '') {
+      case 'income':
+        net += total;
+      case 'expense' || 'cost':
+        net -= total;
+    }
+  }
+  return net;
 }
 
 class _MonthCalendarGrid extends StatelessWidget {
@@ -1241,18 +1376,7 @@ class _CalendarDayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 当日净流：收入+返还-支出-转出
-    double net = 0;
-    for (final e in entries) {
-      final type = e['type'] as String? ?? '';
-      final total = _number(e['total_amount']);
-      final dir = e['transfer_direction'] as String?;
-      final isInflow = type == 'income' ||
-          type == 'reward' ||
-          type == 'repayment' ||
-          (type == 'transfer' && dir == 'ai_to_user');
-      net += isInflow ? total : -total;
-    }
+    final net = _dayCashNet(entries);
     final hasEntries = entries.isNotEmpty;
     final ink = net >= 0 ? _ledgerIncome : _ledgerExpense;
     return InkWell(
@@ -1302,24 +1426,19 @@ class _CalendarDayCell extends StatelessWidget {
 }
 
 class _DayEntriesSheet extends StatelessWidget {
-  const _DayEntriesSheet({required this.day, required this.entries});
+  const _DayEntriesSheet({required this.day, required this.month});
 
   final int day;
-  final List<Map<String, dynamic>> entries;
+  final String month;
 
   @override
   Widget build(BuildContext context) {
-    double net = 0;
-    for (final e in entries) {
-      final type = e['type'] as String? ?? '';
-      final total = _number(e['total_amount']);
-      final dir = e['transfer_direction'] as String?;
-      final isInflow = type == 'income' ||
-          type == 'reward' ||
-          type == 'repayment' ||
-          (type == 'transfer' && dir == 'ai_to_user');
-      net += isInflow ? total : -total;
-    }
+    final viewModel = context.watch<LedgerViewModel>();
+    // 改了日期的账目会离开这一天；切走月份后整页数据也不再属于这一天。
+    final entries = viewModel.selectedMonth == month
+        ? _groupEntriesByDay(viewModel.entries, month)[day] ?? const []
+        : const <Map<String, dynamic>>[];
+    final net = _dayCashNet(entries);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
       decoration: const BoxDecoration(

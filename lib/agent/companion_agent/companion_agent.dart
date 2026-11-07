@@ -602,17 +602,51 @@ class CompanionAgent {
   ///
   /// 写错 provider 的标签会被对方忽略或删除，情绪信息丢失。所以指南不能写死在
   /// system prompt 里（会污染另一个 provider），必须 per-turn 按当前 provider 注入。
-  static Future<void> _injectTtsTagsGuide(AgentState state) async {
+  static Future<void> _injectTtsTagsGuide(
+    AgentState state, {
+    bool voiceMode = false,
+  }) async {
     // 直接读持久化的 provider。不能依赖 getCachedTtsProviderSync()：缓存未就绪
     // 时旧实现会静默落到 MiniMax，导致切到 ElevenLabs 后模型仍按 MiniMax 的
     // 圆括号标签写，情绪全部丢失（背景 checkin / 冷启动等场景必现）。
     final provider = await UserStorage.getTtsProvider();
-    if (provider == 'minimax') {
+    if (provider == 'home_turbo') {
+      // 家里电脑的林埃英文声音只会英文：语音场景让模型用英文回复并用 Turbo 标签；
+      // 文字聊天照常中文，中文句子会自动交给 MiniMax 念，所以给 MiniMax 指南。
+      state.systemReminders['tts_tags_guide'] =
+          voiceMode ? homeTurboVoiceGuide : _miniMaxTtsTagsGuide;
+    } else if (provider == 'minimax') {
       state.systemReminders['tts_tags_guide'] = _miniMaxTtsTagsGuide;
     } else {
       state.systemReminders['tts_tags_guide'] = _elevenLabsTtsTagsGuide;
     }
   }
+
+  /// 语音场景 + 家里电脑声音（Chatterbox-Turbo，仅英文）时注入。
+  @visibleForTesting
+  static const homeTurboVoiceGuide =
+      '## VOICE LANGUAGE: ENGLISH (home voice active)\n'
+      'Your spoken replies in this voice conversation are synthesized by an '
+      'English-only voice engine. Reply in natural spoken English for the '
+      'whole turn, even if the user speaks Chinese — understand them, answer '
+      'in English. Keep it short, warm and conversational, the way a person '
+      'actually talks: contractions, small fillers, no lists or markdown.\n'
+      'Any Chinese characters in your reply will be read by a different '
+      'fallback voice, so avoid them (names may stay as pinyin).\n'
+      '\n'
+      'Voice tags: square brackets, lowercase, placed where the sound happens, '
+      'e.g. `[chuckle] Yeah, I know.` or `That was close. [sigh] Okay.` '
+      'At most two tags per reply; most replies need none. Only these work:\n'
+      '- `[laugh]` `[chuckle]` — laughing / a soft laugh\n'
+      '- `[sigh]` — a sigh\n'
+      '- `[gasp]` — a sharp breath in, surprise\n'
+      '- `[sniff]` `[crying]` — teary, upset\n'
+      '- `[groan]` — a groan\n'
+      '- `[clear throat]` `[cough]`\n'
+      '- `[shush]` — a quiet "shh"\n'
+      '- `[whispering]` — say the following softly\n'
+      'Do not invent other tags and do not write actions or stage directions; '
+      'anything else is dropped.';
 
   static const _elevenLabsTtsTagsGuide =
       '## TTS 语音标签（ElevenLabs v3）\n'
@@ -1724,7 +1758,7 @@ class CompanionAgent {
       // TTS 语音标签指南按当前 provider 注入——ElevenLabs 和 MiniMax 标签体系
       // 完全不同（ElevenLabs 用 [whispers] 方括号，MiniMax 用 (breath) 圆括号），
       // 写错 provider 的标签会被对方忽略或删除，情绪信息丢失。
-      await _injectTtsTagsGuide(state);
+      await _injectTtsTagsGuide(state, voiceMode: voiceMode);
 
       // 时间感知：注入距上一条消息的间隔上下文，让角色自然接续对话。
       await _injectTimeGapContext(

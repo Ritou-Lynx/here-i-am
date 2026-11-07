@@ -4,6 +4,7 @@ import 'package:memex/data/services/tts_service.dart';
 import 'package:memex/data/services/voice_cue_classifier.dart';
 import 'package:memex/data/services/voice_cue_service.dart';
 import 'package:memex/utils/logger.dart';
+import 'package:memex/utils/user_storage.dart';
 
 /// Coordinates the local voice cue lifecycle:
 ///
@@ -40,6 +41,13 @@ class VoiceCueCoordinator {
   /// Whether a cue is currently playing.
   bool get isPlaying => _currentClip != null && _cueService.isPlaying;
 
+  /// 家里电脑的英文声音念英文提示语，其余声音念中文。
+  static String textFor(VoiceCueClip clip, {String? provider}) {
+    final p = provider ?? UserStorage.getCachedTtsProviderSync();
+    if (p == TtsService.homeTurboProvider) return clip.englishText ?? clip.text;
+    return clip.text;
+  }
+
   /// Initialize for a voice session. Call when voice mode starts.
   void init({required String voiceId, bool voiceMode = false}) {
     _voiceId = voiceId;
@@ -55,7 +63,7 @@ class VoiceCueCoordinator {
     var fail = 0;
     for (final clip in defaultVoiceCueManifest) {
       try {
-        await TtsService.textToSpeech(text: clip.text, voiceId: voiceId);
+        await TtsService.textToSpeech(text: textFor(clip), voiceId: voiceId);
         ok++;
       } catch (e) {
         fail++;
@@ -95,7 +103,7 @@ class VoiceCueCoordinator {
   ) async {
     try {
       final audioPath =
-          await TtsService.textToSpeech(text: clip.text, voiceId: voiceId);
+          await TtsService.textToSpeech(text: textFor(clip), voiceId: voiceId);
       if (_currentClip?.clipId != clip.clipId) return;
       await _cueService.playClip(
         clip: clip,

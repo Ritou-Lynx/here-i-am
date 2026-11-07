@@ -22,6 +22,7 @@ import com.memexlab.memex.ble.BleHeartRateEventBus
 import com.memexlab.memex.ble.BleHeartRateNightReport
 import com.memexlab.memex.ble.BleHeartRateService
 import com.memexlab.memex.ble.BleHeartRateStore
+import com.memexlab.memex.ble.BleHeartRateUploadSettings
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
@@ -210,6 +211,16 @@ object BleHeartRateChannelHandler {
                             }
                         }
                     }
+                    // HR1: sync to the home computer. No userId: one phone, one computer.
+                    "configureUpload" -> {
+                        val settings = BleHeartRateUploadSettings(activity.applicationContext)
+                        if (args == null || !settings.configure(args)) {
+                            result.error("INVALID_URL", "address must be a plain https root", null)
+                        } else {
+                            result.success(settings.status())
+                        }
+                    }
+                    "getUploadStatus" -> result.success(BleHeartRateUploadSettings(activity.applicationContext).status())
                     else -> result.notImplemented()
                 }
             }

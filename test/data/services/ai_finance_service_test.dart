@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
@@ -393,6 +393,208 @@ void main() {
 
       final entries = await service.getRecentEntries(limit: 10);
       expect(entries, hasLength(2));
+    });
+    test('updateEntry keeps fields that are not passed', () async {
+      final id = await service.recordEntry(
+        characterId: 'i',
+        entryType: 'transfer',
+        totalAmount: 20,
+        aiAmount: 20,
+        purpose: '撒娇小费',
+        notes: '周五',
+        linkedFactId: 'card-9',
+        transferDirection: 'user_to_ai',
+      );
+
+      final updated = await service.updateEntry(entryId: id, totalAmount: 25);
+
+      expect(updated!.totalAmount, 25);
+      expect(updated.purpose, '撒娇小费');
+      expect(updated.notes, '周五');
+      expect(updated.linkedFactId, 'card-9');
+      expect(updated.transferDirection, 'user_to_ai');
+    });
+
+    test('updateEntry clears text with empty string and ratio on request',
+        () async {
+      final id = await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'income',
+        totalAmount: 100,
+        aiAmount: 30,
+        contributionRatio: 0.3,
+        purpose: '稿费',
+        notes: '旧备注',
+      );
+
+      final updated = await service.updateEntry(
+        entryId: id,
+        entryType: 'expense',
+        aiAmount: 0,
+        clearContributionRatio: true,
+        notes: '',
+        transferDirection: '',
+      );
+
+      expect(updated!.entryType, 'expense');
+      expect(updated.contributionRatio, isNull);
+      expect(updated.notes, isNull);
+      expect(updated.transferDirection, isNull);
+      expect(updated.purpose, '稿费');
+    });
+
+    test('manual entries with the same amount and item are all kept',
+        () async {
+      for (var i = 0; i < 2; i++) {
+        final result = await service.recordEntryWithResult(
+          characterId: AiFinanceService.manualUserCharacterId,
+          entryType: 'expense',
+          totalAmount: 30,
+          aiAmount: 0,
+          purpose: '咖啡',
+        );
+        expect(result.created, isTrue);
+      }
+
+      final entries = await service.getRecentEntries(limit: 10);
+      final overview = await service.getLedgerOverview();
+      expect(entries, hasLength(2));
+      expect(overview['external_expense'], 60);
+    });
+
+    test('expense does NOT dedupe when one item only contains the other',
+        () async {
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'expense',
+        totalAmount: 30,
+        aiAmount: 0,
+        purpose: '咖啡',
+      );
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'expense',
+        totalAmount: 30,
+        aiAmount: 0,
+        purpose: '咖啡豆',
+      );
+
+      expect(await service.getRecentEntries(limit: 10), hasLength(2));
+    });
+
+    test('loan and repayment are counted once and keep both sides balanced',
+        () async {
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'cost',
+        totalAmount: 100,
+        aiAmount: 100,
+        purpose: 'API 套餐',
+      );
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'loan',
+        totalAmount: 100,
+        aiAmount: 100,
+        purpose: '借钱付套餐',
+      );
+
+      var summary = await service.getSummary();
+      expect(summary['all_time_balance'], -100);
+      expect(summary['owes_user'], 100);
+      expect(summary['outstanding_loan'], 100);
+
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'income',
+        totalAmount: 1000,
+        aiAmount: 300,
+        purpose: '制作收入',
+      );
+      await service.recordEntry(
+        characterId: 'i',
+        entryType: 'repayment',
+        totalAmount: 100,
+        aiAmount: 100,
+        purpose: '还套餐钱',
+      );
+
+      summary = await service.getSummary();
+      expect(summary['all_time_balance'], 200);
+      expect(summary['owes_user'], 0);
+      expect(summary['outstanding_loan'], 0);
+
+      final overview = await service.getLedgerOverview();
+      expect(overview['my_allocated_net'], 700);
+      expect(overview['loaned_to_ai'], 100);
+      expect(overview['repaid_by_ai'], 100);
+      expect(
+        (overview['my_allocated_net'] as double) +
+            (overview['ai_all_time_balance'] as double),
+        overview['cash_net'],
+      );
+    });
+
+    test('ai expense share includes everyday expenses', () async {
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'expense',
+        totalAmount: 60,
+        aiAmount: 20,
+        purpose: '一起吃饭',
+      );
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'cost',
+        totalAmount: 50,
+        aiAmount: 50,
+        purpose: 'API 套餐',
+      );
+
+      final overview = await service.getLedgerOverview();
+      expect(overview['ai_expense_share'], 70);
+      expect(overview['my_expense_share'], 40);
+    });
+    test('start date restarts cumulative totals but keeps older rows',
+        () async {
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'cost',
+        totalAmount: 500,
+        aiAmount: 500,
+        purpose: '旧套餐',
+        occurredAt: DateTime(2026, 3, 10, 12),
+      );
+      await service.recordEntry(
+        characterId: 'manual:user',
+        entryType: 'income',
+        totalAmount: 1000,
+        aiAmount: 300,
+        purpose: '新收入',
+        occurredAt: DateTime(2026, 11, 6, 12),
+      );
+
+      await service.setLedgerStartDate(DateTime(2026, 11, 6, 18, 30));
+      expect(await service.getLedgerStartDate(), DateTime(2026, 11, 6));
+
+      final summary = await service.getSummary();
+      expect(summary['all_time_balance'], 300);
+      expect(summary['counting_since'], '2026-11-06');
+
+      final overview = await service.getLedgerOverview(month: '2026-11');
+      expect(overview['all_time_cash_net'], 1000);
+      expect(overview['ai_all_time_balance'], 300);
+      expect(overview['counting_since'], '2026-11-06');
+
+      // 起算日之前的月份照常能查到。
+      final march = await service.getRecentEntries(month: '2026-03');
+      expect(march, hasLength(1));
+      final marchOverview = await service.getLedgerOverview(month: '2026-03');
+      expect(marchOverview['external_expense'], 500);
+
+      await service.setLedgerStartDate(null);
+      expect(await service.getLedgerStartDate(), isNull);
+      expect((await service.getSummary())['all_time_balance'], -200);
     });
   });
 }

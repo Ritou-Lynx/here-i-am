@@ -301,3 +301,25 @@ powershell -NoProfile -File tools/i_core/maintenance/provision-food-domain.ps1 -
 `pair-core --frontend sesame` 使用独立设备 `frontend:sesame` 与凭据文件 `core-frontend-sesame.json`；不会借用其他前端凭据。写回开启且缺少 Sesame 配对时，`i_chat_turn` 返回 `frontend_not_paired:sesame`。工具范围为 `i_context`、`i_recall`、`i_chat_turn` 及已配置的只读 `week_get`、`day_get`，不开放 `capture_add` 或 `i_remember`。
 
 诊断使用固定 `callback_class: sesame`，不记录该回调的 `callback_shapes` 或原文。App 聊天来源显示为 Sesame。源码接入与合成测试不代表已配对、部署或完成真实前端验收。
+
+## 学习工具（ST1）
+
+MCP `stateDir` 下有 `study.json` 时，Claude 和 ChatGPT 多出四个学习工具；没有这个文件时工具清单与之前完全相同。Gemini、Antigravity、Sesame 不开放，调用返回 -32602。
+
+```json
+{"format":"study-v1","study_dir":"<学习目录的绝对路径>"}
+```
+
+文件只能有这两个键，`study_dir` 必须是规范的绝对路径；格式不对时 `serve` 报 `study_config_invalid` 并拒绝启动。
+
+| 工具 | scope | 读写 |
+| --- | --- | --- |
+| `study_today` | i.read | 读 `today.md`，返回学习单日期、`is_today`、科目列表和指定科目那一节（或整份） |
+| `study_source` | i.read | 读 `state/sources.json`：不传标题列出笔记；传标题返回正文，每次最多 20000 字，用 `offset` 续读 |
+| `study_progress` | i.read | 读 `state/ledger.json`：各科知识点数、掌握度分布、今天到期数、最近 7 天正确率、错次前 10 |
+| `study_result` | i.write | 在已有的 `inbox/` 里新建 `YYYY-MM-DD-HHMMSS-<claude|chatgpt>.md`；内容 ≤ 8000 字，首行必须是 `【学习结果】YYYY-MM-DD 科目` |
+
+- 只读上面三个固定文件，只在 `inbox/` 新建文件（`wx` 独占创建），不建目录、不覆盖、不删除。
+- 学习目录本身、路径上的每一级都不能是符号链接或 junction，真实路径必须与配置一致，否则报 `study_path_forbidden`。
+- 日期按 Asia/Shanghai 的自然日计算。
+- 实现在 `study_tools.mjs`（只依赖 `node:fs`、`node:path`）。生产六文件候选的 server 原样内嵌这个文件（`STUDY_PATCHES`，排在 FOOD 之后），测试逐字节核对两者一致。

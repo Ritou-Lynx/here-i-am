@@ -20,6 +20,7 @@ class VoiceCueClip {
     required this.text,
     required this.toneFamily,
     required this.expressionFamily,
+    this.englishText,
     this.playbackVolume = 0.6,
     this.cooldownSeconds = 90,
     this.completeBeforeFormal = false,
@@ -30,6 +31,9 @@ class VoiceCueClip {
   final String text;
   final String toneFamily;
   final String expressionFamily;
+
+  /// 家里电脑的英文声音用的说法；为空时退回 [text]。
+  final String? englishText;
   final double playbackVolume;
   final int cooldownSeconds;
   final bool completeBeforeFormal;
@@ -47,6 +51,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'search_01',
     semanticClass: VoiceCueClass.searchLeadIn,
     text: '好，我看看。',
+    englishText: 'Okay, let me look.',
     toneFamily: 'helpful',
     expressionFamily: 'look-up',
   ),
@@ -54,6 +59,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'search_02',
     semanticClass: VoiceCueClass.searchLeadIn,
     text: '我找找看。',
+    englishText: 'Let me find it.',
     toneFamily: 'helpful',
     expressionFamily: 'search',
   ),
@@ -61,6 +67,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'search_03',
     semanticClass: VoiceCueClass.searchLeadIn,
     text: '稍等，我查一下。',
+    englishText: 'One sec, let me check.',
     toneFamily: 'helpful',
     expressionFamily: 'check',
   ),
@@ -70,6 +77,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'thinking_01',
     semanticClass: VoiceCueClass.thinkingLeadIn,
     text: '嗯，让我想想。',
+    englishText: 'Hmm, let me think.',
     toneFamily: 'soft-thinking',
     expressionFamily: 'thinking',
   ),
@@ -77,6 +85,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'thinking_02',
     semanticClass: VoiceCueClass.thinkingLeadIn,
     text: '这个问题有意思。',
+    englishText: 'Ooh, good question.',
     toneFamily: 'soft-thinking',
     expressionFamily: 'reflect',
   ),
@@ -84,6 +93,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'thinking_03',
     semanticClass: VoiceCueClass.thinkingLeadIn,
     text: '我想想怎么说。',
+    englishText: 'Let me think how to put it.',
     toneFamily: 'soft-thinking',
     expressionFamily: 'thinking',
   ),
@@ -93,6 +103,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'sharing_01',
     semanticClass: VoiceCueClass.sharingAck,
     text: '嗯，我在听。',
+    englishText: 'Mm, I\'m listening.',
     toneFamily: 'warm',
     expressionFamily: 'listening',
   ),
@@ -100,6 +111,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'sharing_02',
     semanticClass: VoiceCueClass.sharingAck,
     text: '然后呢？',
+    englishText: 'And then?',
     toneFamily: 'warm',
     expressionFamily: 'prompt',
   ),
@@ -107,6 +119,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'sharing_03',
     semanticClass: VoiceCueClass.sharingAck,
     text: '真的吗？',
+    englishText: 'Really?',
     toneFamily: 'warm',
     expressionFamily: 'surprise',
   ),
@@ -116,6 +129,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'fun_01',
     semanticClass: VoiceCueClass.funAck,
     text: '哈哈，是吗。',
+    englishText: '[chuckle] Oh yeah?',
     toneFamily: 'playful',
     expressionFamily: 'laugh',
   ),
@@ -123,6 +137,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'fun_02',
     semanticClass: VoiceCueClass.funAck,
     text: '太好玩了。',
+    englishText: 'That\'s so fun.',
     toneFamily: 'playful',
     expressionFamily: 'amuse',
   ),
@@ -130,6 +145,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'fun_03',
     semanticClass: VoiceCueClass.funAck,
     text: '你真逗。',
+    englishText: 'You\'re funny.',
     toneFamily: 'playful',
     expressionFamily: 'tease',
   ),
@@ -139,6 +155,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'neutral_01',
     semanticClass: VoiceCueClass.neutralLeadIn,
     text: '好的。',
+    englishText: 'Okay.',
     toneFamily: 'neutral',
     expressionFamily: 'ack',
   ),
@@ -146,6 +163,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'neutral_02',
     semanticClass: VoiceCueClass.neutralLeadIn,
     text: '嗯，说吧。',
+    englishText: 'Mm, go on.',
     toneFamily: 'neutral',
     expressionFamily: 'ack',
   ),
@@ -153,6 +171,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'neutral_03',
     semanticClass: VoiceCueClass.neutralLeadIn,
     text: '好，你讲。',
+    englishText: 'Sure, tell me.',
     toneFamily: 'neutral',
     expressionFamily: 'listen',
   ),
@@ -162,6 +181,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'callstate_01',
     semanticClass: VoiceCueClass.callStateQuestion,
     text: '嗯，我在。',
+    englishText: 'Mm, I\'m here.',
     toneFamily: 'reassuring',
     expressionFamily: 'present',
     completeBeforeFormal: true,
@@ -170,6 +190,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'callstate_02',
     semanticClass: VoiceCueClass.callStateQuestion,
     text: '能听到。',
+    englishText: 'I can hear you.',
     toneFamily: 'reassuring',
     expressionFamily: 'confirm',
     completeBeforeFormal: true,
@@ -178,6 +199,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'callstate_03',
     semanticClass: VoiceCueClass.callStateQuestion,
     text: '在的，你说。',
+    englishText: 'I\'m here, go ahead.',
     toneFamily: 'reassuring',
     expressionFamily: 'present',
     completeBeforeFormal: true,
@@ -188,6 +210,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'test_01',
     semanticClass: VoiceCueClass.testLeadIn,
     text: '好，我听到了。',
+    englishText: 'Okay, I hear you.',
     toneFamily: 'neutral',
     expressionFamily: 'confirm',
   ),
@@ -195,6 +218,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'test_02',
     semanticClass: VoiceCueClass.testLeadIn,
     text: '嗯，声音正常。',
+    englishText: 'Mm, sounds fine.',
     toneFamily: 'neutral',
     expressionFamily: 'confirm',
   ),
@@ -202,6 +226,7 @@ final List<VoiceCueClip> defaultVoiceCueManifest = [
     clipId: 'test_03',
     semanticClass: VoiceCueClass.testLeadIn,
     text: '收到，继续。',
+    englishText: 'Got it, go on.',
     toneFamily: 'neutral',
     expressionFamily: 'ack',
   ),
@@ -267,9 +292,8 @@ class VoiceCueService {
     }
 
     // Filter out recently played (most-recent-4).
-    final notRecent = available
-        .where((c) => !_recentClipIds.contains(c.clipId))
-        .toList();
+    final notRecent =
+        available.where((c) => !_recentClipIds.contains(c.clipId)).toList();
 
     final pool = notRecent.isNotEmpty ? notRecent : available;
 

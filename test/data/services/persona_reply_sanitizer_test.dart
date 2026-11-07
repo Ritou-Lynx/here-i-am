@@ -379,5 +379,21 @@ More hidden planning that must also be discarded.
             reason: '$tag should be stripped from chat UI');
       }
     });
+
+    test('home voice (Turbo) tags are stripped from chat UI', () {
+      const tags = [
+        '[laugh]', '[chuckle]', '[sigh]', '[gasp]', '[cough]',
+        '[clear throat]', '[crying]', '[sniff]', '[groan]', '[shush]',
+        '[whispering]',
+      ];
+      for (final tag in tags) {
+        expect(PersonaReplySanitizer.stripTtsTags(tag), isEmpty,
+            reason: '$tag should be stripped from chat UI');
+      }
+      expect(
+        PersonaReplySanitizer.stripTtsTags('[chuckle] Yeah, I know.'),
+        'Yeah, I know.',
+      );
+    });
   });
 }

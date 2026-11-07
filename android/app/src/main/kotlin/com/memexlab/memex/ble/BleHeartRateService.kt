@@ -99,6 +99,8 @@ class BleHeartRateService : Service() {
     }
 
     private lateinit var store: BleHeartRateStore
+    private lateinit var uploadSettings: BleHeartRateUploadSettings
+    private lateinit var uploader: BleHeartRateUploader
     private lateinit var bluetoothManager: BluetoothManager
     private val handler = Handler(Looper.getMainLooper())
     private var gatt: BluetoothGatt? = null
@@ -159,6 +161,13 @@ class BleHeartRateService : Service() {
     override fun onCreate() {
         super.onCreate()
         store = BleHeartRateStore(applicationContext)
+        // HR1: push samples to the home computer when sync is on and an address is known.
+        uploadSettings = BleHeartRateUploadSettings(applicationContext)
+        uploader = BleHeartRateUploader(
+            target = uploadSettings::effectiveBaseUrl,
+            onOutcome = uploadSettings::record,
+        )
+        uploader.start()
         bluetoothManager = getSystemService(BluetoothManager::class.java)
         reconnectCoordinator = BleReconnectCoordinator(
             nowMs = System::currentTimeMillis,
@@ -287,6 +296,7 @@ class BleHeartRateService : Service() {
         handler.removeCallbacksAndMessages(null)
         closeGatt()
         runCatching { unregisterReceiver(bluetoothStateReceiver) }
+        uploader.stop()
         store.close()
         super.onDestroy()
     }
@@ -501,6 +511,8 @@ class BleHeartRateService : Service() {
                 reconnectAttempt = 0
                 currentStatus = "live"
                 store.recordSample(key, parsed.measurement, lastSampleAtMs)
+                uploader.setStatus("live")
+                uploader.offer(lastSampleAtMs, parsed.measurement.bpm)
                 updateNotification("${parsed.measurement.bpm} BPM · 正在接收", force = false)
             }
             is HeartRateParseResult.Malformed -> {
@@ -652,6 +664,7 @@ class BleHeartRateService : Service() {
     ) {
         val changed = currentStatus != status
         currentStatus = status
+        uploader.setStatus(status)
         store.updateStatus(userKey, status, reason, retryAtMs, recordGap = recordGap)
         updateNotification(notificationText(status), force = changed)
     }

@@ -121,6 +121,35 @@ $dailyEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($dai
 
 程序用 `powershell.exe`，参数用上述输出。Node/Codex 若不在该任务的 PATH，可在用户私有启动代码里显式传 `-NodeExecutable` / `-CodexExecutable`。手动运行也用同样的 EncodedCommand 参数。试跑后读 logs、push-report 和 today.md 的日期，而非只看任务 LastTaskResult。
 
+## 多科目与练习链接
+
+`examples/subjects-three.md` 是日语、英语、数据分析三科样例：每科有学习日、每日上限、目标、阶段和“路线”。“状态：路线驱动”的科目没有现成笔记，导师按路线顺序挑新点，并可在定时运行时为当天选中的路线点直接建账本行（每科每天不超过新学上限，见 STUDY_AGENTS“路线驱动建点”）。
+
+学习单把所有科目写在同一份里。写了“练习链接：要”的科目，导师把当天练习提示词存到学习目录 `practice/<科目>.txt`，再用学习目录里的 `practice_link.mjs` 生成 `https://chatgpt.com/?q=...` 链接写进学习单。点开就是带着当天知识点的 ChatGPT 新对话，按互动题一题一题练；做完 ChatGPT 输出【学习结果】，用户整段贴进飞书收件表（渠道“手动”），次日入账。`practice_link.mjs` 只读一个文件、输出一行，不联网；链接超过 7000 字符报 `prompt_too_long`。
+
+启用新科目时（本机一次性）：
+
+1. 在飞书“学习账本”和“练习记录”两张表的“科目”单选字段里各加上新科目选项（名称与 subjects 一致）。
+2. 工具目录 `config.json` 的 `subjects` 加上新科目，然后运行 `check`，应为 `check_ok`（缺选项会报 `schema_option_missing`）。
+3. 学习目录：用新的 `STUDY_AGENTS.md` 覆盖 `AGENTS.md`，复制 `study/practice_link.mjs` 到学习目录根部，用确认过的科目文件替换 `subjects.md`（先备份旧文件）。
+
+## 笔记副本（给 i MCP 读日记和工作文档）
+
+`sync/notes_mirror.mjs` 把飞书云空间里指定的顶层文件夹（含子文件夹）里的 docx 文档，只读地拉到本机一个单独的“笔记副本”目录，留给 i MCP 以后读取。对飞书只调用 `drive files list` 和 `docs +fetch`，从不写飞书。
+
+```text
+node <工具目录>\sync\notes_mirror.mjs --config <工具目录>\config.json --state <学习目录>\state --notes <笔记副本目录>
+```
+
+- **配置**：在工具目录的 `config.json` 里加 `"notes": {"folders": ["日记/日报", "工作"]}`。名字要和云空间根目录里的文件夹名完全一致，只能匹配到一个文件夹。
+- **增量**：每篇文档一个文件，路径是 `<文件夹>/<token>.md`（`/` 等字符换成 `-`）。用 `index.json` 记录每篇的修改时间，没改过的文档不会重新拉取；改过的文档原地覆盖同一个文件，不会生成新副本。飞书里删掉的文档，副本里也跟着删掉。改名或挪到别的配置文件夹，文件也会跟着更新。
+- **时间预算**：`--max-minutes N`（0–120，默认 20）。超过预算后不再拉新文档，剩下的记为 `deferred`，保留旧副本，退出码 2（`notes_deferred`），下次运行接着拉。这样第一次文档很多时也不会被计划任务的时限中途杀掉、写不出 index.json。
+- **保护**：所有列表都拉完才开始写本地。列表失败时什么都不改。某个文件夹原来有文档、这次却列出 0 篇，按“权限丢失”处理：报 `notes_listing_empty`，什么都不删。单篇拉取失败会保留上一份，退出码 2（`notes_partial`），下次运行重试。
+- **登录**：和 `feishu_sync` 共用本机的 lark-cli 登录。`<学习目录>\state\.sync.lock` 存在时直接跳过（输出 `notes_skipped_sync_busy`），不和学习单同时刷新凭据。自己的锁是 `<笔记副本目录>\.mirror.lock`；崩溃留下的锁，下次运行时发现进程已不在，会自动清掉。
+- **目录**：笔记副本目录不能和工具目录、配置所在目录或学习目录互相包含，否则报 `daily_layout_invalid`。
+- **授权**：列文件夹需要云空间只读权限（`drive:drive:readonly`）。原来按 `--domain "docs,base"` 授权的，需要**用户本人**再授权一次：`lark-cli auth login --domain "docs,base" --scope "drive:drive:readonly"`。Agent 和脚本都不得代为执行。
+- **计划任务**：建议单独注册一个 Interactive 任务，每 30 分钟跑一次，错开整点和半点（比如 :10 和 :40），避免撞上 06:30 的学习单。
+
 ## 语音与旧模板
 
 dot 读 `%USERPROFILE%\feishu-study\today.md`，按 TUTOR_RULES 带练；GPT voice 由用户粘贴学习单。来源提示用飞书的标题链接。Gemini 或语音结果可以手动加入飞书收件表。
