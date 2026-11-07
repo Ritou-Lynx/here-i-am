@@ -45,8 +45,9 @@ function notesEntry(root, parts) {
   let stat, real;
   try { stat = notesFs.lstatSync(root); } catch { notesFail('notes_dir_unavailable'); }
   if (stat.isSymbolicLink() || !stat.isDirectory()) notesFail('notes_path_forbidden');
+  // The configured root itself may be spelled differently from its real path (8.3 short names on
+  // Windows); below the root, every component is checked against the real root.
   try { real = notesFs.realpathSync.native(root); } catch { notesFail('notes_dir_unavailable'); }
-  if (!notesSameRoot(real, root)) notesFail('notes_path_forbidden');
   let current = root;
   for (const part of parts) {
     current = notesPath.join(current, part);
