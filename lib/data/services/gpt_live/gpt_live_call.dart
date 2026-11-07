@@ -48,7 +48,9 @@ class GptLiveCall extends ChangeNotifier {
       final apiKey = await GptLiveSettings.getApiKey();
       if (apiKey == null) {
         throw const GptLiveException(
-            'no_api_key', '先在 设置 → 语音播放 里填 OpenAI API Key');
+          'no_api_key',
+          '先在 设置 → 语音播放 里填 OpenAI API Key',
+        );
       }
       final voice = await GptLiveSettings.getVoice();
       final userId = await UserStorage.getUserId();
@@ -60,12 +62,14 @@ class GptLiveCall extends ChangeNotifier {
         name: character?.name ?? '林埃',
         persona: character?.persona ?? '',
         now: DateTime.now(),
+        extra: await GptLiveSettings.getExtraInstructions(),
       );
       final history = await _loadHistory();
 
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
         await Helper.setAndroidAudioConfiguration(
-            AndroidAudioConfiguration.communication);
+          AndroidAudioConfiguration.communication,
+        );
       }
       final pc = await createPeerConnection({'iceServers': []});
       _pc = pc;
@@ -81,7 +85,9 @@ class GptLiveCall extends ChangeNotifier {
         await pc.addTrack(track, _mic!);
       }
       final dc = await pc.createDataChannel(
-          GptLiveProtocol.dataChannelLabel, RTCDataChannelInit());
+        GptLiveProtocol.dataChannelLabel,
+        RTCDataChannelInit(),
+      );
       _dc = dc;
       dc.onMessage = (msg) {
         if (!msg.isBinary) _onEvent(msg.text);
@@ -108,7 +114,8 @@ class GptLiveCall extends ChangeNotifier {
         ),
       );
       await pc.setRemoteDescription(
-          RTCSessionDescription(created.answerSdp, 'answer'));
+        RTCSessionDescription(created.answerSdp, 'answer'),
+      );
       await Helper.setSpeakerphoneOn(speakerOn);
       startedAt = DateTime.now();
       _setPhase(GptLiveCallPhase.live);
@@ -199,8 +206,10 @@ class GptLiveCall extends ChangeNotifier {
 
   Future<List<GptLiveHistoryMessage>> _loadHistory() async {
     try {
-      final rows = await PersonaChatService.instance
-          .getMessages(characterId, limit: GptLiveProtocol.maxHistoryMessages);
+      final rows = await PersonaChatService.instance.getMessages(
+        characterId,
+        limit: GptLiveProtocol.maxHistoryMessages,
+      );
       return [
         for (final m in rows.reversed)
           if (m.messageType == 'chat')
@@ -224,12 +233,18 @@ class GptLiveCall extends ChangeNotifier {
       for (final t in turns) {
         final text = t.text.toString().trim();
         if (t.fromUser) {
-          await PersonaChatService.instance
-              .addUserMessage(characterId, text, timestamp: t.at);
+          await PersonaChatService.instance.addUserMessage(
+            characterId,
+            text,
+            timestamp: t.at,
+          );
         } else {
           await PersonaChatService.instance.addCharacterMessage(
-              characterId, text,
-              timestamp: t.at, isRead: true);
+            characterId,
+            text,
+            timestamp: t.at,
+            isRead: true,
+          );
         }
       }
     } catch (e) {
@@ -284,6 +299,7 @@ class GptLiveCall extends ChangeNotifier {
     required String name,
     required String persona,
     required DateTime now,
+    String extra = '',
   }) {
     String two(int n) => n.toString().padLeft(2, '0');
     final time =
@@ -300,6 +316,12 @@ class GptLiveCall extends ChangeNotifier {
       ..writeln('- 用户说英文时可以用英文回答。')
       ..writeln('- 之前的聊天记录已经给你了，接着那些内容自然聊，不要复述。')
       ..writeln('- 用户说要挂了，就简短道别。');
+    if (extra.trim().isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## 用户补充说明')
+        ..writeln(extra.trim());
+    }
     return buf.toString();
   }
 }
