@@ -100,9 +100,9 @@ test('ST1 candidate inlines study_tools.mjs verbatim and keeps the frozen depend
 });
 
 for(const [label,pick] of [['candidate',()=>({server:candidate,oauth:candidateOauth})],['mainline',()=>({server:mainServer,oauth:mainOauth})]]) {
-  test(`ST1 ${label}: Claude and ChatGPT get four study tools; Gemini, Antigravity and Sesame get none`,{timeout:60000},async t=>{
+  test(`ST1 ${label}: Claude, ChatGPT and Gemini get four study tools; Antigravity and Sesame get none`,{timeout:60000},async t=>{
     const {studyDir,stateDir}=studyFixture(t);
-    for(const frontend of ['claude_web','chatgpt_web']) {
+    for(const frontend of ['claude_web','chatgpt_web','gemini_web']) {
       const app=await start(t,{...pick(),stateDir,frontend});
       const listed=(await app.rpc('tools/list')).result.tools;
       assert.deepEqual(listed.filter(tool=>tool.name.startsWith('study_')).map(tool=>tool.name),names);
@@ -136,7 +136,7 @@ for(const [label,pick] of [['candidate',()=>({server:candidate,oauth:candidateOa
       const before=inboxFiles(studyDir);
       const written=await app.call('study_result',{content:RESULT});
       assert.equal(written.isError,false);
-      const short=frontend==='claude_web'?'claude':'chatgpt',name=`2026-11-03-102030-${short}.md`;
+      const short={claude_web:'claude',chatgpt_web:'chatgpt',gemini_web:'gemini'}[frontend],name=`2026-11-03-102030-${short}.md`;
       assert.deepEqual(written.structuredContent,{written:true,file:'inbox/'+name,chars:[...RESULT].length});
       assert.deepEqual(inboxFiles(studyDir).sort(),[...before,name].sort());
       assert.equal(readFileSync(join(studyDir,'inbox',name),'utf8'),RESULT+'\n');
@@ -151,12 +151,12 @@ for(const [label,pick] of [['candidate',()=>({server:candidate,oauth:candidateOa
       const extra=await app.call('study_today',{path:'../state/inbox.json'});
       assert.equal(extra.isError,true);assert.equal(extra.structuredContent.error.code,'invalid_request');
     }
-    for(const frontend of ['gemini_web','antigravity','sesame']) {
+    for(const frontend of ['antigravity','sesame']) {
       const app=await start(t,{...pick(),stateDir,frontend});
       assert.equal((await app.rpc('tools/list')).result.tools.some(tool=>tool.name.startsWith('study_')),false);
       for(const name of names)assert.equal((await app.rpc('tools/call',{name,arguments:{}})).error.code,-32602);
     }
-    assert.equal(inboxFiles(studyDir).length,2);
+    assert.equal(inboxFiles(studyDir).length,3);
   });
 
   test(`ST1 ${label}: without study.json no study tool is listed`,{timeout:30000},async t=>{
@@ -225,7 +225,7 @@ test('ST1 reads only the three fixed files and refuses links, junctions and alia
   const aliased=createStudyTools({studyDir:alias,frontend:'chatgpt_web',now:()=>NOW}).handlers;
   await code(aliased.study_today({}),'study_path_forbidden');
   await code(createStudyTools({studyDir:join(base,'nope'),frontend:'claude_web'}).handlers.study_today({}),'study_dir_unavailable');
-  assert.throws(()=>createStudyTools({studyDir,frontend:'gemini_web'}),/invalid_study_configuration/);
+  assert.throws(()=>createStudyTools({studyDir,frontend:'antigravity'}),/invalid_study_configuration/);
   assert.throws(()=>createStudyTools({studyDir,frontend:'sesame'}),/invalid_study_configuration/);
 });
 
@@ -235,7 +235,7 @@ test('ST1 stale study sheet reports its own date and mainline errors are structu
   const stale=await later.study_today({subject:'日语'});
   assert.equal(stale.date,'2026-11-03');assert.equal(stale.today,'2026-11-04');assert.equal(stale.is_today,false);
   const wrapped=createStudyDomainTools({stateDir,now:()=>NOW});
-  assert.deepEqual(Object.keys(wrapped),['claude_web','chatgpt_web']);
+  assert.deepEqual(Object.keys(wrapped),['claude_web','chatgpt_web','gemini_web']);
   await assert.rejects(wrapped.chatgpt_web.handlers.study_today({subject:'法语'}),error=>error instanceof DomainToolInputError&&error.message==='study_subject_not_found');
   writeFileSync(join(studyDir,'today.md'),'没有标题');
   const undated=await wrapped.claude_web.handlers.study_today({});

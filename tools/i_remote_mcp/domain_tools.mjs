@@ -283,7 +283,7 @@ export function createFoodTools({client,scopes,timeZone='Asia/Shanghai',now=()=>
   return {tools,handlers:Object.fromEntries(tools.map(tool=>[tool.name,handlers[tool.name]]))};
 }
 
-// ST1: study tools exist only when <stateDir>/study.json is present, and only for Claude and ChatGPT.
+// ST1: study tools exist only when <stateDir>/study.json is present, for Claude, ChatGPT and (G1, 11-05) Gemini.
 export { STUDY_TOOLS };
 export function createStudyDomainTools({stateDir, now = () => Date.now()}) {
   const config = loadStudyConfig(stateDir);
@@ -295,7 +295,7 @@ export function createStudyDomainTools({stateDir, now = () => Date.now()}) {
       catch (error) { if (error instanceof StudyInputError) throw new DomainToolInputError(error.message); throw error; }
     }]))};
   };
-  return {claude_web:wrap('claude_web'), chatgpt_web:wrap('chatgpt_web')};
+  return {claude_web:wrap('claude_web'), chatgpt_web:wrap('chatgpt_web'), gemini_web:wrap('gemini_web')};
 }
 
 // HR1: heart_rate exists only when <stateDir>/heart_rate.json is present (Claude, ChatGPT, Antigravity, Sesame).

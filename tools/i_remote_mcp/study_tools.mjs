@@ -7,7 +7,7 @@ import * as studyPath from 'node:path';
 export class StudyInputError extends Error {}
 const studyFail = code => { throw new StudyInputError(code); };
 const studyObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-export const STUDY_FRONTENDS = Object.freeze({claude_web:'claude', chatgpt_web:'chatgpt'});
+export const STUDY_FRONTENDS = Object.freeze({claude_web:'claude', chatgpt_web:'chatgpt', gemini_web:'gemini'});
 const STUDY_TIME_ZONE = 'Asia/Shanghai';
 const STUDY_LIMITS = Object.freeze({today:1024*1024, sources:32*1024*1024, ledger:16*1024*1024, sourceChars:20000, resultChars:8000});
 const STUDY_HINT = '出题方式：先调 study_today 取当天要点（可传 subject 只取一科），必要时用 study_source 读原笔记；用互动题一题一题练，每次只问一个问题，等用户回答再讲评。用户说结束或学习单做完时，按 TUTOR_RULES 的【学习结果】格式整理（知识点名照抄学习单，结果只能是 对/错/不会），调用一次 study_result 写回；写回成功后告诉用户明早入账。';
@@ -197,7 +197,7 @@ export function createStudyTools({studyDir, frontend, now = () => Date.now()}) {
       const text = studyResultContent(args.content);
       const inbox = studyEntry(studyDir, ['inbox'], 'dir');
       const clock = studyClock(now()), name = `${clock.date}-${clock.stamp}-${STUDY_FRONTENDS[frontend]}.md`;
-      if (!/^\d{4}-\d{2}-\d{2}-\d{6}-(?:claude|chatgpt)\.md$/.test(name)) studyFail('invalid_study_result');
+      if (!/^\d{4}-\d{2}-\d{2}-\d{6}-(?:claude|chatgpt|gemini)\.md$/.test(name)) studyFail('invalid_study_result');
       let fd;
       try { fd = studyFs.openSync(studyPath.join(inbox, name), 'wx', 0o600); }
       catch (error) { studyFail(error.code === 'EEXIST' ? 'study_result_exists' : 'study_dir_unavailable'); }
