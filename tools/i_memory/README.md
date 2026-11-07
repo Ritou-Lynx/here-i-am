@@ -12,7 +12,7 @@ B1.2 / B1.3 的实现，规格见 [B1/B2 接口约定](../../docs/development/CO
 
 ## 1. 导出手机 V3 库（Codex 在本机执行）
 
-与 [i_continuity_gateway](../i_continuity_gateway/README.md) 的 ADB 读取方式相同：只支持 debug 包 `com.memexlab.hereiam.v3`，**先在手机上关闭 Here I am V3**，保证 SQLite 与 WAL 一致。`<user>` 是 App 内的用户目录名（与 Gateway 的 `I_VOICE_ANDROID_USER` 相同）。
+只支持 debug 包 `com.memexlab.hereiam.v3`，**先在手机上关闭 Here I am V3**，保证 SQLite 与 WAL 一致。`<user>` 是 App 内的用户目录名。
 
 ```powershell
 $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"

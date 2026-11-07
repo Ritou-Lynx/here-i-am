@@ -1,5 +1,7 @@
 # 林埃跨工具连续性架构
 
+> **已退役（2026-11-07）**：本文描述的本机连续性网关（`i_bootstrap`、Project closeout、Codex Voice 本机工具）已停用并删除，跨工具连续性改由远端 i MCP（`tools/i_remote_mcp/`）承担，记忆体系见记忆重构“时间金字塔”方案。本文仅作历史记录。
+
 状态：2026-07-12 Phase 3 Project Memory 真机闭环已完成；多设备加密 closeout 同步进入最小可用验证
 
 ## 一句话结论
