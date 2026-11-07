@@ -196,6 +196,57 @@ class BleHeartRateNightExport {
   final BleHeartRateNightSummary summary;
 }
 
+/// HR1: syncing live samples to the home computer's i MCP (via `tailscale serve`).
+class BleHeartRateUploadStatus {
+  const BleHeartRateUploadStatus({
+    required this.enabled,
+    this.derivedUrl,
+    this.overrideUrl,
+    this.effectiveUrl,
+    this.lastSuccessAt,
+    this.lastErrorCode,
+    this.lastErrorAt,
+  });
+
+  factory BleHeartRateUploadStatus.fromMap(Map<String, dynamic> map) {
+    String? text(String key) {
+      final value = map[key];
+      return value is String && value.isNotEmpty ? value : null;
+    }
+
+    return BleHeartRateUploadStatus(
+      enabled: map['enabled'] != false,
+      derivedUrl: text('derivedUrl'),
+      overrideUrl: text('overrideUrl'),
+      effectiveUrl: text('effectiveUrl'),
+      lastSuccessAt: _dateFromMs(map['lastSuccessAtMs']),
+      lastErrorCode: text('lastErrorCode'),
+      lastErrorAt: _dateFromMs(map['lastErrorAtMs']),
+    );
+  }
+
+  static const unavailable = BleHeartRateUploadStatus(enabled: false);
+
+  final bool enabled;
+  final String? derivedUrl;
+  final String? overrideUrl;
+  final String? effectiveUrl;
+  final DateTime? lastSuccessAt;
+  final String? lastErrorCode;
+  final DateTime? lastErrorAt;
+}
+
+/// The heart-rate listener is on the same computer as Core, exposed by
+/// `tailscale serve --https=8447`. Returns null unless [coreBaseUrl] is HTTPS.
+String? heartRateUploadBaseFromCore(String? coreBaseUrl) {
+  final uri = Uri.tryParse(coreBaseUrl?.trim() ?? '');
+  if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return null;
+  return Uri(scheme: 'https', host: uri.host, port: heartRateUploadPort)
+      .toString();
+}
+
+const heartRateUploadPort = 8447;
+
 abstract interface class BleHeartRateGateway {
   static BleHeartRateGateway instance = PlatformBleHeartRateGateway();
 
@@ -219,6 +270,14 @@ abstract interface class BleHeartRateGateway {
     int nights = 7,
   });
   Future<BleHeartRateNightExport?> exportNight(String userId, String night);
+
+  /// Updates only the given fields. An empty string clears that address.
+  Future<BleHeartRateUploadStatus> configureUpload({
+    bool? enabled,
+    String? derivedUrl,
+    String? overrideUrl,
+  });
+  Future<BleHeartRateUploadStatus> getUploadStatus();
 }
 
 class PlatformBleHeartRateGateway implements BleHeartRateGateway {
@@ -382,6 +441,32 @@ class PlatformBleHeartRateGateway implements BleHeartRateGateway {
       {'userId': userId, 'night': night},
     );
     return value == null ? null : BleHeartRateNightExport.fromMap(value);
+  }
+
+  @override
+  Future<BleHeartRateUploadStatus> configureUpload({
+    bool? enabled,
+    String? derivedUrl,
+    String? overrideUrl,
+  }) async {
+    if (!_isAndroid) return BleHeartRateUploadStatus.unavailable;
+    final value = await _methodChannel.invokeMapMethod<String, dynamic>(
+      'configureUpload',
+      {
+        if (enabled != null) 'enabled': enabled,
+        if (derivedUrl != null) 'derivedUrl': derivedUrl,
+        if (overrideUrl != null) 'overrideUrl': overrideUrl,
+      },
+    );
+    return BleHeartRateUploadStatus.fromMap(value ?? const {});
+  }
+
+  @override
+  Future<BleHeartRateUploadStatus> getUploadStatus() async {
+    if (!_isAndroid) return BleHeartRateUploadStatus.unavailable;
+    final value = await _methodChannel
+        .invokeMapMethod<String, dynamic>('getUploadStatus');
+    return BleHeartRateUploadStatus.fromMap(value ?? const {});
   }
 
   BleHeartRateGatewayEvent? _decodeEvent(dynamic value) {

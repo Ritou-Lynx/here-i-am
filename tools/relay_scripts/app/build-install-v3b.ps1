@@ -3,7 +3,7 @@
 $ErrorActionPreference = 'Continue'
 # 脚本轮（write）：构建 Here I Am V3 debug APK，经 USB adb 覆盖安装到唯一连着的手机并启动。
 # 构建放在工作树外的固定目录（本机应用数据下的 HereIAm\apk-build）：每轮把工作树源码镜像过去再构建，
-# build/ 和 .dart_tool/ 保留，第二次起是增量构建。构建限时 16 分钟，没完成就停下报 build_incomplete，
+# build/ 和 .dart_tool/ 保留，第二次起是增量构建。构建限时 18 分钟，没完成就停下报 build_incomplete，
 # 已编译的部分留着，下一轮接着编（watcher 每轮上限 20 分钟）。
 # 只做覆盖安装（-r），签名不符就停下报错，绝不卸载（卸载会清掉 App 数据）。
 # 输出每行一个 JSON，不含路径、设备序列号、账号。构建日志只回传末尾几行，且抹掉本机路径。
@@ -13,7 +13,7 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $package = 'com.memexlab.hereiam.v3'
 $work = Join-Path $env:LOCALAPPDATA 'HereIAm\apk-build'
 $apk = Join-Path $work 'build\app\outputs\flutter-apk\app-hereiamv3-debug.apk'
-$buildBudgetMinutes = 16
+$buildBudgetMinutes = 18
 $logDir = Join-Path $env:TEMP ('hereiam-apk-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
@@ -74,7 +74,7 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 $rc = Join-Path $logDir 'robocopy.log'
 & robocopy.exe $repo $work /MIR /NFL /NDL /NJH /NP /R:1 /W:1 `
     /XD build .dart_tool .git .gradle .cxx .idea `
-    /XF .git debug.keystore local.properties .flutter-plugins .flutter-plugins-dependencies *> $rc
+    /XF .git debug.keystore pubcache-ok.txt local.properties .flutter-plugins .flutter-plugins-dependencies *> $rc
 $rcExit = $LASTEXITCODE
 
 # debug 签名：debug.keystore 不进仓库，只在本机主仓库里。必须用同一把，否则覆盖安装会因签名不符失败。
@@ -102,7 +102,53 @@ Set-Location $work
 $t0 = Get-Date
 & $flutter pub get *> (Join-Path $logDir 'pub.log')
 if ($LASTEXITCODE -ne 0) { Out-Json @{ step = 'pub-get'; ok = $false; tail = (Tail-Log (Join-Path $logDir 'pub.log')) }; exit 5 }
+# pub 缓存里的包目录可能残缺（目录在、lib 里的文件没了），pub get 不会发现。逐个检查用到的缓存包：
+# 缺 lib 或 pubspec.yaml 的整个删掉，再 pub get 一次重新下载。只动 pub 缓存里的这几个目录。
+# 有些包本来就没有 Dart 代码（纯原生、只有 yaml/字体）：重新下载后仍然这样就是正常的，记进
+# 构建目录的 pubcache-ok.txt，以后不再检查，也不算失败。
+$okList = Join-Path $work 'pubcache-ok.txt'
+$known = @{}
+if (Test-Path $okList) { Get-Content $okList | ForEach-Object { if ($_) { $known[$_.Trim()] = $true } } }
+function Get-BrokenPackages {
+    $cfg = Join-Path $work '.dart_tool\package_config.json'
+    if (-not (Test-Path $cfg)) { return @() }
+    $broken = @()
+    foreach ($pkg in (Get-Content $cfg -Raw -Encoding UTF8 | ConvertFrom-Json).packages) {
+        if ($pkg.rootUri -notmatch '^file:///') { continue }
+        $dir = [Uri]::UnescapeDataString(($pkg.rootUri -replace '^file:///', '')) -replace '/', '\'
+        if ($dir -notmatch '\\hosted\\') { continue }
+        $lib = Join-Path $dir 'lib'
+        $ok = (Test-Path (Join-Path $dir 'pubspec.yaml')) -and (Test-Path $lib) -and
+            [bool](Get-ChildItem $lib -Recurse -File -Filter '*.dart' -ErrorAction SilentlyContinue | Select-Object -First 1)
+        $leaf = Split-Path -Leaf $dir
+        if (-not $ok -and -not $known.ContainsKey($leaf)) { $broken += [pscustomobject]@{ name = $leaf; dir = $dir } }
+    }
+    return $broken
+}
+$broken = @(Get-BrokenPackages)
+Out-Json @{ step = 'pub-cache-check'; broken = @($broken | ForEach-Object { $_.name }) }
+if ($broken.Count -gt 0) {
+    foreach ($b in $broken) { Remove-Item -Recurse -Force $b.dir -ErrorAction SilentlyContinue }
+    & $flutter pub get *> (Join-Path $logDir 'pub2.log')
+    if ($LASTEXITCODE -ne 0) { Out-Json @{ step = 'pub-get-repair'; ok = $false; tail = (Tail-Log (Join-Path $logDir 'pub2.log')) }; exit 5 }
+    $still = @(Get-BrokenPackages)
+    # 刚重新下载过的包仍然没有 Dart 代码 = 本来就没有，记为正常
+    $still | ForEach-Object { $_.name } | Add-Content -Path $okList -Encoding UTF8
+    Out-Json @{ step = 'pub-cache-repair'; ok = $true; redownloaded = $broken.Count; no_dart_by_design = @($still | ForEach-Object { $_.name }).Count }
+    Remove-Item -Recurse -Force (Join-Path $work '.dart_tool\flutter_build') -ErrorAction SilentlyContinue
+}
+$pkgCfg = Join-Path $work '.dart_tool\package_config.json'
+if (Test-Path $pkgCfg) {
+    $jniRoots = @((Get-Content $pkgCfg -Raw -Encoding UTF8 | ConvertFrom-Json).packages | Where-Object { $_.name -like 'jni*' } |
+        ForEach-Object { "$($_.name)=" + (($_.rootUri -split '/') | Where-Object { $_ -match '^jni' } | Select-Object -Last 1) })
+    Out-Json @{ step = 'packages'; jni = $jniRoots }
+}
 if (Test-Path $apk) { Remove-Item -Force $apk }
+# Dart 编译缓存每轮清掉重编（只花一两分钟）：上一轮若在编译中途被限时停掉，残留的增量缓存会导致
+# 莫名其妙的编译错误。Gradle 的 Java/Kotlin/原生产物仍然保留。
+foreach ($stale in @((Join-Path $work '.dart_tool\flutter_build'), (Join-Path $work 'build\app\intermediates\flutter'))) {
+    if (Test-Path $stale) { Remove-Item -Recurse -Force $stale -ErrorAction SilentlyContinue }
+}
 $buildLog = Join-Path $logDir 'build.log'
 $proc = Start-Process -FilePath 'cmd.exe' -WorkingDirectory $work -WindowStyle Hidden -PassThru `
     -ArgumentList @('/c', "`"`"$flutter`" build apk --debug --flavor hereIAmV3 > `"$buildLog`" 2>&1`"")

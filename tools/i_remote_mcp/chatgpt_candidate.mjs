@@ -1485,6 +1485,85 @@ const STUDY_PATCHES = {
   }
 };
 
+// HR1: heart_rate for claude_web/chatgpt_web/antigravity/sesame, configured by <stateDir>/heart_rate.json. The legacy
+// server inlines heart_rate.mjs verbatim (read from this checkout; asserted by heart_rate.test.mjs).
+const HEART_RATE_SOURCE = readFileSync(join(REPO_ROOT,'tools','i_remote_mcp','heart_rate.mjs'),'utf8').replaceAll('\r\n','\n');
+assert.ok(!/\$[$&`'<0-9]/.test(HEART_RATE_SOURCE),'heart_rate.mjs must not contain String.replace patterns');
+const HEART_RATE_PATCHES = {
+  "mainline": {
+    "server": [
+      ["import { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, createStudyDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';",
+        "import { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, createStudyDomainTools, createHeartRateDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';\nimport { HEART_RATE_DEFAULT_PORT, createHeartRateIngestServer } from './heart_rate.mjs';"],
+      ["  const studyTools = createStudyDomainTools({ stateDir, now });\n",
+        "  const studyTools = createStudyDomainTools({ stateDir, now });\n  const heartRate = createHeartRateDomainTools({ stateDir, now });\n"],
+      ["...domainTools?.handlers,...studyTools?.claude_web.handlers};",
+        "...domainTools?.handlers,...studyTools?.claude_web.handlers,...heartRate?.handlers};"],
+      ["...(domainTools?.tools??[]),...(studyTools?.claude_web.tools??[])];",
+        "...(domainTools?.tools??[]),...(studyTools?.claude_web.tools??[]),...(heartRate?.tools??[])];"],
+      ["    ...studyTools?.chatgpt_web.handlers };",
+        "    ...studyTools?.chatgpt_web.handlers,\n    ...heartRate?.handlers };"],
+      ["    ...chatgptDomainTools, ...(studyTools?.chatgpt_web.tools ?? [])];",
+        "    ...chatgptDomainTools, ...(studyTools?.chatgpt_web.tools ?? []), ...(heartRate?.tools ?? [])];"],
+      ["    frontend: 'antigravity' }),\n    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };",
+        "    frontend: 'antigravity' }),\n    ...Object.fromEntries(chatgptDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])),\n    ...heartRate?.handlers };"],
+      ["  const antigravityTools = [...listTools({ writeEnabled, frontend: 'antigravity' }),\n    ...chatgptDomainTools];",
+        "  const antigravityTools = [...listTools({ writeEnabled, frontend: 'antigravity' }),\n    ...chatgptDomainTools, ...(heartRate?.tools ?? [])];"],
+      ["    ...Object.fromEntries(sesameDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])) };",
+        "    ...Object.fromEntries(sesameDomainTools.map(tool => [tool.name, domainTools.handlers[tool.name]])),\n    ...heartRate?.handlers };"],
+      ["    ...sesameDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' }))];",
+        "    ...sesameDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' })), ...(heartRate?.tools ?? [])];"],
+      ["  return { server, oauth, sessions };",
+        "  return { server, oauth, sessions, heartRate };"],
+      ["  const { server, oauth } = createApp({",
+        "  const { server, oauth, heartRate } = createApp({"],
+      ["  if (!oauth.hasPassphrase()) process.stderr.write('警告：尚未设置口令，授权页会拒绝所有请求。先运行 set-passphrase。\\n');",
+        "  let heartRateServer = null;\n  if (heartRate) {\n    // HR1: bind to loopback only; the phone reaches it solely through `tailscale serve`, which sets Tailscale-User-Login.\n    const heartRatePort = Number(process.env.I_REMOTE_MCP_HEART_RATE_PORT ?? HEART_RATE_DEFAULT_PORT);\n    heartRateServer = createHeartRateIngestServer({ store: heartRate.store, config: heartRate.config }).server;\n    heartRateServer.listen(heartRatePort, '127.0.0.1', () => {\n      process.stderr.write(`心率接收通道监听 http://127.0.0.1:${heartRatePort}/v1/heart-rate/samples（只经 tailscale serve，不要接公网隧道）\\n`);\n    });\n  }\n  if (!oauth.hasPassphrase()) process.stderr.write('警告：尚未设置口令，授权页会拒绝所有请求。先运行 set-passphrase。\\n');"],
+      ["server.close(); phoneServer?.close(); getReadModel.close();",
+        "server.close(); phoneServer?.close(); heartRateServer?.close(); getReadModel.close();"]
+    ],
+    "oauth": [],
+    "mcp": [],
+    "writeback": [],
+    "diagnostics": []
+  },
+  "legacy": {
+    "server": [
+      ["const HERE = dirname(fileURLToPath(import.meta.url));",
+        HEART_RATE_SOURCE.trimEnd()+"\n\n"+"const HERE = dirname(fileURLToPath(import.meta.url));"],
+      ["  if (!(error instanceof FoodInputError) && !(error instanceof StudyInputError)) throw error;",
+        "  if (!(error instanceof FoodInputError) && !(error instanceof StudyInputError) && !(error instanceof HeartRateInputError)) throw error;"],
+      ["![...['food_log','food_day'],...STUDY_TOOLS.map(item => item.name)].includes(name)",
+        "![...['food_log','food_day'],...STUDY_TOOLS.map(item => item.name),...HEART_RATE_TOOLS.map(item => item.name)].includes(name)"],
+      ["  const legacyWriteEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || sesameWriteback);\n  const writeEnabled = Boolean(legacyWriteEnabled || foodTools || studyTools);",
+        "  // HR1: heart_rate for Claude, ChatGPT, Antigravity and Sesame; the ingest listener in main() shares this store.\n  const heartRateConfig = loadHeartRateConfig(stateDir);\n  const heartRateStore = heartRateConfig ? createHeartRateStore({ stateDir, now }) : null;\n  const heartRateTools = heartRateStore ? createHeartRateTools({ store: heartRateStore }) : null;\n  const legacyWriteEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || sesameWriteback);\n  const writeEnabled = Boolean(legacyWriteEnabled || foodTools || studyTools);"],
+      ["  if (studyTools) { Object.assign(handlers,studyTools.claude_web.handlers); tools.push(...studyTools.claude_web.tools); }",
+        "  if (studyTools) { Object.assign(handlers,studyTools.claude_web.handlers); tools.push(...studyTools.claude_web.tools); }\n  if (heartRateTools) { Object.assign(handlers,heartRateTools.handlers); tools.push(...heartRateTools.tools); }"],
+      ["  if (studyTools) { Object.assign(chatgptHandlers,studyTools.chatgpt_web.handlers); chatgptTools.push(...studyTools.chatgpt_web.tools); }",
+        "  if (studyTools) { Object.assign(chatgptHandlers,studyTools.chatgpt_web.handlers); chatgptTools.push(...studyTools.chatgpt_web.tools); }\n  if (heartRateTools) { Object.assign(chatgptHandlers,heartRateTools.handlers); chatgptTools.push(...heartRateTools.tools); }"],
+      ["  if (foodTools) { Object.assign(antigravityHandlers,foodTools.handlers); antigravityTools.push(...foodTools.tools); }",
+        "  if (foodTools) { Object.assign(antigravityHandlers,foodTools.handlers); antigravityTools.push(...foodTools.tools); }\n  if (heartRateTools) { Object.assign(antigravityHandlers,heartRateTools.handlers); antigravityTools.push(...heartRateTools.tools); }"],
+      ["  const sesameTools = listTools({ writeEnabled: legacyWriteEnabled, frontend: 'sesame' });",
+        "  const sesameTools = [...listTools({ writeEnabled: legacyWriteEnabled, frontend: 'sesame' })];\n  if (heartRateTools) { Object.assign(sesameHandlers,heartRateTools.handlers); sesameTools.push(...heartRateTools.tools); }"],
+      ["  return { server, oauth, sessions };",
+        "  return { server, oauth, sessions, heartRate: heartRateStore ? { store: heartRateStore, config: heartRateConfig } : null };"],
+      ["  const { server, oauth } = createApp({",
+        "  const { server, oauth, heartRate } = createApp({"],
+      ["  if (!oauth.hasPassphrase()) process.stderr.write('警告：尚未设置口令，授权页会拒绝所有请求。先运行 set-passphrase。\\n');",
+        "  let heartRateServer = null;\n  if (heartRate) {\n    // HR1: bind to loopback only; the phone reaches it solely through `tailscale serve`, which sets Tailscale-User-Login.\n    const heartRatePort = Number(process.env.I_REMOTE_MCP_HEART_RATE_PORT ?? HEART_RATE_DEFAULT_PORT);\n    heartRateServer = createHeartRateIngestServer({ store: heartRate.store, config: heartRate.config }).server;\n    heartRateServer.listen(heartRatePort, '127.0.0.1', () => {\n      process.stderr.write(`心率接收通道监听 http://127.0.0.1:${heartRatePort}/v1/heart-rate/samples（只经 tailscale serve，不要接公网隧道）\\n`);\n    });\n  }\n  if (!oauth.hasPassphrase()) process.stderr.write('警告：尚未设置口令，授权页会拒绝所有请求。先运行 set-passphrase。\\n');"],
+      ["server.close(); phoneServer?.close(); getReadModel.close();",
+        "server.close(); phoneServer?.close(); heartRateServer?.close(); getReadModel.close();"],
+      ["  loadFoodCredential(stateDir); // Fail before opening any service or ledger.\n  loadStudyConfig(stateDir);",
+        "  loadFoodCredential(stateDir); // Fail before opening any service or ledger.\n  loadStudyConfig(stateDir);\n  loadHeartRateConfig(stateDir);"],
+      ["/^(?:food_[a-z_]+|invalid_food_credential|study_[a-z_]+)(?::|$)/",
+        "/^(?:food_[a-z_]+|invalid_food_credential|study_[a-z_]+|heart_rate_[a-z_]+)(?::|$)/"]
+    ],
+    "oauth": [],
+    "mcp": [],
+    "writeback": [],
+    "diagnostics": []
+  }
+};
+
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const git = args => execFileSync('git', args, {cwd:REPO_ROOT, windowsHide:true, maxBuffer:1024*1024});
 
@@ -1548,8 +1627,9 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   const probeMain = applyPatches(antigravityMain,name,false,SESAME_PROBE_PATCHES.mainline);
   const sesameMain = applyPatches(probeMain,name,false,SESAME_PATCHES.mainline);
   const foodMain = applyPatches(sesameMain,name,false,FOOD_PATCHES.mainline);
-  assert.ok(applyPatches(foodMain,name,false,STUDY_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,STUDY_PATCHES.mainline),name,true,FOOD_PATCHES.mainline),name,true,SESAME_PATCHES.mainline),name,true,SESAME_PROBE_PATCHES.mainline),name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
+  const studyMain = applyPatches(foodMain,name,false,STUDY_PATCHES.mainline);
+  assert.ok(applyPatches(studyMain,name,false,HEART_RATE_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,HEART_RATE_PATCHES.mainline),name,true,STUDY_PATCHES.mainline),name,true,FOOD_PATCHES.mainline),name,true,SESAME_PATCHES.mainline),name,true,SESAME_PROBE_PATCHES.mainline),name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
   const path='i_remote_mcp/'+name+'.mjs';
   if(name==='oauth'||name==='diagnostics')assert.equal(textFormat(base).text,textFormat(files[path]).text,'shared baseline semantic mismatch: '+name);
   files[path]=applyPatches(applyPatches(applyPatches(applyPatches(files[path],name),name,false,FRONTEND_PATCHES.legacy),name,false,REGISTRY_PATCHES.legacy),name,false,GEMINI_PATCHES.legacy);
@@ -1558,7 +1638,8 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   files[path]=applyPatches(files[path],name,false,SESAME_PATCHES.legacy);
   files[path]=applyPatches(files[path],name,false,FOOD_PATCHES.legacy);
   files[path]=applyPatches(files[path],name,false,STUDY_PATCHES.legacy);
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,STUDY_PATCHES.legacy),name,true,FOOD_PATCHES.legacy),name,true,SESAME_PATCHES.legacy),name,true,SESAME_PROBE_PATCHES.legacy),name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
+  files[path]=applyPatches(files[path],name,false,HEART_RATE_PATCHES.legacy);
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,HEART_RATE_PATCHES.legacy),name,true,STUDY_PATCHES.legacy),name,true,FOOD_PATCHES.legacy),name,true,SESAME_PATCHES.legacy),name,true,SESAME_PROBE_PATCHES.legacy),name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
  }
  for(const bytes of Object.values(files))assert.ok(!/domain_tools|personal_data_domains|coreRemember|domain-config/.test(bytes.toString()),'W3 domain source forbidden');
  const manifest={schema_version:1,status:'not_deployed',baseline_commit:BASELINE_COMMIT,source_commit:sourceCommit,
