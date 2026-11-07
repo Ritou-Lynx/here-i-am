@@ -112,6 +112,14 @@ test('symlinked documents are refused', {skip:process.platform === 'win32'}, asy
   assert.equal(s.hits.length, 0);
 });
 
+test('a root spelled through another path (like a Windows 8.3 name) still works', {skip:process.platform === 'win32'}, async t => {
+  const dir = fixture(t), alias = mkdtempSync(join(tmpdir(), 'notes-alias-'));
+  t.after(() => rmSync(alias, {recursive:true, force:true}));
+  symlinkSync(join(dir, '..'), join(alias, 'parent'));
+  const {handlers} = createNotesTools({notesDir:join(alias, 'parent', dir.split(/[\\/]/).pop()), now:() => NOW});
+  assert.equal((await handlers.notes_read({token:'docD1'})).token, 'docD1');
+});
+
 test('notes.json config: absent means off, malformed fails closed', t => {
   const state = mkdtempSync(join(tmpdir(), 'notes-state-'));
   t.after(() => rmSync(state, {recursive:true, force:true}));
