@@ -1,3 +1,8 @@
+## 2026-11-07 N1 家里安装脚本轮
+
+- 用户 11-07 完成 `drive:drive:readonly` 授权。新增脚本轮 `tools/relay_scripts/notes/n1-install.ps1`：核对家里同步文件是已知版本，备份后装 cli.mjs 和 notes_mirror.mjs、config 加 notes.folders，试跑一次，再注册 Interactive 计划任务 `FeishuNotes-Mirror`（每 30 分钟，:10/:40，wscript 隐藏窗口，日志在工具目录 logs）。合同见 docs/development/handoffs/RELAY_20261107_n1-notes-install.md。
+- notes_mirror 加 `--max-minutes`（默认 20）：第一次文档多时超出预算的记为 deferred，下次接着拉，避免被任务时限杀掉而写不出 index.json。
+
 ## 2026-11-05 N1：飞书笔记副本（日记、工作文档给 i MCP 用）
 
 - 用户 11-05 要让飞书里的日记和工作文档成为助手能自己调用的上下文，选了“副本 + i MCP 工具”方案（不排除任何内容，副本要增量、同一篇只保留一份）。这是第一步，只负责把文档拉到本机。

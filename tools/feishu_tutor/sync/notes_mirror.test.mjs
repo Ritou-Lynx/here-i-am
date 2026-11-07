@@ -91,7 +91,7 @@ test('first run mirrors docx from the configured folders and their subfolders on
   const f = await fixture(t);
   const result = await f.run();
   assert.equal(result.exit, 0, result.stderr);
-  assert.match(result.stdout, /notes_ok fetched=3 unchanged=0 removed=0 failed=0/u);
+  assert.match(result.stdout, /notes_ok fetched=3 unchanged=0 deferred=0 removed=0 failed=0/u);
   assert.deepEqual(await f.files('日记-日报'), ['docD1.md', 'docD2.md']);
   assert.deepEqual(await f.files('工作'), ['docW1.md']);
   const index = await f.index();
@@ -181,6 +181,18 @@ test('one failed fetch keeps its last good copy and reports partial', async t =>
   delete f.store.fail_fetch; await f.save();
   const retry = await f.run();
   assert.match(retry.stdout, /fetched=1/u);
+});
+
+test('a time budget defers the remaining fetches to the next run', async t => {
+  const f = await fixture(t);
+  const args = ['--config', f.configFile, '--state', path.join(f.study, 'state'), '--notes', f.notes];
+  const first = await f.run([...args, '--max-minutes', '0']);
+  assert.equal(first.exit, 2); assert.match(first.stderr, /notes_deferred/u);
+  assert.match(first.stdout, /fetched=0 unchanged=0 deferred=3/u);
+  assert.deepEqual((await f.index()).docs, {});
+  const next = await f.run(args);
+  assert.equal(next.exit, 0); assert.match(next.stdout, /fetched=3 unchanged=0 deferred=0/u);
+  assert.match((await f.run([...args, '--max-minutes', '121'])).stderr, /usage_invalid/u);
 });
 
 test('folder pagination is followed to the end', async t => {
