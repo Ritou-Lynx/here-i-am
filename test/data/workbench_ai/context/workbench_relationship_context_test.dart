@@ -68,10 +68,6 @@ void main() {
     expect(prompt, contains('- user: 嗯'),
         reason: 'only the latest duplicate current message is skipped');
     expect(prompt, contains('- character: 早一点的回复'));
-    expect(prompt, isNot(contains('LEGACY_PERSONA_SHOULD_NOT_APPEAR')));
-    expect(prompt, isNot(contains('LEGACY_SYSTEM_OVERRIDE_SHOULD_NOT_APPEAR')));
-    expect(prompt, isNot(contains('LEGACY_POST_HISTORY_SHOULD_NOT_APPEAR')));
-    expect(prompt, isNot(contains('LEGACY_STYLE_EXAMPLE_SHOULD_NOT_APPEAR')));
     expect(prompt, isNot(contains('GetCurrentLocation')));
     expect(prompt, isNot(contains('AiFinancePenalty')));
     expect(prompt, isNot(contains('record_explicit_memory')));
@@ -280,11 +276,7 @@ CharacterModel _legacyCharacter() => CharacterModel(
       id: 'i',
       name: 'I',
       tags: const ['primary'],
-      persona: 'LEGACY_PERSONA_SHOULD_NOT_APPEAR',
       enabled: true,
-      systemPromptOverride: 'LEGACY_SYSTEM_OVERRIDE_SHOULD_NOT_APPEAR',
-      postHistoryInstructions: 'LEGACY_POST_HISTORY_SHOULD_NOT_APPEAR',
-      mesExample: 'LEGACY_STYLE_EXAMPLE_SHOULD_NOT_APPEAR',
     );
 
 WorkbenchRecentRelationshipMessage _message(
