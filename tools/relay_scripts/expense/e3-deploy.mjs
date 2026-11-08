@@ -18,7 +18,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ACTIVE,P,P2,S,CHANGED,MCP_EXPECTED,PINNED_NODE,LISTEN_PORT,EXPENSE_JSON,ACL_PS,CHECK_ACL_PS,
  emit,need,plain,readJson,fileSha,short,files,run,rows,lastErr,value,psFile,relay,asList,tasks,loginOf,mcpOf,
- portFree,preflight,packageDiff,expenseReceipts,setReport} from './e3-common.mjs';
+ portFree,preflight,packageDiff,expenseReceipts,setReport,singleLinkGit} from './e3-common.mjs';
 
 const REPO=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..','..','..');
 const DRY_TASK='HereIAm-iCoreSchema6-e3-dryrun';
@@ -51,7 +51,7 @@ async function main(){
  const T0=Date.now();
  const a=process.argv.slice(2);need(a.length===4&&a[0]==='--mode'&&a[1]==='deploy'&&a[2]==='--git','args','usage: --mode deploy --git <git.exe>');
  need(process.platform==='win32'&&process.version==='v24.14.1'&&fileSha(process.execPath)===PINNED_NODE&&plain(process.execPath),'args','pinned_node_required');
- const G=a[3];need(plain(G)&&existsSync(G)&&statSync(G).isFile(),'args','git_path_required');
+ need(plain(a[3])&&existsSync(a[3])&&statSync(a[3]).isFile(),'args','git_path_required');const G=singleLinkGit(a[3],'args');
  const node=process.execPath;
 
  // 0. Preflight (read-only).

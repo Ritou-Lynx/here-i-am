@@ -3,7 +3,7 @@
 // Output: one JSON row per step; no tokens, logins, domains, paths, SIDs or record contents.
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
-import {existsSync,readFileSync,readdirSync} from 'node:fs';
+import {existsSync,lstatSync,readFileSync,readdirSync} from 'node:fs';
 import {createServer} from 'node:net';
 import path from 'node:path';
 
@@ -69,6 +69,15 @@ export function portFree(port){return new Promise(resolve=>{const s=createServer
 // Copy the DACL (only) of each source directory onto its target, protected.
 export const ACL_PS="$o=@()\nforeach($p in $q.pairs){$a=(Get-Item -LiteralPath $p.from).GetAccessControl('Access');$a.SetAccessRuleProtection($true,$true);(Get-Item -LiteralPath $p.to).SetAccessControl($a);$v=(Get-Item -LiteralPath $p.to).GetAccessControl('Access');$o+=[pscustomobject]@{dir=$p.rel;protected=$v.AreAccessRulesProtected;rules=@($v.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])).Count}}\nConvertTo-Json -InputObject $o -Compress";
 export const CHECK_ACL_PS="$o=@()\nforeach($p in $q.dirs){$v=(Get-Item -LiteralPath $p.path).GetAccessControl('Access');$o+=[pscustomobject]@{dir=$p.rel;protected=$v.AreAccessRulesProtected;rules=@($v.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])).Count}}\nConvertTo-Json -InputObject $o -Compress";
+
+// The package tools reject hard-linked executables (Git for Windows links mingw64\bin\git.exe);
+// prefer the given git.exe when it has a single link, else the usual single-link installs (N2 step 1).
+export function singleLinkGit(given,step){
+ const pf=process.env.ProgramFiles??'';
+ const list=[given,path.join(pf,'Git','cmd','git.exe'),path.join(pf,'Git','bin','git.exe'),path.join(pf,'Git','mingw64','bin','git.exe')];
+ const ok=p=>{if(!plain(p)||!existsSync(p))return false;const st=lstatSync(p);return st.isFile()&&!st.isSymbolicLink()&&st.nlink===1;};
+ const g=list.find(ok);need(g,step,'single_link_git_not_found');return g;
+}
 
 // Everything both rounds check before touching anything. Read-only.
 export function preflight({G,REPO,step}){

@@ -6,18 +6,18 @@
 import {existsSync,statSync,statfsSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {ACTIVE,CHANGED,LISTEN_PORT,S,emit,expenseReceipts,need,packageDiff,plain,portFree,preflight,rows,run,short} from './e3-common.mjs';
+import {ACTIVE,CHANGED,LISTEN_PORT,S,emit,expenseReceipts,need,packageDiff,plain,portFree,preflight,rows,run,short,singleLinkGit} from './e3-common.mjs';
 
 const REPO=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..','..','..');
 
 async function main(){
  const a=process.argv.slice(2);need(a.length===2&&a[0]==='--git','args','usage: --git <git.exe>');
  need(process.platform==='win32'&&process.version==='v24.14.1'&&plain(process.execPath),'args','pinned_node_required');
- const G=a[1];need(plain(G)&&existsSync(G)&&statSync(G).isFile(),'args','git_path_required');
+ need(plain(a[1])&&existsSync(a[1])&&statSync(a[1]).isFile(),'args','git_path_required');const G=singleLinkGit(a[1],'args');
  const f=preflight({G,REPO,step:'step0'});
  emit('step0',true,{active:'Running',others:'Disabled',release:path.basename(f.login.release_directory),manifest:short(f.login.manifest_sha256),
   server:short(f.mcp.source_files.find(x=>x.path==='i_remote_mcp/server.mjs').sha256),candidate:path.basename(f.oldCand),tools:path.basename(f.TOOLS),
-  expense_json:existsSync(f.expenseJson)?'present':'absent',head:short(f.HEAD),S:short(S)});
+  expense_json:existsSync(f.expenseJson)?'present':'absent',head:short(f.HEAD),S:short(S),git:path.basename(path.dirname(G))+'\\git.exe'});
 
  let ok=true;
  const changed=await packageDiff({REPO,G,login:f.login,step:'step1'});
