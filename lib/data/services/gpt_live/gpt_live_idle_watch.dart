@@ -12,9 +12,13 @@ class GptLiveIdleWatch {
 
   static const promptGracePeriod = Duration(seconds: 20);
 
-  void recordTranscript(DateTime at) {
-    _lastTranscriptAt = at;
-    _promptedAt = null;
+  void recordTranscript(DateTime at, {required bool fromUser}) {
+    if (_promptedAt == null || fromUser) {
+      _lastTranscriptAt = at;
+      _promptedAt = null;
+      return;
+    }
+    _promptedAt = at;
   }
 
   GptLiveIdleAction evaluate(DateTime now) {

@@ -218,7 +218,10 @@ class GptLiveCall extends ChangeNotifier {
     final event = GptLiveEvent.parse(raw);
     switch (event) {
       case GptLiveTranscriptDelta():
-        _idleWatch?.recordTranscript(DateTime.now());
+        _idleWatch?.recordTranscript(
+          DateTime.now(),
+          fromUser: event.fromUser,
+        );
         transcript.add(event);
         notifyListeners();
       case GptLiveUsage(:final seconds):
