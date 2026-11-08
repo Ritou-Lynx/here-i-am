@@ -53,7 +53,7 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
       if (max != null &&
           start != null &&
           DateTime.now().difference(start) >= max) {
-        unawaited(_hangUpAndLeave());
+        unawaited(_hangUpAndLeave(reason: 'max_duration'));
         return;
       }
       setState(() {});
@@ -80,10 +80,10 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
     }
   }
 
-  Future<void> _hangUpAndLeave() async {
+  Future<void> _hangUpAndLeave({String reason = 'user'}) async {
     if (_leaving) return;
     _leaving = true;
-    await _call.hangUp();
+    await _call.hangUp(reason: reason);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -97,7 +97,8 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
         _call.phase == GptLiveCallPhase.failed) {
       _call.dispose();
     } else {
-      unawaited(_call.hangUp().whenComplete(_call.dispose));
+      unawaited(
+          _call.hangUp(reason: 'screen_closed').whenComplete(_call.dispose));
     }
     super.dispose();
   }

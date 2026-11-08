@@ -935,7 +935,6 @@ class MemexRouter {
   Future<CharacterModel> createCharacter({
     required String name,
     required List<String> tags,
-    required String persona,
   }) async {
     await _ensureInitialized();
     _logger.info('LocalMode: createCharacter called: name=$name');
@@ -944,7 +943,6 @@ class MemexRouter {
       return await createCharacterEndpoint(
         name: name,
         tags: tags,
-        persona: persona,
       );
     } catch (e) {
       _logger.severe('Failed to create character: $e');
@@ -956,7 +954,6 @@ class MemexRouter {
     required String characterId,
     String? name,
     List<String>? tags,
-    String? persona,
   }) async {
     await _ensureInitialized();
     _logger.info('LocalMode: updateCharacter called: characterId=$characterId');
@@ -966,7 +963,6 @@ class MemexRouter {
         characterId: characterId,
         name: name,
         tags: tags,
-        persona: persona,
       );
     } catch (e) {
       _logger.severe('Failed to update character $characterId: $e');

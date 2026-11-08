@@ -135,7 +135,6 @@ class CharacterService extends ChangeNotifier {
     final yaml = <String, dynamic>{
       'name': 'I',
       'tags': const <String>[],
-      'persona': '',
       'avatar': 'i',
       'enabled': true,
       'is_primary_companion': true,
@@ -159,7 +158,7 @@ class CharacterService extends ChangeNotifier {
         if (existing != null) {
           existing['name'] = 'I';
           existing['tags'] ??= const <String>[];
-          existing['persona'] ??= '';
+          _stripLegacyFields(existing);
           existing['avatar'] ??= 'i';
           existing['enabled'] = true;
           existing['is_primary_companion'] = true;
@@ -181,13 +180,23 @@ class CharacterService extends ChangeNotifier {
     }
   }
 
-  /// Build merged persona string from character data map.
-  String _buildPersona(Map<String, dynamic> charData) {
-    var persona = charData['persona'] as String;
-    if (charData.containsKey('style_guide')) {
-      persona += "\n\n## Voice\n${charData['style_guide']}";
+  /// Old character-card prompt fields. The app no longer reads them; they are
+  /// dropped from a character file whenever it is written.
+  static const legacyFields = [
+    'persona',
+    'system_prompt_override',
+    'post_history_instructions',
+    'mes_example',
+    'interest_filter',
+    'style_guide',
+    'example_dialogue',
+    'pkm_interest_filter',
+  ];
+
+  static void _stripLegacyFields(Map<String, dynamic> charData) {
+    for (final f in legacyFields) {
+      charData.remove(f);
     }
-    return persona;
   }
 
   Map<String, dynamic> _buildDefaultCharacterYaml(
@@ -196,17 +205,10 @@ class CharacterService extends ChangeNotifier {
     return {
       "name": charData['name'],
       "tags": charData['tags'],
-      "persona": _buildPersona(charData),
       "avatar": charData['avatar'],
       "enabled": true,
-      if (charData['pkm_interest_filter'] != null)
-        "interest_filter": charData['pkm_interest_filter'],
       if (charData['first_message'] != null)
         "first_message": charData['first_message'],
-      if (charData['post_history_instructions'] != null)
-        "post_history_instructions": charData['post_history_instructions'],
-      if (charData['example_dialogue'] != null)
-        "mes_example": charData['example_dialogue'],
     };
   }
 
@@ -326,11 +328,7 @@ class CharacterService extends ChangeNotifier {
           'is_primary_companion',
           'chat_background',
           'tts_voice_id',
-          'system_prompt_override',
           'first_message',
-          'post_history_instructions',
-          'mes_example',
-          'interest_filter',
         ]) {
           if (charData.containsKey(field)) {
             refreshed[field] = charData[field];
@@ -390,7 +388,7 @@ class CharacterService extends ChangeNotifier {
       {bool returnPlaceholder = true}) async {
     if (characterId == "0") {
       return CharacterModel(
-          id: "0", name: "memex", tags: [], persona: "", enabled: true);
+          id: "0", name: "memex", tags: [], enabled: true);
     }
 
     final charsPath = await _ensureCharactersDirectory(userId);
@@ -402,7 +400,6 @@ class CharacterService extends ChangeNotifier {
           id: characterId,
           name: "[Deleted character]",
           tags: [],
-          persona: "This character has been deleted",
           enabled: false,
           avatar: null,
         );
@@ -479,20 +476,11 @@ class CharacterService extends ChangeNotifier {
     final charDict = {
       "name": characterData['name'] ?? "",
       "tags": characterData['tags'] ?? [],
-      "persona": characterData['persona'] ?? "",
       "avatar": characterData['avatar'],
       "enabled": characterData['enabled'] ?? true,
       "memory": characterData['memory'] ?? [],
-      if (characterData['interest_filter'] != null)
-        "interest_filter": characterData['interest_filter'],
       if (characterData['first_message'] != null)
         "first_message": characterData['first_message'],
-      if (characterData['system_prompt_override'] != null)
-        "system_prompt_override": characterData['system_prompt_override'],
-      if (characterData['post_history_instructions'] != null)
-        "post_history_instructions": characterData['post_history_instructions'],
-      if (characterData['mes_example'] != null)
-        "mes_example": characterData['mes_example'],
       if (characterData['chat_background'] != null)
         "chat_background": characterData['chat_background'],
       if (characterData['tts_voice_id'] != null)
@@ -538,9 +526,6 @@ class CharacterService extends ChangeNotifier {
       if (updates.containsKey('tags')) {
         charData['tags'] = updates['tags'];
       }
-      if (updates.containsKey('persona')) {
-        charData['persona'] = updates['persona'];
-      }
       if (updates.containsKey('avatar')) {
         charData['avatar'] = updates['avatar'];
       }
@@ -553,37 +538,11 @@ class CharacterService extends ChangeNotifier {
       if (updates.containsKey('is_primary_companion')) {
         charData['is_primary_companion'] = updates['is_primary_companion'];
       }
-      if (updates.containsKey('interest_filter')) {
-        charData['interest_filter'] = updates['interest_filter'];
-      }
       if (updates.containsKey('first_message')) {
         if (updates['first_message'] == null) {
           charData.remove('first_message');
         } else {
           charData['first_message'] = updates['first_message'];
-        }
-      }
-      if (updates.containsKey('system_prompt_override')) {
-        if (updates['system_prompt_override'] == null) {
-          charData.remove('system_prompt_override');
-        } else {
-          charData['system_prompt_override'] =
-              updates['system_prompt_override'];
-        }
-      }
-      if (updates.containsKey('post_history_instructions')) {
-        if (updates['post_history_instructions'] == null) {
-          charData.remove('post_history_instructions');
-        } else {
-          charData['post_history_instructions'] =
-              updates['post_history_instructions'];
-        }
-      }
-      if (updates.containsKey('mes_example')) {
-        if (updates['mes_example'] == null) {
-          charData.remove('mes_example');
-        } else {
-          charData['mes_example'] = updates['mes_example'];
         }
       }
       if (updates.containsKey('chat_background')) {
@@ -601,10 +560,7 @@ class CharacterService extends ChangeNotifier {
         }
       }
 
-      // Remove legacy fields if they exist (merged into persona already by backend logic usually, but cleanup is good)
-      charData.remove('style_guide');
-      charData.remove('example_dialogue');
-      charData.remove('pkm_interest_filter');
+      _stripLegacyFields(charData);
 
       await _fileSystem.writeYamlFile(charFile.path, charData);
 

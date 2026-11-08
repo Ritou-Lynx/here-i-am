@@ -39,6 +39,11 @@ class GptLiveCall extends ChangeNotifier {
   bool speakerOn = true;
   int usageSeconds = 0;
   DateTime? startedAt;
+
+  /// 本通怎么结束的，写进“上次通话”记录，方便查断线原因。
+  String? _endReason;
+  String? _lastServerError;
+  bool _recorded = false;
   final transcript = GptLiveTranscript();
 
   RTCPeerConnection? _pc;
@@ -76,7 +81,6 @@ class GptLiveCall extends ChangeNotifier {
                 id: characterId,
                 name: '林埃',
                 tags: const [],
-                persona: '',
                 enabled: true,
               ),
         ),
@@ -170,10 +174,11 @@ class GptLiveCall extends ChangeNotifier {
   }
 
   /// 挂断：请求服务端正常关闭（最多等 3 秒），释放连接，写回转写。
-  Future<void> hangUp() async {
+  Future<void> hangUp({String reason = 'user'}) async {
     if (phase == GptLiveCallPhase.ending || phase == GptLiveCallPhase.ended) {
       return;
     }
+    _endReason ??= reason;
     final wasLive = phase == GptLiveCallPhase.live;
     _setPhase(GptLiveCallPhase.ending);
     if (wasLive && _dc?.state == RTCDataChannelState.RTCDataChannelOpen) {
@@ -185,7 +190,23 @@ class GptLiveCall extends ChangeNotifier {
     }
     await _release();
     await _persist();
+    await _recordEnd();
     _setPhase(GptLiveCallPhase.ended);
+  }
+
+  Future<void> _recordEnd() async {
+    if (_recorded || startedAt == null) return;
+    _recorded = true;
+    try {
+      await GptLiveSettings.setLastCallRecord(GptLiveCallRecord(
+        startedAt: startedAt!,
+        seconds: DateTime.now().difference(startedAt!).inSeconds,
+        reason: _endReason ?? 'unknown',
+        serverError: _lastServerError,
+      ));
+    } catch (e) {
+      _log.warning('record end failed: $e');
+    }
   }
 
   void _onEvent(String raw) {
@@ -204,10 +225,11 @@ class GptLiveCall extends ChangeNotifier {
           _closed!.complete();
         } else if (phase == GptLiveCallPhase.live) {
           // 服务端主动关（超时、对方挂断）：照常收尾
-          unawaited(hangUp());
+          unawaited(hangUp(reason: 'server:${reason ?? 'unknown'}'));
         }
       case GptLiveError(:final code, :final message):
         _log.warning('server error: $code $message');
+        _lastServerError = [code, message].whereType<String>().join(' ');
       case GptLiveStarted():
         _greetIfNudge();
       case null:
@@ -316,7 +338,8 @@ class GptLiveCall extends ChangeNotifier {
 
   void _fail(String message) {
     error = message;
-    unawaited(_release().then((_) => _persist()));
+    _endReason ??= 'failed:$message';
+    unawaited(_release().then((_) => _persist()).then((_) => _recordEnd()));
     _setPhase(GptLiveCallPhase.failed);
   }
 

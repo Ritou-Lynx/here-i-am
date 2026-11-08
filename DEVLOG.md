@@ -4,6 +4,12 @@
 - 候选构建器在 EXPENSE 之后加 `NOTES_PATCHES`，legacy server 原样内嵌 notes_tools；MCP 状态目录有 `notes.json`（`notes-config-v1`）才开放。notes_tools 里 JSON-schema 的结尾锚点改成 `NOTES_END` 常量（构建器不允许内嵌源码里出现 String.replace 的替换模式）。server 候选哈希 `4b1014e0`（叠在 E3 记账 63acb514 之上），云端测试全部通过。
 - 部署脚本轮 `tools/relay_scripts/notes/n2-deploy.ps1`：只换 MCP 候选，从 e3-expense 切到 n2-notes-20261108，失败退回。合同见 docs/development/handoffs/RELAY_20261108_n2-notes-mcp.md。
 
+## 2026-11-08 E3：记账上线（换 Core 包 + MCP 候选）
+- 部署 PR #106，脚本 tools/relay_scripts/expense/（e3-inspect 只读、e3-deploy 部署），按 N2 顺序从现役 m1-digest 切换。
+- 新 Core 包 release-78e11df7（manifest ded493e5，v3-lab #98 合并点，只差 personal_data_domains.mjs、runtime_child.mjs）；本机 git.exe 都是硬链接，包 CLI 拒收，脚本按 prepareRelease 原样自建（逐字节一致）后用 verifyRelease 核对。
+- 现役任务 HereIAm-iCoreSchema6-e3-expense-20261108（server 63acb514），停服 93 秒；Core 启动回执 expense provisioned（writer、phone 原地扩权限，未发新令牌）。旧 m1-digest 停用保留。
+- 待：从 v3-lab 重装 App 验证账本投影。
+
 ## 2026-11-07 E1/E2：其他 AI 端记账（expense_log）
 
 - 用户 11-07 让继续做记账 MCP（方案见 11-06 记账审查文档）。第一版只记支出。

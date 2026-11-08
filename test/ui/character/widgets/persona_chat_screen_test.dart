@@ -861,7 +861,6 @@ void main() {
       id: 'persona_widget_test',
       name: 'Lin Ai Test',
       tags: const [],
-      persona: 'test persona',
       enabled: true,
     );
     int? connectorMessageId;

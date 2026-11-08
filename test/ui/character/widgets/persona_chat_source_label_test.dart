@@ -44,7 +44,6 @@ void main() {
         id: 'synthetic-source-label-character',
         name: 'Synthetic character',
         tags: const [],
-        persona: 'Synthetic test persona',
         enabled: true,
       );
       final origins = [

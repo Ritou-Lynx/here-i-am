@@ -12,11 +12,7 @@ void main() {
       id: 'i',
       name: 'I',
       tags: const ['primary'],
-      persona: 'LEGACY_PERSONA_SHOULD_NOT_APPEAR',
       enabled: true,
-      systemPromptOverride: 'LEGACY_SYSTEM_OVERRIDE_SHOULD_NOT_APPEAR',
-      postHistoryInstructions: 'LEGACY_POST_HISTORY_SHOULD_NOT_APPEAR',
-      mesExample: 'LEGACY_STYLE_EXAMPLE_SHOULD_NOT_APPEAR',
     );
 
     final prompt = CompanionAgentSkill.buildSystemPromptForTesting(
@@ -27,10 +23,6 @@ void main() {
     expect(prompt, contains('你是林埃（英文名 i），跟你聊天的人是 Lynx，本名李橙。'));
     expect(prompt, contains('你们是已经确认关系的恋人'));
     expect(prompt, contains('Tags: primary'));
-    expect(prompt, isNot(contains('LEGACY_PERSONA_SHOULD_NOT_APPEAR')));
-    expect(prompt, isNot(contains('LEGACY_SYSTEM_OVERRIDE_SHOULD_NOT_APPEAR')));
-    expect(prompt, isNot(contains('LEGACY_POST_HISTORY_SHOULD_NOT_APPEAR')));
-    expect(prompt, isNot(contains('LEGACY_STYLE_EXAMPLE_SHOULD_NOT_APPEAR')));
   });
 
   test('companion prompt does not inject old relationship or safety contracts',
@@ -40,7 +32,6 @@ void main() {
         id: 'i',
         name: 'I',
         tags: const [],
-        persona: '',
         enabled: true,
       ),
     );
@@ -59,7 +50,6 @@ void main() {
         id: 'i',
         name: 'I',
         tags: const [],
-        persona: '',
         enabled: true,
       ),
     );
@@ -75,7 +65,6 @@ void main() {
         id: 'i',
         name: 'I',
         tags: const [],
-        persona: '',
         enabled: true,
       ),
     );

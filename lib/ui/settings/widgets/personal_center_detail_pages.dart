@@ -552,6 +552,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _homeTurboUrlController = TextEditingController();
   final _gptLiveKeyController = TextEditingController();
   final _gptLiveExtraController = TextEditingController();
+  GptLiveCallRecord? _gptLiveLastCall;
   String _gptLiveVoice = GptLiveProtocol.defaultVoice;
   final _nudgeServerController = TextEditingController();
   final _nudgeTopicController = TextEditingController();
@@ -587,6 +588,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       GptLiveSettings.getApiKey(),
       GptLiveSettings.getVoice(),
       GptLiveSettings.getExtraInstructions(),
+      GptLiveSettings.getLastCallRecord(),
     ]);
     if (!mounted) return;
     _elevenLabsController.text = values[1] as String? ?? '';
@@ -600,6 +602,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _gptLiveVoice = GptLiveProtocol.normalizeVoice(
         values[9] as String? ?? GptLiveProtocol.defaultVoice);
     _gptLiveExtraController.text = values[10] as String? ?? '';
+    _gptLiveLastCall = values[11] as GptLiveCallRecord?;
     _callHealth = await VoiceCallHealth.instance.load();
     await _loadNudge();
     if (!mounted) return;
@@ -1027,6 +1030,13 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                     alignLabelWithHint: true,
                   ),
                 ),
+                if (_gptLiveLastCall != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    '上次通话：${_gptLiveLastCall!.describe()}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ],
             ),
           ),
