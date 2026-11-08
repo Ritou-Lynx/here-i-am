@@ -1,3 +1,15 @@
+## 2026-11-08 GPT-Live 挂断后返回通话前页面
+- 修复服务端结束后 maybePop 被旧 PopScope 状态拦截、停在“已挂断”的问题。
+- 终态统一在下一帧退出；手动挂断先等待收尾，接通后连接失败也自动退出，连接前错误保留提示。
+- 分开挂断中与离页标记，重复通知/操作只退出一次；被其他页面覆盖时只移除通话路由。
+- 验证：旧逻辑的服务端结束场景复现失败；修复后 6 项 widget 回归与 16 项既有协议测试共 22 项通过；相关 Dart 静态分析无问题。
+- 修复与回归测试纳入 v3-lab，合并保留其他来源提交；正式本机工作区待同步。
+- 已安装产物基于 426d95cb 加本修复：hereIAmV3 debug 构建、覆盖安装与冷启动通过，手机 APK 哈希一致，原聊天数据库文件保留。
+- APK SHA-256：`2fa96e4e3c9fa2fc5dfe774f13132a59bf0e3d2ca8b46acadc46ef64f3748cc0`（`build/app/outputs/flutter-apk/app-hereiamv3-debug.apk`）；真实通话返回页面待用户确认。
+- 构建复用匹配的 47 项 Android 插件注册生成文件与原调试签名，使用独立缓存和现有网络代理；未改依赖约束或签名身份。
+
+---
+
 ## 2026-11-08 E3：记账上线（换 Core 包 + MCP 候选）
 - 部署 PR #106，脚本 tools/relay_scripts/expense/（e3-inspect 只读、e3-deploy 部署），按 N2 顺序从现役 m1-digest 切换。
 - 新 Core 包 release-78e11df7（manifest ded493e5，v3-lab #98 合并点，只差 personal_data_domains.mjs、runtime_child.mjs）；本机 git.exe 都是硬链接，包 CLI 拒收，脚本按 prepareRelease 原样自建（逐字节一致）后用 verifyRelease 核对。

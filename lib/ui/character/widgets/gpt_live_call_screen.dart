@@ -14,6 +14,7 @@ class GptLiveCallScreen extends StatefulWidget {
     this.callReason = '',
     this.maxDuration,
     this.showWhenLocked = false,
+    this.call,
   });
 
   final String characterId;
@@ -27,6 +28,10 @@ class GptLiveCallScreen extends StatefulWidget {
   /// 锁屏接听时让通话页直接显示在锁屏上方（只在这一页期间开启）。
   final bool showWhenLocked;
 
+  /// 通话页拥有此实例的生命周期；测试可替换外部通话连接。
+  @visibleForTesting
+  final GptLiveCall? call;
+
   @override
   State<GptLiveCallScreen> createState() => _GptLiveCallScreenState();
 }
@@ -35,12 +40,14 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
   static const _systemActions =
       MethodChannel('com.memexlab.memex/system_actions');
 
-  late final GptLiveCall _call = GptLiveCall(
-    characterId: widget.characterId,
-    callReason: widget.callReason,
-  );
+  late final GptLiveCall _call = widget.call ??
+      GptLiveCall(
+        characterId: widget.characterId,
+        callReason: widget.callReason,
+      );
   Timer? _ticker;
-  bool _leaving = false;
+  bool _hangupInProgress = false;
+  bool _exitScheduled = false;
 
   @override
   void initState() {
@@ -72,19 +79,38 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
 
   void _onChanged() {
     if (!mounted) return;
-    setState(() {});
-    // 服务端主动结束（超时、网络断开后的收尾）时自动退出
-    if (_call.phase == GptLiveCallPhase.ended && !_leaving) {
-      _leaving = true;
-      Navigator.of(context).maybePop();
+    final ended = _call.phase == GptLiveCallPhase.ended;
+    final disconnected =
+        _call.phase == GptLiveCallPhase.failed && _call.startedAt != null;
+    if ((ended || disconnected) && !_hangupInProgress) {
+      _leave();
+      return;
     }
+    setState(() {});
+  }
+
+  void _leave() {
+    if (!mounted || _exitScheduled) return;
+    final route = ModalRoute.of(context);
+    setState(() => _exitScheduled = true);
+    // 等 PopScope 放行后再退出，避免被上一帧的 canPop=false 拦住。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || route == null || !route.isActive) return;
+      final navigator = route.navigator;
+      if (route.isCurrent) {
+        navigator?.pop();
+      } else {
+        // 结束时若有其他页面盖在上方，只移除本通话页。
+        navigator?.removeRoute(route);
+      }
+    });
   }
 
   Future<void> _hangUpAndLeave({String reason = 'user'}) async {
-    if (_leaving) return;
-    _leaving = true;
+    if (_hangupInProgress || _exitScheduled) return;
+    _hangupInProgress = true;
     await _call.hangUp(reason: reason);
-    if (mounted) Navigator.of(context).pop();
+    _leave();
   }
 
   @override
@@ -128,7 +154,7 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
   Widget build(BuildContext context) {
     final failed = _call.phase == GptLiveCallPhase.failed;
     return PopScope(
-      canPop: _leaving || failed,
+      canPop: _exitScheduled || (failed && !_hangupInProgress),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) unawaited(_hangUpAndLeave());
       },
