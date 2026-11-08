@@ -1,3 +1,16 @@
+## 2026-11-08 GPT-Live 挂断后返回通话前页面
+- 修复服务端结束后 maybePop 被旧 PopScope 状态拦截、停在“已挂断”的问题。
+- 终态统一在下一帧退出；手动挂断先等待收尾，接通后连接失败也自动退出，连接前错误保留提示。
+- 分开挂断中与离页标记，重复通知/操作只退出一次；被其他页面覆盖时只移除通话路由。
+- 验证：旧逻辑的服务端结束场景复现失败；修复后 6 项 widget 回归与 16 项既有协议测试共 22 项通过；相关 Dart 静态分析无问题。
+- 与远端 88b60b71（含 #109/#110）整合后，22 项专项测试与静态分析再次通过；通话页源码与已安装候选一致。
+- 修复与回归测试纳入 v3-lab，合并保留其他来源提交；正式本机工作区待同步。
+- 已安装产物基于 426d95cb 加本修复（不含随后合入的 #110 设置清理）：hereIAmV3 debug 构建、覆盖安装与冷启动通过，手机 APK 哈希一致，原聊天数据库文件保留。
+- APK SHA-256：`2fa96e4e3c9fa2fc5dfe774f13132a59bf0e3d2ca8b46acadc46ef64f3748cc0`（`build/app/outputs/flutter-apk/app-hereiamv3-debug.apk`）；真实通话返回页面待用户确认。
+- 构建复用匹配的 47 项 Android 插件注册生成文件与原调试签名，使用独立缓存和现有网络代理；未改依赖约束或签名身份。
+
+---
+
 ## 2026-11-08 N2：飞书笔记接进 i MCP
 
 - 接 N1 的家里副本。新增三个只读工具 `notes_recent`、`notes_search`、`notes_read`（模块 `tools/i_remote_mcp/notes_tools.mjs` 已随 #101 进 v3-lab），Claude、ChatGPT、Gemini、Antigravity 可用，Sesame 不开放。i_context 不加笔记段，近况交给日摘要 M1。
