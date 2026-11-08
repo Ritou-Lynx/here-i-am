@@ -12,6 +12,11 @@
 - App：饮食连接顺带挂 `expense_entries`（同一凭证、同一 transport，失败不影响饮食状态）；每次前台同步后投影进共同账本（expense 行，id 由 Core 记录 id 生成，characterId `system:core_expense:<端>`，不参与去重）。只在 Core 版本号变了才重写，用户在 App 里改/删的行会保留；撤销或删除的记录会移除对应行。
 - 还没有部署：需要换 Core 包、换 MCP 候选并写 expense.json（脚本轮），之后重装 App。
 
+## 2026-11-07 笔记副本加 19:20 同步；N2 读笔记模块
+
+- 日摘要白天版定在 19:30（M1），给 `FeishuNotes-Mirror` 加每天 19:20 触发器，脚本轮 `tools/relay_scripts/notes/n1-add-1920.ps1`。合同见 docs/development/handoffs/RELAY_20261107_notes-1920-sync.md。
+- 新增 `tools/i_remote_mcp/notes_tools.mjs`：notes_recent / notes_search / notes_read 三个只读工具，以及给家里任务直接用的 notesByDate（日界 Asia/Shanghai 04:00）和 notesContextLines（i_context 用，约 200 字，只列标题）。还没接进 MCP 候选，要等 #91、#93 合并后再接。
+
 ## 2026-11-07 M6：退役本机连续性网关（i bootstrap）
 
 - 记忆重构 M6。用户电脑上 9 个文件里的残留已经清掉（11-07，经脚本轮，PR #97 已关闭）：Codex、Claude Code、Hermes、OpenCode 里的本机 `i` MCP 条目，`i-continuity` 指导块，Codex 的 `i-realtime-voice` 语音块，以及 Claude 的 `mcp__i__i_bootstrap` 权限。改前的原文件都在本机做了备份。远端 i、思源/FlexNote、`~/.i` 没动。
