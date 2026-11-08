@@ -17,8 +17,8 @@ function Test-Pinned([string]$file, [string]$expected) {
   return ($actual -contains $expected)
 }
 $mjs = Join-Path $PSScriptRoot 'e3-deploy.mjs'
-if (-not (Test-Pinned $mjs 'd5f12a589641b24f08560d0b1e01db66db0b0c7c00c4133c62e3f5dde45fad78')) { Write-Output '{"step":"launcher","ok":false,"detail":"mjs_hash_mismatch"}'; exit 1 }
-if (-not (Test-Pinned (Join-Path $PSScriptRoot 'e3-common.mjs') '2d693d010e8d3da8b8a65d0065ceceaf429fa077e7ebfebda49590c775ddb2d0')) { Write-Output '{"step":"launcher","ok":false,"detail":"common_hash_mismatch"}'; exit 1 }
+if (-not (Test-Pinned $mjs 'c5515a6ab5ca83dd5efc8962a358dabb68b26c28b3c12aef781c6ec1b8304381')) { Write-Output '{"step":"launcher","ok":false,"detail":"mjs_hash_mismatch"}'; exit 1 }
+if (-not (Test-Pinned (Join-Path $PSScriptRoot 'e3-common.mjs') '9de63918aae113e23417f6f98b6c47681d637cbe86ed0d65bc528d7856045aa5')) { Write-Output '{"step":"launcher","ok":false,"detail":"common_hash_mismatch"}'; exit 1 }
 $git = @(Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1)
 if ($git.Count -ne 1) { Write-Output '{"step":"launcher","ok":false,"detail":"git_not_found"}'; exit 1 }
 $task = Get-ScheduledTask -TaskName 'HereIAm-iCoreSchema6-m1-digest-20261107'

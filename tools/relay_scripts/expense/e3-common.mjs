@@ -3,7 +3,7 @@
 // Output: one JSON row per step; no tokens, logins, domains, paths, SIDs or record contents.
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
-import {existsSync,lstatSync,readFileSync,readdirSync} from 'node:fs';
+import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
 import {createServer} from 'node:net';
 import path from 'node:path';
 
@@ -70,15 +70,6 @@ export function portFree(port){return new Promise(resolve=>{const s=createServer
 export const ACL_PS="$o=@()\nforeach($p in $q.pairs){$a=(Get-Item -LiteralPath $p.from).GetAccessControl('Access');$a.SetAccessRuleProtection($true,$true);(Get-Item -LiteralPath $p.to).SetAccessControl($a);$v=(Get-Item -LiteralPath $p.to).GetAccessControl('Access');$o+=[pscustomobject]@{dir=$p.rel;protected=$v.AreAccessRulesProtected;rules=@($v.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])).Count}}\nConvertTo-Json -InputObject $o -Compress";
 export const CHECK_ACL_PS="$o=@()\nforeach($p in $q.dirs){$v=(Get-Item -LiteralPath $p.path).GetAccessControl('Access');$o+=[pscustomobject]@{dir=$p.rel;protected=$v.AreAccessRulesProtected;rules=@($v.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])).Count}}\nConvertTo-Json -InputObject $o -Compress";
 
-// The package tools reject hard-linked executables (Git for Windows links mingw64\bin\git.exe);
-// prefer the given git.exe when it has a single link, else the usual single-link installs (N2 step 1).
-export function singleLinkGit(given,step){
- const pf=process.env.ProgramFiles??'';
- const list=[given,path.join(pf,'Git','cmd','git.exe'),path.join(pf,'Git','bin','git.exe'),path.join(pf,'Git','mingw64','bin','git.exe')];
- const ok=p=>{if(!plain(p)||!existsSync(p))return false;const st=lstatSync(p);return st.isFile()&&!st.isSymbolicLink()&&st.nlink===1;};
- const g=list.find(ok);need(g,step,'single_link_git_not_found');return g;
-}
-
 // Everything both rounds check before touching anything. Read-only.
 export function preflight({G,REPO,step}){
  const git=(args)=>{const r=run(G,['-C',REPO,...args],{step});need(r.code===0,step,'git_failed:'+args[0]);return r.stdout;};
@@ -123,17 +114,57 @@ export function preflight({G,REPO,step}){
  return {list,live,login,mcp,backup,core,oldCand,OUT,stateMcp,expenseJson,stateDir,marker,head,taskEntries,HEAD,TOOLS,MT};
 }
 
-// Committed package sources at S compared with the live manifest; returns changed inventory paths.
-export async function packageDiff({REPO,G,login,step}){
+// Committed package sources at S, read with plain `git show` (the package CLI insists on a
+// single-link git.exe, which this machine does not have; round 2). Same bytes and checks as
+// package.mjs readCommittedSources/validateImports.
+async function committedSources({REPO,G,step}){
  const {pathToFileURL}=await import('node:url');
  const pkg=await import(pathToFileURL(path.join(REPO,'tools','i_core','release_schema6','package.mjs')).href);
- const {resolvedCommit,content}=pkg.readCommittedSources({repository:REPO,gitPath:G,sourceCommit:S});
- need(resolvedCommit===S,step,'source_commit');
+ const rev=run(G,['-C',REPO,'rev-parse','--verify',S+'^{commit}'],{step});need(rev.code===0&&rev.stdout.trim()===S,step,'source_commit');
+ const content=new Map();
+ for(const name of [...pkg.SOURCES,...pkg.WRAPPERS.map(n=>'tools/i_core/release_schema6/'+n)]){
+  const r=spawnSync(G,['-C',REPO,'show',S+':'+name],{env:childEnv(),windowsHide:true,maxBuffer:16*1024*1024});
+  need(r.status===0,step,'git_show:'+path.posix.basename(name));content.set(name,r.stdout);
+ }
+ const known=new Set(pkg.INVENTORY);
+ need(JSON.stringify([...content.keys(),'runtime/node.exe'].sort())===JSON.stringify([...pkg.INVENTORY].sort()),step,'inventory_mismatch');
+ for(const [name,bytes] of content){
+  if(!name.endsWith('.mjs'))continue;
+  const source=bytes.toString('utf8');
+  need(!(pkg.SOURCES.includes(name)&&/\bimport\s*\(|\brequire\s*\(/.test(source)),step,'dynamic_dependency_requires_review');
+  for(const m of source.matchAll(/\bfrom\s+['"]([^'"]+)['"]|\bimport\s+['"]([^'"]+)['"]/g)){
+   const dep=m[1]??m[2];if(dep.startsWith('node:'))continue;
+   need(dep.startsWith('.')&&known.has(path.posix.normalize(path.posix.join(path.posix.dirname(name),dep))),step,'unlisted_runtime_dependency');
+  }
+ }
+ return {pkg,content};
+}
+
+// Changed inventory paths between the committed package at S and the live manifest.
+export async function packageDiff({REPO,G,login,step}){
+ const {pkg,content}=await committedSources({REPO,G,step});
  const oldMan=readJson(path.join(login.release_directory,'manifest.json'),login.manifest_sha256,step);
  const inv=pkg.INVENTORY.filter(n=>n!=='runtime/node.exe');
  need(oldMan.files.length===48&&inv.length===47,step,'inventory_size');
  const oldBy=new Map(oldMan.files.map(f=>[f.path,f.sha256]));
  return inv.filter(n=>oldBy.get(n)!==sha(content.get(n))).sort();
+}
+
+// Same output as package.mjs prepareRelease (manifest built field for field), then its verifyRelease.
+export async function buildRelease({REPO,G,REL,step}){
+ const {pkg,content}=await committedSources({REPO,G,step});
+ need(!existsSync(REL),step,'fresh_output_required');
+ const nodeBytes=readFileSync(process.execPath);need(sha(nodeBytes)===pkg.PINNED_NODE_SHA256,step,'node_hash_mismatch');
+ content.set('runtime/node.exe',nodeBytes);
+ const manifest=Buffer.from(JSON.stringify({format:'i-core-schema6-preflight-candidate-v1',source_commit:S,core_commit:S,wrapper_commit:S,
+  core_schema_version:6,runtime_profile:'schema6-owned-lifecycle-v1',
+  pinned_node_sha256:pkg.PINNED_NODE_SHA256,node_version:'v24.14.1',
+  policy:{companion_upload_mode:'legacy_b3',companion_reply_jobs:false,activity_enabled:false,domain_policy:'owner_managed'},
+  activation_supported:false,files:pkg.INVENTORY.map(name=>({path:name,bytes:content.get(name).length,sha256:sha(content.get(name))}))},null,2)+'\n');
+ mkdirSync(REL);
+ for(const [name,bytes] of [...content,['manifest.json',manifest]]){mkdirSync(path.dirname(path.join(REL,name)),{recursive:true});writeFileSync(path.join(REL,name),bytes,{flag:'wx'});}
+ const v=pkg.verifyRelease(REL,sha(manifest));need(v.source_commit===S,step,'verify_source_commit');
+ return sha(manifest);
 }
 
 export function expenseReceipts(controlRoot){
