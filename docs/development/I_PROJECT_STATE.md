@@ -10,6 +10,12 @@
 - 维护工具副本：`<OUT>\tools-dddff0f1`（v3-lab `dddff0f`，含 #45 宿主检查、#47 ready 容差）。旧副本 `tools-3baf72d`、`tools-302a62c0` 保留；以后登记从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1（pwsh 7 会误报 `login_core_port_invalid`）。
 - relay watcher：已按 A4 迁移为 `conhost --headless` 启动，codex 路径每轮自动查找，Codex 更新后不需要重新注册。
 
+### GPT-Live 通话页（2026-11-08，修复入库并已安装）
+- 服务端结束或接通后连接失败会自动退出；手动挂断先等待收尾，连接前错误保留提示。重复操作只退出一次，被其他页面覆盖时只移除通话页。
+- 与远端 cb1923d1（#109）整合后，6 项 widget 回归与 16 项协议测试共 22 项再次通过，相关 Dart 静态分析无问题；应用源码与已安装候选一致。原故障已在修复前复现。
+- 已安装产物基于 426d95cb 加本修复，hereIAmV3 debug 构建、覆盖安装与冷启动通过，原聊天数据库文件保留；APK SHA-256：`2fa96e4e3c9fa2fc5dfe774f13132a59bf0e3d2ca8b46acadc46ef64f3748cc0`。真实通话返回页面待用户确认。
+- 修复源码与回归测试纳入 v3-lab，保留其他来源提交；正式本机工作区待同步。
+
 ### 运维注意
 - STATE 中留有旧 shortcut-mail 日志库的 -wal/-shm，stop 最后一步会报 `database_sidecars_present`；只要 `stop.receipts` 已通过，会话就已干净关闭。
 - 任何时候都不要绕过闸门去改 STATE 内的文件。
