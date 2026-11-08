@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_call.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_protocol.dart';
+import 'package:memex/data/services/gpt_live/gpt_live_settings.dart';
 
 void main() {
   group('buildSessionRequest', () {
@@ -262,4 +263,28 @@ void main() {
     );
     expect(s.trimRight(), endsWith('## 用户补充说明\n叫我小橙'));
   });
+
+  test('通话记录可存可读，原因文字可读', () {
+    final r = GptLiveCallRecord(
+      startedAt: DateTime(2026, 11, 7, 23, 5),
+      seconds: 602,
+      reason: 'server:max_session_duration',
+      serverError: 'session_expired bye',
+    );
+    final back = GptLiveCallRecord.fromJson(
+        jsonDecode(jsonEncode(r.toJson())) as Map<String, dynamic>);
+    expect(back.seconds, 602);
+    expect(back.describe(), contains('10 分 2 秒'));
+    expect(back.describe(), contains('OpenAI 结束了会话（max_session_duration）'));
+    expect(back.describe(), contains('session_expired bye'));
+    expect(
+      GptLiveCallRecord(
+        startedAt: DateTime(2026),
+        seconds: 5,
+        reason: 'user',
+      ).reasonText,
+      '你挂断',
+    );
+  });
 }
+
