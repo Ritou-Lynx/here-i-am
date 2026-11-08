@@ -7,7 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, sesameEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
 import { readFileSync } from 'node:fs';
-import { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, createStudyDomainTools, createHeartRateDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
+import { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, createStudyDomainTools, createHeartRateDomainTools, createLifeDigestDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
 import { HEART_RATE_DEFAULT_PORT, createHeartRateIngestServer } from './heart_rate.mjs';
 import { createRequestDiagnostics, createJsonlDiagnosticWriter } from './diagnostics.mjs';
 import {
@@ -145,6 +145,12 @@ export function createApp({
   }
   const sesameTools = [...listTools({ writeEnabled, frontend: 'sesame' }),
     ...sesameDomainTools.map(tool => ({ ...tool, requiredScope: 'i.read' })), ...(heartRate?.tools ?? [])];
+  // M1: life_digest / life_todo for every frontend; i_chat_turn start also returns a short life snapshot.
+  const lifeDigest = createLifeDigestDomainTools({ stateDir, now });
+  if (lifeDigest) {
+    for (const [frontendHandlers, frontendTools] of [[handlers, tools], [chatgptHandlers, chatgptTools], [geminiHandlers, geminiTools],
+      [antigravityHandlers, antigravityTools], [sesameHandlers, sesameTools]]) lifeDigest.attach(frontendHandlers, frontendTools, { writeback, getReadModel });
+  }
   const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
 

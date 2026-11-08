@@ -3,9 +3,8 @@ import 'package:memex/domain/models/character_model.dart';
 /// Product-owned companion identity shared by the mobile and workbench
 /// runtimes.
 ///
-/// Here I am intentionally ignores the legacy character-card prompt fields
-/// (`persona`, `systemPromptOverride`, `postHistoryInstructions`, and
-/// `mesExample`). They are not an authority for Lin Ai's current identity.
+/// This is the only source of Lin Ai's identity; characters carry no prompt
+/// text of their own.
 class CompanionPersonaPromptBuilder {
   const CompanionPersonaPromptBuilder._();
 

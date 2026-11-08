@@ -2,6 +2,7 @@
 import { PERSONAL_SCHEMAS, effectiveDisposition } from '../i_core/personal_data_domains.mjs';
 import { StudyInputError, STUDY_TOOLS, createStudyTools, loadStudyConfig } from './study_tools.mjs';
 import { HeartRateInputError, HEART_RATE_TOOLS, createHeartRateStore, createHeartRateTools, loadHeartRateConfig } from './heart_rate.mjs';
+import { LifeDigestInputError, createLifeDigest } from './life_digest.mjs';
 
 export class DomainToolInputError extends Error {}
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -310,6 +311,11 @@ export function createHeartRateDomainTools({stateDir, now = () => Date.now()}) {
     try { return await handler(args); }
     catch (error) { if (error instanceof HeartRateInputError) throw new DomainToolInputError(error.message); throw error; }
   }]))};
+}
+
+// M1: life_digest / life_todo over the home digest directory, plus the i_chat_turn snapshot hook (attach).
+export function createLifeDigestDomainTools({stateDir, now = () => Date.now()}) {
+  return createLifeDigest({stateDir, now, mapError:error => error instanceof LifeDigestInputError ? new DomainToolInputError(error.message) : error});
 }
 
 export const CORE_REMEMBER_TOOL = {

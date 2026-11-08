@@ -165,7 +165,7 @@ class GameDefinitionImportService {
     );
   }
 
-  // ── PNG parsing (ported from TavernCharacterImportService) ──────────────
+  // ── PNG parsing ──────────────
 
   Map<String, dynamic> _extractCardFromPng(Uint8List bytes) {
     const pngSig = <int>[137, 80, 78, 71, 13, 10, 26, 10];

@@ -1176,13 +1176,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'e.g. wisdom, recognition, macro\nSeparate multiple tags with commas';
 
   @override
-  String get characterPersonaLabel => 'Character persona';
-
-  @override
-  String get characterPersonaHint =>
-      'Include persona, style guide, example dialogue, knowledge filters, etc.\nUse ## for section headers.';
-
-  @override
   String get pleaseEnterCharacterPersona => 'Please enter character persona';
 
   @override

@@ -68,7 +68,6 @@ Future<CharacterModel> getCharacter(String characterId) async {
 /// Args:
 ///   name: character name
 ///   tags: tag list
-///   persona: full persona text
 ///
 /// Returns:
 ///   CharacterModel: created character
@@ -78,7 +77,6 @@ Future<CharacterModel> getCharacter(String characterId) async {
 Future<CharacterModel> createCharacterEndpoint({
   required String name,
   required List<String> tags,
-  required String persona,
 }) async {
   _logger.info('createCharacter called: name=$name');
 
@@ -91,14 +89,10 @@ Future<CharacterModel> createCharacterEndpoint({
     if (name.trim().isEmpty) {
       throw ApiException('Character name cannot be empty');
     }
-    if (persona.trim().isEmpty) {
-      throw ApiException('Character persona cannot be empty');
-    }
 
     final characterData = {
       'name': name.trim(),
       'tags': tags,
-      'persona': persona.trim(),
       'enabled': true,
     };
 
@@ -120,7 +114,6 @@ Future<CharacterModel> createCharacterEndpoint({
 ///   characterId: character ID
 ///   name: character name (optional)
 ///   tags: tag list (optional)
-///   persona: full persona text (optional)
 ///
 /// Returns:
 ///   CharacterModel: updated character
@@ -131,7 +124,6 @@ Future<CharacterModel> updateCharacterEndpoint({
   required String characterId,
   String? name,
   List<String>? tags,
-  String? persona,
 }) async {
   _logger.info('updateCharacter called: characterId=$characterId');
 
@@ -151,9 +143,6 @@ Future<CharacterModel> updateCharacterEndpoint({
     }
     if (tags != null) {
       updates['tags'] = tags;
-    }
-    if (persona != null) {
-      updates['persona'] = persona.trim();
     }
 
     if (updates.isEmpty) {

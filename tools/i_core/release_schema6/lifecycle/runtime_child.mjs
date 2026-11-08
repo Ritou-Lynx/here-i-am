@@ -10,7 +10,21 @@ import { sealClosedRecovery, verifyCanonicalRestart, migrateToSchema6, rollbackE
 import { needsStartupRecovery, recoverAtStartup } from '../automatic_recovery.mjs';
 import { SWITCH_PENDING, readSwitchPlan, verifySwitchConfigurations } from '../package_switch.mjs';
 import { isInspectionDatabasePath } from '../../inspection_read_only.mjs';
-import { provisionFoodDomain } from '../../personal_data_domains.mjs';
+import { provisionFoodDomain, provisionExpenseDomain } from '../../personal_data_domains.mjs';
+
+// Ledger enablement never issues a credential and never reaches shutdown.
+let expenseReceiptSequence = 0;
+export function enableExpenseLedger({core, writeReceipt, now = Date.now}) {
+ let receipt;
+ try {
+  const result = provisionExpenseDomain(core.store.domains);
+  receipt = {status: result.status, registered: result.registered, upgraded: result.upgraded, hooks_version: 'expense-v1'};
+ } catch (error) {
+  receipt = {status: error?.code === 'expense_domain_conflict' || error?.code === 'expense_principal_conflict' ? 'rejected_' + error.code : 'rejected_provision_failed'};
+ }
+ try { writeReceipt('expense-receipt-' + (++expenseReceiptSequence) + '.json', {...receipt, at_ms: now()}); } catch { /* Receipt failures never stop Core. */ }
+ return receipt;
+}
 
 // Food provisioning is isolated from pairing and from the shutdown boundary.
 export function createFoodProvisionPoller({control, token, manifestSha256, core, writeReceipt, now = Date.now}) {
@@ -272,8 +286,8 @@ try {
   offlineCompleted=true;await shutdown('offline_completed');
  } else {
  const {createICoreServer}=await import(pathToFileURL(path.join(config.release,'tools/i_core/i_core_server.mjs')));
- const {createFoodDomainHooks,FOOD_WRITER_PRINCIPAL_ID}=await import(pathToFileURL(path.join(config.release,'tools/i_core/personal_data_domains.mjs')));
- const domainHooks=createFoodDomainHooks({writerPrincipalIds:[FOOD_WRITER_PRINCIPAL_ID]});
+ const {createRuntimeDomainHooks,FOOD_WRITER_PRINCIPAL_ID}=await import(pathToFileURL(path.join(config.release,'tools/i_core/personal_data_domains.mjs')));
+ const domainHooks=createRuntimeDomainHooks({writerPrincipalIds:[FOOD_WRITER_PRINCIPAL_ID]});
  started=true;core=createICoreServer({databasePath:filename,...settings.options,domainHooks});
  if(core.store.health().schema_version!==(initial?5:6) || (before && core.store.nodeId!==before.nodeId))throw new Error('runtime_identity_mismatch');
  lifecycle.node_id=core.store.nodeId;
@@ -303,7 +317,10 @@ try {
   companion_upload_mode:'legacy_b3',companion_reply_jobs:false,domain_policy:'owner_managed',relay:'disabled',
   commandline_secret_free:true,inherited_core_keys:Object.keys(process.env).filter(k=>k.toUpperCase().startsWith('I_CORE_'))});
  const pollPairingRequest=createPairingRequestPoller({control,token,manifestSha256:config.manifest_sha256,core,writeReceipt:writeControl});
- const pollFoodProvision=createFoodProvisionPoller({control,token,manifestSha256:config.manifest_sha256,core,writeReceipt:writeControl});
+ // A fresh food provision enables the ledger with the same principals at once.
+ const pollFoodProvision=createFoodProvisionPoller({control,token,manifestSha256:config.manifest_sha256,core,writeReceipt:(name,value)=>{
+  writeControl(name,value);if(value?.status==='provisioned')enableExpenseLedger({core,writeReceipt:writeControl});}});
+ enableExpenseLedger({core,writeReceipt:writeControl});
  poll=setInterval(()=>{
   try {pollPairingRequest();}catch{/* Pairing never shares the shutdown boundary. */}
   try {pollFoodProvision();}catch{/* Food never shares the shutdown boundary. */}

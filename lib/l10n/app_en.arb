@@ -579,8 +579,6 @@
   "pleaseEnterCharacterName": "Please enter character name",
   "tagsLabel": "Tags",
   "tagsHint": "e.g. wisdom, recognition, macro\nSeparate multiple tags with commas",
-  "characterPersonaLabel": "Character persona",
-  "characterPersonaHint": "Include persona, style guide, example dialogue, knowledge filters, etc.\nUse ## for section headers.",
   "pleaseEnterCharacterPersona": "Please enter character persona",
   "systemFeaturesAndExtensions": "System features & extensions",
   "shareExtensionTitle": "Share extension",

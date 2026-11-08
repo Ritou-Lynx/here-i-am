@@ -1259,7 +1259,6 @@ class _AssemblerRelationshipBackend
         id: characterId,
         name: 'I',
         tags: const ['primary'],
-        persona: 'LEGACY_PERSONA_SHOULD_NOT_APPEAR',
         enabled: true,
       );
 

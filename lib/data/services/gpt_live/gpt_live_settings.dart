@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,6 +12,7 @@ class GptLiveSettings {
   static const _keyApiKey = 'gpt_live.openai_api_key';
   static const _keyVoice = 'gpt_live.voice';
   static const _keyExtra = 'gpt_live.extra_instructions';
+  static const _keyLastCall = 'gpt_live.last_call';
 
   static FlutterSecureStorage storage = const FlutterSecureStorage();
 
@@ -61,5 +64,75 @@ class GptLiveSettings {
     } else {
       await prefs.setString(_keyExtra, v);
     }
+  }
+
+  static Future<GptLiveCallRecord?> getLastCallRecord() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyLastCall);
+    if (raw == null) return null;
+    try {
+      return GptLiveCallRecord.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> setLastCallRecord(GptLiveCallRecord r) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyLastCall, jsonEncode(r.toJson()));
+  }
+}
+
+/// 最近一通 GPT-Live 的时长和结束原因（只存本机，只留一条）。
+class GptLiveCallRecord {
+  const GptLiveCallRecord({
+    required this.startedAt,
+    required this.seconds,
+    required this.reason,
+    this.serverError,
+  });
+
+  final DateTime startedAt;
+  final int seconds;
+
+  /// user / max_duration / screen_closed / server:<原因> / failed:<错误>
+  final String reason;
+  final String? serverError;
+
+  Map<String, dynamic> toJson() => {
+        'started_at': startedAt.toIso8601String(),
+        'seconds': seconds,
+        'reason': reason,
+        if (serverError != null) 'server_error': serverError,
+      };
+
+  factory GptLiveCallRecord.fromJson(Map<String, dynamic> j) =>
+      GptLiveCallRecord(
+        startedAt: DateTime.parse(j['started_at'] as String),
+        seconds: (j['seconds'] as num).toInt(),
+        reason: j['reason'] as String,
+        serverError: j['server_error'] as String?,
+      );
+
+  String get reasonText {
+    if (reason == 'user') return '你挂断';
+    if (reason == 'max_duration') return '到了单通上限';
+    if (reason == 'screen_closed') return '通话页被关闭';
+    if (reason.startsWith('server:')) {
+      return 'OpenAI 结束了会话（${reason.substring(7)}）';
+    }
+    if (reason.startsWith('failed:')) return '连接出错（${reason.substring(7)}）';
+    return reason;
+  }
+
+  String describe() {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final t = startedAt;
+    final when =
+        '${t.month}-${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
+    final dur = '${seconds ~/ 60} 分 ${seconds % 60} 秒';
+    final err = serverError == null ? '' : '；服务端报错：$serverError';
+    return '$when · $dur · $reasonText$err';
   }
 }

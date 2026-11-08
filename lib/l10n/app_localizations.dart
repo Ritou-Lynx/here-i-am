@@ -2174,18 +2174,6 @@ abstract class AppLocalizations {
   /// **'e.g. wisdom, recognition, macro\nSeparate multiple tags with commas'**
   String get tagsHint;
 
-  /// No description provided for @characterPersonaLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Character persona'**
-  String get characterPersonaLabel;
-
-  /// No description provided for @characterPersonaHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Include persona, style guide, example dialogue, knowledge filters, etc.\nUse ## for section headers.'**
-  String get characterPersonaHint;
-
   /// No description provided for @pleaseEnterCharacterPersona.
   ///
   /// In en, this message translates to:

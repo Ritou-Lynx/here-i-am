@@ -1,5 +1,6 @@
 import 'package:memex/data/personal_data_hub/personal_data_hub.dart';
 import 'package:memex/data/personal_data_hub/food_connection.dart';
+import 'package:memex/data/services/core_expense_ledger_projector.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -201,6 +202,11 @@ class CoreSyncRuntimeService extends ChangeNotifier {
     } catch (error, stack) {
       _logger.warning(
           'Food credential recovery failed ($reason)', error, stack);
+    }
+    try {
+      await projectCoreExpensesFromHub(hub);
+    } catch (error, stack) {
+      _logger.warning('Expense ledger projection failed ($reason)', error, stack);
     }
     CoreSyncConnection? connection;
     try {

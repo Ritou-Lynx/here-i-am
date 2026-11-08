@@ -12,6 +12,12 @@ import 'personal_data_hub.dart';
 const foodDomainName = 'food_entries';
 const foodPhonePrincipalId = 'phone-food-reader';
 
+/// 记账: expense_log entries from the AI web frontends. Core grants the same
+/// phone principal read access once the ledger is enabled there, so this
+/// domain reuses the food credential and never claims one of its own (a
+/// claim rotates the token). Its errors never change the food status.
+const expenseDomainName = 'expense_entries';
+
 /// Must equal the Core phone principal's installation_id (foodPrincipalConfigs
 /// in tools/i_core/personal_data_domains.mjs). Core binds snapshots and cursors
 /// to it, so the replica binding cannot use this phone's device identity.
@@ -232,7 +238,7 @@ class FoodConnector extends ChangeNotifier {
     try {
       final connection = await _readConnection();
       if (connection == null) {
-        hub.detach(foodDomainName);
+        _detachAll(hub);
         _setStatus(FoodConnectionPhase.disconnected);
         return;
       }
@@ -253,43 +259,58 @@ class FoodConnector extends ChangeNotifier {
           principalId: foodPhonePrincipalId,
           generation: credential.generation,
           installationId: foodPhoneInstallationId);
-      final attached = hub.storeFor(foodDomainName);
-      if (attached != null &&
-          canonicalJson(attached.binding.forDomain(foodDomainName)) ==
-              canonicalJson(binding.forDomain(foodDomainName))) {
-        // A sync failure stays visible until a later sync succeeds.
-        if (_status.phase != FoodConnectionPhase.failed) {
-          _setStatus(FoodConnectionPhase.connected);
-        }
-        return;
+      // One transport serves both domains; it carries the domain per request.
+      DomainTransport? transport;
+      final token = credential.token;
+      DomainTransport transportFor() => transport ??=
+          _createTransport(connection.baseUrl, token, binding);
+      final reused =
+          await _attachDomain(hub, foodDomainName, binding, transportFor);
+      try {
+        await _attachDomain(hub, expenseDomainName, binding, transportFor);
+      } catch (_) {
+        hub.detach(expenseDomainName);
       }
-      final store = DomainStore(hub.db, binding: binding);
-      final state = await store.read();
-      final domain = store.domain(state, foodDomainName);
-      if (canonicalJson(domain['binding']) !=
-          canonicalJson(binding.forDomain(foodDomainName))) {
-        await store.resetCredentialView(foodDomainName);
-      }
-      final refreshed = store.domain(await store.read(), foodDomainName);
-      if (refreshed['route'] != DomainRoute.core.name) {
-        await store.configureRoute(foodDomainName, DomainRoute.core);
-      }
-      hub.attach(foodDomainName, store,
-          _createTransport(connection.baseUrl, credential.token, binding),
-          allowLocalRecall: false);
+      // A sync failure stays visible until a later sync succeeds.
+      if (reused && _status.phase == FoodConnectionPhase.failed) return;
       _setStatus(FoodConnectionPhase.connected);
     } on FoodConnectionException catch (error) {
       if (error.code == 'food_not_provisioned') {
-        hub.detach(foodDomainName);
+        _detachAll(hub);
         _setStatus(FoodConnectionPhase.notProvisioned);
       } else {
-        hub.detach(foodDomainName);
+        _detachAll(hub);
         _setStatus(FoodConnectionPhase.failed);
       }
     } catch (_) {
-      hub.detach(foodDomainName);
+      _detachAll(hub);
       _setStatus(FoodConnectionPhase.failed);
     }
+  }
+
+  /// Attaches [domain] with the shared phone credential. Returns true when the
+  /// same binding was already attached and nothing changed.
+  Future<bool> _attachDomain(PersonalDataHub hub, String domain,
+      DomainBinding binding, DomainTransport Function() transport) async {
+    final attached = hub.storeFor(domain);
+    if (attached != null &&
+        canonicalJson(attached.binding.forDomain(domain)) ==
+            canonicalJson(binding.forDomain(domain))) {
+      return true;
+    }
+    final store = DomainStore(hub.db, binding: binding);
+    final state = await store.read();
+    final current = store.domain(state, domain);
+    if (canonicalJson(current['binding']) !=
+        canonicalJson(binding.forDomain(domain))) {
+      await store.resetCredentialView(domain);
+    }
+    final refreshed = store.domain(await store.read(), domain);
+    if (refreshed['route'] != DomainRoute.core.name) {
+      await store.configureRoute(domain, DomainRoute.core);
+    }
+    hub.attach(domain, store, transport(), allowLocalRecall: false);
+    return false;
   }
 
   bool _matchesConnection(
@@ -318,7 +339,7 @@ class FoodConnector extends ChangeNotifier {
     }
     _reclaimedThisProcess = true;
     await _credentialStore.clear();
-    hub.detach(foodDomainName);
+    _detachAll(hub);
     await ensureAttached(hub);
     if (hub.storeFor(foodDomainName) != null) {
       try {
@@ -343,11 +364,16 @@ class FoodConnector extends ChangeNotifier {
     return text;
   }
 
+  static void _detachAll(PersonalDataHub hub) {
+    hub.detach(foodDomainName);
+    hub.detach(expenseDomainName);
+  }
+
   Future<void> disconnect(PersonalDataHub hub) async {
     try {
       await _credentialStore.clear();
     } finally {
-      hub.detach(foodDomainName);
+      _detachAll(hub);
     }
     _setStatus(FoodConnectionPhase.disconnected);
   }

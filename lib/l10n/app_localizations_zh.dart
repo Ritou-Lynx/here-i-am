@@ -1143,13 +1143,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tagsHint => '例如：智慧, 认可, 宏观\n用逗号分隔多个标签';
 
   @override
-  String get characterPersonaLabel => '角色完整设定';
-
-  @override
-  String get characterPersonaHint =>
-      '包含角色人设、风格指南、示例对话、知识过滤器等所有信息。\n可以使用 ## 标题 来分段组织内容。';
-
-  @override
   String get pleaseEnterCharacterPersona => '请输入角色完整设定';
 
   @override

@@ -110,6 +110,7 @@ jobs:
           node --test tools/i_remote_mcp/*.test.mjs tools/i_memory/*.test.mjs
           tools/i_core/personal_data_domains.test.mjs
           tools/i_core/personal_data_http.test.mjs
+          tools/i_core/expense_domains.test.mjs
           tools/i_core/import_personal_notes.test.mjs
           tools/i_core/local_transcript_grants.test.mjs
           tools/i_core/historical_replay_approvals.test.mjs
@@ -125,6 +126,8 @@ jobs:
         run: node --test *.test.mjs
       - name: feishu_tutor
         run: node --test tools/feishu_tutor/sync/*.test.mjs
+      - name: life_digest
+        run: node --test tools/life_digest/*.test.mjs
 
   chatgpt-mcp-windows:
     name: MCP ChatGPT compatibility (Windows)

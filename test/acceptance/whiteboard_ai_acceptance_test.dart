@@ -163,7 +163,6 @@ void main() {
       id: _characterId,
       name: '林埃',
       tags: const [],
-      persona: 'acceptance persona',
       enabled: true,
     );
     await tester.pumpWidget(MaterialApp(
