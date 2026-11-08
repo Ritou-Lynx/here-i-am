@@ -24,23 +24,25 @@ class GptLiveCallBackground extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         if (value != null && value.isNotEmpty)
-          ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
-            child: Transform.scale(
-              scale: 1.35,
-              child: isImageAvatar(value)
-                  ? LocalImage(
-                      url: value,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                    )
-                  : Center(
-                      child: CharacterAvatar(
-                        avatar: value,
-                        name: name,
-                        size: 520,
+          RepaintBoundary(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
+              child: Transform.scale(
+                scale: 1.35,
+                child: isImageAvatar(value)
+                    ? LocalImage(
+                        url: value,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      )
+                    : Center(
+                        child: CharacterAvatar(
+                          avatar: value,
+                          name: name,
+                          size: 520,
+                        ),
                       ),
-                    ),
+              ),
             ),
           ),
         const DecoratedBox(

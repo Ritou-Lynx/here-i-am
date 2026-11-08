@@ -57,31 +57,33 @@ class _BreathingCallAvatarState extends State<BreathingCallAvatar>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final glow = 0.12 + (_controller.value * 0.16);
-        return Container(
-          width: 164,
-          height: 164,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFFD1AD).withValues(alpha: glow),
-                blurRadius: 28 + (_controller.value * 18),
-                spreadRadius: 7 + (_controller.value * 8),
-              ),
-            ],
-          ),
-          child: child,
-        );
-      },
-      child: CharacterAvatar(
-        avatar: widget.avatar,
-        name: widget.name,
-        size: 136,
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final glow = 0.12 + (_controller.value * 0.16);
+          return Container(
+            width: 164,
+            height: 164,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFD1AD).withValues(alpha: glow),
+                  blurRadius: 28 + (_controller.value * 18),
+                  spreadRadius: 7 + (_controller.value * 8),
+                ),
+              ],
+            ),
+            child: child,
+          );
+        },
+        child: CharacterAvatar(
+          avatar: widget.avatar,
+          name: widget.name,
+          size: 136,
+        ),
       ),
     );
   }

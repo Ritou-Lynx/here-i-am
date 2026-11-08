@@ -22,8 +22,14 @@ class GptLiveCallScreen extends StatefulWidget {
   });
 
   final String characterId;
+
+  /// 催睡来电的起因；非空时她会先开口。
   final String callReason;
+
+  /// 通话满这么久自动挂断（催睡来电防止聊太久）；null 不限。
   final Duration? maxDuration;
+
+  /// 锁屏接听时让通话页直接显示在锁屏上方（只在这一页期间开启）。
   final bool showWhenLocked;
 
   @override
@@ -132,6 +138,7 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
       unawaited(_setShowWhenLocked(false));
     }
     _call.removeListener(_onChanged);
+    // 兜底：页面被直接移除时也挂断并写回
     if (_call.phase == GptLiveCallPhase.ended ||
         _call.phase == GptLiveCallPhase.failed) {
       _call.dispose();
