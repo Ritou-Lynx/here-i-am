@@ -1655,6 +1655,39 @@ const LIFE_DIGEST_PATCHES = {
   }
 };
 
+// E1 (11-07, after M1): expense_log/expense_day for Claude, ChatGPT, Gemini and Antigravity, enabled by <stateDir>/expense.json and
+// written with the food writer credential. The legacy server inlines expense_tools.mjs verbatim (asserted by expense_tools.test.mjs).
+const EXPENSE_SOURCE = readFileSync(join(REPO_ROOT,'tools','i_remote_mcp','expense_tools.mjs'),'utf8').replaceAll('\r\n','\n');
+assert.ok(!/\$[$&`'<0-9]/.test(EXPENSE_SOURCE),'expense_tools.mjs must not contain String.replace patterns');
+const EXPENSE_PATCHES = {
+  "mainline": {"server": [], "oauth": [], "mcp": [], "writeback": [], "diagnostics": []},
+  "legacy": {
+    "server": [
+      ["const HERE = dirname(fileURLToPath(import.meta.url));",
+        EXPENSE_SOURCE.trimEnd()+"\n\n"+"const HERE = dirname(fileURLToPath(import.meta.url));"],
+      ["...LIFE_DIGEST_TOOLS.map(item => item.name)].includes(name)",
+        "...LIFE_DIGEST_TOOLS.map(item => item.name),...EXPENSE_TOOL_NAMES].includes(name)"],
+      [" && !(error instanceof LifeDigestInputError)) throw error;",
+        " && !(error instanceof LifeDigestInputError) && !(error instanceof ExpenseInputError)) throw error;"],
+      ["  const heartRateTools = heartRateStore ? createHeartRateTools({ store: heartRateStore }) : null;\n",
+        "  const heartRateTools = heartRateStore ? createHeartRateTools({ store: heartRateStore }) : null;\n  // E1: expense tools need both expense.json and the food writer credential; source_frontend comes from the verified OAuth token.\n  const expenseConfig = loadExpenseConfig(stateDir);\n  const expenseClient = expenseConfig && foodCredential ? createExpenseClient({coreUrl,token:foodCredential.token,coreInstanceId:foodCredential.core_instance_id}) : null;\n  const expenseTools = expenseClient ? Object.fromEntries(EXPENSE_TOOL_FRONTENDS.map(frontend => [frontend, createExpenseTools({ client: expenseClient, frontend, timeZone: foodCredential.time_zone, now })])) : null;\n"],
+      ["  if (heartRateTools) { Object.assign(handlers,heartRateTools.handlers); tools.push(...heartRateTools.tools); }",
+        "  if (heartRateTools) { Object.assign(handlers,heartRateTools.handlers); tools.push(...heartRateTools.tools); }\n  if (expenseTools) { Object.assign(handlers,expenseTools.claude_web.handlers); tools.push(...expenseTools.claude_web.tools); }"],
+      ["  if (heartRateTools) { Object.assign(chatgptHandlers,heartRateTools.handlers); chatgptTools.push(...heartRateTools.tools); }",
+        "  if (heartRateTools) { Object.assign(chatgptHandlers,heartRateTools.handlers); chatgptTools.push(...heartRateTools.tools); }\n  if (expenseTools) { Object.assign(chatgptHandlers,expenseTools.chatgpt_web.handlers); chatgptTools.push(...expenseTools.chatgpt_web.tools); }"],
+      ["  if (heartRateTools) { Object.assign(geminiHandlers,heartRateTools.handlers); geminiTools.push(...heartRateTools.tools); }",
+        "  if (heartRateTools) { Object.assign(geminiHandlers,heartRateTools.handlers); geminiTools.push(...heartRateTools.tools); }\n  if (expenseTools) { Object.assign(geminiHandlers,expenseTools.gemini_web.handlers); geminiTools.push(...expenseTools.gemini_web.tools); }"],
+      ["  if (heartRateTools) { Object.assign(antigravityHandlers,heartRateTools.handlers); antigravityTools.push(...heartRateTools.tools); }",
+        "  if (heartRateTools) { Object.assign(antigravityHandlers,heartRateTools.handlers); antigravityTools.push(...heartRateTools.tools); }\n  if (expenseTools) { Object.assign(antigravityHandlers,expenseTools.antigravity.handlers); antigravityTools.push(...expenseTools.antigravity.tools); }"],
+      ["  loadHeartRateConfig(stateDir);\n  loadLifeDigestConfig(stateDir);",
+        "  loadHeartRateConfig(stateDir);\n  loadLifeDigestConfig(stateDir);\n  loadExpenseConfig(stateDir);"],
+      ["|life_digest_[a-z_]+)(?::|$)/",
+        "|life_digest_[a-z_]+|expense_[a-z_]+)(?::|$)/"]
+    ],
+    "oauth": [], "mcp": [], "writeback": [], "diagnostics": []
+  }
+};
+
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const git = args => execFileSync('git', args, {cwd:REPO_ROOT, windowsHide:true, maxBuffer:1024*1024});
 
@@ -1720,8 +1753,8 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   const foodMain = applyPatches(sesameMain,name,false,FOOD_PATCHES.mainline);
   const studyMain = applyPatches(foodMain,name,false,STUDY_PATCHES.mainline);
   const heartMain = applyPatches(studyMain,name,false,HEART_RATE_PATCHES.mainline);
-  assert.ok(applyPatches(applyPatches(applyPatches(heartMain,name,false,PROTOCOL_PATCHES.mainline),name,false,GEMINI_TOOLS_PATCHES.mainline),name,false,LIFE_DIGEST_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,LIFE_DIGEST_PATCHES.mainline),name,true,GEMINI_TOOLS_PATCHES.mainline),name,true,PROTOCOL_PATCHES.mainline),name,true,HEART_RATE_PATCHES.mainline),name,true,STUDY_PATCHES.mainline),name,true,FOOD_PATCHES.mainline),name,true,SESAME_PATCHES.mainline),name,true,SESAME_PROBE_PATCHES.mainline),name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(heartMain,name,false,PROTOCOL_PATCHES.mainline),name,false,GEMINI_TOOLS_PATCHES.mainline),name,false,LIFE_DIGEST_PATCHES.mainline),name,false,EXPENSE_PATCHES.mainline).equals(current[name]),'unexpected current '+name+' source delta');
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(current[name],name,true,EXPENSE_PATCHES.mainline),name,true,LIFE_DIGEST_PATCHES.mainline),name,true,GEMINI_TOOLS_PATCHES.mainline),name,true,PROTOCOL_PATCHES.mainline),name,true,HEART_RATE_PATCHES.mainline),name,true,STUDY_PATCHES.mainline),name,true,FOOD_PATCHES.mainline),name,true,SESAME_PATCHES.mainline),name,true,SESAME_PROBE_PATCHES.mainline),name,true,ANTIGRAVITY_PATCHES.mainline),name,true,GEMINI_PATCHES.mainline),name,true,REGISTRY_PATCHES.mainline),name,true,FRONTEND_PATCHES.mainline),name,true).equals(represented),'reverse mainline patches must restore exact baseline');
   const path='i_remote_mcp/'+name+'.mjs';
   if(name==='oauth'||name==='diagnostics')assert.equal(textFormat(base).text,textFormat(files[path]).text,'shared baseline semantic mismatch: '+name);
   files[path]=applyPatches(applyPatches(applyPatches(applyPatches(files[path],name),name,false,FRONTEND_PATCHES.legacy),name,false,REGISTRY_PATCHES.legacy),name,false,GEMINI_PATCHES.legacy);
@@ -1734,7 +1767,8 @@ export function constructCandidateSources({baselineCommit,baselineFiles,baseline
   files[path]=applyPatches(files[path],name,false,PROTOCOL_PATCHES.legacy);
   files[path]=applyPatches(files[path],name,false,GEMINI_TOOLS_PATCHES.legacy);
   files[path]=applyPatches(files[path],name,false,LIFE_DIGEST_PATCHES.legacy);
-  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,LIFE_DIGEST_PATCHES.legacy),name,true,GEMINI_TOOLS_PATCHES.legacy),name,true,PROTOCOL_PATCHES.legacy),name,true,HEART_RATE_PATCHES.legacy),name,true,STUDY_PATCHES.legacy),name,true,FOOD_PATCHES.legacy),name,true,SESAME_PATCHES.legacy),name,true,SESAME_PROBE_PATCHES.legacy),name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
+  files[path]=applyPatches(files[path],name,false,EXPENSE_PATCHES.legacy);
+  assert.ok(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(applyPatches(files[path],name,true,EXPENSE_PATCHES.legacy),name,true,LIFE_DIGEST_PATCHES.legacy),name,true,GEMINI_TOOLS_PATCHES.legacy),name,true,PROTOCOL_PATCHES.legacy),name,true,HEART_RATE_PATCHES.legacy),name,true,STUDY_PATCHES.legacy),name,true,FOOD_PATCHES.legacy),name,true,SESAME_PATCHES.legacy),name,true,SESAME_PROBE_PATCHES.legacy),name,true,ANTIGRAVITY_PATCHES.legacy),name,true,GEMINI_PATCHES.legacy),name,true,REGISTRY_PATCHES.legacy),name,true,FRONTEND_PATCHES.legacy),name,true).equals(baselineFiles[path]),'reverse patch must restore exact source bytes');
  }
  for(const bytes of Object.values(files))assert.ok(!/domain_tools|personal_data_domains|coreRemember|domain-config/.test(bytes.toString()),'W3 domain source forbidden');
  const manifest={schema_version:1,status:'not_deployed',baseline_commit:BASELINE_COMMIT,source_commit:sourceCommit,

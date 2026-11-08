@@ -268,4 +268,38 @@ void main() {
         .read(DateTime(2026, 10, 31));
     expect(day.error, '同步失败（snapshot_invalid），下拉重试');
   });
+
+  test('ledger domain rides on the food credential and transport', () async {
+    var claims = 0;
+    final made = <DomainTransport>[];
+    final subject = connector(
+      claim: (_) async => _credential(++claims),
+      createTransport: (_, __, ___) {
+        final transport = _Transport();
+        made.add(transport);
+        return transport;
+      },
+    );
+    await subject.ensureAttached(hub);
+    final food = hub.storeFor(foodDomainName);
+    final expense = hub.storeFor(expenseDomainName);
+    expect(food, isNotNull);
+    expect(expense, isNotNull);
+    expect(claims, 1);
+    expect(made, hasLength(1));
+    expect(
+        (await expense!.read())['domains'][expenseDomainName]['route'], 'core');
+
+    // A failing ledger sync never changes the food status.
+    hub.lastSyncErrors[expenseDomainName] = 'scope_forbidden';
+    await subject.handleSyncResult(hub);
+    expect(subject.status.phase, FoodConnectionPhase.connected);
+
+    await subject.ensureAttached(hub);
+    expect(hub.storeFor(expenseDomainName), same(expense));
+    expect(made, hasLength(1));
+
+    await subject.disconnect(hub);
+    expect(hub.storeFor(expenseDomainName), isNull);
+  });
 }

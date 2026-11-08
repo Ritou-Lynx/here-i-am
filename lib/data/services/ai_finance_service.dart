@@ -136,6 +136,14 @@ class AiFinanceService {
   // Capture projections have explicit ownership and a stable key. They must
   // never borrow a heuristically similar row created through another path.
   static const _captureOwnerPrefix = 'system:capture_bridge:';
+
+  /// Rows projected from Core expense_entries (expense_log on the AI web
+  /// frontends). Like capture rows they have explicit ownership and a stable
+  /// ID, so dedupe never merges them with rows from another path.
+  static const coreExpenseOwnerPrefix = 'system:core_expense:';
+  static bool _isOwnedProjection(String characterId) =>
+      characterId.startsWith(_captureOwnerPrefix) ||
+      characterId.startsWith(coreExpenseOwnerPrefix);
   static String _captureEntryId(String sourceRef, String cardId) => _uuid.v5(
       Namespace.url.value, 'hereiam:capture-ledger:$sourceRef:$cardId');
 
@@ -560,7 +568,7 @@ class AiFinanceService {
         limit: 200,
       );
       for (final row in linkedRows) {
-        if (row.characterId.startsWith(_captureOwnerPrefix)) continue;
+        if (_isOwnedProjection(row.characterId)) continue;
         if (_normalizeText(row.linkedFactId) == normalizedFactId) {
           return row;
         }
@@ -582,7 +590,7 @@ class AiFinanceService {
     // 收入很常见，绝不能合并。
     final moneyDedupe = entryType == 'expense' || entryType == 'penalty';
     for (final row in recentRows) {
-      if (row.characterId.startsWith(_captureOwnerPrefix)) continue;
+      if (_isOwnedProjection(row.characterId)) continue;
       if (!_sameMoney(row.totalAmount, totalAmount) ||
           !_sameMoney(row.aiAmount, aiAmount) ||
           !_sameRatio(row.contributionRatio, contributionRatio)) {
@@ -732,8 +740,8 @@ bool _isDuplicateLedgerRow(
   AiFinanceLedgerData existing,
   AiFinanceLedgerData candidate,
 ) {
-  if (existing.characterId.startsWith(AiFinanceService._captureOwnerPrefix) ||
-      candidate.characterId.startsWith(AiFinanceService._captureOwnerPrefix)) {
+  if (AiFinanceService._isOwnedProjection(existing.characterId) ||
+      AiFinanceService._isOwnedProjection(candidate.characterId)) {
     return existing.id == candidate.id;
   }
   // 用户手动记的一笔永远单独显示、单独计入合计。
