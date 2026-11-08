@@ -125,6 +125,8 @@ jobs:
         run: node --test *.test.mjs
       - name: feishu_tutor
         run: node --test tools/feishu_tutor/sync/*.test.mjs
+      - name: life_digest
+        run: node --test tools/life_digest/*.test.mjs
 
   chatgpt-mcp-windows:
     name: MCP ChatGPT compatibility (Windows)
