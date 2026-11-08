@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/config/app_flavor.dart';
+import 'package:memex/data/services/call_engine_settings.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_protocol.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_settings.dart';
@@ -552,15 +553,16 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _homeTurboUrlController = TextEditingController();
   final _gptLiveKeyController = TextEditingController();
   final _gptLiveExtraController = TextEditingController();
+  final _gptLiveIdleController = TextEditingController();
   GptLiveCallRecord? _gptLiveLastCall;
   String _gptLiveVoice = GptLiveProtocol.defaultVoice;
+  CallEngine _callEngine = CallEngine.gptLive;
   final _nudgeServerController = TextEditingController();
   final _nudgeTopicController = TextEditingController();
   final _nudgeGapController = TextEditingController();
   final _nudgeCapController = TextEditingController();
   final _nudgeMaxCallController = TextEditingController();
   bool _nudgeEnabled = false;
-  SleepNudgeEngine _nudgeEngine = SleepNudgeEngine.gptLive;
   String? _nudgeStatus;
   bool? _fullScreenAllowed;
   String? _homeTurboDerivedUrl;
@@ -589,6 +591,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       GptLiveSettings.getVoice(),
       GptLiveSettings.getExtraInstructions(),
       GptLiveSettings.getLastCallRecord(),
+      GptLiveSettings.getIdleHangupMinutes(),
+      CallEngineSettings.get(),
     ]);
     if (!mounted) return;
     _elevenLabsController.text = values[1] as String? ?? '';
@@ -603,6 +607,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
         values[9] as String? ?? GptLiveProtocol.defaultVoice);
     _gptLiveExtraController.text = values[10] as String? ?? '';
     _gptLiveLastCall = values[11] as GptLiveCallRecord?;
+    _gptLiveIdleController.text = (values[12] as int).toString();
+    _callEngine = values[13] as CallEngine;
     _callHealth = await VoiceCallHealth.instance.load();
     await _loadNudge();
     if (!mounted) return;
@@ -613,7 +619,6 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     try {
       final c = await SleepNudgeStore.loadConfig();
       _nudgeEnabled = c.enabled;
-      _nudgeEngine = c.engine;
       _nudgeServerController.text = c.server;
       _nudgeTopicController.text = c.topic;
       _nudgeGapController.text = c.minGapMinutes.toString();
@@ -640,7 +645,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
           ? SleepNudgeConfig.defaultServer
           : _nudgeServerController.text.trim(),
       topic: _nudgeTopicController.text.trim(),
-      engine: _nudgeEngine,
+      engine: _callEngine,
       minGapMinutes: _nudgeInt(
           _nudgeGapController, SleepNudgeConfig.defaultMinGapMinutes),
       maxPerNight: _nudgeInt(
@@ -665,6 +670,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _homeTurboUrlController.dispose();
     _gptLiveKeyController.dispose();
     _gptLiveExtraController.dispose();
+    _gptLiveIdleController.dispose();
     super.dispose();
   }
 
@@ -679,6 +685,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     await GptLiveSettings.setApiKey(_gptLiveKeyController.text);
     await GptLiveSettings.setVoice(_gptLiveVoice);
     await GptLiveSettings.setExtraInstructions(_gptLiveExtraController.text);
+    await GptLiveSettings.setIdleHangupMinutes(
+        _nudgeInt(_gptLiveIdleController, 5));
+    await CallEngineSettings.set(_callEngine);
     await _saveNudge();
     // 家里电脑声音失败时用 MiniMax 顶上，所以也保存 MiniMax 的配置。
     if (_provider == 'minimax' || _provider == 'home_turbo') {
@@ -732,22 +741,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
             ),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<SleepNudgeEngine>(
-            initialValue: _nudgeEngine,
-            decoration: const InputDecoration(labelText: '接听后用'),
-            items: const [
-              DropdownMenuItem(
-                value: SleepNudgeEngine.gptLive,
-                child: Text('GPT-Live（推荐）'),
-              ),
-              DropdownMenuItem(
-                value: SleepNudgeEngine.classic,
-                child: Text('原通话'),
-              ),
-            ],
-            onChanged: (v) {
-              if (v != null) setState(() => _nudgeEngine = v);
-            },
+          Text(
+            '接听后用上面的通话引擎',
+            style: small,
           ),
           const SizedBox(height: 12),
           Row(
@@ -983,13 +979,32 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'GPT-Live 通话（备选）',
+                  'GPT-Live 通话',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '聊天页右上角菜单里的“GPT-Live 通话”用它，直连 OpenAI，按分钟计费（走 API 额度）。',
+                  '直连 OpenAI，按分钟计费（走 API 额度）。',
                   style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<CallEngine>(
+                  key: ValueKey(_callEngine),
+                  initialValue: _callEngine,
+                  decoration: const InputDecoration(labelText: '通话引擎'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: CallEngine.gptLive,
+                      child: Text('GPT-Live'),
+                    ),
+                    DropdownMenuItem(
+                      value: CallEngine.classic,
+                      child: Text('原通话（用聊天模型 + 所选声音）'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _callEngine = v);
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -1017,6 +1032,16 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                   onChanged: (v) {
                     if (v != null) setState(() => _gptLiveVoice = v);
                   },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _gptLiveIdleController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: '静音自动挂断（分钟）',
+                    helperText: '双方都没说话超过这么久就挂断，0 表示不自动挂',
+                    helperMaxLines: 2,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(

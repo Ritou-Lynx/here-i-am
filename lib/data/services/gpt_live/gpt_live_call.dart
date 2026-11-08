@@ -10,6 +10,7 @@ import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 
+import 'gpt_live_idle_watch.dart';
 import 'gpt_live_protocol.dart';
 import 'gpt_live_settings.dart';
 
@@ -52,6 +53,8 @@ class GptLiveCall extends ChangeNotifier {
   Completer<void>? _closed;
   bool _persisted = false;
   bool _disposed = false;
+  Timer? _idleTimer;
+  GptLiveIdleWatch? _idleWatch;
 
   String get subtitle => transcript.lastLine;
 
@@ -67,6 +70,7 @@ class GptLiveCall extends ChangeNotifier {
         );
       }
       final voice = await GptLiveSettings.getVoice();
+      final idleHangupMinutes = await GptLiveSettings.getIdleHangupMinutes();
       final userId = await UserStorage.getUserId();
       final character = userId == null
           ? null
@@ -149,6 +153,7 @@ class GptLiveCall extends ChangeNotifier {
       await Helper.setSpeakerphoneOn(speakerOn);
       startedAt = DateTime.now();
       _setPhase(GptLiveCallPhase.live);
+      _startIdleWatch(idleHangupMinutes);
     } on GptLiveException catch (e) {
       _fail(e.detail ?? e.code);
     } catch (e, st) {
@@ -213,6 +218,7 @@ class GptLiveCall extends ChangeNotifier {
     final event = GptLiveEvent.parse(raw);
     switch (event) {
       case GptLiveTranscriptDelta():
+        _idleWatch?.recordTranscript(DateTime.now());
         transcript.add(event);
         notifyListeners();
       case GptLiveUsage(:final seconds):
@@ -252,6 +258,40 @@ class GptLiveCall extends ChangeNotifier {
           ),
         ))
         .catchError((Object e) => _log.warning('greeting send failed: $e')));
+  }
+
+  void _startIdleWatch(int idleMinutes) {
+    _idleTimer?.cancel();
+    if (idleMinutes <= 0) return;
+    _idleWatch = GptLiveIdleWatch(
+      idleMinutes: idleMinutes,
+      lastTranscriptAt: DateTime.now(),
+    );
+    _idleTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      switch (_idleWatch?.evaluate(DateTime.now())) {
+        case GptLiveIdleAction.prompt:
+          _sendIdlePrompt();
+        case GptLiveIdleAction.hangup:
+          unawaited(hangUp(reason: 'idle'));
+        case GptLiveIdleAction.none:
+        case null:
+          break;
+      }
+    });
+  }
+
+  void _sendIdlePrompt() {
+    final dc = _dc;
+    if (dc == null || dc.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    unawaited(dc
+        .send(RTCDataChannelMessage(
+          GptLiveProtocol.commentaryEvent(
+            '对方已经好几分钟没说话了。轻声问一句还在不在，如果没回应你就说先挂了。',
+          ),
+        ))
+        .catchError((Object e) => _log.warning('idle prompt send failed: $e')));
   }
 
   Future<void> _waitIceGathering(RTCPeerConnection pc) async {
@@ -345,6 +385,12 @@ class GptLiveCall extends ChangeNotifier {
 
   void _setPhase(GptLiveCallPhase p) {
     phase = p;
+    if (p == GptLiveCallPhase.ending ||
+        p == GptLiveCallPhase.ended ||
+        p == GptLiveCallPhase.failed) {
+      _idleTimer?.cancel();
+      _idleTimer = null;
+    }
     notifyListeners();
   }
 
@@ -356,6 +402,7 @@ class GptLiveCall extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _idleTimer?.cancel();
     unawaited(_release());
     super.dispose();
   }

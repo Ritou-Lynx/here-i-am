@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
+import 'package:memex/data/services/call_engine_settings.dart';
 import 'package:memex/data/services/call_voice_session.dart';
 import 'package:memex/data/services/callkit_service.dart';
 import 'package:memex/data/services/character_service.dart';
@@ -95,13 +96,13 @@ class SleepNudgeService {
       return false;
     }
     final next = SleepNudgePolicy.afterRing(history, DateTime.now());
-    final opening = config.engine == SleepNudgeEngine.gptLive
+    final opening = config.engine == CallEngine.gptLive
         ? SleepNudgePolicy.openingFor(message, nightCount: next.nightCount)
         : SleepNudgePolicy.classicOpening(nightCount: next.nightCount);
     await queuePendingCall(
       characterId: character.id,
       openingMessage: opening,
-      engine: config.engine == SleepNudgeEngine.gptLive
+      engine: config.engine == CallEngine.gptLive
           ? pendingEngineGptLive
           : null,
     );

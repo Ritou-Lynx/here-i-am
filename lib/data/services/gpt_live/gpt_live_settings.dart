@@ -13,6 +13,7 @@ class GptLiveSettings {
   static const _keyVoice = 'gpt_live.voice';
   static const _keyExtra = 'gpt_live.extra_instructions';
   static const _keyLastCall = 'gpt_live.last_call';
+  static const _keyIdleHangupMinutes = 'gpt_live.idle_hangup_minutes';
 
   static FlutterSecureStorage storage = const FlutterSecureStorage();
 
@@ -64,6 +65,17 @@ class GptLiveSettings {
     } else {
       await prefs.setString(_keyExtra, v);
     }
+  }
+
+  static Future<int> getIdleHangupMinutes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getInt(_keyIdleHangupMinutes) ?? 5;
+    return value < 0 ? 0 : value;
+  }
+
+  static Future<void> setIdleHangupMinutes(int minutes) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyIdleHangupMinutes, minutes < 0 ? 0 : minutes);
   }
 
   static Future<GptLiveCallRecord?> getLastCallRecord() async {
@@ -119,6 +131,7 @@ class GptLiveCallRecord {
     if (reason == 'user') return '你挂断';
     if (reason == 'max_duration') return '到了单通上限';
     if (reason == 'screen_closed') return '通话页被关闭';
+    if (reason == 'idle') return '太久没人说话，自动挂断';
     if (reason.startsWith('server:')) {
       return 'OpenAI 结束了会话（${reason.substring(7)}）';
     }
