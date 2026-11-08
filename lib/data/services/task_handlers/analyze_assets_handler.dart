@@ -13,7 +13,6 @@ import 'package:memex/domain/models/agent_definitions.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/geocoding_service.dart';
-import 'package:memex/data/services/llm_call_record_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
 import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 import 'package:memex/agent/built_in_tools/asset_analysis_tool.dart';
@@ -321,8 +320,6 @@ Future<AssetAnalysisResult?> _analyzeSingleAsset({
 
     // 2. Analyze content using AssetAnalysisTool (For both Image & Audio)
     String analysisResult = "";
-    ModelUsage? toolUsage;
-    String toolModel = 'unknown';
     try {
       final tool = AssetAnalysisTool(client: client, modelConfig: modelConfig);
 
@@ -354,13 +351,10 @@ Future<AssetAnalysisResult?> _analyzeSingleAsset({
         }
       }
 
-      final (result, usage, model) = await tool.toolWithUsage(
+      final (toolResult, _, _) = await tool.toolWithUsage(
         assetPath: assetPath,
         prompt: finalPrompt,
       );
-      final toolResult = result;
-      toolUsage = usage;
-      toolModel = model;
 
       // Parse result: "#Asset {name} analysis result\n: {result}"
       // Matches backend logic of extraction
@@ -376,24 +370,6 @@ Future<AssetAnalysisResult?> _analyzeSingleAsset({
         "Asset analyzed: ${path.basename(assetPath)}, result: $toolResult",
       );
 
-      // Record LLM call if usage is available
-      if (toolUsage != null) {
-        await LLMCallRecordService.instance.recordCall(
-          userId: userId,
-          scene: 'input',
-          sceneId: factId,
-          agentName: 'asset_analysis',
-          handlerName: 'analyze_assets_handler',
-          usage: toolUsage,
-          model: toolModel,
-          client: client,
-          metadata: {
-            'asset_path': assetPath,
-            'asset_index': index + 1,
-            'asset_type': isImage ? 'image' : 'audio',
-          },
-        );
-      }
     } catch (e) {
       _logger.severe('Tool analysis failed for $assetPath: $e');
       throw Exception('Tool analysis failed for $assetPath: $e');

@@ -1,6 +1,5 @@
 import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:memex/data/services/agent_activity_service.dart';
-import 'package:memex/data/services/llm_call_record_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -13,36 +12,6 @@ void addAgentLogger(AgentController controller) {
       final userId = metadata['userId'] as String?;
       _logger.info(
           '[${event.agent.name}] beforeCallLLM, userId: $userId, sessionId: ${event.agent.state.sessionId}, model:${event.params.modelConfig.model}');
-    },
-  );
-  controller.on(
-    (AfterCallLLMEvent event) async {
-      if (event.response.usage == null) {
-        return; // No usage data, skip recording
-      }
-
-      // Get userId from state metadata
-      final metadata = event.agent.state.metadata;
-      final userId = metadata['userId'] as String?;
-      final scene = metadata['scene'] as String?;
-      final sceneId = metadata['sceneId'] as String?;
-      final name = event.agent.name;
-
-      if (userId == null || scene == null || sceneId == null) {
-        return;
-      }
-
-      // Record the call using the service
-      await LLMCallRecordService.instance.recordCall(
-        userId: userId,
-        scene: scene,
-        sceneId: sceneId,
-        agentName: name,
-        handlerName: null,
-        usage: event.response.usage!,
-        model: event.response.model,
-        client: event.agent.client,
-      );
     },
   );
 }
