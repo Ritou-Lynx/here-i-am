@@ -1,29 +1,19 @@
 import 'dart:convert';
 
+import 'package:memex/data/services/call_engine_settings.dart';
+
 /// 催睡来电（G-Nudge）的纯逻辑：解析 ntfy 消息、判断这一通能不能打、拼开场说明。
 /// 不碰数据库、网络和 UI，方便单测。
 ///
 /// 链路：床头哨兵（小米）判醒 → 推 ntfy 私有 topic → 本 App 常驻服务轮询 topic →
 /// 排一通待拨电话 → CallKit 全屏响铃 → 接听走 GPT-Live（或原通话）。
 
-/// 来电接起后用哪个引擎。
-enum SleepNudgeEngine {
-  gptLive('gpt_live'),
-  classic('classic');
-
-  const SleepNudgeEngine(this.id);
-  final String id;
-
-  static SleepNudgeEngine parse(String? raw) => SleepNudgeEngine.values
-      .firstWhere((e) => e.id == raw, orElse: () => SleepNudgeEngine.gptLive);
-}
-
 class SleepNudgeConfig {
   const SleepNudgeConfig({
     this.enabled = false,
     this.server = defaultServer,
     this.topic = '',
-    this.engine = SleepNudgeEngine.gptLive,
+    this.engine = CallEngine.gptLive,
     this.minGapMinutes = defaultMinGapMinutes,
     this.maxPerNight = defaultMaxPerNight,
     this.maxCallMinutes = defaultMaxCallMinutes,
@@ -37,7 +27,7 @@ class SleepNudgeConfig {
   final bool enabled;
   final String server;
   final String topic;
-  final SleepNudgeEngine engine;
+  final CallEngine engine;
   final int minGapMinutes;
   final int maxPerNight;
   final int maxCallMinutes;

@@ -521,65 +521,6 @@ class PersonaChatService implements WorkbenchDesktopUserMessageStore {
     }
   }
 
-  /// Persists a Dev Room Accept / Discard / Leave decision onto the matching
-  /// `dev_session` addendum carried by [messageId].
-  ///
-  /// The Dev Session card renders its action row from addendum data in
-  /// attachmentsJson. Without this, the decision lives only in widget State
-  /// and is lost every time the chat refreshes (every 2s) or the user
-  /// navigates away and back, so the buttons would reappear and the user
-  /// would think the click had no effect. We stamp `decision` on the
-  /// addendum matching [runId] (defensive: a message could carry multiple
-  /// dev_session addenda) and notify the chat to repaint.
-  ///
-  /// When [accepted] is false (Bridge rejected the decision, e.g.
-  /// `no_worktree`), [resultText] is stored so the card can show the reason
-  /// and stay collapsed instead of re-offering the buttons. Network failures
-  /// (DioException before the Bridge responds) should NOT call this — they
-  /// leave the row actionable so the user can retry once connectivity is
-  /// restored.
-  Future<void> persistDevSessionDecision({
-    required int messageId,
-    required String runId,
-    required String decision,
-    bool accepted = true,
-    String? resultText,
-  }) async {
-    try {
-      final row = await (_db.select(_db.personaChatMessages)
-            ..where((t) => t.id.equals(messageId)))
-          .getSingleOrNull();
-      final raw = row?.attachmentsJson;
-      if (raw == null || raw.trim().isEmpty) return;
-      final attachments = jsonDecode(raw) as List;
-      var dirty = false;
-      for (final att in attachments) {
-        if (att is! Map) continue;
-        if (att['type'] != 'dev_session') continue;
-        if (att['runId'] != runId) continue;
-        att['decision'] = decision;
-        att['decisionAccepted'] = accepted;
-        if (resultText != null && resultText.isNotEmpty) {
-          att['decisionResult'] = resultText;
-        }
-        dirty = true;
-        break;
-      }
-      if (!dirty) return;
-      await (_db.update(_db.personaChatMessages)
-            ..where((t) => t.id.equals(messageId)))
-          .write(PersonaChatMessagesCompanion(
-        attachmentsJson: Value(jsonEncode(attachments)),
-      ));
-      if (row != null) {
-        _notifyMessageAdded(row.characterId);
-      }
-    } catch (_) {
-      // Best-effort; the decision is already sent to the bridge and the
-      // in-memory state is the source of truth for the current session.
-    }
-  }
-
   /// Adds a narrative/action message from the character (e.g. *leans closer*).
   /// Rendered differently in the UI — no bubble, italic, centered.
   Future<int> addActionMessage(String characterId, String content,

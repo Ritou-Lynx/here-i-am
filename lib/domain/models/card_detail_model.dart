@@ -12,7 +12,6 @@ class CardDetailModel {
   final String rawContent;
   final InsightData insight;
   final List<AssetData> assets;
-  final LLMStats? llmStats;
   final List<UiConfig> uiConfigs;
 
   CardDetailModel({
@@ -26,7 +25,6 @@ class CardDetailModel {
     required this.rawContent,
     required this.insight,
     required this.assets,
-    this.llmStats,
     this.uiConfigs = const [],
   });
 
@@ -72,9 +70,6 @@ class CardDetailModel {
           .where((asset) => asset != null && asset is Map<String, dynamic>)
           .map((asset) => AssetData.fromJson(asset as Map<String, dynamic>))
           .toList(),
-      llmStats: json['llm_stats'] != null
-          ? LLMStats.fromJson(json['llm_stats'] as Map<String, dynamic>)
-          : null,
       uiConfigs: configs,
     );
   }
@@ -90,7 +85,6 @@ class CardDetailModel {
     String? rawContent,
     InsightData? insight,
     List<AssetData>? assets,
-    LLMStats? llmStats,
     List<UiConfig>? uiConfigs,
   }) {
     return CardDetailModel(
@@ -104,7 +98,6 @@ class CardDetailModel {
       rawContent: rawContent ?? this.rawContent,
       insight: insight ?? this.insight,
       assets: assets ?? this.assets,
-      llmStats: llmStats ?? this.llmStats,
       uiConfigs: uiConfigs ?? this.uiConfigs,
     );
   }
@@ -258,132 +251,4 @@ class AssetData {
 
   bool get isImage => type == 'image';
   bool get isAudio => type == 'audio';
-}
-
-/// LLM call stats
-class LLMStats {
-  final int totalCalls;
-  final int totalPromptTokens;
-  final int totalCompletionTokens;
-  final int totalCachedTokens;
-  final int totalThoughtTokens;
-  final int totalTokens;
-  final double totalCost;
-  final Map<String, AgentStats> byAgent;
-
-  /// Normalized denominator for cache rate: sum of per-call effectivePromptTokens.
-  /// Each call's effective prompt is computed from its own cachedTokensIncludedInPrompt.
-  /// Calls with unknown semantics are excluded.
-  final int totalEffectivePromptTokens;
-
-  /// Numerator for cache rate: cached tokens from calls with known semantics only.
-  final int totalCachedTokensForRate;
-
-  LLMStats({
-    required this.totalCalls,
-    required this.totalPromptTokens,
-    required this.totalCompletionTokens,
-    required this.totalCachedTokens,
-    required this.totalThoughtTokens,
-    required this.totalTokens,
-    this.totalCost = 0.0,
-    required this.byAgent,
-    this.totalEffectivePromptTokens = 0,
-    this.totalCachedTokensForRate = 0,
-  });
-
-  factory LLMStats.fromJson(Map<String, dynamic> json) {
-    final byAgentData = json['by_agent'] as Map<String, dynamic>? ?? {};
-    final byAgent = byAgentData.map((key, value) => MapEntry(
-          key,
-          AgentStats.fromJson(value as Map<String, dynamic>),
-        ));
-
-    return LLMStats(
-      totalCalls: json['total_calls'] as int? ?? 0,
-      totalPromptTokens: json['total_prompt_tokens'] as int? ?? 0,
-      totalCompletionTokens: json['total_completion_tokens'] as int? ?? 0,
-      totalCachedTokens: json['total_cached_tokens'] as int? ?? 0,
-      totalThoughtTokens: json['total_thought_tokens'] as int? ?? 0,
-      totalTokens: json['total_tokens'] as int? ?? 0,
-      totalCost: (json['total_cost'] as num?)?.toDouble() ?? 0.0,
-      byAgent: byAgent,
-      totalEffectivePromptTokens:
-          json['total_effective_prompt_tokens'] as int? ?? 0,
-      totalCachedTokensForRate:
-          json['total_cached_tokens_for_rate'] as int? ?? 0,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'total_calls': totalCalls,
-      'total_prompt_tokens': totalPromptTokens,
-      'total_completion_tokens': totalCompletionTokens,
-      'total_cached_tokens': totalCachedTokens,
-      'total_thought_tokens': totalThoughtTokens,
-      'total_tokens': totalTokens,
-      'total_cost': totalCost,
-      'by_agent': byAgent.map((key, value) => MapEntry(key, value.toJson())),
-      'total_effective_prompt_tokens': totalEffectivePromptTokens,
-      'total_cached_tokens_for_rate': totalCachedTokensForRate,
-    };
-  }
-}
-
-/// Agent stats
-class AgentStats {
-  final int calls;
-  final int promptTokens;
-  final int completionTokens;
-  final int cachedTokens;
-  final int thoughtTokens;
-  final int totalTokens;
-  final double totalCost;
-
-  /// Normalized denominator for cache rate.
-  final int effectivePromptTokens;
-
-  /// Numerator for cache rate (excludes unknown-semantics calls).
-  final int cachedTokensForRate;
-
-  AgentStats({
-    required this.calls,
-    required this.promptTokens,
-    required this.completionTokens,
-    required this.cachedTokens,
-    required this.thoughtTokens,
-    required this.totalTokens,
-    this.totalCost = 0.0,
-    this.effectivePromptTokens = 0,
-    this.cachedTokensForRate = 0,
-  });
-
-  factory AgentStats.fromJson(Map<String, dynamic> json) {
-    return AgentStats(
-      calls: json['calls'] as int? ?? 0,
-      promptTokens: json['prompt_tokens'] as int? ?? 0,
-      completionTokens: json['completion_tokens'] as int? ?? 0,
-      cachedTokens: json['cached_tokens'] as int? ?? 0,
-      thoughtTokens: json['thought_tokens'] as int? ?? 0,
-      totalTokens: json['total_tokens'] as int? ?? 0,
-      totalCost: (json['total_cost'] as num?)?.toDouble() ?? 0.0,
-      effectivePromptTokens: json['effective_prompt_tokens'] as int? ?? 0,
-      cachedTokensForRate: json['cached_tokens_for_rate'] as int? ?? 0,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'calls': calls,
-      'prompt_tokens': promptTokens,
-      'completion_tokens': completionTokens,
-      'cached_tokens': cachedTokens,
-      'thought_tokens': thoughtTokens,
-      'total_tokens': totalTokens,
-      'total_cost': totalCost,
-      'effective_prompt_tokens': effectivePromptTokens,
-      'cached_tokens_for_rate': cachedTokensForRate,
-    };
-  }
 }

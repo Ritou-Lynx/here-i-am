@@ -143,7 +143,7 @@ recursively stops Bridge child processes before stopping the parent.
 Run all deterministic Bridge tests without contacting a real model:
 
 ```powershell
-node --test --test-concurrency=1 tools\dev_agent_bridge\codex_app_server_client.test.mjs tools\dev_agent_bridge\codex_app_server_adapter.test.mjs tools\dev_agent_bridge\experimental_runtime_api.test.mjs tools\dev_agent_bridge\codex_run_options.test.mjs tools\dev_agent_bridge\project_memory_closeout.test.mjs
+node --test --test-concurrency=1 tools\dev_agent_bridge\codex_app_server_client.test.mjs tools\dev_agent_bridge\codex_app_server_adapter.test.mjs tools\dev_agent_bridge\experimental_runtime_api.test.mjs tools\dev_agent_bridge\codex_run_options.test.mjs
 ```
 
 ### Codex controls
@@ -173,14 +173,6 @@ normalization move forward without waiting for that reinstall/fork.
 ```powershell
 powershell -File tools\dev_agent_bridge\start_bridge.ps1
 ```
-
-## Project Memory projection
-
-`GET /v1/project-memory/projections?after=<ISO-8601>&limit=100` 从本机加密 i Gateway ledger 生成 Memory V3-safe 投影。只导出 Registry 中 `memory_v3=project_summary/redacted_summary` 的项目；`confidential_local`、`ephemeral`、`local_only` 和 `private` 不会返回。工作项目只返回脱敏通用摘要，不返回 decisions、open loops 或 artifact refs。
-
-该端点沿用 Dev Room 的 Tailscale HTTPS / debug loopback 信任边界；不返回原始 ledger、diff、transcript 或凭据。
-
-成功的 Dev Room run 会自动刷新项目 closeout：若 Codex / Claude Code 已通过 `i_close_session` 成功写入，Bridge 不重复；否则 Bridge 以不超过 2,000 字的最终摘要兜底。失败、中止、未注册或项目政策拒绝的 run 不写入。已注册的非 Git 文档项目也支持 Codex 只读 run。
 
 Stop a background bridge left from local testing:
 

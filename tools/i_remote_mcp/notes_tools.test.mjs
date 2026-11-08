@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
-import {mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
+import {mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {test} from 'node:test';
+import {pathToFileURL} from 'node:url';
+import {after, before, test} from 'node:test';
+import {buildChatgptCandidate} from './chatgpt_candidate.mjs';
+import {createFakeReadModel, PASSPHRASE, PUBLIC_URL, pkcePair, registerClient, submitPassphrase, authorizeParams, postToken, initSession, mcpPost} from './fixtures.mjs';
+import {listenForFetch} from './fetch_test_listener.mjs';
 import {NOTES_TOOLS, NotesInputError, createNotesTools, loadNotesConfig, notesByDate, notesContextLines, notesDayOf} from './notes_tools.mjs';
 
 // Same layout notes_mirror writes: <dir>/<token>.md with front matter, plus index.json (notes-v1).
@@ -128,4 +133,84 @@ test('notes.json config: absent means off, malformed fails closed', t => {
   assert.deepEqual(loadNotesConfig(state), {format:'notes-config-v1', notes_dir:state});
   writeFileSync(join(state, 'notes.json'), JSON.stringify({format:'notes-config-v1', notes_dir:'relative'}));
   assert.throws(() => loadNotesConfig(state), /notes_config_invalid/);
+});
+
+// ---------- N2: the legacy candidate inlines this module and lists the tools for four frontends ----------
+let built, candidate, candidateOauth;
+before(async () => {
+  built = buildChatgptCandidate({outputDirectory: join('build', 'notes-candidate-' + randomUUID())});
+  const load = name => import(pathToFileURL(join(built.root, 'i_remote_mcp', name + '.mjs')));
+  [candidate, candidateOauth] = await Promise.all([load('server'), load('oauth')]);
+});
+after(() => { if (built) rmSync(built.outputRoot, {recursive: true, force: true}); });
+
+function mcpState(t, notesDir) {
+  const path = mkdtempSync(join(tmpdir(), 'notes-mcp-state-'));
+  t.after(() => rmSync(path, {recursive: true, force: true}));
+  if (notesDir !== undefined) writeFileSync(join(path, 'notes.json'), JSON.stringify(typeof notesDir === 'string' ? {format: 'notes-config-v1', notes_dir: notesDir} : notesDir));
+  return path;
+}
+const callbacks = {claude_web: 'https://claude.ai/api/mcp/auth_callback', chatgpt_web: 'https://chatgpt.com/connector_platform_oauth_redirect',
+  antigravity: 'http://127.0.0.1:32014/oauth/callback', gemini_web: 'https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp-synthetic-notes',
+  sesame: 'https://sesameai.app/api/oauth/external-mcp/callback'};
+async function start(t, state, frontend) {
+  candidateOauth.setPassphrase(state, PASSPHRASE);
+  const app = candidate.createApp({stateDir: state, publicUrl: PUBLIC_URL, getReadModel: async () => createFakeReadModel(), now: () => NOW,
+    chatgptEnabled: true, geminiEnabled: true, antigravityEnabled: true, sesameEnabled: true});
+  await listenForFetch(app.server);
+  t.after(() => new Promise(resolve => app.server.close(resolve)));
+  const base = 'http://127.0.0.1:' + app.server.address().port, redirectUri = callbacks[frontend];
+  const registered = await registerClient(base, [redirectUri]); assert.equal(registered.status, 201);
+  const {verifier, challenge} = pkcePair();
+  const auth = await submitPassphrase(base, {...Object.fromEntries(authorizeParams({clientId: registered.body.client_id, challenge})), redirect_uri: redirectUri, scope: 'i.read i.write'});
+  assert.equal(auth.status, 302);
+  const token = await postToken(base, {grant_type: 'authorization_code', code: new URL(auth.headers.get('location')).searchParams.get('code'),
+    client_id: registered.body.client_id, redirect_uri: redirectUri, code_verifier: verifier, resource: PUBLIC_URL + '/mcp'});
+  assert.equal(token.status, 200);
+  const {init, sessionId} = await initSession(base, token.body.access_token); assert.equal(init.status, 200);
+  let id = 2;
+  const rpc = async (method, params) => {
+    const response = await mcpPost(base, token.body.access_token, {jsonrpc: '2.0', id: id++, method, params}, {sessionId});
+    assert.equal(response.status, 200); return response.body;
+  };
+  return {rpc, call: async (name, args) => (await rpc('tools/call', {name, arguments: args})).result};
+}
+
+test('N2 candidate inlines notes_tools.mjs verbatim with node-only imports', () => {
+  const server = readFileSync(join(built.root, 'i_remote_mcp', 'server.mjs'), 'utf8').replaceAll('\r\n', '\n');
+  const source = readFileSync(new URL('./notes_tools.mjs', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+  assert.equal(server.split(source.trimEnd()).length, 2, 'notes_tools.mjs must appear exactly once, byte for byte');
+  assert.deepEqual(candidate.NOTES_TOOLS, NOTES_TOOLS);
+  const imports = [...source.matchAll(/(?:from\s*|import\s*\()(['"])([^'"]+)\1/g)].map(match => match[2]);
+  assert.deepEqual(imports, ['node:fs', 'node:path']);
+});
+
+test('N2 four frontends list and call the notes tools; Sesame gets none', {timeout: 90000}, async t => {
+  const state = mcpState(t, fixture(t));
+  for (const frontend of ['claude_web', 'chatgpt_web', 'gemini_web', 'antigravity']) {
+    const app = await start(t, state, frontend);
+    const listed = (await app.rpc('tools/list')).result.tools;
+    for (const tool of NOTES_TOOLS) {
+      const actual = listed.find(item => item.name === tool.name);
+      assert.ok(actual, frontend + ' lists ' + tool.name);
+      assert.equal(actual.description, tool.description); assert.deepEqual(actual.inputSchema, tool.inputSchema);
+    }
+    const recent = await app.call('notes_recent', {});
+    assert.equal(recent.isError, false, JSON.stringify(recent.structuredContent));
+    assert.deepEqual(recent.structuredContent.docs.map(d => d.token), ['docD1', 'docD2', 'docW1']);
+    const read = await app.call('notes_read', {token: 'docD1'});
+    assert.match(read.structuredContent.content, /给妈妈打电话/);
+    const missing = await app.call('notes_read', {token: 'docNope'});
+    assert.equal(missing.isError, true); assert.equal(missing.structuredContent.error.code, 'notes_doc_not_found');
+  }
+  const sesame = await start(t, state, 'sesame');
+  assert.equal((await sesame.rpc('tools/list')).result.tools.some(tool => tool.name.startsWith('notes_')), false);
+});
+
+test('N2 tools are off without notes.json and a malformed notes.json fails startup', {timeout: 60000}, async t => {
+  const app = await start(t, mcpState(t), 'claude_web');
+  assert.equal((await app.rpc('tools/list')).result.tools.some(tool => tool.name.startsWith('notes_')), false);
+  for (const value of [{format: 'notes-config-v2', notes_dir: tmpdir()}, {format: 'notes-config-v1', notes_dir: 'relative'}, []]) {
+    assert.throws(() => candidate.createApp({stateDir: mcpState(t, value), publicUrl: PUBLIC_URL, getReadModel: async () => ({})}), /^Error: notes_config_invalid$/);
+  }
 });

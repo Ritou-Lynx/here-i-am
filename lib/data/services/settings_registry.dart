@@ -176,15 +176,12 @@ class SettingsRegistry {
         SettingsItem(
           id: 'personal.advanced',
           titleGetter: () => '开发与诊断',
-          descriptionGetter: () => 'Dev Room、用量、异步任务、日志与索引',
+          descriptionGetter: () => '日志、索引与本机数据',
           keywords: const [
             '开发',
             '诊断',
-            'Dev Room',
             '日志',
             '索引',
-            '模型用量',
-            '异步任务',
             'developer',
             'debug',
             'logs',

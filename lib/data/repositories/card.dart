@@ -5,10 +5,8 @@ import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:memex/domain/models/card_model.dart';
 import 'package:memex/data/services/file_system_service.dart';
-import 'package:memex/data/services/llm_call_record_service.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/card_renderer.dart';
-import 'package:memex/utils/token_usage_utils.dart';
 
 final _logger = getLogger('CardDetailEndpoint');
 FileSystemService get _fileSystemService => FileSystemService.instance;
@@ -243,98 +241,6 @@ Future<CardDetailModel> getCardDetail(String cardId) async {
       }
     }
 
-    // Get LLM call stats
-    LLMStats? llmStats;
-    try {
-      final record = await LLMCallRecordService.instance.getRecord(
-        userId: userId,
-        scene: 'input',
-        sceneId: cardId,
-      );
-
-      if (record != null) {
-        final calls = record['calls'] as List? ?? [];
-        final agentTokens = <String, AgentStats>{};
-        int totalCalls = 0;
-        int totalPromptTokens = 0;
-        int totalCompletionTokens = 0;
-        int totalCachedTokens = 0;
-        int totalEffectivePromptTokens = 0;
-        int totalCachedForRate = 0;
-        int totalThoughtTokens = 0;
-        int totalTokens = 0;
-        double totalCost = 0.0;
-
-        for (final call in calls) {
-          final usage = call['usage'] as Map<String, dynamic>;
-          final promptTokens = usage['prompt_tokens'] as int? ?? 0;
-          final completionTokens = usage['completion_tokens'] as int? ?? 0;
-          final cachedTokens = usage['cached_tokens'] as int? ?? 0;
-          final thoughtTokens = usage['thought_tokens'] as int? ?? 0;
-          final tokens = usage['total_tokens'] as int? ?? 0;
-          final agentName = call['agent_name'] as String;
-          final model = call['model'] as String? ?? '';
-          final sem = TokenUsageUtils.resolveFromUsageRecord(usage);
-          final effPrompt = TokenUsageUtils.effectivePromptTokensOrNull(
-              promptTokens: promptTokens,
-              cachedTokens: cachedTokens,
-              cachedTokensIncludedInPrompt: sem);
-
-          final cost = TokenUsageUtils.calculateCost(
-              model: model,
-              promptTokens: promptTokens,
-              completionTokens: completionTokens,
-              cachedTokens: cachedTokens,
-              thoughtTokens: thoughtTokens,
-              cachedTokensIncludedInPrompt: sem)['total']!;
-
-          totalCalls++;
-          totalPromptTokens += promptTokens;
-          totalCompletionTokens += completionTokens;
-          totalCachedTokens += cachedTokens;
-          if (effPrompt != null) {
-            totalEffectivePromptTokens += effPrompt;
-            totalCachedForRate += cachedTokens;
-          }
-          totalThoughtTokens += thoughtTokens;
-          totalTokens += tokens;
-          totalCost += cost;
-
-          // Per-agent accumulation
-          final prev = agentTokens[agentName];
-          agentTokens[agentName] = AgentStats(
-            calls: (prev?.calls ?? 0) + 1,
-            promptTokens: (prev?.promptTokens ?? 0) + promptTokens,
-            completionTokens: (prev?.completionTokens ?? 0) + completionTokens,
-            cachedTokens: (prev?.cachedTokens ?? 0) + cachedTokens,
-            effectivePromptTokens:
-                (prev?.effectivePromptTokens ?? 0) + (effPrompt ?? 0),
-            cachedTokensForRate: (prev?.cachedTokensForRate ?? 0) +
-                (effPrompt != null ? cachedTokens : 0),
-            thoughtTokens: (prev?.thoughtTokens ?? 0) + thoughtTokens,
-            totalTokens: (prev?.totalTokens ?? 0) + tokens,
-            totalCost: (prev?.totalCost ?? 0) + cost,
-          );
-        }
-
-        llmStats = LLMStats(
-          totalCalls: totalCalls,
-          totalPromptTokens: totalPromptTokens,
-          totalCompletionTokens: totalCompletionTokens,
-          totalCachedTokens: totalCachedTokens,
-          totalEffectivePromptTokens: totalEffectivePromptTokens,
-          totalCachedTokensForRate: totalCachedForRate,
-          totalThoughtTokens: totalThoughtTokens,
-          totalTokens: totalTokens,
-          totalCost: totalCost,
-          byAgent: agentTokens,
-        );
-      }
-    } catch (e) {
-      _logger.warning('Failed to get LLM stats for card $cardId: $e');
-      // Continue without stats
-    }
-
     // rawContent already cleaned in _parseAssetsAndCleanContent
 
     // Render card to get uiConfigs
@@ -370,7 +276,6 @@ Future<CardDetailModel> getCardDetail(String cardId) async {
         comments: comments,
       ),
       assets: assets,
-      llmStats: llmStats,
       uiConfigs: renderResult.uiConfigs,
     );
   } catch (e) {

@@ -1,6 +1,5 @@
 /// CodingAgent 接口占位（W5 Phase 2）。
 ///
-/// 真实实现接线 Dev Room Bridge（Phase 3）。本轮提供接口 + Mock，
 /// 供编排层端到端闭环使用。
 library;
 

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:memex/data/services/call_engine_settings.dart';
 import 'package:memex/data/services/sqlite_retry.dart';
 import 'package:memex/db/app_database.dart';
 
@@ -15,7 +16,6 @@ class SleepNudgeStore {
   static const _kEnabled = 'sleep_nudge.enabled';
   static const _kServer = 'sleep_nudge.server';
   static const _kTopic = 'sleep_nudge.topic';
-  static const _kEngine = 'sleep_nudge.engine';
   static const _kMinGap = 'sleep_nudge.min_gap_minutes';
   static const _kMaxPerNight = 'sleep_nudge.max_per_night';
   static const _kMaxCall = 'sleep_nudge.max_call_minutes';
@@ -66,7 +66,7 @@ class SleepNudgeStore {
           ? m[_kServer]!.trim()
           : SleepNudgeConfig.defaultServer,
       topic: m[_kTopic]?.trim() ?? '',
-      engine: SleepNudgeEngine.parse(m[_kEngine]),
+      engine: await CallEngineSettings.get(),
       minGapMinutes: _int(m[_kMinGap], SleepNudgeConfig.defaultMinGapMinutes),
       maxPerNight: _int(m[_kMaxPerNight], SleepNudgeConfig.defaultMaxPerNight),
       maxCallMinutes:
@@ -82,7 +82,6 @@ class SleepNudgeStore {
       _kEnabled: c.enabled.toString(),
       _kServer: c.server.trim(),
       _kTopic: c.topic.trim(),
-      _kEngine: c.engine.id,
       _kMinGap: c.minGapMinutes.toString(),
       _kMaxPerNight: c.maxPerNight.toString(),
       _kMaxCall: c.maxCallMinutes.toString(),

@@ -285,6 +285,14 @@ void main() {
       ).reasonText,
       '你挂断',
     );
+    expect(
+      GptLiveCallRecord(
+        startedAt: DateTime(2026),
+        seconds: 5,
+        reason: 'idle',
+      ).reasonText,
+      '太久没人说话，自动挂断',
+    );
   });
 }
 

@@ -19,18 +19,15 @@ void main() {
 
     expect(definition['name'], WorkbenchSearchToolHost.toolName);
     expect(schema['additionalProperties'], isFalse);
-    expect(items['enum'], ['card_library', 'memory_v3', 'project_memory']);
+    expect(items['enum'], ['card_library', 'memory_v3']);
     expect(items['enum'], isNot(contains('conversation')));
     expect(items['enum'], isNot(contains('task_artifact')));
     expect(properties, isNot(contains('authorization')));
   });
 
-  test(
-    'product authorization restricts Project Memory to projected ids',
-    () async {
-      final authorization = await DesktopWorkbenchSearchAuthorizationFactory(
-        loadProjectedProjectIds: () async => {'project-a', 'project-b'},
-      ).build();
+  test('product authorization exposes only current production lanes', () async {
+      final authorization =
+          await const DesktopWorkbenchSearchAuthorizationFactory().build();
 
       expect(
         authorization
@@ -42,27 +39,14 @@ void main() {
         authorization.grantFor(SearchPermissionLane.userTruth)?.allContainers,
         isTrue,
       );
-      final projectGrant = authorization.grantFor(
-        SearchPermissionLane.projectMemory,
-      )!;
-      expect(projectGrant.allContainers, isFalse);
-      expect(projectGrant.allowedContainerRefs, {'project-a', 'project-b'});
-    },
-  );
-
-  test('empty Project Memory projection issues no project lane', () async {
-    final authorization = await DesktopWorkbenchSearchAuthorizationFactory(
-      loadProjectedProjectIds: () async => {},
-    ).build();
-
-    expect(authorization.grantFor(SearchPermissionLane.projectMemory), isNull);
+      expect(authorization.grantFor(SearchPermissionLane.projectMemory), isNull);
   });
 
   test(
     'Runtime invocation preserves bounded response and deterministic trace',
     () async {
       final adapter = _RuntimeSearchAdapter();
-      final tool = _tool(adapter, projectedProjectIds: {'project-a'});
+      final tool = _tool(adapter);
 
       final result = await tool.invoke({
         'request_id': 'runtime-search-1',
@@ -94,7 +78,7 @@ void main() {
 
   test('model payload cannot grant itself another permission lane', () async {
     final adapter = _RuntimeSearchAdapter();
-    final tool = _tool(adapter, projectedProjectIds: const {});
+    final tool = _tool(adapter);
 
     final result = await tool.invoke({
       'request_id': 'runtime-search-auth-escalation',
@@ -116,7 +100,7 @@ void main() {
   test('conversation Runtime registers, dispatches, and restores search',
       () async {
     final adapter = _RuntimeSearchAdapter();
-    final searchTool = _tool(adapter, projectedProjectIds: {'project-a'});
+    final searchTool = _tool(adapter);
     final runtime = _SearchConversationRuntime();
     final replies = <String>[];
     final coordinator = WorkbenchConversationCoordinator(
@@ -168,7 +152,7 @@ void main() {
     final replies = <String>[];
     final coordinator = _searchCoordinator(
       runtime: runtime,
-      searchTool: _tool(adapter, projectedProjectIds: {'project-a'}),
+      searchTool: _tool(adapter),
       replies: replies,
       turnTimeout: const Duration(milliseconds: 10),
     );
@@ -193,7 +177,7 @@ void main() {
     final replies = <String>[];
     final coordinator = _searchCoordinator(
       runtime: runtime,
-      searchTool: _tool(adapter, projectedProjectIds: {'project-a'}),
+      searchTool: _tool(adapter),
       replies: replies,
     );
 
@@ -225,10 +209,7 @@ void main() {
     final replies = <String>[];
     final coordinator = _searchCoordinator(
       runtime: runtime,
-      searchTool: _tool(
-        _RuntimeSearchAdapter(),
-        projectedProjectIds: {'project-a'},
-      ),
+      searchTool: _tool(_RuntimeSearchAdapter()),
       replies: replies,
     );
 
@@ -248,9 +229,8 @@ void main() {
       loadHost: () async {
         throw Exception('runtime host unreachable');
       },
-      authorizationFactory: DesktopWorkbenchSearchAuthorizationFactory(
-        loadProjectedProjectIds: () async => {'project-a'},
-      ),
+      authorizationFactory:
+          const DesktopWorkbenchSearchAuthorizationFactory(),
     );
 
     final result = await tool.invoke({
@@ -285,16 +265,11 @@ WorkbenchConversationCoordinator _searchCoordinator({
   );
 }
 
-WorkbenchRuntimeSearchTool _tool(
-  WorkbenchSearchAdapter adapter, {
-  required Set<String> projectedProjectIds,
-}) {
+WorkbenchRuntimeSearchTool _tool(WorkbenchSearchAdapter adapter) {
   return WorkbenchRuntimeSearchTool(
     loadHost: () async =>
         WorkbenchSearchToolHost(WorkbenchSearchFacade(adapters: [adapter])),
-    authorizationFactory: DesktopWorkbenchSearchAuthorizationFactory(
-      loadProjectedProjectIds: () async => projectedProjectIds,
-    ),
+    authorizationFactory: const DesktopWorkbenchSearchAuthorizationFactory(),
   );
 }
 
@@ -305,32 +280,26 @@ class _RuntimeSearchAdapter implements WorkbenchSearchAdapter {
   String get adapterId => 'runtime_search_test_adapter';
 
   @override
-  Set<SearchScope> get supportedScopes => const {
-        SearchScope.cardLibrary,
-        SearchScope.projectMemory,
-      };
+  Set<SearchScope> get supportedScopes => const {SearchScope.cardLibrary};
 
   @override
   Future<SearchAdapterResult> search(SearchAdapterRequest request) async {
     calls++;
-    final project = request.scope == SearchScope.projectMemory;
     return SearchAdapterResult(
       hits: [
         SearchHitRef(
           scope: request.scope,
           permissionLane: request.scope.permissionLane,
-          objectType: project ? 'project_memory_item' : 'card',
-          objectId: project ? 'project-item-1' : 'card-1',
-          stableRef: project ? 'project_memory:project-item-1' : 'card:card-1',
-          title: project ? '项目进展' : '春雨卡片',
+          objectType: 'card',
+          objectId: 'card-1',
+          stableRef: 'card:card-1',
+          title: '春雨卡片',
           snippet: '这是一段会被 UTF-8 预算安全截断的搜索摘要内容。',
           relevance: 0.8,
           provenance: SearchProvenance(
             adapterId: adapterId,
-            sourceKind: project ? 'project_memory_projection' : 'test_card',
-            sourceRef:
-                project ? 'project_memory:project-item-1' : 'card:card-1',
-            containerRef: project ? 'project-a' : null,
+            sourceKind: 'test_card',
+            sourceRef: 'card:card-1',
             retrievedAt: DateTime.utc(2026, 8, 23),
           ),
         ),

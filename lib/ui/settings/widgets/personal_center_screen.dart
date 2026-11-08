@@ -1,23 +1,19 @@
 import 'package:memex/ui/settings/widgets/web_note_connection_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/media_service.dart';
-import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/app_lock/widgets/app_lock_settings_page.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
 import 'package:memex/ui/core/themes/spring_rain_ui_tokens.dart';
 import 'package:memex/ui/settings/view_models/settings_search_viewmodel.dart';
 import 'package:memex/ui/settings/widgets/asr_config_page.dart';
-import 'package:memex/ui/settings/widgets/async_task_list_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/config_sync_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
 import 'package:memex/ui/settings/widgets/core_sync_settings_page.dart';
 import 'package:memex/ui/settings/widgets/phone_memory_connection_page.dart';
-import 'package:memex/ui/settings/widgets/custom_agent_config_page.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/device_app_blocker_settings_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
@@ -26,11 +22,9 @@ import 'package:memex/ui/settings/widgets/image_generation_settings_page.dart';
 import 'package:memex/ui/settings/widgets/heart_rate_device_settings_page.dart';
 import 'package:memex/ui/settings/widgets/log_viewer_page.dart';
 import 'package:memex/ui/settings/widgets/model_config_list_page.dart';
-import 'package:memex/ui/settings/widgets/model_stats_page.dart';
 import 'package:memex/ui/settings/widgets/personal_center_detail_pages.dart';
 import 'package:memex/ui/settings/widgets/settings_search_screen.dart';
 import 'package:memex/ui/settings/widgets/shopping_config_page.dart';
-import 'package:memex/ui/settings/widgets/skills_management_page.dart';
 import 'package:memex/ui/settings/widgets/system_authorization_page.dart';
 import 'package:memex/ui/settings/widgets/task_model_assignment_page.dart';
 import 'package:memex/ui/settings/widgets/toy_config_page.dart';
@@ -774,38 +768,6 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
           title: '开发与诊断',
           intro: '普通使用不需要进入这一层。',
           groups: [
-            _DestinationGroup('开发工具', [
-              _Destination(
-                icon: Icons.developer_mode_outlined,
-                title: 'Dev Room',
-                subtitle: '开发任务与运行记录',
-                onTap: () => context.push(AppRoutes.devRoom),
-              ),
-              _Destination(
-                icon: Icons.bar_chart_outlined,
-                title: '模型用量',
-                subtitle: '请求统计与调用详情',
-                onTap: () => open(const ModelStatsPage()),
-              ),
-              _Destination(
-                icon: Icons.pending_actions_outlined,
-                title: '异步任务',
-                subtitle: '后台任务状态',
-                onTap: () => open(const AsyncTaskListPage()),
-              ),
-              _Destination(
-                icon: Icons.extension_outlined,
-                title: '自定义 Agent',
-                subtitle: '非主线的自定义能力',
-                onTap: () => open(const CustomAgentConfigPage()),
-              ),
-              _Destination(
-                icon: Icons.folder_special_outlined,
-                title: 'Skills',
-                subtitle: '本机技能目录与编辑',
-                onTap: () => open(const SkillsManagementPage()),
-              ),
-            ]),
             _DestinationGroup('诊断', [
               _Destination(
                 icon: Icons.receipt_long_outlined,

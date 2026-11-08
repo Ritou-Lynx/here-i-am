@@ -19,6 +19,7 @@ class GptLiveCallScreen extends StatefulWidget {
     this.callReason = '',
     this.maxDuration,
     this.showWhenLocked = false,
+    this.call,
   });
 
   final String characterId;
@@ -32,6 +33,10 @@ class GptLiveCallScreen extends StatefulWidget {
   /// 锁屏接听时让通话页直接显示在锁屏上方（只在这一页期间开启）。
   final bool showWhenLocked;
 
+  /// 通话页拥有此实例的生命周期；测试可替换外部通话连接。
+  @visibleForTesting
+  final GptLiveCall? call;
+
   @override
   State<GptLiveCallScreen> createState() => _GptLiveCallScreenState();
 }
@@ -41,15 +46,19 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
     'com.memexlab.memex/system_actions',
   );
 
-  late final GptLiveCall _call = GptLiveCall(
-    characterId: widget.characterId,
-    callReason: widget.callReason,
-  );
+  late final GptLiveCall _call = widget.call ??
+      GptLiveCall(
+        characterId: widget.characterId,
+        callReason: widget.callReason,
+      );
   Timer? _ticker;
   Timer? _autoExit;
-  bool _hangingUp = false;
-  bool _didLeave = false;
+  bool _hangupInProgress = false;
+  bool _exitScheduled = false;
   bool _replacing = false;
+
+  /// 通话已结束（含接通后断线），正在显示结束卡片。
+  bool _showEndCard = false;
   Duration _endedDuration = Duration.zero;
 
   @override
@@ -60,7 +69,7 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
       if (!mounted || _call.phase != GptLiveCallPhase.live) return;
       final max = widget.maxDuration;
       if (max != null && _elapsed >= max) {
-        unawaited(_hangUp(reason: 'max_duration'));
+        unawaited(_hangUpAndLeave(reason: 'max_duration'));
         return;
       }
       setState(() {});
@@ -92,31 +101,57 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
     return remaining.isNegative ? Duration.zero : remaining;
   }
 
+  bool get _disconnected =>
+      _call.phase == GptLiveCallPhase.failed && _call.startedAt != null;
+
   void _onChanged() {
     if (!mounted) return;
-    if (_call.phase == GptLiveCallPhase.ended && _autoExit == null) {
-      _endedDuration = _elapsed;
-      _autoExit = Timer(const Duration(seconds: 2), _leaveOnce);
+    if (_call.phase == GptLiveCallPhase.ended || _disconnected) {
+      _beginEndCard();
+      return;
     }
     setState(() {});
   }
 
-  Future<void> _hangUp({String reason = 'user'}) async {
-    if (_hangingUp || _call.phase == GptLiveCallPhase.ended) return;
-    _hangingUp = true;
-    await _call.hangUp(reason: reason);
+  /// 显示结束卡片，2 秒后退出；重复调用只生效一次。
+  void _beginEndCard() {
+    if (!mounted || _showEndCard || _exitScheduled) return;
+    setState(() {
+      _showEndCard = true;
+      _endedDuration = _elapsed;
+    });
+    _autoExit = Timer(const Duration(seconds: 2), _leave);
   }
 
-  void _leaveOnce() {
-    if (!mounted || _didLeave) return;
-    _didLeave = true;
+  void _leave() {
+    if (!mounted || _exitScheduled) return;
     _autoExit?.cancel();
-    Navigator.of(context).pop();
+    final route = ModalRoute.of(context);
+    setState(() => _exitScheduled = true);
+    // 等 PopScope 放行后再退出，避免被上一帧的 canPop=false 拦住。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || route == null || !route.isActive) return;
+      final navigator = route.navigator;
+      if (route.isCurrent) {
+        navigator?.pop();
+      } else {
+        // 结束时若有其他页面盖在上方，只移除本通话页。
+        navigator?.removeRoute(route);
+      }
+    });
+  }
+
+  Future<void> _hangUpAndLeave({String reason = 'user'}) async {
+    if (_hangupInProgress || _exitScheduled || _showEndCard) return;
+    _hangupInProgress = true;
+    await _call.hangUp(reason: reason);
+    _beginEndCard();
   }
 
   void _retry() {
-    if (_didLeave) return;
-    _didLeave = true;
+    if (_exitScheduled) return;
+    _exitScheduled = true;
+    _autoExit?.cancel();
     _replacing = true;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
@@ -169,16 +204,19 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
   @override
   Widget build(BuildContext context) {
     final phase = _call.phase;
-    final ended = phase == GptLiveCallPhase.ended;
-    final failed = phase == GptLiveCallPhase.failed;
+    // 接通后断线按“结束”处理（显示结束卡片后退出）；接通前失败才显示重拨。
+    final ended =
+        _showEndCard || phase == GptLiveCallPhase.ended || _disconnected;
+    final failed = phase == GptLiveCallPhase.failed && !ended;
     final name = _call.characterName ?? '林埃';
     return PopScope(
-      canPop: ended || failed || _didLeave,
+      canPop: _exitScheduled || ended || (failed && !_hangupInProgress),
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
-          _didLeave = true;
+          _exitScheduled = true;
+          _autoExit?.cancel();
         } else {
-          unawaited(_hangUp());
+          unawaited(_hangUpAndLeave());
         }
       },
       child: Scaffold(
@@ -239,7 +277,7 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
                           },
                           onHangUp: () {
                             HapticFeedback.mediumImpact();
-                            unawaited(_hangUp());
+                            unawaited(_hangUpAndLeave());
                           },
                           onSpeaker: () {
                             HapticFeedback.lightImpact();
@@ -255,9 +293,12 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
                     child: CallEndCard(
                       duration: _endedDuration,
                       reason: GptLiveCallRecord.reasonTextFor(
-                        _call.endReason ?? 'unknown',
+                        _call.endReason ??
+                            (_disconnected
+                                ? 'failed:${_call.error ?? '未知错误'}'
+                                : 'unknown'),
                       ),
-                      onTap: _leaveOnce,
+                      onTap: _leave,
                     ),
                   ),
                 if (failed)
@@ -268,7 +309,7 @@ class _GptLiveCallScreenState extends State<GptLiveCallScreen> {
                         _call.endReason ?? 'failed:${_call.error ?? '未知错误'}',
                       ),
                       onRetry: _retry,
-                      onBack: _leaveOnce,
+                      onBack: _leave,
                     ),
                   ),
               ],

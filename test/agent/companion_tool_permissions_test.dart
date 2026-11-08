@@ -18,7 +18,7 @@ void main() {
       await db.close();
     });
 
-    test('singleton I can delegate agent work and start Dev Room sessions', () {
+    test('singleton I exposes current companion tools', () {
       final toolNames = CharacterToolsFactory.buildCompanionTools(
         userId: 'user',
         characterId: 'i',
@@ -26,7 +26,10 @@ void main() {
       ).map((tool) => tool.name);
 
       expect(toolNames, contains('delegate_task'));
-      expect(toolNames, contains('dev_session_start_or_continue'));
+      expect(
+        toolNames,
+        isNot(contains('dev_session_' 'start_or_continue')),
+      );
       expect(toolNames, contains('WeatherOutingRiskCheck'));
       expect(toolNames, contains('NearbyPlaceSearch'));
       expect(toolNames, contains('MobilityRoutePlan'));
