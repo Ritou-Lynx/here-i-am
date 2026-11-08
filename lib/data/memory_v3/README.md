@@ -53,13 +53,6 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - `memory_fragments` / `memory_entities` / `memory_entity_links`
 - `memory_episodes` / `memory_sagas`
 
-**Project Memory 特殊领域**
-- Here I am 项目，以及其他项目政策明确允许进入个人语义层的当前态、开发事件、模块决策和回流摘要
-- 属于 Memory V3 的 domain / facet，不另起第二套记忆系统
-- 不写入普通 User-truth，不混入关系记忆或角色 sandbox
-- 跨工具 i Identity Capsule、外部 ingress 与 closeout 边界见 `docs/companion-first/LIN_AI_CROSS_TOOL_CONTINUITY.md`
-- （已退役，2026-11-07）Phase 2 用户级实现曾位于 `tools/i_continuity_gateway/`：Project Registry 只做路由/授权，加密 closeout ledger 负责当前 Project Space 交接，加密 Activity Index 只做可重建薄索引；三者都不是第二套语义记忆，也不允许直接写入本目录的 projection
-
 **原始资料与审计层**
 - `assets` / `asset_analysis` / `user_corrections` / `memory_card_operations`
 - `chat_messages` 继承现有结构
@@ -80,8 +73,7 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 3. 检索端
 4. Memory Review UI
 5. Dreaming 自动产物
-6. Project Memory domain（项目状态 / 开发事件 / Dev Room 回流）
-7. Insight 体系 UI
+6. Insight 体系 UI
 
 ### 当前 Dreaming MVP
 
@@ -90,25 +82,13 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - `EpisodeConsolidatorV3` 已接入 Daily Dreaming 和 Lab 手动入口，把 active fragments 凝结为第一人称 `memory_episodes`。
 - Companion 每轮对话会自动查询最近/相关 episodes + active fragments，并以 `dreaming_context` 注入。
 - Dreaming recall log 会记录每轮 query、命中的 episodes / fragments、bm25 分数和最终注入内容，供 Lab 调试。
-- 用户侧召回追踪写入 `memory_recall_events`：每轮自动召回与工具召回绑定用户消息；长按消息可查看 Card / Episode / Fragment / Saga / Project Memory 命中，并沿来源引用定位原始对话。它与仅供 Lab 的 Dreaming JSON recall log 分工独立。
+- 用户侧召回追踪写入 `memory_recall_events`：每轮自动召回与工具召回绑定用户消息；长按消息可查看 Card / Episode / Fragment / Saga 命中，并沿来源引用定位原始对话。它与仅供 Lab 的 Dreaming JSON recall log 分工独立。
 - `memory_recall_events` 同时参与七天窗口的 novelty penalty：近期反复注入的 Card / Episode / Fragment / Saga 会柔性降权，为同等相关的新候选让位，但不会被硬过滤；Compose 模式合并发送的多条用户消息共享同一轮 trace。
 - 召回详情支持逐条“有帮助 / 不相关”反馈，仍以 append-style recall event 保存，不改记忆正文：不相关会增加后续 penalty，有帮助会抵消仅因反复使用形成的部分降权；再次点击可取消。
 - Fragment 记录 `eventTime`（原始事件时间，非抽取时间）；Episode 的 `occurredAtRange` 由源 fragment eventTime 代码算出，不依赖 LLM。见 V3 § 5.6。
 - Companion 注入 dreaming context 时在 narrative 前加日期前缀（例："(07-08 · 2 天前)"），让模型能区分过去和现在。
 - Dreaming 自动产物写入 Dreaming 表族（fragments / episodes），不直接写 `memory_cards`。它承载的是事件+关系记忆，可信度中等（AI 观察）；Card 是用户显式确认的高置信版本。用户可以在 Memory Review 把高置信 Episode 升格成 Card。详见 V3 § 2.5。
 - Saga / Deep Dreaming 已接入：`SagaWeaverV3` 在 Daily Dreaming 末尾按阈值（≥5 episodes、跨度≥14天、上次 saga ≥7天前）触发，把 active episodes 编织为长期叙事弧线；更新走增量改写（旧版进 `memory_saga_snapshots`）；Companion 每轮注入最多 3 条 saga 作为「长期弧线」上下文；Lab 可手动触发 / 编辑 / 清空。
-
-### Project Memory 边界
-
-- `docs/development/I_PROJECT_STATE.md` 是林埃快速读取的当前态快照。
-- DEVLOG / commit / Dev Room run / closeout 产生的是项目事件史；先进入用户级隔离 Project Space，只有项目政策允许的内容才投影到 Project Memory domain，而不是 `memory_cards` 的普通 User-truth 流。
-- 原始 run / diff / approval 仍归 Dev Room 表管理；Project Memory 只保存可检索摘要和决策。
-- 林埃只有在项目相关问题中检索 Project Memory，普通生活聊天默认不注入。
-- Phase 3 使用独立 `project_memory_items` / `project_memory_sources` 与 `project_memory_fts`，不复用 `memory_cards`，因此不会污染 User-truth。
-- `ProjectMemoryService` 只接受 `personal_full/project_summary` 或已清空细节的 `work_redacted/redacted_summary` envelope；`local_only`、`private`、`confidential_local` fail closed。
-- `project_memory_query` 经过本地项目意图门禁；普通生活与关系问题即使误调用也生成零候选。明确项目问题先读 Project Memory 概况，需要当前代码/UI/diff 时再走 Dev Room。
-- Dev Room Bridge 只导出 Registry 当前政策允许的投影，不发送原始加密 ledger、完整 transcript 或 shell 输出；App 在 Bridge health 成功后幂等拉取。
-- `confidential_local / ephemeral` 项目不得进入 Here I am；FTS / embedding 必须先按 project / policy 过滤，再做 top-k。
 
 每切完一段，旧的对应代码可以删。
 
@@ -119,5 +99,4 @@ V3 schema 完整字段见 V3 § 4 / § 5 / § 6 / § 7。涉及的表：
 - 不要新增 Drift 表跟 Memex 卡片体系建外键
 - 不要绕过 `user_corrections`，让 AI 直接覆盖用户改过的字段
 - 不要让 Dreaming 自动产物（Fragment / Episode / Saga）写入 `memory_cards` 表
-- 不要把 Project Memory 写成普通 User-truth 或关系记忆
 - 不要让 I 的工具能读 `memory_card_operations`

@@ -1,7 +1,7 @@
 /// 任务路由：固定路由表 + 执行器注册（W5 Phase 2）。
 ///
 /// 路由表是固定的名称映射（coding → coding-agent 等）；执行器实例通过
-/// [registerExecutor] 注入。真实 CodingAgent 接线 Dev Room Bridge（Phase 3），
+/// [registerExecutor] 注入。
 /// 本轮默认由 [LinAiOrchestrator] 注册 Mock / Inline 占位执行器。
 library;
 

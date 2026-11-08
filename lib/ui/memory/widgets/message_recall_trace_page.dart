@@ -123,7 +123,7 @@ class _MessageRecallTracePageState extends State<MessageRecallTracePage> {
               icon: Icons.search_off_rounded,
               title: '这一轮没有使用长期记忆',
               body: '系统记录了本轮查询，但没有找到可注入的 Memory Card、'
-                  'Episode、Fragment、Saga 或 Project Memory。',
+                  'Episode、Fragment 或 Saga。',
             )
           else
             ..._buildSections(context, trace.items),
@@ -151,7 +151,6 @@ class _MessageRecallTracePageState extends State<MessageRecallTracePage> {
       MemoryRecallTraceService.memoryEpisodesTable,
       MemoryRecallTraceService.memoryFragmentsTable,
       MemoryRecallTraceService.memorySagasTable,
-      MemoryRecallTraceService.projectMemoryTable,
     ];
     final widgets = <Widget>[];
     for (final table in order) {

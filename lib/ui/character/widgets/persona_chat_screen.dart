@@ -52,7 +52,6 @@ import 'package:memex/data/services/persona_chat_open_service.dart';
 import 'package:memex/data/services/persona_reply_sanitizer.dart';
 import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/quick_chat_service.dart';
-import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/media_input_attachment.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
@@ -784,11 +783,6 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   StreamSubscription<SharedDraft>? _sharedDraftSub;
   Timer? _messageRefreshTimer;
 
-  /// Throttled Dev Room active-runs poll, driven from the 2s message
-  /// refresh timer so chat stays appraised of run progress without users
-  /// ever having to open the Dev Room screen.
-  Timer? _devRunPollTimer;
-  DateTime? _lastDevRunPollAt;
   Timer? _rememberedNoticeTimer;
   OverlayEntry? _rememberedNoticeEntry;
   String? _playingMessageId;
@@ -1133,8 +1127,7 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              GptLiveCallScreen(characterId: _currentCharacterId),
+          builder: (_) => GptLiveCallScreen(characterId: _currentCharacterId),
         ),
       );
       final updated = await _chatService.getMessages(
@@ -2166,7 +2159,6 @@ only after you have written the goodbye you want the user to hear.''',
     _sharedDraftSub?.cancel();
     _streamingTtsSession?.cancel();
     _messageRefreshTimer?.cancel();
-    _devRunPollTimer?.cancel();
     _continuousTimer?.cancel();
     ContinuousModeState.instance.cancel();
     IntimateSceneState.instance.end();
@@ -2308,29 +2300,7 @@ only after you have written the goodbye you want the user to hear.''',
           scrollToBottom: false,
         ),
       );
-      // Drive Dev Room active-run polling from the same cadence, but
-      // throttle to once every 5 seconds (≤_devRunPollMinInterval) so we
-      // don't hammer the Bridge while the user is just chatting. This is
-      // what lets dev session progress flow into chat directly without the
-      // user ever opening Dev Room.
-      unawaited(_maybePollDevAgentRuns());
     });
-  }
-
-  static const _devRunPollMinInterval = Duration(seconds: 5);
-
-  Future<void> _maybePollDevAgentRuns() async {
-    if (!DevAgentBridgeService.isInitialized) return;
-    final now = DateTime.now();
-    final last = _lastDevRunPollAt;
-    if (last != null && now.difference(last) < _devRunPollMinInterval) return;
-    _lastDevRunPollAt = now;
-    try {
-      await DevAgentBridgeService.instance.refreshActiveRuns();
-    } catch (_) {
-      // Bridge unreachable / not configured — silently swallow; the Dev
-      // Room screen surfaces the same errors where they're actionable.
-    }
   }
 
   Future<void> _refreshMessagesFromStore({

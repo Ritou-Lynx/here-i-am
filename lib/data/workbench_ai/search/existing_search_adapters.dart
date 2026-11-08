@@ -1,7 +1,6 @@
 library;
 
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
-import 'package:memex/data/memory_v3/services/project_memory_service.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/domain/workbench_ai/search/workbench_search_contract.dart';
 
@@ -251,65 +250,6 @@ class MemoryV3WorkbenchSearchAdapter implements WorkbenchSearchAdapter {
       examinedCandidateCount: raw.length,
       truncationReasons: reasons,
     );
-  }
-}
-
-/// Project Memory already filters allowed projects before FTS rank/limit, so
-/// its existing policy-gated read service maps cleanly to the workbench lane.
-class ProjectMemoryWorkbenchSearchAdapter implements WorkbenchSearchAdapter {
-  ProjectMemoryWorkbenchSearchAdapter(this._service);
-
-  final ProjectMemoryService _service;
-
-  @override
-  String get adapterId => 'here_i_am_project_memory_v1';
-
-  @override
-  Set<SearchScope> get supportedScopes => const {SearchScope.projectMemory};
-
-  @override
-  Future<SearchAdapterResult> search(SearchAdapterRequest request) async {
-    if (request.scope != SearchScope.projectMemory) {
-      return SearchAdapterResult(hits: const []);
-    }
-    final grant = request.permissionGrant;
-    final projectIds = grant.allContainers
-        ? await _service.projectedProjectIds()
-        : grant.allowedContainerRefs;
-    final hits = await _service.search(
-      request.query,
-      scope: ProjectMemoryQueryScope(
-        isProjectIntent: true,
-        allowedProjectIds: projectIds,
-      ),
-      limit: request.limit,
-    );
-    final results = hits.map((hit) {
-      final details = <String>[
-        hit.summary,
-        ...hit.decisions.map((value) => '决定：$value'),
-        ...hit.openLoops.map((value) => '未完：$value'),
-      ].join('\n');
-      return SearchHitRef(
-        scope: SearchScope.projectMemory,
-        permissionLane: SearchPermissionLane.projectMemory,
-        objectType: 'project_memory_item',
-        objectId: hit.itemId,
-        stableRef: 'project_memory:${hit.itemId}',
-        title: hit.projectKey,
-        snippet: details,
-        relevance: _ftsRelevance(hit.rank),
-        provenance: SearchProvenance(
-          adapterId: adapterId,
-          sourceKind: 'project_memory_projection',
-          sourceRef: 'project_memory:${hit.itemId}',
-          containerRef: hit.projectId,
-          queryStrategy: 'policy_gated_fts',
-          retrievedAt: DateTime.now().toUtc(),
-        ),
-      );
-    }).toList(growable: false);
-    return SearchAdapterResult(hits: results);
   }
 }
 

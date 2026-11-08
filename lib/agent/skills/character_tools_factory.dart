@@ -8,7 +8,6 @@ import 'package:memex/agent/companion_agent/record_request_matcher.dart';
 import 'package:memex/agent/built_in_tools/continuous_reply_tool.dart';
 import 'package:memex/agent/built_in_tools/coros_mcp_tool.dart';
 import 'package:memex/agent/built_in_tools/delegate_task_tool.dart';
-import 'package:memex/agent/built_in_tools/dev_session_tool.dart';
 import 'package:memex/agent/built_in_tools/device_app_blocker_tool.dart';
 import 'package:memex/agent/built_in_tools/get_current_location_tool.dart';
 import 'package:memex/agent/built_in_tools/initiate_call_tool.dart';
@@ -25,7 +24,6 @@ import 'package:memex/agent/built_in_tools/send_sticker_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_delete_card_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_query_tool.dart';
 import 'package:memex/agent/built_in_tools/memory_v3_update_card_tool.dart';
-import 'package:memex/agent/built_in_tools/project_memory_query_tool.dart';
 import 'package:memex/agent/built_in_tools/topic_thread_tool.dart';
 import 'package:memex/agent/skills/companion_agent/tools/action_message_tools.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
@@ -69,10 +67,6 @@ class CharacterToolsFactory {
       buildReminderTool(characterId: characterId, characterName: characterName),
       buildDelegateTaskTool(
         userId: userId,
-        characterId: characterId,
-        characterName: characterName ?? 'Companion',
-      ),
-      buildDevSessionStartOrContinueTool(
         characterId: characterId,
         characterName: characterName ?? 'Companion',
       ),
@@ -133,8 +127,6 @@ class CharacterToolsFactory {
         characterId: characterId,
       ));
       tools.add(buildMemoryV3DeleteCardTool());
-      tools.add(buildProjectMemoryQueryTool(
-          currentUserMessageId: currentUserMessageId));
     }
     if (AppDatabase.isInitialized) {
       tools.add(buildTopicThreadCreateTool());

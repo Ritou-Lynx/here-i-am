@@ -1,10 +1,8 @@
 import 'package:memex/ui/settings/widgets/web_note_connection_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:memex/data/repositories/memex_router.dart';
 import 'package:memex/data/services/media_service.dart';
-import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/app_lock/widgets/app_lock_settings_page.dart';
 import 'package:memex/ui/core/widgets/avatar_picker.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
@@ -770,14 +768,6 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
           title: '开发与诊断',
           intro: '普通使用不需要进入这一层。',
           groups: [
-            _DestinationGroup('开发工具', [
-              _Destination(
-                icon: Icons.developer_mode_outlined,
-                title: 'Dev Room',
-                subtitle: '开发任务与运行记录',
-                onTap: () => context.push(AppRoutes.devRoom),
-              ),
-            ]),
             _DestinationGroup('诊断', [
               _Destination(
                 icon: Icons.receipt_long_outlined,
