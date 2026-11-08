@@ -81,7 +81,6 @@ class GptLiveCall extends ChangeNotifier {
                 id: characterId,
                 name: '林埃',
                 tags: const [],
-                persona: '',
                 enabled: true,
               ),
         ),

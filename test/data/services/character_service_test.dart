@@ -30,19 +30,20 @@ void main() {
       }
     });
 
-    test('new defaults keep voice, routing, greeting, and examples separated',
+    test('new defaults carry a greeting and no legacy prompt fields',
         () async {
       final characters =
           await CharacterService.instance.getAllCharacters('new-defaults');
       final mentor = characters.firstWhere((character) => character.id == '2');
 
-      expect(mentor.persona, contains('## Voice'));
-      expect(mentor.persona, isNot(contains('## Example Dialogue')));
-      expect(mentor.persona, isNot(contains('## PKM Interest Filter')));
-      expect(mentor.interestFilter, isNotEmpty);
       expect(mentor.firstMessage, isNotEmpty);
-      expect(mentor.postHistoryInstructions, isNotEmpty);
-      expect(mentor.mesExample, isNotEmpty);
+      final raw = await File(p.join(
+              CharacterService.instance.getCharactersPath('new-defaults'),
+              '2.yaml'))
+          .readAsString();
+      for (final f in CharacterService.legacyFields) {
+        expect(raw, isNot(contains('$f:')));
+      }
     });
 
     test('migration refreshes legacy defaults without overwriting user edits',
@@ -77,7 +78,6 @@ enabled: true
       final customized =
           characters.firstWhere((character) => character.id == '3');
 
-      expect(mentor.persona, contains('偶尔深夜聊两句的老朋友'));
       expect(mentor.name, '我的老领导');
       expect(mentor.enabled, isFalse);
       expect(mentor.isPrimaryCompanion, isTrue);
@@ -90,11 +90,12 @@ enabled: true
         endsWith(p.join('custom', 'background.jpg')),
       );
       expect(mentor.ttsVoiceId, 'voice-custom');
-      expect(mentor.interestFilter, isNotEmpty);
       expect(mentor.firstMessage, isNotEmpty);
+      final mentorRaw =
+          await File(p.join(charactersPath, '2.yaml')).readAsString();
+      expect(mentorRaw, isNot(contains('persona:')));
 
       expect(customized.name, '我自己改过的角色');
-      expect(customized.persona, '这是用户自己写的人设，不应被升级覆盖。');
       expect(
         await File(p.join(charactersPath, '.characters_seed_version'))
             .readAsString(),
@@ -167,7 +168,6 @@ enabled: true
       expect(characters, hasLength(1));
       expect(characters.single.id, 'i');
       expect(characters.single.name, 'I');
-      expect(characters.single.persona, isEmpty);
       expect(characters.single.enabled, isTrue);
       expect(characters.single.isPrimaryCompanion, isTrue);
     });
