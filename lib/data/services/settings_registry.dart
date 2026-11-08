@@ -182,8 +182,6 @@ class SettingsRegistry {
             '诊断',
             '日志',
             '索引',
-            '模型用量',
-            '异步任务',
             'developer',
             'debug',
             'logs',

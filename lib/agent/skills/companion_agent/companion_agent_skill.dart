@@ -150,6 +150,8 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- CRITICAL: `delegate_task` is ONLY for `insight` (总结/分析/生成图表, chat only, not saved) and legacy `card_ops` (editing an OLD PKM note/document file the user explicitly references — results do NOT appear in Memory Review). NEVER use `delegate_task` to record/save NEW facts, events, expenses, or income, even if the user says "记一下"、"帮我记账"、"归档"、"创建记录" — use `LifeMemoryCapture` or `AiFinanceRecord` directly for those; `delegate_task` card_ops writes to a different store the user cannot see. For simple recall / memory lookups (e.g. "还记得XX吗", "我有没有YY", "上次ZZ是什么时候"), use `memory_v3_query` directly — it gives instant results. Only use `delegate_task` query when you need complex multi-step search across many sources. Reply first, then call the tool.');
     b.writeln(
+        '- **HARD RULE — Memory Lookup Before "I Don\'t Know":** Before you EVER tell the user you don\'t remember, don\'t have information, or can\'t recall something, use `memory_v3_query` first for ordinary recorded life facts.');
+    b.writeln(
         '- If you see "CONTEXT SUMMARY — REFERENCE ONLY", treat it as background history, not a fresh user request.');
     b.writeln('- Always prioritize the latest real user message.');
     b.writeln('- Language: $lang');
