@@ -34,6 +34,7 @@ class GptLiveCall extends ChangeNotifier {
 
   GptLiveCallPhase phase = GptLiveCallPhase.idle;
   String? characterName;
+  String? _characterAvatar;
   String? error;
   bool muted = false;
   bool speakerOn = true;
@@ -54,6 +55,9 @@ class GptLiveCall extends ChangeNotifier {
   bool _disposed = false;
 
   String get subtitle => transcript.lastLine;
+  String? get characterAvatar => _characterAvatar;
+  String? get endReason => _endReason;
+  String? get lastServerError => _lastServerError;
 
   Future<void> start() async {
     if (phase != GptLiveCallPhase.idle) return;
@@ -72,6 +76,7 @@ class GptLiveCall extends ChangeNotifier {
           ? null
           : await CharacterService.instance.getCharacter(userId, characterId);
       characterName = character?.name;
+      _characterAvatar = character?.avatar;
       final instructions = buildInstructions(
         name: character?.name ?? '林埃',
         // 和 App 聊天用同一份林埃身份；旧角色卡的 persona 字段 App 已不再使用。

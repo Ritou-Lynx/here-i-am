@@ -313,6 +313,9 @@ class GptLiveTranscript {
   List<GptLiveTurn> get finished =>
       turns.where((t) => t.text.toString().trim().isNotEmpty).toList();
 
+  /// 当前通话中可展示的非空转写轮次，调用方不可修改内部列表。
+  List<GptLiveTurn> get visibleTurns => List.unmodifiable(finished);
+
   String get lastLine {
     if (turns.isEmpty) return '';
     return turns.last.text.toString().trim();
