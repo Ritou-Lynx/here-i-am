@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:memex/data/services/call_engine_settings.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_call.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_protocol.dart';
 import 'package:memex/data/services/sleep_nudge/sleep_nudge_policy.dart';
@@ -155,8 +156,8 @@ void main() {
     expect(SleepNudgePolicy.openingFor(msg(now, '睁眼'), nightCount: 1), '睁眼');
     expect(SleepNudgePolicy.openingFor(msg(now, ''), nightCount: 2),
         startsWith('这是今晚第 2 通。'));
-    expect(SleepNudgeEngine.parse('classic'), SleepNudgeEngine.classic);
-    expect(SleepNudgeEngine.parse(null), SleepNudgeEngine.gptLive);
+    expect(CallEngine.parse('classic'), CallEngine.classic);
+    expect(CallEngine.parse(null), CallEngine.gptLive);
   });
 
   group('GPT-Live nudge', () {

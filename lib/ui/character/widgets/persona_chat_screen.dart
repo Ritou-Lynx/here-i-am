@@ -26,6 +26,7 @@ import 'package:memex/data/services/asr/alibaba_streaming_asr_client.dart';
 import 'package:memex/data/services/asr/media_button_service.dart';
 import 'package:memex/data/services/asr/voice_input_controller.dart';
 import 'package:memex/data/services/call_voice_router.dart';
+import 'package:memex/data/services/call_engine_settings.dart';
 import 'package:memex/data/services/voice_call_audio_session.dart';
 import 'package:memex/ui/character/widgets/hangup_tone.dart';
 import 'package:memex/ui/character/widgets/gpt_live_call_screen.dart';
@@ -1201,6 +1202,11 @@ class _PersonaChatScreenState extends State<PersonaChatScreen>
   /// unlike the old main-isolate inline voice mode that died the moment the
   /// engine was suspended. Tapping again while a call is active hangs up.
   Future<void> _toggleGlobalCallFromChat() async {
+    if (await CallEngineSettings.get() == CallEngine.gptLive) {
+      if (!mounted) return;
+      await _openGptLiveCall();
+      return;
+    }
     if (CallVoiceRouter.instance.isActive()) {
       await CallVoiceRouter.instance.hangUp();
       return;
@@ -5826,11 +5832,6 @@ only after you have written the goodbye you want the user to hear.''',
             : _chatUiText(zh: '家里电脑朗读（英文）', en: 'Home voice (EN)'),
         active: _autoReadEnabled && _activeTtsProvider == 'home_turbo',
         onTap: () => unawaited(_toggleAutoRead('home_turbo')),
-      ),
-      _HeaderActionButton(
-        icon: Icons.phone_in_talk_outlined,
-        label: _chatUiText(zh: 'GPT-Live 通话（备选）', en: 'GPT-Live call'),
-        onTap: () => unawaited(_openGptLiveCall()),
       ),
       if (widget.onOpenSpaces != null)
         _HeaderActionButton(
