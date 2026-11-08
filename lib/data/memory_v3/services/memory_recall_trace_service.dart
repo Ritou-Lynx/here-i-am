@@ -94,7 +94,6 @@ class MemoryRecallTraceItem {
         MemoryRecallTraceService.memoryEpisodesTable => 'Episode',
         MemoryRecallTraceService.memoryFragmentsTable => 'Fragment',
         MemoryRecallTraceService.memorySagasTable => 'Saga',
-        MemoryRecallTraceService.projectMemoryTable => 'Project Memory',
         _ => targetTable,
       };
 }
@@ -128,7 +127,6 @@ class MemoryRecallTraceService {
   static const memoryEpisodesTable = 'memory_episodes';
   static const memoryFragmentsTable = 'memory_fragments';
   static const memorySagasTable = 'memory_sagas';
-  static const projectMemoryTable = 'project_memory_items';
 
   /// Starts (or restarts) one recall trace.
   ///
@@ -401,7 +399,6 @@ class MemoryRecallTraceService {
       memoryFragmentsTable => _resolveFragment(event),
       memoryEpisodesTable => _resolveEpisode(event),
       memorySagasTable => _resolveSaga(event),
-      projectMemoryTable => _resolveProjectMemory(event),
       _ => _unknownItem(event),
     };
   }
@@ -485,21 +482,6 @@ class MemoryRecallTraceService {
       body: saga?.description ?? '这个 Saga 已不存在。',
       score: event.score,
       sourceMessages: await _loadMessages(sourceIds),
-    );
-  }
-
-  Future<MemoryRecallTraceItem> _resolveProjectMemory(
-      MemoryRecallEvent event) async {
-    final item = await (_db.select(_db.projectMemoryItems)
-          ..where((table) => table.id.equals(event.targetId)))
-        .getSingleOrNull();
-    return MemoryRecallTraceItem(
-      targetTable: event.targetTable,
-      targetId: event.targetId,
-      title: item == null ? '已删除的项目记忆' : '项目 · ${item.projectKey}',
-      body: item?.summary ?? '这条 Project Memory 已不存在。',
-      score: event.score,
-      sourceMessages: const [],
     );
   }
 

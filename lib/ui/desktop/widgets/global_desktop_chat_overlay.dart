@@ -236,7 +236,6 @@ String _desktopPageContextLabel(BuildContext context) {
   if (path == AppRoutes.linkImport) return '链接导入';
   if (path == AppRoutes.memoryCenter) return '记忆空间';
   if (path == AppRoutes.interests) return '阅读空间';
-  if (path == AppRoutes.devRoom) return '任务中心';
   return '当前工作面';
 }
 

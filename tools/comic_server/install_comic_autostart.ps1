@@ -1,4 +1,4 @@
-# Install logon autostart for the comic pipeline by dropping a tiny VBS into
+﻿# Install logon autostart for the comic pipeline by dropping a tiny VBS into
 # the user's Startup folder. This needs NO special privileges (unlike Task
 # Scheduler, which can hit "Access denied" in non-interactive contexts) and,
 # because it just launches a normal login-time process, it has none of Task
@@ -32,14 +32,9 @@ if (-not (Test-Path $startScript)) {
 Unregister-ScheduledTask -TaskName 'HereIAm_Comic_Pipeline' -Confirm:$false -ErrorAction SilentlyContinue
 
 # Ensure Tailscale background serves exist (idempotent).
-#   :443  https -> dev_agent_bridge (127.0.0.1:47831)   [DevRoom]
 #   :8443 http  -> comic_server   (127.0.0.1:47840)     [漫画书架]
 #   :8081 http  -> ollama_proxy   (127.0.0.1:11435)     [识图 Ollama, Host 改写]
 $serve = & tailscale serve status 2>&1 | Out-String
-if ($serve -notmatch ':443\b') {
-  Write-Host "[*] Registering Tailscale serve :443 (DevRoom Bridge) ..." -ForegroundColor Yellow
-  & tailscale serve --bg --https=443 http://127.0.0.1:47831 2>&1 | Out-Null
-}
 if ($serve -notmatch ':8443') {
   Write-Host "[*] Registering Tailscale serve :8443 (comic) ..." -ForegroundColor Yellow
   & tailscale serve --bg --http=8443 http://127.0.0.1:47840 2>&1 | Out-Null

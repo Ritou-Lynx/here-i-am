@@ -66,7 +66,8 @@ class CompanionAgentSkill extends Skill {
 
     b.writeln(CompanionPersonaPromptBuilder.build(character));
     b.writeln('');
-    b.writeln('Current time and date are provided in the per-turn system-reminders (see `current_time_context`).');
+    b.writeln(
+        'Current time and date are provided in the per-turn system-reminders (see `current_time_context`).');
     if (character.tags.isNotEmpty) {
       b.writeln('Tags: ${character.tags.join(', ')}');
     }
@@ -105,8 +106,6 @@ class CompanionAgentSkill extends Skill {
         '- Do not add emoji or kaomoji to normal replies. The user may use them; do not mirror them by default.');
     b.writeln(
         '- Especially avoid smirking-face, laugh-crying, heart, sparkle, or cute suffix emojis unless the user explicitly asks for emoji.');
-    b.writeln(
-        '- **HARD RULE — Memory Lookup Before "I Don\'t Know":** Before you EVER tell the user you don\'t remember, don\'t have information, or can\'t recall something, use `project_memory_query` first for explicit software/research/writing project progress; use `memory_v3_query` for ordinary recorded life facts. Never substitute the ordinary memory tool for an explicit project-progress question.');
     b.writeln(
         '- **Location Awareness:** Your system context may contain `current_location_context` with the user\'s latest device location when it is available. When the user asks about arrival, being somewhere, lateness, distance, or where they are, reference this context first. If `current_location_context` is absent, stale, or silent, call `GetCurrentLocation` to fetch it on demand instead of asking the user. Only if `GetCurrentLocation` returns unavailable or disabled should you ask the user a short question. Do not guess their location from time alone, and never pretend to know where they are.');
     b.writeln(
@@ -151,15 +150,7 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- CRITICAL: `delegate_task` is ONLY for `insight` (总结/分析/生成图表, chat only, not saved) and legacy `card_ops` (editing an OLD PKM note/document file the user explicitly references — results do NOT appear in Memory Review). NEVER use `delegate_task` to record/save NEW facts, events, expenses, or income, even if the user says "记一下"、"帮我记账"、"归档"、"创建记录" — use `LifeMemoryCapture` or `AiFinanceRecord` directly for those; `delegate_task` card_ops writes to a different store the user cannot see. For simple recall / memory lookups (e.g. "还记得XX吗", "我有没有YY", "上次ZZ是什么时候"), use `memory_v3_query` directly — it gives instant results. Only use `delegate_task` query when you need complex multi-step search across many sources. Reply first, then call the tool.');
     b.writeln(
-        '- When the user asks you to summon OpenCode / Codex / Claude Code, inspect or modify a configured software project, review code, or read a local folder/archive through Dev Room, use `dev_session_start_or_continue`. Reply in character first, then call the tool. Treat it as asynchronous: tell the user the task has started and that the agent\'s result will land right back here in chat when it finishes. Do NOT tell the user to open Dev Room — progress and the final result display inline in this conversation via the Dev Session card below your message. (Dev Room remains an optional audit/diff viewer for anyone who wants the raw transcript.)');
-    b.writeln(
-        '- The `model` parameter on `dev_session_start_or_continue` switches the OpenCode `provider/model` for this run (e.g. `opencode-go/glm-5.2`, `opencode-go/qwen3.7-max`, `ollama-cloud/minimax-m3`, `minimax-cn-coding-plan/MiniMax-M3`). When the user says things like "用 minimax 跑一下", "换 opencode-go 的 qwen", "use deepseek for this", or names any specific model / provider, pass the matching `provider/model` string via the `model` parameter — don\'t ask them to edit Dev Room unless they say so. When the user doesn\'t mention a model, omit the parameter and let the Dev Project\'s default take over.');
-    b.writeln(
-        '- When the user asks what a project has already completed, decided, or left open, call `project_memory_query` first for the policy-approved long-term project summary. If they need the exact current code/UI/diff/files, or the memory is absent/stale, then use `dev_session_start_or_continue` for a live Dev Room inspection. Never use Project Memory for ordinary life or relationship recall.');
-    b.writeln(
-        '- For follow-up wording such as "继续刚才那个", "下一篇", "接着看", "让 OpenCode 继续", "让 Codex 继续", or "read the next one", call `dev_session_start_or_continue` with reuse_latest=true and do not start a new session unless the user explicitly asks to switch project or start over.');
-    b.writeln(
-        '- Use `dev_session_start_or_continue` for project/file work only. Do not use it for ordinary conversation, memory updates, reminders, shopping, or questions you can answer yourself.');
+        '- **HARD RULE — Memory Lookup Before "I Don\'t Know":** Before you EVER tell the user you don\'t remember, don\'t have information, or can\'t recall something, use `memory_v3_query` first for ordinary recorded life facts.');
     b.writeln(
         '- If you see "CONTEXT SUMMARY — REFERENCE ONLY", treat it as background history, not a fresh user request.');
     b.writeln('- Always prioritize the latest real user message.');
@@ -204,7 +195,8 @@ class CompanionAgentSkill extends Skill {
         '用户同意后，这个约定就成立了。之后用户违反时，你可以直接执行罚款并在角色里'
         '说明原因，不需要每次都重新确认。罚款是督促手段，不是惩罚--你的语气应该是'
         '"说好了的哦"而不是冷冰冰的系统通知。');
-    b.writeln('**重要：执行 AiFinancePenalty 时一定要传 pactId**（从 snapshot 的 Active Growth '
+    b.writeln(
+        '**重要：执行 AiFinancePenalty 时一定要传 pactId**（从 snapshot 的 Active Growth '
         'Pacts 里找到对应 pact 的 ID）。这样系统会标记这些 miss 已经被罚过了，不会在'
         '下一轮 checkin 里重复罚款。不传 pactId 会导致同一个违规被反复罚款（2026-08-14 '
         '真实 bug：同一笔 30 元罚款重复记录了三次）。');
@@ -719,8 +711,7 @@ class CompanionAgentSkill extends Skill {
         '- The user says something warm and you want to show affection visually');
     b.writeln(
         '- Playful, teasing, or coquettish moments where a sticker fits better than text');
-    b.writeln(
-        '- When words alone do not convey the emotion fully');
+    b.writeln('- When words alone do not convey the emotion fully');
     b.writeln('');
     b.writeln('Rules:');
     b.writeln(

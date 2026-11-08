@@ -3,7 +3,6 @@ import 'package:memex/data/services/task_handlers/analyze_assets_handler.dart';
 import 'package:memex/data/services/task_handlers/clarification_resolution_handler.dart';
 import 'package:memex/data/services/task_handlers/companion_delegation_handler.dart';
 import 'package:memex/data/services/task_handlers/conversation_capture_handler.dart';
-import 'package:memex/data/services/task_handlers/dev_session_followup_handler.dart';
 import 'package:memex/data/services/task_handlers/fts_index_handler.dart';
 import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
 
@@ -26,10 +25,6 @@ void registerLocalTaskHandlers() {
     'companion_delegation',
     handleCompanionDelegation,
   );
-  executor.registerHandler(
-    'dev_session_followup',
-    handleDevSessionFollowup,
-  );
 
   executor.registerFailureHandler(
     'conversation_capture_task',
@@ -38,10 +33,6 @@ void registerLocalTaskHandlers() {
   executor.registerFailureHandler(
     'companion_delegation',
     handleCompanionDelegationFailure,
-  );
-  executor.registerFailureHandler(
-    'dev_session_followup',
-    handleDevSessionFollowupFailure,
   );
   for (final taskType in [
     'clarification_resolution_task',

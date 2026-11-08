@@ -26,8 +26,6 @@ abstract final class AppRoutes {
   /// Blind, on-device book TTS voice bakeoff.
   static const String bookTtsVoiceLab = '/book-tts-voice-lab';
 
-  /// Dev Room.
-  static const String devRoom = '/dev-room';
 
   /// Timeline card detail; push as '/card/$cardId'.
   static const String timelineCardDetail = '/card';

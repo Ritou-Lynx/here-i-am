@@ -3,7 +3,6 @@ library;
 import 'dart:convert';
 
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
-import 'package:memex/data/memory_v3/services/project_memory_service.dart';
 import 'package:memex/data/whiteboard/unified_card_repository.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/domain/workbench_ai/search/workbench_search_contract.dart';
@@ -12,27 +11,19 @@ import 'existing_search_adapters.dart';
 import 'workbench_search_facade.dart';
 import 'workbench_search_tool_host.dart';
 
-typedef ProjectMemoryScopeLoader = Future<Set<String>> Function();
 typedef WorkbenchSearchToolHostLoader = Future<WorkbenchSearchToolHost>
     Function();
 
 /// Product-owned authorization for the desktop Codex read surface.
 ///
 /// Card library and explicit User-truth search are available to this local
-/// product surface. Project Memory is never granted as an open lane: only
-/// project ids already admitted into the local policy-gated projection are
-/// issued as opaque container refs.
+/// product surface.
 class DesktopWorkbenchSearchAuthorizationFactory {
-  const DesktopWorkbenchSearchAuthorizationFactory({
-    required ProjectMemoryScopeLoader loadProjectedProjectIds,
-  }) : _loadProjectedProjectIds = loadProjectedProjectIds;
+  const DesktopWorkbenchSearchAuthorizationFactory();
 
   static const profileId = 'desktop_workbench_search_v1';
 
-  final ProjectMemoryScopeLoader _loadProjectedProjectIds;
-
   Future<SearchAuthorization> build() async {
-    final projectIds = await _loadProjectedProjectIds();
     return SearchAuthorization(
       profileId: profileId,
       grants: [
@@ -44,11 +35,6 @@ class DesktopWorkbenchSearchAuthorizationFactory {
           lane: SearchPermissionLane.userTruth,
           allContainers: true,
         ),
-        if (projectIds.isNotEmpty)
-          SearchPermissionGrant(
-            lane: SearchPermissionLane.projectMemory,
-            allowedContainerRefs: projectIds,
-          ),
       ],
     );
   }
@@ -76,7 +62,6 @@ class WorkbenchRuntimeSearchTool {
     required Future<UnifiedCardRepository> Function() loadCardRepository,
   }) {
     final memoryCards = MemoryCardQueryService(database);
-    final projectMemory = ProjectMemoryService(database);
     Future<WorkbenchSearchToolHost>? cachedHost;
     Future<WorkbenchSearchToolHost> loadHost() => cachedHost ??= () async {
           final cards = await loadCardRepository();
@@ -85,16 +70,13 @@ class WorkbenchRuntimeSearchTool {
               adapters: [
                 CardLibraryWorkbenchSearchAdapter(cards),
                 MemoryV3WorkbenchSearchAdapter(memoryCards),
-                ProjectMemoryWorkbenchSearchAdapter(projectMemory),
               ],
             ),
           );
         }();
     return WorkbenchRuntimeSearchTool(
       loadHost: loadHost,
-      authorizationFactory: DesktopWorkbenchSearchAuthorizationFactory(
-        loadProjectedProjectIds: projectMemory.projectedProjectIds,
-      ),
+      authorizationFactory: const DesktopWorkbenchSearchAuthorizationFactory(),
     );
   }
 

@@ -14,7 +14,6 @@ import 'package:memex/data/services/card_attachment_service.dart';
 import 'package:memex/data/services/card_detail_notifier.dart';
 import 'package:memex/data/services/clarification_request_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
-import 'package:memex/data/services/dev_agent_bridge_service.dart';
 import 'package:memex/data/services/sync/memory_data_sync_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_orchestrator_service.dart';
 import 'package:memex/data/memory_v3/services/dreaming_scheduler_service.dart';
@@ -183,12 +182,6 @@ class MemexRouter {
             _logger.warning(
                 'MemexRouter: LifeInsight startup analysis failed: $e');
           }),
-        );
-        // Project Memory is policy-filtered and idempotent. Refresh configured
-        // Bridges on startup so normal companion chat does not depend on the
-        // user manually pressing "test connection" in Dev Room settings.
-        unawaited(
-          DevAgentBridgeService.instance.syncConfiguredProjectMemory(),
         );
         // Reading Companion: share-intent → reading_item entity pipeline.
         ReadingCaptureService.init(

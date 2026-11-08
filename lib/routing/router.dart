@@ -20,7 +20,6 @@ import 'package:memex/ui/settings/widgets/personal_center_screen.dart';
 import 'package:memex/ui/settings/widgets/phone_memory_connection_page.dart';
 import 'package:memex/ui/interest/widgets/interest_hub_screen.dart';
 import 'package:memex/ui/book/book_tts_voice_lab_screen.dart';
-import 'package:memex/ui/dev_agent/widgets/dev_room_screen.dart';
 import 'package:memex/ui/memory/widgets/memory_center_screen.dart';
 import 'package:memex/ui/memory/widgets/memory_card_list_page.dart';
 import 'package:memex/ui/memory/widgets/lab/fragments_page.dart';
@@ -237,13 +236,6 @@ GoRouter createAppRouter(
       GoRoute(
         path: AppRoutes.bookTtsVoiceLab,
         builder: (_, __) => const BookTtsVoiceLabScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.devRoom,
-        builder: (_, __) => const DesktopRouteWrapper(
-          title: '任务中心',
-          child: DevRoomScreen(),
-        ),
       ),
       // ── Whiteboard production routes (W6 integration base) ──────────────
       // Route paths and parameter signatures are frozen once here; parallel

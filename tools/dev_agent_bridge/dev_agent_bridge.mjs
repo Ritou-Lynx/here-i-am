@@ -10,14 +10,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { homedir } from 'node:os';
 import path from 'node:path';
 import { URL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createIActivityStore } from '../i_continuity_gateway/i_activity_store.mjs';
-import { loadProjectRegistry } from '../i_continuity_gateway/i_project_registry.mjs';
-import { persistDevRoomCloseout } from './project_memory_closeout.mjs';
 import {
   appendCodexOptionArgs,
   normalizeCodexOptions,
@@ -35,7 +31,6 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const statePath = process.env.DEV_AGENT_BRIDGE_STATE ||
   join(scriptDir, '.state', 'runs.json');
 const runs = new Map();
-const iHome = process.env.I_HOME || join(homedir(), '.i');
 // The product host remains unavailable unless its local opt-in configuration
 // and both pins validate during Bridge startup. It never falls back to the
 // ordinary App Server adapter.
@@ -878,20 +873,6 @@ function startProcess(run, agentType, project, prompt, mode, runOptions) {
         addEvent(run, 'error', { message: `post-run finalize failed: ${err.message}` });
       }
     }
-    if (run.status === 'done') {
-      try {
-        const closeout = persistDevRoomCloseout({ run, iHome });
-        addEvent(run, 'project_memory_closeout', {
-          persisted: closeout.persisted === true,
-          duplicate: closeout.duplicate === true,
-          reason: closeout.reason || null,
-        });
-      } catch (err) {
-        addEvent(run, 'error', {
-          message: `Project Memory closeout skipped: ${err.message}`,
-        });
-      }
-    }
   });
 }
 
@@ -911,8 +892,6 @@ async function handle(req, res) {
         'git_status',
         'git_pull',
         'git_push',
-        'project_memory_projection',
-        'project_memory_auto_closeout',
         'codex_options_v1',
         ...(experimentalRuntimeApi.featureEnabled
           ? ['experimental_runtime_adapter_v1']
@@ -1281,22 +1260,6 @@ async function handle(req, res) {
       } catch (err) {
         json(res, 422, { error: 'git_status_error', message: err.message });
       }
-      return;
-    }
-
-    if (req.method === 'GET' && path === '/v1/project-memory/projections') {
-      const registry = loadProjectRegistry({ iHome });
-      if (registry.status !== 'ready') {
-        json(res, 503, { error: 'i_registry_unavailable', status: registry.status });
-        return;
-      }
-      const store = createIActivityStore({ iHome });
-      const payload = store.getMemoryV3Projections({
-        projects: registry.projects,
-        after: url.searchParams.get('after') || undefined,
-        limit: Number(url.searchParams.get('limit') || 100),
-      });
-      json(res, 200, payload);
       return;
     }
 

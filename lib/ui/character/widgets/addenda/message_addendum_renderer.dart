@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import 'dev_session_addendum_widget.dart';
 import 'image_addendum_widget.dart';
 import 'reading_card_addendum_widget.dart';
 import 'sticker_addendum_widget.dart';
@@ -15,7 +14,6 @@ import 'sticker_addendum_widget.dart';
 ///
 ///   - `image`        — base64-encoded image (legacy: missing `type` ⇒ image)
 ///   - `reading_card` — a saved article preview (Reading Companion)
-///   - `dev_session`  — a Dev Room session result / continuation card
 ///
 /// New addendum types should be added by:
 ///   1. Creating a dedicated widget under `lib/ui/character/widgets/addenda/`
@@ -31,9 +29,7 @@ class MessageAddendumRenderer extends StatelessWidget {
   final bool isCharacterBubble;
 
   /// Row id of the hosting persona chat message, when this renderer is built
-  /// inside a bubble. Some addenda (e.g. dev_session) persist user decisions
-  /// back into the message's attachmentsJson, so they need the id to update
-  /// the right row. Null when rendered outside a bubble (preview / test).
+  /// inside a bubble. Null when rendered outside a bubble (preview / test).
   final int? messageId;
 
   const MessageAddendumRenderer({
@@ -99,12 +95,6 @@ class MessageAddendumRenderer extends StatelessWidget {
         return ReadingCardAddendumWidget(
           data: data,
           isCharacterBubble: isCharacterBubble,
-        );
-      case 'dev_session':
-        return DevSessionAddendumWidget(
-          data: data,
-          isCharacterBubble: isCharacterBubble,
-          messageId: messageId,
         );
       case 'sticker':
         return StickerAddendumWidget(
