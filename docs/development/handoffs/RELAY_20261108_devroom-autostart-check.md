@@ -9,6 +9,7 @@
 
 ## 允许修改的路径
 - tools/relay_scripts/cleanup/devroom-autostart-check.ps1
+- tools/relay_scripts/cleanup/devroom-stop.ps1（write，用户点 👍 后才运行：备份并移除启动项、停 bridge 进程、撤 Tailscale 443→47831）
 - 本合同文件
 
 ## 不做 / 边界
