@@ -24,3 +24,9 @@
 ## 需要真人的部分
 - 在第 2 轮评论上点 👍（会停服约 2–3 分钟，期间林埃离线）。
 - 从 v3-lab 重新编译安装 App，饮食页同步一次后，账本里出现 AI 端记的支出。
+
+## 部署记录（11-08）
+- 第 1 轮：预检全部通过，比对新包时被 `linked_path_rejected` 拦下（找到的 git.exe 是硬链接）。
+- 第 2 轮：本机没有单链接的 git.exe（`single_link_git_not_found`），什么都没改。
+- 第 3 轮（只读）：改为脚本自己用 `git show` 生成新包（与 prepareRelease 逐字节一致）后全部通过；新包只差 personal_data_domains.mjs、runtime_child.mjs，磁盘余 22.9 GB。
+- 第 4 轮（部署，06:42Z）：新 Core 包 release-78e11df7（manifest ded493e5）、候选 mcp-candidate-bbd7ebda（server 63acb514）、expense.json 已写；干净关闭 → 停用旧任务 → 离线换包（custody generation 45）→ 登记 P → C1 到 P′ → 切换，停服 93 秒，全程 2.6 分钟。现役任务 HereIAm-iCoreSchema6-e3-expense-20261108，旧 m1-digest 与 P 停用保留。Core 记账回执 provisioned（领域新登记，writer、phone 两个主体原地扩权限），心率监听恢复。

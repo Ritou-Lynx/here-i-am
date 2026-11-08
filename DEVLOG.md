@@ -1,3 +1,9 @@
+## 2026-11-08 E3：记账上线（换 Core 包 + MCP 候选）
+- 部署 PR #106，脚本 tools/relay_scripts/expense/（e3-inspect 只读、e3-deploy 部署），按 N2 顺序从现役 m1-digest 切换。
+- 新 Core 包 release-78e11df7（manifest ded493e5，v3-lab #98 合并点，只差 personal_data_domains.mjs、runtime_child.mjs）；本机 git.exe 都是硬链接，包 CLI 拒收，脚本按 prepareRelease 原样自建（逐字节一致）后用 verifyRelease 核对。
+- 现役任务 HereIAm-iCoreSchema6-e3-expense-20261108（server 63acb514），停服 93 秒；Core 启动回执 expense provisioned（writer、phone 原地扩权限，未发新令牌）。旧 m1-digest 停用保留。
+- 待：从 v3-lab 重装 App 验证账本投影。
+
 ## 2026-11-07 E1/E2：其他 AI 端记账（expense_log）
 
 - 用户 11-07 让继续做记账 MCP（方案见 11-06 记账审查文档）。第一版只记支出。
