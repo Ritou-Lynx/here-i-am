@@ -14,15 +14,17 @@ const NOTES_DAY_START_HOUR = 4;
 const NOTES_LIMITS = Object.freeze({index:16*1024*1024, file:4*1024*1024, readChars:20000, snippet:60, searchHits:20, recentDays:31, contextChars:240});
 const NOTES_TOKEN = /^[A-Za-z0-9_-]{1,128}$/;
 const NOTES_FILE = /^[^/\\\0]{1,80}\/[A-Za-z0-9_-]{1,128}\.md$/;
+// End anchor for JSON-schema patterns, spelled out because the candidate builder rejects replacement patterns in inlined source.
+const NOTES_END = String.fromCharCode(36);
 const notesReadOnly = {readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false};
 const NOTES_HINT = '这些是用户自己在飞书写的日记和工作文档（家里电脑每 30 分钟同步一次副本，见 synced_at）。用户聊到最近的生活、工作、心情或计划时，可以主动查，不必等用户要求；引用时说明出自哪篇，不编造没写过的内容。';
 export const NOTES_TOOLS = Object.freeze([
   {name:'notes_recent',requiredScope:'i.read',description:'列出最近修改过的日记和工作文档（标题、所在文件夹、修改时间、token、字数、开头一小段）。默认最近 3 天；传 date（YYYY-MM-DD）只看那一天（以凌晨 4 点为日界）。需要全文时用 notes_read。'+NOTES_HINT,
-    inputSchema:{type:'object',properties:{days:{type:'integer',minimum:1,maximum:31,description:'最近几天，默认 3。'},date:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$',description:'只看这一天，和 days 二选一。'},folder:{type:'string',minLength:1,maxLength:100,description:'只看这个顶层文件夹，如 日记/日报、工作。'}},additionalProperties:false},annotations:notesReadOnly},
+    inputSchema:{type:'object',properties:{days:{type:'integer',minimum:1,maximum:31,description:'最近几天，默认 3。'},date:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}'+NOTES_END,description:'只看这一天，和 days 二选一。'},folder:{type:'string',minLength:1,maxLength:100,description:'只看这个顶层文件夹，如 日记/日报、工作。'}},additionalProperties:false},annotations:notesReadOnly},
   {name:'notes_search',requiredScope:'i.read',description:'在日记和工作文档的标题和正文里搜索关键词（不区分大小写），按修改时间从新到旧返回命中的篇目和上下文片段，最多 20 篇。'+NOTES_HINT,
     inputSchema:{type:'object',properties:{query:{type:'string',minLength:1,maxLength:100},folder:{type:'string',minLength:1,maxLength:100},limit:{type:'integer',minimum:1,maximum:20}},required:['query'],additionalProperties:false},annotations:notesReadOnly},
   {name:'notes_read',requiredScope:'i.read',description:'按 token 读一篇日记或工作文档的正文，单次最多 20000 字，超出时用 offset 续读。token 来自 notes_recent 或 notes_search。',
-    inputSchema:{type:'object',properties:{token:{type:'string',pattern:'^[A-Za-z0-9_-]{1,128}$'},offset:{type:'integer',minimum:0}},required:['token'],additionalProperties:false},annotations:notesReadOnly},
+    inputSchema:{type:'object',properties:{token:{type:'string',pattern:'^[A-Za-z0-9_-]{1,128}'+NOTES_END},offset:{type:'integer',minimum:0}},required:['token'],additionalProperties:false},annotations:notesReadOnly},
 ]);
 
 function notesSameRoot(a, b) {

@@ -1,3 +1,9 @@
+## 2026-11-08 N2：飞书笔记接进 i MCP
+
+- 接 N1 的家里副本。新增三个只读工具 `notes_recent`、`notes_search`、`notes_read`（模块 `tools/i_remote_mcp/notes_tools.mjs` 已随 #101 进 v3-lab），Claude、ChatGPT、Gemini、Antigravity 可用，Sesame 不开放。i_context 不加笔记段，近况交给日摘要 M1。
+- 候选构建器在 EXPENSE 之后加 `NOTES_PATCHES`，legacy server 原样内嵌 notes_tools；MCP 状态目录有 `notes.json`（`notes-config-v1`）才开放。notes_tools 里 JSON-schema 的结尾锚点改成 `NOTES_END` 常量（构建器不允许内嵌源码里出现 String.replace 的替换模式）。server 候选哈希 `4b1014e0`（叠在 E3 记账 63acb514 之上），云端测试全部通过。
+- 部署脚本轮 `tools/relay_scripts/notes/n2-deploy.ps1`：只换 MCP 候选，从 e3-expense 切到 n2-notes-20261108，失败退回。合同见 docs/development/handoffs/RELAY_20261108_n2-notes-mcp.md。
+
 ## 2026-11-07 E1/E2：其他 AI 端记账（expense_log）
 
 - 用户 11-07 让继续做记账 MCP（方案见 11-06 记账审查文档）。第一版只记支出。
