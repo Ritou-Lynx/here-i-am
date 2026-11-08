@@ -58,7 +58,6 @@ import 'package:memex/data/services/local_task_registry.dart';
 import 'package:memex/data/services/global_event_bus.dart';
 import 'package:memex/data/repositories/submit_input.dart'
     as submit_input_endpoint;
-import 'package:memex/data/services/custom_agent_config_service.dart';
 import 'package:memex/data/repositories/get_tags.dart';
 import 'package:memex/data/repositories/get_timeline_cards.dart';
 import 'package:memex/data/repositories/get_aggregated_timeline.dart';
@@ -69,7 +68,6 @@ import 'package:memex/data/repositories/character.dart';
 import 'package:memex/data/repositories/health.dart' as health_endpoint;
 import 'package:memex/data/repositories/pkm.dart' as pkm_endpoint;
 import 'package:memex/data/repositories/chat.dart' as chat_endpoint;
-import 'package:memex/data/services/llm_call_record_service.dart';
 import 'package:memex/data/services/agent_activity_service.dart';
 import 'package:memex/utils/result.dart';
 import 'package:memex/domain/models/system_event.dart';
@@ -260,10 +258,6 @@ class MemexRouter {
 
       // Register event subscriptions after task handlers are ready.
       _registerEventSubscriptions();
-
-      // Initialize custom agent handler and register user-defined agents.
-      registerBuiltInEventSerializers();
-      await CustomAgentConfigService.instance.registerAll(userId);
 
       // Register file change callback and FTS event subscriptions.
       // Also triggers a one-time full rebuild when FTS tables were just created
@@ -1146,61 +1140,6 @@ class MemexRouter {
     }
   }
 
-  Future<Map<String, dynamic>> getAggregatedStatistics({
-    DateTime? startDate,
-    DateTime? endDate,
-    String? scene,
-  }) async {
-    await _ensureInitialized();
-    _logger.info('LocalMode: getAggregatedStatistics called');
-
-    try {
-      final userId = await UserStorage.getUserId();
-      if (userId == null) {
-        _logger.warning(
-          'getAggregatedStatistics called without logged in user, returning empty',
-        );
-        return {};
-      }
-
-      return await LLMCallRecordService.instance.getAggregatedStatistics(
-        userId: userId,
-        startDate: startDate,
-        endDate: endDate,
-        scene: scene,
-      );
-    } catch (e) {
-      _logger.severe('Failed to get aggregated statistics: $e');
-      return {};
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getAgentUsages({
-    DateTime? startDate,
-    DateTime? endDate,
-    String? scene,
-  }) async {
-    await _ensureInitialized();
-    _logger.info('LocalMode: getAgentUsages called');
-
-    try {
-      final userId = await UserStorage.getUserId();
-      if (userId == null) {
-        return [];
-      }
-
-      return await LLMCallRecordService.instance.getAllRecords(
-        userId: userId,
-        startDate: startDate,
-        endDate: endDate,
-        scene: scene,
-      );
-    } catch (e) {
-      _logger.severe('Failed to get agent usages: $e');
-      return [];
-    }
-  }
-
   Future<bool> uploadWorkspace(String targetUserId) async {
     await _ensureInitialized();
     _logger.info('LocalMode: uploadWorkspace not supported (client-only)');
@@ -1313,9 +1252,6 @@ class MemexRouter {
           ),
         );
       });
-
-  Future<List<Task>> getTasks({int limit = 10, int offset = 0}) =>
-      LocalTaskExecutor.instance.getTasks(limit: limit, offset: offset);
 
   Future<TaskActivitySnapshot> getTaskActivitySnapshot() async {
     await _ensureInitialized();

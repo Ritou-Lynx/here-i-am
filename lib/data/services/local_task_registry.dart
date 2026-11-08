@@ -3,7 +3,6 @@ import 'package:memex/data/services/task_handlers/analyze_assets_handler.dart';
 import 'package:memex/data/services/task_handlers/clarification_resolution_handler.dart';
 import 'package:memex/data/services/task_handlers/companion_delegation_handler.dart';
 import 'package:memex/data/services/task_handlers/conversation_capture_handler.dart';
-import 'package:memex/data/services/task_handlers/custom_agent_task_handler.dart';
 import 'package:memex/data/services/task_handlers/dev_session_followup_handler.dart';
 import 'package:memex/data/services/task_handlers/fts_index_handler.dart';
 import 'package:memex/data/services/task_handlers/llm_error_utils.dart';
@@ -50,6 +49,4 @@ void registerLocalTaskHandlers() {
   ]) {
     executor.registerFailureHandler(taskType, handleGenericAgentFailure);
   }
-
-  initCustomAgentHandler();
 }

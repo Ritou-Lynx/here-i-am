@@ -92,7 +92,6 @@ dependencies:
   flutter_callkit_incoming:
     path: packages/flutter_callkit_incoming
   dart_agent_core: ^1.0.9
-  flutter_js: ^0.8.7
   drift: ^2.30.0
   sqlite3: ^2.4.6
   sqlite3_flutter_libs: ^0.5.41

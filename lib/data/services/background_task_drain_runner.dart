@@ -1,6 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:memex/data/services/custom_agent_config_service.dart';
 import 'package:memex/data/services/shared_life_memory_service.dart';
 import 'package:memex/data/services/file_system_service.dart';
 import 'package:memex/data/services/local_task_executor.dart';
@@ -35,8 +34,6 @@ class BackgroundTaskDrainRunner {
     SharedLifeMemoryService.init(AppDatabase.instance, userId);
 
     registerLocalTaskHandlers();
-    await CustomAgentConfigService.instance.registerAll(userId);
-
     if (resetProcessingOnStart) {
       await LocalTaskExecutor.instance
           .resetProcessingTasksForBackgroundHandoff(minAge: processingResetAge);

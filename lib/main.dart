@@ -75,7 +75,6 @@ import 'package:health/health.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/toast_helper.dart';
-import 'package:memex/ui/agent_activity/widgets/agent_activity_widget.dart';
 import 'package:memex/ui/main_screen/widgets/ai_core_button.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/data/services/local_server_service.dart';
