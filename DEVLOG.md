@@ -2,7 +2,7 @@
 
 - 用户 11-07 让继续做记账 MCP（方案见 11-06 记账审查文档）。第一版只记支出。
 - Core：新增 `expense_entries` 领域（hooks `expense-v1`）。不发新凭证：饮食开通过的 Core 启动时、或饮食开通后，自动注册该领域，并给饮食的 MCP 写入主体和手机读取主体原地加上 expense 权限，token 不轮换。回执写 `expense-receipt-N.json`。
-- MCP：新增自包含 `tools/i_remote_mcp/expense_tools.mjs`（expense_log 增改撤、expense_day 当天合计，北京时间自然日）。生产候选 `EXPENSE_PATCHES` 原样内嵌，stateDir 同时有 `expense.json`（`{"format":"expense-v1"}`）和 `core-food.json` 才开放；Claude、ChatGPT、Gemini、Antigravity 可用，Sesame 不开放。server 候选哈希 `cf4c452e`。主线 server 未接（生产只跑候选）。
+- MCP：新增自包含 `tools/i_remote_mcp/expense_tools.mjs`（expense_log 增改撤、expense_day 当天合计，北京时间自然日）。生产候选 `EXPENSE_PATCHES` 原样内嵌，stateDir 同时有 `expense.json`（`{"format":"expense-v1"}`）和 `core-food.json` 才开放；Claude、ChatGPT、Gemini、Antigravity 可用，Sesame 不开放。server 候选哈希 `63acb514`（叠在 M1 日摘要 bde3ff9f 之上）。主线 server 未接（生产只跑候选）。
 - App：饮食连接顺带挂 `expense_entries`（同一凭证、同一 transport，失败不影响饮食状态）；每次前台同步后投影进共同账本（expense 行，id 由 Core 记录 id 生成，characterId `system:core_expense:<端>`，不参与去重）。只在 Core 版本号变了才重写，用户在 App 里改/删的行会保留；撤销或删除的记录会移除对应行。
 - 还没有部署：需要换 Core 包、换 MCP 候选并写 expense.json（脚本轮），之后重装 App。
 
