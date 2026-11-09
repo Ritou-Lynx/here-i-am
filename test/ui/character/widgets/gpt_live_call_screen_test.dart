@@ -3,7 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/data/services/gpt_live/gpt_live_call.dart';
+import 'package:memex/ui/character/widgets/gpt_live_call/call_overlays.dart';
 import 'package:memex/ui/character/widgets/gpt_live_call_screen.dart';
+
+/// 结束卡片停留 2 秒后才退出。
+Future<void> waitEndCard(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 2));
+  await tester.pumpAndSettle();
+}
 
 void main() {
   Future<void> openCall(
@@ -35,7 +43,9 @@ void main() {
       }),
     ));
     await tester.tap(find.text('拨号'));
-    await tester.pumpAndSettle();
+    // 通话中呼吸动画一直在跑，pumpAndSettle 不会收敛，改为推进固定时长。
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -49,7 +59,9 @@ void main() {
 
     call.finish();
     call.finish();
-    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.textContaining('通话结束'), findsOneWidget);
+    await waitEndCard(tester);
 
     expect(find.text('聊天页'), findsOneWidget);
     expect(find.byType(GptLiveCallScreen), findsNothing);
@@ -62,7 +74,9 @@ void main() {
     await openCall(tester, call);
 
     call.fail();
-    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.textContaining('通话结束'), findsOneWidget);
+    await waitEndCard(tester);
 
     expect(find.text('聊天页'), findsOneWidget);
     expect(find.byType(GptLiveCallScreen), findsNothing);
@@ -72,7 +86,9 @@ void main() {
     final call = _FakeCall(failBeforeConnecting: true);
     await openCall(tester, call);
 
-    expect(find.text('没接通：no_api_key'), findsOneWidget);
+    expect(find.text('没接通'), findsOneWidget);
+    expect(find.text('连接出错（no_api_key）'), findsOneWidget);
+    expect(find.text('重拨'), findsOneWidget);
     expect(find.text('返回'), findsOneWidget);
     await tester.tap(find.text('返回'));
     await tester.pumpAndSettle();
@@ -95,7 +111,7 @@ void main() {
     expect(observer.pops, 0);
 
     completion.complete();
-    await tester.pumpAndSettle();
+    await waitEndCard(tester);
     expect(find.text('聊天页'), findsOneWidget);
     expect(call.hangUps, 1);
     expect(observer.pops, 1);
@@ -107,7 +123,7 @@ void main() {
     await openCall(tester, call, observer: observer);
 
     await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
+    await waitEndCard(tester);
 
     expect(find.text('聊天页'), findsOneWidget);
     expect(call.hangUps, 1);
@@ -123,10 +139,11 @@ void main() {
     unawaited(navigatorKey.currentState!.push(MaterialPageRoute<void>(
       builder: (_) => const Scaffold(body: Text('其他页面')),
     )));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     call.finish();
-    await tester.pumpAndSettle();
+    await waitEndCard(tester);
     expect(find.text('其他页面'), findsOneWidget);
     expect(observer.removes, 1);
     expect(observer.pops, 0);
@@ -135,6 +152,63 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('聊天页'), findsOneWidget);
     expect(find.byType(GptLiveCallScreen), findsNothing);
+  });
+
+  testWidgets('结束卡片显示时长和原因', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CallEndCard(
+            duration: const Duration(seconds: 125),
+            reason: '你挂断',
+            onTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('通话结束 · 2 分 5 秒 · 你挂断'), findsOneWidget);
+  });
+
+  testWidgets('失败卡片显示重拨和返回', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CallFailureCard(
+            reason: '连接出错（network）',
+            onRetry: () {},
+            onBack: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('没接通'), findsOneWidget);
+    expect(find.text('重拨'), findsOneWidget);
+    expect(find.text('返回'), findsOneWidget);
+  });
+
+  testWidgets('催睡标签显示来电人和剩余时间', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: CallNudgeBanner(
+            name: '林埃',
+            remaining: Duration(minutes: 3, seconds: 7),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('林埃来电 · 催睡'), findsOneWidget);
+    expect(find.text('剩 03:07'), findsOneWidget);
+  });
+
+  test('计时满一小时显示小时', () {
+    expect(
+      formatCallClock(const Duration(hours: 1, minutes: 2, seconds: 3)),
+      '1:02:03',
+    );
   });
 }
 

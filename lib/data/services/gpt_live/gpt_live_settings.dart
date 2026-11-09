@@ -127,7 +127,7 @@ class GptLiveCallRecord {
         serverError: j['server_error'] as String?,
       );
 
-  String get reasonText {
+  static String reasonTextFor(String reason) {
     if (reason == 'user') return '你挂断';
     if (reason == 'max_duration') return '到了单通上限';
     if (reason == 'screen_closed') return '通话页被关闭';
@@ -138,6 +138,8 @@ class GptLiveCallRecord {
     if (reason.startsWith('failed:')) return '连接出错（${reason.substring(7)}）';
     return reason;
   }
+
+  String get reasonText => reasonTextFor(reason);
 
   String describe() {
     String two(int n) => n.toString().padLeft(2, '0');
