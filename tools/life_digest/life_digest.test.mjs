@@ -270,3 +270,17 @@ test('diary of the day (04:00 boundary) goes into the prompt as notes sources', 
   assert.deepEqual(day.day.your_day[0].sources, ['notes:docToday']);
   assert.equal(day.todos[0].text, '给房东回消息');
 });
+
+ test('morning keeps carried tasks separate from today appointments, including fallback', () => {
+  const todos = [{ text: '明天上午9:30出发看病', first_seen: '2026-11-07', days_open: 2 }];
+  const input = { date: '2026-11-09', weather: null, yesterday: null, todos };
+  const prompt = lib.buildMorningPrompt(input);
+  assert.match(prompt, /记录日期：2026-11-07/);
+  assert.match(prompt, /不得把旧预约或旧计划说成今天要做/);
+  assert.doesNotMatch(prompt, /【今天的待办】/);
+  const fallback = lib.fallbackMorning(input);
+  assert.match(fallback, /不是今日预约/);
+  assert.match(fallback, /2026-11-07/);
+  assert.doesNotMatch(fallback, /今天记得/);
+  assert.match(lib.morningTodoText({ text: '买书' }), /日期未知.*未确认执行日期/);
+});
