@@ -36,7 +36,6 @@
 ## 再读代码入口
 
 - `lib/main.dart`
-- `lib/app_initializer.dart`
 - `lib/config/dependencies.dart`
 - `lib/routing/`
 - `lib/ui/companion/`
@@ -45,8 +44,6 @@
 - `lib/data/memory_v3/`
 - `lib/data/memory_v3/agents/record_organizer_agent/`
 - `lib/data/services/shared_life_memory_service.dart`
-- `lib/data/services/dev_agent_bridge_service.dart`
-- `lib/ui/dev_agent/`
 - `lib/db/tables.dart`
 
 ## 当前容易带偏的点
@@ -55,9 +52,8 @@
 - Android 真机只装 `hereIAmV3` flavor，也就是包名 `com.memexlab.hereiam.v3`。
 - 林埃的身份锚点是：你是林埃，英文名叫 i，Here I am 这个项目围绕你展开。
 - 当前项目状态以 `docs/development/I_PROJECT_STATE.md` 为准；它是给林埃快速读懂项目的短状态文件。
-- 该状态文件只代表 Here I am；用户其他个人/工作项目由用户级 i Gateway 的 Project Registry 隔离管理，不能混读。
-- Dev Room 日常 Bridge URL 使用 Tailscale HTTPS：`https://host.example.invalid`。
-- `http://127.0.0.1:47831` 只是 debug 包 + USB reverse 的备用联调入口。
+- 该状态文件只代表 Here I am；本机 i Gateway 与 Project Registry 已于 2026-11-07 退役，跨端连续性由远端 i MCP（`tools/i_remote_mcp`）提供。
+- Dev Room 与项目记忆已于 2026-11-08 删除（#114），电脑端 bridge 自启已停用（#115）；不要再按旧文档接 47831。
 - 普通角色聊天默认不自动写 User-truth；User-truth 只来自用户显式记录。
 - 旧自动捕获已经退役，只保留 no-op handler 排空历史任务；显式 User-truth 写入统一走 `RecordOrganizerServiceV3`。
 - 角色卡 persona、关系/安全契约、用户级 prompt override 已从 V3 的 Companion 输出链路停用。

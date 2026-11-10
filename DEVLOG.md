@@ -1,3 +1,13 @@
+## 2026-11-10 全项目排查：补 CI 覆盖、删死代码、更新状态文档
+
+- CI：`bridge-node` 作业补上此前从未在 CI 运行的测试：i_core 领域存储 / 服务端 / 活动等 21 个平台无关测试文件（373 项）、`tools/relay_scripts/life_digest_update`、PR 规则检查与 linai_tts 的 Python 测试（38 项）。需要 Windows 的 i_core 测试（shortcut_mail_relay、migration_m3/supervision、runtime_upgrade/r3、runtime_pin）仍不在任何 CI 里。
+- 删除 77 个不可达的 Dart 文件（约 2.3 万行，旧 Memex 卡片模板、旧设置页等）：从 5 个入口和全部测试出发按 import / export / part 都到不了，条件导入的 `_web` 文件保留。删除后导入图无缺失目标。
+- 删除 `wear/`（只剩生成文件和 gradle wrapper 的残片）和一次性脚本 `scripts/merge_w6.sh`（所指分支早已合并）。
+- 文档：`I_PROJECT_STATE.md` 的生产、最近完成、进行中更新到 11-10（原先停在 10-24，现役任务写的还是 n2-food）；总指挥交接文档开头加 11-10 更新（分工、relay、脚本轮）；阅读指南去掉已删除的 Dev Room / 本机网关入口。
+- 本环境装不了 Flutter，Dart 侧靠 CI 的全量测试和 Windows 构建验证。未处理、需要用户决定的项目列在 PR 说明里。
+
+---
+
 ## 2026-11-08 GPT-Live 挂断后返回通话前页面
 - 修复服务端结束后 maybePop 被旧 PopScope 状态拦截、停在“已挂断”的问题。
 - 终态统一在下一帧退出；手动挂断先等待收尾，接通后连接失败也自动退出，连接前错误保留提示。

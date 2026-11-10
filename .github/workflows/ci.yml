@@ -127,7 +127,37 @@ jobs:
       - name: feishu_tutor
         run: node --test tools/feishu_tutor/sync/*.test.mjs
       - name: life_digest
-        run: node --test tools/life_digest/*.test.mjs
+        run: node --test tools/life_digest/*.test.mjs tools/relay_scripts/life_digest_update/*.test.mjs
+      - name: i_core domain store, server and activity suites (platform-neutral)
+        # The remaining i_core suites (shortcut_mail_relay, migration_m3/supervision,
+        # runtime_upgrade/r3, runtime_pin) need Windows and stay out of this job.
+        run: >-
+          node --test
+          tools/i_core/activity_control_plane.test.mjs
+          tools/i_core/activity_fixture_contract.test.mjs
+          tools/i_core/activity_fixture_http_runner.test.mjs
+          tools/i_core/companion_worker.test.mjs
+          tools/i_core/domain_adoption.test.mjs
+          tools/i_core/domain_companion.test.mjs
+          tools/i_core/domain_copy_validation.test.mjs
+          tools/i_core/domain_http.test.mjs
+          tools/i_core/domain_migrate.test.mjs
+          tools/i_core/domain_schema.test.mjs
+          tools/i_core/domain_store.test.mjs
+          tools/i_core/food_domains.test.mjs
+          tools/i_core/food_phone_credential.test.mjs
+          tools/i_core/i_core_autostart.test.mjs
+          tools/i_core/i_core_server.test.mjs
+          tools/i_core/import_local_plan.test.mjs
+          tools/i_core/import_v3_chat.test.mjs
+          tools/i_core/run_mda1_human_gate.test.mjs
+          tools/i_core/migration_m3/migration.test.mjs
+          tools/i_core/test_fixtures/release_schema6/ci_native_probe.test.mjs
+          tools/i_core/test_fixtures/release_schema6/mcp_reader/helper.test.mjs
+      - name: Python tools (PR policy check, linai_tts)
+        run: |
+          python3 -m unittest discover -s tests -t . -v
+          python3 -m unittest discover -s tools/linai_tts/tests -v
 
   chatgpt-mcp-windows:
     name: MCP ChatGPT compatibility (Windows)
