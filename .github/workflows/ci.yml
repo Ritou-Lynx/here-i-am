@@ -129,8 +129,8 @@ jobs:
       - name: life_digest
         run: node --test tools/life_digest/*.test.mjs tools/relay_scripts/life_digest_update/*.test.mjs
       - name: i_core domain store, server and activity suites (platform-neutral)
-        # The remaining i_core suites (shortcut_mail_relay, migration_m3/supervision,
-        # runtime_upgrade/r3, runtime_pin) need Windows and stay out of this job.
+        # The remaining i_core suites need Windows: see the icore-windows job.
+        # runtime_pin runs in no CI job (it needs one exact local Node build).
         run: >-
           node --test
           tools/i_core/activity_control_plane.test.mjs
@@ -197,15 +197,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: shortcut_mail_relay, migration supervision, runtime upgrade and pin
+      - name: shortcut_mail_relay, migration supervision and runtime upgrade
         shell: pwsh
         # These suites spawn powershell.exe or rely on Windows process semantics,
-        # so the Linux bridge-node job cannot run them.
+        # so the Linux bridge-node job cannot run them. runtime_pin stays out:
+        # it needs one exact Node build at a fixed local path.
         run: |
           $tests = @(
             'tools/i_core/shortcut_mail_relay.test.mjs',
-            'tools/i_core/migration_m3/supervision.test.mjs',
-            'tools/i_core/runtime_pin/runtime_pin.test.mjs'
+            'tools/i_core/migration_m3/supervision.test.mjs'
           )
           $tests += @(Get-ChildItem tools/i_core/runtime_upgrade/r3 -Filter '*.test.mjs' | Sort-Object Name | ForEach-Object { $_.FullName })
           node --test @tests
