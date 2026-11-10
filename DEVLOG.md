@@ -1,3 +1,13 @@
+## 2026-11-10 排查第二轮：按待审清单处理未评论的项
+
+- 设计稿素材（两张主题图、开屏 gif、玻璃纹理原图等 5 个文件）从 `assets/images/` 移到 `docs/design/assets/`，不再打进 App；删除 3 个没有引用的图标。`pubspec.yaml` 的 branding 资源只保留实际加载的一张 logo。README 和设计原型里的路径同步修改。
+- CI 新增 `icore-windows` 作业，在 windows-latest 上跑此前不在任何 CI 里的 i_core 测试（shortcut_mail_relay、migration_m3/supervision、runtime_pin、runtime_upgrade/r3）。
+- 删除旧版重复的 `shared_life_memory_tools.dart` 及其测试（现役的 `LifeMemoryQuery` 在 `character_tools_factory.dart`）。白板、工作台、Dev Agent bridge 按用户意见保持暂停，不删。
+- 删除上游 Memex 遗留的 GitHub 配置：PR 规则预检工作流与脚本、issue 模板、labels.yml、i18n issue 正文；PR 模板改成本项目实际使用的四段。`.gitignore` 去掉与事实不符的 keystore 例外，`.claude/skills/` 不再被忽略。
+- 补记下面 11-08 至 11-10 几个已合并但没写 DEVLOG 的 PR。
+
+---
+
 ## 2026-11-10 全项目排查：补 CI 覆盖、删死代码、更新状态文档
 
 - CI：`bridge-node` 作业补上此前从未在 CI 运行的测试：i_core 领域存储 / 服务端 / 活动等 21 个平台无关测试文件（373 项）、`tools/relay_scripts/life_digest_update`、PR 规则检查与 linai_tts 的 Python 测试（38 项）。需要 Windows 的 i_core 测试（shortcut_mail_relay、migration_m3/supervision、runtime_upgrade/r3、runtime_pin）仍不在任何 CI 里。
@@ -5,6 +15,15 @@
 - 删除 `wear/`（只剩生成文件和 gradle wrapper 的残片）和一次性脚本 `scripts/merge_w6.sh`（所指分支早已合并）。
 - 文档：`I_PROJECT_STATE.md` 的生产、最近完成、进行中更新到 11-10（原先停在 10-24，现役任务写的还是 n2-food）；总指挥交接文档开头加 11-10 更新（分工、relay、脚本轮）；阅读指南去掉已删除的 Dev Room / 本机网关入口。
 - 本环境装不了 Flutter，Dart 侧靠 CI 的全量测试和 Windows 构建验证。未处理、需要用户决定的项目列在 PR 说明里。
+
+---
+
+## 2026-11-10 补记：11-08 至 11-10 已合并的 PR
+
+- #110 清理 A：删除模型用量、异步任务页、自定义 Agent、Skills（29 个文件，约 6400 行）。
+- #114 清理 B：删除 Dev Room 与项目记忆（59 个文件，约 1 万行）。#115 随后移除电脑端 Dev Room bridge 的自启并停用。
+- #111 GPT-Live 通话页界面美化；#113 通话入口合并，GPT-Live 静音自动挂断。两者合并时的冲突按“结束卡片 2 秒后用路由安全方式退出”处理。
+- #116 修复晨间摘要把历史待办当作今日安排；#117 用脚本轮部署该修复并重生成当天摘要。
 
 ---
 

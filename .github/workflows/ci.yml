@@ -154,11 +154,10 @@ jobs:
           tools/i_core/migration_m3/migration.test.mjs
           tools/i_core/test_fixtures/release_schema6/ci_native_probe.test.mjs
           tools/i_core/test_fixtures/release_schema6/mcp_reader/helper.test.mjs
-      - name: Python tools (PR policy check, linai_tts)
+      - name: Python tools (linai_tts)
         # test_server only needs numpy; the model stack in requirements.txt is not installed.
         run: |
           python3 -m pip install --quiet numpy
-          python3 -m unittest discover -s tests -t . -v
           python3 -m unittest discover -s tools/linai_tts/tests -v
 
   chatgpt-mcp-windows:
@@ -186,6 +185,31 @@ jobs:
           name: chatgpt-mcp-candidate-windows
           path: build/ci/chatgpt-mcp-candidate/
           if-no-files-found: error
+
+  icore-windows:
+    name: i_core Windows-only suites
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: shortcut_mail_relay, migration supervision, runtime upgrade and pin
+        shell: pwsh
+        # These suites spawn powershell.exe or rely on Windows process semantics,
+        # so the Linux bridge-node job cannot run them.
+        run: |
+          $tests = @(
+            'tools/i_core/shortcut_mail_relay.test.mjs',
+            'tools/i_core/migration_m3/supervision.test.mjs',
+            'tools/i_core/runtime_pin/runtime_pin.test.mjs'
+          )
+          $tests += @(Get-ChildItem tools/i_core/runtime_upgrade/r3 -Filter '*.test.mjs' | Sort-Object Name | ForEach-Object { $_.FullName })
+          node --test @tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   windows:
     name: Windows build + whiteboard integration
