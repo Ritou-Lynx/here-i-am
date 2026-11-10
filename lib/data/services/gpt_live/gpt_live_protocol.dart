@@ -16,6 +16,8 @@ class GptLiveProtocol {
   static const model = 'gpt-live-1';
   static const dataChannelLabel = 'oai-events';
   static const defaultVoice = 'marin';
+  static const delegateInstructions =
+      '你是语音通话的后台助手，结果会被前台转述给用户；用中文；先给结论，控制在 3 到 5 句；不要列表、Markdown 和链接；需要最新信息时用联网搜索；查不到就直说，不编造。';
 
   /// 服务端上限：instructions 16384 token、input 128 条且合计 8192 token。
   /// 这里按字符保守截断（中文 1 字约 1 token 以上）。
@@ -28,6 +30,7 @@ class GptLiveProtocol {
     required String instructions,
     List<GptLiveHistoryMessage> history = const [],
     String voice = defaultVoice,
+    String? delegateModel,
   }) {
     return {
       'session': {
@@ -36,6 +39,18 @@ class GptLiveProtocol {
         'audio': {
           'output': {'voice': normalizeVoice(voice)},
         },
+        if (delegateModel != null && delegateModel.isNotEmpty)
+          'delegation': {
+            'type': 'responses',
+            'responses': {
+              'model': delegateModel,
+              'instructions': delegateInstructions,
+              'tools': [
+                {'type': 'web_search'},
+              ],
+              'tool_choice': 'auto',
+            },
+          },
         if (history.isNotEmpty)
           'input': [
             for (final m in trimHistory(history))
@@ -153,10 +168,10 @@ class GptLiveProtocol {
   /// developer 开场说明，session.started 之后再发一次 commentary。
   /// 内容上限 500 token，这里按字符截断。
   static String commentaryEvent(String content) => jsonEncode({
-        'type': 'session.commentary.append',
-        'delegation_id': null,
-        'content': _clip(content, 400),
-      });
+    'type': 'session.commentary.append',
+    'delegation_id': null,
+    'content': _clip(content, 400),
+  });
 
   /// 催睡来电：接通后让她先开口的那句提示（developer 消息和 commentary 共用）。
   static String nudgeGreeting(String reason) {

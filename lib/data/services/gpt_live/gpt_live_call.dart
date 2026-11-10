@@ -74,6 +74,7 @@ class GptLiveCall extends ChangeNotifier {
         );
       }
       final voice = await GptLiveSettings.getVoice();
+      final delegateModel = await GptLiveSettings.getDelegateModel();
       final idleHangupMinutes = await GptLiveSettings.getIdleHangupMinutes();
       final userId = await UserStorage.getUserId();
       final character = userId == null
@@ -96,13 +97,16 @@ class GptLiveCall extends ChangeNotifier {
         now: DateTime.now(),
         extra: await GptLiveSettings.getExtraInstructions(),
         callReason: callReason,
+        canDelegate: delegateModel.isNotEmpty,
       );
       final history = [...await _loadHistory()];
       if (isNudge) {
-        history.add(GptLiveHistoryMessage(
-          'developer',
-          GptLiveProtocol.nudgeGreeting(callReason),
-        ));
+        history.add(
+          GptLiveHistoryMessage(
+            'developer',
+            GptLiveProtocol.nudgeGreeting(callReason),
+          ),
+        );
       }
 
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -150,6 +154,7 @@ class GptLiveCall extends ChangeNotifier {
           instructions: instructions,
           history: history,
           voice: voice,
+          delegateModel: delegateModel,
         ),
       );
       await pc.setRemoteDescription(
@@ -208,12 +213,14 @@ class GptLiveCall extends ChangeNotifier {
     if (_recorded || startedAt == null) return;
     _recorded = true;
     try {
-      await GptLiveSettings.setLastCallRecord(GptLiveCallRecord(
-        startedAt: startedAt!,
-        seconds: DateTime.now().difference(startedAt!).inSeconds,
-        reason: _endReason ?? 'unknown',
-        serverError: _lastServerError,
-      ));
+      await GptLiveSettings.setLastCallRecord(
+        GptLiveCallRecord(
+          startedAt: startedAt!,
+          seconds: DateTime.now().difference(startedAt!).inSeconds,
+          reason: _endReason ?? 'unknown',
+          serverError: _lastServerError,
+        ),
+      );
     } catch (e) {
       _log.warning('record end failed: $e');
     }
@@ -223,10 +230,7 @@ class GptLiveCall extends ChangeNotifier {
     final event = GptLiveEvent.parse(raw);
     switch (event) {
       case GptLiveTranscriptDelta():
-        _idleWatch?.recordTranscript(
-          DateTime.now(),
-          fromUser: event.fromUser,
-        );
+        _idleWatch?.recordTranscript(DateTime.now(), fromUser: event.fromUser);
         transcript.add(event);
         notifyListeners();
       case GptLiveUsage(:final seconds):
@@ -259,13 +263,17 @@ class GptLiveCall extends ChangeNotifier {
       return;
     }
     _greeted = true;
-    unawaited(dc
-        .send(RTCDataChannelMessage(
-          GptLiveProtocol.commentaryEvent(
-            GptLiveProtocol.nudgeGreeting(callReason),
-          ),
-        ))
-        .catchError((Object e) => _log.warning('greeting send failed: $e')));
+    unawaited(
+      dc
+          .send(
+            RTCDataChannelMessage(
+              GptLiveProtocol.commentaryEvent(
+                GptLiveProtocol.nudgeGreeting(callReason),
+              ),
+            ),
+          )
+          .catchError((Object e) => _log.warning('greeting send failed: $e')),
+    );
   }
 
   void _startIdleWatch(int idleMinutes) {
@@ -293,13 +301,19 @@ class GptLiveCall extends ChangeNotifier {
     if (dc == null || dc.state != RTCDataChannelState.RTCDataChannelOpen) {
       return;
     }
-    unawaited(dc
-        .send(RTCDataChannelMessage(
-          GptLiveProtocol.commentaryEvent(
-            '对方已经好几分钟没说话了。轻声问一句还在不在，如果没回应你就说先挂了。',
+    unawaited(
+      dc
+          .send(
+            RTCDataChannelMessage(
+              GptLiveProtocol.commentaryEvent(
+                '对方已经好几分钟没说话了。轻声问一句还在不在，如果没回应你就说先挂了。',
+              ),
+            ),
+          )
+          .catchError(
+            (Object e) => _log.warning('idle prompt send failed: $e'),
           ),
-        ))
-        .catchError((Object e) => _log.warning('idle prompt send failed: $e')));
+    );
   }
 
   Future<void> _waitIceGathering(RTCPeerConnection pc) async {
@@ -423,6 +437,7 @@ class GptLiveCall extends ChangeNotifier {
     required DateTime now,
     String extra = '',
     String callReason = '',
+    bool canDelegate = false,
   }) {
     String two(int n) => n.toString().padLeft(2, '0');
     final time =
@@ -438,6 +453,11 @@ class GptLiveCall extends ChangeNotifier {
       ..writeln('- 用户换成哪种语言，你就跟着用哪种语言。')
       ..writeln('- 之前的聊天记录已经给你了，接着那些内容自然聊，不要复述。')
       ..writeln('- 用户说要挂了，就简短道别。');
+    if (canDelegate) {
+      buf.writeln(
+        '- 用户问到需要查最新信息、核对事实或仔细想的问题时，交给后台去查，先自然地应一声；拿到结果再用你自己的话说，不要编。',
+      );
+    }
     if (callReason.trim().isNotEmpty) {
       buf
         ..writeln()
