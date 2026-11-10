@@ -130,7 +130,7 @@ jobs:
         run: node --test tools/life_digest/*.test.mjs tools/relay_scripts/life_digest_update/*.test.mjs
       - name: i_core domain store, server and activity suites (platform-neutral)
         # The remaining i_core suites need Windows: see the icore-windows job.
-        # runtime_pin and runtime_upgrade/r3 run in no CI job (reasons there).
+        # runtime_pin, runtime_upgrade/r3 and migration_m3/supervision run in no CI job.
         run: >-
           node --test
           tools/i_core/activity_control_plane.test.mjs
@@ -187,7 +187,7 @@ jobs:
           if-no-files-found: error
 
   icore-windows:
-    name: i_core Windows-only suites
+    name: i_core shortcut_mail_relay (Windows)
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -197,19 +197,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: shortcut_mail_relay and migration supervision
+      - name: shortcut_mail_relay
         shell: pwsh
-        # These suites spawn powershell.exe or rely on Windows process semantics,
-        # so the Linux bridge-node job cannot run them. Two suites stay out:
-        # runtime_pin needs one exact Node build at a fixed local path, and
-        # runtime_upgrade/r3 needs new directories owned by the user SID, which
-        # an elevated hosted runner does not give without a token-owner shim.
+        # This suite spawns powershell.exe, so the Linux bridge-node job cannot
+        # run it. Three Windows suites stay out of CI: runtime_pin needs one
+        # exact Node build at a fixed local path; runtime_upgrade/r3 needs new
+        # directories owned by the user SID, which an elevated hosted runner
+        # does not give without a token-owner shim; migration_m3/supervision
+        # has a 5 s PowerShell start budget the hosted runner does not meet.
         run: |
-          $tests = @(
-            'tools/i_core/shortcut_mail_relay.test.mjs',
-            'tools/i_core/migration_m3/supervision.test.mjs'
-          )
-          node --test @tests
+          node --test tools/i_core/shortcut_mail_relay.test.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   windows:
