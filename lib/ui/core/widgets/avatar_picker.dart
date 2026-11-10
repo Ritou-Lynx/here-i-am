@@ -1,74 +1,9 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memex/ui/core/themes/app_colors.dart';
 import 'package:memex/ui/core/widgets/character_avatar.dart';
-import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 import 'package:memex/utils/user_storage.dart';
-
-/// Default seed words used to generate random DiceBear avatars.
-const _seedPool = [
-  'Felix',
-  'Luna',
-  'Milo',
-  'Aria',
-  'Leo',
-  'Nova',
-  'Kai',
-  'Zoe',
-  'Finn',
-  'Iris',
-  'Sage',
-  'Ember',
-  'Atlas',
-  'Cleo',
-  'Orion',
-  'Jade',
-  'River',
-  'Skye',
-  'Wren',
-  'Aspen',
-  'Cedar',
-  'Maple',
-  'Storm',
-  'Blaze',
-  'Coral',
-  'Dusk',
-  'Echo',
-  'Frost',
-  'Glow',
-  'Haze',
-  'Ivy',
-  'Jazz',
-  'Kite',
-  'Lark',
-  'Moss',
-  'Neon',
-  'Opal',
-  'Peak',
-  'Quill',
-  'Reed',
-  'Star',
-  'Tide',
-  'Vale',
-  'Wave',
-  'Zen',
-  'Bolt',
-  'Dune',
-  'Fern',
-  'Hawk',
-  'Lynx',
-];
-
-/// Picks [count] random seeds from the pool, optionally excluding [current].
-List<String> _randomSeeds(int count, {String? current}) {
-  final rng = Random();
-  final pool = List<String>.from(_seedPool);
-  if (current != null) pool.remove(current);
-  pool.shuffle(rng);
-  return pool.take(count).toList();
-}
 
 Future<String?> pickAvatarImageFromGallery() async {
   final picker = ImagePicker();
@@ -81,8 +16,8 @@ Future<String?> pickAvatarImageFromGallery() async {
   return picked?.path;
 }
 
-/// Shows a bottom sheet with 5 DiceBear avatar options and a gallery option.
-/// Returns the selected seed string or saved local image path, or null if dismissed.
+/// Shows a bottom sheet for selecting a local image from the gallery.
+/// Returns the selected image path, or null if dismissed.
 Future<String?> showAvatarPicker(
   BuildContext context,
   String currentAvatar, {
@@ -114,22 +49,6 @@ class _AvatarPickerSheet extends StatefulWidget {
 }
 
 class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
-  late List<String> _seeds;
-  String? _selected;
-
-  @override
-  void initState() {
-    super.initState();
-    _seeds = _randomSeeds(5, current: widget.currentSeed);
-  }
-
-  void _refresh() {
-    setState(() {
-      _seeds = _randomSeeds(5, current: widget.currentSeed);
-      _selected = null;
-    });
-  }
-
   Future<void> _pickImageFromGallery() async {
     final onPickGallery = widget.onPickGallery;
     if (onPickGallery == null) return;
@@ -190,44 +109,6 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               const SizedBox(height: 16),
             ],
 
-            // Avatar row — wrapped in a horizontal scroll so it never overflows.
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: _seeds.map((seed) {
-                  final isSelected = _selected == seed;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _selected = seed);
-                        Navigator.pop(context, seed);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: isSelected
-                              ? Border.all(
-                                  color: AppColors.primary, width: 2.5)
-                              : Border.all(
-                                  color: Colors.transparent, width: 2.5),
-                        ),
-                        child: DiceBearAvatar(
-                          seed: seed,
-                          size: 56,
-                          backgroundColor: Colors.grey[50],
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            const SizedBox(height: 16),
-
             if (widget.onPickGallery != null) ...[
               ListTile(
                 leading:
@@ -238,36 +119,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              const SizedBox(height: 16),
             ],
-
-            // Refresh button — directly below avatars so the association is clear
-            GestureDetector(
-              onTap: _refresh,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.refresh, size: 16, color: AppColors.primary),
-                    const SizedBox(width: 4),
-                    Text(
-                      UserStorage.l10n.localeName == 'zh' ? '换一批' : 'Shuffle',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),

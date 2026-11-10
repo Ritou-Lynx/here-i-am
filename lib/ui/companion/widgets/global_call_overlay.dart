@@ -275,9 +275,9 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Delegate to the shared CharacterAvatar so the in-call overlay shows the
-    // same treatment as the rest of the app: DiceBear (when reachable) for
-    // seed avatars, LocalImage for file paths, and a person-icon placeholder
-    // when the value is something like 'i' that can't resolve to an image.
+    // same treatment as the rest of the app: a local initial placeholder for
+    // legacy non-image values, LocalImage for file paths, and a person icon
+    // when no display name is available.
     return CharacterAvatar(
       avatar: avatar,
       name: name,
