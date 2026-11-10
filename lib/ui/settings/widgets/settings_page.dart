@@ -9,11 +9,13 @@ import 'package:memex/ui/settings/widgets/shopping_config_page.dart';
 import 'package:memex/ui/settings/widgets/toy_config_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
+import 'package:memex/ui/settings/widgets/i_mcp_connect_page.dart';
 import 'package:memex/ui/settings/widgets/xhs_connect_page.dart';
 import 'package:memex/data/services/reading/xhs/xhs_cookie_repository.dart';
 import 'package:memex/data/services/checkin_service.dart';
 import 'package:memex/data/services/proactive_outing_service.dart';
 import 'package:memex/data/services/mcp_token_storage.dart';
+import 'package:memex/data/services/i_mcp_service.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
 import 'package:memex/ui/settings/widgets/device_app_blocker_settings_page.dart';
 import 'package:memex/ui/settings/widgets/location_context_settings_page.dart';
@@ -36,6 +38,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   String _currentLang = 'en';
   bool _corosConnected = false;
+  bool _iMcpConnected = false;
   bool _checkinEnabled = false;
   final _elevenLabsApiKeyController = TextEditingController();
   final _miniMaxApiKeyController = TextEditingController();
@@ -57,8 +60,10 @@ class _SettingsPageState extends State<SettingsPage> {
     final locale = await UserStorage.getLocale();
     final userId = await UserStorage.getUserId();
     var corosConnected = false;
+    var iMcpConnected = false;
     if (userId != null) {
       corosConnected = await McpTokenStorage(userId: userId).hasToken();
+      iMcpConnected = await IMcpService.instance.hasStoredToken(userId: userId);
       _checkinEnabled = await CheckinService.instance.isEnabled();
       final apiKey = await UserStorage.getElevenLabsApiKey();
       if (apiKey != null) {
@@ -97,6 +102,7 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _currentLang = locale.languageCode == 'zh' ? 'zh' : 'en';
         _corosConnected = corosConnected;
+        _iMcpConnected = iMcpConnected;
       });
     }
   }
@@ -109,6 +115,12 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) {
       setState(() => _corosConnected = connected);
     }
+    return connected;
+  }
+
+  Future<bool> _refreshIMcpConnectionStatus() async {
+    final connected = await IMcpService.instance.hasStoredToken();
+    if (mounted) setState(() => _iMcpConnected = connected);
     return connected;
   }
 
@@ -783,6 +795,85 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: EdgeInsets.only(right: 8),
                         child: Icon(Icons.check_circle,
                             color: Colors.green, size: 20),
+                      ),
+                    const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // i MCP Connect
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                await _refreshIMcpConnectionStatus();
+                if (!context.mounted) return;
+                await Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const IMcpConnectPage(),
+                  ),
+                );
+                if (mounted) await _refreshIMcpConnectionStatus();
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textSecondary.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.cloud_outlined,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '林埃数据（i MCP）',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _iMcpConnected ? '已连接' : '连接日记、学习与生活数据（只读）',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  _iMcpConnected ? Colors.green : Colors.grey,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_iMcpConnected)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: Colors.green,
+                          size: 20,
+                        ),
                       ),
                     const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
                   ],
