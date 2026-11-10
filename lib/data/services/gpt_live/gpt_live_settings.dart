@@ -106,8 +106,7 @@ class GptLiveSettings {
     if (raw == null) return null;
     try {
       return GptLiveCallRecord.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
+          jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       return null;
     }
@@ -136,11 +135,11 @@ class GptLiveCallRecord {
   final String? serverError;
 
   Map<String, dynamic> toJson() => {
-    'started_at': startedAt.toIso8601String(),
-    'seconds': seconds,
-    'reason': reason,
-    if (serverError != null) 'server_error': serverError,
-  };
+        'started_at': startedAt.toIso8601String(),
+        'seconds': seconds,
+        'reason': reason,
+        if (serverError != null) 'server_error': serverError,
+      };
 
   factory GptLiveCallRecord.fromJson(Map<String, dynamic> j) =>
       GptLiveCallRecord(
@@ -167,7 +166,8 @@ class GptLiveCallRecord {
   String describe() {
     String two(int n) => n.toString().padLeft(2, '0');
     final t = startedAt;
-    final when = '${t.month}-${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
+    final when =
+        '${t.month}-${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
     final dur = '${seconds ~/ 60} 分 ${seconds % 60} 秒';
     final err = serverError == null ? '' : '；服务端报错：$serverError';
     return '$when · $dur · $reasonText$err';

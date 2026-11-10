@@ -102,7 +102,10 @@ class AppearanceSettingsPage extends StatelessWidget {
     return _DetailPage(
       title: '外观',
       children: [
-        const _PageIntro(title: '春雨昼眠', body: '这是当前唯一生效的视觉方向。已废弃的旧主题不再提供切换。'),
+        const _PageIntro(
+          title: '春雨昼眠',
+          body: '这是当前唯一生效的视觉方向。已废弃的旧主题不再提供切换。',
+        ),
         const SizedBox(height: 20),
         _SettingsSurface(
           child: Column(
@@ -256,12 +259,14 @@ class _ChatAppearanceSettingsPageState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('聊天背景', style: Theme.of(context).textTheme.titleMedium),
+                Text('聊天背景',
+                    style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 _buildBackgroundPreview(),
                 const SizedBox(height: 14),
                 FilledButton.icon(
-                  onPressed: _character == null ? null : _pickChatBackground,
+                  onPressed:
+                      _character == null ? null : _pickChatBackground,
                   icon: const Icon(Icons.photo_library_outlined),
                   label: Text(_hasCustomBackground ? '更换图片' : '从相册选择'),
                 ),
@@ -281,7 +286,8 @@ class _ChatAppearanceSettingsPageState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('用户消息文字颜色', style: Theme.of(context).textTheme.titleMedium),
+              Text('用户消息文字颜色',
+                  style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 6),
               Text(
                 '只调整你在 Chat 中发送的文字，不改变林埃的文字与其他界面。',
@@ -421,9 +427,8 @@ class _UserColorSwatch extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
-                      color: selected
-                          ? tokens.textPrimary
-                          : tokens.textSecondary,
+                      color:
+                          selected ? tokens.textPrimary : tokens.textSecondary,
                     ),
                   ),
                 ),
@@ -488,7 +493,10 @@ class _AboutHereIamPageState extends State<AboutHereIamPage> {
     return _DetailPage(
       title: '故我在 V3',
       children: [
-        const _PageIntro(title: 'Here I am', body: '一个本地优先、围绕持续陪伴与共同记忆构建的应用。'),
+        const _PageIntro(
+          title: 'Here I am',
+          body: '一个本地优先、围绕持续陪伴与共同记忆构建的应用。',
+        ),
         const SizedBox(height: 20),
         _SettingsSurface(
           child: Column(
@@ -518,9 +526,8 @@ class _AboutHereIamPageState extends State<AboutHereIamPage> {
             onTap: () => showLicensePage(
               context: context,
               applicationName: '故我在 V3',
-              applicationVersion: info == null
-                  ? null
-                  : '${info.version} (${info.buildNumber})',
+              applicationVersion:
+                  info == null ? null : '${info.version} (${info.buildNumber})',
             ),
           ),
         ),
@@ -599,8 +606,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _homeTurboDerivedUrl = values[7] as String?;
     _gptLiveKeyController.text = values[8] as String? ?? '';
     _gptLiveVoice = GptLiveProtocol.normalizeVoice(
-      values[9] as String? ?? GptLiveProtocol.defaultVoice,
-    );
+        values[9] as String? ?? GptLiveProtocol.defaultVoice);
     _gptLiveExtraController.text = values[10] as String? ?? '';
     _gptLiveLastCall = values[11] as GptLiveCallRecord?;
     _gptLiveIdleController.text = (values[12] as int).toString();
@@ -624,8 +630,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       _nudgeStatus = await SleepNudgeStore.lastStatus();
     } catch (_) {}
     try {
-      _fullScreenAllowed =
-          await FlutterCallkitIncoming.canUseFullScreenIntent();
+      _fullScreenAllowed = await FlutterCallkitIncoming.canUseFullScreenIntent();
     } catch (_) {
       _fullScreenAllowed = null;
     }
@@ -637,28 +642,20 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   }
 
   Future<void> _saveNudge() async {
-    await SleepNudgeStore.saveConfig(
-      SleepNudgeConfig(
-        enabled: _nudgeEnabled,
-        server: _nudgeServerController.text.trim().isEmpty
-            ? SleepNudgeConfig.defaultServer
-            : _nudgeServerController.text.trim(),
-        topic: _nudgeTopicController.text.trim(),
-        engine: _callEngine,
-        minGapMinutes: _nudgeInt(
-          _nudgeGapController,
-          SleepNudgeConfig.defaultMinGapMinutes,
-        ),
-        maxPerNight: _nudgeInt(
-          _nudgeCapController,
-          SleepNudgeConfig.defaultMaxPerNight,
-        ),
-        maxCallMinutes: _nudgeInt(
-          _nudgeMaxCallController,
-          SleepNudgeConfig.defaultMaxCallMinutes,
-        ),
-      ),
-    );
+    await SleepNudgeStore.saveConfig(SleepNudgeConfig(
+      enabled: _nudgeEnabled,
+      server: _nudgeServerController.text.trim().isEmpty
+          ? SleepNudgeConfig.defaultServer
+          : _nudgeServerController.text.trim(),
+      topic: _nudgeTopicController.text.trim(),
+      engine: _callEngine,
+      minGapMinutes: _nudgeInt(
+          _nudgeGapController, SleepNudgeConfig.defaultMinGapMinutes),
+      maxPerNight: _nudgeInt(
+          _nudgeCapController, SleepNudgeConfig.defaultMaxPerNight),
+      maxCallMinutes: _nudgeInt(
+          _nudgeMaxCallController, SleepNudgeConfig.defaultMaxCallMinutes),
+    ));
   }
 
   @override
@@ -692,8 +689,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     await GptLiveSettings.setVoice(_gptLiveVoice);
     await GptLiveSettings.setExtraInstructions(_gptLiveExtraController.text);
     await GptLiveSettings.setIdleHangupMinutes(
-      _nudgeInt(_gptLiveIdleController, 5),
-    );
+        _nudgeInt(_gptLiveIdleController, 5));
     await GptLiveSettings.setDelegateModel(_gptLiveDelegateModel);
     await CallEngineSettings.set(_callEngine);
     await _saveNudge();
@@ -701,11 +697,11 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     if (_provider == 'minimax' || _provider == 'home_turbo') {
       await UserStorage.setMiniMaxApiKey(_miniMaxController.text.trim());
       await UserStorage.setMiniMaxGroupId(_miniMaxGroupController.text.trim());
-      await UserStorage.setMiniMaxVoiceId(
-        _miniMaxVoiceIdController.text.trim(),
-      );
+      await UserStorage.setMiniMaxVoiceId(_miniMaxVoiceIdController.text.trim());
     } else {
-      await UserStorage.setElevenLabsApiKey(_elevenLabsController.text.trim());
+      await UserStorage.setElevenLabsApiKey(
+        _elevenLabsController.text.trim(),
+      );
       await UserStorage.setElevenLabsVoiceId(
         _elevenLabsVoiceIdController.text.trim(),
       );
@@ -749,7 +745,10 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
             ),
           ),
           const SizedBox(height: 12),
-          Text('接听后用上面的通话引擎', style: small),
+          Text(
+            '接听后用上面的通话引擎',
+            style: small,
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -782,7 +781,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
           if (_fullScreenAllowed == false)
             Row(
               children: [
-                Expanded(child: Text('锁屏全屏来电需要“全屏通知”权限，现在没开。', style: small)),
+                Expanded(
+                  child: Text('锁屏全屏来电需要“全屏通知”权限，现在没开。', style: small),
+                ),
                 TextButton(
                   onPressed: () async {
                     try {
@@ -824,7 +825,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       );
       result = speak.audio != null
           ? '可用：一句话往返 ${speak.totalMs} ms（生成 ${speak.genMs ?? '?'} ms，'
-                '音频 ${speak.audioMs ?? '?'} ms）'
+              '音频 ${speak.audioMs ?? '?'} ms）'
           : '能连上，但念一句失败（${speak.error}）';
       if (speak.audio != null) HomeTurboTtsService.breaker.reset();
     }
@@ -842,8 +843,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       children: [
         const _PageIntro(
           title: 'TTS 服务',
-          body:
-              'ElevenLabs 和 MiniMax 各自需要 API Key 和 Voice ID。“家里电脑（英文）”用电脑上的林埃英文声音，经 Tailscale 连接，不需要密钥；连不上或含中文的句子自动改用 MiniMax。Chat 界面的自动朗读按钮分别对应这三种，点一下开启，再点一下关闭。',
+          body: 'ElevenLabs 和 MiniMax 各自需要 API Key 和 Voice ID。“家里电脑（英文）”用电脑上的林埃英文声音，经 Tailscale 连接，不需要密钥；连不上或含中文的句子自动改用 MiniMax。Chat 界面的自动朗读按钮分别对应这三种，点一下开启，再点一下关闭。',
         ),
         const SizedBox(height: 20),
         if (_provider == null)
@@ -890,9 +890,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                 TextField(
                   controller: _elevenLabsController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'ElevenLabs API Key',
-                  ),
+                  decoration:
+                      const InputDecoration(labelText: 'ElevenLabs API Key'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -910,21 +909,22 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('MiniMax', style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'MiniMax',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _miniMaxController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'MiniMax API Key',
-                  ),
+                  decoration:
+                      const InputDecoration(labelText: 'MiniMax API Key'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _miniMaxGroupController,
-                  decoration: const InputDecoration(
-                    labelText: 'MiniMax Group ID',
-                  ),
+                  decoration:
+                      const InputDecoration(labelText: 'MiniMax Group ID'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -942,7 +942,10 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('家里电脑（英文）', style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  '家里电脑（英文）',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _homeTurboUrlController,
@@ -1011,9 +1014,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                 TextField(
                   controller: _gptLiveKeyController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'OpenAI API Key',
-                  ),
+                  decoration:
+                      const InputDecoration(labelText: 'OpenAI API Key'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -1026,9 +1028,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                     for (final v in GptLiveProtocol.builtInVoices)
                       DropdownMenuItem(
                         value: v,
-                        child: Text(
-                          v == GptLiveProtocol.defaultVoice ? '$v（默认）' : v,
-                        ),
+                        child: Text(v == GptLiveProtocol.defaultVoice
+                            ? '$v（默认）'
+                            : v),
                       ),
                   ],
                   onChanged: (v) {
@@ -1093,7 +1095,10 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(onPressed: _save, child: const Text('保存')),
+            child: FilledButton(
+              onPressed: _save,
+              child: const Text('保存'),
+            ),
           ),
           const SizedBox(height: 16),
           _SettingsSurface(
@@ -1121,7 +1126,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                 ),
                 const SizedBox(height: 8),
                 if (_callHealth.isEmpty)
-                  Text('还没有记录', style: Theme.of(context).textTheme.bodySmall)
+                  Text('还没有记录',
+                      style: Theme.of(context).textTheme.bodySmall)
                 else
                   for (final s in _callHealth)
                     Padding(
@@ -1254,8 +1260,10 @@ class PrivacyPolicyPage extends StatelessWidget {
             icon: Icons.open_in_new_rounded,
             title: '查看完整隐私政策',
             subtitle: '在浏览器中打开当前政策文档',
-            onTap: () =>
-                launchUrl(_policyUri, mode: LaunchMode.externalApplication),
+            onTap: () => launchUrl(
+              _policyUri,
+              mode: LaunchMode.externalApplication,
+            ),
           ),
         ),
       ],
@@ -1320,7 +1328,10 @@ class _SettingsSurface extends StatelessWidget {
         borderRadius: BorderRadius.circular(tokens.radius18),
         side: BorderSide(color: tokens.divider),
       ),
-      child: Padding(padding: EdgeInsets.all(tokens.space16), child: child),
+      child: Padding(
+        padding: EdgeInsets.all(tokens.space16),
+        child: child,
+      ),
     );
   }
 }
@@ -1392,7 +1403,8 @@ class _AppearanceRow extends StatelessWidget {
       ),
       title: Text(title),
       subtitle: Text(subtitle),
-      trailing: onTap == null ? null : const Icon(Icons.chevron_right_rounded),
+      trailing:
+          onTap == null ? null : const Icon(Icons.chevron_right_rounded),
       onTap: onTap,
     );
   }

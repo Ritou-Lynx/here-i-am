@@ -316,8 +316,7 @@ void main() {
       serverError: 'session_expired bye',
     );
     final back = GptLiveCallRecord.fromJson(
-      jsonDecode(jsonEncode(r.toJson())) as Map<String, dynamic>,
-    );
+        jsonDecode(jsonEncode(r.toJson())) as Map<String, dynamic>);
     expect(back.seconds, 602);
     expect(back.describe(), contains('10 分 2 秒'));
     expect(back.describe(), contains('OpenAI 结束了会话（max_session_duration）'));

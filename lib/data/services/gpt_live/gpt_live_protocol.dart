@@ -168,10 +168,10 @@ class GptLiveProtocol {
   /// developer 开场说明，session.started 之后再发一次 commentary。
   /// 内容上限 500 token，这里按字符截断。
   static String commentaryEvent(String content) => jsonEncode({
-    'type': 'session.commentary.append',
-    'delegation_id': null,
-    'content': _clip(content, 400),
-  });
+        'type': 'session.commentary.append',
+        'delegation_id': null,
+        'content': _clip(content, 400),
+      });
 
   /// 催睡来电：接通后让她先开口的那句提示（developer 消息和 commentary 共用）。
   static String nudgeGreeting(String reason) {

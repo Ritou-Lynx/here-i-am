@@ -101,12 +101,10 @@ class GptLiveCall extends ChangeNotifier {
       );
       final history = [...await _loadHistory()];
       if (isNudge) {
-        history.add(
-          GptLiveHistoryMessage(
-            'developer',
-            GptLiveProtocol.nudgeGreeting(callReason),
-          ),
-        );
+        history.add(GptLiveHistoryMessage(
+          'developer',
+          GptLiveProtocol.nudgeGreeting(callReason),
+        ));
       }
 
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -213,14 +211,12 @@ class GptLiveCall extends ChangeNotifier {
     if (_recorded || startedAt == null) return;
     _recorded = true;
     try {
-      await GptLiveSettings.setLastCallRecord(
-        GptLiveCallRecord(
-          startedAt: startedAt!,
-          seconds: DateTime.now().difference(startedAt!).inSeconds,
-          reason: _endReason ?? 'unknown',
-          serverError: _lastServerError,
-        ),
-      );
+      await GptLiveSettings.setLastCallRecord(GptLiveCallRecord(
+        startedAt: startedAt!,
+        seconds: DateTime.now().difference(startedAt!).inSeconds,
+        reason: _endReason ?? 'unknown',
+        serverError: _lastServerError,
+      ));
     } catch (e) {
       _log.warning('record end failed: $e');
     }
@@ -230,7 +226,10 @@ class GptLiveCall extends ChangeNotifier {
     final event = GptLiveEvent.parse(raw);
     switch (event) {
       case GptLiveTranscriptDelta():
-        _idleWatch?.recordTranscript(DateTime.now(), fromUser: event.fromUser);
+        _idleWatch?.recordTranscript(
+          DateTime.now(),
+          fromUser: event.fromUser,
+        );
         transcript.add(event);
         notifyListeners();
       case GptLiveUsage(:final seconds):
@@ -263,17 +262,13 @@ class GptLiveCall extends ChangeNotifier {
       return;
     }
     _greeted = true;
-    unawaited(
-      dc
-          .send(
-            RTCDataChannelMessage(
-              GptLiveProtocol.commentaryEvent(
-                GptLiveProtocol.nudgeGreeting(callReason),
-              ),
-            ),
-          )
-          .catchError((Object e) => _log.warning('greeting send failed: $e')),
-    );
+    unawaited(dc
+        .send(RTCDataChannelMessage(
+          GptLiveProtocol.commentaryEvent(
+            GptLiveProtocol.nudgeGreeting(callReason),
+          ),
+        ))
+        .catchError((Object e) => _log.warning('greeting send failed: $e')));
   }
 
   void _startIdleWatch(int idleMinutes) {
@@ -301,19 +296,13 @@ class GptLiveCall extends ChangeNotifier {
     if (dc == null || dc.state != RTCDataChannelState.RTCDataChannelOpen) {
       return;
     }
-    unawaited(
-      dc
-          .send(
-            RTCDataChannelMessage(
-              GptLiveProtocol.commentaryEvent(
-                '对方已经好几分钟没说话了。轻声问一句还在不在，如果没回应你就说先挂了。',
-              ),
-            ),
-          )
-          .catchError(
-            (Object e) => _log.warning('idle prompt send failed: $e'),
+    unawaited(dc
+        .send(RTCDataChannelMessage(
+          GptLiveProtocol.commentaryEvent(
+            '对方已经好几分钟没说话了。轻声问一句还在不在，如果没回应你就说先挂了。',
           ),
-    );
+        ))
+        .catchError((Object e) => _log.warning('idle prompt send failed: $e')));
   }
 
   Future<void> _waitIceGathering(RTCPeerConnection pc) async {
