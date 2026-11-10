@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
 import 'package:memex/agent/mcp/mcp_client.dart';
 import 'package:memex/agent/mcp/mcp_oauth.dart';
@@ -11,6 +12,29 @@ import 'package:memex/utils/user_storage.dart';
 
 const iMcpRedirectUri = 'http://127.0.0.1:47859/hereiam/i-mcp/callback';
 const _iMcpStoragePrefix = 'i_mcp';
+
+/// Whether a refresh failure proves that the saved OAuth grant is unusable.
+bool shouldClearIMcpAuthorizationAfterRefreshError(Object error) {
+  if (error case DioException(:final response)) {
+    final statusCode = response?.statusCode;
+    if (statusCode == 400 || statusCode == 401) return true;
+    if (_containsRejectedOAuthGrant(response?.data)) return true;
+  }
+
+  final description = error.toString().toLowerCase();
+  return RegExp(r'http\s+(400|401)\b').hasMatch(description) ||
+      RegExp(r'status code of\s+(400|401)\b').hasMatch(description) ||
+      _containsRejectedOAuthGrant(description);
+}
+
+bool _containsRejectedOAuthGrant(Object? value) {
+  if (value is Map) {
+    final oauthError = value['error']?.toString().toLowerCase();
+    return oauthError == 'invalid_grant' || oauthError == 'invalid_client';
+  }
+  final description = value?.toString().toLowerCase() ?? '';
+  return RegExp(r'\binvalid_(grant|client)\b').hasMatch(description);
+}
 
 /// Narrow interface used by the companion tool so tests do not need a real
 /// network connection or persisted OAuth credentials.
@@ -242,7 +266,11 @@ class IMcpService implements IMcpQueryService {
       return refreshed;
     } catch (error) {
       _logger.warning('i MCP token refresh failed: $error');
-      await _clearExpiredAuthorization(storage);
+      if (shouldClearIMcpAuthorizationAfterRefreshError(error)) {
+        await _clearExpiredAuthorization(storage);
+      } else {
+        _lastError = '暂时连不上 i MCP（家里电脑可能离线），稍后再试';
+      }
       return null;
     }
   }
