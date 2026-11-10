@@ -214,3 +214,46 @@ test('N2 tools are off without notes.json and a malformed notes.json fails start
     assert.throws(() => candidate.createApp({stateDir: mcpState(t, value), publicUrl: PUBLIC_URL, getReadModel: async () => ({})}), /^Error: notes_config_invalid$/);
   }
 });
+
+test('A1 candidate app exposes exactly ten read tools while other frontend lists remain unchanged', {timeout: 90000}, async t => {
+  const state = mcpState(t, fixture(t));
+  const config = (name, value) => writeFileSync(join(state, name + '.json'), JSON.stringify(value));
+  config('study', {format:'study-v1', study_dir:state});
+  config('life_digest', {format:'life-digest-v1', digest_dir:state});
+  config('heart_rate', {format:'heart-rate-v1', tailscale_logins:['owner@example.test']});
+  config('expense', {format:'expense-v1'});
+  config('core-food', {format:'core-food-v1', principal_id:'food-mcp-writer', token:'a'.repeat(43), core_instance_id:'synthetic', time_zone:'Asia/Shanghai'});
+  candidateOauth.setPassphrase(state, PASSPHRASE);
+  const app = candidate.createApp({stateDir:state, coreUrl:'http://127.0.0.1:9', publicUrl:PUBLIC_URL,
+    getReadModel:async () => createFakeReadModel(), now:() => NOW,
+    chatgptEnabled:true, geminiEnabled:true, antigravityEnabled:true, sesameEnabled:true});
+  await listenForFetch(app.server);
+  t.after(() => new Promise(resolve => app.server.close(resolve)));
+  const base = 'http://127.0.0.1:' + app.server.address().port;
+  const list = async redirectUri => {
+    const registered = await registerClient(base, [redirectUri]); assert.equal(registered.status, 201);
+    const {verifier, challenge} = pkcePair();
+    const auth = await submitPassphrase(base, {...Object.fromEntries(authorizeParams({clientId:registered.body.client_id, challenge})), redirect_uri:redirectUri, scope:'i.read i.write'});
+    assert.equal(auth.status, 302);
+    const token = await postToken(base, {grant_type:'authorization_code', code:new URL(auth.headers.get('location')).searchParams.get('code'), client_id:registered.body.client_id, redirect_uri:redirectUri, code_verifier:verifier, resource:PUBLIC_URL + '/mcp'});
+    assert.equal(token.status, 200);
+    const {init, sessionId} = await initSession(base, token.body.access_token); assert.equal(init.status, 200);
+    const response = await mcpPost(base, token.body.access_token, {jsonrpc:'2.0', id:2, method:'tools/list'}, {sessionId});
+    assert.equal(response.status, 200);
+    if (redirectUri === 'http://127.0.0.1:47859/hereiam/i-mcp/callback') {
+      for (const name of ['i_context','i_recall','i_chat_turn','i_remember','capture_add','week_get','day_get','food_log','expense_log','life_todo','study_result']) {
+        const rejected = await mcpPost(base, token.body.access_token,
+          {jsonrpc:'2.0', id:3, method:'tools/call', params:{name, arguments:{}}}, {sessionId});
+        assert.match(rejected.body.error.message, /Unknown tool/, name);
+      }
+    }
+    return response.body.result.tools.map(tool => tool.name).sort();
+  };
+  assert.deepEqual(await list('http://127.0.0.1:47859/hereiam/i-mcp/callback'),
+    ['expense_day','food_day','heart_rate','life_digest','notes_read','notes_recent','notes_search','study_progress','study_source','study_today']);
+  const standard = ['expense_day','expense_log','food_day','food_log','heart_rate','i_context','i_recall','life_digest','life_todo','notes_read','notes_recent','notes_search'];
+  const withStudy = [...standard, 'study_progress','study_result','study_source','study_today'].sort();
+  const expected = {claude_web:withStudy, chatgpt_web:withStudy, gemini_web:withStudy, antigravity:standard,
+    sesame:['heart_rate','i_context','i_recall','life_digest','life_todo']};
+  for (const frontend of Object.keys(callbacks)) assert.deepEqual(await list(callbacks[frontend]), expected[frontend], frontend);
+});
