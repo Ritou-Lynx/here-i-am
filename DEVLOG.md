@@ -1,7 +1,7 @@
 ## 2026-11-10 排查第二轮：按待审清单处理未评论的项
 
 - 设计稿素材（两张主题图、开屏 gif、玻璃纹理原图等 5 个文件）从 `assets/images/` 移到 `docs/design/assets/`，不再打进 App；删除 3 个没有引用的图标。`pubspec.yaml` 的 branding 资源只保留实际加载的一张 logo。README 和设计原型里的路径同步修改。
-- CI 新增 `icore-windows` 作业，在 windows-latest 上跑 shortcut_mail_relay 测试（32 项里它占 31 项，此前不在任何 CI 里）。另外三组 Windows 测试试过后仍不进 CI：runtime_pin 要求固定路径下某一个确切版本的 Node；runtime_upgrade/r3 要求新建目录的所有者是当前用户，托管 runner 以管理员运行时所有者是管理员组；migration_m3/supervision 给 PowerShell 启动只留 5 秒，托管 runner 超时。
+- CI 新增 `icore-windows` 作业，在 windows-latest 上跑 shortcut_mail_relay 测试（25 项，此前不在任何 CI 里）。另外三组 Windows 测试试过后仍不进 CI：runtime_pin 要求固定路径下某一个确切版本的 Node；runtime_upgrade/r3 要求新建目录的所有者是当前用户，托管 runner 以管理员运行时所有者是管理员组；migration_m3/supervision 有一项给 PowerShell 启动只留 5 秒，托管 runner 超时。
 - 删除旧版重复的 `shared_life_memory_tools.dart` 及其测试（现役的 `LifeMemoryQuery` 在 `character_tools_factory.dart`）。白板、工作台、Dev Agent bridge 按用户意见保持暂停，不删。
 - 删除上游 Memex 遗留的 GitHub 配置：PR 规则预检工作流与脚本、issue 模板、labels.yml、i18n issue 正文；PR 模板改成本项目实际使用的四段。`.gitignore` 去掉与事实不符的 keystore 例外，`.claude/skills/` 不再被忽略。
 - 补记下面 11-08 至 11-10 几个已合并但没写 DEVLOG 的 PR。
