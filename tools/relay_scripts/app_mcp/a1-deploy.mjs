@@ -8,7 +8,8 @@ import {fileURLToPath} from 'node:url';
 const ACTIVE='HereIAm-iCoreSchema6-n2-notes-20261108';
 const NEW='HereIAm-iCoreSchema6-app-mcp-20261110';
 const OLD_SERVER='4b1014e0',OLD_MCP='838810b2',OLD_MANIFEST='ded493e5';
-const MCP_EXPECTED={'i_remote_mcp/mcp.mjs':'838810b2','i_remote_mcp/writeback.mjs':'a7a6f95d','i_memory/i_memory_read.mjs':'cee18518'};
+const MCP_EXPECTED={'i_remote_mcp/server.mjs':'0a58eb1b','i_remote_mcp/oauth.mjs':'358f9fe6','i_remote_mcp/diagnostics.mjs':'1aab8df7',
+ 'i_remote_mcp/mcp.mjs':'838810b2','i_remote_mcp/writeback.mjs':'a7a6f95d','i_memory/i_memory_read.mjs':'cee18518'};
 // Maintenance copy used since ST1. Since then tools/i_core changed only in these files (none under maintenance/).
 const TOOLS_COMMIT='4603fb79',TOOLS_FILES=321;
 const TOOLS_DRIFT=['tools/i_core/expense_domains.test.mjs','tools/i_core/personal_data_domains.mjs','tools/i_core/release_schema6/lifecycle/runtime_child.mjs'];
@@ -36,7 +37,7 @@ const PS=()=>path.join(process.env.SystemRoot,'System32','WindowsPowerShell','v1
 const PSARGS=['-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass'];
 const HEAD51="$ErrorActionPreference='Stop'\nif($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5){throw 'host_not_51'}\n$q=[Console]::In.ReadToEnd()|ConvertFrom-Json\n";
 function ps51(script,input,step,timeoutMin=5){return run(PS(),[...PSARGS,'-EncodedCommand',Buffer.from(HEAD51+script,'utf16le').toString('base64')],{input:JSON.stringify(input??{}),step,timeoutMin});}
-function value(script,input,step){const r=ps51(script,input,step);need(r.code===0,step,'powershell_exit_'+r.code);return JSON.parse(r.stdout.trim().split(/\r?\n/).filter(Boolean).pop());}
+function value(script,input,step){const r=ps51(script,input,step);need(r.code===0,step,'powershell_exit_'+r.code+':'+lastErr(r));return JSON.parse(r.stdout.trim().split(/\r?\n/).filter(Boolean).pop());}
 const asList=v=>v==null?[]:Array.isArray(v)?v:[v];
 
 const TASKS_PS="ConvertTo-Json -InputObject @(Get-ScheduledTask|Where-Object{$_.TaskName -like 'HereIAm-iCoreSchema6-*'}|ForEach-Object{[pscustomobject]@{name=$_.TaskName;state=[string]$_.State;actions=@($_.Actions).Count;arguments=[string]$_.Actions[0].Arguments}}) -Compress -Depth 3";
@@ -53,6 +54,68 @@ function portFree(port){return new Promise(resolve=>{const s=createServer();s.on
 // Copy the DACL (only) of each source directory onto its target, protected.
 const ACL_PS="$o=@()\nforeach($p in $q.pairs){$a=(Get-Item -LiteralPath $p.from).GetAccessControl('Access');$a.SetAccessRuleProtection($true,$true);(Get-Item -LiteralPath $p.to).SetAccessControl($a);$v=(Get-Item -LiteralPath $p.to).GetAccessControl('Access');$o+=[pscustomobject]@{dir=$p.rel;protected=$v.AreAccessRulesProtected;rules=@($v.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])).Count}}\nConvertTo-Json -InputObject $o -Compress";
 const CHECK_ACL_PS="$o=@()\nforeach($p in $q.dirs){$v=(Get-Item -LiteralPath $p.path).GetAccessControl('Access');$o+=[pscustomobject]@{dir=$p.rel;protected=$v.AreAccessRulesProtected;rules=@($v.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])).Count}}\nConvertTo-Json -InputObject $o -Compress";
+
+// One PS 5.1 child dot-sources the maintenance copy of switch-login-task.ps1 (import-safe) and drives the same
+// functions the tool uses. A recovery latch means wait, not fail (ST1 round 3). Same body as M1 deploy.
+const SWITCH_PS=String.raw`. $q.switch
+function Test-Latch($b){Test-Path -LiteralPath (Join-Path $b.Login.state_directory 's6-recovery-pending.json')}
+function Test-TaskActive([string]$n){(Invoke-Schema6TaskOperation -Operation State -TaskName $n) -in @(2,4)}
+function Assert-NotLive($b,[string]$what){$s=@(Get-Schema6LiveSessions $b);try{if($s.Count -ne 0){throw ($what+'_session_still_live')}}finally{foreach($x in $s){$x.Lease.Dispose()}}}
+function Wait-LatchClear($b,[string]$n,[int]$sec){
+ $w=[Diagnostics.Stopwatch]::StartNew()
+ while(Test-Latch $b){if($w.Elapsed.TotalSeconds -ge $sec){throw 'recovery_latch_not_cleared'};if(-not (Test-TaskActive $n)){throw 'task_stopped_during_recovery'};Start-Sleep -Seconds 3}
+}
+function Wait-ReadyThroughRecovery([string]$n,$b,[string[]]$prev,[int]$sec){
+ $w=[Diagnostics.Stopwatch]::StartNew();$seen=$false
+ while($true){
+  $left=$sec-[int]$w.Elapsed.TotalSeconds
+  if($left -le 0){throw 'ready_timeout'}
+  if(Test-Latch $b){
+   if(-not $seen){$seen=$true;Write-Schema6Step 'wait.recovery_running' $true $n}
+   if(-not (Test-TaskActive $n)){throw 'task_stopped_during_recovery'}
+   Start-Sleep -Seconds 3;continue
+  }
+  try{$null=Wait-Schema6LoginReady -Name $n -Binding $b -PreviousSessions $prev -TimeoutSeconds $left -HealthUrl '';return $seen}
+  catch{if($_.Exception.Message -notlike 'recovery_pending_manual_review_required*'){throw};$seen=$true;Write-Schema6Step 'wait.recovery_running' $true $n;Start-Sleep -Seconds 3}
+ }
+}
+$old=$null;$new=$null
+try{
+ $pair=Invoke-Schema6Step 'switch.preflight' {
+  $o=Get-Schema6LoginBinding $q.from;$n=Get-Schema6LoginBinding $q.to
+  if(-not $o.Login.state_directory.Equals($n.Login.state_directory,[StringComparison]::OrdinalIgnoreCase)){throw 'same_data_root_required'}
+  if(-not $o.McpPort -or -not $n.McpPort){throw 'both_core_and_mcp_ports_required'}
+  Assert-Schema6NoRecovery $o;Assert-Schema6NoRecovery $n
+  [pscustomobject]@{From=$o;To=$n}
+ }
+ $old=$pair.From;$new=$pair.To
+ $clean=$true
+ try{Assert-Schema6TaskUnchanged $q.from $old;$null=Invoke-Schema6StopBinding $old}catch{$clean=$false;Write-Schema6Step 'switch.stop_old_unclean' $false $_.Exception.Message}
+ Invoke-Schema6Step 'switch.old_gone' {Assert-NotLive $old 'old';$w=[Diagnostics.Stopwatch]::StartNew();while(Test-TaskActive $q.from){if($w.Elapsed.TotalSeconds -ge 30){throw 'old_task_still_running'};Start-Sleep -Milliseconds 200}}
+ Write-Schema6Step 'switch.stop_old_clean' $clean ''
+}catch{Write-Schema6Step 'switch.not_started' $false $_.Exception.Message;exit 13}
+$prev=@(Get-Schema6SessionDirectories $new)
+try{
+ Invoke-Schema6Step 'switch.disable_old' {Invoke-Schema6TaskOperation -Operation Disable -TaskName $q.from}
+ Invoke-Schema6Step 'switch.enable_new' {Assert-Schema6TaskUnchanged $q.to $new;Invoke-Schema6TaskOperation -Operation Enable -TaskName $q.to}
+ Invoke-Schema6Step 'switch.start_new' {Assert-Schema6TaskUnchanged $q.to $new;Invoke-Schema6TaskOperation -Operation Start -TaskName $q.to}
+ $r=Wait-ReadyThroughRecovery $q.to $new $prev 360
+ Write-Schema6Step 'switch.ready_new' $true $(if($r){'after_recovery'}else{'direct'})
+ exit 0
+}catch{Write-Schema6Step 'switch.failure' $false $_.Exception.Message}
+try{
+ Invoke-Schema6Step 'fallback.latch_clear' {if(Test-TaskActive $q.to){Wait-LatchClear $new $q.to 180}elseif(Test-Latch $new){throw 'recovery_latch_left_manual_review'}}
+ try{$null=Invoke-Schema6StopBinding -Binding $new -PreviousSessions $prev}catch{Write-Schema6Step 'fallback.stop_new_note' $false $_.Exception.Message}
+ Invoke-Schema6Step 'fallback.new_gone' {Assert-NotLive $new 'new';$w=[Diagnostics.Stopwatch]::StartNew();while(Test-TaskActive $q.to){if($w.Elapsed.TotalSeconds -ge 30){throw 'new_task_still_running'};Start-Sleep -Milliseconds 200}}
+ Invoke-Schema6Step 'fallback.disable_new' {Invoke-Schema6TaskOperation -Operation Disable -TaskName $q.to}
+ $prev2=@(Get-Schema6SessionDirectories $old)
+ Invoke-Schema6Step 'fallback.enable_old' {Assert-Schema6TaskUnchanged $q.from $old;Invoke-Schema6TaskOperation -Operation Enable -TaskName $q.from}
+ Invoke-Schema6Step 'fallback.start_old' {Invoke-Schema6TaskOperation -Operation Start -TaskName $q.from}
+ $r=Wait-ReadyThroughRecovery $q.from $old $prev2 360
+ Write-Schema6Step 'fallback.ready_old' $true $(if($r){'after_recovery'}else{'direct'})
+ exit 10
+}catch{Write-Schema6Step 'fallback.manual_review' $false $_.Exception.Message;exit 12}
+`;
 
 async function main(){
  const a=process.argv.slice(2);
@@ -99,16 +162,10 @@ async function main(){
  const dirs=['','runtime',path.join('runtime','i_remote_mcp'),path.join('runtime','i_memory')];
  const buildRel='build/a1-candidate-'+randomBytes(4).toString('hex'),build=path.join(REPO,...buildRel.split('/'));
  let r=run(process.execPath,[path.join(REPO,'tools','i_remote_mcp','chatgpt_candidate.mjs'),'--out',buildRel],{cwd:REPO,step:'step1'});
- need(r.code===0,'step1','candidate_build_failed');
+ need(r.code===0,'step1','candidate_build_failed:'+lastErr(r));
  const cm=readJson(path.join(build,'manifest.json'),null,'step1');
  need(cm.changed_files===5&&cm.source_commit===HEAD&&cm.files.length===6,'step1','candidate_manifest');
- for(const f of cm.files){
-  const builtPath=path.join(build,'runtime',...f.path.split('/'));
-  need(existsSync(builtPath)&&fileSha(builtPath)===f.result_sha256,'step1','candidate_hash:'+f.path);
-  if(f.path==='i_remote_mcp/server.mjs')need(short(f.result_sha256)!==OLD_SERVER,'step1','server_unchanged');
-  else if(!['i_remote_mcp/oauth.mjs','i_remote_mcp/diagnostics.mjs'].includes(f.path))need(MCP_EXPECTED[f.path]===short(f.result_sha256),'step1','candidate_hash:'+f.path);
- }
- need(new Set(cm.files.map(f=>f.path)).size===6&&cm.files.some(f=>f.path==='i_remote_mcp/server.mjs'),'step1','candidate_inventory');
+ for(const f of cm.files)need(MCP_EXPECTED[f.path]===short(f.result_sha256),'step1','candidate_hash:'+f.path+':'+short(f.result_sha256));
  const built=files(build).map(p=>path.relative(build,p)).sort();
  if(!existsSync(CAND)){
   for(const d of dirs){need(existsSync(path.join(oldCand,d)),'step1','old_candidate_dir_missing:'+(d||'.'));mkdirSync(path.join(CAND,d),{recursive:true});}
@@ -120,21 +177,21 @@ async function main(){
  for(const rel of built)need(fileSha(path.join(CAND,rel))===fileSha(path.join(build,rel)),'step1','copy_mismatch:'+rel);
  const acl=asList(value(CHECK_ACL_PS,{dirs:dirs.map(d=>({rel:d||'.',path:d?path.join(CAND,d):CAND}))},'step1'));
  need(acl.length===dirs.length&&acl.every(x=>x.protected===true&&x.rules>0),'step1','candidate_acl_check');
- emit('step1',true,{candidate:'mcp-candidate-'+HEAD.slice(0,8),server:short(cm.files.find(f=>f.path==='i_remote_mcp/server.mjs').result_sha256)});
+ emit('step1',true,{candidate:'mcp-candidate-'+HEAD.slice(0,8),server:MCP_EXPECTED['i_remote_mcp/server.mjs']});
 
  // 2. New task registered disabled, then switch (or fall back to the live task).
  const c1=['--from-task',ACTIVE,'--candidate',CAND,'--out',SETTINGS,'--new-task',NEW];
  r=run(process.execPath,[path.join(MT,'update-mcp-source.mjs'),...c1,'--dry-run'],{step:'step2'});
  const dry=rows(r.stdout).find(x=>x.step==='update.result');
- need(r.code===0&&dry?.detail==='dry_run_passed','step2','c1_dry_run_failed');
+ need(r.code===0&&dry?.detail==='dry_run_passed','step2','c1_dry_run:'+(rows(r.stdout).find(x=>x.ok===false)?.detail??r.code));
  r=run(process.execPath,[path.join(MT,'update-mcp-source.mjs'),...c1],{step:'step2'});
- need(r.code===0&&rows(r.stdout).find(x=>x.step==='update.result')?.detail==='registered_disabled','step2','c1_failed');
- const t0=Date.now();r=run(PS(),[...PSARGS,'-File',path.join(MT,'switch-login-task.ps1'),'-FromTask',ACTIVE,'-ToTask',NEW,'-ReadyTimeoutSeconds','360'],{step:'step2',timeoutMin:18});
- for(const row of rows(r.stdout))if(row.step!==undefined)emit('step2:'+row.step,row.ok!==false,typeof row.detail==='string'&&/^[a-z0-9_.-]{1,64}$/.test(row.detail)?row.detail:'redacted');
+ need(r.code===0&&rows(r.stdout).find(x=>x.step==='update.result')?.detail==='registered_disabled','step2','c1:'+(rows(r.stdout).find(x=>x.ok===false)?.detail??r.code));
+ const t0=Date.now();r=ps51(SWITCH_PS,{switch:path.join(MT,'switch-login-task.ps1'),from:ACTIVE,to:NEW},'step2',18);
+ for(const row of rows(r.stdout))if(row.step!==undefined)emit('step2:'+row.step,row.ok!==false,typeof row.detail==='string'?row.detail.slice(0,240):row.detail);
  const after=tasks('step2'),running=after.filter(t=>t.state==='Running').map(t=>t.name),seconds=Math.round((Date.now()-t0)/1000);
- if(r.code!==0)throw new Stop('step2',(r.code===1?'switch_failed_old_restored':'manual_review_required:'+r.code)+';running='+(running.join(',')||'none')+';seconds='+seconds);
+ if(r.code!==0)throw new Stop('step2',(r.code===10?'switch_failed_old_restored':r.code===13?'not_started_old_untouched':'manual_review_required:'+r.code)+';running='+(running.join(',')||'none')+';seconds='+seconds);
  const cur=after.find(t=>t.name===NEW);
- need(cur?.state==='Running'&&serverOf(loginOf(cur,'step2'),'step2')===short(cm.files.find(f=>f.path==='i_remote_mcp/server.mjs').result_sha256),'step2','new_not_running_candidate');
+ need(cur?.state==='Running'&&serverOf(loginOf(cur,'step2'),'step2')===MCP_EXPECTED['i_remote_mcp/server.mjs'],'step2','new_not_running_candidate');
  need(after.every(t=>t.name===NEW||t.state==='Disabled'),'step2','final_task_states');
  emit('step2',true,{running:NEW,old_task:'Disabled',seconds});
 
@@ -142,7 +199,7 @@ async function main(){
  let listening=false;for(let i=0;i<20&&!listening;i++){listening=!(await portFree(LISTEN_PORT));if(!listening)await new Promise(res=>setTimeout(res,1500));}
  need(listening,'step3','heart_rate_listener_not_up');
  emit('step3',true,{heart_rate_listener:'up'});
- emit('done',true,{running:NEW,server:short(cm.files.find(f=>f.path==='i_remote_mcp/server.mjs').result_sha256),frontend:'here_i_am_app'});
+ emit('done',true,{running:NEW,server:MCP_EXPECTED['i_remote_mcp/server.mjs'],frontend:'here_i_am_app'});
 }
 
-main().catch(e=>{emit(e.step??'unexpected',false,e instanceof Stop ? String(e.detail).replace(/[^a-zA-Z0-9_:;,.=-]/g,'_').slice(0,240) : 'unexpected_error');process.exitCode=1;});
+main().catch(e=>{emit(e.step??'unexpected',false,e.detail??String(e.message).slice(0,300));process.exitCode=1;});
