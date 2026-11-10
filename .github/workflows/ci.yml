@@ -130,7 +130,7 @@ jobs:
         run: node --test tools/life_digest/*.test.mjs tools/relay_scripts/life_digest_update/*.test.mjs
       - name: i_core domain store, server and activity suites (platform-neutral)
         # The remaining i_core suites need Windows: see the icore-windows job.
-        # runtime_pin runs in no CI job (it needs one exact local Node build).
+        # runtime_pin and runtime_upgrade/r3 run in no CI job (reasons there).
         run: >-
           node --test
           tools/i_core/activity_control_plane.test.mjs
@@ -197,17 +197,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: shortcut_mail_relay, migration supervision and runtime upgrade
+      - name: shortcut_mail_relay and migration supervision
         shell: pwsh
         # These suites spawn powershell.exe or rely on Windows process semantics,
-        # so the Linux bridge-node job cannot run them. runtime_pin stays out:
-        # it needs one exact Node build at a fixed local path.
+        # so the Linux bridge-node job cannot run them. Two suites stay out:
+        # runtime_pin needs one exact Node build at a fixed local path, and
+        # runtime_upgrade/r3 needs new directories owned by the user SID, which
+        # an elevated hosted runner does not give without a token-owner shim.
         run: |
           $tests = @(
             'tools/i_core/shortcut_mail_relay.test.mjs',
             'tools/i_core/migration_m3/supervision.test.mjs'
           )
-          $tests += @(Get-ChildItem tools/i_core/runtime_upgrade/r3 -Filter '*.test.mjs' | Sort-Object Name | ForEach-Object { $_.FullName })
           node --test @tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
