@@ -68,6 +68,34 @@ void main() {
         GptLiveProtocol.maxInstructionChars,
       );
     });
+
+    test('委托模型为空时不带 delegation，非空时带 Responses 联网配置', () {
+      for (final delegateModel in <String?>[null, '']) {
+        final body = GptLiveProtocol.buildSessionRequest(
+          offerSdp: 'sdp',
+          instructions: 'instructions',
+          delegateModel: delegateModel,
+        );
+        expect((body['session'] as Map).containsKey('delegation'), isFalse);
+      }
+
+      final body = GptLiveProtocol.buildSessionRequest(
+        offerSdp: 'sdp',
+        instructions: 'instructions',
+        delegateModel: 'gpt-5.6-terra',
+      );
+      expect((body['session'] as Map)['delegation'], {
+        'type': 'responses',
+        'responses': {
+          'model': 'gpt-5.6-terra',
+          'instructions': GptLiveProtocol.delegateInstructions,
+          'tools': [
+            {'type': 'web_search'},
+          ],
+          'tool_choice': 'auto',
+        },
+      });
+    });
   });
 
   group('trimHistory', () {
@@ -264,6 +292,22 @@ void main() {
     expect(s.trimRight(), endsWith('## 用户补充说明\n叫我小橙'));
   });
 
+  test('buildInstructions 只在可委托时包含后台规则', () {
+    final withoutDelegation = GptLiveCall.buildInstructions(
+      name: '林埃',
+      persona: '温柔',
+      now: DateTime(2026, 11, 1, 9, 5),
+    );
+    final withDelegation = GptLiveCall.buildInstructions(
+      name: '林埃',
+      persona: '温柔',
+      now: DateTime(2026, 11, 1, 9, 5),
+      canDelegate: true,
+    );
+    expect(withoutDelegation, isNot(contains('交给后台')));
+    expect(withDelegation, contains('交给后台'));
+  });
+
   test('通话记录可存可读，原因文字可读', () {
     final r = GptLiveCallRecord(
       startedAt: DateTime(2026, 11, 7, 23, 5),
@@ -295,4 +339,3 @@ void main() {
     );
   });
 }
-

@@ -74,6 +74,7 @@ class GptLiveCall extends ChangeNotifier {
         );
       }
       final voice = await GptLiveSettings.getVoice();
+      final delegateModel = await GptLiveSettings.getDelegateModel();
       final idleHangupMinutes = await GptLiveSettings.getIdleHangupMinutes();
       final userId = await UserStorage.getUserId();
       final character = userId == null
@@ -96,6 +97,7 @@ class GptLiveCall extends ChangeNotifier {
         now: DateTime.now(),
         extra: await GptLiveSettings.getExtraInstructions(),
         callReason: callReason,
+        canDelegate: delegateModel.isNotEmpty,
       );
       final history = [...await _loadHistory()];
       if (isNudge) {
@@ -150,6 +152,7 @@ class GptLiveCall extends ChangeNotifier {
           instructions: instructions,
           history: history,
           voice: voice,
+          delegateModel: delegateModel,
         ),
       );
       await pc.setRemoteDescription(
@@ -423,6 +426,7 @@ class GptLiveCall extends ChangeNotifier {
     required DateTime now,
     String extra = '',
     String callReason = '',
+    bool canDelegate = false,
   }) {
     String two(int n) => n.toString().padLeft(2, '0');
     final time =
@@ -438,6 +442,11 @@ class GptLiveCall extends ChangeNotifier {
       ..writeln('- 用户换成哪种语言，你就跟着用哪种语言。')
       ..writeln('- 之前的聊天记录已经给你了，接着那些内容自然聊，不要复述。')
       ..writeln('- 用户说要挂了，就简短道别。');
+    if (canDelegate) {
+      buf.writeln(
+        '- 用户问到需要查最新信息、核对事实或仔细想的问题时，交给后台去查，先自然地应一声；拿到结果再用你自己的话说，不要编。',
+      );
+    }
     if (callReason.trim().isNotEmpty) {
       buf
         ..writeln()
