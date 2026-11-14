@@ -40,6 +40,27 @@ class Settings(context: Context) {
             .putFloat("dark", s.thresholds.dark).putInt("cooldown", s.cooldownMinutes)
             .putString("server", s.server).putString("topic", s.topic).putLong("release", s.releaseUntil).commit())
     }
+    fun readLook(): LookConfig = LookConfig(
+        enabled = prefs.getBoolean("look_enabled", false),
+        server = prefs.getString("look_server", "")!!, token = prefs.getString("look_token", "")!!,
+        gimbal = prefs.getString("look_gimbal", "")!!, gimbalToken = prefs.getString("look_gimbal_token", "")!!,
+        positions = runCatching { LookProtocol.parsePositions(prefs.getString("look_positions", "")!!) }.getOrDefault(linkedMapOf()),
+        pausedUntil = prefs.getLong("look_paused_until", 0),
+        invertPan = prefs.getBoolean("look_invert_pan", false), invertTilt = prefs.getBoolean("look_invert_tilt", false),
+        fovDegrees = prefs.getFloat("look_fov", 70f),
+    )
+    fun writeLook(l: LookConfig) {
+        check(prefs.edit().putBoolean("look_enabled", l.enabled).putString("look_server", l.server)
+            .putString("look_token", l.token).putString("look_gimbal", l.gimbal).putString("look_gimbal_token", l.gimbalToken)
+            .putString("look_positions", LookProtocol.formatPositions(l.positions)).putLong("look_paused_until", l.pausedUntil)
+            .putBoolean("look_invert_pan", l.invertPan).putBoolean("look_invert_tilt", l.invertTilt)
+            .putFloat("look_fov", l.fovDegrees).commit())
+    }
+    var lookPausedUntil: Long
+        get() = prefs.getLong("look_paused_until", 0)
+        set(value) { check(prefs.edit().putLong("look_paused_until", value).commit()) }
+    /** The foreground service is needed for night monitoring, on-demand looks, or both. */
+    fun serviceWanted(): Boolean = read().enabled || readLook().enabled
     var lastPush: Long?
         get() = prefs.getLong("lastPush", -1).takeIf { it >= 0 }
         set(value) { check(prefs.edit().putLong("lastPush", value ?: -1).commit()) }
