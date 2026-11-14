@@ -6,6 +6,7 @@
 
 ### 生产
 - schema6 Core 已上线（D1b，10-22 完成）。10-31 起现役登录任务为 `HereIAm-iCoreSchema6-n2-food-20261031`（Core 为 v3-lab `42ecf688` 新包，manifest `9897fb41`；MCP 为 N2b 候选，含食物工具；食物领域已开通）；此前的 n2-pkg、d2b、d2a、d4、d3fix、d1d3、P′、旧任务和 P 停用保留，不删。
+- 11-10 起现役登录任务为 `HereIAm-iCoreSchema6-app-mcp-20261110`（MCP server 候选 `0a58eb1b`＝N2 笔记 + A1 App 只读前端 `here_i_am_app`；#119）。n2-notes 及更早任务停用保留。
 - 前端：claude_web、chatgpt_web、gemini_web、antigravity 都已与 Core 配对，读取策略 `auto_share_origins` 为这四个。Claude、ChatGPT 10-23 真人验收通过；Antigravity 10-24 验收通过；Gemini 能添加，但对话里工具调用不生效（疑 Gemini 侧，未排查）。
 - 维护工具副本：`<OUT>\tools-dddff0f1`（v3-lab `dddff0f`，含 #45 宿主检查、#47 ready 容差）。旧副本 `tools-3baf72d`、`tools-302a62c0` 保留；以后登记从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1（pwsh 7 会误报 `login_core_port_invalid`）。
 - relay watcher：已按 A4 迁移为 `conhost --headless` 启动，codex 路径每轮自动查找，Codex 更新后不需要重新注册。
