@@ -8,6 +8,7 @@
 | [FLEXNOTE_MCP.md](FLEXNOTE_MCP.md) | FlexNote 1.1.57：开启与连接、官方能力分类、只读模式、已知工具名、限制与易错点 |
 | [FEISHU_NOTES_RESEARCH_20261021.md](FEISHU_NOTES_RESEARCH_20261021.md) | 调研稿与实测结论（F1）：飞书替代思源做学习笔记，官方 CLI 接入，多维表格账本，个人账号被拦截的绕过办法 |
 | [GEMINI_REMOTE_MCP_RESEARCH_20261023.md](GEMINI_REMOTE_MCP_RESEARCH_20261023.md) | 调研稿（D3）：消费者版 Gemini 能否接自定义远程 MCP、资格限制、OAuth 兼容差距、Gems 迁移 Skills 的影响 |
+| [FEISHU_CLOUD_ASSISTANT_GUIDE.md](FEISHU_CLOUD_ASSISTANT_GUIDE.md) | 通用方案（dot 试点验证）：让带命令行的云端助手用官方 CLI 读写飞书，含接入前检查、工作目录版安装、规则模板、开局自检、保活与续期 |
 
 ## 一页对比
 
