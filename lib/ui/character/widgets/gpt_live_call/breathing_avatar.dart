@@ -79,10 +79,14 @@ class _BreathingCallAvatarState extends State<BreathingCallAvatar>
             child: child,
           );
         },
-        child: CharacterAvatar(
-          avatar: widget.avatar,
-          name: widget.name,
-          size: 136,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          child: CharacterAvatar(
+            key: ValueKey(widget.avatar),
+            avatar: widget.avatar,
+            name: widget.name,
+            size: 136,
+          ),
         ),
       ),
     );

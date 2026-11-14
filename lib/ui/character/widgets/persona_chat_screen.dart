@@ -8862,8 +8862,7 @@ class _UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CharacterAvatar(
-      avatar:
-          avatar ?? (name.isNotEmpty ? name : UserStorage.defaultAvatarSeed),
+      avatar: avatar,
       name: name,
       size: size,
       backgroundColor: _personaAccentCool.withValues(alpha: 0.22),

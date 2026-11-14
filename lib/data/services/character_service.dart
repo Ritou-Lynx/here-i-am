@@ -41,7 +41,7 @@ class CharacterService extends ChangeNotifier {
   CharacterService._();
 
   /// Resolve relative media paths (avatar, chatBackground) to absolute.
-  /// Absolute paths (legacy) and DiceBear seeds are returned as-is.
+  /// Absolute paths and legacy non-image values are returned as-is.
   CharacterModel _resolveMediaPaths(CharacterModel character) {
     final avatar = character.avatar;
     final bg = character.chatBackground;
@@ -68,7 +68,7 @@ class CharacterService extends ChangeNotifier {
   }
 
   /// Returns true if the avatar value looks like a relative file path
-  /// (not a DiceBear seed, not already absolute).
+  /// (not a legacy non-image value, not already absolute).
   static bool isRelativeAvatarPath(String avatar) {
     if (avatar.startsWith('/')) return false; // already absolute
     final lower = avatar.toLowerCase();
@@ -135,7 +135,6 @@ class CharacterService extends ChangeNotifier {
     final yaml = <String, dynamic>{
       'name': 'I',
       'tags': const <String>[],
-      'avatar': 'i',
       'enabled': true,
       'is_primary_companion': true,
     };
@@ -159,7 +158,6 @@ class CharacterService extends ChangeNotifier {
           existing['name'] = 'I';
           existing['tags'] ??= const <String>[];
           _stripLegacyFields(existing);
-          existing['avatar'] ??= 'i';
           existing['enabled'] = true;
           existing['is_primary_companion'] = true;
           await _fileSystem.writeYamlFile(charFile, existing);

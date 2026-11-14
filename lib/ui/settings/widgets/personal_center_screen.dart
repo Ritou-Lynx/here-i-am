@@ -115,7 +115,7 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
   Future<void> _changeAvatar() async {
     final picked = await showAvatarPicker(
       context,
-      _userAvatar ?? UserStorage.defaultAvatarSeed,
+      _userAvatar ?? '',
       onPickGallery: _pickUserAvatarFromGallery,
     );
     if (picked == null || !mounted) return;
@@ -300,7 +300,7 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
               ),
               child: ClipOval(
                 child: CharacterAvatar(
-                  avatar: _userAvatar ?? UserStorage.defaultAvatarSeed,
+                  avatar: _userAvatar,
                   name: _userId ?? '',
                   size: 62,
                 ),

@@ -19,7 +19,6 @@ import 'package:memex/data/services/gemini_auth_service.dart';
 import 'package:memex/domain/models/task_exceptions.dart';
 import 'package:memex/llm_client/codex_responses_client.dart';
 import 'package:memex/llm_client/gemini_oauth_client.dart';
-import 'package:memex/ui/core/widgets/dicebear_avatar.dart';
 
 /// Agent cache data structure
 class AgentCacheData {
@@ -1072,47 +1071,21 @@ class UserStorage {
     }
   }
 
-  /// Default avatar seed for DiceBear Notionists style.
-  static const String defaultAvatarSeed = 'Felix';
-
-  /// Legacy emoji avatar options — kept for migration detection only.
-  static const List<String> avatarOptions = ['Felix'];
-
   /// Get stored user avatar. Returns null if not set.
-  /// Automatically migrates legacy emoji avatars to DiceBear seeds.
   static Future<String?> getUserAvatar() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final avatar = prefs.getString(_keyUserAvatar);
-      if (avatar != null && _isLegacyEmoji(avatar)) {
-        // Migrate: replace emoji with user's nickname as seed
-        final userId = prefs.getString(_keyUserId);
-        final seed =
-            (userId != null && userId.isNotEmpty) ? userId : defaultAvatarSeed;
-        await prefs.setString(_keyUserAvatar, seed);
-        cacheAvatarSvg(seed); // Cache in background after migration
-        return seed;
-      }
-      return avatar;
+      return prefs.getString(_keyUserAvatar);
     } catch (e) {
       return null;
     }
   }
 
-  /// Check if a stored avatar is a legacy emoji (not a DiceBear seed).
-  static bool _isLegacyEmoji(String s) {
-    if (s.isEmpty) return false;
-    // Emoji strings are short and contain non-ASCII codepoints
-    return s.runes.length <= 7 && s.runes.any((r) => r > 255);
-  }
-
-  /// Save user avatar selection and cache the SVG locally.
+  /// Save the selected user avatar.
   static Future<void> saveUserAvatar(String avatar) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyUserAvatar, avatar);
-      // Cache SVG in background — don't block save
-      cacheAvatarSvg(avatar);
     } catch (e) {
       // ignore error
     }
