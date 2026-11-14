@@ -146,7 +146,7 @@ flutter:
     - assets/stickers/
     - assets/stickers/manifest.json
     - assets/stickers/zhedog/
-    - assets/branding/hereiam_v3_logo/
+    - assets/branding/hereiam_v3_logo/logo_foreground_ink_green_1024.png
     - assets/fonts/LXGWWenKai-OFL.txt
     - assets/fonts/Inter/OFL.txt
     - assets/fonts/whiteboard/CascadiaCode-OFL.txt

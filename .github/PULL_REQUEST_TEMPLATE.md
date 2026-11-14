@@ -1,54 +1,20 @@
 ## What changed
 
-<!-- Briefly describe the change. -->
+<!-- 简要说明改了什么。 -->
 
 ## Why
 
-<!-- Link the issue or explain the user problem. -->
-
-Closes #
-
-## Type of change
-
-- [ ] Bug fix
-- [ ] Feature
-- [ ] Enhancement
-- [ ] Documentation
-- [ ] Localization
-- [ ] Refactor
-- [ ] Tests
+<!-- 起因或对应的需求。 -->
 
 ## Risk areas
 
-- [ ] Database schema or migration
-- [ ] Local file storage, backup, or restore
-- [ ] App lock, security, or privacy boundary
-- [ ] Agent orchestration, skills, or background tasks
-- [ ] LLM provider configuration or authentication
-- [ ] iOS platform behavior
-- [ ] Android platform behavior
-- [ ] User-facing strings / localization
-- [ ] None of the above
-
-## Screenshots or recordings
-
-<!-- Required for UI changes. Drag images or videos here. -->
+- [ ] 数据库结构或迁移
+- [ ] 本地文件、备份或恢复
+- [ ] 生产 Core / i MCP / 本机计划任务
+- [ ] Agent 提示词、工具或后台任务
+- [ ] Android 原生行为
+- [ ] 以上都不涉及
 
 ## Test plan
 
-<!-- List the exact commands and manual checks you ran. -->
-
-- [ ] `flutter test`
-- [ ] `flutter analyze`
-- [ ] Manual iOS check
-- [ ] Manual Android check
-- [ ] Not run; reason:
-
-## Contributor checklist
-
-- [ ] I read `CONTRIBUTING.md`.
-- [ ] I kept this PR focused on one change.
-- [ ] I did not edit generated `*.g.dart` files manually.
-- [ ] I did not add telemetry, hidden network calls, secrets, or signing keys.
-- [ ] I updated docs or localization when needed.
-
+<!-- 跑过的命令和手动检查；没验证的部分也写明。 -->

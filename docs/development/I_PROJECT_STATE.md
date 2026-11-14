@@ -2,13 +2,15 @@
 
 本文件只写现状，供林埃（i）与各会话读取。2026-10-23 之前的逐日记录已移入 [历史归档](archive/I_PROJECT_STATE_HISTORY_20261023.md)，过程细节见 [DEVLOG](../../DEVLOG.md)，总指挥规则和计划见 [总指挥交接](handoffs/COMMANDER_HANDOFF_20261022.md)。
 
-## 当前状态（2026-10-24）
+## 当前状态（2026-11-10）
 
 ### 生产
-- schema6 Core 已上线（D1b，10-22 完成）。10-31 起现役登录任务为 `HereIAm-iCoreSchema6-n2-food-20261031`（Core 为 v3-lab `42ecf688` 新包，manifest `9897fb41`；MCP 为 N2b 候选，含食物工具；食物领域已开通）；此前的 n2-pkg、d2b、d2a、d4、d3fix、d1d3、P′、旧任务和 P 停用保留，不删。
-- 前端：claude_web、chatgpt_web、gemini_web、antigravity 都已与 Core 配对，读取策略 `auto_share_origins` 为这四个。Claude、ChatGPT 10-23 真人验收通过；Antigravity 10-24 验收通过；Gemini 能添加，但对话里工具调用不生效（疑 Gemini 侧，未排查）。
-- 维护工具副本：`<OUT>\tools-dddff0f1`（v3-lab `dddff0f`，含 #45 宿主检查、#47 ready 容差）。旧副本 `tools-3baf72d`、`tools-302a62c0` 保留；以后登记从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1（pwsh 7 会误报 `login_core_port_invalid`）。
-- relay watcher：已按 A4 迁移为 `conhost --headless` 启动，codex 路径每轮自动查找，Codex 更新后不需要重新注册。
+- schema6 Core 已上线（D1b，10-22 完成）。11-08 起现役登录任务为 `HereIAm-iCoreSchema6-n2-notes-20261108`：Core 包 `release-78e11df7`（manifest `ded493e5`，E3 记账随 #106 换入），MCP server 候选 `4b1014e0`（E3 记账 + N2 笔记工具，#109）。此前的 e3-expense、m1-digest、hr1-heart、n2-food 及更早任务停用保留，不删。
+- i MCP 现有工具：上下文与记忆（`i_context`、`i_chat_turn`、`i_recall`、`i_remember`）、饮食（`food_log`、`food_day`）、记账（`expense_log`、`expense_day`）、心率（`heart_rate`）、学习（`study_*`）、日摘要与待办（`life_digest`、`life_todo`）、飞书笔记只读（`notes_recent`、`notes_search`、`notes_read`）。各前端开放范围见对应 DEVLOG 条目。
+- 前端：claude_web、chatgpt_web、gemini_web、antigravity、sesame 都已与 Core 配对。Claude、ChatGPT、Antigravity、Sesame 真人验收通过；Gemini 能添加，但对话里工具调用不生效，用户 10-24 决定不再跟进。
+- 本机定时任务：`FeishuTutor-Daily`（06:30 学习账本）、`FeishuNotes-Mirror`（每 30 分钟加 19:20 笔记副本）、日摘要（04:30 定稿、07:30 晨间、19:30 白天版）。心率监听在本机 47866，经 tailscale serve 8447 访问。
+- 维护工具副本与换候选流程以最近一次部署合同为准（`docs/development/handoffs/RELAY_20261108_n2-notes-mcp.md`、`RELAY_20261108_e3-expense-deploy.md`）；以后换 MCP 候选以 n2-notes 任务为起点。维护脚本一律用 Windows PowerShell 5.1（pwsh 7 会误报 `login_core_port_invalid`）。
+- relay watcher：已按 A4 迁移为 `conhost --headless` 启动，codex 路径每轮自动查找。本机脚本经 relay 脚本轮执行（read 直接跑，write 等用户确认）。
 
 ### GPT-Live 通话页（2026-11-08，修复入库并已安装）
 - 服务端结束或接通后连接失败会自动退出；手动挂断先等待收尾，连接前错误保留提示。重复操作只退出一次，被其他页面覆盖时只移除通话页。
@@ -19,27 +21,29 @@
 ### 运维注意
 - STATE 中留有旧 shortcut-mail 日志库的 -wal/-shm，stop 最后一步会报 `database_sidecars_present`；只要 `stop.receipts` 已通过，会话就已干净关闭。
 - 任何时候都不要绕过闸门去改 STATE 内的文件。
-- 注销前先手动停服（L 注销强杀问题暂停，未修）。10-24 电脑重启后现役会话以 0xC000013A 退出、服务停摆，需手动 `Start-ScheduledTask` 拉起现役任务。
+- 注销前先手动停服（L 注销强杀问题暂停，未修）。电脑重启后现役会话以 0xC000013A 退出、服务停摆，需手动 `Start-ScheduledTask` 拉起现役任务。
+- 换候选后，旧会话里的 i 连接器会报 Bad Gateway，需开新会话确认。
 
 ### 最近完成
-- A1+A2（#33）、A4（#34/#35）、A3（#36）已合并；10-23 生产换用新工具副本（#37）。
-- C1（#38）：App 聊天时间线按来源显示 Claude / ChatGPT / Gemini / Antigravity。10-24 用 v3-lab 重建 debug 包覆盖安装（保留数据），真人验收通过。
-- relay 飞书 / Bark 通知（#41）已合并，本机测试送达成功；agent_relay 测试进 CI（#42）已合并。
-- D1（#40）+ D3（#44）：10-23 部署到生产。
-- #49（Gemini 回调允许下划线）与 D4（#50，Antigravity）：先后部署到生产（D4 于 10-24），Antigravity 真人验收通过。Gemini 工具调用不生效，用户决定不再跟进。
+- 11-10：电脑端 Dev Room bridge 自启移除并停用（#115）。
+- 11-10：全项目排查（#118）：删除不可达的 Dart 文件和上游遗留的 GitHub 配置，设计稿素材移出 App 打包，CI 补上 i_core、Python 和 Windows 专用测试。
+- 11-09：GPT-Live 通话页美化（#111）、通话入口合并与静音自动挂断（#113）、晨间摘要不再把旧待办当成今日安排（#116，#117 部署）。
+- 11-08：设置里的旧 memex 功能清理 A（#110：模型用量、异步任务页、自定义 Agent、Skills）与清理 B（#114：Dev Room 与项目记忆）；记账 E3 上线（#106）；飞书笔记工具 N2 上线（#109）；日摘要 M1（#101）；GPT-Live 记录结束原因（#107）、删除 5 个旧人设字段（#108）。
+- 11-07：催睡来电（#99）真机测试跑通；本机连续性网关 i bootstrap 退役（M6，#102）；饮食刷新报错修复（#90）。
+- 11-05：臂带实时心率进 i MCP（HR1，#91），11-07 验收。
+- 更早（10-22 至 11-03）：A1–A4 维护工具与 watcher、C1 来源标签、D1–D4 前端身份、D2 Sesame、F1 飞书学习导师、S1 床头哨兵、N1/N2 食物记录、三科每日学习流程，均已合并，过程见 DEVLOG。
 
 ### 进行中
-- D2a Sesame 回调探测（PR #55）：Sesame 走标准 DCR，但回调不在白名单，`/register` 400。诊断对未知回调记脱敏形状 `callback_shapes`，已合并并于 10-25 部署，读到回调形状后已完成 D2b。起因是催睡来电方案：三星例程拉起 Sesame，经 i MCP 取上下文。
-- F1 飞书学习导师：PR #51 审核通过，待合并。合并后用户按 `tools/feishu_tutor/README.md` 在本机配置（团队租户、工具目录和学习目录分开、建三张表、试跑、注册 Interactive 计划任务）；旧账本迁移另做；10-31 复测 refresh token 续期。
-
-- S1 床头哨兵：PR #58 审核通过，待合并。合并后把 APK 装到闲置小米上，用“调角度”页摆好支架；三星订阅 ntfy 并建例程（通知含“林埃来电” → Call Charlie）；先白天模拟，再整夜试跑。手机重启后要点一下通知才会恢复监测。
-- 食物记录：N1/N2a/N2b/N2c 已合并，10-31 经 N2 上线（#69、#71 修维护工具，#73 脚本轮执行）。剩余：三端真人验收，手机 App 重建后自动领 phone 令牌。
-
-- D2b Sesame 前端：#64 已合并，10-25 部署并通过真人验收（Sesame 读写上下文正常）。剩余：App 重建后核对 “Sesame” 来源标签。
+- 手机 App：需从 v3-lab 重装一次，之后验收账本投影、GPT-Live 通话页（实拨）、Sesame / Antigravity 来源标签。
+- 催睡来电：待整夜试跑后调阈值。
+- 心率：夜间记录导出后对照 COROS 定判睡阈值（H1）。
+- 摄像头按需查看 CAM1（#105）：代码已就绪，硬件到货实测前不合并。
+- 生活摘要 M2–M5 待开。
 
 ### 之后
-- R1 shortcut-mail 关闭前 checkpoint，留到下次换包一起做。
-- 数据中枢 P1：旧 #19 已关闭，分支 `codex/hub-golive-src-20261007` 保留作参考，D1/D2 之后拆分重做。
+- R1 shortcut-mail 关闭前 checkpoint，留到下次换包一起做；清理生产 STATE 里的旧 sidecar 需用户单独同意。
+- 注销 / 重启强杀会话（问题 L）未修，重启后仍需手动拉起现役任务。
+- 数据中枢 P1：旧 #19 已关闭，分支 `codex/hub-golive-src-20261007` 保留作参考。
 
 ### 长期边界
 - 唯一仓库 `Ritou-Lynx/here-i-am`，集成分支 `v3-lab`；各设备按 [多设备协作说明](MULTI_DEVICE_GITHUB_WORKFLOW.md) clone。仓库公开，不写 SID、本机绝对路径、域名、凭据或私人内容。
