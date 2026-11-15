@@ -175,7 +175,7 @@ class CallkitService {
   /// - remote http(s) URL → passed through
   /// - tokenized local-server URL (127.0.0.1) → resolved to file://<abs path>
   /// - bare absolute path → file://<path>
-  /// - DiceBear seed / unresolvable → null (built-in default avatar)
+  /// - Legacy non-image value / unresolvable → null (built-in default avatar)
   String? _resolveAvatar(String? avatar) {
     if (avatar == null || avatar.trim().isEmpty) return null;
 
@@ -194,7 +194,7 @@ class CallkitService {
     if (avatar.startsWith('/')) {
       return File(avatar).existsSync() ? 'file://$avatar' : null;
     }
-    // DiceBear seed or anything we can't turn into an image file.
+    // Legacy non-image value or anything we can't turn into an image file.
     return null;
   }
 

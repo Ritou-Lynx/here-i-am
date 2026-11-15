@@ -4,13 +4,17 @@ import android.app.ForegroundServiceStartNotAllowedException
 import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import androidx.lifecycle.LifecycleService
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 class BedWatchService : LifecycleService() {
     private val handler = Handler(Looper.getMainLooper())
@@ -18,6 +22,11 @@ class BedWatchService : LifecycleService() {
     private lateinit var settings: Settings
     private lateinit var camera: CameraSession
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var look: LookClient? = null
+    // CAM1: true while an on-demand look owns or shares the camera; night sampling waits for it.
+    @Volatile private var lookBusy = false
+    private var lookOwnsCamera = false
     private var config = WatchSettings()
     private var judge = AwakeJudge()
     @Volatile private var running = false
@@ -26,13 +35,13 @@ class BedWatchService : LifecycleService() {
     private val tick = object : Runnable {
         override fun run() {
             if (!running) return
-            if (!settings.read().enabled) { stopSelf(); return }
-            val inside = NightWindow.contains(LocalTime.now(), config.start, config.end)
-            if (inside && !inWindow) {
+            if (!settings.serviceWanted()) { stopSelf(); return }
+            val inside = config.enabled && NightWindow.contains(LocalTime.now(), config.start, config.end)
+            if (inside && !inWindow && !lookBusy) {
                 inWindow = true
                 camera.start(config.front, config.intervalSeconds * 1000L,
                     onError = { failToRecovery() }, onFrame = { frame -> process(frame) })
-            } else if (!inside && inWindow) {
+            } else if (!inside && inWindow && !lookBusy) {
                 camera.stop()
                 inWindow = false
                 // Do not carry yesterday's votes into the next monitoring window.
@@ -48,7 +57,7 @@ class BedWatchService : LifecycleService() {
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        if (!settings.read().enabled) { stopSelf(); return START_NOT_STICKY }
+        if (!settings.serviceWanted()) { stopSelf(); return START_NOT_STICKY }
         try {
             startForeground(WatchNotifications.RUNNING_ID, WatchNotifications.running(this, lastLabel),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
@@ -68,6 +77,7 @@ class BedWatchService : LifecycleService() {
                 "BedWatch:monitoring").also { it.acquire() }
             worker.execute { frameLog().cleanup(java.time.LocalDate.now()) }
             handler.post(tick)
+            if (settings.readLook().enabled) startLook()
         }
         return START_STICKY
     }
@@ -107,6 +117,50 @@ class BedWatchService : LifecycleService() {
             }
         }
     }
+    // ---------- CAM1 on-demand look ----------
+    private fun startLook() {
+        if (look != null) return
+        // Keep Wi-Fi awake with the screen off so the long poll and gimbal calls stay timely.
+        wifiLock = getSystemService(WifiManager::class.java)
+            .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "BedWatch:look").also { it.acquire() }
+        val runner = LookRunner(object : LookCamera {
+            override fun snap(warmupMs: Long): Snapshot? = snapOnce(warmupMs)
+            override fun release() = releaseLookCamera()
+        }) { cfg -> if (cfg.hasGimbal) Gimbal(cfg.gimbal, cfg.gimbalToken)::move else null }
+        look = LookClient({ settings.readLook() }, runner) {
+            handler.post { if (running) WatchNotifications.looked(this) }
+        }.also { it.start() }
+    }
+
+    /** Runs on the look thread. Opens the camera if night sampling is not already using it. */
+    private fun snapOnce(warmupMs: Long): Snapshot? {
+        val result = AtomicReference<Snapshot?>(null)
+        val done = CountDownLatch(1)
+        handler.post {
+            if (!running) { done.countDown(); return@post }
+            lookBusy = true
+            var warm = warmupMs
+            if (!camera.isActive) {
+                lookOwnsCamera = true
+                warm = maxOf(warm, 1200L) // let auto-exposure settle on a cold start
+                camera.start(settings.read().front, Long.MAX_VALUE, onError = { done.countDown() }, onFrame = { })
+            }
+            camera.requestSnapshot(warm) { snap -> result.set(snap); done.countDown() }
+        }
+        if (!done.await(10, TimeUnit.SECONDS)) {
+            handler.post { camera.cancelSnapshot() }
+            return null
+        }
+        return result.get()
+    }
+
+    private fun releaseLookCamera() {
+        handler.post {
+            if (lookOwnsCamera) { camera.stop(); lookOwnsCamera = false }
+            lookBusy = false
+        }
+    }
+
     private fun failToRecovery() {
         running = false
         WatchNotifications.recover(this, RecoveryCause.FOREGROUND_REJECTED)
@@ -115,6 +169,9 @@ class BedWatchService : LifecycleService() {
     override fun onDestroy() {
         running = false
         handler.removeCallbacksAndMessages(null)
+        look?.stop()
+        look = null
+        wifiLock?.let { if (it.isHeld) it.release() }
         camera.close()
         worker.shutdownNow()
         wakeLock?.let { if (it.isHeld) it.release() }

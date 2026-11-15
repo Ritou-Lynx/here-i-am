@@ -168,6 +168,7 @@ enabled: true
       expect(characters, hasLength(1));
       expect(characters.single.id, 'i');
       expect(characters.single.name, 'I');
+      expect(characters.single.avatar, isNull);
       expect(characters.single.enabled, isTrue);
       expect(characters.single.isPrimaryCompanion, isTrue);
     });

@@ -556,6 +556,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _gptLiveIdleController = TextEditingController();
   GptLiveCallRecord? _gptLiveLastCall;
   String _gptLiveVoice = GptLiveProtocol.defaultVoice;
+  String _gptLiveDelegateModel = 'gpt-5.6-luna';
   CallEngine _callEngine = CallEngine.gptLive;
   final _nudgeServerController = TextEditingController();
   final _nudgeTopicController = TextEditingController();
@@ -592,6 +593,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
       GptLiveSettings.getExtraInstructions(),
       GptLiveSettings.getLastCallRecord(),
       GptLiveSettings.getIdleHangupMinutes(),
+      GptLiveSettings.getDelegateModel(),
       CallEngineSettings.get(),
     ]);
     if (!mounted) return;
@@ -608,7 +610,8 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     _gptLiveExtraController.text = values[10] as String? ?? '';
     _gptLiveLastCall = values[11] as GptLiveCallRecord?;
     _gptLiveIdleController.text = (values[12] as int).toString();
-    _callEngine = values[13] as CallEngine;
+    _gptLiveDelegateModel = values[13] as String;
+    _callEngine = values[14] as CallEngine;
     _callHealth = await VoiceCallHealth.instance.load();
     await _loadNudge();
     if (!mounted) return;
@@ -687,6 +690,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
     await GptLiveSettings.setExtraInstructions(_gptLiveExtraController.text);
     await GptLiveSettings.setIdleHangupMinutes(
         _nudgeInt(_gptLiveIdleController, 5));
+    await GptLiveSettings.setDelegateModel(_gptLiveDelegateModel);
     await CallEngineSettings.set(_callEngine);
     await _saveNudge();
     // 家里电脑声音失败时用 MiniMax 顶上，所以也保存 MiniMax 的配置。
@@ -1042,6 +1046,27 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                     helperText: '双方都没说话超过这么久就挂断，0 表示不自动挂',
                     helperMaxLines: 2,
                   ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _gptLiveDelegateModel,
+                  decoration: const InputDecoration(
+                    labelText: '后台模型（查资料 / 深度思考）',
+                    helperText: '通话中需要联网或仔细想时交给它；只在用到时另外计费',
+                    helperMaxLines: 2,
+                  ),
+                  items: [
+                    for (final option in delegateModelOptions.entries)
+                      DropdownMenuItem(
+                        value: option.key,
+                        child: Text(option.value),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _gptLiveDelegateModel = value);
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(

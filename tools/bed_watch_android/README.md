@@ -49,8 +49,22 @@ adb install -r tools/bed_watch_android/app/build/outputs/apk/debug/app-debug.apk
 
 ## 隐私与验证范围
 
-图像只在内存使用。没有拍照保存、视频编码、图像上传或云端视觉路径。ML Kit bundled 模型无需首次联网下载；Y 平面只在单次分析内使用，用完清零并关闭 `ImageProxy`。仅标量特征可以交给日志/推送线程。App 禁止系统备份，未声明任何外部存储权限；设置保存在本机私有 preferences。
+图像只在内存使用。夜间判醒没有拍照保存、视频编码、图像上传或云端视觉路径。唯一的例外是下面的 CAM1「按需看一眼」：只有用户打开开关、电脑端发来请求时，才把这一帧在内存里压成 JPEG，经家里局域网交给电脑，不写盘。ML Kit bundled 模型无需首次联网下载；Y 平面只在单次分析内使用，用完清零并关闭 `ImageProxy`。仅标量特征可以交给日志/推送线程。App 禁止系统备份，未声明任何外部存储权限；设置保存在本机私有 preferences。
 
 JVM 测试覆盖亮度、旋转坐标、判定阈值/投票/冷却/放行/窗口、恢复通知策略、真实回环 HTTP 请求/读取超时/重试、七字段日志及保留期限。测试中的 HTTP 回环连接通过传输构造注入，生产默认传输仍强制 HTTPS。它们不代替小米相机、系统进程重建、开机通知和三星例程的真机验收；Relay 不构建 APK、不安装、不操作手机。
 
 参考：[Android camera 前台服务限制](https://developer.android.com/develop/background-work/services/fgs/service-types#camera)、[CameraX 内存图像分析](https://developer.android.com/media/camera/camerax/analyze)、[ntfy 官方文档](https://docs.ntfy.sh/)的 Publishing / Title 一节。
+
+## CAM1：林埃按需看一眼（只在家里局域网）
+
+默认关闭。打开后，这台手机会和家里电脑上的 i MCP 保持一条长连接（`GET /v1/camera/next`）。林埃调用 `camera_look` 时，电脑先确认用户的手机在家里 Wi-Fi 上（看 Tailscale 是不是走局域网直连），再把请求发给这台手机。手机按需转动云台，拍一帧，在内存里压成 JPEG（长边不超过 960 像素），`POST /v1/camera/frame` 交回电脑，用完就清零。
+
+- **只走局域网**：电脑地址和云台地址必须是 `http://` 加私有 IPv4（10/172.16–31/192.168）。为此打开了 `usesCleartextTraffic`，代码里只放行这类地址；ntfy 仍强制 https。
+- **口令**：相机口令（至少 32 个字符）和云台口令只保存在本机 preferences，不进仓库。电脑上的 `camera.json` 只存相机口令的 sha256。
+- **提示与暂停**：每看一次，通知栏会出现“林埃看了你一眼 · HH:mm”，带一个“1 小时内别看”按钮；主界面也有“现在别看 / 恢复”。暂停期间，电脑会收到 `paused`，林埃会如实转告。
+- **夜间共用相机**：如果监测窗口里相机已经开着，就直接取下一帧；如果没开，就临时打开，等 1.2 秒让曝光稳定，拍完马上关掉。按需拍摄进行中，夜间采样会顺延，按需拍的那一帧不计入判醒投票。
+- **预置位**：格式是 `名字=左右角,上下角;…`，比如 `床=90,70;书桌=150,85;门口=30,90`，名字要和电脑上 `camera.json` 的 `positions` 一致。没接云台时，这些预置位会被忽略，只拍当前画面。
+- **找我（find_me）**：按预置位顺序依次转过去、拍一帧并用 ML Kit 找人脸。找到后，按脸在画面里的位置把云台修正一次，让人居中，再拍最终那一张。所有位置都没找到人，就返回 `not_found`。如果修正的方向反了，在设置里勾上“方向反了”。
+- **上传字段**：`X-Camera-Meta` 只带 `face`、`eyes_open`、`luma`、`found`、`reached` 这几个字段，不带像素，也不带人脸框坐标。
+
+纯逻辑在 `LookProtocol`（地址校验、预置位、请求解析、meta 编码、居中计算）和 `LookRunner`（暂停、转动、找我扫描），由 `LookProtocolTest`、`LookRunnerTest` 在 JVM 上测试。相机编码、长连接和通知需要真机验收。云台硬件和固件见 `tools/bed_watch_gimbal/`，电脑端见 `tools/i_remote_mcp/camera.mjs`。

@@ -74,6 +74,7 @@ import 'package:memex/data/services/voice_session_router.dart';
 import 'package:health/health.dart';
 import 'package:memex/domain/models/timeline_card_model.dart';
 import 'package:memex/utils/logger.dart';
+import 'package:memex/utils/legacy_avatar_cache_cleaner.dart';
 import 'package:memex/utils/toast_helper.dart';
 import 'package:memex/ui/main_screen/widgets/ai_core_button.dart';
 import 'package:memex/db/app_database.dart';
@@ -228,6 +229,7 @@ void main() async {
         : null,
   );
   _installGlobalErrorLogging();
+  unawaited(clearLegacyAvatarCacheOnce());
 
   // Initialize l10n
   await UserStorage.initL10n();

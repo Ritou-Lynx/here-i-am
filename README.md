@@ -26,7 +26,7 @@ Here I Am 选择把**唯一主伴侣的 Chat 放在首页**：用户先自然分
 ## 春雨昼眠：开屏与真机画面
 
 <p align="center">
-  <img src="assets/images/%E6%98%A5%E9%9B%A8%E6%98%BC%E7%9C%A0_%E5%BC%80%E5%B1%8F.gif" width="320" alt="春雨昼眠开屏动画预览">
+  <img src="docs/design/assets/%E6%98%A5%E9%9B%A8%E6%98%BC%E7%9C%A0_%E5%BC%80%E5%B1%8F.gif" width="320" alt="春雨昼眠开屏动画预览">
 </p>
 
 <p align="center"><em>“春雨昼眠”开屏动效：大面积留白、细雨、窗帘与缓慢呼吸的植物，共同建立安静而持续的陪伴感。</em></p>

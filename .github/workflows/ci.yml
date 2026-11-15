@@ -127,7 +127,38 @@ jobs:
       - name: feishu_tutor
         run: node --test tools/feishu_tutor/sync/*.test.mjs
       - name: life_digest
-        run: node --test tools/life_digest/*.test.mjs
+        run: node --test tools/life_digest/*.test.mjs tools/relay_scripts/life_digest_update/*.test.mjs
+      - name: i_core domain store, server and activity suites (platform-neutral)
+        # The remaining i_core suites need Windows: see the icore-windows job.
+        # runtime_pin, runtime_upgrade/r3 and migration_m3/supervision run in no CI job.
+        run: >-
+          node --test
+          tools/i_core/activity_control_plane.test.mjs
+          tools/i_core/activity_fixture_contract.test.mjs
+          tools/i_core/activity_fixture_http_runner.test.mjs
+          tools/i_core/companion_worker.test.mjs
+          tools/i_core/domain_adoption.test.mjs
+          tools/i_core/domain_companion.test.mjs
+          tools/i_core/domain_copy_validation.test.mjs
+          tools/i_core/domain_http.test.mjs
+          tools/i_core/domain_migrate.test.mjs
+          tools/i_core/domain_schema.test.mjs
+          tools/i_core/domain_store.test.mjs
+          tools/i_core/food_domains.test.mjs
+          tools/i_core/food_phone_credential.test.mjs
+          tools/i_core/i_core_autostart.test.mjs
+          tools/i_core/i_core_server.test.mjs
+          tools/i_core/import_local_plan.test.mjs
+          tools/i_core/import_v3_chat.test.mjs
+          tools/i_core/run_mda1_human_gate.test.mjs
+          tools/i_core/migration_m3/migration.test.mjs
+          tools/i_core/test_fixtures/release_schema6/ci_native_probe.test.mjs
+          tools/i_core/test_fixtures/release_schema6/mcp_reader/helper.test.mjs
+      - name: Python tools (linai_tts)
+        # test_server only needs numpy; the model stack in requirements.txt is not installed.
+        run: |
+          python3 -m pip install --quiet numpy
+          python3 -m unittest discover -s tools/linai_tts/tests -v
 
   chatgpt-mcp-windows:
     name: MCP ChatGPT compatibility (Windows)
@@ -154,6 +185,29 @@ jobs:
           name: chatgpt-mcp-candidate-windows
           path: build/ci/chatgpt-mcp-candidate/
           if-no-files-found: error
+
+  icore-windows:
+    name: i_core shortcut_mail_relay (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: shortcut_mail_relay
+        shell: pwsh
+        # This suite spawns powershell.exe, so the Linux bridge-node job cannot
+        # run it. Three Windows suites stay out of CI: runtime_pin needs one
+        # exact Node build at a fixed local path; runtime_upgrade/r3 needs new
+        # directories owned by the user SID, which an elevated hosted runner
+        # does not give without a token-owner shim; migration_m3/supervision
+        # has a 5 s PowerShell start budget the hosted runner does not meet.
+        run: |
+          node --test tools/i_core/shortcut_mail_relay.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   windows:
     name: Windows build + whiteboard integration

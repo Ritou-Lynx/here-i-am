@@ -124,7 +124,7 @@
   var SAMPLE = [
     { t: 'time', x: '今天 14:32' },
     { t: 'user', x: '雨好大。' },
-    { t: 'img', g: 'u', src: ['../../../assets/images/spring_rain_glass_texture_raw.png', '../../../assets/images/spring_rain_daydream_chat_bg.png'], cap: '刚拍的，窗上全是水。' },
+    { t: 'img', g: 'u', src: ['../assets/spring_rain_glass_texture_raw.png', '../../../assets/images/spring_rain_daydream_chat_bg.png'], cap: '刚拍的，窗上全是水。' },
     { t: 'i', x: '嗯，听着呢。' },
     { t: 'user', x: '我累了。' },
     { t: 'action', x: '*他把书翻过一页，手却停住了。*' },

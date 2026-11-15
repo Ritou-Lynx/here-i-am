@@ -8,7 +8,13 @@
 - 仓库是公开的：不写 SID、本机绝对路径、域名、凭据或私人内容。
 - 交接方式：源码类工作走 Agent Relay（PR 评论标记 `relay:to-codex` 等，watcher 每 3 分钟轮询，用法见 `agent-relay` skill），用户只需合并。生产步骤走手动粘贴，每次粘贴即视为用户同意。
 
-## 现状
+## 2026-11-10 更新（先读这一节，下面是 10-22 至 10-25 的原始记录）
+- 分工（用户 11-08 确认）：Claude 只写方案和审核，写代码交给 Codex 或其他 AI 工具。交给 Codex 一律走 Agent Relay（开带 `agent-relay` 标签、base 为 `v3-lab` 的 PR，并发第 1 轮 `relay:to-codex` 评论），不再让用户手动粘贴提示词。每个 relay PR 用新的分支名。
+- 本机脚本（含生产步骤）走 relay 脚本轮（`relay:to-runner`，见 `tools/relay_scripts/README.md`）：read 直接执行，write 等用户在评论确认；Claude 不代为确认。下文“生产步骤走手动粘贴”已不再适用。
+- 现役任务、已开通的 MCP 工具和未完成事项以 `docs/development/I_PROJECT_STATE.md` 为准；下面“现状”“进行中”里的任务名和工具副本是 10 月的快照。
+- 改动前先给方案；合入 `v3-lab`、操作生产、动真实数据仍需用户明确同意。
+
+## 现状（10-25 快照）
 - 生产：schema6 Core 已上线（D1b，10-22 完成）。10-24 起现役登录任务为 `HereIAm-iCoreSchema6-d4-mcp-20261023-48bd91ed`（含 D1、D3、#49、D4），之前各任务停用保留。claude_web、chatgpt_web、gemini_web、antigravity 都已配对。电脑重启或注销后现役会话会被强杀（问题 L），要手动 `Start-ScheduledTask` 拉起。D1b 全过程见 `RELAY_20261012_core-release-r1.md` 的“D1b 执行记录”，之后的部署见 DEVLOG。
 - relay watcher：10-23 已按 A4 迁移。计划任务改为 `conhost --headless` 启动，codex 由配置里的 `codexSearch` 每轮查找（取 exe 修改时间最新的），Codex 更新后不需要重新注册。旧 VBS 已删除，备份留在本机 STATE 的 migration-a4 目录。
 - 维护工具副本：10-23 起改为 `<OUT>\tools-3baf72d`（v3-lab `3baf72d`，含 A1–A3，313 个文件，三项校验和 ACL 抽查都通过）。旧副本 `tools-302a62c0` 保留，D1b 的回执和登记配置钉的是它，不能拿到新副本上复用。以后要登记时，从新副本重新生成配置。维护脚本一律用 Windows PowerShell 5.1 运行：pwsh 7 的 ConvertFrom-Json 会把数字读成 Int64，`-isnot [int]` 一类检查会误报。

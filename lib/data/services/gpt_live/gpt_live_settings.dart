@@ -5,6 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'gpt_live_protocol.dart';
 
+const delegateModelOptions = <String, String>{
+  '': '不委托（只用通话模型自己）',
+  'gpt-5.6-luna': 'gpt-5.6-luna（最便宜，默认）',
+  'gpt-5.6-terra': 'gpt-5.6-terra',
+  'gpt-5.6-sol': 'gpt-5.6-sol（最强，最贵）',
+};
+
 /// GPT-Live 备选通话的配置：OpenAI API key 放 secure storage，声音名放偏好。
 class GptLiveSettings {
   GptLiveSettings._();
@@ -14,6 +21,8 @@ class GptLiveSettings {
   static const _keyExtra = 'gpt_live.extra_instructions';
   static const _keyLastCall = 'gpt_live.last_call';
   static const _keyIdleHangupMinutes = 'gpt_live.idle_hangup_minutes';
+  static const _keyDelegateModel = 'gpt_live.delegate_model';
+  static const _defaultDelegateModel = 'gpt-5.6-luna';
 
   static FlutterSecureStorage storage = const FlutterSecureStorage();
 
@@ -76,6 +85,19 @@ class GptLiveSettings {
   static Future<void> setIdleHangupMinutes(int minutes) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyIdleHangupMinutes, minutes < 0 ? 0 : minutes);
+  }
+
+  static Future<String> getDelegateModel() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(_keyDelegateModel);
+    return delegateModelOptions.containsKey(value)
+        ? value!
+        : _defaultDelegateModel;
+  }
+
+  static Future<void> setDelegateModel(String model) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyDelegateModel, model.trim());
   }
 
   static Future<GptLiveCallRecord?> getLastCallRecord() async {
