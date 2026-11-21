@@ -13,9 +13,7 @@ dependencies:
     sdk: flutter
 
   # UI & Styling
-  cupertino_icons: ^1.0.6
   google_fonts: ^6.1.0
-  fl_chart: ^0.66.0
   shimmer: ^3.0.0
   flutter_svg: ^2.2.4
   flutter_map: ^6.1.0
@@ -86,7 +84,6 @@ dependencies:
   flutter_foreground_task:
     path: packages/flutter_foreground_task
   flutter_local_notifications: ^18.0.1
-  timezone: ^0.10.1
   # Vendored fork (packages/flutter_callkit_incoming): patched so the call
   # screen avatar accepts local file paths, not just http URLs / flutter assets.
   flutter_callkit_incoming:
@@ -97,7 +94,6 @@ dependencies:
   sqlite3_flutter_libs: ^0.5.41
   drift_flutter: ^0.2.8
   path: ^1.9.1
-  google_generative_ai: ^0.4.7
   synchronized: ^3.4.0
   exif: ^3.3.0
   video_player: ^2.10.1
@@ -105,7 +101,6 @@ dependencies:
   wakelock_plus: ^1.4.0
   image: ^4.7.2
   flutter_image_compress: ^2.4.0
-  photo_view: ^0.15.0
   camera: ^0.11.3+1
   google_mlkit_text_recognition: ^0.15.1
   google_mlkit_image_labeling: ^0.14.2

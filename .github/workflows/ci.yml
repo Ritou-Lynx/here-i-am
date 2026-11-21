@@ -42,9 +42,6 @@ jobs:
           cache: true
       - name: Install SQLite
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
-      - name: Critical fixes check
-        shell: pwsh
-        run: ./scripts/verify_critical_fixes.ps1
       - run: flutter pub get --enforce-lockfile
       - name: Whiteboard and workbench suites
         run: |
@@ -220,9 +217,6 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - name: Critical fixes check (required before flutter build)
-        shell: pwsh
-        run: .\scripts\verify_critical_fixes.ps1
       - run: flutter pub get --enforce-lockfile
       - name: Windows debug build
         run: flutter build windows --debug

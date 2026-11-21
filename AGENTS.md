@@ -30,7 +30,7 @@
 
 - 逻辑改动做专项及必要相邻回归；文档核对链接与差异，纯文档不构建 App。通过后不无故扩大/重复检查。
 - Dart 使用相关路径 analyze，Flutter 使用相关测试；既有 lint 需与新增问题分开，如实报告严格检查退出码。
-- 每次 `flutter build` 前运行 `scripts/verify_critical_fixes.ps1`。Android 只使用 `hereIAmV3`、`com.memexlab.hereiam.v3`，安装优先专用脚本并保留真实手机安装授权。
+- 关键修复由 `test/guards/critical_fixes_test.dart` 守护。Android 只使用 `hereIAmV3`、`com.memexlab.hereiam.v3`，安装优先专用脚本并保留真实手机安装授权。
 - 验证机器优先、分四层：L1 单元/widget/生产组合场景与 L2 Windows 构建、hermetic 集成测试由 GitHub CI 每次 push 自动运行；L3 真实模型、真机、系统输入法由无人值守环境运行；L4 真人只判断口吻、手感、视觉等主观项，每个里程碑一次，看自动报告异步完成。详见 `docs/development/UNATTENDED_VERIFICATION.md`。
 - 自动层对每个候选 SHA 重跑即完成精确绑定，证据用 CI 结果与产物，不手写 SHA/PID 长文。真人结论按改动是否触及其覆盖路径决定沿用或重看，沿用须在报告注明。自动场景失败不中止，跑完全部再汇总返修。旧 D 路径 native binding 只是历史 candidate-only 参考。
 - 新增 Gate 先写成自动场景；computer use 只用于探索或系统集成点验，不作为回归验收手段。

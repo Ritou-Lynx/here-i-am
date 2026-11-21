@@ -15,7 +15,7 @@ git status --short --branch
 
 使用完整 clone，不加 `--filter=blob:none` 或浅克隆选项。每台设备使用自己的目录；文档中的旧本机路径只是历史验收来源。Windows 开发目录应放在 NTFS 磁盘；T7 归档继续保留。非 Windows 环境需要可运行现有提交检查的 PowerShell。
 
-首次构建需要在设备上配置 Flutter/Dart、对应平台工具链并解析项目依赖。每次 Flutter build 前运行 `scripts/verify_critical_fixes.ps1`；Android 只构建 `hereIAmV3`。构建、设备安装与真人验收分别确认。
+首次构建需要在设备上配置 Flutter/Dart、对应平台工具链并解析项目依赖。关键修复由 `test/guards/critical_fixes_test.dart` 守护；Android 只构建 `hereIAmV3`。构建、设备安装与真人验收分别确认。
 
 ## 每次开始工作
 
