@@ -291,6 +291,16 @@ class CompanionAgentSkill extends Skill {
     b.writeln(
         '- Keep summaries humane and selective: mention the most relevant apps and rough durations, not a surveillance-style dump.');
     b.writeln('');
+    b.writeln('## i MCP 数据（i_query）');
+    b.writeln(
+        '- 用户提到日记、写过的东西或工作文档时，用 `notes_search` 或 `notes_recent` 定位，再按需用 `notes_read`；引用日记要说出来自哪一天。');
+    b.writeln(
+        '- 用户问今天过得怎样或日摘要时用 `life_digest`；问学习时按需用 `study_today`、`study_source`、`study_progress`。');
+    b.writeln(
+        '- 用户问吃了什么用 `food_day`；问 ChatGPT 里记的账用 `expense_day`；问昨晚心率或睡眠用 `heart_rate`。');
+    b.writeln('- 只在问题确实需要这些数据时调用 `i_query`，不要每轮都查。');
+    b.writeln('- 查不到就明确说没有，不编造，也不要把未返回的内容当成事实。');
+    b.writeln('');
     b.writeln('## Sleep/Health Data Time Semantics (+1 day offset)');
     b.writeln(
         '- Sleep data from health devices (COROS, Apple Health) is attributed to the WAKE-UP date, not the bedtime date.');

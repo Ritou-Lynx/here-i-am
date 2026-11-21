@@ -12,6 +12,7 @@ import 'package:memex/ui/settings/widgets/asr_config_page.dart';
 import 'package:memex/ui/settings/widgets/backup_restore_page.dart';
 import 'package:memex/ui/settings/widgets/config_sync_page.dart';
 import 'package:memex/ui/settings/widgets/coros_connect_page.dart';
+import 'package:memex/ui/settings/widgets/i_mcp_connect_page.dart';
 import 'package:memex/ui/settings/widgets/core_sync_settings_page.dart';
 import 'package:memex/ui/settings/widgets/phone_memory_connection_page.dart';
 import 'package:memex/ui/settings/widgets/data_storage_page.dart';
@@ -652,6 +653,12 @@ class _PersonalCenterScreenState extends State<PersonalCenterScreen> {
                 title: 'COROS 高驰',
                 subtitle: '运动与健康数据',
                 onTap: () => open(const CorosConnectPage()),
+              ),
+              _Destination(
+                icon: Icons.cloud_outlined,
+                title: '林埃数据（i MCP）',
+                subtitle: '日记、学习与生活数据（只读）',
+                onTap: () => open(const IMcpConnectPage()),
               ),
               _Destination(
                 icon: Icons.bookmark_border_rounded,

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, sesameEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
+import { OAuthServer, chatgptEnabledFromEnv, geminiEnabledFromEnv, antigravityEnabledFromEnv, sesameEnabledFromEnv, appEnabledFromEnv, revokeAll, setPassphrase } from './oauth.mjs';
 import { readFileSync } from 'node:fs';
 import { createDomainClient, createDomainTools, createCoreRemember, createFoodTools, createStudyDomainTools, createHeartRateDomainTools, createLifeDigestDomainTools, WEB_DOMAIN_TOOLS } from './domain_tools.mjs';
 import { HEART_RATE_DEFAULT_PORT, createHeartRateIngestServer } from './heart_rate.mjs';
@@ -53,6 +53,10 @@ const SESSION_IDLE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_ALLOWED_ORIGINS = ['https://claude.ai', 'https://claude.com'];
 const CHATGPT_ORIGIN = 'https://chatgpt.com';
 const CHATGPT_CORS_HEADERS = ['accept', 'authorization', 'content-type', 'mcp-session-id', 'mcp-protocol-version'];
+const APP_TOOL_NAMES = Object.freeze([
+  'notes_recent', 'notes_search', 'notes_read', 'life_digest', 'study_today',
+  'study_source', 'study_progress', 'heart_rate', 'food_day', 'expense_day',
+]);
 
 // 生产用读取层：动态加载 tools/i_memory/i_memory_read.mjs 的 openReadModel。
 export function createLazyReadModel({ coreDbPath, memoryDbPath, policyPath }) {
@@ -80,6 +84,7 @@ export function createApp({
   geminiEnabled = geminiEnabledFromEnv(),
   antigravityEnabled = antigravityEnabledFromEnv(),
   sesameEnabled = sesameEnabledFromEnv(),
+  appEnabled = appEnabledFromEnv(),
   log = () => {},
   diagnostic = () => {},
   writeback = null,
@@ -95,7 +100,7 @@ export function createApp({
   const studyTools = createStudyDomainTools({ stateDir, now });
   const heartRate = createHeartRateDomainTools({ stateDir, now });
   const writeEnabled = Boolean(writeback || chatgptWriteback || geminiWriteback || antigravityWriteback || sesameWriteback || coreRemember || domainTools?.tools.some(tool => tool.requiredScope === 'i.write') || studyTools);
-  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled });
+  const oauth = new OAuthServer({ stateDir, publicUrl, now, options: oauthOptions, writeEnabled, chatgptEnabled, geminiEnabled, antigravityEnabled, sesameEnabled, appEnabled });
   if(domainTools&&(domainTools.tools.some(tool=>!WEB_DOMAIN_TOOLS.includes(tool.name))||Object.keys(domainTools.handlers).some(name=>!domainTools.tools.some(tool=>tool.name===name))))throw new Error('planner_tools_forbidden_on_web');
   const handlers = {...createToolHandlers({ getReadModel, identityLoader, now, timeZone, writeback, coreRemember }),...domainTools?.handlers,...studyTools?.claude_web.handlers,...heartRate?.handlers};
   const tools = [...listTools({ writeEnabled:Boolean(writeback),coreRemember:Boolean(coreRemember) }),...(domainTools?.tools??[]),...(studyTools?.claude_web.tools??[]),...(heartRate?.tools??[])];
@@ -151,6 +156,10 @@ export function createApp({
     for (const [frontendHandlers, frontendTools] of [[handlers, tools], [chatgptHandlers, chatgptTools], [geminiHandlers, geminiTools],
       [antigravityHandlers, antigravityTools], [sesameHandlers, sesameTools]]) lifeDigest.attach(frontendHandlers, frontendTools, { writeback, getReadModel });
   }
+  // A1 app frontend: a separate read-only surface; never inherit the chat or write handlers.
+  const appTools = tools.filter(tool => APP_TOOL_NAMES.includes(tool.name))
+    .map(tool => ({ ...tool, requiredScope: 'i.read' }));
+  const appHandlers = Object.fromEntries(appTools.map(tool => [tool.name, handlers[tool.name]]));
   const origins = new Set([...allowedOrigins, oauth.issuer, ...(chatgptEnabled ? [CHATGPT_ORIGIN] : [])]);
   const sessions = new Map();
 
@@ -205,6 +214,9 @@ export function createApp({
     } else if (auth.frontend === 'sesame') {
       frontendHandlers = sesameHandlers;
       frontendTools = sesameTools;
+    } else if (auth.frontend === 'here_i_am_app') {
+      frontendHandlers = appHandlers;
+      frontendTools = appTools;
     } else {
       res.setHeader('WWW-Authenticate', oauth.wwwAuthenticate('invalid_token'));
       return sendJson(res, 401, { error: 'invalid_token' });
@@ -626,6 +638,7 @@ async function main(argv) {
   const geminiEnabled = geminiEnabledFromEnv();
   const antigravityEnabled = antigravityEnabledFromEnv();
   const sesameEnabled = sesameEnabledFromEnv();
+  const appEnabled = appEnabledFromEnv();
   if (!publicUrl.startsWith('https://')) {
     process.stderr.write(`警告：public URL 不是 https（${publicUrl}），claude.ai 无法接入，仅适合本机调试。\n`);
   }
@@ -692,6 +705,7 @@ async function main(argv) {
     geminiEnabled,
     antigravityEnabled,
     sesameEnabled,
+    appEnabled,
     getReadModel,
     diagnostic,
     writeback,

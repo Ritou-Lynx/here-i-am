@@ -1,3 +1,11 @@
+## 2026-11-10 A1：App 内聊天接 i MCP 只读工具（PR #119）
+- i MCP 新增只读前端 `here_i_am_app`：精确回调 `http://127.0.0.1:47859/hereiam/i-mcp/callback`，开关 `I_REMOTE_MCP_APP_ENABLED`（默认开），令牌只签 `i.read`，不加载凭据、不配对、不改策略。工具表仅 10 个只读工具：notes_recent/search/read、life_digest、study_today/source/progress、heart_rate、food_day、expense_day；无 i_chat_turn 等写入/聊天工具（App 自己就是时间线）。
+- 候选构建器在 NOTES 之后加 `APP_PATCHES`；server `0a58eb1b`、oauth `358f9fe6`、diagnostics `1aab8df7`。脚本轮 `tools/relay_scripts/app_mcp/a1-deploy.ps1` 从 n2-notes 切到 `HereIAm-iCoreSchema6-app-mcp-20261110`，停服 68 秒，n2-notes 停用保留；云端复核 Claude 端 notes_recent 正常。
+- App：`IMcpService`（独立 `i_mcp` 令牌文件，401 续期一次；断网/5xx 刷新失败保留令牌，仅 400/401/invalid_grant 清除）、设置页「林埃数据（i MCP）」连接页（粘贴地址+口令，WebView 拦截回调）、林埃工具 `i_query`（客户端白名单、20000 字截断）及提示词小节。
+- 待：从本分支装 App，连接一次后在聊天里问日记验收。GPT-Live 通话接工具另做。
+
+---
+
 ## 2026-11-10 排查第二轮：按待审清单处理未评论的项
 
 - 设计稿素材（两张主题图、开屏 gif、玻璃纹理原图等 5 个文件）从 `assets/images/` 移到 `docs/design/assets/`，不再打进 App；删除 3 个没有引用的图标。`pubspec.yaml` 的 branding 资源只保留实际加载的一张 logo。README 和设计原型里的路径同步修改。
