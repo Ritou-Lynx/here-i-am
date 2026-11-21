@@ -39,7 +39,7 @@ if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
   Write-Host "adb resolved to: $adbDir"
 }
 
-& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts\verify_critical_fixes.ps1")
+& flutter test test/guards/critical_fixes_test.dart
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }

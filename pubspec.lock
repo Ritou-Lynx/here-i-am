@@ -410,7 +410,7 @@ packages:
     source: hosted
     version: "1.0.2"
   cupertino_icons:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: cupertino_icons
       sha256: "41e005c33bd814be4d3096aff55b1908d419fde52ca656c8c47719ec745873cd"
@@ -521,14 +521,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.3.1"
-  equatable:
-    dependency: transitive
-    description:
-      name: equatable
-      sha256: "3bce007a596ff8b3119c45d68aaef631272537c03d30e5d4534dd24bf4c5eaa2"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.0"
   exif:
     dependency: "direct main"
     description:
@@ -625,14 +617,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-  fl_chart:
-    dependency: "direct main"
-    description:
-      name: fl_chart
-      sha256: "00b74ae680df6b1135bdbea00a7d1fc072a9180b7c3f3702e4b19a9943f5ed7d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.66.2"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -1013,14 +997,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.3.3"
-  google_generative_ai:
-    dependency: "direct main"
-    description:
-      name: google_generative_ai
-      sha256: "71f613d0247968992ad87a0eb21650a566869757442ba55a31a81be6746e0d1f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.7"
   google_mlkit_commons:
     dependency: transitive
     description:
@@ -1650,14 +1626,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  photo_view:
-    dependency: "direct main"
-    description:
-      name: photo_view
-      sha256: "1fc3d970a91295fbd1364296575f854c9863f225505c28c46e0a03e48960c75e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.15.0"
   platform:
     dependency: transitive
     description:
@@ -2280,7 +2248,7 @@ packages:
     source: hosted
     version: "0.6.17"
   timezone:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: timezone
       sha256: dd14a3b83cfd7cb19e7888f1cbc20f258b8d71b54c06f79ac585f14093a287d1

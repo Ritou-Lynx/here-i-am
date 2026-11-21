@@ -42,7 +42,7 @@ description: 用户说“用接力做…”“交给 Codex 执行”“接力冒
 
 1. 在分支上按 AGENTS.md 更新 `DEVLOG.md` 顶部（≤15 行）和 `docs/development/I_PROJECT_STATE.md`（Codex 用了 SKIP_PROJECT_STATE，状态由你统一写），推送。
 2. PR 转为 ready for review。
-3. 发 `<!-- relay:done -->` 评论并 @Ritou-Lynx：结论、验证、限制，以及需要用户亲自做的事（构建前 `verify_critical_fixes.ps1`、装机、真人体验）。**不合并。**
+3. 发 `<!-- relay:done -->` 评论并 @Ritou-Lynx：结论、验证、限制，以及需要用户亲自做的事（装机、真人体验）。**不合并。**
 
 ## 4. 唤醒与兜底
 
