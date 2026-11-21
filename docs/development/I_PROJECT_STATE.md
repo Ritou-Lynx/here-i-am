@@ -5,7 +5,7 @@
 ## 当前状态（2026-11-10）
 
 ### 生产
-- schema6 Core 已上线（D1b，10-22 完成）。11-10 起现役登录任务为 `HereIAm-iCoreSchema6-app-mcp-20261110`（MCP server 候选 `0a58eb1b`＝N2 笔记 + A1 App 只读前端 `here_i_am_app`，#119；此前 n2-notes-20261108）：Core 包 `release-78e11df7`（manifest `ded493e5`，E3 记账随 #106 换入），MCP server 候选 `4b1014e0`（E3 记账 + N2 笔记工具，#109）。此前的 e3-expense、m1-digest、hr1-heart、n2-food 及更早任务停用保留，不删。
+- schema6 Core 已上线（D1b，10-22 完成）。11-10 起现役登录任务为 `HereIAm-iCoreSchema6-app-mcp-20261110`：Core 包 `release-78e11df7`（manifest `ded493e5`，E3 记账随 #106 换入），MCP server 候选 `0a58eb1b`（E3 记账 + N2 笔记 + A1 App 只读前端 `here_i_am_app`，#119）。此前的 n2-notes-20261108（`4b1014e0`）、e3-expense、m1-digest、hr1-heart、n2-food 及更早任务停用保留，不删。
 - i MCP 现有工具：上下文与记忆（`i_context`、`i_chat_turn`、`i_recall`、`i_remember`）、饮食（`food_log`、`food_day`）、记账（`expense_log`、`expense_day`）、心率（`heart_rate`）、学习（`study_*`）、日摘要与待办（`life_digest`、`life_todo`）、飞书笔记只读（`notes_recent`、`notes_search`、`notes_read`）。各前端开放范围见对应 DEVLOG 条目。
 - 前端：claude_web、chatgpt_web、gemini_web、antigravity、sesame 都已与 Core 配对。Claude、ChatGPT、Antigravity、Sesame 真人验收通过；Gemini 能添加，但对话里工具调用不生效，用户 10-24 决定不再跟进。
 - 本机定时任务：`FeishuTutor-Daily`（06:30 学习账本）、`FeishuNotes-Mirror`（每 30 分钟加 19:20 笔记副本）、日摘要（04:30 定稿、07:30 晨间、19:30 白天版）。心率监听在本机 47866，经 tailscale serve 8447 访问。

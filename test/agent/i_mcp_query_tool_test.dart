@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/agent/built_in_tools/i_mcp_query_tool.dart';
 import 'package:memex/agent/mcp/mcp_protocol.dart';
@@ -78,6 +82,55 @@ void main() {
 
     expect(output, contains('i MCP 查询失败'));
     expect(output, contains('synthetic failure'));
+  });
+
+  group('shouldClearIMcpAuthorizationAfterRefreshError', () {
+    DioException dioStatus(int statusCode, {Object? data}) {
+      final req = RequestOptions(path: 'https://example.test/token');
+      return DioException(
+        requestOptions: req,
+        response: Response(
+          requestOptions: req,
+          statusCode: statusCode,
+          data: data,
+        ),
+        type: DioExceptionType.badResponse,
+      );
+    }
+
+    test('clears authorization on explicit OAuth rejection (400/401/invalid_grant/invalid_client)', () {
+      expect(shouldClearIMcpAuthorizationAfterRefreshError(dioStatus(400)), isTrue);
+      expect(shouldClearIMcpAuthorizationAfterRefreshError(dioStatus(401)), isTrue);
+      expect(
+        shouldClearIMcpAuthorizationAfterRefreshError(
+          dioStatus(403, data: {'error': 'invalid_grant'}),
+        ),
+        isTrue,
+      );
+      expect(
+        shouldClearIMcpAuthorizationAfterRefreshError(
+          Exception('OAuth refresh failed: invalid_client'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('preserves authorization on transient failures (timeout/socket/5xx)', () {
+      expect(
+        shouldClearIMcpAuthorizationAfterRefreshError(
+          TimeoutException('refresh timed out'),
+        ),
+        isFalse,
+      );
+      expect(
+        shouldClearIMcpAuthorizationAfterRefreshError(
+          const SocketException('Failed host lookup'),
+        ),
+        isFalse,
+      );
+      expect(shouldClearIMcpAuthorizationAfterRefreshError(dioStatus(500)), isFalse);
+      expect(shouldClearIMcpAuthorizationAfterRefreshError(dioStatus(502)), isFalse);
+    });
   });
 }
 
