@@ -1,3 +1,15 @@
+## 2026-11-21 合并收尾与状态补记（#119、#123 及 11-14 批次）
+- #123 已合并：从 `pubspec.yaml` 移除 5 个未用直接依赖（`cupertino_icons`、`fl_chart`、`google_generative_ai`、`photo_view`、`timezone`；`pubspec.lock` 清除 4 个无用包、2 个转为传递依赖，其余版本零变动），将 `scripts/verify_critical_fixes.ps1` 的 3 项关键修复检查迁为正式测试 `test/guards/critical_fixes_test.dart` 并删除旧脚本，CI 与 `scripts/install_hereiam_v3.ps1` 及相关文档同步更新。
+- #119 已合并：补齐 `shouldClearIMcpAuthorizationAfterRefreshError` 刷新失败保留策略单测（8/8 通过）与状态文档措辞修正；`v3-lab` 与现役生产任务 `HereIAm-iCoreSchema6-app-mcp-20261110`（`0a58eb1b`）重新对齐。
+- 补记 11-14 已合并但未记入 DEVLOG 的 PR：
+  - #120：移除上游 DiceBear 卡通头像，统一改用本地暖色圆形首字占位，通话页头像/背景淡入，启动异步清理旧 `avatar_*.svg` 缓存。
+  - #121：GPT-Live 通话新增 Responses 后台委托（默认 `gpt-5.6-luna`，带 `web_search`，设置可选“不委托”）。
+  - #122：新增云端助手读写飞书通用方案文档（`docs/reference/FEISHU_CLOUD_ASSISTANT_GUIDE.md`，dot 试点达标）。
+  - #105：CAM1 床头哨兵按需看一眼（`tools/i_remote_mcp/camera.mjs` + 哨兵端 + ESP32 云台固件）已合入源码，尚未接入 MCP server/候选补丁链，生产不受影响；后续接入留待 CAM2 与硬件实测。
+- 待：OpenAI API 额度恢复并从最新 `v3-lab` 重装手机 App 后，集中真机验收 #119/#120/#121 及此前积压改动。
+
+---
+
 ## 2026-11-10 A1：App 内聊天接 i MCP 只读工具（PR #119）
 - i MCP 新增只读前端 `here_i_am_app`：精确回调 `http://127.0.0.1:47859/hereiam/i-mcp/callback`，开关 `I_REMOTE_MCP_APP_ENABLED`（默认开），令牌只签 `i.read`，不加载凭据、不配对、不改策略。工具表仅 10 个只读工具：notes_recent/search/read、life_digest、study_today/source/progress、heart_rate、food_day、expense_day；无 i_chat_turn 等写入/聊天工具（App 自己就是时间线）。
 - 候选构建器在 NOTES 之后加 `APP_PATCHES`；server `0a58eb1b`、oauth `358f9fe6`、diagnostics `1aab8df7`。脚本轮 `tools/relay_scripts/app_mcp/a1-deploy.ps1` 从 n2-notes 切到 `HereIAm-iCoreSchema6-app-mcp-20261110`，停服 68 秒，n2-notes 停用保留；云端复核 Claude 端 notes_recent 正常。
