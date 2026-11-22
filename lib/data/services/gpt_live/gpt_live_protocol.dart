@@ -16,6 +16,7 @@ class GptLiveProtocol {
   static const model = 'gpt-live-1';
   static const dataChannelLabel = 'oai-events';
   static const defaultVoice = 'marin';
+  static const clientDelegationMode = 'client';
   static const delegateInstructions =
       '你是语音通话的后台助手，结果会被前台转述给用户；用中文；先给结论，控制在 3 到 5 句；不要列表、Markdown 和链接；需要最新信息时用联网搜索；查不到就直说，不编造。';
 
@@ -24,6 +25,8 @@ class GptLiveProtocol {
   static const maxInstructionChars = 12000;
   static const maxHistoryMessages = 40;
   static const maxHistoryChars = 6000;
+  static const maxCommentaryChars = 450;
+  static const maxThinkingChars = 400;
 
   static Map<String, dynamic> buildSessionRequest({
     required String offerSdp,
@@ -32,6 +35,7 @@ class GptLiveProtocol {
     String voice = defaultVoice,
     String? delegateModel,
   }) {
+    final delegation = _buildDelegationConfig(delegateModel);
     return {
       'session': {
         'model': model,
@@ -39,18 +43,7 @@ class GptLiveProtocol {
         'audio': {
           'output': {'voice': normalizeVoice(voice)},
         },
-        if (delegateModel != null && delegateModel.isNotEmpty)
-          'delegation': {
-            'type': 'responses',
-            'responses': {
-              'model': delegateModel,
-              'instructions': delegateInstructions,
-              'tools': [
-                {'type': 'web_search'},
-              ],
-              'tool_choice': 'auto',
-            },
-          },
+        if (delegation != null) 'delegation': delegation,
         if (history.isNotEmpty)
           'input': [
             for (final m in trimHistory(history))
@@ -164,13 +157,40 @@ class GptLiveProtocol {
 
   static String closeEvent() => jsonEncode({'type': 'session.close'});
 
-  /// 让模型把一段话说出来（可意译）。用于“她先开口”：官方建议建会话时放一条
-  /// developer 开场说明，session.started 之后再发一次 commentary。
-  /// 内容上限 500 token，这里按字符截断。
-  static String commentaryEvent(String content) => jsonEncode({
+  static Map<String, dynamic>? _buildDelegationConfig(String? delegateModel) {
+    if (delegateModel == null || delegateModel.isEmpty) return null;
+    if (delegateModel == clientDelegationMode) {
+      return const {'type': clientDelegationMode};
+    }
+    return {
+      'type': 'responses',
+      'responses': {
+        'model': delegateModel,
+        'instructions': delegateInstructions,
+        'tools': [
+          {'type': 'web_search'},
+        ],
+        'tool_choice': 'auto',
+      },
+    };
+  }
+
+  /// 让模型把一段话说出来（可意译）。用于“她先开口”或客户端委托返回结果：
+  /// 官方建议建会话时放一条 developer 开场说明，session.started 之后再发一次 commentary；
+  /// 客户端委托场景传入对应的 [delegationId]。内容上限 500 token，这里按字符截断。
+  static String commentaryEvent(String content, {String? delegationId}) =>
+      jsonEncode({
         'type': 'session.commentary.append',
-        'delegation_id': null,
-        'content': _clip(content, 400),
+        'delegation_id': delegationId,
+        'content': _clip(content, maxCommentaryChars),
+      });
+
+  /// 给模型补充后台处理进度或静默思考上下文，不直接要求朗读。
+  static String thinkingEvent(String content, {String? delegationId}) =>
+      jsonEncode({
+        'type': 'session.thinking.append',
+        'delegation_id': delegationId,
+        'content': _clip(content, maxThinkingChars),
       });
 
   /// 催睡来电：接通后让她先开口的那句提示（developer 消息和 commentary 共用）。
@@ -263,6 +283,17 @@ sealed class GptLiveEvent {
           seconds: (GptLiveProtocol._dig(json, 'usage', 'seconds') as num?)
               ?.toInt(),
         );
+      case 'session.delegation.created':
+        final delegationId = _extractDelegationId(json);
+        if (delegationId == null) return null;
+        return GptLiveDelegationCreated(
+          delegationId: delegationId,
+          requestText: _extractDelegationText(json),
+        );
+      case 'session.delegation.cancelled':
+        final delegationId = _extractDelegationId(json);
+        if (delegationId == null) return null;
+        return GptLiveDelegationCancelled(delegationId: delegationId);
       case 'error':
         final err = json['error'];
         return GptLiveError(
@@ -272,6 +303,71 @@ sealed class GptLiveEvent {
       default:
         return null;
     }
+  }
+
+  static String? _extractDelegationId(Map<String, dynamic> json) {
+    final top = json['delegation_id'];
+    if (top is String && top.trim().isNotEmpty) return top.trim();
+
+    final delegation = json['delegation'];
+    if (delegation is Map) {
+      for (final key in const ['id', 'delegation_id']) {
+        final v = delegation[key];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+    }
+
+    final fallbackId = json['id'];
+    if (fallbackId is String && fallbackId.trim().isNotEmpty) {
+      return fallbackId.trim();
+    }
+    return null;
+  }
+
+  static String? _extractDelegationText(Map<String, dynamic> json) {
+    const keys = [
+      'instructions',
+      'prompt',
+      'input',
+      'query',
+      'request',
+      'content',
+      'text',
+    ];
+    final delegation = json['delegation'];
+    if (delegation is Map) {
+      for (final key in keys) {
+        final extracted = _extractTextValue(delegation[key]);
+        if (extracted != null) return extracted;
+      }
+    }
+    for (final key in keys) {
+      final extracted = _extractTextValue(json[key]);
+      if (extracted != null) return extracted;
+    }
+    return null;
+  }
+
+  static String? _extractTextValue(Object? value) {
+    if (value is String) {
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+    if (value is List) {
+      final parts = <String>[];
+      for (final item in value) {
+        if (item is String && item.trim().isNotEmpty) {
+          parts.add(item.trim());
+        } else if (item is Map) {
+          final text = item['text'] ?? item['content'];
+          if (text is String && text.trim().isNotEmpty) {
+            parts.add(text.trim());
+          }
+        }
+      }
+      if (parts.isNotEmpty) return parts.join('\n');
+    }
+    return null;
   }
 }
 
@@ -299,6 +395,20 @@ class GptLiveClosed extends GptLiveEvent {
   const GptLiveClosed({this.reason, this.seconds});
   final String? reason;
   final int? seconds;
+}
+
+class GptLiveDelegationCreated extends GptLiveEvent {
+  const GptLiveDelegationCreated({
+    required this.delegationId,
+    this.requestText,
+  });
+  final String delegationId;
+  final String? requestText;
+}
+
+class GptLiveDelegationCancelled extends GptLiveEvent {
+  const GptLiveDelegationCancelled({required this.delegationId});
+  final String delegationId;
 }
 
 class GptLiveError extends GptLiveEvent {

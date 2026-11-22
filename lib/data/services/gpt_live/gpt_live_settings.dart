@@ -6,8 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'gpt_live_protocol.dart';
 
 const delegateModelOptions = <String, String>{
+  GptLiveProtocol.clientDelegationMode: '手机端助手（可查日记/健康/饮食/记账/高驰）',
   '': '不委托（只用通话模型自己）',
-  'gpt-5.6-luna': 'gpt-5.6-luna（最便宜，默认）',
+  'gpt-5.6-luna': 'gpt-5.6-luna（最便宜）',
   'gpt-5.6-terra': 'gpt-5.6-terra',
   'gpt-5.6-sol': 'gpt-5.6-sol（最强，最贵）',
 };
@@ -22,7 +23,7 @@ class GptLiveSettings {
   static const _keyLastCall = 'gpt_live.last_call';
   static const _keyIdleHangupMinutes = 'gpt_live.idle_hangup_minutes';
   static const _keyDelegateModel = 'gpt_live.delegate_model';
-  static const _defaultDelegateModel = 'gpt-5.6-luna';
+  static const _defaultDelegateModel = GptLiveProtocol.clientDelegationMode;
 
   static FlutterSecureStorage storage = const FlutterSecureStorage();
 

@@ -556,7 +556,7 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
   final _gptLiveIdleController = TextEditingController();
   GptLiveCallRecord? _gptLiveLastCall;
   String _gptLiveVoice = GptLiveProtocol.defaultVoice;
-  String _gptLiveDelegateModel = 'gpt-5.6-luna';
+  String _gptLiveDelegateModel = GptLiveProtocol.clientDelegationMode;
   CallEngine _callEngine = CallEngine.gptLive;
   final _nudgeServerController = TextEditingController();
   final _nudgeTopicController = TextEditingController();
@@ -1051,8 +1051,9 @@ class _VoicePlaybackSettingsPageState extends State<VoicePlaybackSettingsPage> {
                 DropdownButtonFormField<String>(
                   initialValue: _gptLiveDelegateModel,
                   decoration: const InputDecoration(
-                    labelText: '后台模型（查资料 / 深度思考）',
-                    helperText: '通话中需要联网或仔细想时交给它；只在用到时另外计费',
+                    labelText: '后台助手（个人数据 / 资料）',
+                    helperText:
+                        '选手机端助手可用聊天模型查日记、健康、饮食、记账和高驰；选 gpt-5.6-* 走 OpenAI 联网（另计费）',
                     helperMaxLines: 2,
                   ),
                   items: [

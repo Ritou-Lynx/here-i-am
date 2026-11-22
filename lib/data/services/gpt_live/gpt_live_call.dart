@@ -10,6 +10,7 @@ import 'package:memex/data/services/persona_chat_service.dart';
 import 'package:memex/utils/logger.dart';
 import 'package:memex/utils/user_storage.dart';
 
+import 'gpt_live_client_delegate.dart';
 import 'gpt_live_idle_watch.dart';
 import 'gpt_live_protocol.dart';
 import 'gpt_live_settings.dart';
@@ -19,9 +20,16 @@ enum GptLiveCallPhase { idle, connecting, live, ending, ended, failed }
 /// GPT-Live 备选通话：WebRTC 直连 OpenAI，手机端持 key。
 ///
 /// 第一版只跑在前台（通话页开着时），不进前台服务 isolate；挂断后把转写按轮写回聊天记录。
-/// 人设和最近聊天记录在建会话时注入（instructions + input），通话中不再调用本地 Agent。
+/// 人设和最近聊天记录在建会话时注入（instructions + input）；若开启手机端委托（`client`），
+/// 通话中收到 `session.delegation.created` 时由 [GptLiveClientDelegate] 调只读个人工具回传结果。
 class GptLiveCall extends ChangeNotifier {
-  GptLiveCall({required this.characterId, this.callReason = ''});
+  GptLiveCall({
+    required this.characterId,
+    this.callReason = '',
+    GptLiveClientDelegate? clientDelegate,
+    @visibleForTesting Future<void> Function(String payload)? sendEventOverride,
+  }) : _clientDelegate = clientDelegate ?? GptLiveClientDelegate(),
+       _sendEventOverride = sendEventOverride;
 
   final String characterId;
 
@@ -29,8 +37,14 @@ class GptLiveCall extends ChangeNotifier {
   /// 会写进 instructions，并让她接通后先开口。
   final String callReason;
 
+  final GptLiveClientDelegate _clientDelegate;
+  final Future<void> Function(String payload)? _sendEventOverride;
+
   bool get isNudge => callReason.trim().isNotEmpty;
   bool _greeted = false;
+  bool _isClientDelegation = false;
+  final Set<String> _inFlightDelegations = <String>{};
+  final Set<String> _cancelledDelegations = <String>{};
   static final _log = getLogger('GptLiveCall');
 
   GptLiveCallPhase phase = GptLiveCallPhase.idle;
@@ -75,6 +89,8 @@ class GptLiveCall extends ChangeNotifier {
       }
       final voice = await GptLiveSettings.getVoice();
       final delegateModel = await GptLiveSettings.getDelegateModel();
+      _isClientDelegation =
+          delegateModel == GptLiveProtocol.clientDelegationMode;
       final idleHangupMinutes = await GptLiveSettings.getIdleHangupMinutes();
       final userId = await UserStorage.getUserId();
       final character = userId == null
@@ -98,6 +114,7 @@ class GptLiveCall extends ChangeNotifier {
         extra: await GptLiveSettings.getExtraInstructions(),
         callReason: callReason,
         canDelegate: delegateModel.isNotEmpty,
+        canUsePersonalTools: _isClientDelegation,
       );
       final history = [...await _loadHistory()];
       if (isNudge) {
@@ -249,9 +266,100 @@ class GptLiveCall extends ChangeNotifier {
         _lastServerError = [code, message].whereType<String>().join(' ');
       case GptLiveStarted():
         _greetIfNudge();
+      case GptLiveDelegationCreated(:final delegationId, :final requestText):
+        _handleDelegationCreated(delegationId, requestText: requestText);
+      case GptLiveDelegationCancelled(:final delegationId):
+        _cancelledDelegations.add(delegationId);
+        _inFlightDelegations.remove(delegationId);
       case null:
         break;
     }
+  }
+
+  @visibleForTesting
+  void configureClientDelegationForTesting({
+    required bool enabled,
+    GptLiveCallPhase? phaseOverride,
+  }) {
+    _isClientDelegation = enabled;
+    if (phaseOverride != null) {
+      phase = phaseOverride;
+    }
+  }
+
+  @visibleForTesting
+  void handleEventForTesting(String raw) => _onEvent(raw);
+
+  void _handleDelegationCreated(String delegationId, {String? requestText}) {
+    if (!_isClientDelegation || phase != GptLiveCallPhase.live) return;
+    if (_inFlightDelegations.contains(delegationId) ||
+        _cancelledDelegations.contains(delegationId)) {
+      return;
+    }
+    _inFlightDelegations.add(delegationId);
+    final turns = transcript.visibleTurns;
+    _sendDataChannelEvent(
+      GptLiveProtocol.thinkingEvent('正在查询相关记录…', delegationId: delegationId),
+      label: 'delegation thinking',
+    );
+    unawaited(
+      _runClientDelegation(
+        delegationId,
+        turns: turns,
+        requestText: requestText,
+      ),
+    );
+  }
+
+  Future<void> _runClientDelegation(
+    String delegationId, {
+    required List<GptLiveTurn> turns,
+    String? requestText,
+  }) async {
+    bool isCancelled() =>
+        _disposed ||
+        !_isClientDelegation ||
+        phase != GptLiveCallPhase.live ||
+        _cancelledDelegations.contains(delegationId);
+    try {
+      final result = await _clientDelegate.handle(
+        recentTurns: turns,
+        requestText: requestText,
+        now: DateTime.now(),
+        isCancelled: isCancelled,
+      );
+      if (isCancelled()) return;
+      final text = result.trim();
+      if (text.isEmpty) return;
+      _sendDataChannelEvent(
+        GptLiveProtocol.commentaryEvent(text, delegationId: delegationId),
+        label: 'delegation commentary',
+      );
+    } catch (e, st) {
+      _log.warning('client delegation failed ($delegationId): $e\n$st');
+    } finally {
+      _inFlightDelegations.remove(delegationId);
+    }
+  }
+
+  void _sendDataChannelEvent(String payload, {required String label}) {
+    final override = _sendEventOverride;
+    if (override != null) {
+      unawaited(
+        override(payload)
+            .catchError((Object e) => _log.warning('$label send failed: $e')),
+      );
+      return;
+    }
+    final dc = _dc;
+    if (dc == null || dc.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    unawaited(
+      dc
+          .send(RTCDataChannelMessage(payload))
+          .catchError((Object e) => _log.warning('$label send failed: $e')),
+    );
   }
 
   /// 催睡来电：session.started 后发一次 commentary 让她先开口（只发一次）。
@@ -370,6 +478,9 @@ class GptLiveCall extends ChangeNotifier {
   }
 
   Future<void> _release() async {
+    _isClientDelegation = false;
+    _inFlightDelegations.clear();
+    _cancelledDelegations.clear();
     try {
       for (final t in _mic?.getTracks() ?? const <MediaStreamTrack>[]) {
         await t.stop();
@@ -413,6 +524,9 @@ class GptLiveCall extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _isClientDelegation = false;
+    _inFlightDelegations.clear();
+    _cancelledDelegations.clear();
     _idleTimer?.cancel();
     unawaited(_release());
     super.dispose();
@@ -427,6 +541,7 @@ class GptLiveCall extends ChangeNotifier {
     String extra = '',
     String callReason = '',
     bool canDelegate = false,
+    bool canUsePersonalTools = false,
   }) {
     String two(int n) => n.toString().padLeft(2, '0');
     final time =
@@ -443,9 +558,15 @@ class GptLiveCall extends ChangeNotifier {
       ..writeln('- 之前的聊天记录已经给你了，接着那些内容自然聊，不要复述。')
       ..writeln('- 用户说要挂了，就简短道别。');
     if (canDelegate) {
-      buf.writeln(
-        '- 用户问到需要查最新信息、核对事实或仔细想的问题时，交给后台去查，先自然地应一声；拿到结果再用你自己的话说，不要编。',
-      );
+      if (canUsePersonalTools) {
+        buf.writeln(
+          '- 用户问到自己的日记、日摘要、学习进度、饮食、记账、心率或高驰睡眠/运动记录时，交给后台去查，先自然地应一声；拿到结果再用你自己的话说，查不到就直说，不要编。',
+        );
+      } else {
+        buf.writeln(
+          '- 用户问到需要查最新信息、核对事实或仔细想的问题时，交给后台去查，先自然地应一声；拿到结果再用你自己的话说，不要编。',
+        );
+      }
     }
     if (callReason.trim().isNotEmpty) {
       buf
