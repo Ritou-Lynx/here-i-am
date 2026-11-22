@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// M1 daily life digest generator, run by a scheduled task at 04:30, 07:30 and 19:30 (and at logon to catch up).
-//   node life_digest_run.mjs --config <generator.json> [--stage auto|morning|day|final] [--date YYYY-MM-DD] [--no-push] [--check]
+// M1/M2 life digest generator, run by a scheduled task at 04:30, 05:00/05:30, 07:30 and 19:30 (and at logon to catch up).
+//   node life_digest_run.mjs --config <generator.json> [--stage auto|morning|day|final|week|month] [--date YYYY-MM-DD] [--period YYYY-Www|YYYY-MM] [--no-push] [--check]
 // Reads chat (MCP sharing policy) and food from the Core database (read-only), heart-rate minute files, the Feishu notes mirror and
-// AMap weather; writes <digest_dir>/days/<date>.json, todos.json, pushes/<date>.jsonl, weather/<date>.json and logs/.
+// AMap weather; writes <digest_dir>/days/<date>.json, weeks/<week>.json, months/<month>.json, todos.json, pushes/<date>.jsonl, weather/<date>.json and logs/.
 // The model is the local Codex CLI (fixed model, JSON checked, one retry); the OpenAI API is only a fallback.
 // Output: one JSON line per stage, never secrets or message text.
 import { spawn } from 'node:child_process';
@@ -52,7 +52,7 @@ export function loadConfig(configPath) {
 
 // ---------- digest directory ----------
 export function openStore(root) {
-  for (const dir of ['', 'days', 'inbox', 'pushes', 'weather', 'logs', 'work']) {
+  for (const dir of ['', 'days', 'weeks', 'months', 'inbox', 'pushes', 'weather', 'logs', 'work']) {
     const p = path.join(root, dir);
     if (!existsSync(p)) mkdirSync(p, { recursive: true });
     if (lstatSync(p).isSymbolicLink() || !lstatSync(p).isDirectory()) throw new Error('digest_dir_invalid');
@@ -69,6 +69,18 @@ export function openStore(root) {
       writeJson(file('days', date + '.json'), next);
       return next;
     },
+    week: key => readJson(file('weeks', key + '.json')),
+    saveWeek(key, doc) {
+      writeJson(file('weeks', key + '.json'), doc);
+      return doc;
+    },
+    listWeeks: () => readdirSync(file('weeks')).filter(name => /^\d{4}-W\d{2}\.json$/.test(name)).map(name => name.slice(0, -5)).filter(lib.validWeek).sort(),
+    month: key => readJson(file('months', key + '.json')),
+    saveMonth(key, doc) {
+      writeJson(file('months', key + '.json'), doc);
+      return doc;
+    },
+    listMonths: () => readdirSync(file('months')).filter(name => /^\d{4}-\d{2}\.json$/.test(name)).map(name => name.slice(0, -5)).filter(lib.validMonth).sort(),
     todos: () => { const value = readJson(file('todos.json')); return value && Array.isArray(value.items) ? value : lib.emptyTodos(); },
     saveTodos: value => writeJson(file('todos.json'), value),
     inbox() {
@@ -101,6 +113,37 @@ const hasPart = st => (date, part) => {
   if (part === 'final') return d.stage === 'final' && Boolean(d.day);
   return Boolean(d.day);
 };
+const hasPeriod = st => (kind, period) => {
+  if (kind === 'week') return Boolean(st.week(period)?.headline);
+  if (kind === 'month') return Boolean(st.month(period)?.headline);
+  return false;
+};
+const usableDayDoc = doc => Boolean(doc?.day && doc.generator !== 'none' && (doc.stage === 'final' || doc.stage === 'day'));
+function collectWeekInputs(st, week) {
+  const dates = lib.weekDates(week), days = [];
+  for (const date of dates) {
+    const doc = st.day(date);
+    if (usableDayDoc(doc)) days.push({ date, stage: doc.stage, day: doc.day });
+  }
+  return { dates, days };
+}
+function collectMonthInputs(st, month) {
+  const dates = lib.monthDates(month), weeks = [], covered = new Set();
+  for (const wk of lib.weeksInMonth(month)) {
+    const doc = st.week(wk);
+    if (doc?.headline) {
+      weeks.push(doc);
+      for (const d of lib.weekDates(wk)) covered.add(d);
+    }
+  }
+  const days = [];
+  for (const date of dates) {
+    if (covered.has(date)) continue;
+    const doc = st.day(date);
+    if (usableDayDoc(doc)) days.push({ date, stage: doc.stage, day: doc.day });
+  }
+  return { dates, weeks, days };
+}
 
 // ---------- sources ----------
 // Food straight from the Core database, read-only (production namespace, live records, this local day).
@@ -216,8 +259,47 @@ async function sendNtfy(config, text) {
 }
 
 // ---------- stages ----------
-export async function runStage({ config, st, kind, date, nowMs, push = true, runners, notify = sendNtfy }) {
+export async function runStage({ config, st, kind, date, period, nowMs, push = true, runners, notify = sendNtfy }) {
   const nowIso = lib.isoLocal(nowMs);
+  if (kind === 'week') {
+    if (!lib.validWeek(period)) throw new Error('invalid_period');
+    const { dates, days } = collectWeekInputs(st, period);
+    if (!days.length) return { stage: 'week', period, ok: true, skipped: 'no_data' };
+    const todos = lib.openTodos(st.todos(), lib.dayOf(nowMs));
+    const sources = days.map(d => 'day:' + d.date);
+    const prompt = lib.buildWeekPrompt({ week: period, dates, days, todos });
+    let result;
+    try {
+      result = await generate({ config, st, prompt, runners, validate: value => lib.validateWeekOutput(value, { sources }) });
+    } catch (error) {
+      const prior = st.week(period);
+      if (prior) st.saveWeek(period, { ...prior, failed: { stage: 'week', at: nowIso, reasons: error.errors ?? [String(error.message)] } });
+      return { stage: 'week', period, ok: false, detail: 'generation_failed' };
+    }
+    const doc = { format: 'life-digest-week-v1', week: period, date_range: [dates[0], dates.at(-1)], generated_at: nowIso,
+      generator: result.generator, source_days: days.map(d => d.date), failed: null, ...result.value };
+    st.saveWeek(period, doc);
+    return { stage: 'week', period, ok: true, generator: result.generator, source_days: days.length, retries: result.errors.length };
+  }
+  if (kind === 'month') {
+    if (!lib.validMonth(period)) throw new Error('invalid_period');
+    const { dates, weeks, days } = collectMonthInputs(st, period);
+    if (!weeks.length && !days.length) return { stage: 'month', period, ok: true, skipped: 'no_data' };
+    const sources = [...weeks.map(w => 'week:' + w.week), ...days.map(d => 'day:' + d.date)];
+    const prompt = lib.buildMonthPrompt({ month: period, dates, weeks, days });
+    let result;
+    try {
+      result = await generate({ config, st, prompt, runners, validate: value => lib.validateMonthOutput(value, { sources }) });
+    } catch (error) {
+      const prior = st.month(period);
+      if (prior) st.saveMonth(period, { ...prior, failed: { stage: 'month', at: nowIso, reasons: error.errors ?? [String(error.message)] } });
+      return { stage: 'month', period, ok: false, detail: 'generation_failed' };
+    }
+    const doc = { format: 'life-digest-month-v1', month: period, date_range: [dates[0], dates.at(-1)], generated_at: nowIso,
+      generator: result.generator, source_weeks: weeks.map(w => w.week), source_days: days.map(d => d.date), failed: null, ...result.value };
+    st.saveMonth(period, doc);
+    return { stage: 'month', period, ok: true, generator: result.generator, source_weeks: weeks.length, source_days: days.length, retries: result.errors.length };
+  }
   if (kind === 'morning') {
     const weather = await settle('weather', () => readWeather(config, st, date));
     const y = st.day(lib.addDays(date, -1));
@@ -303,7 +385,7 @@ export async function main(argv, { now = () => Date.now(), runners, notify } = {
   for (let i = 0; i < argv.length; i++) {
     const key = argv[i];
     if (key === '--no-push' || key === '--check') args[key.slice(2)] = true;
-    else if (['--config', '--stage', '--date'].includes(key)) args[key.slice(2)] = argv[++i];
+    else if (['--config', '--stage', '--date', '--period'].includes(key)) args[key.slice(2)] = argv[++i];
     else throw new Error('usage');
   }
   if (!args.config) throw new Error('usage');
@@ -318,16 +400,30 @@ heart_rate: config.heartRateDir ? existsSync(config.heartRateDir) : 'not_configu
   const release = st.lock();
   try {
     const nowMs = now();
+    const autoMode = !args.stage || args.stage === 'auto';
     let stages;
-    if (!args.stage || args.stage === 'auto') stages = lib.dueStages(nowMs, hasPart(st));
-    else {
-      if (!['morning', 'day', 'final'].includes(args.stage) || (args.date !== undefined && !lib.validDate(args.date))) throw new Error('usage');
+    if (autoMode) {
+      if (args.date !== undefined || args.period !== undefined) throw new Error('usage');
+      stages = lib.dueStages(nowMs, hasPart(st), hasPeriod(st));
+    } else if (args.stage === 'week' || args.stage === 'month') {
+      if (args.date !== undefined) throw new Error('usage');
+      const period = args.period ?? (args.stage === 'week' ? lib.previousWeek(lib.dayOf(nowMs)) : lib.previousMonth(lib.dayOf(nowMs)));
+      if (!(args.stage === 'week' ? lib.validWeek(period) : lib.validMonth(period))) throw new Error('usage');
+      stages = [{ kind: args.stage, period }];
+    } else {
+      if (!['morning', 'day', 'final'].includes(args.stage) || args.period !== undefined || (args.date !== undefined && !lib.validDate(args.date))) throw new Error('usage');
       stages = [{ kind: args.stage, date: args.date ?? (args.stage === 'final' ? lib.addDays(lib.dayOf(nowMs), -1) : lib.dayOf(nowMs)) }];
     }
     const out = [];
     for (const stage of stages) {
+      if (autoMode && (stage.kind === 'week' || stage.kind === 'month')) {
+        const hasInputs = stage.kind === 'week'
+          ? collectWeekInputs(st, stage.period).days.length > 0
+          : (({ weeks, days }) => weeks.length + days.length > 0)(collectMonthInputs(st, stage.period));
+        if (!hasInputs) continue;
+      }
       const row = await runStage({ config, st, ...stage, nowMs: now(), push: !args['no-push'], runners, notify })
-        .catch(error => ({ stage: stage.kind, date: stage.date, ok: false, detail: String(error.message).slice(0, 80) }));
+        .catch(error => ({ stage: stage.kind, ...(stage.date ? { date: stage.date } : {}), ...(stage.period ? { period: stage.period } : {}), ok: false, detail: String(error.message).slice(0, 80) }));
       st.log({ at: lib.isoLocal(now()), ...row });
       out.push(row);
     }

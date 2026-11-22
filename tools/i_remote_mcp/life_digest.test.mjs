@@ -186,3 +186,83 @@ test('M1 config and inputs fail closed', t => {
     .then(() => assert.rejects(domain.handlers.life_digest({extra:1}), /invalid_request/))
     .then(() => { writeFileSync(join(digestDir, 'days', '2026-11-07.json'), '{"format":"other"}'); return assert.rejects(domain.handlers.life_digest({}), /life_digest_file_invalid/); });
 });
+
+const weekDoc = (week, extra = {}) => ({format:'life-digest-week-v1', week, date_range:['2026-10-26', '2026-11-01'],
+  generated_at:'2026-11-02T05:01:00+08:00', generator:'codex', source_days:['2026-10-26', '2026-10-30'],
+  headline:'节奏平稳、把核心方案定稿的一周。', highlights:[{text:'定稿核心方案', sources:['day:2026-10-26']}],
+  us:[{text:'周末聊了旅行计划', sources:['day:2026-10-30']}], mood_rhythm:'精力整体稳定。', todos_summary:'两项小事待收尾。',
+  omitted:[], failed:null, ...extra});
+const monthDoc = (month, extra = {}) => ({format:'life-digest-month-v1', month, date_range:['2026-10-01', '2026-10-31'],
+  generated_at:'2026-11-01T05:31:00+08:00', generator:'codex', source_weeks:['2026-W43', '2026-W44'], source_days:['2026-10-01'],
+  headline:'稳扎稳打推进主线的十月。', themes:[{text:'方案与原型迭代', sources:['week:2026-W44']}],
+  us:[{text:'日常陪伴更规律', sources:['week:2026-W43']}], shifts:[{text:'作息比月初更早', sources:['day:2026-10-01']}],
+  milestones:[{text:'完成十月阶段目标', sources:['week:2026-W44']}], omitted:[], failed:null, ...extra});
+
+for (const [label, pick] of [['candidate', () => ({server:candidate, oauth:candidateOauth, writebackModule:candidateWriteback})],
+  ['mainline', () => ({server:mainServer, oauth:mainOauth, writebackModule:mainWriteback})]]) {
+  test(`M2 ${label}: life_digest supports period=week|month and snapshot includes weekly headline`, {timeout:60000}, async t => {
+    const {stateDir, digestDir} = fixture(t);
+    mkdirSync(join(digestDir, 'weeks'), {recursive:true});
+    mkdirSync(join(digestDir, 'months'), {recursive:true});
+    writeFileSync(join(digestDir, 'weeks', '2026-W43.json'), JSON.stringify(weekDoc('2026-W43', {headline:'早一周的主线'})));
+    writeFileSync(join(digestDir, 'weeks', '2026-W44.json'), JSON.stringify(weekDoc('2026-W44')));
+    writeFileSync(join(digestDir, 'months', '2026-10.json'), JSON.stringify(monthDoc('2026-10')));
+    const {call} = await start(t, {...pick(), stateDir});
+
+    // Default latest week (today is 2026-11-07 in 2026-W45 -> latest available is 2026-W44)
+    const latestWeek = (await call('life_digest', {period:'week'})).structuredContent;
+    assert.equal(latestWeek.period, 'week'); assert.equal(latestWeek.week, '2026-W44'); assert.equal(latestWeek.available, true);
+    assert.match(latestWeek.headline, /核心方案定稿/); assert.equal(latestWeek.highlights[0].sources[0], 'day:2026-10-26');
+    // Explicit older week
+    const explicitWeek = (await call('life_digest', {period:'week', week:'2026-W43'})).structuredContent;
+    assert.equal(explicitWeek.week, '2026-W43'); assert.equal(explicitWeek.headline, '早一周的主线');
+    // Missing week returns available:false gracefully
+    const missingWeek = (await call('life_digest', {period:'week', week:'2026-W40'})).structuredContent;
+    assert.equal(missingWeek.available, false); assert.equal(missingWeek.week, '2026-W40'); assert.match(missingWeek.note, /没有周摘要/);
+    // Invalid / future week rejected
+    assert.equal((await call('life_digest', {period:'week', week:'2025-W53'})).structuredContent.error.code, 'invalid_life_digest_week');
+    assert.equal((await call('life_digest', {period:'week', week:'2026-W46'})).structuredContent.error.code, 'life_digest_future_week');
+    assert.equal((await call('life_digest', {period:'week', date:'2026-11-07'})).structuredContent.error.code, 'invalid_request');
+
+    // Default latest month and explicit / missing / invalid / future month
+    const latestMonth = (await call('life_digest', {period:'month'})).structuredContent;
+    assert.equal(latestMonth.period, 'month'); assert.equal(latestMonth.month, '2026-10'); assert.equal(latestMonth.available, true);
+    assert.match(latestMonth.headline, /十月/); assert.deepEqual(latestMonth.source_weeks, ['2026-W43', '2026-W44']);
+    const missingMonth = (await call('life_digest', {period:'month', month:'2026-09'})).structuredContent;
+    assert.equal(missingMonth.available, false); assert.equal(missingMonth.month, '2026-09');
+    assert.equal((await call('life_digest', {period:'month', month:'2026-13'})).structuredContent.error.code, 'invalid_life_digest_month');
+    assert.equal((await call('life_digest', {period:'month', month:'2026-12'})).structuredContent.error.code, 'life_digest_future_month');
+    assert.equal((await call('life_digest', {period:'year'})).structuredContent.error.code, 'invalid_life_digest_period');
+    assert.equal((await call('life_digest', {period:'day', week:'2026-W44'})).structuredContent.error.code, 'invalid_request');
+
+    // Snapshot includes the weekly headline line
+    const turn = (await call('i_chat_turn', {phase:'start', turns:[{role:'user', content:'晚上好'}]})).structuredContent;
+    assert.match(turn.life_snapshot, /近期周主线（2026-W44）：节奏平稳、把核心方案定稿的一周。/);
+    assert.ok([...turn.life_snapshot].length <= 600);
+  });
+}
+
+test('M2 snapshot: falls back to latest week in weeks/ and never drops today headline or todos under 600-char cap', t => {
+  const {stateDir, digestDir} = fixture(t);
+  mkdirSync(join(digestDir, 'weeks'), {recursive:true});
+  // previousWeek('2026-11-07') is 2026-W44 (absent), so snapshot falls back to latest available 2026-W43
+  writeFileSync(join(digestDir, 'weeks', '2026-W43.json'), JSON.stringify(weekDoc('2026-W43', {headline:'十月下旬集中冲刺'})));
+  const life = createLifeDigest({stateDir, now:() => EVENING});
+  const normal = life.snapshot();
+  assert.match(normal, /近期周主线（2026-W43）：十月下旬集中冲刺/);
+  assert.ok([...normal].length <= 600);
+
+  // Under heavy daily content + huge weekly headline, total stays <= 600 and preserves today's headline & todos
+  const long = '很长'.repeat(400);
+  writeFileSync(join(digestDir, 'weeks', '2026-W44.json'), JSON.stringify(weekDoc('2026-W44', {headline:long})));
+  writeFileSync(join(digestDir, 'days', '2026-11-07.json'), JSON.stringify(day('2026-11-07', {
+    day:{headline:'今日重要主线' + long, your_day:[], us:[], anomalies:[{text:long}], omitted:[]}})));
+  writeFileSync(join(digestDir, 'todos.json'), JSON.stringify(todos([
+    {id:'td_keep0001', text:'务必保留的待办', first_seen:'2026-11-05', status:'open'},
+    ...Array.from({length:8}, (_, i) => ({id:'td_long' + String(i).padStart(4, '0'), text:long, first_seen:'2026-11-01', status:'open'})),
+  ])));
+  const capped = life.snapshot();
+  assert.ok([...capped].length <= 600, String([...capped].length));
+  assert.match(capped, /今日重要主线/);
+  assert.match(capped, /务必保留的待办/);
+});
