@@ -241,7 +241,7 @@ test('A1 candidate app exposes exactly ten read tools while other frontend lists
     const response = await mcpPost(base, token.body.access_token, {jsonrpc:'2.0', id:2, method:'tools/list'}, {sessionId});
     assert.equal(response.status, 200);
     if (redirectUri === 'http://127.0.0.1:47859/hereiam/i-mcp/callback') {
-      for (const name of ['i_context','i_recall','i_chat_turn','i_remember','capture_add','week_get','day_get','food_log','expense_log','life_todo','study_result']) {
+      for (const name of ['i_context','i_recall','i_chat_turn','i_remember','capture_add','week_get','day_get','food_log','expense_log','life_todo','life_profile','study_result']) {
         const rejected = await mcpPost(base, token.body.access_token,
           {jsonrpc:'2.0', id:3, method:'tools/call', params:{name, arguments:{}}}, {sessionId});
         assert.match(rejected.body.error.message, /Unknown tool/, name);
@@ -251,9 +251,9 @@ test('A1 candidate app exposes exactly ten read tools while other frontend lists
   };
   assert.deepEqual(await list('http://127.0.0.1:47859/hereiam/i-mcp/callback'),
     ['expense_day','food_day','heart_rate','life_digest','notes_read','notes_recent','notes_search','study_progress','study_source','study_today']);
-  const standard = ['expense_day','expense_log','food_day','food_log','heart_rate','i_context','i_recall','life_digest','life_todo','notes_read','notes_recent','notes_search'];
+  const standard = ['expense_day','expense_log','food_day','food_log','heart_rate','i_context','i_recall','life_digest','life_profile','life_todo','notes_read','notes_recent','notes_search'];
   const withStudy = [...standard, 'study_progress','study_result','study_source','study_today'].sort();
   const expected = {claude_web:withStudy, chatgpt_web:withStudy, gemini_web:withStudy, antigravity:standard,
-    sesame:['heart_rate','i_context','i_recall','life_digest','life_todo']};
+    sesame:['heart_rate','i_context','i_recall','life_digest','life_profile','life_todo']};
   for (const frontend of Object.keys(callbacks)) assert.deepEqual(await list(callbacks[frontend]), expected[frontend], frontend);
 });

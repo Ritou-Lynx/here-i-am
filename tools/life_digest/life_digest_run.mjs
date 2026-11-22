@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// M1/M2 life digest generator, run by a scheduled task at 04:30, 05:00/05:30, 07:30 and 19:30 (and at logon to catch up).
-//   node life_digest_run.mjs --config <generator.json> [--stage auto|morning|day|final|week|month] [--date YYYY-MM-DD] [--period YYYY-Www|YYYY-MM] [--no-push] [--check]
+// M1/M2/M3 life digest generator, run by a scheduled task at 04:30, 05:00/05:30/06:00, 07:30 and 19:30 (and at logon to catch up).
+//   node life_digest_run.mjs --config <generator.json> [--stage auto|morning|day|final|week|month|profile] [--date YYYY-MM-DD] [--period YYYY-Www|YYYY-MM] [--no-push] [--check]
 // Reads chat (MCP sharing policy) and food from the Core database (read-only), heart-rate minute files, the Feishu notes mirror and
-// AMap weather; writes <digest_dir>/days/<date>.json, weeks/<week>.json, months/<month>.json, todos.json, pushes/<date>.jsonl, weather/<date>.json and logs/.
+// AMap weather; writes <digest_dir>/days/<date>.json, weeks/<week>.json, months/<month>.json, profile.json, todos.json, pushes/<date>.jsonl, weather/<date>.json and logs/.
 // The model is the local Codex CLI (fixed model, JSON checked, one retry); the OpenAI API is only a fallback.
 // Output: one JSON line per stage, never secrets or message text.
 import { spawn } from 'node:child_process';
@@ -81,6 +81,8 @@ export function openStore(root) {
       return doc;
     },
     listMonths: () => readdirSync(file('months')).filter(name => /^\d{4}-\d{2}\.json$/.test(name)).map(name => name.slice(0, -5)).filter(lib.validMonth).sort(),
+    profile: () => { const value = readJson(file('profile.json')); return value && Array.isArray(value.items) ? value : lib.emptyProfile(); },
+    saveProfile: value => { writeJson(file('profile.json'), value); return value; },
     todos: () => { const value = readJson(file('todos.json')); return value && Array.isArray(value.items) ? value : lib.emptyTodos(); },
     saveTodos: value => writeJson(file('todos.json'), value),
     inbox() {
@@ -88,6 +90,17 @@ export function openStore(root) {
       for (const name of readdirSync(file('inbox'))) {
         if (!/^todo-\d{13}-[0-9a-f]{8}\.json$/.test(name)) continue;
         try { const v = readJson(file('inbox', name)); if (v?.format === 'life-todo-inbox-v1' && typeof v.id === 'string') out.push({ ...v, name }); } catch { /* skipped below */ }
+      }
+      return out.sort((a, b) => a.name.localeCompare(b.name));
+    },
+    profileInbox() {
+      const out = [];
+      for (const name of readdirSync(file('inbox'))) {
+        if (!/^profile-\d{13}-[0-9a-f]{8}\.json$/.test(name)) continue;
+        try {
+          const v = readJson(file('inbox', name));
+          if (v?.format === 'life-profile-inbox-v1' && ['set', 'pin', 'remove'].includes(v.action)) out.push({ ...v, name });
+        } catch { /* skipped below */ }
       }
       return out.sort((a, b) => a.name.localeCompare(b.name));
     },
@@ -116,6 +129,10 @@ const hasPart = st => (date, part) => {
 const hasPeriod = st => (kind, period) => {
   if (kind === 'week') return Boolean(st.week(period)?.headline);
   if (kind === 'month') return Boolean(st.month(period)?.headline);
+  if (kind === 'profile') {
+    const p = st.profile();
+    return Boolean(p?.generated_at && (p.last_period === period || (Array.isArray(p.source_months) && p.source_months.includes(period))));
+  }
   return false;
 };
 const usableDayDoc = doc => Boolean(doc?.day && doc.generator !== 'none' && (doc.stage === 'final' || doc.stage === 'day'));
@@ -143,6 +160,31 @@ function collectMonthInputs(st, month) {
     if (usableDayDoc(doc)) days.push({ date, stage: doc.stage, day: doc.day });
   }
   return { dates, weeks, days };
+}
+function collectProfileInputs(st) {
+  const allMonths = [];
+  for (const key of st.listMonths()) {
+    const doc = st.month(key);
+    if (doc?.headline) allMonths.push(doc);
+  }
+  const months = allMonths.slice(-lib.LIMITS.profileMonths);
+  const includedMonths = new Set(months.map(m => m.month));
+  const coveredWeeks = new Set();
+  for (const m of months) {
+    if (Array.isArray(m.source_weeks)) {
+      for (const wk of m.source_weeks) if (lib.validWeek(wk)) coveredWeeks.add(wk);
+    }
+  }
+  const allWeeks = [];
+  for (const key of st.listWeeks()) {
+    if (coveredWeeks.has(key)) continue;
+    const dates = lib.weekDates(key);
+    if (dates.length && dates.every(d => includedMonths.has(d.slice(0, 7)))) continue;
+    const doc = st.week(key);
+    if (doc?.headline) allWeeks.push(doc);
+  }
+  const weeks = allWeeks.slice(-lib.LIMITS.profileWeeks);
+  return { months, weeks };
 }
 
 // ---------- sources ----------
@@ -300,6 +342,52 @@ export async function runStage({ config, st, kind, date, period, nowMs, push = t
     st.saveMonth(period, doc);
     return { stage: 'month', period, ok: true, generator: result.generator, source_weeks: weeks.length, source_days: days.length, retries: result.errors.length };
   }
+  if (kind === 'profile') {
+    if (period !== undefined && period !== null && !lib.validMonth(period)) throw new Error('invalid_period');
+    const inbox = st.profileInbox();
+    const current = st.profile();
+    const { months, weeks } = collectProfileInputs(st);
+    if (!months.length && !weeks.length) {
+      if (inbox.length) {
+        st.saveProfile(lib.applyProfileInbox(current, inbox, nowIso));
+        st.clearInbox(inbox.map(a => a.name));
+      }
+      return { stage: 'profile', ...(period ? { period } : {}), ok: true, skipped: 'no_data' };
+    }
+    const before = lib.applyProfileInbox(current, inbox, nowIso);
+    const inputPart = lib.profileInputsText({ months, weeks });
+    const autoIds = before.items.filter(item => item.status === 'auto').map(item => item.id);
+    const prompt = lib.buildProfilePrompt({ currentProfile: before, months: inputPart.months, weeks: inputPart.weeks });
+    let result;
+    try {
+      result = await generate({ config, st, prompt, runners, validate: value => lib.validateProfileOutput(value, { sources: inputPart.sources, autoIds }) });
+    } catch (error) {
+      st.saveProfile({ ...before, failed: { stage: 'profile', at: nowIso, reasons: error.errors ?? [String(error.message)] } });
+      if (inbox.length) st.clearInbox(inbox.map(a => a.name));
+      return { stage: 'profile', ...(period ? { period } : {}), ok: false, detail: 'generation_failed' };
+    }
+    const merged = lib.mergeProfile(current, {
+      nowIso,
+      inbox,
+      ops: result.value,
+      sourceMonths: inputPart.months.map(m => m.month),
+      sourceWeeks: inputPart.weeks.map(w => w.week),
+      generator: result.generator,
+      period: period ?? inputPart.months.at(-1)?.month ?? null,
+    });
+    st.saveProfile(merged);
+    if (inbox.length) st.clearInbox(inbox.map(a => a.name));
+    return {
+      stage: 'profile',
+      ...(period ? { period } : {}),
+      ok: true,
+      generator: result.generator,
+      source_months: inputPart.months.length,
+      source_weeks: inputPart.weeks.length,
+      items: merged.items.length,
+      retries: result.errors.length,
+    };
+  }
   if (kind === 'morning') {
     const weather = await settle('weather', () => readWeather(config, st, date));
     const y = st.day(lib.addDays(date, -1));
@@ -410,16 +498,23 @@ heart_rate: config.heartRateDir ? existsSync(config.heartRateDir) : 'not_configu
       const period = args.period ?? (args.stage === 'week' ? lib.previousWeek(lib.dayOf(nowMs)) : lib.previousMonth(lib.dayOf(nowMs)));
       if (!(args.stage === 'week' ? lib.validWeek(period) : lib.validMonth(period))) throw new Error('usage');
       stages = [{ kind: args.stage, period }];
+    } else if (args.stage === 'profile') {
+      if (args.date !== undefined) throw new Error('usage');
+      const period = args.period ?? lib.previousMonth(lib.dayOf(nowMs));
+      if (!lib.validMonth(period)) throw new Error('usage');
+      stages = [{ kind: 'profile', period }];
     } else {
       if (!['morning', 'day', 'final'].includes(args.stage) || args.period !== undefined || (args.date !== undefined && !lib.validDate(args.date))) throw new Error('usage');
       stages = [{ kind: args.stage, date: args.date ?? (args.stage === 'final' ? lib.addDays(lib.dayOf(nowMs), -1) : lib.dayOf(nowMs)) }];
     }
     const out = [];
     for (const stage of stages) {
-      if (autoMode && (stage.kind === 'week' || stage.kind === 'month')) {
+      if (autoMode && (stage.kind === 'week' || stage.kind === 'month' || stage.kind === 'profile')) {
         const hasInputs = stage.kind === 'week'
           ? collectWeekInputs(st, stage.period).days.length > 0
-          : (({ weeks, days }) => weeks.length + days.length > 0)(collectMonthInputs(st, stage.period));
+          : stage.kind === 'month'
+            ? (({ weeks, days }) => weeks.length + days.length > 0)(collectMonthInputs(st, stage.period))
+            : (({ months, weeks }) => months.length + weeks.length > 0)(collectProfileInputs(st));
         if (!hasInputs) continue;
       }
       const row = await runStage({ config, st, ...stage, nowMs: now(), push: !args['no-push'], runners, notify })

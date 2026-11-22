@@ -116,7 +116,7 @@ test('App HTTP OAuth routes only enabled read tools and refreshes', async t => {
   assert.deepEqual(listed.body.result.tools.map(tool => tool.name), ['food_day']);
   assert.equal((await rpc('tools/call', { name: 'food_day', arguments: {} })).body.result.isError, false);
   for (const name of ['i_context', 'i_recall', 'i_chat_turn', 'i_remember', 'capture_add', 'week_get',
-    'day_get', 'food_log', 'expense_log', 'life_todo', 'study_result']) {
+    'day_get', 'food_log', 'expense_log', 'life_todo', 'life_profile', 'study_result']) {
     assert.match((await rpc('tools/call', { name, arguments: {} })).body.error.message, /Unknown tool/);
   }
   const refreshed = await postToken(base, { grant_type: 'refresh_token', client_id: client.client_id, refresh_token: token.body.refresh_token });

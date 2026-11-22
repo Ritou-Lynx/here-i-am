@@ -319,21 +319,23 @@ test('M2 ISO week and calendar month helpers handle year boundaries and 53-week 
   assert.deepEqual(lib.weeksInMonth('2026-11'), ['2026-W44', '2026-W45', '2026-W46', '2026-W47', '2026-W48', '2026-W49']);
 });
 
-test('M2 period scheduling: Monday 05:00 weekly, day-1 05:30 monthly, catch-up, and combined dueStages', () => {
+test('M2/M3 period scheduling: Monday 05:00 weekly, day-1 05:30 monthly, day-1 06:00 profile, catch-up, and combined dueStages', () => {
   const none = () => false;
-  // Monday 2026-11-09 (day 9 of month): week waits until 05:00; month (2026-10) is in catch-up.
-  assert.deepEqual(lib.duePeriodStages(at('2026-11-09T04:59:00+08:00'), none), [{ kind: 'month', period: '2026-10' }]);
-  assert.deepEqual(lib.duePeriodStages(at('2026-11-09T05:00:00+08:00'), none), [{ kind: 'week', period: '2026-W45' }, { kind: 'month', period: '2026-10' }]);
-  // Tuesday 04:10 catch-up for week
-  assert.deepEqual(lib.duePeriodStages(at('2026-11-10T04:10:00+08:00'), (k, p) => k === 'month' && p === '2026-10'), [{ kind: 'week', period: '2026-W45' }]);
+  // Monday 2026-11-09 (day 9 of month): week waits until 05:00; month & profile (2026-10) are in catch-up.
+  assert.deepEqual(lib.duePeriodStages(at('2026-11-09T04:59:00+08:00'), none), [{ kind: 'month', period: '2026-10' }, { kind: 'profile', period: '2026-10' }]);
+  assert.deepEqual(lib.duePeriodStages(at('2026-11-09T05:00:00+08:00'), none), [{ kind: 'week', period: '2026-W45' }, { kind: 'month', period: '2026-10' }, { kind: 'profile', period: '2026-10' }]);
+  // Tuesday 04:10 catch-up for week when month & profile are done
+  assert.deepEqual(lib.duePeriodStages(at('2026-11-10T04:10:00+08:00'), (k, p) => (k === 'month' || k === 'profile') && p === '2026-10'), [{ kind: 'week', period: '2026-W45' }]);
   // Monday + Day 1 overlap: 2026-06-01 is Monday
   assert.deepEqual(lib.duePeriodStages(at('2026-06-01T04:59:00+08:00'), none), []);
   assert.deepEqual(lib.duePeriodStages(at('2026-06-01T05:00:00+08:00'), none), [{ kind: 'week', period: '2026-W22' }]);
   assert.deepEqual(lib.duePeriodStages(at('2026-06-01T05:29:00+08:00'), none), [{ kind: 'week', period: '2026-W22' }]);
   assert.deepEqual(lib.duePeriodStages(at('2026-06-01T05:30:00+08:00'), none), [{ kind: 'week', period: '2026-W22' }, { kind: 'month', period: '2026-05' }]);
-  // Integrated 3-arg dueStages runs daily final before week and month
-  assert.deepEqual(lib.dueStages(at('2026-06-01T05:30:00+08:00'), none, none), [
-    { kind: 'final', date: '2026-05-31' }, { kind: 'week', period: '2026-W22' }, { kind: 'month', period: '2026-05' },
+  assert.deepEqual(lib.duePeriodStages(at('2026-06-01T05:59:00+08:00'), none), [{ kind: 'week', period: '2026-W22' }, { kind: 'month', period: '2026-05' }]);
+  assert.deepEqual(lib.duePeriodStages(at('2026-06-01T06:00:00+08:00'), none), [{ kind: 'week', period: '2026-W22' }, { kind: 'month', period: '2026-05' }, { kind: 'profile', period: '2026-05' }]);
+  // Integrated 3-arg dueStages runs daily final before week, month, and profile
+  assert.deepEqual(lib.dueStages(at('2026-06-01T06:00:00+08:00'), none, none), [
+    { kind: 'final', date: '2026-05-31' }, { kind: 'week', period: '2026-W22' }, { kind: 'month', period: '2026-05' }, { kind: 'profile', period: '2026-05' },
   ]);
   // Already generated periods are omitted
   assert.deepEqual(lib.duePeriodStages(at('2026-06-01T06:00:00+08:00'), () => true), []);
@@ -460,4 +462,168 @@ test('M2 generator: week and month stages, no-data skip, store listing, and auto
   await assert.rejects(main(['--config', configPath, '--stage', 'week', '--period', '2025-W53']), /usage/);
   await assert.rejects(main(['--config', configPath, '--stage', 'week', '--date', '2026-11-08']), /usage/);
   await assert.rejects(main(['--config', configPath, '--stage', 'month', '--period', '2026-13']), /usage/);
+});
+
+test('M3 profile pure logic: inbox, prompt, validator, pinned authority, tombstones, and limits', () => {
+  assert.deepEqual(lib.PROFILE_CATEGORIES, ['rhythm', 'work_study', 'health', 'preferences', 'us']);
+  assert.equal(lib.SCHEDULE.profile, '06:00');
+  const id1 = lib.profileItemId('rhythm', '通常早上八点起床');
+  assert.match(id1, /^pf_[0-9a-f]{12}$/);
+  assert.equal(lib.profileTextHash('通常早上八点起床！'), lib.profileTextHash('通常早上八点起床'));
+
+  // Inbox: set new, pin auto, remove with tombstone
+  let state = lib.emptyProfile();
+  state.items.push({ id: 'pf_auto000001', category: 'health', text: '近期关注睡眠', status: 'auto', sources: ['month:2026-10'], first_seen: '2026-11-01', updated_at: '2026-11-01T06:00:00+08:00' });
+  state.items.push({ id: 'pf_auto000002', category: 'preferences', text: '爱喝美式咖啡', status: 'auto', sources: ['month:2026-10'], first_seen: '2026-11-01', updated_at: '2026-11-01T06:00:00+08:00' });
+  state = lib.applyProfileInbox(state, [
+    { format: 'life-profile-inbox-v1', action: 'set', category: 'rhythm', text: '工作日早上 7:30 起床', at: '2026-11-02T10:00:00+08:00' },
+    { format: 'life-profile-inbox-v1', action: 'pin', id: 'pf_auto000001', at: '2026-11-02T10:01:00+08:00' },
+    { format: 'life-profile-inbox-v1', action: 'remove', id: 'pf_auto000002', at: '2026-11-02T10:02:00+08:00' },
+  ]);
+  assert.equal(state.items.length, 2);
+  assert.equal(state.items.find(i => i.id === 'pf_auto000001').status, 'pinned');
+  assert.equal(state.items.find(i => i.category === 'rhythm').status, 'pinned');
+  assert.equal(state.tombstones.length, 1);
+  assert.equal(state.tombstones[0].id, 'pf_auto000002');
+  assert.equal(state.tombstones[0].text_hash, lib.profileTextHash('爱喝美式咖啡'));
+
+  // Prompt marks [pinned] vs [auto] and excludes covered weeks
+  const months = [{ month: '2026-10', headline: '十月稳步推进', source_weeks: ['2026-W43'], themes: [{ text: '写论文' }], us: [], shifts: [], milestones: [] }];
+  const weeks = [
+    { week: '2026-W43', date_range: ['2026-10-19', '2026-10-25'], headline: '被月报覆盖的周', highlights: [], us: [] },
+    { week: '2026-W45', date_range: ['2026-11-02', '2026-11-08'], headline: '十一月第一周', highlights: [{ text: '开始跑步' }], us: [] },
+  ];
+  const prompt = lib.buildProfilePrompt({ currentProfile: state, months, weeks });
+  assert.match(prompt, /\[pinned\] pf_auto000001/);
+  assert.match(prompt, /\[month:2026-10\]/);
+  assert.match(prompt, /\[week:2026-W45\]/);
+  assert.doesNotMatch(prompt, /\[week:2026-W43\]/);
+
+  // Validator: strict known sources, drops sourceless add/update, rejects pinned update/retire
+  state.items.push({ id: 'pf_auto000003', category: 'work_study', text: '正在准备秋招', status: 'auto', sources: ['month:2026-10'], first_seen: '2026-11-01', updated_at: '2026-11-01T06:00:00+08:00' });
+  const validated = lib.validateProfileOutput({
+    add: [
+      { category: 'health', text: '每周跑步三次', sources: ['week:2026-W45', 'week:2026-W99'] },
+      { category: 'preferences', text: '爱喝美式咖啡。', sources: ['month:2026-10'] },
+      { category: 'us', text: '没有有效出处的条目', sources: ['day:2026-11-01'] },
+      { category: 'unknown_cat', text: '非法分类', sources: ['month:2026-10'] },
+    ],
+    update: [
+      { id: 'pf_auto000001', text: '试图覆盖 pinned', sources: ['month:2026-10'] },
+      { id: 'pf_auto000003', text: '秋招进入终面阶段', sources: ['week:2026-W45'] },
+    ],
+    retire: ['pf_auto000001', 'pf_missing0001'],
+  }, { sources: ['month:2026-10', 'week:2026-W45'], autoIds: ['pf_auto000003'] });
+  assert.equal(validated.add.length, 2);
+  assert.deepEqual(validated.add[0].sources, ['week:2026-W45']);
+  assert.deepEqual(validated.update.map(u => u.id), ['pf_auto000003']);
+  assert.deepEqual(validated.retire, []);
+
+  // mergeProfile: tombstoned item is NEVER resurrected; pinned untouched; auto updated
+  const merged = lib.mergeProfile(state, {
+    nowIso: '2026-12-01T06:00:00+08:00',
+    ops: validated,
+    sourceMonths: ['2026-10'],
+    sourceWeeks: ['2026-W45'],
+    generator: 'codex',
+    period: '2026-11',
+  });
+  assert.equal(merged.items.find(i => i.id === 'pf_auto000001').text, '近期关注睡眠');
+  assert.equal(merged.items.find(i => i.id === 'pf_auto000003').text, '秋招进入终面阶段');
+  assert.ok(merged.items.some(i => i.text === '每周跑步三次'));
+  assert.ok(!merged.items.some(i => i.text.includes('美式咖啡')), 'tombstoned item must never be resurrected');
+
+  // Category limit (12) enforced on model add
+  const manyAdds = Array.from({ length: 15 }, (_, i) => ({ category: 'preferences', text: `偏好条目 ${i}`, sources: ['month:2026-10'] }));
+  const capped = lib.mergeProfile(lib.emptyProfile(), {
+    nowIso: '2026-12-01T06:00:00+08:00',
+    ops: { add: manyAdds, update: [], retire: [] },
+    sourceMonths: ['2026-10'],
+    sourceWeeks: [],
+    generator: 'codex',
+  });
+  assert.equal(capped.items.filter(i => i.category === 'preferences').length, 12);
+});
+
+test('M3 generator: profile stage, inbox flush on failure, auto mode at 06:00, and MCP integration', async t => {
+  const { digestDir, configPath } = generatorFixture(t, { ntfy: false });
+  const st = openStore(digestDir);
+
+  // No month/week data -> skips model call without error
+  const skipped = await main(['--config', configPath, '--stage', 'profile', '--period', '2026-11'], {
+    now: () => at('2026-12-01T06:00:00+08:00'),
+    runners: { codex: async () => { throw new Error('must not be called'); } },
+  });
+  assert.deepEqual(skipped, [{ stage: 'profile', period: '2026-11', ok: true, skipped: 'no_data' }]);
+
+  // Seed month 2026-11 and uncovered week 2026-W49
+  st.saveMonth('2026-11', {
+    format: 'life-digest-month-v1', month: '2026-11', date_range: ['2026-11-01', '2026-11-30'],
+    generated_at: '2026-12-01T05:30:00+08:00', generator: 'codex', source_weeks: ['2026-W45'], source_days: [],
+    headline: '专注毕业与健身的十一月', themes: [{ text: '推进毕业设计', sources: ['week:2026-W45'] }],
+    us: [{ text: '每晚睡前聊十分钟', sources: ['week:2026-W45'] }], shifts: [], milestones: [], omitted: [], failed: null,
+  });
+  st.saveWeek('2026-W49', {
+    format: 'life-digest-week-v1', week: '2026-W49', date_range: ['2026-11-30', '2026-12-06'],
+    generated_at: '2026-12-07T05:00:00+08:00', generator: 'codex', source_days: ['2026-12-01'],
+    headline: '开始早睡打卡', highlights: [{ text: '十一点半前睡觉', sources: ['day:2026-12-01'] }],
+    us: [], mood_rhythm: '精神更好', todos_summary: '', omitted: [], failed: null,
+  });
+  // Also seed yesterday final so auto mode only runs profile
+  st.saveDay('2026-11-30', { stage: 'final', generator: 'none', day: { headline: '无记录', your_day: [], us: [], anomalies: [], omitted: [] } });
+
+  // User adds a pinned item via MCP life_profile before generator runs
+  const stateDir = join(digestDir, '..', 'mcp-state');
+  mkdirSync(stateDir, { recursive: true });
+  writeFileSync(join(stateDir, 'life_digest.json'), JSON.stringify({ format: 'life-digest-v1', digest_dir: digestDir }));
+  const life = createLifeDigest({ stateDir, now: () => at('2026-12-01T05:50:00+08:00') });
+  const created = await life.handlers.life_profile({ action: 'set', category: 'preferences', text: '不吃香菜' });
+  assert.equal(created.recorded, true);
+  assert.equal(st.profileInbox().length, 1);
+
+  // Generation failure still applies inbox, clears inbox, and marks failed
+  const failedRows = await main(['--config', configPath, '--stage', 'profile', '--period', '2026-11'], {
+    now: () => at('2026-12-01T06:00:00+08:00'),
+    runners: { codex: async () => { throw new Error('codex_failed:1'); } },
+  });
+  assert.equal(failedRows[0].ok, false);
+  assert.equal(st.profileInbox().length, 0);
+  const afterFail = st.profile();
+  assert.equal(afterFail.items.length, 1);
+  assert.equal(afterFail.items[0].text, '不吃香菜');
+  assert.equal(afterFail.failed.stage, 'profile');
+
+  // Auto mode at 2026-12-01 06:05 runs profile (since generated_at is still null)
+  const prompts = [];
+  const runners = {
+    codex: async (_c, p) => {
+      prompts.push(p);
+      return JSON.stringify({
+        add: [
+          { category: 'work_study', text: '正在推进毕业设计', sources: ['month:2026-11'] },
+          { category: 'rhythm', text: '尝试十一点半前早睡', sources: ['week:2026-W49'] },
+        ],
+        update: [],
+        retire: [],
+      });
+    },
+  };
+  const autoRows = await main(['--config', configPath], { now: () => at('2026-12-01T06:05:00+08:00'), runners });
+  assert.deepEqual(autoRows.map(r => [r.stage, r.period, r.ok]), [['profile', '2026-11', true]]);
+  assert.match(prompts[0], /\[pinned\] .*不吃香菜/);
+  assert.match(prompts[0], /\[month:2026-11\]/);
+  assert.match(prompts[0], /\[week:2026-W49\]/);
+  const saved = st.profile();
+  assert.equal(saved.failed, null);
+  assert.equal(saved.items.length, 3);
+  assert.deepEqual(saved.source_months, ['2026-11']);
+  assert.deepEqual(saved.source_weeks, ['2026-W49']);
+
+  // Auto mode again -> nothing_due
+  const again = await main(['--config', configPath], { now: () => at('2026-12-01T06:10:00+08:00'), runners });
+  assert.deepEqual(again, [{ stage: 'none', ok: true, detail: 'nothing_due' }]);
+
+  // Invalid CLI combinations
+  await assert.rejects(main(['--config', configPath, '--stage', 'profile', '--date', '2026-12-01']), /usage/);
+  await assert.rejects(main(['--config', configPath, '--stage', 'profile', '--period', '2026-13']), /usage/);
 });
