@@ -284,3 +284,180 @@ test('diary of the day (04:00 boundary) goes into the prompt as notes sources', 
   assert.doesNotMatch(fallback, /今天记得/);
   assert.match(lib.morningTodoText({ text: '买书' }), /日期未知.*未确认执行日期/);
 });
+
+test('M2 ISO week and calendar month helpers handle year boundaries and 53-week years', () => {
+  assert.equal(lib.validWeek('2026-W01'), true);
+  assert.equal(lib.validWeek('2026-W53'), true);
+  assert.equal(lib.validWeek('2025-W53'), false);
+  assert.equal(lib.validWeek('2026-W00'), false);
+  assert.equal(lib.validWeek('2026-W54'), false);
+  assert.equal(lib.validWeek('2026-11'), false);
+  assert.equal(lib.validMonth('2026-01'), true);
+  assert.equal(lib.validMonth('2026-12'), true);
+  assert.equal(lib.validMonth('2026-00'), false);
+  assert.equal(lib.validMonth('2026-13'), false);
+  assert.equal(lib.isoWeekOf('2025-12-28'), '2025-W52');
+  assert.equal(lib.isoWeekOf('2025-12-29'), '2026-W01');
+  assert.equal(lib.isoWeekOf('2026-12-31'), '2026-W53');
+  assert.equal(lib.isoWeekOf('2027-01-03'), '2026-W53');
+  assert.equal(lib.isoWeekOf('2027-01-04'), '2027-W01');
+  // 04:00 boundary on Monday morning
+  assert.equal(lib.isoWeekOf(at('2026-11-09T03:59:00+08:00')), '2026-W45');
+  assert.equal(lib.isoWeekOf(at('2026-11-09T04:00:00+08:00')), '2026-W46');
+  assert.deepEqual(lib.weekDates('2026-W45'), ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08']);
+  assert.equal(lib.weekDates('2026-W01')[0], '2025-12-29');
+  assert.deepEqual(lib.weekDates('2025-W53'), []);
+  assert.equal(lib.previousWeek('2026-W01'), '2025-W52');
+  assert.equal(lib.previousWeek('2027-W01'), '2026-W53');
+  assert.equal(lib.previousWeek('2026-11-09'), '2026-W45');
+  assert.equal(lib.previousWeek(at('2026-11-09T03:59:00+08:00')), '2026-W44');
+  assert.equal(lib.previousMonth('2026-01'), '2025-12');
+  assert.equal(lib.previousMonth('2026-11-09'), '2026-10');
+  assert.equal(lib.monthDates('2024-02').length, 29);
+  assert.equal(lib.monthDates('2026-02').length, 28);
+  assert.equal(lib.monthDates('2026-11').length, 30);
+  assert.deepEqual(lib.weeksInMonth('2026-11'), ['2026-W44', '2026-W45', '2026-W46', '2026-W47', '2026-W48', '2026-W49']);
+});
+
+test('M2 period scheduling: Monday 05:00 weekly, day-1 05:30 monthly, catch-up, and combined dueStages', () => {
+  const none = () => false;
+  // Monday 2026-11-09 (day 9 of month): week waits until 05:00; month (2026-10) is in catch-up.
+  assert.deepEqual(lib.duePeriodStages(at('2026-11-09T04:59:00+08:00'), none), [{ kind: 'month', period: '2026-10' }]);
+  assert.deepEqual(lib.duePeriodStages(at('2026-11-09T05:00:00+08:00'), none), [{ kind: 'week', period: '2026-W45' }, { kind: 'month', period: '2026-10' }]);
+  // Tuesday 04:10 catch-up for week
+  assert.deepEqual(lib.duePeriodStages(at('2026-11-10T04:10:00+08:00'), (k, p) => k === 'month' && p === '2026-10'), [{ kind: 'week', period: '2026-W45' }]);
+  // Monday + Day 1 overlap: 2026-06-01 is Monday
+  assert.deepEqual(lib.duePeriodStages(at('2026-06-01T04:59:00+08:00'), none), []);
+  assert.deepEqual(lib.duePeriodStages(at('2026-06-01T05:00:00+08:00'), none), [{ kind: 'week', period: '2026-W22' }]);
+  assert.deepEqual(lib.duePeriodStages(at('2026-06-01T05:29:00+08:00'), none), [{ kind: 'week', period: '2026-W22' }]);
+  assert.deepEqual(lib.duePeriodStages(at('2026-06-01T05:30:00+08:00'), none), [{ kind: 'week', period: '2026-W22' }, { kind: 'month', period: '2026-05' }]);
+  // Integrated 3-arg dueStages runs daily final before week and month
+  assert.deepEqual(lib.dueStages(at('2026-06-01T05:30:00+08:00'), none, none), [
+    { kind: 'final', date: '2026-05-31' }, { kind: 'week', period: '2026-W22' }, { kind: 'month', period: '2026-05' },
+  ]);
+  // Already generated periods are omitted
+  assert.deepEqual(lib.duePeriodStages(at('2026-06-01T06:00:00+08:00'), () => true), []);
+});
+
+test('M2 week and month prompts and validators enforce source allowlists', () => {
+  const days = [
+    { date: '2026-11-02', stage: 'final', day: { headline: '周一开工', your_day: [{ text: '写方案' }], us: [{ text: '晚上聊了电影' }], anomalies: [] } },
+    { date: '2026-11-05', stage: 'day', day: { headline: '周四加班', your_day: [{ text: '修 bug' }], us: [], anomalies: [{ text: '晚睡' }] } },
+  ];
+  const weekPrompt = lib.buildWeekPrompt({ week: '2026-W45', days, todos: [{ text: '买猫砂', days_open: 3 }] });
+  assert.match(weekPrompt, /\[day:2026-11-02\]（定稿）/);
+  assert.match(weekPrompt, /\[day:2026-11-05\]（白天版）/);
+  assert.match(weekPrompt, /买猫砂（已拖 3 天）/);
+  const weekValid = lib.validateWeekOutput({
+    headline: '专注推进项目的一周',
+    highlights: [{ text: '完成方案并修复关键问题', sources: ['day:2026-11-02', 'day:2026-11-02', 'day:2026-11-03', 'chat:m1'] }],
+    us: [{ text: '聊了电影互相放松', sources: ['day:2026-11-02', 'week:2026-W45'] }],
+    mood_rhythm: '前半周稳，周四略累。',
+    todos_summary: '买猫砂还没划掉。',
+    omitted: [],
+  }, { sources: ['day:2026-11-02', 'day:2026-11-05'] });
+  assert.deepEqual(weekValid.highlights[0].sources, ['day:2026-11-02']);
+  assert.deepEqual(weekValid.us[0].sources, ['day:2026-11-02']);
+  assert.throws(() => lib.validateWeekOutput({ highlights: [] }, { sources: ['day:2026-11-02'] }), /headline/);
+
+  const monthPrompt = lib.buildMonthPrompt({
+    month: '2026-11',
+    weeks: [{ week: '2026-W45', date_range: ['2026-11-02', '2026-11-08'], headline: '推进项目', highlights: [{ text: '写方案' }], us: [], mood_rhythm: '平稳', todos_summary: '' }],
+    days: [{ date: '2026-11-30', stage: 'final', day: { headline: '月底复盘', your_day: [], us: [], anomalies: [] } }],
+  });
+  assert.match(monthPrompt, /\[week:2026-W45\]/);
+  assert.match(monthPrompt, /\[day:2026-11-30\]/);
+  const monthValid = lib.validateMonthOutput({
+    headline: '稳步收官的十一月',
+    themes: [{ text: '核心项目落地', sources: ['week:2026-W45', 'week:2026-W46', 'chat:x'] }],
+    us: [{ text: '节奏更默契', sources: ['week:2026-W45'] }],
+    shifts: [{ text: '月底开始复盘作息', sources: ['day:2026-11-30', 'day:2026-11-01'] }],
+    milestones: [{ text: '完成方案', sources: ['week:2026-W45'] }],
+    omitted: [],
+  }, { sources: ['week:2026-W45', 'day:2026-11-30'] });
+  assert.deepEqual(monthValid.themes[0].sources, ['week:2026-W45']);
+  assert.deepEqual(monthValid.shifts[0].sources, ['day:2026-11-30']);
+  assert.throws(() => lib.validateMonthOutput({ themes: [] }, { sources: ['week:2026-W45'] }), /headline/);
+});
+
+test('M2 generator: week and month stages, no-data skip, store listing, and auto catch-up', async t => {
+  const { digestDir, configPath } = generatorFixture(t, { ntfy: false });
+  const st = openStore(digestDir);
+  // Empty week and month skip model call
+  const skipWeek = await main(['--config', configPath, '--stage', 'week', '--period', '2026-W44'], {
+    now: () => at('2026-11-09T05:00:00+08:00'),
+    runners: { codex: async () => { throw new Error('must not be called'); } },
+  });
+  assert.deepEqual(skipWeek, [{ stage: 'week', period: '2026-W44', ok: true, skipped: 'no_data' }]);
+  assert.equal(st.week('2026-W44'), null);
+  const skipMonth = await main(['--config', configPath, '--stage', 'month', '--period', '2026-10'], {
+    now: () => at('2026-11-09T05:30:00+08:00'),
+    runners: { codex: async () => { throw new Error('must not be called'); } },
+  });
+  assert.deepEqual(skipMonth, [{ stage: 'month', period: '2026-10', ok: true, skipped: 'no_data' }]);
+  assert.equal(st.month('2026-10'), null);
+
+  // Seed days in 2026-W45 (one final, one day fallback, one generator:'none' ignored)
+  st.saveDay('2026-11-02', { stage: 'final', generator: 'codex', day: { headline: '周一写设计文档', your_day: [{ text: '写文档', sources: ['notes:a'] }], us: [{ text: '互相加油', sources: ['chat:1'] }], anomalies: [], omitted: [] } });
+  st.saveDay('2026-11-04', { stage: 'day', generator: 'codex', day: { headline: '周三跑通测试', your_day: [{ text: '跑测试', sources: ['chat:2'] }], us: [], anomalies: [], omitted: [] } });
+  st.saveDay('2026-11-05', { stage: 'final', generator: 'none', day: { headline: '这天没有聊天、日记、饮食或心率记录。', your_day: [], us: [], anomalies: [], omitted: [] } });
+  // Also seed a trailing day in November outside W45 so month mixes weekly + uncovered daily
+  st.saveDay('2026-11-30', { stage: 'final', generator: 'codex', day: { headline: '月底整理清单', your_day: [{ text: '整理清单', sources: ['notes:b'] }], us: [], anomalies: [], omitted: [] } });
+
+  const weekPrompts = [];
+  const weekRunners = { codex: async (_c, p) => {
+    weekPrompts.push(p);
+    return JSON.stringify({
+      headline: '从设计文档到跑通测试的一周',
+      highlights: [{ text: '写文档并跑通测试', sources: ['day:2026-11-02', 'day:2026-11-04', 'day:2026-11-05'] }],
+      us: [{ text: '周一互相打气', sources: ['day:2026-11-02'] }],
+      mood_rhythm: '节奏紧凑但踏实。',
+      todos_summary: '暂无积压。',
+      omitted: [],
+    });
+  } };
+  const weekRows = await main(['--config', configPath, '--stage', 'week', '--period', '2026-W45'], { now: () => at('2026-11-09T05:05:00+08:00'), runners: weekRunners });
+  assert.deepEqual(weekRows, [{ stage: 'week', period: '2026-W45', ok: true, generator: 'codex', source_days: 2, retries: 0 }]);
+  assert.match(weekPrompts[0], /\[day:2026-11-02\]/);
+  assert.match(weekPrompts[0], /\[day:2026-11-04\]/);
+  assert.doesNotMatch(weekPrompts[0], /\[day:2026-11-05\]/);
+  const savedWeek = st.week('2026-W45');
+  assert.equal(savedWeek.format, 'life-digest-week-v1');
+  assert.deepEqual(savedWeek.date_range, ['2026-11-02', '2026-11-08']);
+  assert.deepEqual(savedWeek.source_days, ['2026-11-02', '2026-11-04']);
+  assert.deepEqual(savedWeek.highlights[0].sources, ['day:2026-11-02', 'day:2026-11-04']);
+  assert.deepEqual(st.listWeeks(), ['2026-W45']);
+
+  // Auto mode on 2026-12-01 05:35: yesterday final (empty -> generator:'none') + month 2026-11 (has W45 + 11-30!)
+  const monthPrompts = [];
+  const autoRunners = { codex: async (_c, p) => {
+    monthPrompts.push(p);
+    return JSON.stringify({
+      headline: '稳步推进与收尾的十一月',
+      themes: [{ text: '设计落地与测试完善', sources: ['week:2026-W45'] }],
+      us: [{ text: '稳定陪伴', sources: ['week:2026-W45'] }],
+      shifts: [{ text: '月底转向梳理清单', sources: ['day:2026-11-30'] }],
+      milestones: [{ text: '跑通核心测试', sources: ['week:2026-W45'] }],
+      omitted: [],
+    });
+  } };
+  const autoRows = await main(['--config', configPath], { now: () => at('2026-12-01T05:35:00+08:00'), runners: autoRunners });
+  // 2026-11-30 already has final, 2026-W48 has no days, so only month 2026-11 runs!
+  assert.deepEqual(autoRows, [{ stage: 'month', period: '2026-11', ok: true, generator: 'codex', source_weeks: 1, source_days: 1, retries: 0 }]);
+  assert.match(monthPrompts[0], /\[week:2026-W45\]/);
+  assert.match(monthPrompts[0], /\[day:2026-11-30\]/);
+  const savedMonth = st.month('2026-11');
+  assert.equal(savedMonth.format, 'life-digest-month-v1');
+  assert.deepEqual(savedMonth.source_weeks, ['2026-W45']);
+  assert.deepEqual(savedMonth.source_days, ['2026-11-30']);
+  assert.deepEqual(st.listMonths(), ['2026-11']);
+
+  // Running auto again finds nothing due
+  const again = await main(['--config', configPath], { now: () => at('2026-12-01T05:40:00+08:00'), runners: autoRunners });
+  assert.deepEqual(again, [{ stage: 'none', ok: true, detail: 'nothing_due' }]);
+
+  // Invalid CLI combinations fail closed
+  await assert.rejects(main(['--config', configPath, '--stage', 'week', '--period', '2025-W53']), /usage/);
+  await assert.rejects(main(['--config', configPath, '--stage', 'week', '--date', '2026-11-08']), /usage/);
+  await assert.rejects(main(['--config', configPath, '--stage', 'month', '--period', '2026-13']), /usage/);
+});
