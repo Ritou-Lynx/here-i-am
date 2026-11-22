@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dart_agent_core/dart_agent_core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:memex/agent/built_in_tools/i_mcp_query_tool.dart';
@@ -8,6 +9,11 @@ import 'package:memex/agent/mcp/mcp_protocol.dart';
 import 'package:memex/data/services/i_mcp_service.dart';
 
 void main() {
+  test('uses object parameterMode so agents pass decoded args map directly', () {
+    final tool = buildIMcpQueryTool(service: _FakeIMcpQueryService(connected: false));
+    expect(tool.parameterMode, ToolParameterMode.object);
+  });
+
   test('redirect URI exactly matches the registered app callback', () {
     expect(
       iMcpRedirectUri,

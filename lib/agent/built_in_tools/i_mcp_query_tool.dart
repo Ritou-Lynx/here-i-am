@@ -51,6 +51,7 @@ Tool buildIMcpQueryTool({IMcpQueryService? service}) {
       },
       'required': ['tool'],
     },
+    parameterMode: ToolParameterMode.object,
     executable: (Map<String, dynamic> input) async {
       final tool = input['tool'];
       if (tool is! String || !iMcpReadTools.contains(tool)) {

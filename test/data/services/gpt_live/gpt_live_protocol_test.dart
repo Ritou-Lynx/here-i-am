@@ -69,7 +69,7 @@ void main() {
       );
     });
 
-    test('委托模型为空时不带 delegation，非空时带 Responses 联网配置', () {
+    test('委托模型支持 none、client 和 Responses 三种配置', () {
       for (final delegateModel in <String?>[null, '']) {
         final body = GptLiveProtocol.buildSessionRequest(
           offerSdp: 'sdp',
@@ -78,6 +78,15 @@ void main() {
         );
         expect((body['session'] as Map).containsKey('delegation'), isFalse);
       }
+
+      final clientBody = GptLiveProtocol.buildSessionRequest(
+        offerSdp: 'sdp',
+        instructions: 'instructions',
+        delegateModel: GptLiveProtocol.clientDelegationMode,
+      );
+      expect((clientBody['session'] as Map)['delegation'], {
+        'type': 'client',
+      });
 
       final body = GptLiveProtocol.buildSessionRequest(
         offerSdp: 'sdp',
@@ -228,19 +237,113 @@ void main() {
       expect(err.message, 'oops');
     });
 
-    test('未知事件和坏 JSON 返回 null', () {
+    test('解析 session.delegation.created 和 cancelled（兼容多种载荷结构）', () {
+      final createdNested = GptLiveEvent.parse(
+        jsonEncode({
+          'type': 'session.delegation.created',
+          'event_id': 'evt_1',
+          'offset_ms': 1000,
+          'delegation': {
+            'id': 'item_abc',
+            'type': 'delegation',
+            'target': 'client',
+          },
+        }),
+      ) as GptLiveDelegationCreated;
+      expect(createdNested.delegationId, 'item_abc');
+      expect(createdNested.requestText, isNull);
+
+      final createdTopLevel = GptLiveEvent.parse(
+        jsonEncode({
+          'type': 'session.delegation.created',
+          'delegation_id': 'del_top',
+          'prompt': '查一下今天的饮食记录',
+        }),
+      ) as GptLiveDelegationCreated;
+      expect(createdTopLevel.delegationId, 'del_top');
+      expect(createdTopLevel.requestText, '查一下今天的饮食记录');
+
+      final createdListInput = GptLiveEvent.parse(
+        jsonEncode({
+          'type': 'session.delegation.created',
+          'delegation': {
+            'id': 'del_list',
+            'input': [
+              {'type': 'input_text', 'text': '查昨晚睡眠'},
+            ],
+          },
+        }),
+      ) as GptLiveDelegationCreated;
+      expect(createdListInput.delegationId, 'del_list');
+      expect(createdListInput.requestText, '查昨晚睡眠');
+
+      final cancelledNested = GptLiveEvent.parse(
+        jsonEncode({
+          'type': 'session.delegation.cancelled',
+          'delegation': {'id': 'item_abc'},
+        }),
+      ) as GptLiveDelegationCancelled;
+      expect(cancelledNested.delegationId, 'item_abc');
+
+      final cancelledTop = GptLiveEvent.parse(
+        jsonEncode({
+          'type': 'session.delegation.cancelled',
+          'delegation_id': 'del_top',
+        }),
+      ) as GptLiveDelegationCancelled;
+      expect(cancelledTop.delegationId, 'del_top');
+    });
+
+    test('未知事件、缺 ID 的委托事件和坏 JSON 返回 null', () {
       expect(
         GptLiveEvent.parse('{"type":"session.delegation.created"}'),
         isNull,
       );
+      expect(
+        GptLiveEvent.parse('{"type":"session.delegation.cancelled"}'),
+        isNull,
+      );
+      expect(GptLiveEvent.parse('{"type":"session.unknown"}'), isNull);
       expect(GptLiveEvent.parse('not json'), isNull);
       expect(GptLiveEvent.parse('[1,2]'), isNull);
     });
 
-    test('closeEvent', () {
+    test('closeEvent / commentaryEvent / thinkingEvent', () {
       expect(jsonDecode(GptLiveProtocol.closeEvent()), {
         'type': 'session.close',
       });
+      expect(jsonDecode(GptLiveProtocol.commentaryEvent('你好')), {
+        'type': 'session.commentary.append',
+        'delegation_id': null,
+        'content': '你好',
+      });
+      expect(
+        jsonDecode(
+          GptLiveProtocol.commentaryEvent('查到了', delegationId: 'del_1'),
+        ),
+        {
+          'type': 'session.commentary.append',
+          'delegation_id': 'del_1',
+          'content': '查到了',
+        },
+      );
+      expect(
+        jsonDecode(
+          GptLiveProtocol.thinkingEvent('正在查询…', delegationId: 'del_1'),
+        ),
+        {
+          'type': 'session.thinking.append',
+          'delegation_id': 'del_1',
+          'content': '正在查询…',
+        },
+      );
+      final longContent = '字' * (GptLiveProtocol.maxCommentaryChars + 50);
+      final decodedCommentary =
+          jsonDecode(GptLiveProtocol.commentaryEvent(longContent)) as Map;
+      expect(
+        (decodedCommentary['content'] as String).length,
+        GptLiveProtocol.maxCommentaryChars,
+      );
     });
   });
 
@@ -292,20 +395,31 @@ void main() {
     expect(s.trimRight(), endsWith('## 用户补充说明\n叫我小橙'));
   });
 
-  test('buildInstructions 只在可委托时包含后台规则', () {
+  test('buildInstructions 区分不委托、Responses 委托与个人工具委托', () {
     final withoutDelegation = GptLiveCall.buildInstructions(
       name: '林埃',
       persona: '温柔',
       now: DateTime(2026, 11, 1, 9, 5),
     );
-    final withDelegation = GptLiveCall.buildInstructions(
+    final withResponsesDelegation = GptLiveCall.buildInstructions(
       name: '林埃',
       persona: '温柔',
       now: DateTime(2026, 11, 1, 9, 5),
       canDelegate: true,
     );
+    final withPersonalToolsDelegation = GptLiveCall.buildInstructions(
+      name: '林埃',
+      persona: '温柔',
+      now: DateTime(2026, 11, 1, 9, 5),
+      canDelegate: true,
+      canUsePersonalTools: true,
+    );
     expect(withoutDelegation, isNot(contains('交给后台')));
-    expect(withDelegation, contains('交给后台'));
+    expect(withResponsesDelegation, contains('查最新信息'));
+    expect(withResponsesDelegation, isNot(contains('高驰')));
+    expect(withPersonalToolsDelegation, contains('交给后台'));
+    expect(withPersonalToolsDelegation, contains('日记'));
+    expect(withPersonalToolsDelegation, contains('高驰'));
   });
 
   test('通话记录可存可读，原因文字可读', () {
