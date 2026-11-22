@@ -1,3 +1,9 @@
+## 2026-11-22 M2 周/月摘要与 GPT-Live 客户端工具委托（#124、#125）
+- #124（时间金字塔 M2）：`tools/life_digest/` 新增周摘要（`weeks/YYYY-Www.json`，周一 05:00 汇总上周日定稿，支持补跑）与月摘要（`months/YYYY-MM.json`，每月 1 日 05:30 汇总）；`tools/i_remote_mcp/life_digest.mjs` 的 `life_digest` 扩展 `period=day|week|month` 查询，开场快照在 600 字预算内附带近期周主线；候选 server 哈希更新为 `e03998c9`。Node 套件 350 通过、0 失败，CI 全绿。待部署到备用机生产。
+- #125（GPT-Live 客户端委托接工具）：支持 `delegation: {type: "client"}`，通话中接住 `session.delegation.created` 后由手机端 `GptLiveClientDelegate` 复用 App 聊天模型调用只读工具（`i_query` 10 项 + COROS），经 `session.commentary.append` 喂回语音转述；设置默认改为「手机端助手」（保留 OpenAI Responses 联网与不委托）；顺手修复 #119 中 `i_mcp_query_tool.dart` 缺失 `parameterMode: ToolParameterMode.object` 的问题。定向单测 57/57 通过，CI 全绿。
+
+---
+
 ## 2026-11-21 合并收尾与状态补记（#119、#123 及 11-14 批次）
 - #123 已合并：从 `pubspec.yaml` 移除 5 个未用直接依赖（`cupertino_icons`、`fl_chart`、`google_generative_ai`、`photo_view`、`timezone`；`pubspec.lock` 清除 4 个无用包、2 个转为传递依赖，其余版本零变动），将 `scripts/verify_critical_fixes.ps1` 的 3 项关键修复检查迁为正式测试 `test/guards/critical_fixes_test.dart` 并删除旧脚本，CI 与 `scripts/install_hereiam_v3.ps1` 及相关文档同步更新。
 - #119 已合并：补齐 `shouldClearIMcpAuthorizationAfterRefreshError` 刷新失败保留策略单测（8/8 通过）与状态文档措辞修正；`v3-lab` 与现役生产任务 `HereIAm-iCoreSchema6-app-mcp-20261110`（`0a58eb1b`）重新对齐。

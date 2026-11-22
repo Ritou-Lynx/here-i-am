@@ -2,7 +2,7 @@
 
 本文件只写现状，供林埃（i）与各会话读取。2026-10-23 之前的逐日记录已移入 [历史归档](archive/I_PROJECT_STATE_HISTORY_20261023.md)，过程细节见 [DEVLOG](../../DEVLOG.md)，总指挥规则和计划见 [总指挥交接](handoffs/COMMANDER_HANDOFF_20261022.md)。
 
-## 当前状态（2026-11-21）
+## 当前状态（2026-11-22）
 
 ### 生产
 - schema6 Core 已上线（D1b，10-22 完成）。11-10 起现役登录任务为 `HereIAm-iCoreSchema6-app-mcp-20261110`：Core 包 `release-78e11df7`（manifest `ded493e5`，E3 记账随 #106 换入），MCP server 候选 `0a58eb1b`（E3 记账 + N2 笔记 + A1 App 只读前端 `here_i_am_app`，#119）。此前的 n2-notes-20261108（`4b1014e0`）、e3-expense、m1-digest、hr1-heart、n2-food 及更早任务停用保留，不删。
@@ -25,6 +25,7 @@
 - 换候选后，旧会话里的 i 连接器会报 Bad Gateway，需开新会话确认。
 
 ### 最近完成
+- 11-22：合并 #124（时间金字塔 M2：周/月摘要生成器 + MCP `life_digest` 周期查询 + 快照周主线，待部署备用机）与 #125（GPT-Live Client Delegation 手机端接 `i_query` 与 COROS 只读工具，顺手修复 `i_mcp_query_tool.dart` 参数模式 bug）。
 - 11-21：合并 #119（A1：App 内聊天接 i MCP 只读工具，补齐刷新失败保留策略单测，`v3-lab` 与现役生产 `app-mcp-20261110` 对齐）与 #123（移除 5 个未用直接依赖，将关键修复检查迁为 `test/guards/critical_fixes_test.dart` 并删除旧脚本）。
 - 11-14：合并 #120（移除 DiceBear 卡通头像改本地首字占位）、#121（GPT-Live 后台委托联网搜索）、#122（云端助手读写飞书通用方案文档）、#105（CAM1 摄像头按需查看源码，尚未接入 MCP 候选，不影响生产）。
 - 11-10：电脑端 Dev Room bridge 自启移除并停用（#115）；全项目排查（#118）：删除不可达的 Dart 文件和上游遗留的 GitHub 配置，设计稿素材移出 App 打包，CI 补上 i_core、Python 和 Windows 专用测试。
@@ -35,11 +36,11 @@
 - 更早（10-22 至 11-03）：A1–A4 维护工具与 watcher、C1 来源标签、D1–D4 前端身份、D2 Sesame、F1 飞书学习导师、S1 床头哨兵、N1/N2 食物记录、三科每日学习流程，均已合并，过程见 DEVLOG。
 
 ### 进行中
-- 手机 App：待 OpenAI API 额度恢复后，从最新 `v3-lab` 重装一次，集中真机验收 App 内 `i_query`（#119）、去 DiceBear 头像（#120）、GPT-Live 联网委托与通话页实拨（#111/#113/#121）、账本投影（#106）、Sesame / Antigravity 来源标签。
+- 手机 App：从最新 `v3-lab` 重装一次，先验收不依赖 OpenAI API 的改动（App 内 `i_query`（#119/#125 修复）、去 DiceBear 头像（#120）、设置瘦身（#110/#114）、账本投影（#106）、Sesame / Antigravity 来源标签）；待 OpenAI API 额度恢复后再验收 GPT-Live 通话页实拨、联网委托与客户端工具委托（#111/#113/#121/#125）。
+- 记忆系统重构时间金字塔：M2（#124）源码已合入待部署备用机；M3（长期档案 + App 内查看页）与 M4 待开。
 - 催睡来电：待整夜试跑后调阈值。
 - 心率：夜间记录导出后对照 COROS 定判睡阈值（H1）。
 - 摄像头按需查看 CAM2：CAM1 源码（#105）已合入但未接入 MCP server/候选，待硬件到货编译实测并做 CAM2 接入。
-- 生活摘要 M2–M5、GPT-Live 通话接 i MCP 工具待开。
 
 ### 之后
 - R1 shortcut-mail 关闭前 checkpoint，留到下次换包一起做；清理生产 STATE 里的旧 sidecar 需用户单独同意。
