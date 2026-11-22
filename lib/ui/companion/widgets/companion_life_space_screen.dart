@@ -4,14 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:memex/data/memory_v3/services/memory_card_query_service.dart';
 import 'package:memex/data/services/ai_finance_service.dart';
+import 'package:memex/data/services/i_mcp_service.dart';
 import 'package:memex/db/app_database.dart';
 import 'package:memex/ui/companion/view_models/ledger_view_model.dart';
+import 'package:memex/ui/companion/view_models/life_digest_view_model.dart';
 import 'package:memex/ui/companion/view_models/schedule_view_model.dart';
 import 'package:memex/utils/user_storage.dart';
 import 'package:provider/provider.dart';
 
 import 'companion_health_panel.dart';
 import 'companion_ledger_panel.dart';
+import 'companion_life_digest_panel.dart';
 import 'companion_review_screen.dart';
 import 'companion_schedule_panel.dart';
 import 'topic_thread_browser_screen.dart';
@@ -26,6 +29,7 @@ class CompanionLifeSpaceScreen extends StatefulWidget {
     super.key,
     this.timelineViewModel,
     this.financeService,
+    this.iMcpService,
   });
 
   /// No longer used — kept for caller compatibility during transition.
@@ -33,6 +37,9 @@ class CompanionLifeSpaceScreen extends StatefulWidget {
 
   /// Optional injection point for tests; production uses the app database.
   final AiFinanceService? financeService;
+
+  /// Optional injection point for tests; production uses [IMcpService.instance].
+  final IMcpQueryService? iMcpService;
 
   @override
   State<CompanionLifeSpaceScreen> createState() =>
@@ -46,11 +53,11 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   final Set<int> _visitedIndexes = {0};
 
   void _selectTab(int index) {
-    if (index == 5) {
+    if (index == 6) {
       context.push(AppRoutes.planning);
       return;
     }
-    if (index == 6) {
+    if (index == 7) {
       context.push(AppRoutes.food);
       return;
     }
@@ -64,6 +71,7 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
   Widget build(BuildContext context) {
     final labels = [
       UserStorage.l10n.bottomNavTimeline,
+      '摘要',
       '日程',
       'Ledger',
       'Health',
@@ -130,19 +138,25 @@ class _CompanionLifeSpaceScreenState extends State<CompanionLifeSpaceScreen> {
     return switch (index) {
       0 => const CompanionReviewScreen(),
       1 => ChangeNotifierProvider(
+          create: (_) => LifeDigestViewModel(
+            service: widget.iMcpService,
+          )..load.execute(),
+          child: const CompanionLifeDigestPanel(),
+        ),
+      2 => ChangeNotifierProvider(
           create: (_) => ScheduleViewModel(
             queryService: MemoryCardQueryService(AppDatabase.instance),
           )..load.execute(),
           child: const CompanionSchedulePanel(),
         ),
-      2 => ChangeNotifierProvider(
+      3 => ChangeNotifierProvider(
           create: (_) => LedgerViewModel(
             service: widget.financeService ??
                 AiFinanceService(db: AppDatabase.instance),
           )..load.execute(),
           child: const CompanionLedgerPanel(),
         ),
-      3 => const CompanionHealthPanel(),
+      4 => const CompanionHealthPanel(),
       _ => const TopicThreadBrowserScreen(),
     };
   }

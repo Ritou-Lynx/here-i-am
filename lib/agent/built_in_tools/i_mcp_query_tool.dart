@@ -29,7 +29,7 @@ Tool buildIMcpQueryTool({IMcpQueryService? service}) {
 - notes_recent：最近日记；常用参数 days、date、folder。
 - notes_search：按内容搜索日记；参数 query。
 - notes_read：读取搜索命中的正文；参数 token，可选 offset。
-- life_digest：日摘要。
+- life_digest：生活摘要与长期档案；参数 period（day/week/month/profile，默认 day）、date、week、month、section、category。
 - study_today：今日学习；study_source：学习资料；study_progress：学习进度。
 - heart_rate：历史心率或睡眠数据。
 - food_day：某日饮食；参数 date。

@@ -25,6 +25,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text(UserStorage.l10n.bottomNavTimeline), findsOneWidget);
+    expect(find.text('摘要'), findsOneWidget);
     expect(find.text('Ledger'), findsOneWidget);
     expect(find.text('Health'), findsOneWidget);
     expect(find.text('话题线索'), findsOneWidget);
