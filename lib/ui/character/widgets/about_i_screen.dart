@@ -7,6 +7,8 @@ import 'package:memex/data/services/character_service.dart';
 import 'package:memex/data/services/media_service.dart';
 import 'package:memex/domain/models/character_model.dart';
 import 'package:memex/db/app_database.dart';
+import 'package:memex/ui/companion/models/life_digest_models.dart';
+import 'package:memex/ui/companion/widgets/companion_life_digest_panel.dart';
 import 'package:memex/ui/companion/widgets/companion_life_space_screen.dart';
 import 'package:memex/routing/routes.dart';
 import 'package:memex/ui/core/themes/here_iam_theme_tokens.dart';
@@ -121,6 +123,27 @@ class _AboutIScreenState extends State<AboutIScreen> {
                         children: [
                           _recentMemories(),
                           const SizedBox(height: 22),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.auto_stories_outlined,
+                                color: _accent),
+                            title: const Text('林埃眼中的你 · 摘要与档案',
+                                style: TextStyle(
+                                    color: _ink,
+                                    fontWeight: FontWeight.w600)),
+                            subtitle: const Text('查看日/周/月摘要、待办与长期档案',
+                                style: TextStyle(color: _muted, fontSize: 12)),
+                            trailing: const Icon(Icons.chevron_right_rounded,
+                                color: _muted),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LifeDigestScreen(
+                                  initialTab: LifeDigestTab.profile,
+                                ),
+                              ),
+                            ),
+                          ),
                           ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading:

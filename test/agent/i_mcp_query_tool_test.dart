@@ -12,6 +12,11 @@ void main() {
   test('uses object parameterMode so agents pass decoded args map directly', () {
     final tool = buildIMcpQueryTool(service: _FakeIMcpQueryService(connected: false));
     expect(tool.parameterMode, ToolParameterMode.object);
+    expect(iMcpReadTools.length, 10);
+    expect(
+      tool.description,
+      contains('life_digest：生活摘要与长期档案；参数 period（day/week/month/profile，默认 day）、date、week、month、section、category。'),
+    );
   });
 
   test('redirect URI exactly matches the registered app callback', () {
