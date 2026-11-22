@@ -96,7 +96,7 @@ for (const [label, pick] of [['candidate', () => ({server:candidate, oauth:candi
     const {stateDir, digestDir} = fixture(t);
     const {rpc, call, submitted} = await start(t, {...pick(), stateDir});
     const listed = (await rpc('tools/list')).result.tools.filter(tool => tool.name.startsWith('life_'));
-    assert.deepEqual(listed.map(tool => tool.name), ['life_digest', 'life_todo']);
+    assert.deepEqual(listed.map(tool => tool.name), ['life_digest', 'life_todo', 'life_profile']);
     assert.deepEqual(listed[0].inputSchema, LIFE_DIGEST_TOOLS[0].inputSchema);
 
     const full = (await call('life_digest', {})).structuredContent;
@@ -266,3 +266,125 @@ test('M2 snapshot: falls back to latest week in weeks/ and never drops today hea
   assert.match(capped, /今日重要主线/);
   assert.match(capped, /务必保留的待办/);
 });
+
+const APP_CALLBACK = 'http://127.0.0.1:47859/hereiam/i-mcp/callback';
+const profileDoc = (extra = {}) => ({
+  format: 'life-digest-profile-v1',
+  updated_at: '2026-11-01T06:00:00+08:00',
+  generated_at: '2026-11-01T06:00:00+08:00',
+  generator: 'codex',
+  last_period: '2026-10',
+  source_months: ['2026-10'],
+  source_weeks: ['2026-W44'],
+  items: [
+    { id: 'pf_auto000001', category: 'rhythm', text: '通常 23:30 前入睡', status: 'auto', sources: ['month:2026-10'], first_seen: '2026-11-01', updated_at: '2026-11-01T06:00:00+08:00' },
+    { id: 'pf_auto000002', category: 'health', text: '每周慢跑三次', status: 'auto', sources: ['week:2026-W44'], first_seen: '2026-11-01', updated_at: '2026-11-01T06:00:00+08:00' },
+  ],
+  tombstones: [],
+  failed: null,
+  ...extra,
+});
+
+for (const [label, pick] of [['candidate', () => ({server:candidate, oauth:candidateOauth, writebackModule:candidateWriteback})],
+  ['mainline', () => ({server:mainServer, oauth:mainOauth, writebackModule:mainWriteback})]]) {
+  test(`M3 ${label}: life_digest period=profile, life_profile mutations with immediate overlay, snapshot exclusion, and app read-only`, {timeout:60000}, async t => {
+    const {stateDir, digestDir} = fixture(t);
+    const {call} = await start(t, {...pick(), stateDir});
+
+    // Missing profile returns available: false with 5 empty category buckets
+    const empty = (await call('life_digest', {period:'profile'})).structuredContent;
+    assert.equal(empty.period, 'profile');
+    assert.equal(empty.available, false);
+    assert.equal(empty.updated_at, null);
+    assert.deepEqual(empty.categories, {rhythm:[], work_study:[], health:[], preferences:[], us:[]});
+    assert.deepEqual(empty.items, []);
+    assert.match(empty.note, /长期档案还没有生成/);
+
+    // Write profile.json and read via life_digest + category filter
+    writeFileSync(join(digestDir, 'profile.json'), JSON.stringify(profileDoc()));
+    const full = (await call('life_digest', {period:'profile'})).structuredContent;
+    assert.equal(full.available, true);
+    assert.equal(full.items.length, 2);
+    assert.equal(full.categories.rhythm.length, 1);
+    assert.equal(full.categories.health.length, 1);
+    assert.deepEqual(full.source_months, ['2026-10']);
+
+    const onlyHealth = (await call('life_digest', {period:'profile', category:'health'})).structuredContent;
+    assert.equal(onlyHealth.category, 'health');
+    assert.equal(onlyHealth.items.length, 1);
+    assert.equal(onlyHealth.items[0].id, 'pf_auto000002');
+    assert.deepEqual(onlyHealth.categories.rhythm, []);
+
+    // Invalid params fail closed
+    assert.equal((await call('life_digest', {period:'profile', category:'bogus'})).structuredContent.error.code, 'invalid_life_digest_category');
+    assert.equal((await call('life_digest', {period:'profile', date:'2026-11-07'})).structuredContent.error.code, 'invalid_request');
+    assert.equal((await call('life_digest', {period:'day', category:'health'})).structuredContent.error.code, 'invalid_request');
+
+    // life_profile: set (create), set (update), pin, remove — immediately overlaid in both tools
+    const added = (await call('life_profile', {action:'set', category:'preferences', text:'喜欢拿铁不加糖'})).structuredContent;
+    assert.equal(added.recorded, true);
+    assert.equal(added.status, 'pinned');
+    assert.match(added.id, /^pf_[0-9a-f]{12}$/);
+
+    const pinned = (await call('life_profile', {action:'pin', id:'pf_auto000001'})).structuredContent;
+    assert.equal(pinned.recorded, true);
+    assert.equal(pinned.status, 'pinned');
+
+    const updated = (await call('life_profile', {action:'set', id:'pf_auto000001', text:'通常 23:00 前入睡'})).structuredContent;
+    assert.equal(updated.recorded, true);
+    assert.equal(updated.text, '通常 23:00 前入睡');
+
+    const removed = (await call('life_profile', {action:'remove', id:'pf_auto000002'})).structuredContent;
+    assert.equal(removed.removed, true);
+
+    const overlaid = (await call('life_digest', {period:'profile'})).structuredContent;
+    assert.equal(overlaid.items.length, 2);
+    assert.equal(overlaid.items.find(i => i.id === 'pf_auto000001').text, '通常 23:00 前入睡');
+    assert.equal(overlaid.items.find(i => i.id === 'pf_auto000001').status, 'pinned');
+    assert.equal(overlaid.items.find(i => i.id === added.id).text, '喜欢拿铁不加糖');
+    assert.equal(overlaid.items.find(i => i.id === 'pf_auto000002'), undefined);
+
+    const viaGet = (await call('life_profile', {action:'get', category:'preferences'})).structuredContent;
+    assert.equal(viaGet.items.length, 1);
+    assert.equal(viaGet.items[0].text, '喜欢拿铁不加糖');
+
+    // Error cases
+    assert.equal((await call('life_profile', {action:'remove', id:'pf_auto000002'})).structuredContent.error.code, 'life_profile_not_found');
+    assert.equal((await call('life_profile', {action:'pin', id:'bad'})).structuredContent.error.code, 'invalid_life_profile_id');
+    assert.equal((await call('life_profile', {action:'set', text:'缺分类'})).structuredContent.error.code, 'invalid_life_profile_category');
+    assert.equal((await call('life_profile', {action:'set', category:'us', text:' '})).structuredContent.error.code, 'invalid_life_profile_text');
+
+    // Snapshot does NOT include profile text
+    const turn = (await call('i_chat_turn', {phase:'start', turns:[{role:'user', content:'晚上好'}]})).structuredContent;
+    assert.doesNotMatch(turn.life_snapshot, /拿铁|23:00/);
+    assert.ok([...turn.life_snapshot].length <= 600);
+
+    // here_i_am_app frontend can read period=profile via life_digest, but NEVER sees life_profile
+    const {server, oauth} = pick();
+    const appStateDir = join(digestDir, '..', 'app-state-' + label);
+    mkdirSync(appStateDir, {recursive:true});
+    writeFileSync(join(appStateDir, 'life_digest.json'), JSON.stringify({format:'life-digest-v1', digest_dir:digestDir}));
+    oauth.setPassphrase(appStateDir, PASSPHRASE);
+    const appInstance = server.createApp({stateDir:appStateDir, publicUrl:PUBLIC_URL, getReadModel:async () => createFakeReadModel(), now:() => EVENING});
+    await listenForFetch(appInstance.server);
+    t.after(() => new Promise(resolve => appInstance.server.close(resolve)));
+    const appBase = 'http://127.0.0.1:' + appInstance.server.address().port;
+    const reg = await registerClient(appBase, [APP_CALLBACK]); assert.equal(reg.status, 201);
+    const {verifier, challenge} = pkcePair();
+    const authRes = await submitPassphrase(appBase, {...Object.fromEntries(authorizeParams({clientId:reg.body.client_id, challenge})), redirect_uri:APP_CALLBACK, scope:'i.read i.write'});
+    assert.equal(authRes.status, 302);
+    const tok = await postToken(appBase, {grant_type:'authorization_code', code:new URL(authRes.headers.get('location')).searchParams.get('code'),
+      client_id:reg.body.client_id, redirect_uri:APP_CALLBACK, code_verifier:verifier, resource:PUBLIC_URL + '/mcp'});
+    assert.equal(tok.status, 200); assert.equal(tok.body.scope, 'i.read');
+    const sess = await initSession(appBase, tok.body.access_token);
+    const appRpc = (method, params) => mcpPost(appBase, tok.body.access_token, {jsonrpc:'2.0', id:2, method, params}, {sessionId:sess.sessionId});
+    const appTools = (await appRpc('tools/list')).body.result.tools.map(tool => tool.name);
+    assert.ok(appTools.includes('life_digest'));
+    assert.ok(!appTools.includes('life_profile'));
+    assert.ok(!appTools.includes('life_todo'));
+    const appProfile = (await appRpc('tools/call', {name:'life_digest', arguments:{period:'profile'}})).body.result.structuredContent;
+    assert.equal(appProfile.available, true);
+    assert.equal(appProfile.items.length, 2);
+    assert.match((await appRpc('tools/call', {name:'life_profile', arguments:{action:'get'}})).body.error.message, /Unknown tool/);
+  });
+}
